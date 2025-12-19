@@ -1072,6 +1072,13 @@ PASS: 8  FAIL: 0  SKIP: 0
 ALL TESTS PASSED
 ```
 
+## Release v0.1.1（Docs Update）
+
+- 时间：`2025-12-19 14:40:21 +0800`
+- Release：`https://github.com/zensgit/yuantus-plm/releases/tag/v0.1.1`
+- 包：`dist/yuantusplm-20251219-144021.tar.gz`
+- 说明：补充 README 徽章与 CONTRIBUTING/SECURITY 文档，Release 与当前 main 对齐。
+
 ## Run S1（Meta + RBAC 强化验收）
 
 - 时间：`2025-12-19 08:56:02 +0800`
