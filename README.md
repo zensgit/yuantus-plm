@@ -1,5 +1,8 @@
 # YuantusPLM (元图PLM)
 
+[![Release](https://img.shields.io/github/v/release/zensgit/yuantus-plm?display_name=tag)](https://github.com/zensgit/yuantus-plm/releases)
+[![License](https://img.shields.io/github/license/zensgit/yuantus-plm)](LICENSE)
+
 Repository name: `yuantus-plm`  
 Product name: **YuantusPLM / 元图PLM**
 
@@ -86,6 +89,14 @@ See `docs/PRIVATE_DELIVERY_ACCEPTANCE.md`.
 ## Reuse guide
 
 See `docs/REUSE.md` (how to reuse `/Users/huazhou/Downloads/Github/PLM/src`).
+
+## Contributing
+
+See `CONTRIBUTING.md`.
+
+## Security
+
+See `SECURITY.md`.
 
 ## Conventions
 
