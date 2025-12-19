@@ -1,0 +1,12 @@
+{
+  "id": "yuantus-demo",
+  "name": "Yuantus Demo Plugin",
+  "version": "0.1.0",
+  "description": "Demo plugin that adds a simple API route.",
+  "author": "YuantusPLM",
+  "plugin_type": "extension",
+  "category": "demo",
+  "tags": ["demo", "plugin"],
+  "entry_point": "main.py"
+}
+

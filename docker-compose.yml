@@ -1,0 +1,111 @@
+# YuantusPLM Docker Compose
+# Private Deployment: PostgreSQL + MinIO + API + Worker
+
+services:
+  # =============================================================================
+  # Infrastructure Services
+  # =============================================================================
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: yuantus
+      POSTGRES_USER: yuantus
+      POSTGRES_PASSWORD: yuantus
+    ports:
+      # Avoid conflict with an existing Postgres on the host.
+      - "55432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yuantus"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    # NOTE: Do not bind 6379 on host by default to avoid conflicts with an existing Redis.
+    # If you need host access, add an override (e.g. 6380:6379).
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      # Avoid conflict with an existing MinIO on the host.
+      # Container ports remain 9000/9001; host ports are 59000/59001 by default.
+      - "59000:9000"
+      - "59001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # =============================================================================
+  # Application Services
+  # =============================================================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "7910:7910"
+    environment:
+      # Database (use postgres service name within docker network)
+      YUANTUS_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus
+      # Schema mode: use migrations for production
+      YUANTUS_SCHEMA_MODE: migrations
+      # Storage: S3/MinIO
+      YUANTUS_STORAGE_TYPE: s3
+      # Internal endpoint (container-to-container)
+      YUANTUS_S3_ENDPOINT_URL: http://minio:9000
+      # Public endpoint (used in presigned URLs; must be reachable by clients on the host)
+      YUANTUS_S3_PUBLIC_ENDPOINT_URL: http://localhost:59000
+      YUANTUS_S3_BUCKET_NAME: yuantus
+      YUANTUS_S3_ACCESS_KEY_ID: minioadmin
+      YUANTUS_S3_SECRET_ACCESS_KEY: minioadmin
+      # Auth
+      YUANTUS_AUTH_MODE: required
+      YUANTUS_JWT_SECRET_KEY: change-me-in-production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    # Run migrations and init storage before starting
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 2 &&
+        echo 'Running migrations...' &&
+        yuantus db upgrade &&
+        echo 'Initializing storage...' &&
+        yuantus init-storage &&
+        echo 'Starting API server...' &&
+        yuantus start
+      "
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    environment:
+      YUANTUS_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus
+      YUANTUS_SCHEMA_MODE: migrations
+      YUANTUS_STORAGE_TYPE: s3
+      YUANTUS_S3_ENDPOINT_URL: http://minio:9000
+      YUANTUS_S3_PUBLIC_ENDPOINT_URL: http://localhost:59000
+      YUANTUS_S3_BUCKET_NAME: yuantus
+      YUANTUS_S3_ACCESS_KEY_ID: minioadmin
+      YUANTUS_S3_SECRET_ACCESS_KEY: minioadmin
+    depends_on:
+      - api  # Wait for API to run migrations first
+
+volumes:
+  postgres_data:
+  minio_data:

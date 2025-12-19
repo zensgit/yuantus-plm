@@ -1,0 +1,24 @@
+# YuantusPLM Worker Service Dockerfile
+# Background job processing for CAD conversion, etc.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy source code FIRST (required for pip install)
+COPY pyproject.toml README.md ./
+COPY src/ ./src/
+COPY plugins/ ./plugins/
+
+# Install dependencies (non-editable for production)
+RUN pip install --no-cache-dir .
+
+# Create data directory
+RUN mkdir -p /app/data/storage
+
+# Default environment variables
+ENV YUANTUS_ENVIRONMENT=production \
+    YUANTUS_SCHEMA_MODE=migrations
+
+# Run the worker
+CMD ["yuantus", "worker", "--poll-interval", "5"]

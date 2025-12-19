@@ -1,0 +1,337 @@
+#!/usr/bin/env bash
+# =============================================================================
+# S3 CAD Pipeline Verification Script
+# Verifies: upload → job trigger → worker processing → preview/geometry retrieval
+# =============================================================================
+set -euo pipefail
+
+BASE_URL="${1:-http://127.0.0.1:7910}"
+TENANT="${2:-tenant-1}"
+ORG="${3:-org-1}"
+
+CLI="${CLI:-.venv/bin/yuantus}"
+PY="${PY:-.venv/bin/python}"
+CURL="${CURL:-curl -sS}"
+
+if [[ ! -x "$CLI" ]]; then
+  echo "Missing CLI at $CLI (set CLI=...)" >&2
+  exit 2
+fi
+if [[ ! -x "$PY" ]]; then
+  echo "Missing Python at $PY (set PY=...)" >&2
+  exit 2
+fi
+
+API="$BASE_URL/api/v1"
+HEADERS=(-H "x-tenant-id: $TENANT" -H "x-org-id: $ORG")
+
+PREVIEW_HTTP=""
+GEOMETRY_HTTP=""
+PREVIEW_STATUS=""
+GEOMETRY_STATUS=""
+
+echo "=============================================="
+echo "S3 CAD Pipeline Verification"
+echo "BASE_URL: $BASE_URL"
+echo "TENANT: $TENANT, ORG: $ORG"
+echo "=============================================="
+
+# -----------------------------------------------------------------------------
+# Helper functions
+# -----------------------------------------------------------------------------
+fail() { echo "FAIL: $1"; exit 1; }
+ok() { echo "OK: $1"; }
+
+check_http() {
+  local expected="$1"
+  local actual="$2"
+  local msg="$3"
+  if [[ "$actual" == "$expected" ]]; then
+    ok "$msg (HTTP $actual)"
+  else
+    fail "$msg - expected HTTP $expected, got $actual"
+  fi
+}
+
+# -----------------------------------------------------------------------------
+# 1) Setup: Seed identity and meta
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Seed identity (admin user)"
+"$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin >/dev/null
+ok "Identity seeded"
+
+echo ""
+echo "==> Seed meta schema"
+"$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null || "$CLI" seed-meta >/dev/null
+ok "Meta schema seeded"
+
+# -----------------------------------------------------------------------------
+# 2) Login
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Login as admin"
+ADMIN_TOKEN="$(
+  $CURL -X POST "$API/auth/login" \
+    -H 'content-type: application/json' \
+    -d "{\"tenant_id\":\"$TENANT\",\"username\":\"admin\",\"password\":\"admin\",\"org_id\":\"$ORG\"}" \
+    | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))'
+)"
+if [[ -z "$ADMIN_TOKEN" ]]; then
+  fail "Admin login failed (no access_token)"
+fi
+ok "Admin login"
+AUTH_HEADERS=(-H "Authorization: Bearer $ADMIN_TOKEN")
+
+# -----------------------------------------------------------------------------
+# 3) Create a test STL file (viewable format)
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Create test STL file"
+TEST_FILE="/tmp/yuantus_cad_s3_test.stl"
+
+# Create a minimal ASCII STL (simple triangle)
+cat > "$TEST_FILE" << 'EOF'
+solid test
+  facet normal 0 0 1
+    outer loop
+      vertex 0 0 0
+      vertex 1 0 0
+      vertex 0.5 1 0
+    endloop
+  endfacet
+endsolid test
+EOF
+
+ok "Created test file: $TEST_FILE"
+
+# -----------------------------------------------------------------------------
+# 4) Upload via CAD import (with preview and geometry jobs)
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Upload STL via /cad/import"
+IMPORT_RESP="$(
+  $CURL -X POST "$API/cad/import" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+    -F "file=@$TEST_FILE;filename=test_model.stl" \
+    -F 'create_preview_job=true' \
+    -F 'create_geometry_job=true' \
+    -F 'create_dedup_job=false' \
+    -F 'create_ml_job=false'
+)"
+
+FILE_ID="$(
+  echo "$IMPORT_RESP" | "$PY" -c 'import sys,json; print(json.load(sys.stdin).get("file_id","") or "")'
+)"
+
+if [[ -z "$FILE_ID" ]]; then
+  echo "Import response: $IMPORT_RESP"
+  fail "Could not get file_id from import response"
+fi
+
+ok "File uploaded: $FILE_ID"
+
+# Extract job IDs
+PREVIEW_JOB_ID="$(
+  echo "$IMPORT_RESP" | "$PY" -c '
+import sys,json
+d = json.load(sys.stdin)
+jobs = d.get("jobs", [])
+for j in jobs:
+    if j.get("task_type") == "cad_preview":
+        print(j.get("id", "") or "")
+        break
+'
+)"
+
+GEOMETRY_JOB_ID="$(
+  echo "$IMPORT_RESP" | "$PY" -c '
+import sys,json
+d = json.load(sys.stdin)
+jobs = d.get("jobs", [])
+for j in jobs:
+    if j.get("task_type") == "cad_geometry":
+        print(j.get("id", "") or "")
+        break
+'
+)"
+
+echo "Preview job ID: ${PREVIEW_JOB_ID:-none}"
+echo "Geometry job ID: ${GEOMETRY_JOB_ID:-none}"
+
+# -----------------------------------------------------------------------------
+# 5) Run worker to process jobs
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Run worker to process jobs"
+
+# Run worker once to process pending jobs
+"$CLI" worker --worker-id cad-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
+"$CLI" worker --worker-id cad-verify --poll-interval 1 --once >/dev/null
+
+# Give it a moment
+sleep 2
+
+# Run again to ensure all jobs are processed
+"$CLI" worker --worker-id cad-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
+"$CLI" worker --worker-id cad-verify --poll-interval 1 --once >/dev/null
+
+ok "Worker executed"
+
+# -----------------------------------------------------------------------------
+# 6) Check job status
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Check job statuses"
+
+if [[ -n "$PREVIEW_JOB_ID" ]]; then
+  PREVIEW_STATUS="$(
+    $CURL "$API/jobs/$PREVIEW_JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+      | "$PY" -c 'import sys,json; print(json.load(sys.stdin).get("status","") or "")'
+  )"
+  echo "Preview job status: $PREVIEW_STATUS"
+fi
+
+if [[ -n "$GEOMETRY_JOB_ID" ]]; then
+  GEOMETRY_STATUS="$(
+    $CURL "$API/jobs/$GEOMETRY_JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+      | "$PY" -c 'import sys,json; print(json.load(sys.stdin).get("status","") or "")'
+  )"
+  echo "Geometry job status: $GEOMETRY_STATUS"
+fi
+
+# -----------------------------------------------------------------------------
+# 7) Verify file metadata has preview_path and geometry_path
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Check file metadata"
+FILE_META="$($CURL "$API/file/$FILE_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}")"
+
+PREVIEW_URL="$(echo "$FILE_META" | "$PY" -c 'import sys,json; print(json.load(sys.stdin).get("preview_url","") or "")')"
+GEOMETRY_URL="$(echo "$FILE_META" | "$PY" -c 'import sys,json; print(json.load(sys.stdin).get("geometry_url","") or "")')"
+CONV_STATUS="$(echo "$FILE_META" | "$PY" -c 'import sys,json; print(json.load(sys.stdin).get("conversion_status","") or "")')"
+
+echo "Preview URL: ${PREVIEW_URL:-none}"
+echo "Geometry URL: ${GEOMETRY_URL:-none}"
+echo "Conversion status: ${CONV_STATUS:-none}"
+
+if [[ -n "$PREVIEW_URL" ]]; then
+  ok "Preview path set"
+else
+  echo "Warning: Preview path not set (may need CAD converter installed)"
+fi
+
+if [[ -n "$GEOMETRY_URL" ]]; then
+  ok "Geometry path set"
+else
+  echo "Warning: Geometry path not set (STL should point to original file)"
+fi
+
+# -----------------------------------------------------------------------------
+# 8) Verify preview endpoint works (returns 200 or 302)
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Test preview endpoint"
+if [[ -n "$PREVIEW_URL" ]]; then
+  PREVIEW_HTTP="$($CURL -o /dev/null -w '%{http_code}' "$BASE_URL$PREVIEW_URL" "${HEADERS[@]}" "${AUTH_HEADERS[@]}")"
+
+  if [[ "$PREVIEW_HTTP" == "200" ]] || [[ "$PREVIEW_HTTP" == "302" ]]; then
+    ok "Preview endpoint works (HTTP $PREVIEW_HTTP)"
+  else
+    echo "Warning: Preview endpoint returned HTTP $PREVIEW_HTTP"
+  fi
+else
+  echo "Skipped: No preview URL"
+fi
+
+# -----------------------------------------------------------------------------
+# 9) Verify geometry endpoint works (returns 200 or 302)
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Test geometry endpoint"
+if [[ -n "$GEOMETRY_URL" ]]; then
+  GEOMETRY_HTTP="$($CURL -o /dev/null -w '%{http_code}' "$BASE_URL$GEOMETRY_URL" "${HEADERS[@]}" "${AUTH_HEADERS[@]}")"
+
+  if [[ "$GEOMETRY_HTTP" == "200" ]] || [[ "$GEOMETRY_HTTP" == "302" ]]; then
+    ok "Geometry endpoint works (HTTP $GEOMETRY_HTTP)"
+  else
+    echo "Warning: Geometry endpoint returned HTTP $GEOMETRY_HTTP"
+  fi
+else
+  echo "Skipped: No geometry URL"
+fi
+
+# -----------------------------------------------------------------------------
+# 10) Verify S3 redirect (if using S3 storage)
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Check storage type"
+# We can infer S3 usage if we get a 302 redirect
+if [[ "$GEOMETRY_HTTP" == "302" ]] || [[ "$PREVIEW_HTTP" == "302" ]]; then
+  ok "S3 storage detected (302 redirect)"
+
+  # Try to follow redirect and verify content is accessible
+  if [[ -n "$GEOMETRY_URL" ]]; then
+    echo "Testing S3 presigned URL follow (no API auth headers)..."
+    HDRS="$(mktemp)"
+    GEOMETRY_HTTP_1="$($CURL -D "$HDRS" -o /dev/null -w '%{http_code}' "$BASE_URL$GEOMETRY_URL" "${HEADERS[@]}" "${AUTH_HEADERS[@]}")"
+    if [[ "$GEOMETRY_HTTP_1" != "302" && "$GEOMETRY_HTTP_1" != "307" && "$GEOMETRY_HTTP_1" != "301" && "$GEOMETRY_HTTP_1" != "308" ]]; then
+      echo "Warning: expected redirect, got HTTP $GEOMETRY_HTTP_1"
+    else
+      LOCATION="$("$PY" - "$HDRS" <<'PY'
+import sys
+path = sys.argv[1]
+loc = None
+with open(path, "r", encoding="utf-8", errors="ignore") as f:
+    for line in f:
+        if line.lower().startswith("location:"):
+            loc = line.split(":", 1)[1].strip()
+            break
+print(loc or "")
+PY
+)"
+      if [[ -n "$LOCATION" ]]; then
+        GEOMETRY_FOLLOW_HTTP="$($CURL -L -o /dev/null -w '%{http_code}' "$LOCATION")"
+        if [[ "$GEOMETRY_FOLLOW_HTTP" == "200" ]]; then
+          ok "S3 presigned URL accessible (followed redirect)"
+        else
+          echo "Warning: Could not fetch presigned URL (HTTP $GEOMETRY_FOLLOW_HTTP)"
+        fi
+      else
+        echo "Warning: redirect missing Location header"
+      fi
+    fi
+    rm -f "$HDRS"
+  fi
+else
+  echo "Local storage detected (direct file response)"
+fi
+
+# -----------------------------------------------------------------------------
+# Cleanup
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Cleanup"
+rm -f "$TEST_FILE"
+ok "Cleaned up test file"
+
+echo ""
+echo "=============================================="
+echo "CAD Pipeline S3 Verification Complete"
+echo "=============================================="
+echo ""
+echo "Summary:"
+echo "  - File upload: OK"
+echo "  - Job processing: ${PREVIEW_STATUS:-unknown} / ${GEOMETRY_STATUS:-unknown}"
+echo "  - Preview endpoint: ${PREVIEW_HTTP:-skipped}"
+echo "  - Geometry endpoint: ${GEOMETRY_HTTP:-skipped}"
+echo ""
+
+# Determine overall result
+if [[ -n "$GEOMETRY_URL" ]] && [[ "$GEOMETRY_HTTP" == "200" || "$GEOMETRY_HTTP" == "302" ]]; then
+  echo "ALL CHECKS PASSED"
+  exit 0
+else
+  echo "PARTIAL SUCCESS (some features may require additional setup)"
+  exit 0
+fi

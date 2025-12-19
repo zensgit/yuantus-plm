@@ -1,0 +1,917 @@
+"""
+Version Control Service
+Manages Item revisions, generations, checkouts, and history.
+"""
+
+from typing import Optional, Dict, Any, List
+from datetime import datetime
+import uuid
+
+from sqlalchemy.orm import Session
+from sqlalchemy import or_, desc
+
+from yuantus.meta_engine.version.models import (
+    ItemVersion,
+    VersionHistory,
+    ItemIteration,
+    RevisionScheme,
+)
+from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.models.effectivity import Effectivity
+from yuantus.meta_engine.version.file_service import VersionFileService, VersionFileError
+
+
+class VersionError(Exception):
+    pass
+
+
+class VersionService:
+    def __init__(self, session: Session):
+        self.session = session
+        self.file_version_service = VersionFileService(
+            session
+        )  # Initialize VersionFileService
+
+    def get_version(self, version_id: str) -> ItemVersion:
+        """Get an ItemVersion by ID."""
+        version = self.session.query(ItemVersion).get(version_id)
+        if not version:
+            raise VersionError(f"Version {version_id} not found")
+        return version
+
+    def create_initial_version(self, item: Item, user_id: int) -> ItemVersion:
+        """
+        Creates the first version (Generation 1, Revision A) for a new Item.
+        """
+        if not item.is_versionable:
+            return None
+
+        # Check if version exists
+        exists = self.session.query(ItemVersion).filter_by(item_id=item.id).first()
+        if exists:
+            # Already initialized
+            return exists
+
+        ver_id = str(uuid.uuid4())
+        version = ItemVersion(
+            id=ver_id,
+            item_id=item.id,
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            state="Draft",
+            is_current=True,
+            is_released=False,
+            # Snapshot current properties
+            properties=item.properties,
+            created_by_id=user_id,
+            created_at=datetime.utcnow(),
+        )
+        self.session.add(version)
+        self.session.flush()
+
+        # Update Item
+        item.current_version_id = ver_id
+
+        self._log_history(version, "create", user_id, "Initial version created")
+        return version
+
+    def checkout(
+        self, item_id: str, user_id: int, comment: str = None, version_id: str = None
+    ) -> ItemVersion:
+        """
+        Locks the current version (or specific version) for editing by the user.
+        If version_id is provided, it must be the ID of a valid version.
+        """
+        version = None
+        if version_id:
+            version = self.session.query(ItemVersion).get(version_id)
+            if not version or version.item_id != item_id:
+                raise VersionError(f"Version {version_id} not found for item {item_id}")
+        else:
+            item = self.session.query(Item).filter_by(id=item_id).one()
+            if not item.current_version_id:
+                raise VersionError("Item has no current version")
+            version = (
+                self.session.query(ItemVersion)
+                .filter_by(id=item.current_version_id)
+                .one()
+            )
+
+        if version.is_released:
+            raise VersionError(
+                "Cannot checkout a Released version. Create a new revision instead."
+            )
+
+        if version.checked_out_by_id:
+            if version.checked_out_by_id == user_id:
+                return version  # Already checked out by this user
+            raise VersionError(
+                f"Version is already checked out by user {version.checked_out_by_id}"
+            )
+
+        version.checked_out_by_id = user_id
+        version.checked_out_at = datetime.utcnow()
+        self.session.add(version)
+
+        self._log_history(version, "checkout", user_id, comment)
+        return version
+
+    def checkin(
+        self,
+        item_id: str,
+        user_id: int,
+        properties: Dict[str, Any] = None,
+        comment: str = None,
+        version_id: str = None,
+    ) -> ItemVersion:
+        """
+        Unlocks the version and saves changes.
+        """
+        item = self.session.query(Item).filter_by(id=item_id).one()
+        version = None
+        if version_id:
+            version = self.session.query(ItemVersion).get(version_id)
+            if not version or version.item_id != item_id:
+                raise VersionError(f"Version {version_id} not found for item {item_id}")
+            # Ensure it is actually checked out
+            if version.checked_out_by_id != user_id:
+                raise VersionError("Version is not checked out by you")
+        else:
+            version = (
+                self.session.query(ItemVersion)
+                .filter_by(id=item.current_version_id)
+                .one()
+            )
+
+            if version.checked_out_by_id != user_id:
+                raise VersionError("Version is not checked out by you")
+
+        # Update properties if provided
+        if properties:
+            current_props = version.properties or {}
+            current_props.update(properties)
+            version.properties = current_props
+
+            # Only update Item Master if we are checking in the CURRENT version
+            # If checking in a branch, do NOT update item master properties yet
+            if item.current_version_id == version.id:
+                item_props = item.properties or {}
+                item_props.update(properties)
+                item.properties = item_props
+
+        # Sync item file attachments to this version
+        props = version.properties or {}
+        extra_files = []
+        native_file = props.get("native_file")
+        if native_file:
+            extra_files.append(
+                {"file_id": native_file, "file_role": "native_cad", "is_primary": True}
+            )
+        viewable_file = props.get("viewable_file")
+        if viewable_file:
+            extra_files.append(
+                {"file_id": viewable_file, "file_role": "geometry"}
+            )
+
+        primary_file_id = (
+            props.get("primary_file_id")
+            or props.get("native_file")
+            or version.primary_file_id
+        )
+
+        include_item_files = True
+        remove_missing = True
+        if item.current_version_id != version.id:
+            include_item_files = False
+            remove_missing = False
+
+        try:
+            self.file_version_service.sync_item_files_to_version(
+                item_id=item_id,
+                version_id=version.id,
+                include_item_files=include_item_files,
+                extra_files=extra_files,
+                primary_file_id=primary_file_id,
+                remove_missing=remove_missing,
+            )
+        except VersionFileError as e:
+            raise VersionError(str(e))
+
+        version.checked_out_by_id = None
+        version.checked_out_at = None
+
+        self._log_history(version, "checkin", user_id, comment, changes=properties)
+        return version
+
+    # ... (revise, new_generation, release remain same)
+
+    def merge_branch(
+        self, item_id: str, source_version_id: str, target_version_id: str, user_id: int
+    ) -> ItemVersion:
+        """
+        Merges changes from a source version (branch) into a target version (mainline).
+        This typically involves:
+        1. Taking the properties from source.
+        2. Applying them to the target.
+        3. Ensuring target is checked out or Creating a new Revision on target.
+
+        Implementation: Creates a NEW revision of the target line containing source properties.
+        """
+        source_ver = self.session.query(ItemVersion).get(source_version_id)
+        target_ver = self.session.query(ItemVersion).get(target_version_id)
+
+        if not source_ver or not target_ver:
+            raise VersionError("Source or Target version not found")
+
+        if source_ver.item_id != item_id or target_ver.item_id != item_id:
+            raise VersionError("Versions must belong to the same item")
+
+        # Logic: Revise Target -> New Revision, Apply Source Props
+        # Reuse revise logic logic but with property override
+
+        # Calculate next revision for target
+        next_rev = self._next_revision(target_ver.revision)
+
+        new_ver_id = str(uuid.uuid4())
+
+        # Merge properties: Target + Source (Source overwrites Target)
+        merged_props = target_ver.properties or {}
+        if source_ver.properties:
+            merged_props.update(source_ver.properties)
+
+        new_ver = ItemVersion(
+            id=new_ver_id,
+            item_id=item_id,
+            generation=target_ver.generation,
+            revision=next_rev,
+            version_label=f"{target_ver.generation}.{next_rev}",
+            state="Draft",
+            is_current=target_ver.is_current,  # Inherit current status (if target was current, new one becomes current)
+            is_released=False,
+            predecessor_id=target_ver.id,
+            properties=merged_props,
+            created_by_id=user_id,
+            created_at=datetime.utcnow(),
+        )
+
+        if target_ver.is_current:
+            target_ver.is_current = False
+            # Update item master if target was current
+            item = self.session.query(Item).get(item_id)
+            item.current_version_id = new_ver_id
+            # Also sync item properties
+            item.properties = merged_props
+
+        self.session.add(new_ver)
+        self.session.add(target_ver)
+
+        self._log_history(
+            new_ver,
+            "merge",
+            user_id,
+            f"Merged branch {source_ver.branch_name or source_ver.version_label} into {target_ver.version_label}",
+        )
+        return new_ver
+
+    def revise(self, item_id: str, user_id: int, comment: str = None) -> ItemVersion:
+        """
+        Creates a new Revision (A -> B) from the current version.
+        Typical workflow: Released (A) -> Revise -> Draft (B).
+        """
+        item = self.session.query(Item).filter_by(id=item_id).one()
+        current_ver = (
+            self.session.query(ItemVersion).filter_by(id=item.current_version_id).one()
+        )
+
+        # Calculate new revision
+        # Simple logic: A -> B -> C ... Z -> AA
+        next_rev = self._next_revision(current_ver.revision)
+
+        new_ver_id = str(uuid.uuid4())
+        new_ver = ItemVersion(
+            id=new_ver_id,
+            item_id=item.id,
+            generation=current_ver.generation,
+            revision=next_rev,
+            version_label=f"{current_ver.generation}.{next_rev}",
+            state="Draft",
+            is_current=True,
+            is_released=False,
+            predecessor_id=current_ver.id,
+            properties=current_ver.properties,  # Copy props
+            created_by_id=user_id,
+            created_at=datetime.utcnow(),
+        )
+
+        # Archive old version
+        current_ver.is_current = False
+
+        self.session.add(new_ver)
+        self.session.add(current_ver)
+        self.session.flush()
+
+        item.current_version_id = new_ver_id
+
+        self._log_history(
+            current_ver, "revise", user_id, f"Revised to {new_ver.version_label}"
+        )
+        # Copy file associations to the new version
+        self.file_version_service.copy_files_to_version(current_ver.id, new_ver.id)
+
+        return new_ver
+
+    def new_generation(
+        self, item_id: str, user_id: int, comment: str = None
+    ) -> ItemVersion:
+        """
+        Creates a new Generation (1 -> 2).
+        Resets revision to A.
+        """
+        item = self.session.query(Item).filter_by(id=item_id).one()
+        current_ver = (
+            self.session.query(ItemVersion).filter_by(id=item.current_version_id).one()
+        )
+
+        next_gen = current_ver.generation + 1
+        next_rev = "A"
+
+        new_ver_id = str(uuid.uuid4())
+        new_ver = ItemVersion(
+            id=new_ver_id,
+            item_id=item.id,
+            generation=next_gen,
+            revision=next_rev,
+            version_label=f"{next_gen}.{next_rev}",
+            state="Draft",
+            is_current=True,
+            is_released=False,
+            predecessor_id=current_ver.id,
+            properties=current_ver.properties,
+            created_by_id=user_id,
+            created_at=datetime.utcnow(),
+        )
+
+        current_ver.is_current = False
+
+        self.session.add(new_ver)
+        self.session.add(current_ver)
+        self.session.flush()
+
+        item.current_version_id = new_ver_id
+
+        # Copy file associations to the new generation
+        self.file_version_service.copy_files_to_version(current_ver.id, new_ver.id)
+
+        return new_ver
+
+    def release(self, item_id: str, user_id: int) -> ItemVersion:
+        """
+        Marks current version as Released.
+        Usually called by Lifecycle Service when Item enters Released state.
+        """
+        item = self.session.query(Item).filter_by(id=item_id).one()
+        current_ver = (
+            self.session.query(ItemVersion).filter_by(id=item.current_version_id).one()
+        )
+
+        if current_ver.is_released:
+            return current_ver
+
+        current_ver.is_released = True
+        current_ver.state = "Released"
+        current_ver.checked_out_by_id = None
+        current_ver.checked_out_at = None
+
+        # Lock item properties if needed? Item properties are usually master, maybe synced.
+
+        self.session.add(current_ver)
+        self._log_history(current_ver, "release", user_id, "Version Released")
+        return current_ver
+
+    def get_history(self, item_id: str) -> List[VersionHistory]:
+        """
+        Get flat history of all versions of an item.
+        """
+        # Join ItemVersion to filter by item_id
+        return (
+            self.session.query(VersionHistory)
+            .join(ItemVersion, VersionHistory.version_id == ItemVersion.id)
+            .filter(ItemVersion.item_id == item_id)
+            .order_by(desc(VersionHistory.created_at))
+            .all()
+        )
+
+    def _next_revision(self, current_rev: str, scheme: str = "letter") -> str:
+        """
+        Calculates next revision string with full sequence support.
+
+        Schemes:
+        - letter: A→B...Z→AA→AB...AZ→BA...ZZ→AAA (Excel-style columns)
+        - number: 1→2→3...
+        - hybrid: A1→A2→A3...A99→B1 (letter+number)
+
+        Examples (letter scheme):
+        - A → B
+        - Z → AA
+        - AA → AB
+        - AZ → BA
+        - ZZ → AAA
+        """
+        if not current_rev:
+            return "A" if scheme == "letter" else "1"
+
+        if scheme == "number":
+            return str(int(current_rev) + 1)
+
+        if scheme == "hybrid":
+            return self._next_hybrid_revision(current_rev)
+
+        if scheme == "semantic":
+            return self._next_semantic_revision(current_rev)
+
+        # Letter scheme (Excel-style column naming)
+        return self._increment_letter_revision(current_rev)
+
+    def _next_semantic_revision(self, rev: str) -> str:
+        """
+        Increment Semantic Version (Major.Minor.Patch).
+        Default behavior: Increment Patch.
+        1.0.0 -> 1.0.1
+        0.1 -> 0.2
+        """
+        if not rev:
+            return "0.0.1"
+
+        parts = rev.split(".")
+        try:
+            # Increment last part
+            parts[-1] = str(int(parts[-1]) + 1)
+            return ".".join(parts)
+        except ValueError:
+            # Fallback if not integer
+            return rev + ".1"
+
+    def _increment_letter_revision(self, rev: str) -> str:
+        """
+        Increment letter-based revision like Excel columns.
+        A→Z, then AA→AZ, BA→BZ, ..., ZZ→AAA
+        """
+        if not rev:
+            return "A"
+
+        # Convert to list for manipulation
+        chars = list(rev.upper())
+
+        # Work backwards, incrementing like base-26
+        i = len(chars) - 1
+        while i >= 0:
+            if chars[i] == "Z":
+                chars[i] = "A"
+                i -= 1
+            else:
+                chars[i] = chr(ord(chars[i]) + 1)
+                return "".join(chars)
+
+        # All chars were Z, need to add new char
+        return "A" + "".join(chars)
+
+    def _next_hybrid_revision(self, rev: str) -> str:
+        """
+        Hybrid revision: Letter prefix + Number suffix.
+        A1→A2...A99→B1, Z99→AA1
+        """
+        import re
+
+        match = re.match(r"^([A-Z]+)(\d+)$", rev.upper())
+
+        if not match:
+            return "A1"
+
+        letter_part = match.group(1)
+        num_part = int(match.group(2))
+
+        # Increment number up to 99
+        if num_part < 99:
+            return f"{letter_part}{num_part + 1}"
+
+        # Roll over to next letter
+        next_letter = self._increment_letter_revision(letter_part)
+        return f"{next_letter}1"
+
+    def parse_revision(self, rev: str) -> dict:
+        """
+        Parse a revision string into components.
+        Returns: {scheme, letter_part, number_part, value}
+        """
+        import re
+
+        if not rev:
+            return {"scheme": "unknown", "value": 0}
+
+        # Pure number
+        if rev.isdigit():
+            return {"scheme": "number", "value": int(rev)}
+
+        # Pure letter
+        if rev.isalpha():
+            value = 0
+            for c in rev.upper():
+                value = value * 26 + (ord(c) - ord("A") + 1)
+            return {"scheme": "letter", "value": value}
+
+        # Hybrid
+        match = re.match(r"^([A-Z]+)(\d+)$", rev.upper())
+        if match:
+            letter_val = 0
+            for c in match.group(1):
+                letter_val = letter_val * 26 + (ord(c) - ord("A") + 1)
+            num_val = int(match.group(2))
+            return {
+                "scheme": "hybrid",
+                "letter_part": match.group(1),
+                "number_part": num_val,
+                "value": letter_val * 100 + num_val,
+            }
+
+        return {"scheme": "unknown", "value": 0}
+
+    def compare_revisions(self, rev_a: str, rev_b: str) -> int:
+        """
+        Compare two revisions.
+        Returns: -1 if a < b, 0 if equal, 1 if a > b
+        """
+        parsed_a = self.parse_revision(rev_a)
+        parsed_b = self.parse_revision(rev_b)
+
+        val_a = parsed_a.get("value", 0)
+        val_b = parsed_b.get("value", 0)
+
+        if val_a < val_b:
+            return -1
+        elif val_a > val_b:
+            return 1
+        return 0
+
+    def _log_history(
+        self,
+        version: ItemVersion,
+        action: str,
+        user_id: int,
+        comment: str,
+        changes: Dict = None,
+    ):
+        hist = VersionHistory(
+            id=str(uuid.uuid4()),
+            version_id=version.id,
+            action=action,
+            user_id=user_id,
+            comment=comment,
+            changes=changes,
+            created_at=datetime.utcnow(),
+        )
+        self.session.add(hist)
+
+    def add_date_effectivity(
+        self, version_id: str, start_date: datetime, end_date: datetime = None
+    ) -> Effectivity:
+        """
+        Adds a date-based effectivity rule to a version.
+        """
+        eff = Effectivity(
+            id=str(uuid.uuid4()),
+            version_id=version_id,
+            effectivity_type="Date",
+            start_date=start_date,
+            end_date=end_date,
+        )
+        self.session.add(eff)
+        return eff
+
+    def find_effective_version(
+        self, item_id: str, target_date: datetime
+    ) -> Optional[ItemVersion]:
+        """
+        Finds the version of an item that is effective on the given date.
+        """
+        query = (
+            self.session.query(ItemVersion)
+            .join(Effectivity, ItemVersion.id == Effectivity.version_id)
+            .filter(ItemVersion.item_id == item_id)
+            .filter(Effectivity.effectivity_type == "Date")
+            .filter(Effectivity.start_date <= target_date)
+            .filter(
+                or_(Effectivity.end_date == None, Effectivity.end_date >= target_date)
+            )
+            .order_by(desc(ItemVersion.created_at))
+        )
+
+        return query.first()
+
+    def create_branch(
+        self, item_id: str, source_version_id: str, branch_name: str, user_id: int
+    ) -> ItemVersion:
+        """
+        Creates a new branch from a specific version.
+        """
+        source_ver = self.session.query(ItemVersion).get(source_version_id)
+        if not source_ver:
+            raise VersionError("Source version not found")
+
+        new_ver_id = str(uuid.uuid4())
+        # Branch usually starts new revision sequence or appends branch name
+        # Scheme: {Generation}.{Revision}-{Branch}
+
+        new_ver = ItemVersion(
+            id=new_ver_id,
+            item_id=item_id,
+            generation=source_ver.generation,
+            revision=source_ver.revision,  # Start same, but marked with branch
+            branch_name=branch_name,
+            version_label=f"{source_ver.version_label}-{branch_name}",
+            state="Draft",
+            is_current=False,  # Branches are usually not "Current" main line immediately
+            is_released=False,
+            predecessor_id=source_ver.id,
+            properties=source_ver.properties,
+            created_by_id=user_id,
+            created_at=datetime.utcnow(),
+        )
+
+        self.session.add(new_ver)
+        self._log_history(
+            new_ver,
+            "branch",
+            user_id,
+            f"Branched '{branch_name}' from {source_ver.version_label}",
+        )
+        return new_ver
+
+    def get_version_tree(self, item_id: str) -> List[Dict[str, Any]]:
+        """
+        Returns a flat list of all versions with parent pointers to reconstruct tree.
+        """
+        versions = self.session.query(ItemVersion).filter_by(item_id=item_id).all()
+        return [
+            {
+                "id": v.id,
+                "label": v.version_label,
+                "predecessor_id": v.predecessor_id,
+                "branch": v.branch_name,
+                "state": v.state,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+            }
+            for v in versions
+        ]
+
+    def compare_versions(self, version_id_a: str, version_id_b: str) -> Dict[str, Any]:
+        """
+        Compare properties of two versions.
+        """
+        va = self.session.query(ItemVersion).get(version_id_a)
+        vb = self.session.query(ItemVersion).get(version_id_b)
+
+        if not va or not vb:
+            raise VersionError("One or more versions not found")
+
+        props_a = va.properties or {}
+        props_b = vb.properties or {}
+
+        all_keys = set(props_a.keys()) | set(props_b.keys())
+        diffs = {}
+
+        for k in all_keys:
+            val_a = props_a.get(k)
+            val_b = props_b.get(k)
+            if val_a != val_b:
+                diffs[k] = {"a": val_a, "b": val_b}
+
+        return {
+            "version_a": va.version_label,
+            "version_b": vb.version_label,
+            "diffs": diffs,
+        }
+
+
+class IterationService:
+    """
+    Sprint 4 Enhancement: Lightweight iteration management.
+    Iterations are work-in-progress saves within a formal version.
+    """
+
+    def __init__(self, session: Session):
+        self.session = session
+
+    def create_iteration(
+        self,
+        version_id: str,
+        user_id: int,
+        properties: Dict[str, Any] = None,
+        description: str = None,
+        source_type: str = "manual",
+    ) -> ItemIteration:
+        """
+        Create a new iteration within a version.
+
+        Args:
+            version_id: Parent version ID
+            user_id: User creating the iteration
+            properties: Property snapshot
+            description: Iteration description
+            source_type: manual, auto_save, import
+
+        Returns:
+            New ItemIteration
+        """
+        version = self.session.query(ItemVersion).get(version_id)
+        if not version:
+            raise VersionError(f"Version {version_id} not found")
+
+        # Get next iteration number
+        max_iter = (
+            self.session.query(ItemIteration).filter_by(version_id=version_id).count()
+        )
+        next_number = max_iter + 1
+
+        # Mark previous iterations as not latest
+        self.session.query(ItemIteration).filter_by(
+            version_id=version_id, is_latest=True
+        ).update({"is_latest": False})
+
+        # Create new iteration
+        iteration = ItemIteration(
+            id=str(uuid.uuid4()),
+            version_id=version_id,
+            iteration_number=next_number,
+            iteration_label=f"{version.version_label}.{next_number}",
+            is_latest=True,
+            properties=properties or version.properties,
+            description=description,
+            source_type=source_type,
+            created_by_id=user_id,
+            created_at=datetime.utcnow(),
+        )
+        self.session.add(iteration)
+        self.session.flush()
+
+        return iteration
+
+    def get_iterations(self, version_id: str) -> List[ItemIteration]:
+        """Get all iterations for a version, ordered by iteration number."""
+        return (
+            self.session.query(ItemIteration)
+            .filter_by(version_id=version_id)
+            .order_by(ItemIteration.iteration_number)
+            .all()
+        )
+
+    def get_latest_iteration(self, version_id: str) -> Optional[ItemIteration]:
+        """Get the latest iteration for a version."""
+        return (
+            self.session.query(ItemIteration)
+            .filter_by(version_id=version_id, is_latest=True)
+            .first()
+        )
+
+    def restore_iteration(self, iteration_id: str, user_id: int) -> ItemIteration:
+        """
+        Restore a previous iteration as the latest.
+        Creates a new iteration with the old iteration's data.
+        """
+        old_iter = self.session.query(ItemIteration).get(iteration_id)
+        if not old_iter:
+            raise VersionError(f"Iteration {iteration_id} not found")
+
+        # Create new iteration from old one
+        return self.create_iteration(
+            version_id=old_iter.version_id,
+            user_id=user_id,
+            properties=old_iter.properties,
+            description=f"Restored from iteration {old_iter.iteration_label}",
+            source_type="manual",
+        )
+
+    def delete_iteration(self, iteration_id: str) -> bool:
+        """
+        Delete an iteration (not the latest one).
+        """
+        iteration = self.session.query(ItemIteration).get(iteration_id)
+        if not iteration:
+            return False
+
+        if iteration.is_latest:
+            raise VersionError("Cannot delete the latest iteration")
+
+        self.session.delete(iteration)
+        self.session.flush()
+        return True
+
+
+class RevisionSchemeService:
+    """
+    Sprint 4 Enhancement: Manage revision numbering schemes.
+    """
+
+    def __init__(self, session: Session):
+        self.session = session
+
+    def create_scheme(
+        self,
+        name: str,
+        scheme_type: str = "letter",
+        initial_revision: str = "A",
+        item_type_id: str = None,
+        is_default: bool = False,
+        description: str = None,
+    ) -> RevisionScheme:
+        """
+        Create a new revision scheme.
+
+        Args:
+            name: Scheme name
+            scheme_type: letter, number, or hybrid
+            initial_revision: Starting revision value
+            item_type_id: Optional ItemType to associate with
+            is_default: Whether this is the default scheme
+            description: Optional description
+        """
+        # If setting as default, clear existing defaults
+        if is_default:
+            if item_type_id:
+                self.session.query(RevisionScheme).filter_by(
+                    item_type_id=item_type_id, is_default=True
+                ).update({"is_default": False})
+            else:
+                self.session.query(RevisionScheme).filter_by(
+                    item_type_id=None, is_default=True
+                ).update({"is_default": False})
+
+        scheme = RevisionScheme(
+            id=str(uuid.uuid4()),
+            name=name,
+            scheme_type=scheme_type,
+            initial_revision=initial_revision,
+            item_type_id=item_type_id,
+            is_default=is_default,
+            description=description,
+            created_at=datetime.utcnow(),
+        )
+        self.session.add(scheme)
+        self.session.flush()
+        return scheme
+
+    def get_scheme_for_item_type(self, item_type_id: str) -> RevisionScheme:
+        """
+        Get the revision scheme for a specific ItemType.
+        Falls back to global default if no type-specific scheme exists.
+        """
+        # Try type-specific scheme first
+        scheme = (
+            self.session.query(RevisionScheme)
+            .filter_by(item_type_id=item_type_id, is_default=True)
+            .first()
+        )
+
+        if scheme:
+            return scheme
+
+        # Fall back to global default
+        scheme = (
+            self.session.query(RevisionScheme)
+            .filter_by(item_type_id=None, is_default=True)
+            .first()
+        )
+
+        return scheme
+
+    def list_schemes(self) -> List[RevisionScheme]:
+        """List all revision schemes."""
+        return (
+            self.session.query(RevisionScheme)
+            .order_by(RevisionScheme.item_type_id.nullsfirst(), RevisionScheme.name)
+            .all()
+        )
+
+    def get_initial_revision(self, item_type_id: str = None) -> str:
+        """
+        Get the initial revision for an item type.
+        """
+        scheme = self.get_scheme_for_item_type(item_type_id) if item_type_id else None
+
+        if scheme:
+            return scheme.initial_revision
+
+        # Default fallback
+        return "A"
+
+    def get_scheme_type(self, item_type_id: str = None) -> str:
+        """
+        Get the scheme type (letter/number/hybrid) for an item type.
+        """
+        scheme = self.get_scheme_for_item_type(item_type_id) if item_type_id else None
+
+        if scheme:
+            return scheme.scheme_type
+
+        # Default fallback
+        return "letter"
