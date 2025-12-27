@@ -2054,12 +2054,31 @@ curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
 ```
 
 List orgs：
+## Run H-20251227-Integrations（Run H：独立 Athena 认证头）
+
+- 时间：`2025-12-27 17:10:39 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_run_h.sh`
+- 结果：`PASS`
+- 说明：使用 `X-Athena-Authorization`，并为本机环境覆盖 DB URL 与 tenancy 配置；`cad_ml/dedup_vision` 未启用，`integrations ok=false` 但 `athena ok=true`。
+
+执行命令：
 
 ```bash
 TOKEN='<access_token>'
 curl -s http://127.0.0.1:7910/api/v1/auth/orgs -H "Authorization: Bearer $TOKEN"
+TENANCY_MODE=db-per-tenant-org \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+ATHENA_AUTH_TOKEN='<athena_token>' \
+  bash scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
 ```json
 {"tenant_id":"tenant-1","user_id":1,"orgs":[{"id":"org-1","name":"org-1","is_active":true}]}
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+Integrations health: OK (ok=False)
 ```

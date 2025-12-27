@@ -7,6 +7,11 @@ ORG="${3:-org-1}"
 
 CLI="${CLI:-.venv/bin/yuantus}"
 PY="${PY:-.venv/bin/python}"
+ATHENA_AUTH_TOKEN="${ATHENA_AUTH_TOKEN:-${ATHENA_TOKEN:-}}"
+DB_URL="${DB_URL:-${YUANTUS_DATABASE_URL:-}}"
+IDENTITY_DB_URL="${IDENTITY_DB_URL:-${YUANTUS_IDENTITY_DATABASE_URL:-}}"
+TENANCY_MODE="${TENANCY_MODE:-${YUANTUS_TENANCY_MODE:-}}"
+DB_URL_TEMPLATE="${DB_URL_TEMPLATE:-${YUANTUS_DATABASE_URL_TEMPLATE:-}}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -17,9 +22,31 @@ if [[ ! -x "$PY" ]]; then
   exit 2
 fi
 
+CLI_ENV=()
+if [[ -n "$DB_URL" ]]; then
+  CLI_ENV+=("YUANTUS_DATABASE_URL=$DB_URL")
+fi
+if [[ -n "$IDENTITY_DB_URL" ]]; then
+  CLI_ENV+=("YUANTUS_IDENTITY_DATABASE_URL=$IDENTITY_DB_URL")
+fi
+if [[ -n "$TENANCY_MODE" ]]; then
+  CLI_ENV+=("YUANTUS_TENANCY_MODE=$TENANCY_MODE")
+fi
+if [[ -n "$DB_URL_TEMPLATE" ]]; then
+  CLI_ENV+=("YUANTUS_DATABASE_URL_TEMPLATE=$DB_URL_TEMPLATE")
+fi
+
+run_cli() {
+  if [[ ${#CLI_ENV[@]} -gt 0 ]]; then
+    env "${CLI_ENV[@]}" "$CLI" "$@"
+  else
+    "$CLI" "$@"
+  fi
+}
+
 echo "==> Seed identity/meta"
-"$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin >/dev/null
-"$CLI" seed-meta >/dev/null
+run_cli seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin >/dev/null
+run_cli seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
 
 echo "==> Login"
 TOKEN="$(
@@ -201,11 +228,15 @@ curl -s "$BASE/api/v1/versions/items/$PART_ID/tree" \
   | "$PY" -c 'import sys,json;d=json.load(sys.stdin);assert isinstance(d,list) and len(d)>=1;print("Versions tree: OK")'
 
 echo "==> Integrations health (should be 200 even if services down)"
+AUTH_HEADERS=(-H "Authorization: Bearer $TOKEN")
+if [[ -n "$ATHENA_AUTH_TOKEN" ]]; then
+  AUTH_HEADERS+=(-H "X-Athena-Authorization: Bearer $ATHENA_AUTH_TOKEN")
+fi
 HTTP_CODE="$(
   curl -s -o /tmp/yuantus_integrations.json -w '%{http_code}' \
     "$BASE/api/v1/integrations/health" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG"
+    -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
+    "${AUTH_HEADERS[@]}"
 )"
 [[ "$HTTP_CODE" == "200" ]] || (echo "Integrations health failed: HTTP $HTTP_CODE" >&2 && exit 1)
 "$PY" -c 'import json;d=json.load(open("/tmp/yuantus_integrations.json"));assert "services" in d;print("Integrations health: OK (ok=%s)"%d.get("ok"))'

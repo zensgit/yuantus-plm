@@ -214,7 +214,36 @@ curl -s http://127.0.0.1:7910/api/v1/integrations/health \
   ```bash
   -H 'Authorization: Bearer <token>'
   ```
+- 推荐使用独立 header 给 Athena（避免 Yuantus JWT 冲突）：
+  ```bash
+  -H 'X-Athena-Authorization: Bearer <athena_token>'
+  ```
+- 部署建议：在可提交的 `docker-compose.yml` 或 `.env` 中设置
+  `YUANTUS_ATHENA_BASE_URL=http://host.docker.internal:7700/api/v1`，避免只写在
+  `docker-compose.override.yml`（已被 `.gitignore` 忽略）。
+- Athena 侧健康检查默认走 `/api/v1/system/status`（兼容旧部署会回退到 `/health`）。
 - 当外部服务未启动/无鉴权时，本接口仍返回 `200`，并在各服务节点里显示错误原因（如 `401` 或连接失败）。
+
+联测示例（推荐）：
+
+```bash
+# Yuantus token
+YUANTUS_TOKEN=$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"tenant-1","org_id":"org-1","username":"admin","password":"admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+# Athena token (Keycloak)
+ATHENA_TOKEN=$(curl -s -X POST http://localhost:8180/realms/ecm/protocol/openid-connect/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'grant_type=password&client_id=unified-portal&username=admin&password=admin' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+curl -s http://127.0.0.1:7910/api/v1/integrations/health \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H "Authorization: Bearer $YUANTUS_TOKEN" \
+  -H "X-Athena-Authorization: Bearer $ATHENA_TOKEN"
+```
 
 示例输出（实际，外部服务未启动/未鉴权）：
 
@@ -1649,6 +1678,16 @@ Script: scripts/verify_run_h.sh
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ...
 PASS: Run H (Core APIs)
+
+如在本机运行且服务使用容器内数据库（host 名为 `postgres`），可通过环境变量覆盖：
+
+```bash
+TENANCY_MODE=db-per-tenant-org \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+ATHENA_AUTH_TOKEN='<athena_token>' \
+  bash scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1
+```
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Running: S1 (Meta + RBAC)

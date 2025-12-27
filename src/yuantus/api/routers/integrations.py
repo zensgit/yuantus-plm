@@ -32,7 +32,12 @@ async def _probe(name: str, base_url: str, call: Awaitable[Dict[str, Any]]) -> D
 
 
 @router.get("/health")
-async def integrations_health(authorization: Optional[str] = Header(default=None)) -> Dict[str, Any]:
+async def integrations_health(
+    authorization: Optional[str] = Header(default=None),
+    athena_authorization: Optional[str] = Header(
+        default=None, alias="X-Athena-Authorization"
+    ),
+) -> Dict[str, Any]:
     ctx = get_request_context()
 
     athena = AthenaClient()
@@ -40,7 +45,13 @@ async def integrations_health(authorization: Optional[str] = Header(default=None
     dedup = DedupVisionClient()
 
     tasks = {
-        "athena": _probe("athena", athena.base_url, athena.health(authorization=authorization)),
+        "athena": _probe(
+            "athena",
+            athena.base_url,
+            athena.health(
+                authorization=authorization, athena_authorization=athena_authorization
+            ),
+        ),
         "cad_ml": _probe("cad_ml", cad_ml.base_url, cad_ml.health(authorization=authorization)),
         "dedup_vision": _probe("dedup_vision", dedup.base_url, dedup.health(authorization=authorization)),
     }
