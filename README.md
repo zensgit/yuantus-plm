@@ -104,3 +104,7 @@ See `SECURITY.md`.
 - **CLI**: `yuantus ...` (legacy alias: `plm ...`)
 - **Tenant header**: `x-tenant-id`
 - **Organization header**: `x-org-id`
+
+## Runtime
+
+- **Python**: 3.10+ (recommended 3.11)

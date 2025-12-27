@@ -1,0 +1,21 @@
+{
+  "connectors": [
+    {
+      "id": "demo-cad",
+      "label": "DemoCAD",
+      "cad_format": "DEMO_CAD",
+      "document_type": "2d",
+      "extensions": ["dmo"],
+      "aliases": ["DEMO"],
+      "priority": 50,
+      "description": "Example connector loaded from config",
+      "signature_tokens": ["DEMO CAD", "DEMO-CAD"],
+      "kind": "keyvalue",
+      "key_aliases": {
+        "part_number": "part_number",
+        "description": "description",
+        "revision": "revision"
+      }
+    }
+  ]
+}
