@@ -44,7 +44,7 @@ ADMIN_UID="${ADMIN_UID:-$((RAND_BASE + 100000))}"
 VIEWER_UID="${VIEWER_UID:-$((ADMIN_UID + 1))}"
 "$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id "$ADMIN_UID" --roles admin >/dev/null
 "$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username viewer --password viewer --user-id "$VIEWER_UID" --roles viewer >/dev/null
-"$CLI" seed-meta >/dev/null
+"$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
 ok "Seeded identity/meta"
 
 printf "\n==> Login as admin\n"

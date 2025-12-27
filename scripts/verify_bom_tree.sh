@@ -42,7 +42,7 @@ echo "==> Seed identity"
 echo "Created admin user"
 
 echo "==> Seed meta schema"
-"$CLI" seed-meta >/dev/null
+"$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
 
 # =============================================================================
 # Step 2: Login as admin

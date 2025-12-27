@@ -1,0 +1,113 @@
+name: regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * *"
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: regression-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install CLI
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Start services
+        run: docker compose -p yuantusplm up -d --build
+
+      - name: Wait for API
+        run: |
+          for i in {1..60}; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:7910/api/v1/health || true)"
+            if [ "$code" = "200" ]; then
+              echo "API healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API not healthy"
+          docker compose -p yuantusplm ps
+          docker compose -p yuantusplm logs --tail=200 api
+          exit 1
+
+      - name: Run regression suite
+        env:
+          RUN_CAD_AUTO_PART: "1"
+          RUN_CAD_EXTRACTOR_SERVICE: "1"
+        run: |
+          . .venv/bin/activate
+          bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 2>&1 | tee regression.log
+
+      - name: Build regression summary
+        if: always()
+        run: |
+          {
+            echo "# Regression Summary"
+            echo ""
+            echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo ""
+            echo '```text'
+            if grep -q "ALL TESTS PASSED" regression.log; then
+              grep -n "PASS:" -n regression.log | tail -n 1 | sed 's/^.*PASS:/PASS:/'
+              echo "ALL TESTS PASSED"
+            else
+              grep -n "PASS:" -n regression.log | tail -n 1 | sed 's/^.*PASS:/PASS:/' || true
+              echo "ALL TESTS FAILED"
+            fi
+            echo '```'
+          } > regression-summary.md
+
+      - name: Compose logs (on failure)
+        if: failure()
+        run: |
+          docker compose -p yuantusplm ps
+          docker compose -p yuantusplm logs --tail=200
+
+      - name: Capture compose logs
+        if: always()
+        run: |
+          docker compose -p yuantusplm ps || true
+          docker compose -p yuantusplm logs > compose.log 2>&1 || true
+
+      - name: Upload regression log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-log
+          path: regression.log
+
+      - name: Upload regression summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-summary
+          path: regression-summary.md
+
+      - name: Upload compose log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-log
+          path: compose.log

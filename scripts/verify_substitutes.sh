@@ -40,7 +40,7 @@ printf "==============================================\n"
 
 printf "\n==> Seed identity/meta\n"
 "$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin >/dev/null
-"$CLI" seed-meta >/dev/null
+"$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
 ok "Seeded identity/meta"
 
 printf "\n==> Login as admin\n"

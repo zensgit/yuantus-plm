@@ -42,7 +42,7 @@ echo "==> Seed identity (admin + viewer)"
 echo "Created users: admin (superuser), viewer (no write)"
 
 echo "==> Seed meta schema"
-"$CLI" seed-meta >/dev/null
+"$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
 
 # =============================================================================
 # Step 2: Login as admin and configure permissions
@@ -55,6 +55,45 @@ ADMIN_TOKEN="$(
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["access_token"])'
 )"
 echo "Admin login: OK"
+
+# =============================================================================
+# Step 2.5: Ensure viewer user exists + not superuser (server-side identity DB)
+# =============================================================================
+echo "==> Ensure viewer identity (server) is non-superuser"
+
+# Create viewer user if missing (ignore 409)
+HTTP_CODE="$(curl -s -o /tmp/admin_user_create.json -w '%{http_code}' \
+  -X POST "$BASE/api/v1/admin/users" \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d "{\"username\":\"viewer\",\"password\":\"viewer\",\"user_id\":2,\"is_superuser\":false}"
+)"
+if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "201" && "$HTTP_CODE" != "409" ]]; then
+  fail "Failed to create viewer user via admin API: HTTP $HTTP_CODE"
+fi
+
+# Force viewer is_superuser=false (in case of previous runs)
+HTTP_CODE="$(curl -s -o /tmp/admin_user_update.json -w '%{http_code}' \
+  -X PATCH "$BASE/api/v1/admin/users/2" \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d "{\"is_superuser\":false,\"is_active\":true}"
+)"
+if [[ "$HTTP_CODE" != "200" ]]; then
+  fail "Failed to update viewer user via admin API: HTTP $HTTP_CODE"
+fi
+
+# Ensure viewer membership in org with viewer role
+HTTP_CODE="$(curl -s -o /tmp/admin_member_upsert.json -w '%{http_code}' \
+  -X POST "$BASE/api/v1/admin/orgs/$ORG/members" \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -d "{\"user_id\":2,\"roles\":[\"viewer\"],\"is_active\":true}"
+)"
+if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "201" ]]; then
+  fail "Failed to ensure viewer membership via admin API: HTTP $HTTP_CODE"
+fi
+echo "Viewer identity: OK"
 
 # =============================================================================
 # Step 3: Create PermissionSet for read-only access

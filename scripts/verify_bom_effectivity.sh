@@ -50,7 +50,7 @@ echo "==> Seed identity (admin + viewer)"
 echo "Created users: admin (superuser), viewer (no write)"
 
 echo "==> Seed meta schema"
-"$CLI" seed-meta >/dev/null
+"$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
 
 # =============================================================================
 # Step 2: Configure ReadOnly permission for viewer

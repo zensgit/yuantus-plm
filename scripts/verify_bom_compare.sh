@@ -37,7 +37,7 @@ echo "=============================================="
 echo ""
 echo "==> Seed identity/meta"
 "$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin >/dev/null
-"$CLI" seed-meta >/dev/null
+"$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
 ok "Seeded identity/meta"
 
 echo ""
@@ -55,6 +55,7 @@ AUTH=(-H "Authorization: Bearer $TOKEN")
 ok "Admin login"
 
 TS="$(date +%s)"
+EFFECTIVE_FROM="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 echo ""
 echo "==> Create parent items"
@@ -114,16 +115,59 @@ echo ""
 echo "==> Build BOM B (changed + added)"
 $CURL -X POST "$API/bom/$PARENT_B/children" "${HEADERS[@]}" "${AUTH[@]}" \
   -H 'content-type: application/json' \
-  -d "{\"child_id\":\"$CHILD_X\",\"quantity\":2,\"uom\":\"EA\",\"find_num\":\"020\",\"refdes\":\"R1,R2\"}" >/dev/null
+  -d "{\"child_id\":\"$CHILD_X\",\"quantity\":2,\"uom\":\"EA\",\"find_num\":\"020\",\"refdes\":\"R1,R2\",\"effectivity_from\":\"$EFFECTIVE_FROM\"}" >/dev/null
 $CURL -X POST "$API/bom/$PARENT_B/children" "${HEADERS[@]}" "${AUTH[@]}" \
   -H 'content-type: application/json' \
   -d "{\"child_id\":\"$CHILD_Z\",\"quantity\":1,\"uom\":\"EA\"}" >/dev/null
 ok "BOM B created"
 
 echo ""
+echo "==> Create substitute for CHILD_X in BOM B"
+SUB_PART_ID="$(
+  $CURL -X POST "$API/aml/apply" "${HEADERS[@]}" "${AUTH[@]}" \
+    -H 'content-type: application/json' \
+    -d "{\"type\":\"Part\",\"action\":\"add\",\"properties\":{\"item_number\":\"CMP-S-$TS\",\"name\":\"Substitute $TS\"}}" \
+    | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("id",""))'
+)"
+if [[ -z "$SUB_PART_ID" ]]; then
+  fail "Failed to create substitute part"
+fi
+
+TREE_RESP="$($CURL "$API/bom/$PARENT_B/tree?depth=1" "${HEADERS[@]}" "${AUTH[@]}")"
+BOM_LINE_X="$(
+  RESP_JSON="$TREE_RESP" CHILD_ID="$CHILD_X" "$PY" - <<'PY'
+import os, json
+data = json.loads(os.environ.get("RESP_JSON", "{}"))
+child_id = os.environ.get("CHILD_ID")
+for entry in data.get("children", []) or []:
+    rel = entry.get("relationship") or {}
+    child = entry.get("child") or {}
+    if child.get("id") == child_id:
+        print(rel.get("id") or "")
+        raise SystemExit(0)
+print("")
+PY
+)"
+if [[ -z "$BOM_LINE_X" ]]; then
+  fail "Failed to resolve BOM line for CHILD_X"
+fi
+
+SUB_RESP="$(
+  $CURL -X POST "$API/bom/$BOM_LINE_X/substitutes" "${HEADERS[@]}" "${AUTH[@]}" \
+    -H 'content-type: application/json' \
+    -d "{\"substitute_item_id\":\"$SUB_PART_ID\",\"properties\":{\"rank\":1}}"
+)"
+SUB_ID="$(echo "$SUB_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("substitute_id",""))')"
+if [[ -z "$SUB_ID" ]]; then
+  echo "Response: $SUB_RESP"
+  fail "Failed to add substitute to BOM line"
+fi
+ok "Substitute added: $SUB_ID"
+
+echo ""
 echo "==> Compare BOM"
 RESP="$(
-  $CURL "$API/bom/compare?left_type=item&left_id=$PARENT_A&right_type=item&right_id=$PARENT_B&max_levels=10&include_relationship_props=quantity,uom,find_num,refdes" \
+  $CURL "$API/bom/compare?left_type=item&left_id=$PARENT_A&right_type=item&right_id=$PARENT_B&max_levels=10&line_key=child_config&include_relationship_props=quantity,uom,find_num,refdes,effectivity_from,effectivity_to&include_substitutes=true&include_effectivity=true" \
     "${HEADERS[@]}" "${AUTH[@]}"
 )"
 
@@ -163,7 +207,207 @@ assert "$CHILD_Z" in added_ids, "expected CHILD_Z in added"
 assert "$CHILD_Y" in removed_ids, "expected CHILD_Y in removed"
 assert "$CHILD_X" in changed_ids, "expected CHILD_X in changed"
 
+if summary.get("changed_major", 0) < 1:
+    raise SystemExit("expected >=1 changed_major")
+
+target = None
+for entry in changed:
+    cid = entry.get("child_id") or (entry.get("child") or {}).get("id")
+    if cid == "$CHILD_X":
+        target = entry
+        break
+if not target:
+    raise SystemExit("missing changed entry for CHILD_X")
+
+diff_fields = {d.get("field") for d in (target.get("changes") or []) if d.get("field")}
+missing = {"quantity", "find_num", "refdes", "substitutes", "effectivities"} - diff_fields
+if missing:
+    raise SystemExit(f"missing diff fields: {sorted(missing)}")
+
+severity = target.get("severity")
+if severity not in {"major"}:
+    raise SystemExit(f"unexpected severity: {severity}")
+
+line_key = target.get("line_key")
+if not line_key:
+    raise SystemExit("missing line_key in compare output")
+
+before = target.get("before") or {}
+after = target.get("after") or {}
+
+def to_float(val):
+    try:
+        return float(val)
+    except Exception:
+        return None
+
+if to_float(before.get("quantity")) != 1.0 or to_float(after.get("quantity")) != 2.0:
+    raise SystemExit("quantity diff mismatch")
+if str(before.get("find_num")) != "010" or str(after.get("find_num")) != "020":
+    raise SystemExit("find_num diff mismatch")
+before_ref = str(before.get("refdes"))
+after_ref = str(after.get("refdes"))
+if "R1" not in before_ref or "R1" not in after_ref or "R2" not in after_ref:
+    raise SystemExit("refdes diff mismatch")
+
 print("BOM Compare: OK")
+PY
+
+echo ""
+echo "==> Compare BOM (compare_mode=only_product)"
+RESP_ONLY="$(
+  $CURL "$API/bom/compare?left_type=item&left_id=$PARENT_A&right_type=item&right_id=$PARENT_B&max_levels=10&compare_mode=only_product" \
+    "${HEADERS[@]}" "${AUTH[@]}"
+)"
+
+RESP_JSON="$RESP_ONLY" "$PY" - <<PY
+import os
+import json
+
+raw = os.environ.get("RESP_JSON", "")
+if not raw:
+    raise SystemExit("Empty response from /bom/compare (only_product)")
+d = json.loads(raw)
+summary = d.get("summary", {})
+added = d.get("added", [])
+removed = d.get("removed", [])
+changed = d.get("changed", [])
+
+def ids(entries):
+    out = set()
+    for e in entries:
+        cid = e.get("child_id")
+        if not cid:
+            child = e.get("child") or {}
+            cid = child.get("id")
+        if cid:
+            out.add(cid)
+    return out
+
+added_ids = ids(added)
+removed_ids = ids(removed)
+
+if summary.get("changed", 0) != 0 or changed:
+    raise SystemExit("only_product should not report changed entries")
+
+if "$CHILD_Z" not in added_ids:
+    raise SystemExit("only_product: expected CHILD_Z in added")
+if "$CHILD_Y" not in removed_ids:
+    raise SystemExit("only_product: expected CHILD_Y in removed")
+if "$CHILD_X" in added_ids or "$CHILD_X" in removed_ids:
+    raise SystemExit("only_product: CHILD_X should not be added/removed")
+
+print("BOM Compare only_product: OK")
+PY
+
+echo ""
+echo "==> Compare BOM (compare_mode=num_qty)"
+RESP_NUM="$(
+  $CURL "$API/bom/compare?left_type=item&left_id=$PARENT_A&right_type=item&right_id=$PARENT_B&max_levels=10&compare_mode=num_qty" \
+    "${HEADERS[@]}" "${AUTH[@]}"
+)"
+
+RESP_JSON="$RESP_NUM" "$PY" - <<PY
+import os
+import json
+
+raw = os.environ.get("RESP_JSON", "")
+if not raw:
+    raise SystemExit("Empty response from /bom/compare (num_qty)")
+d = json.loads(raw)
+summary = d.get("summary", {})
+added = d.get("added", [])
+removed = d.get("removed", [])
+changed = d.get("changed", [])
+
+def ids(entries):
+    out = set()
+    for e in entries:
+        cid = e.get("child_id")
+        if not cid:
+            child = e.get("child") or {}
+            cid = child.get("id")
+        if cid:
+            out.add(cid)
+    return out
+
+added_ids = ids(added)
+removed_ids = ids(removed)
+
+if summary.get("changed", 0) != 0 or changed:
+    raise SystemExit("num_qty should not report changed entries")
+
+if "$CHILD_Z" not in added_ids:
+    raise SystemExit("num_qty: expected CHILD_Z in added")
+if "$CHILD_Y" not in removed_ids:
+    raise SystemExit("num_qty: expected CHILD_Y in removed")
+if "$CHILD_X" not in added_ids or "$CHILD_X" not in removed_ids:
+    raise SystemExit("num_qty: expected CHILD_X in both added and removed")
+
+print("BOM Compare num_qty: OK")
+PY
+
+echo ""
+echo "==> Compare BOM (compare_mode=summarized)"
+RESP_SUM="$(
+  $CURL "$API/bom/compare?left_type=item&left_id=$PARENT_A&right_type=item&right_id=$PARENT_B&max_levels=10&compare_mode=summarized" \
+    "${HEADERS[@]}" "${AUTH[@]}"
+)"
+
+RESP_JSON="$RESP_SUM" "$PY" - <<PY
+import os
+import json
+
+raw = os.environ.get("RESP_JSON", "")
+if not raw:
+    raise SystemExit("Empty response from /bom/compare (summarized)")
+d = json.loads(raw)
+summary = d.get("summary", {})
+added = d.get("added", [])
+removed = d.get("removed", [])
+changed = d.get("changed", [])
+
+def ids(entries):
+    out = set()
+    for e in entries:
+        cid = e.get("child_id")
+        if not cid:
+            child = e.get("child") or {}
+            cid = child.get("id")
+        if cid:
+            out.add(cid)
+    return out
+
+added_ids = ids(added)
+removed_ids = ids(removed)
+changed_ids = ids(changed)
+
+if summary.get("changed", len(changed)) < 1:
+    raise SystemExit("summarized should report changed entries")
+if "$CHILD_Z" not in added_ids:
+    raise SystemExit("summarized: expected CHILD_Z in added")
+if "$CHILD_Y" not in removed_ids:
+    raise SystemExit("summarized: expected CHILD_Y in removed")
+if "$CHILD_X" not in changed_ids:
+    raise SystemExit("summarized: expected CHILD_X in changed")
+
+target = None
+for entry in changed:
+    cid = entry.get("child_id") or (entry.get("child") or {}).get("id")
+    if cid == "$CHILD_X":
+        target = entry
+        break
+if not target:
+    raise SystemExit("summarized: missing changed entry for CHILD_X")
+
+diff_fields = {d.get("field") for d in (target.get("changes") or []) if d.get("field")}
+if "quantity" not in diff_fields:
+    raise SystemExit("summarized: expected quantity diff")
+extra = diff_fields - {"quantity", "uom"}
+if extra:
+    raise SystemExit(f"summarized: unexpected diff fields: {sorted(extra)}")
+
+print("BOM Compare summarized: OK")
 PY
 
 echo ""
