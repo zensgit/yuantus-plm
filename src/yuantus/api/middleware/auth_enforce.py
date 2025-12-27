@@ -26,7 +26,7 @@ def _get_bearer_token(request: Request) -> Optional[str]:
 
 
 def _is_public_path(path: str) -> bool:
-    if path in {"/api/v1/health", "/api/v1/auth/login"}:
+    if path in {"/api/v1/health", "/api/v1/health/deps", "/api/v1/auth/login"}:
         return True
     if path in {"/docs", "/redoc", "/openapi.json"}:
         return True

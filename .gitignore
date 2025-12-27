@@ -6,6 +6,8 @@ __pycache__/
 .mypy_cache/
 .DS_Store
 .env
+.env.local
+docker-compose.override.yml
 data/
 dist/
 *.db
@@ -15,3 +17,5 @@ dist/
 *.pid
 references/
 *.egg-info/
+vendor/wheels/*
+!vendor/wheels/.gitkeep

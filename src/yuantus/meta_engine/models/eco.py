@@ -110,6 +110,7 @@ class ECOStage(Base):
         JSON().with_variant(JSONB, "postgresql"), nullable=True
     )  # List of roles that can approve
     min_approvals = Column(Integer, default=1)  # Minimum approvals needed
+    sla_hours = Column(Integer, nullable=True)  # Optional SLA window for approvals
 
     auto_progress = Column(Boolean, default=False)  # Auto-move when approved
     description = Column(Text, nullable=True)
@@ -238,6 +239,9 @@ class ECO(Base):
             "product_version_after": self.product_version_after,
             "effectivity_date": (
                 self.effectivity_date.isoformat() if self.effectivity_date else None
+            ),
+            "approval_deadline": (
+                self.approval_deadline.isoformat() if self.approval_deadline else None
             ),
             "created_by_id": self.created_by_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,

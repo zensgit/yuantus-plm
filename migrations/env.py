@@ -29,7 +29,13 @@ from yuantus.models.base import Base, WorkflowBase
 import_all_models()
 
 # Import identity models as well
-from yuantus.security.auth.models import AuthUser, Tenant, Organization, OrgMembership  # noqa: F401
+from yuantus.security.auth.models import (  # noqa: F401
+    AuthUser,
+    Tenant,
+    Organization,
+    OrgMembership,
+    TenantQuota,
+)
 from yuantus.security.rbac.models import RBACUser, RBACRole  # noqa: F401
 from yuantus.models import user as _user  # noqa: F401
 

@@ -3,6 +3,7 @@ import json
 from typing import Dict, Any
 from sqlalchemy.orm import Session
 from ..models.meta_schema import ItemType
+from yuantus.integrations.cad_connectors import resolve_cad_sync_key
 
 
 class MetaSchemaService:
@@ -97,6 +98,9 @@ class MetaSchemaService:
                 prop_def["ui_options"] = prop.ui_options
             if prop.is_cad_synced:
                 prop_def["x-cad-synced"] = True  # Use x- custom extension
+                cad_key = resolve_cad_sync_key(prop.name, prop.ui_options)
+                if cad_key and cad_key != prop.name:
+                    prop_def["x-cad-key"] = cad_key
             if prop.default_value_expression:
                 prop_def["x-default-value-expression"] = prop.default_value_expression
 

@@ -3,14 +3,27 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import Identity, get_current_identity
+from yuantus.config import get_settings
+from yuantus.database import SessionLocal as GlobalSessionLocal
+from yuantus.database import get_db
+from yuantus.database import get_sessionmaker_for_scope, get_sessionmaker_for_tenant
+from yuantus.models.audit import AuditLog
 from yuantus.security.auth.database import get_identity_db
-from yuantus.security.auth.models import AuthCredential, AuthUser, Organization, OrgMembership, Tenant
+from yuantus.security.auth.models import (
+    AuthCredential,
+    AuthUser,
+    Organization,
+    OrgMembership,
+    Tenant,
+    TenantQuota,
+)
 from yuantus.security.auth.passwords import hash_password
+from yuantus.security.auth.quota_service import QuotaService
 from yuantus.security.auth.service import AuthService
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -19,6 +32,15 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 def require_superuser(identity: Identity = Depends(get_current_identity)) -> Identity:
     if not identity.is_superuser:
         raise HTTPException(status_code=403, detail="Superuser required")
+    return identity
+
+
+def require_platform_admin(identity: Identity = Depends(get_current_identity)) -> Identity:
+    settings = get_settings()
+    if not settings.PLATFORM_ADMIN_ENABLED:
+        raise HTTPException(status_code=403, detail="Platform admin disabled")
+    if not identity.is_superuser or identity.tenant_id != settings.PLATFORM_TENANT_ID:
+        raise HTTPException(status_code=403, detail="Platform admin required")
     return identity
 
 
@@ -47,6 +69,40 @@ class TenantResponse(BaseModel):
     name: Optional[str] = None
     is_active: bool
     created_at: datetime
+
+
+class TenantCreateRequest(BaseModel):
+    id: str = Field(..., min_length=1, max_length=64)
+    name: Optional[str] = Field(default=None, max_length=200)
+    is_active: bool = Field(default=True)
+    create_default_org: bool = Field(default=True)
+    default_org_id: str = Field(default="org-1", min_length=1, max_length=64)
+    admin_username: Optional[str] = Field(default=None, max_length=100)
+    admin_password: Optional[str] = Field(default=None, max_length=200)
+    admin_email: Optional[str] = Field(default=None, max_length=200)
+    admin_user_id: Optional[int] = Field(default=None, description="Optional fixed user id (dev)")
+
+
+class TenantUpdateRequest(BaseModel):
+    name: Optional[str] = Field(default=None, max_length=200)
+    is_active: Optional[bool] = None
+
+
+class TenantQuotaData(BaseModel):
+    max_users: Optional[int] = Field(default=None, ge=0)
+    max_orgs: Optional[int] = Field(default=None, ge=0)
+    max_files: Optional[int] = Field(default=None, ge=0)
+    max_storage_bytes: Optional[int] = Field(default=None, ge=0)
+    max_active_jobs: Optional[int] = Field(default=None, ge=0)
+    max_processing_jobs: Optional[int] = Field(default=None, ge=0)
+
+
+class TenantQuotaResponse(BaseModel):
+    tenant_id: str
+    mode: str
+    quota: TenantQuotaData
+    usage: Dict[str, Optional[int]]
+    updated_at: Optional[datetime] = None
 
 
 class OrganizationCreateRequest(BaseModel):
@@ -118,6 +174,23 @@ class MembershipResponse(BaseModel):
     created_at: datetime
 
 
+class AuditLogResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    created_at: datetime
+    tenant_id: Optional[str] = None
+    org_id: Optional[str] = None
+    user_id: Optional[int] = None
+    method: str
+    path: str
+    status_code: int
+    duration_ms: int
+    client_ip: Optional[str] = None
+    user_agent: Optional[str] = None
+    error: Optional[str] = None
+
+
 def _get_tenant(db: Session, tenant_id: str) -> Tenant:
     tenant = db.get(Tenant, tenant_id)
     if not tenant:
@@ -147,12 +220,186 @@ def _get_user(db: Session, tenant_id: str, user_id: int) -> AuthUser:
     return user
 
 
+def _open_meta_session(tenant_id: str, org_id: Optional[str]) -> Optional[Session]:
+    settings = get_settings()
+    if settings.TENANCY_MODE == "db-per-tenant-org":
+        if not org_id:
+            return None
+        SessionLocal = get_sessionmaker_for_scope(tenant_id, org_id)
+    elif settings.TENANCY_MODE == "db-per-tenant":
+        SessionLocal = get_sessionmaker_for_tenant(tenant_id)
+    else:
+        SessionLocal = GlobalSessionLocal
+    return SessionLocal()
+
+
+def _apply_quota_limits(
+    quota_service: QuotaService,
+    tenant_id: str,
+    deltas: Dict[str, int],
+    response: Optional[Response],
+) -> None:
+    decisions = quota_service.evaluate(tenant_id, deltas=deltas)
+    if not decisions:
+        return
+    if quota_service.mode == "soft":
+        if response is not None:
+            response.headers["X-Quota-Warning"] = QuotaService.build_warning(decisions)
+        return
+    detail = {
+        "code": "QUOTA_EXCEEDED",
+        **QuotaService.build_error_payload(tenant_id, decisions),
+    }
+    raise HTTPException(status_code=429, detail=detail)
+
+
+def _serialize_quota(quota: Optional[TenantQuota]) -> TenantQuotaData:
+    if not quota:
+        return TenantQuotaData()
+    return TenantQuotaData(
+        max_users=quota.max_users,
+        max_orgs=quota.max_orgs,
+        max_files=quota.max_files,
+        max_storage_bytes=quota.max_storage_bytes,
+        max_active_jobs=quota.max_active_jobs,
+        max_processing_jobs=quota.max_processing_jobs,
+    )
+
+
 @router.get("/tenant", response_model=TenantResponse)
 def get_tenant_info(
     identity: Identity = Depends(require_superuser),
     db: Session = Depends(get_identity_db),
 ) -> TenantResponse:
     tenant = _get_tenant(db, identity.tenant_id)
+    return TenantResponse(
+        id=tenant.id,
+        name=tenant.name,
+        is_active=bool(tenant.is_active),
+        created_at=tenant.created_at,
+    )
+
+
+@router.get("/tenants", response_model=Dict[str, Any])
+def list_tenants(
+    identity: Identity = Depends(require_platform_admin),
+    db: Session = Depends(get_identity_db),
+) -> Dict[str, Any]:
+    tenants = db.query(Tenant).order_by(Tenant.created_at.asc()).all()
+    return {
+        "items": [
+            TenantResponse(
+                id=t.id,
+                name=t.name,
+                is_active=bool(t.is_active),
+                created_at=t.created_at,
+            ).model_dump()
+            for t in tenants
+        ],
+        "total": len(tenants),
+    }
+
+
+@router.get("/tenants/{tenant_id}", response_model=TenantResponse)
+def get_tenant(
+    tenant_id: str,
+    identity: Identity = Depends(require_platform_admin),
+    db: Session = Depends(get_identity_db),
+) -> TenantResponse:
+    tenant = _get_tenant(db, tenant_id)
+    return TenantResponse(
+        id=tenant.id,
+        name=tenant.name,
+        is_active=bool(tenant.is_active),
+        created_at=tenant.created_at,
+    )
+
+
+@router.post("/tenants", response_model=TenantResponse)
+def create_tenant(
+    req: TenantCreateRequest,
+    identity: Identity = Depends(require_platform_admin),
+    db: Session = Depends(get_identity_db),
+) -> TenantResponse:
+    existing = db.get(Tenant, req.id)
+    if existing:
+        raise HTTPException(status_code=409, detail="Tenant already exists")
+
+    tenant = Tenant(
+        id=req.id,
+        name=req.name or req.id,
+        is_active=bool(req.is_active),
+    )
+    db.add(tenant)
+
+    if (req.admin_username and not req.admin_password) or (
+        req.admin_password and not req.admin_username
+    ):
+        raise HTTPException(status_code=400, detail="admin_username and admin_password required")
+
+    org: Optional[Organization] = None
+    if req.create_default_org or req.admin_username:
+        org = (
+            db.query(Organization)
+            .filter(Organization.tenant_id == req.id, Organization.id == req.default_org_id)
+            .first()
+        )
+        if not org:
+            org = Organization(
+                id=req.default_org_id,
+                tenant_id=req.id,
+                name=req.default_org_id,
+                is_active=True,
+            )
+            db.add(org)
+
+    if req.admin_username:
+        svc = AuthService(db)
+        try:
+            admin_user = svc.create_user(
+                tenant_id=req.id,
+                username=req.admin_username,
+                password=req.admin_password or "",
+                email=req.admin_email,
+                is_superuser=True,
+                user_id=req.admin_user_id,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
+
+        if org:
+            svc.add_membership(
+                tenant_id=req.id,
+                org_id=org.id,
+                user_id=admin_user.id,
+                roles=["admin"],
+            )
+
+    db.commit()
+    db.refresh(tenant)
+    return TenantResponse(
+        id=tenant.id,
+        name=tenant.name,
+        is_active=bool(tenant.is_active),
+        created_at=tenant.created_at,
+    )
+
+
+@router.patch("/tenants/{tenant_id}", response_model=TenantResponse)
+def update_tenant(
+    tenant_id: str,
+    req: TenantUpdateRequest,
+    identity: Identity = Depends(require_platform_admin),
+    db: Session = Depends(get_identity_db),
+) -> TenantResponse:
+    tenant = _get_tenant(db, tenant_id)
+    if req.name is not None:
+        tenant.name = req.name
+    if req.is_active is not None:
+        tenant.is_active = bool(req.is_active)
+    db.add(tenant)
+    db.commit()
+    db.refresh(tenant)
     return TenantResponse(
         id=tenant.id,
         name=tenant.name,
@@ -191,11 +438,15 @@ def list_orgs(
 @router.post("/orgs", response_model=OrganizationResponse)
 def create_org(
     req: OrganizationCreateRequest,
+    response: Response,
     identity: Identity = Depends(require_superuser),
     db: Session = Depends(get_identity_db),
 ) -> OrganizationResponse:
     svc = AuthService(db)
     svc.ensure_tenant(identity.tenant_id, name=identity.tenant_id)
+
+    quota_service = QuotaService(db)
+    _apply_quota_limits(quota_service, identity.tenant_id, {"orgs": 1}, response)
 
     existing = (
         db.query(Organization)
@@ -263,6 +514,74 @@ def update_org(
     )
 
 
+@router.get("/tenants/{tenant_id}/orgs", response_model=Dict[str, Any])
+def list_orgs_for_tenant(
+    tenant_id: str,
+    identity: Identity = Depends(require_platform_admin),
+    db: Session = Depends(get_identity_db),
+) -> Dict[str, Any]:
+    orgs = (
+        db.query(Organization)
+        .filter(Organization.tenant_id == tenant_id)
+        .order_by(Organization.created_at.asc())
+        .all()
+    )
+    return {
+        "tenant_id": tenant_id,
+        "items": [
+            OrganizationResponse(
+                id=o.id,
+                tenant_id=o.tenant_id,
+                name=o.name,
+                is_active=bool(o.is_active),
+                created_at=o.created_at,
+            ).model_dump()
+            for o in orgs
+        ],
+        "total": len(orgs),
+    }
+
+
+@router.post("/tenants/{tenant_id}/orgs", response_model=OrganizationResponse)
+def create_org_for_tenant(
+    tenant_id: str,
+    req: OrganizationCreateRequest,
+    response: Response,
+    identity: Identity = Depends(require_platform_admin),
+    db: Session = Depends(get_identity_db),
+) -> OrganizationResponse:
+    svc = AuthService(db)
+    svc.ensure_tenant(tenant_id, name=tenant_id)
+
+    quota_service = QuotaService(db)
+    _apply_quota_limits(quota_service, tenant_id, {"orgs": 1}, response)
+
+    existing = (
+        db.query(Organization)
+        .filter(Organization.tenant_id == tenant_id, Organization.id == req.id)
+        .first()
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail="Org already exists")
+
+    org = Organization(
+        id=req.id,
+        tenant_id=tenant_id,
+        name=req.name or req.id,
+        is_active=bool(req.is_active),
+    )
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+    return OrganizationResponse(
+        id=org.id,
+        tenant_id=org.tenant_id,
+        name=org.name,
+        is_active=bool(org.is_active),
+        created_at=org.created_at,
+    )
+
+
 @router.get("/users", response_model=Dict[str, Any])
 def list_users(
     identity: Identity = Depends(require_superuser),
@@ -296,11 +615,15 @@ def list_users(
 @router.post("/users", response_model=UserResponse)
 def create_user(
     req: UserCreateRequest,
+    response: Response,
     identity: Identity = Depends(require_superuser),
     db: Session = Depends(get_identity_db),
 ) -> UserResponse:
     svc = AuthService(db)
     svc.ensure_tenant(identity.tenant_id, name=identity.tenant_id)
+
+    quota_service = QuotaService(db)
+    _apply_quota_limits(quota_service, identity.tenant_id, {"users": 1}, response)
 
     try:
         user = svc.create_user(
@@ -489,3 +812,150 @@ def update_member(
         is_active=bool(membership.is_active),
         created_at=membership.created_at,
     )
+
+
+@router.get("/quota", response_model=TenantQuotaResponse)
+def get_quota(
+    identity: Identity = Depends(require_superuser),
+    identity_db: Session = Depends(get_identity_db),
+    meta_db: Session = Depends(get_db),
+) -> TenantQuotaResponse:
+    quota_service = QuotaService(identity_db, meta_db=meta_db)
+    quota = quota_service.get_quota(identity.tenant_id)
+    usage = quota_service.get_usage(identity.tenant_id)
+    return TenantQuotaResponse(
+        tenant_id=identity.tenant_id,
+        mode=quota_service.mode,
+        quota=_serialize_quota(quota),
+        usage=usage.to_dict(),
+        updated_at=quota.updated_at if quota else None,
+    )
+
+
+@router.put("/quota", response_model=TenantQuotaResponse)
+def update_quota(
+    req: TenantQuotaData,
+    identity: Identity = Depends(require_superuser),
+    identity_db: Session = Depends(get_identity_db),
+    meta_db: Session = Depends(get_db),
+) -> TenantQuotaResponse:
+    updates = req.model_dump(exclude_unset=True)
+    quota_service = QuotaService(identity_db, meta_db=meta_db)
+    quota = quota_service.upsert_quota(identity.tenant_id, updates=updates)
+    identity_db.commit()
+    usage = quota_service.get_usage(identity.tenant_id)
+    return TenantQuotaResponse(
+        tenant_id=identity.tenant_id,
+        mode=quota_service.mode,
+        quota=_serialize_quota(quota),
+        usage=usage.to_dict(),
+        updated_at=quota.updated_at if quota else None,
+    )
+
+
+@router.get("/tenants/{tenant_id}/quota", response_model=TenantQuotaResponse)
+def get_quota_for_tenant(
+    tenant_id: str,
+    org_id: Optional[str] = Query(None, description="Org id for meta usage in db-per-tenant-org"),
+    identity: Identity = Depends(require_platform_admin),
+    identity_db: Session = Depends(get_identity_db),
+) -> TenantQuotaResponse:
+    quota_service = QuotaService(identity_db)
+    quota = quota_service.get_quota(tenant_id)
+    meta_session = _open_meta_session(tenant_id, org_id)
+    try:
+        if meta_session is not None:
+            quota_service = QuotaService(identity_db, meta_db=meta_session)
+        usage = quota_service.get_usage(tenant_id)
+    finally:
+        if meta_session is not None:
+            meta_session.close()
+    return TenantQuotaResponse(
+        tenant_id=tenant_id,
+        mode=quota_service.mode,
+        quota=_serialize_quota(quota),
+        usage=usage.to_dict(),
+        updated_at=quota.updated_at if quota else None,
+    )
+
+
+@router.put("/tenants/{tenant_id}/quota", response_model=TenantQuotaResponse)
+def update_quota_for_tenant(
+    tenant_id: str,
+    req: TenantQuotaData,
+    org_id: Optional[str] = Query(None, description="Org id for meta usage in db-per-tenant-org"),
+    identity: Identity = Depends(require_platform_admin),
+    identity_db: Session = Depends(get_identity_db),
+) -> TenantQuotaResponse:
+    updates = req.model_dump(exclude_unset=True)
+    quota_service = QuotaService(identity_db)
+    quota = quota_service.upsert_quota(tenant_id, updates=updates)
+    identity_db.commit()
+    meta_session = _open_meta_session(tenant_id, org_id)
+    try:
+        if meta_session is not None:
+            quota_service = QuotaService(identity_db, meta_db=meta_session)
+        usage = quota_service.get_usage(tenant_id)
+    finally:
+        if meta_session is not None:
+            meta_session.close()
+    return TenantQuotaResponse(
+        tenant_id=tenant_id,
+        mode=quota_service.mode,
+        quota=_serialize_quota(quota),
+        usage=usage.to_dict(),
+        updated_at=quota.updated_at if quota else None,
+    )
+
+
+@router.get("/audit", response_model=Dict[str, Any])
+def list_audit_logs(
+    tenant_id: Optional[str] = Query(None, description="Tenant id filter (defaults to current)"),
+    org_id: Optional[str] = Query(None, description="Organization id filter"),
+    user_id: Optional[int] = Query(None, description="User id filter"),
+    path: Optional[str] = Query(None, description="Path contains filter"),
+    method: Optional[str] = Query(None, description="HTTP method filter"),
+    status_code: Optional[int] = Query(None, description="HTTP status code filter"),
+    since: Optional[datetime] = Query(None, description="Created >= timestamp"),
+    until: Optional[datetime] = Query(None, description="Created < timestamp"),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    identity: Identity = Depends(require_superuser),
+    db: Session = Depends(get_identity_db),
+) -> Dict[str, Any]:
+    if tenant_id and tenant_id != identity.tenant_id:
+        raise HTTPException(status_code=403, detail="Cross-tenant audit access is not allowed")
+
+    tenant_filter = tenant_id or identity.tenant_id
+    query = db.query(AuditLog).filter(AuditLog.tenant_id == tenant_filter)
+
+    if org_id:
+        query = query.filter(AuditLog.org_id == org_id)
+    if user_id is not None:
+        query = query.filter(AuditLog.user_id == user_id)
+    if path:
+        query = query.filter(AuditLog.path.contains(path))
+    if method:
+        query = query.filter(AuditLog.method == method.strip().upper())
+    if status_code is not None:
+        query = query.filter(AuditLog.status_code == status_code)
+    if since:
+        query = query.filter(AuditLog.created_at >= since)
+    if until:
+        query = query.filter(AuditLog.created_at < until)
+
+    total = query.count()
+    rows = (
+        query.order_by(AuditLog.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "tenant_id": tenant_filter,
+        "items": [AuditLogResponse.model_validate(r).model_dump() for r in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }

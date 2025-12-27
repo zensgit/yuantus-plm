@@ -53,6 +53,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     ports:
       - "7910:7910"
     environment:
@@ -60,6 +63,12 @@ services:
       YUANTUS_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus
       # Schema mode: use migrations for production
       YUANTUS_SCHEMA_MODE: migrations
+      # Tenancy (optional)
+      YUANTUS_TENANCY_MODE: ${YUANTUS_TENANCY_MODE:-single}
+      YUANTUS_DATABASE_URL_TEMPLATE: ${YUANTUS_DATABASE_URL_TEMPLATE:-}
+      YUANTUS_IDENTITY_DATABASE_URL: ${YUANTUS_IDENTITY_DATABASE_URL:-}
+      YUANTUS_PLATFORM_ADMIN_ENABLED: ${YUANTUS_PLATFORM_ADMIN_ENABLED:-false}
+      YUANTUS_PLATFORM_TENANT_ID: ${YUANTUS_PLATFORM_TENANT_ID:-platform}
       # Storage: S3/MinIO
       YUANTUS_STORAGE_TYPE: s3
       # Internal endpoint (container-to-container)
@@ -72,6 +81,20 @@ services:
       # Auth
       YUANTUS_AUTH_MODE: required
       YUANTUS_JWT_SECRET_KEY: change-me-in-production
+      # Audit logs
+      YUANTUS_AUDIT_ENABLED: ${YUANTUS_AUDIT_ENABLED:-false}
+      YUANTUS_AUDIT_RETENTION_DAYS: ${YUANTUS_AUDIT_RETENTION_DAYS:-0}
+      YUANTUS_AUDIT_RETENTION_MAX_ROWS: ${YUANTUS_AUDIT_RETENTION_MAX_ROWS:-0}
+      YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS: ${YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS:-600}
+      # Quotas
+      YUANTUS_QUOTA_MODE: ${YUANTUS_QUOTA_MODE:-disabled}
+      # CAD extractor + connector config (optional)
+      YUANTUS_CAD_EXTRACTOR_BASE_URL: ${YUANTUS_CAD_EXTRACTOR_BASE_URL:-http://cad-extractor:8200}
+      YUANTUS_CAD_EXTRACTOR_SERVICE_TOKEN: ${YUANTUS_CAD_EXTRACTOR_SERVICE_TOKEN:-}
+      YUANTUS_CAD_EXTRACTOR_TIMEOUT_SECONDS: ${YUANTUS_CAD_EXTRACTOR_TIMEOUT_SECONDS:-30}
+      YUANTUS_CAD_EXTRACTOR_MODE: ${YUANTUS_CAD_EXTRACTOR_MODE:-required}
+      YUANTUS_CAD_CONNECTORS_CONFIG_PATH: ${YUANTUS_CAD_CONNECTORS_CONFIG_PATH:-}
+      YUANTUS_CAD_CONNECTORS_ALLOW_PATH_OVERRIDE: ${YUANTUS_CAD_CONNECTORS_ALLOW_PATH_OVERRIDE:-false}
     depends_on:
       postgres:
         condition: service_healthy
@@ -94,17 +117,60 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
     environment:
       YUANTUS_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus
       YUANTUS_SCHEMA_MODE: migrations
+      YUANTUS_TENANCY_MODE: ${YUANTUS_TENANCY_MODE:-single}
+      YUANTUS_DATABASE_URL_TEMPLATE: ${YUANTUS_DATABASE_URL_TEMPLATE:-}
+      YUANTUS_IDENTITY_DATABASE_URL: ${YUANTUS_IDENTITY_DATABASE_URL:-}
+      YUANTUS_PLATFORM_ADMIN_ENABLED: ${YUANTUS_PLATFORM_ADMIN_ENABLED:-false}
+      YUANTUS_PLATFORM_TENANT_ID: ${YUANTUS_PLATFORM_TENANT_ID:-platform}
       YUANTUS_STORAGE_TYPE: s3
       YUANTUS_S3_ENDPOINT_URL: http://minio:9000
       YUANTUS_S3_PUBLIC_ENDPOINT_URL: http://localhost:59000
       YUANTUS_S3_BUCKET_NAME: yuantus
       YUANTUS_S3_ACCESS_KEY_ID: minioadmin
       YUANTUS_S3_SECRET_ACCESS_KEY: minioadmin
+      YUANTUS_QUOTA_MODE: ${YUANTUS_QUOTA_MODE:-disabled}
+      YUANTUS_CAD_EXTRACTOR_BASE_URL: ${YUANTUS_CAD_EXTRACTOR_BASE_URL:-http://cad-extractor:8200}
+      YUANTUS_CAD_EXTRACTOR_SERVICE_TOKEN: ${YUANTUS_CAD_EXTRACTOR_SERVICE_TOKEN:-}
+      YUANTUS_CAD_EXTRACTOR_TIMEOUT_SECONDS: ${YUANTUS_CAD_EXTRACTOR_TIMEOUT_SECONDS:-30}
+      YUANTUS_CAD_EXTRACTOR_MODE: ${YUANTUS_CAD_EXTRACTOR_MODE:-required}
+      YUANTUS_CAD_CONNECTORS_CONFIG_PATH: ${YUANTUS_CAD_CONNECTORS_CONFIG_PATH:-}
     depends_on:
-      - api  # Wait for API to run migrations first
+      api:
+        condition: service_started
+
+  # =============================================================================
+  # Optional CAD Extractor Microservice
+  # =============================================================================
+  cad-extractor:
+    build:
+      context: ./services/cad-extractor
+      dockerfile: Dockerfile
+    ports:
+      - "${YUANTUS_CAD_EXTRACTOR_PORT:-8200}:8200"
+    environment:
+      CAD_EXTRACTOR_AUTH_MODE: ${CAD_EXTRACTOR_AUTH_MODE:-disabled}
+      CAD_EXTRACTOR_SERVICE_TOKEN: ${CAD_EXTRACTOR_SERVICE_TOKEN:-}
+      CAD_EXTRACTOR_MAX_UPLOAD_MB: ${CAD_EXTRACTOR_MAX_UPLOAD_MB:-200}
+      CAD_EXTRACTOR_HASH_ALG: ${CAD_EXTRACTOR_HASH_ALG:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/health').read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
 
 volumes:
   postgres_data:

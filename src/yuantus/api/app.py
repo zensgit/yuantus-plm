@@ -15,10 +15,13 @@ from yuantus.api.routers.plugins import router as plugins_router
 from yuantus.config import get_settings
 from yuantus.database import init_db
 from yuantus.meta_engine.web.bom_router import bom_router
+from yuantus.meta_engine.web.baseline_router import baseline_router
 from yuantus.meta_engine.web.cad_router import router as cad_router
 from yuantus.meta_engine.web.eco_router import eco_router
+from yuantus.meta_engine.web.equivalent_router import equivalent_router
 from yuantus.meta_engine.web.file_router import file_router
 from yuantus.meta_engine.web.permission_router import permission_router
+from yuantus.meta_engine.web.report_router import report_router
 from yuantus.meta_engine.web.rpc_router import rpc_router
 from yuantus.meta_engine.web.router import meta_router
 from yuantus.meta_engine.web.schema_router import schema_router
@@ -44,12 +47,15 @@ def create_app() -> FastAPI:
     app.include_router(rpc_router, prefix="/api/v1")
     app.include_router(search_router, prefix="/api/v1")
     app.include_router(bom_router, prefix="/api/v1")
+    app.include_router(equivalent_router, prefix="/api/v1")
+    app.include_router(baseline_router, prefix="/api/v1")
     app.include_router(cad_router, prefix="/api/v1")
     app.include_router(permission_router, prefix="/api/v1")
     app.include_router(schema_router, prefix="/api/v1")
     app.include_router(ui_router, prefix="/api/v1")
     app.include_router(file_router, prefix="/api/v1")
     app.include_router(version_router, prefix="/api/v1")
+    app.include_router(report_router, prefix="/api/v1")
     app.include_router(eco_router, prefix="/api/v1")
 
     @app.on_event("startup")
@@ -60,6 +66,11 @@ def create_app() -> FastAPI:
         if settings.ENVIRONMENT == "dev":
             init_db(create_tables=True)
             init_identity_db(create_tables=True)
+        from yuantus.meta_engine.services.search_indexer import (
+            register_search_index_handlers,
+        )
+
+        register_search_index_handlers()
         load_plugins(app)
 
     @app.on_event("shutdown")

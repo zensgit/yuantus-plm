@@ -1,0 +1,11 @@
+# Development override (bind-mount source for faster iteration)
+
+services:
+  api:
+    environment:
+      PYTHONPATH: /app/src
+    volumes:
+      - ./src:/app/src
+      - ./migrations:/app/migrations
+      - ./plugins:/app/plugins
+      - ./alembic.ini:/app/alembic.ini:ro

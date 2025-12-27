@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import sys
 import time
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -13,6 +15,8 @@ from yuantus.config import get_settings
 from yuantus.context import org_id_var, tenant_id_var
 
 app = typer.Typer(add_completion=False, help="YuantusPLM CLI")
+search_app = typer.Typer(help="Search index maintenance")
+app.add_typer(search_app, name="search")
 
 
 @app.callback()
@@ -64,21 +68,28 @@ def worker(
     if org is not None:
         org_id_var.set(org)
 
+    from yuantus.meta_engine.bootstrap import import_all_models
     from yuantus.meta_engine.services.job_worker import JobWorker
     from yuantus.meta_engine.tasks.cad_conversion_tasks import perform_cad_conversion
     from yuantus.meta_engine.tasks.cad_pipeline_tasks import (
         cad_dedup_vision,
         cad_geometry,
+        cad_extract,
         cad_ml_vision,
         cad_preview,
     )
+    from yuantus.meta_engine.tasks.system_tasks import quota_test
+
+    import_all_models()
 
     w = JobWorker(worker_id or "worker-1", poll_interval=poll_interval)
     w.register_handler("cad_conversion", perform_cad_conversion)
     w.register_handler("cad_preview", cad_preview)
     w.register_handler("cad_geometry", cad_geometry)
+    w.register_handler("cad_extract", cad_extract)
     w.register_handler("cad_dedup_vision", cad_dedup_vision)
     w.register_handler("cad_ml_vision", cad_ml_vision)
+    w.register_handler("quota_test", quota_test)
 
     if once:
         processed = w.run_once()
@@ -96,6 +107,78 @@ def worker(
     except KeyboardInterrupt:
         w.stop()
         typer.echo(f"Worker '{w.worker_id}' stopped.", err=True)
+
+
+@search_app.command("reindex")
+def search_reindex(
+    item_type: Optional[str] = typer.Option(None, help="ItemType id to reindex"),
+    reset: bool = typer.Option(False, help="Delete index before reindex"),
+    limit: Optional[int] = typer.Option(None, help="Limit items to reindex"),
+    batch_size: int = typer.Option(200, help="Batch size for reindex"),
+    tenant: Optional[str] = typer.Option(
+        None, "--tenant", help="Tenant id (for db-per-tenant/org)"
+    ),
+    org: Optional[str] = typer.Option(
+        None, "--org", help="Org id (for db-per-tenant-org)"
+    ),
+) -> None:
+    if tenant is not None:
+        tenant_id_var.set(tenant)
+    if org is not None:
+        org_id_var.set(org)
+
+    from yuantus.meta_engine.bootstrap import import_all_models
+    from yuantus.database import get_db_session
+    from yuantus.meta_engine.services.search_service import SearchService
+
+    import_all_models()
+
+    with get_db_session() as session:
+        service = SearchService(session)
+        result = service.reindex_items(
+            item_type_id=item_type,
+            reset=reset,
+            limit=limit,
+            batch_size=batch_size,
+        )
+
+    typer.echo(json.dumps(result, indent=2, default=str))
+
+
+@search_app.command("reindex-ecos")
+def search_reindex_ecos(
+    state: Optional[str] = typer.Option(None, help="Filter ECO state"),
+    reset: bool = typer.Option(False, help="Delete index before reindex"),
+    limit: Optional[int] = typer.Option(None, help="Limit ECOs to reindex"),
+    batch_size: int = typer.Option(200, help="Batch size for reindex"),
+    tenant: Optional[str] = typer.Option(
+        None, "--tenant", help="Tenant id (for db-per-tenant/org)"
+    ),
+    org: Optional[str] = typer.Option(
+        None, "--org", help="Org id (for db-per-tenant-org)"
+    ),
+) -> None:
+    if tenant is not None:
+        tenant_id_var.set(tenant)
+    if org is not None:
+        org_id_var.set(org)
+
+    from yuantus.meta_engine.bootstrap import import_all_models
+    from yuantus.database import get_db_session
+    from yuantus.meta_engine.services.search_service import SearchService
+
+    import_all_models()
+
+    with get_db_session() as session:
+        service = SearchService(session)
+        result = service.reindex_ecos(
+            state=state,
+            reset=reset,
+            limit=limit,
+            batch_size=batch_size,
+        )
+
+    typer.echo(json.dumps(result, indent=2, default=str))
 
 
 @app.command("seed-identity")
@@ -174,6 +257,11 @@ def seed_meta(
         init_db,
     )
     from yuantus.meta_engine.bootstrap import import_all_models
+    from yuantus.meta_engine.lifecycle.models import (
+        LifecycleMap,
+        LifecycleState,
+        LifecycleTransition,
+    )
     from yuantus.meta_engine.models.meta_schema import ItemType, Property
     from yuantus.meta_engine.permission.models import Access, Permission
     from yuantus.models.base import Base
@@ -263,7 +351,18 @@ def seed_meta(
                 length=256,
                 data_type="string",
             ),
-            Property(name="state", label="State", default_value="New", data_type="string"),
+            Property(
+                name="revision",
+                label="Revision",
+                length=32,
+                data_type="string",
+            ),
+            Property(
+                name="state",
+                label="State",
+                default_value="Draft",
+                data_type="string",
+            ),
             Property(name="cost", label="Cost", data_type="float"),
             Property(name="weight", label="Weight", data_type="float"),
         ]
@@ -294,8 +393,222 @@ def seed_meta(
                 )
             )
 
+        def ensure_lifecycle_map(name: str, description: str) -> LifecycleMap:
+            lifecycle = session.query(LifecycleMap).filter_by(name=name).first()
+            if not lifecycle:
+                lifecycle = LifecycleMap(
+                    id=str(uuid.uuid4()),
+                    name=name,
+                    description=description,
+                )
+                session.add(lifecycle)
+                session.flush()
+            return lifecycle
+
+        def ensure_state(
+            lifecycle: LifecycleMap,
+            name: str,
+            sequence: int,
+            *,
+            is_start: bool = False,
+            is_end: bool = False,
+            is_released: bool = False,
+            version_lock: bool = False,
+        ) -> LifecycleState:
+            if is_start:
+                session.query(LifecycleState).filter_by(
+                    lifecycle_map_id=lifecycle.id, is_start_state=True
+                ).update({"is_start_state": False})
+            state = (
+                session.query(LifecycleState)
+                .filter_by(lifecycle_map_id=lifecycle.id, name=name)
+                .first()
+            )
+            if not state:
+                state = LifecycleState(
+                    id=str(uuid.uuid4()),
+                    lifecycle_map_id=lifecycle.id,
+                    name=name,
+                    label=name,
+                    sequence=sequence,
+                )
+                session.add(state)
+            state.sequence = sequence
+            state.is_start_state = is_start
+            state.is_end_state = is_end
+            state.is_released = is_released
+            state.version_lock = version_lock
+            session.flush()
+            return state
+
+        def ensure_transition(
+            lifecycle: LifecycleMap,
+            from_state: LifecycleState,
+            to_state: LifecycleState,
+            action_name: str,
+            role_id: Optional[int],
+        ) -> None:
+            transition = (
+                session.query(LifecycleTransition)
+                .filter_by(
+                    lifecycle_map_id=lifecycle.id,
+                    from_state_id=from_state.id,
+                    to_state_id=to_state.id,
+                )
+                .first()
+            )
+            if not transition:
+                transition = LifecycleTransition(
+                    id=str(uuid.uuid4()),
+                    lifecycle_map_id=lifecycle.id,
+                    from_state_id=from_state.id,
+                    to_state_id=to_state.id,
+                )
+                session.add(transition)
+            transition.action_name = action_name
+            transition.role_allowed_id = role_id
+
+        document = session.get(ItemType, "Document")
+        if not document:
+            document = ItemType(id="Document", label="Document", is_versionable=True)
+            session.add(document)
+        if not document.permission_id:
+            document.permission_id = default_perm.id
+
+        doc_props = [
+            Property(
+                name="doc_number",
+                label="Document Number",
+                is_required=True,
+                length=64,
+                data_type="string",
+            ),
+            Property(name="name", label="Title", length=256, data_type="string"),
+            Property(
+                name="description",
+                label="Description",
+                length=512,
+                data_type="string",
+            ),
+            Property(
+                name="state",
+                label="State",
+                default_value="Draft",
+                data_type="string",
+            ),
+        ]
+        existing_doc_props = {p.name for p in (document.properties or [])}
+        for prop in doc_props:
+            if prop.name in existing_doc_props:
+                continue
+            prop.item_type = document
+            session.add(prop)
+
+        admin_role_id = admin_role.id if admin_role else None
+        document_lifecycle = ensure_lifecycle_map(
+            "Document Lifecycle", "Controlled release for documents"
+        )
+        doc_draft_state = ensure_state(document_lifecycle, "Draft", 10, is_start=True)
+        doc_review_state = ensure_state(document_lifecycle, "Review", 20)
+        doc_released_state = ensure_state(
+            document_lifecycle,
+            "Released",
+            30,
+            is_released=True,
+            version_lock=True,
+        )
+        doc_obsolete_state = ensure_state(
+            document_lifecycle,
+            "Obsolete",
+            40,
+            is_end=True,
+            version_lock=True,
+        )
+        ensure_transition(
+            document_lifecycle,
+            doc_draft_state,
+            doc_review_state,
+            "submit",
+            admin_role_id,
+        )
+        ensure_transition(
+            document_lifecycle,
+            doc_review_state,
+            doc_draft_state,
+            "reject",
+            admin_role_id,
+        )
+        ensure_transition(
+            document_lifecycle,
+            doc_review_state,
+            doc_released_state,
+            "release",
+            admin_role_id,
+        )
+        ensure_transition(
+            document_lifecycle,
+            doc_released_state,
+            doc_obsolete_state,
+            "obsolete",
+            admin_role_id,
+        )
+
+        if not document.lifecycle_map_id:
+            document.lifecycle_map_id = document_lifecycle.id
+
+        part_lifecycle = ensure_lifecycle_map(
+            "Part Lifecycle", "Controlled release for parts"
+        )
+        part_draft_state = ensure_state(part_lifecycle, "Draft", 10, is_start=True)
+        part_review_state = ensure_state(part_lifecycle, "Review", 20)
+        part_released_state = ensure_state(
+            part_lifecycle,
+            "Released",
+            30,
+            is_released=True,
+            version_lock=True,
+        )
+        part_obsolete_state = ensure_state(
+            part_lifecycle,
+            "Obsolete",
+            40,
+            is_end=True,
+            version_lock=True,
+        )
+        ensure_transition(
+            part_lifecycle,
+            part_draft_state,
+            part_review_state,
+            "submit",
+            admin_role_id,
+        )
+        ensure_transition(
+            part_lifecycle,
+            part_review_state,
+            part_draft_state,
+            "reject",
+            admin_role_id,
+        )
+        ensure_transition(
+            part_lifecycle,
+            part_review_state,
+            part_released_state,
+            "release",
+            admin_role_id,
+        )
+        ensure_transition(
+            part_lifecycle,
+            part_released_state,
+            part_obsolete_state,
+            "obsolete",
+            admin_role_id,
+        )
+
+        if not part.lifecycle_map_id:
+            part.lifecycle_map_id = part_lifecycle.id
+
         session.commit()
-        typer.echo("Seeded meta schema: Part, Part BOM")
+        typer.echo("Seeded meta schema: Part, Part BOM, Document")
     finally:
         session.close()
 
@@ -303,7 +616,7 @@ def seed_meta(
 @app.command("db")
 def db_command(
     action: str = typer.Argument(
-        ..., help="upgrade|downgrade|revision|current|history"
+        ..., help="upgrade|downgrade|revision|current|history|stamp"
     ),
     message: Optional[str] = typer.Option(
         None, "--message", "-m", help="Migration message (for revision)"
@@ -324,6 +637,7 @@ def db_command(
       revision  - Create new migration
       current   - Show current revision
       history   - Show migration history
+      stamp     - Set revision without running migrations
     """
     import os
     import subprocess
@@ -361,6 +675,9 @@ def db_command(
         cmd.append("current")
     elif action == "history":
         cmd.append("history")
+    elif action == "stamp":
+        target = revision or "head"
+        cmd.extend(["stamp", target])
     else:
         typer.echo(f"Unknown action: {action}", err=True)
         raise typer.Exit(1)

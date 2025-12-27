@@ -47,6 +47,7 @@ class ConversionJob(Base):
     attempt_count = Column(Integer, default=0)
     max_attempts = Column(Integer, default=3)
     last_error = Column(Text, nullable=True)
+    dedupe_key = Column(String(120), nullable=True, index=True)
 
     # Timing
     created_at = Column(DateTime, default=datetime.utcnow)

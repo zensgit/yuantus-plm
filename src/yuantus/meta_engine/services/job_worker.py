@@ -9,9 +9,11 @@ import threading
 import inspect
 from typing import Callable, Dict, Any, Optional
 from yuantus.meta_engine.services.job_service import JobService
+from yuantus.meta_engine.services.job_errors import JobFatalError
 from yuantus.database import get_db_session
 from yuantus.meta_engine.models.job import ConversionJob  # For type hinting
 from yuantus.meta_engine.services.cad_service import CadService  # Import CadService
+from yuantus.context import org_id_var, tenant_id_var, user_id_var
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,11 @@ class JobWorker:
         try:
             with get_db_session() as session:
                 job_service = JobService(session)
+                requeued = job_service.requeue_stale_jobs()
+                if requeued:
+                    logger.warning(
+                        "Worker '%s' requeued %s stale job(s)", self.worker_id, requeued
+                    )
                 job: Optional[ConversionJob] = job_service.poll_next_job(self.worker_id)
                 if job:
                     logger.info(
@@ -71,6 +78,13 @@ class JobWorker:
             try:
                 with get_db_session() as session:
                     job_service = JobService(session)
+                    requeued = job_service.requeue_stale_jobs()
+                    if requeued:
+                        logger.warning(
+                            "Worker '%s' requeued %s stale job(s)",
+                            self.worker_id,
+                            requeued,
+                        )
                     job: Optional[ConversionJob] = job_service.poll_next_job(
                         self.worker_id
                     )
@@ -113,51 +127,79 @@ class JobWorker:
 
     def _execute_job(self, job: ConversionJob, job_service: JobService):
         """Executes a single job."""
-        if job.task_type not in self.task_handlers:
-            error_msg = f"No handler registered for task type: {job.task_type}"
-            logger.error(error_msg)
-            job_service.fail_job(job.id, error_msg)
-            return
+        tenant_token = None
+        org_token = None
+        user_token = None
+        payload = job.payload or {}
+
+        tenant_id = payload.get("tenant_id")
+        org_id = payload.get("org_id")
+        user_id = payload.get("user_id") or job.created_by_id
+
+        if tenant_id:
+            tenant_token = tenant_id_var.set(str(tenant_id))
+        if org_id:
+            org_token = org_id_var.set(str(org_id))
+        if user_id:
+            user_token = user_id_var.set(str(user_id))
 
         try:
-            handler = self.task_handlers[job.task_type]
-            # Handlers should return a result or raise an exception.
-            # If the handler supports (payload, session), pass the current DB session to avoid nested sessions.
+            if job.task_type not in self.task_handlers:
+                error_msg = f"No handler registered for task type: {job.task_type}"
+                logger.error(error_msg)
+                job_service.fail_job(job.id, error_msg)
+                return
+
             try:
-                params = list(inspect.signature(handler).parameters.values())
-                if len(params) >= 2:
-                    result = handler(job.payload, job_service.session)
-                else:
+                handler = self.task_handlers[job.task_type]
+                # Handlers should return a result or raise an exception.
+                # If the handler supports (payload, session), pass the current DB session to avoid nested sessions.
+                try:
+                    params = list(inspect.signature(handler).parameters.values())
+                    if len(params) >= 2:
+                        result = handler(job.payload, job_service.session)
+                    else:
+                        result = handler(job.payload)
+                except (TypeError, ValueError):
                     result = handler(job.payload)
-            except (TypeError, ValueError):
-                result = handler(job.payload)
 
-            # Post-processing: Sync attributes if present (Phase II CAD Integration)
-            if isinstance(result, dict) and result.get("extracted_attributes"):
-                item_id = job.payload.get("item_id")
-                if item_id:
-                    try:
-                        # Use session from job_service
-                        cad_service = CadService(job_service.session)
-                        cad_service.sync_attributes_to_item(
-                            item_id=item_id,
-                            extracted_attributes=result["extracted_attributes"],
-                            user_id=job.created_by_id or 1,
-                        )
-                        logger.info(
-                            f"Worker '{self.worker_id}' synced attributes for Item {item_id}"
-                        )
-                    except Exception as sync_err:
-                        logger.error(
-                            f"Failed to sync attributes for job {job.id}: {sync_err}"
-                        )
-                        # We log but don't fail the job if sync fails, as conversion succeeded
+                # Post-processing: Sync attributes if present (Phase II CAD Integration)
+                if isinstance(result, dict) and result.get("extracted_attributes"):
+                    item_id = job.payload.get("item_id")
+                    if item_id:
+                        try:
+                            # Use session from job_service
+                            cad_service = CadService(job_service.session)
+                            cad_service.sync_attributes_to_item(
+                                item_id=item_id,
+                                extracted_attributes=result["extracted_attributes"],
+                                user_id=job.created_by_id or 1,
+                            )
+                            logger.info(
+                                f"Worker '{self.worker_id}' synced attributes for Item {item_id}"
+                            )
+                        except Exception as sync_err:
+                            logger.error(
+                                f"Failed to sync attributes for job {job.id}: {sync_err}"
+                            )
+                            # We log but don't fail the job if sync fails, as conversion succeeded
 
-            logger.info(
-                f"Worker '{self.worker_id}' successfully executed job {job.id}. Result: {result}"
-            )
-            job_service.complete_job(job.id, result=result)
-        except Exception as e:
-            error_msg = f"Job {job.id} execution failed: {e}"
-            logger.error(error_msg, exc_info=True)
-            job_service.fail_job(job.id, error_msg)
+                logger.info(
+                    f"Worker '{self.worker_id}' successfully executed job {job.id}. Result: {result}"
+                )
+                job_service.complete_job(job.id, result=result)
+            except JobFatalError as e:
+                error_msg = f"Job {job.id} fatal error: {e}"
+                logger.error(error_msg)
+                job_service.fail_job(job.id, error_msg, retry=False)
+            except Exception as e:
+                error_msg = f"Job {job.id} execution failed: {e}"
+                logger.error(error_msg, exc_info=True)
+                job_service.fail_job(job.id, error_msg)
+        finally:
+            if user_token is not None:
+                user_id_var.reset(user_token)
+            if org_token is not None:
+                org_id_var.reset(org_token)
+            if tenant_token is not None:
+                tenant_id_var.reset(tenant_token)

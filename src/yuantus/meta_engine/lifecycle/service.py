@@ -274,6 +274,8 @@ class LifecycleService:
                 from yuantus.meta_engine.version.service import VersionService
 
                 ver_svc = VersionService(self.session)
+                if not item.current_version_id:
+                    ver_svc.create_initial_version(item, user_id)
                 ver_svc.release(item.id, user_id)
             except Exception as e:
                 logger.error(f"Failed to release version: {e}")

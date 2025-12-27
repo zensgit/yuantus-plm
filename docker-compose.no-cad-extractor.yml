@@ -1,0 +1,24 @@
+# Optional override to disable CAD extractor dependency for lightweight startup.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.no-cad-extractor.yml up -d --build
+
+services:
+  cad-extractor:
+    profiles:
+      - cad
+
+  api:
+    environment:
+      YUANTUS_CAD_EXTRACTOR_BASE_URL: ""
+      YUANTUS_CAD_EXTRACTOR_MODE: optional
+      YUANTUS_TENANCY_MODE: single
+      YUANTUS_DATABASE_URL_TEMPLATE: ""
+      YUANTUS_IDENTITY_DATABASE_URL: ""
+
+  worker:
+    environment:
+      YUANTUS_CAD_EXTRACTOR_BASE_URL: ""
+      YUANTUS_CAD_EXTRACTOR_MODE: optional
+      YUANTUS_TENANCY_MODE: single
+      YUANTUS_DATABASE_URL_TEMPLATE: ""
+      YUANTUS_IDENTITY_DATABASE_URL: ""
