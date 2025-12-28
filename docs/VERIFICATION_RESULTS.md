@@ -1676,6 +1676,30 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run CAD-COVERAGE-2D-20251228-2255（CAD 2D Connector Coverage）
+
+- 时间：`2025-12-28 22:55:49 +0800`
+- 脚本：`scripts/verify_cad_connector_coverage_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 输出报告：
+  - `docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_HAOCHEN.md`
+  - `docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_ZHONGWANG.md`
+- 说明：离线覆盖统计，目录 `/Users/huazhou/Downloads/训练图纸/训练图纸`，共 110 个 DWG。
+
+执行命令：
+
+```bash
+CAD_CONNECTOR_COVERAGE_DIR='/Users/huazhou/Downloads/训练图纸/训练图纸' \
+CAD_CONNECTOR_COVERAGE_EXTENSIONS='dwg' \
+  bash scripts/verify_cad_connector_coverage_2d.sh
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-AUTO-PART-20251228-2251（CAD Auto Part）
 
 - 时间：`2025-12-28 22:51:25 +0800`
