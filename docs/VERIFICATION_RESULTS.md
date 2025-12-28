@@ -1676,6 +1676,39 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run CAD-AUTO-PART-20251228-2251（CAD Auto Part）
+
+- 时间：`2025-12-28 22:51:25 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_auto_part.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part：`437b78a7-a349-40da-bb2b-ea106e06a977`
+  - File：`7868796e-51e4-4a6f-8eae-5283884b8dfb`
+  - Attachment：`76370cb7-0f04-4ccc-ba75-b0c701a55e25`
+
+执行命令：
+
+```bash
+TENANCY_MODE_ENV=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME=yuantus \
+S3_ACCESS_KEY_ID=minioadmin \
+S3_SECRET_ACCESS_KEY=minioadmin \
+  bash scripts/verify_cad_auto_part.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-EXTRACTOR-SERVICE-20251228-2242（CAD Extractor Service）
 
 - 时间：`2025-12-28 22:42:53 +0800`
