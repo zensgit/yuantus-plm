@@ -9817,3 +9817,179 @@ S3_SECRET_ACCESS_KEY=minioadmin \
 ```text
 ALL CHECKS PASSED
 ```
+
+## Run CAD-EXTRACTOR-STUB-20251228-2224（CAD Extractor Stub）
+
+- 时间：`2025-12-28 22:24:05 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_stub.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`cf7efbf1-723f-466a-ad47-6b616c6e7fd1`
+  - Job：`b1da373a-df76-4b9b-8501-67edeac362f5`
+
+执行命令：
+
+```bash
+TENANCY_MODE_ENV=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME=yuantus \
+S3_ACCESS_KEY_ID=minioadmin \
+S3_SECRET_ACCESS_KEY=minioadmin \
+  bash scripts/verify_cad_extractor_stub.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-CONNECTORS-CONFIG-20251228-2224（CAD Connectors Config）
+
+- 时间：`2025-12-28 22:24:20 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_config.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`3809b563-91d1-4c10-893b-e412eedb9d89`
+
+执行命令：
+
+```bash
+TENANCY_MODE_ENV=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_cad_connectors_config.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-SYNC-TEMPLATE-20251228-2224（CAD Sync Template）
+
+- 时间：`2025-12-28 22:24:34 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_sync_template.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+TENANCY_MODE_ENV=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_cad_sync_template.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-PIPELINE-S3-20251228-2224（CAD Pipeline S3）
+
+- 时间：`2025-12-28 22:24:46 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_pipeline_s3.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`6520876b-cd7e-4132-9cdf-df47f9bcf3af`
+  - Preview Job：`3a231d60-105d-44b2-91d8-c17499a1bc04`
+  - Geometry Job：`c57e6069-1fe5-446b-ab40-f423830d6c9f`
+
+执行命令：
+
+```bash
+TENANCY_MODE_ENV=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME=yuantus \
+S3_ACCESS_KEY_ID=minioadmin \
+S3_SECRET_ACCESS_KEY=minioadmin \
+  bash scripts/verify_cad_pipeline_s3.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-MISSING-SOURCE-20251228-2225（CAD Missing Source）
+
+- 时间：`2025-12-28 22:25:01 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_missing_source.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`8e94c35c-cf57-4773-8d63-345061c47708`
+  - Job：`b9cb10de-c69d-4de3-a975-d6507800863d`
+
+执行命令：
+
+```bash
+TENANCY_MODE_ENV=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME=yuantus \
+S3_ACCESS_KEY_ID=minioadmin \
+S3_SECRET_ACCESS_KEY=minioadmin \
+  bash scripts/verify_cad_missing_source.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-PREVIEW-2D-20251228-2225（CAD Preview 2D）
+
+- 时间：`2025-12-28 22:25:18 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_preview_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`46e9ad31-d9f8-4e9e-8617-c9b7b6f34fe9`
+
+执行命令：
+
+```bash
+TENANCY_MODE_ENV=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME=yuantus \
+S3_ACCESS_KEY_ID=minioadmin \
+S3_SECRET_ACCESS_KEY=minioadmin \
+  bash scripts/verify_cad_preview_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
