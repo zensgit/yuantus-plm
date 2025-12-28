@@ -10,6 +10,7 @@ __pycache__/
 docker-compose.override.yml
 data/
 dist/
+tmp/
 *.db
 *.db-shm
 *.db-wal
