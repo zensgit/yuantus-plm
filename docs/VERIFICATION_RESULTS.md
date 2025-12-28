@@ -1676,6 +1676,61 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run CAD-EXTRACTOR-SERVICE-20251228-2242（CAD Extractor Service）
+
+- 时间：`2025-12-28 22:42:53 +0800`
+- 基地址：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_service.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_extractor_service.sh
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-EXTRACTOR-EXTERNAL-20251228-2243（CAD Extractor External）
+
+- 时间：`2025-12-28 22:43:07 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`a768f92c-112d-4a40-8469-b105d4d76a68`
+  - Job：`81272fd8-29c4-40a1-835a-aa3ab2951347`
+
+执行命令：
+
+```bash
+TENANCY_MODE_ENV=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME=yuantus \
+S3_ACCESS_KEY_ID=minioadmin \
+S3_SECRET_ACCESS_KEY=minioadmin \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/tmp/yuantus_extractor_external.dwg' \
+CAD_EXTRACTOR_EXPECT_KEY=file_ext \
+CAD_EXTRACTOR_EXPECT_VALUE=dwg \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 
 ## Run ALL-35（一键回归脚本：verify_all.sh）
 
