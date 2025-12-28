@@ -1676,6 +1676,37 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run INTEGRATIONS-ATHENA-20251228-2347（Integrations Athena）
+
+- 时间：`2025-12-28 23:47:46 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_integrations_athena.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：使用 `X-Athena-Authorization` + Yuantus JWT；服务级 token 未验证。
+
+执行命令：
+
+```bash
+YUANTUS_TOKEN=$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"tenant-1","org_id":"org-1","username":"admin","password":"admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+ATHENA_TOKEN=$(curl -s -X POST http://localhost:8180/realms/ecm/protocol/openid-connect/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'grant_type=password&client_id=unified-portal&username=admin&password=admin' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+YUANTUS_TOKEN="$YUANTUS_TOKEN" ATHENA_TOKEN="$ATHENA_TOKEN" \
+  bash scripts/verify_integrations_athena.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-COVERAGE-2D-20251228-2255（CAD 2D Connector Coverage）
 
 - 时间：`2025-12-28 22:55:49 +0800`
