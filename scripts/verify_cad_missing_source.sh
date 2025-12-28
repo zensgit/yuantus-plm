@@ -14,6 +14,14 @@ PY="${PY:-.venv/bin/python}"
 CURL="${CURL:-curl -sS}"
 DB_URL="${DB_URL:-${YUANTUS_DATABASE_URL:-}}"
 IDENTITY_DB_URL="${IDENTITY_DB_URL:-${YUANTUS_IDENTITY_DATABASE_URL:-}}"
+DB_URL_TEMPLATE="${DB_URL_TEMPLATE:-${YUANTUS_DATABASE_URL_TEMPLATE:-}}"
+TENANCY_MODE_ENV="${TENANCY_MODE_ENV:-${YUANTUS_TENANCY_MODE:-}}"
+STORAGE_TYPE="${STORAGE_TYPE:-${YUANTUS_STORAGE_TYPE:-}}"
+S3_ENDPOINT_URL="${S3_ENDPOINT_URL:-${YUANTUS_S3_ENDPOINT_URL:-${YUANTUS_S3_PUBLIC_ENDPOINT_URL:-}}}"
+S3_PUBLIC_ENDPOINT_URL="${S3_PUBLIC_ENDPOINT_URL:-${YUANTUS_S3_PUBLIC_ENDPOINT_URL:-}}"
+S3_BUCKET_NAME="${S3_BUCKET_NAME:-${YUANTUS_S3_BUCKET_NAME:-}}"
+S3_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID:-${YUANTUS_S3_ACCESS_KEY_ID:-}}"
+S3_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY:-${YUANTUS_S3_SECRET_ACCESS_KEY:-}}"
 LOCAL_STORAGE_PATH="${LOCAL_STORAGE_PATH:-${YUANTUS_LOCAL_STORAGE_PATH:-./data/storage}}"
 
 if [[ ! -x "$CLI" ]]; then
@@ -39,6 +47,8 @@ run_cli() {
   if [[ -n "$DB_URL" || -n "$identity_url" ]]; then
     env \
       ${DB_URL:+YUANTUS_DATABASE_URL="$DB_URL"} \
+      ${DB_URL_TEMPLATE:+YUANTUS_DATABASE_URL_TEMPLATE="$DB_URL_TEMPLATE"} \
+      ${TENANCY_MODE_ENV:+YUANTUS_TENANCY_MODE="$TENANCY_MODE_ENV"} \
       ${identity_url:+YUANTUS_IDENTITY_DATABASE_URL="$identity_url"} \
       "$CLI" "$@"
   else
@@ -76,6 +86,28 @@ if [[ -z "$ADMIN_TOKEN" ]]; then
 fi
 AUTH_HEADERS=(-H "Authorization: Bearer $ADMIN_TOKEN")
 ok "Admin login"
+
+TENANCY_MODE_HEALTH="$(
+  $CURL "$API/health" \
+    | "$PY" -c 'import sys,json; print(json.load(sys.stdin).get("tenancy_mode",""))' 2>/dev/null || echo ""
+)"
+if [[ -z "$TENANCY_MODE_ENV" && -n "$TENANCY_MODE_HEALTH" ]]; then
+  TENANCY_MODE_ENV="$TENANCY_MODE_HEALTH"
+fi
+
+DB_URL_EFFECTIVE="$DB_URL"
+if [[ -n "$DB_URL_TEMPLATE" ]]; then
+  if [[ "$TENANCY_MODE_ENV" == "db-per-tenant-org" ]]; then
+    DB_URL_EFFECTIVE="${DB_URL_TEMPLATE//\{tenant_id\}/$TENANT}"
+    DB_URL_EFFECTIVE="${DB_URL_EFFECTIVE//\{org_id\}/$ORG}"
+  elif [[ "$TENANCY_MODE_ENV" == "db-per-tenant" ]]; then
+    DB_URL_EFFECTIVE="${DB_URL_TEMPLATE//\{tenant_id\}/$TENANT}"
+  fi
+fi
+
+if [[ -z "$DB_URL_EFFECTIVE" ]]; then
+  fail "Missing DB_URL/DB_URL_TEMPLATE for direct DB query"
+fi
 
 echo ""
 echo "==> Create test CAD file"
@@ -121,7 +153,7 @@ ok "Created file/job: $FILE_ID / $PREVIEW_JOB_ID"
 echo ""
 echo "==> Remove source file from local storage"
 SYSTEM_PATH="$(
-  FILE_ID="$FILE_ID" DB_URL="$DB_URL" "$PY" - <<'PY'
+  FILE_ID="$FILE_ID" DB_URL="$DB_URL_EFFECTIVE" "$PY" - <<'PY'
 import os
 from sqlalchemy import create_engine, text
 
@@ -146,14 +178,48 @@ if [[ -z "$SYSTEM_PATH" ]]; then
   fail "Could not resolve system_path for file"
 fi
 
-if [[ "$SYSTEM_PATH" = /* ]]; then
-  FULL_PATH="$SYSTEM_PATH"
-else
-  FULL_PATH="$LOCAL_STORAGE_PATH/$SYSTEM_PATH"
-fi
+storage_mode="${STORAGE_TYPE,,}"
+if [[ "$storage_mode" == "s3" ]]; then
+  if [[ -z "$S3_BUCKET_NAME" || -z "$S3_ENDPOINT_URL" || -z "$S3_ACCESS_KEY_ID" || -z "$S3_SECRET_ACCESS_KEY" ]]; then
+    fail "Missing S3 settings for deletion (S3_BUCKET_NAME/S3_ENDPOINT_URL/S3_ACCESS_KEY_ID/S3_SECRET_ACCESS_KEY)"
+  fi
+  SYSTEM_PATH="$SYSTEM_PATH" \
+  S3_BUCKET_NAME="$S3_BUCKET_NAME" \
+  S3_ENDPOINT_URL="$S3_ENDPOINT_URL" \
+  S3_ACCESS_KEY_ID="$S3_ACCESS_KEY_ID" \
+  S3_SECRET_ACCESS_KEY="$S3_SECRET_ACCESS_KEY" \
+  "$PY" - <<'PY'
+import os
 
-rm -f "$FULL_PATH"
-ok "Deleted source file: $FULL_PATH"
+import boto3
+
+key = os.environ.get("SYSTEM_PATH")
+bucket = os.environ.get("S3_BUCKET_NAME")
+endpoint = os.environ.get("S3_ENDPOINT_URL")
+access_key = os.environ.get("S3_ACCESS_KEY_ID")
+secret_key = os.environ.get("S3_SECRET_ACCESS_KEY")
+
+if not (key and bucket and endpoint and access_key and secret_key):
+    raise SystemExit("Missing S3 settings or system path")
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url=endpoint,
+    aws_access_key_id=access_key,
+    aws_secret_access_key=secret_key,
+)
+s3.delete_object(Bucket=bucket, Key=key)
+PY
+  ok "Deleted source object: s3://$S3_BUCKET_NAME/$SYSTEM_PATH"
+else
+  if [[ "$SYSTEM_PATH" = /* ]]; then
+    FULL_PATH="$SYSTEM_PATH"
+  else
+    FULL_PATH="$LOCAL_STORAGE_PATH/$SYSTEM_PATH"
+  fi
+  rm -f "$FULL_PATH"
+  ok "Deleted source file: $FULL_PATH"
+fi
 
 echo ""
 echo "==> Run worker once"
@@ -164,7 +230,7 @@ ok "Worker executed"
 echo ""
 echo "==> Verify job status"
 JOB_STATUS="$(
-  JOB_ID="$PREVIEW_JOB_ID" DB_URL="$DB_URL" "$PY" - <<'PY'
+  JOB_ID="$PREVIEW_JOB_ID" DB_URL="$DB_URL_EFFECTIVE" "$PY" - <<'PY'
 import os
 from sqlalchemy import create_engine, text
 

@@ -14,6 +14,8 @@ PY="${PY:-.venv/bin/python}"
 CURL="${CURL:-curl -sS}"
 DB_URL="${DB_URL:-${YUANTUS_DATABASE_URL:-}}"
 IDENTITY_DB_URL="${IDENTITY_DB_URL:-${YUANTUS_IDENTITY_DATABASE_URL:-}}"
+DB_URL_TEMPLATE="${DB_URL_TEMPLATE:-${YUANTUS_DATABASE_URL_TEMPLATE:-}}"
+TENANCY_MODE_ENV="${TENANCY_MODE_ENV:-${YUANTUS_TENANCY_MODE:-}}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -52,6 +54,8 @@ run_cli() {
   if [[ -n "$DB_URL" || -n "$identity_url" ]]; then
     env \
       ${DB_URL:+YUANTUS_DATABASE_URL="$DB_URL"} \
+      ${DB_URL_TEMPLATE:+YUANTUS_DATABASE_URL_TEMPLATE="$DB_URL_TEMPLATE"} \
+      ${TENANCY_MODE_ENV:+YUANTUS_TENANCY_MODE="$TENANCY_MODE_ENV"} \
       ${identity_url:+YUANTUS_IDENTITY_DATABASE_URL="$identity_url"} \
       "$CLI" "$@"
   else
