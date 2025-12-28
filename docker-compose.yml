@@ -45,6 +45,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      default:
+        aliases:
+          - yuantus-minio
 
   # =============================================================================
   # Application Services
@@ -72,7 +76,7 @@ services:
       # Storage: S3/MinIO
       YUANTUS_STORAGE_TYPE: s3
       # Internal endpoint (container-to-container)
-      YUANTUS_S3_ENDPOINT_URL: http://minio:9000
+      YUANTUS_S3_ENDPOINT_URL: http://yuantus-minio:9000
       # Public endpoint (used in presigned URLs; must be reachable by clients on the host)
       YUANTUS_S3_PUBLIC_ENDPOINT_URL: http://localhost:59000
       YUANTUS_S3_BUCKET_NAME: yuantus
@@ -137,7 +141,7 @@ services:
       YUANTUS_PLATFORM_ADMIN_ENABLED: ${YUANTUS_PLATFORM_ADMIN_ENABLED:-false}
       YUANTUS_PLATFORM_TENANT_ID: ${YUANTUS_PLATFORM_TENANT_ID:-platform}
       YUANTUS_STORAGE_TYPE: s3
-      YUANTUS_S3_ENDPOINT_URL: http://minio:9000
+      YUANTUS_S3_ENDPOINT_URL: http://yuantus-minio:9000
       YUANTUS_S3_PUBLIC_ENDPOINT_URL: http://localhost:59000
       YUANTUS_S3_BUCKET_NAME: yuantus
       YUANTUS_S3_ACCESS_KEY_ID: minioadmin

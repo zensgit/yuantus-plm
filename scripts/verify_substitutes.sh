@@ -12,6 +12,10 @@ ORG="${3:-org-1}"
 CLI="${CLI:-.venv/bin/yuantus}"
 PY="${PY:-.venv/bin/python}"
 CURL="${CURL:-curl -sS}"
+DB_URL="${DB_URL:-${YUANTUS_DATABASE_URL:-}}"
+IDENTITY_DB_URL="${IDENTITY_DB_URL:-${YUANTUS_IDENTITY_DATABASE_URL:-}}"
+TENANCY_MODE="${TENANCY_MODE:-${YUANTUS_TENANCY_MODE:-}}"
+DB_URL_TEMPLATE="${DB_URL_TEMPLATE:-${YUANTUS_DATABASE_URL_TEMPLATE:-}}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -21,6 +25,28 @@ if [[ ! -x "$PY" ]]; then
   echo "Missing Python at $PY (set PY=...)" >&2
   exit 2
 fi
+
+CLI_ENV=()
+if [[ -n "$DB_URL" ]]; then
+  CLI_ENV+=("YUANTUS_DATABASE_URL=$DB_URL")
+fi
+if [[ -n "$IDENTITY_DB_URL" ]]; then
+  CLI_ENV+=("YUANTUS_IDENTITY_DATABASE_URL=$IDENTITY_DB_URL")
+fi
+if [[ -n "$TENANCY_MODE" ]]; then
+  CLI_ENV+=("YUANTUS_TENANCY_MODE=$TENANCY_MODE")
+fi
+if [[ -n "$DB_URL_TEMPLATE" ]]; then
+  CLI_ENV+=("YUANTUS_DATABASE_URL_TEMPLATE=$DB_URL_TEMPLATE")
+fi
+
+run_cli() {
+  if [[ ${#CLI_ENV[@]} -gt 0 ]]; then
+    env "${CLI_ENV[@]}" "$CLI" "$@"
+  else
+    "$CLI" "$@"
+  fi
+}
 
 API="$BASE_URL/api/v1"
 HEADERS=(-H "x-tenant-id: $TENANT" -H "x-org-id: $ORG")
@@ -39,8 +65,8 @@ printf "TENANT: %s, ORG: %s\n" "$TENANT" "$ORG"
 printf "==============================================\n"
 
 printf "\n==> Seed identity/meta\n"
-"$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin >/dev/null
-"$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
+run_cli seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin >/dev/null
+run_cli seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
 ok "Seeded identity/meta"
 
 printf "\n==> Login as admin\n"

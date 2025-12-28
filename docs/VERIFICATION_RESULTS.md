@@ -1676,6 +1676,141 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run REGRESSION-MT-20251229-0146（Full Regression, db-per-tenant-org）
+
+- 时间：`2025-12-29 01:46:54 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`
+- 汇总：`PASS=33, FAIL=0, SKIP=9`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 33  FAIL: 0  SKIP: 9
+ALL TESTS PASSED
+```
+## Run BOM-COMPARE-MT-20251229-0119（BOM Compare, db-per-tenant-org）
+
+- 时间：`2025-12-29 01:19:16 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent A：`2eb2aeaa-2873-4073-8590-88ec2c8e7fa1`
+  - Parent B：`7dd00500-26fd-480b-b05a-fe61025ef277`
+  - Child X：`65efe14e-bd1f-4d3e-9e90-ff36c7523fe4`
+  - Child Y：`c6241bad-3fe5-45ab-859f-985870afbd0e`
+  - Child Z：`0ccfdd76-52b0-42dc-b590-e2d7c672ab11`
+  - Substitute：`04dff92d-a8ee-4cc9-a2a4-f2c50ad00294`
+
+执行命令：
+
+```bash
+TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run BOM-SUBSTITUTES-MT-20251229-0119（BOM Substitutes, db-per-tenant-org）
+
+- 时间：`2025-12-29 01:19:22 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_substitutes.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent：`c77a2a49-cc89-45b3-819c-c7d45f533d3a`
+  - Child：`583ffca2-3408-4507-b863-26e2036f1c38`
+  - BOM Line：`6e5930de-a6d3-4395-917a-b494d9a983ef`
+  - Substitute 1：`f897ae50-1412-4ddd-ac78-bc14efc97c1b`
+  - Substitute 2：`957bb8d3-7af4-4418-af01-ca58c2da93aa`
+
+执行命令：
+
+```bash
+TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_substitutes.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+## Run BOM-COMPARE-20251229-0053（BOM Compare）
+
+- 时间：`2025-12-29 00:53:58 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent A：`1b63c0db-0708-4d6b-b993-e4f971020e84`
+  - Parent B：`b456ca7b-4920-43ae-b263-e587c934df16`
+  - Child X：`58a6b875-a709-4d3e-906c-dc263925c66b`
+  - Child Y：`3c0e0a84-7827-43be-a3cd-2b8667abff39`
+  - Child Z：`314a74cb-8141-4191-9d79-99ba734ca051`
+  - Substitute：`a4e8bd35-6c8a-4b3e-a50b-f88a286db424`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+TENANCY_MODE=single \
+  bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run BOM-SUBSTITUTES-20251229-0054（BOM Substitutes）
+
+- 时间：`2025-12-29 00:54:04 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_substitutes.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent：`33816bbd-c18b-4e9c-9e2b-667bcde89937`
+  - Child：`5d68ff99-3149-404e-8468-94a849836254`
+  - BOM Line：`e5038258-3cfd-448d-bdf9-848d62116281`
+  - Substitute 1：`776f398e-0d74-44fb-b286-1304288901f5`
+  - Substitute 2：`203aa27a-c7a0-44b0-be29-6bf4e0a6aec8`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+TENANCY_MODE=single \
+  bash scripts/verify_substitutes.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
 ## Run INTEGRATIONS-ATHENA-CLIENT-20251229-0012（Integrations Athena Client Credentials）
 
 - 时间：`2025-12-29 00:12:38 +0800`
