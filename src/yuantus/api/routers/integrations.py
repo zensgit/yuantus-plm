@@ -49,7 +49,7 @@ async def integrations_health(
             "athena",
             athena.base_url,
             athena.health(
-                authorization=authorization, athena_authorization=athena_authorization
+                authorization=None, athena_authorization=athena_authorization
             ),
         ),
         "cad_ml": _probe("cad_ml", cad_ml.base_url, cad_ml.health(authorization=authorization)),

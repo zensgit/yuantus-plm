@@ -50,6 +50,26 @@ class Settings(BaseSettings):
     ATHENA_BASE_URL: str = Field(
         default="http://localhost:7700/api/v1", description="Athena ECM base URL"
     )
+    ATHENA_SERVICE_TOKEN: str = Field(
+        default="",
+        description="Optional service token (JWT) for Athena ECM integrations",
+    )
+    ATHENA_TOKEN_URL: str = Field(
+        default="",
+        description="Optional Athena OAuth token URL for client credentials",
+    )
+    ATHENA_CLIENT_ID: str = Field(
+        default="",
+        description="Optional Athena OAuth client id for service account",
+    )
+    ATHENA_CLIENT_SECRET: str = Field(
+        default="",
+        description="Optional Athena OAuth client secret for service account",
+    )
+    ATHENA_CLIENT_SCOPE: str = Field(
+        default="",
+        description="Optional OAuth scope for Athena client credentials",
+    )
     CAD_ML_BASE_URL: str = Field(
         default="http://localhost:8001", description="CAD ML Platform base URL"
     )
