@@ -8,6 +8,7 @@ Provides:
 - Async job queue processing
 """
 
+import logging
 import os
 import uuid
 import hashlib
@@ -19,6 +20,8 @@ from datetime import datetime
 from pathlib import Path
 from sqlalchemy.orm import Session
 
+logger = logging.getLogger(__name__)
+
 # Try cadquery import
 try:
     import cadquery as cq
@@ -26,8 +29,8 @@ try:
     CADQUERY_AVAILABLE = True
 except ImportError:
     CADQUERY_AVAILABLE = False
-    print(
-        "Warning: cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh."
+    logger.warning(
+        "cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh."
     )
 
 from yuantus.meta_engine.models.file import (

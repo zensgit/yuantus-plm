@@ -137,6 +137,7 @@
 
 - Endpoint：`POST /api/v1/cad/import`
 - 输入：multipart 上传文件；可选 `item_id` 直接挂到 Item。
+- 可选：`auto_create_part=true` 在无 `item_id` 时自动创建 Part 并绑定附件。
 - 输出：`file_id` + 生成的 Job 列表（如 `cad_preview` / `cad_geometry` / `cad_dedup_vision` / `cad_ml_vision`）。
 
 核心思想：
@@ -244,4 +245,3 @@ yuantus worker --worker-id worker-cad --poll-interval 1 --once
   - 结构化日志、job 指标、trace；外部服务调用的可观测与熔断策略。
 - 交付：
   - 私有化一键安装（compose/k8s）、升级策略、备份恢复。
-

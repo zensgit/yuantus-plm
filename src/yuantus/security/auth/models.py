@@ -9,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    BigInteger,
     String,
     UniqueConstraint,
 )
@@ -64,7 +65,9 @@ class AuthCredential(Base):
 
     user_id = Column(Integer, ForeignKey("auth_users.id", ondelete="CASCADE"), primary_key=True)
     password_hash = Column(String(500), nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
 
     user = relationship("AuthUser", backref="credential")
 
@@ -89,3 +92,19 @@ class OrgMembership(Base):
     org = relationship("Organization")
     user = relationship("AuthUser")
 
+
+class TenantQuota(Base):
+    __tablename__ = "auth_tenant_quotas"
+
+    tenant_id = Column(
+        String(64), ForeignKey("auth_tenants.id", ondelete="CASCADE"), primary_key=True
+    )
+    max_users = Column(Integer, nullable=True)
+    max_orgs = Column(Integer, nullable=True)
+    max_files = Column(Integer, nullable=True)
+    max_storage_bytes = Column(BigInteger, nullable=True)
+    max_active_jobs = Column(Integer, nullable=True)
+    max_processing_jobs = Column(Integer, nullable=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    tenant = relationship("Tenant")

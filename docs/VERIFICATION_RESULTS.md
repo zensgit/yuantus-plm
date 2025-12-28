@@ -717,6 +717,506 @@ HTTP/1.1 200 OK
 {"tenant_id":"tenant-1","user_id":1,"orgs":[{"id":"org-1","name":"org-1","is_active":true}]}
 ```
 
+## Run AUD-1（Audit Logs 验收）
+
+- 时间：`2025-12-20 14:10:18 +0800`
+- 基地址：`http://127.0.0.1:7922`
+- 脚本：`scripts/verify_audit_logs.sh`
+- 结果：`ALL CHECKS PASSED`
+- 备注：`audit_enabled=true`（本地启动服务用于验收）
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_audit_logs.sh http://127.0.0.1:7922 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+OK: Seeded identity
+OK: Admin login
+OK: Health request logged
+Audit logs: OK
+OK: Audit logs verified
+
+ALL CHECKS PASSED
+```
+
+## Run ALL-13（一键回归脚本：compare_mode + ECO 导出）
+
+- 时间：`2025-12-26 09:17:52 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS=34 / FAIL=0 / SKIP=5`
+- 跳过项：
+  - S5-C (CAD Auto Part)：`RUN_CAD_AUTO_PART=0`
+  - S5-C (CAD Extractor Stub)：`RUN_CAD_EXTRACTOR_STUB=0`
+  - S5-C (CAD Extractor External)：`RUN_CAD_EXTRACTOR_EXTERNAL=0`
+  - S5-C (CAD Extractor Service)：`RUN_CAD_EXTRACTOR_SERVICE=0`
+  - S7 (Tenant Provisioning)：`RUN_TENANT_PROVISIONING=0`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export RUN_CAD_AUTO_PART=0
+export RUN_CAD_EXTRACTOR_STUB=0
+export RUN_CAD_EXTRACTOR_EXTERNAL=0
+export RUN_CAD_EXTRACTOR_SERVICE=0
+export RUN_TENANT_PROVISIONING=0
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 34  FAIL: 0  SKIP: 5
+ALL TESTS PASSED
+```
+
+## Run BC-9（BOM Compare：summarized 复验）
+
+- 时间：`2025-12-26 09:15:01 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent A：`6ed73f5d-d484-4d8a-812f-f3890045a329`
+  - Parent B：`42afe6e8-5cd3-4ad3-8be2-65ef4c186de3`
+  - Child X：`ebebda5d-56ef-4815-9ddf-37c9c67c2a59`
+  - Child Y：`29c5b0e0-0ec3-49a8-8653-232a4517a632`
+  - Child Z：`a3fd764d-1b65-49cc-abfa-8a04b79b2e39`
+  - Substitute：`421d6162-cb5b-47dd-be6d-4eb7a364adc3`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+BOM Compare: OK
+BOM Compare only_product: OK
+BOM Compare num_qty: OK
+BOM Compare summarized: OK
+ALL CHECKS PASSED
+```
+
+## Run S4-9（ECO Advanced：compare_mode 导出元信息）
+
+- 时间：`2025-12-26 09:15:01 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_eco_advanced.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Stage：`383084d0-1c27-4490-9cbe-e9ab1a9f5049`
+  - Product：`cb0f5d51-326b-40c6-86da-79cfece5e945`
+  - Assembly：`bfdcf0f1-d32a-4cd3-9b6e-f8e7de11ac36`
+  - ECO1：`6c77c218-ca25-40d1-b508-08217d909b8c`
+  - Target Version：`a67cd9fb-45b1-4d93-8529-e5a1101a80dd`
+  - ECO2：`e4d7af2a-e68e-489b-9f87-059ed18a137f`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+BOM diff: OK
+BOM diff only_product: OK
+Impact analysis: OK
+Impact export files: OK
+Batch approvals (admin): OK
+Batch approvals (viewer denied): OK
+ALL CHECKS PASSED
+```
+
+---
+
+## Run AUD-2（Audit Logs 验收：Docker 运行）
+
+- 时间：`2025-12-20 20:28:23 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_audit_logs.sh`
+- 结果：`ALL CHECKS PASSED`
+- 备注：`docker-compose.dev.yml` 绑定本地源码（镜像构建阶段 pip 下载超时）
+
+执行命令：
+
+```bash
+YUANTUS_AUDIT_ENABLED=true \
+  docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --force-recreate api
+
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_audit_logs.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+OK: Seeded identity
+OK: Admin login
+OK: Health request logged
+Audit logs: OK
+OK: Audit logs verified
+
+ALL CHECKS PASSED
+```
+
+---
+
+## Run AUD-3（Audit Logs 验收：Docker 镜像 + Wheelhouse）
+
+- 时间：`2025-12-20 23:11:44 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_audit_logs.sh`
+- 结果：`ALL CHECKS PASSED`
+- 备注：使用 `requirements.lock` + `vendor/wheels` 进行离线构建
+
+执行命令：
+
+```bash
+YUANTUS_AUDIT_ENABLED=true \
+  docker compose -p yuantusplm up -d --build api worker
+
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_audit_logs.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+OK: Seeded identity
+OK: Admin login
+OK: Health request logged
+Audit logs: OK
+OK: Audit logs verified
+
+ALL CHECKS PASSED
+```
+
+---
+
+
+## S4 ECO Advanced（Impact + BOM Redline + Batch Approvals）
+
+- 时间：`2025-12-19 15:21:26 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- 命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 关键结果（Run S4-1）
+
+```text
+Stage: fb0901f8-130f-49a0-a3db-31dfc7c03070
+Product: 7d323729-3163-42ef-a38a-6c82f6be25ab
+Assembly: ecafa319-5883-4e89-a135-22710c894d7a
+ECO1: 93d5d2d4-f1f7-45fd-a324-b002dac8cf2f
+Target Version: 6aaecfdc-cb4e-4775-9b73-360805a66b12
+ECO2: 7df1dcd5-ce29-4ee8-a473-2bf7f46a8bea
+Result: ALL CHECKS PASSED
+```
+
+---
+
+## Run S4-2（ECO Advanced：Impact 分级 + Batch 审计/通知）
+
+- 时间：`2025-12-19 23:16:15 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- 命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 关键结果（Run S4-2）
+
+```text
+Stage: 28159d16-e157-4d4e-85dc-b3e4a8eb07b9
+Product: bc407740-d24f-4ef9-bc3a-80d721c5c454
+Assembly: 5e798d44-be86-4a37-8d94-c93899997aee
+ECO1: e94b355a-f549-462a-bf38-9fc7d9513eb2
+Target Version: 2cc0ac7c-a298-4b21-9cbc-e0f1f92fb124
+ECO2: 0131cfaa-8a41-4c2d-a017-f8395ad35e5f
+Impact level: high
+Batch summary: ok=2 failed=0
+Result: ALL CHECKS PASSED
+```
+
+---
+
+## Run S4-3（ECO Advanced：SLA 通知 + 逾期提醒）
+
+- 时间：`2025-12-19 23:34:51 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- 命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 关键结果（Run S4-3）
+
+```text
+Stage: 0ba05dc0-8974-4571-9b40-2cc49021dcde
+Product: 62b8e6db-c840-48b3-b9ca-ba70454016e1
+Assembly: bf79c028-4152-4b77-904f-9ba4809d09f1
+ECO1: f8f76c3c-18c8-48b2-ac45-67bb6860c3ee
+Target Version: a4d7a406-9f59-4625-8ffe-4baf812e9d0d
+ECO2: 483406db-b7ed-4970-b74f-be1ca5036bc9
+Impact level: high
+Overdue list: OK
+Overdue notifications: OK
+Result: ALL CHECKS PASSED
+```
+
+---
+
+## Run ALL-7（一键回归：全部脚本）
+
+- 时间：`2025-12-19 15:27:46 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- S3：`http://localhost:59000`（MinIO）
+- 命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 汇总
+
+```text
+PASS: 11  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+---
+
+## S7 Multi-Tenancy（db-per-tenant-org）
+
+- 时间：`2025-12-19 15:44:15 +0800`
+- 基地址：`http://127.0.0.1:7912`
+- TENANCY_MODE：`db-per-tenant-org`
+- DB_URL：`sqlite:///yuantus_mt.db`
+- IDENTITY_DB_URL：`sqlite:///yuantus_identity_mt.db`
+- 命令：
+
+```bash
+DB_URL='sqlite:///yuantus_mt.db' \
+IDENTITY_DB_URL='sqlite:///yuantus_identity_mt.db' \
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7912 tenant-1 tenant-2 org-1 org-2
+```
+
+### 关键结果（Run S7-1）
+
+```text
+Org + tenant isolation (A1): OK
+Org isolation (A2): OK
+Tenant isolation (B1): OK
+ALL CHECKS PASSED
+```
+
+## Run S7-2（Multi-Tenancy：db-per-tenant-org，SQLite）
+
+- 时间：`2025-12-19 17:08:28 +0800`
+- 基地址：`http://127.0.0.1:7912`
+- TENANCY_MODE：`db-per-tenant-org`
+- DB_URL：`sqlite:///yuantus_mt_run2.db`
+- IDENTITY_DB_URL：`sqlite:///yuantus_identity_mt_run2.db`
+- 命令：
+
+```bash
+# 启动多租户服务（独立端口）
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=sqlite:///yuantus_mt_run2.db \
+YUANTUS_IDENTITY_DATABASE_URL=sqlite:///yuantus_identity_mt_run2.db \
+YUANTUS_SCHEMA_MODE=create_all \
+.venv/bin/yuantus start --port 7912 --host 127.0.0.1 &
+
+MODE=db-per-tenant-org \
+DB_URL='sqlite:///yuantus_mt_run2.db' \
+IDENTITY_DB_URL='sqlite:///yuantus_identity_mt_run2.db' \
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7912 tenant-1 tenant-2 org-1 org-2
+```
+
+### 关键结果（Run S7-2）
+
+```text
+Org + tenant isolation (A1): OK
+Org isolation (A2): OK
+Tenant isolation (B1): OK
+ALL CHECKS PASSED
+```
+
+## Run S7-3（Multi-Tenancy：db-per-tenant-org，Postgres 模板）
+
+- 时间：`2025-12-19 17:12:55 +0800`
+- 基地址：`http://127.0.0.1:7913`
+- TENANCY_MODE：`db-per-tenant-org`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- DB_URL_TEMPLATE：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus__{tenant_id}__{org_id}`
+- IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- 命令：
+
+```bash
+# 预创建数据库（tenant/org）
+for db in yuantus__tenant-1__org-1 yuantus__tenant-1__org-2 yuantus__tenant-2__org-1; do
+  exists=$(docker exec -i yuantusplm-postgres-1 psql -U yuantus -d postgres -tAc \
+    "SELECT 1 FROM pg_database WHERE datname='${db}'")
+  if [[ -z "$exists" ]]; then
+    docker exec -i yuantusplm-postgres-1 psql -U yuantus -d postgres \
+      -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${db}\";"
+  fi
+done
+
+# 启动多租户服务（独立端口）
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus__{tenant_id}__{org_id}' \
+YUANTUS_SCHEMA_MODE=create_all \
+.venv/bin/yuantus start --port 7913 --host 127.0.0.1 &
+
+MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7913 tenant-1 tenant-2 org-1 org-2
+```
+
+### 关键结果（Run S7-3）
+
+```text
+Org + tenant isolation (A1): OK
+Org isolation (A2): OK
+Tenant isolation (B1): OK
+ALL CHECKS PASSED
+```
+
+## Run S7-4（Multi-Tenancy：db-per-tenant-org，SQLite）
+
+- 时间：`2025-12-20 08:40:40 +0800`
+- 基地址：`http://127.0.0.1:7912`
+- TENANCY_MODE：`db-per-tenant-org`
+- DB_URL：`sqlite:///yuantus_mt_run3.db`
+- IDENTITY_DB_URL：`sqlite:///yuantus_identity_mt_run3.db`
+- 命令：
+
+```bash
+# 启动多租户服务（独立端口）
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=sqlite:///yuantus_mt_run3.db \
+YUANTUS_IDENTITY_DATABASE_URL=sqlite:///yuantus_identity_mt_run3.db \
+YUANTUS_SCHEMA_MODE=create_all \
+YUANTUS_AUTH_MODE=required \
+.venv/bin/yuantus start --port 7912 --host 127.0.0.1 &
+
+MODE=db-per-tenant-org \
+DB_URL='sqlite:///yuantus_mt_run3.db' \
+IDENTITY_DB_URL='sqlite:///yuantus_identity_mt_run3.db' \
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7912 tenant-1 tenant-2 org-1 org-2
+```
+
+### 关键结果（Run S7-4）
+
+```text
+Org + tenant isolation (A1): OK
+Org isolation (A2): OK
+Tenant isolation (B1): OK
+ALL CHECKS PASSED
+```
+
+## Run S6-1（Search Index：增量检索）
+
+- 时间：`2025-12-20 08:51:28 +0800`
+- 基地址：`http://127.0.0.1:7911`
+- 脚本：`scripts/verify_search_index.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part：`be1cb779-0d2a-4371-a553-afcdcf7ac87f`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_search_index.sh http://127.0.0.1:7911 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Search Index Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S6-2（Reports Summary：聚合统计）
+
+- 时间：`2025-12-20 09:09:35 +0800`
+- 基地址：`http://127.0.0.1:7914`
+- 脚本：`scripts/verify_reports_summary.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part：`a40bb6a4-00da-480c-9674-e8c21ff854d3`
+  - File：`30010e28-9481-4cec-a8aa-247b48cf1c35`
+  - ECO：`10764d41-7709-42fd-8a2d-a2d12e245553`
+  - Job：`7e574f7a-57b4-46fb-9d77-23f21af73a00`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_reports_summary.sh http://127.0.0.1:7914 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Reports Summary Verification Complete
+ALL CHECKS PASSED
+```
+
 ## Run SUB-1（BOM Substitutes 验收）
 
 - 时间：`2025-12-19 13:18:40 +0800`
@@ -828,6 +1328,30 @@ export YUANTUS_AUTH_MODE=required
 
 CLI=.venv/bin/yuantus PY=.venv/bin/python \
   bash scripts/verify_version_files.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Version files synced: OK
+ALL CHECKS PASSED
+```
+
+## Run VF-2（Version-File Binding 验收）
+
+- 时间：`2025-12-19 23:43:35 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_version_files.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part：`0a91a5f9-8362-4baa-a869-d38b1c5f650c`
+  - Version：`950e09bb-37c5-4eae-8c46-3d5ef64fc766`
+  - File：`773323cc-355c-49d6-98da-a2fdbfb2b640`
+
+执行命令：
+
+```bash
+bash scripts/verify_version_files.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
 输出（摘要）：
@@ -1020,6 +1544,896 @@ CLI=.venv/bin/yuantus PY=.venv/bin/python \
 
 ```text
 BOM Compare: OK
+ALL CHECKS PASSED
+```
+
+
+## Run S4-4（ECO Advanced：Impact + BOM diff 联动）
+
+- 时间：`2025-12-23 11:50:58 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_eco_advanced.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - ECO Stage：`937c7443-d7d0-45be-aa70-686f344d3632`
+  - ECO1：`3e6395b8-23ea-42bf-a45a-ccb7f8af5428`
+  - ECO2：`b350df1b-51cf-4dcd-ad88-1b50f1039b4a`
+  - Product：`326e7a64-4655-4add-bc3c-2603047e20fb`
+  - Assembly：`7020c406-1c62-46b9-b4e2-f1e701407322`
+  - Source Version：`b577a733-0d92-4229-8985-0fd9d36cf06f`
+  - Target Version：`498ab678-e1b4-474a-a497-07061db5ec67`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_SCHEMA_MODE=migrations \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ECO impact analysis (include files + bom diff): OK
+ECO Advanced Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run S4-5（ECO Advanced：Impact + Version Diff）
+
+- 时间：`2025-12-23 11:58:21 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_eco_advanced.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - ECO Stage：`3c96202e-0bc3-449f-8a87-51482c3db1ad`
+  - ECO1：`bd54086d-0d58-44e7-821f-997bc44ed0c7`
+  - ECO2：`9369ef9e-db4e-4c41-a636-3f2c99f869db`
+  - Product：`33767c45-1384-4e1c-893f-3292fda47ea5`
+  - Assembly：`aed244e4-8bd2-4e38-bd8f-bbd7a46ad3ef`
+  - Source Version：`7c12dca9-c80f-4c31-b372-a6b3203a9b37`
+  - Target Version：`902b4b33-afc1-4adb-9328-4ac420694538`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_SCHEMA_MODE=migrations \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ECO impact analysis (include files + bom diff + version diff): OK
+ECO Advanced Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run S4-6（ECO Advanced：Impact Export CSV/XLSX/PDF）
+
+- 时间：`2025-12-23 13:16:14 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_eco_advanced.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - ECO Stage：`9f13af28-8ca6-4242-a849-2568b800c497`
+  - ECO1：`368943ca-7dd9-4e23-b88a-d8128851d46f`
+  - ECO2：`578272e5-8423-4efa-a81c-30f569bd720b`
+  - Product：`29744ca9-f5d8-4c5c-a12a-4e1fc547d34e`
+  - Assembly：`068744d3-9fd2-4c34-a516-7808dab76b81`
+  - Source Version：`a771b84f-cf9b-4ee1-a291-5c8639db1436`
+  - Target Version：`eb301ef8-928c-4624-88ab-8d0c88c2122d`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_SCHEMA_MODE=migrations \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ECO impact analysis (include files + bom diff + version diff): OK
+Impact export files: OK
+ECO Advanced Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run S2-1（Documents & Files 验收）
+
+- 时间：`2025-12-22 23:44:49 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_documents.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part：`96e00dfd-bf8d-431b-9324-f39810c76fd4`
+  - File：`f5fc9833-c276-4c35-8f10-72a44034be60`
+
+执行命令：
+
+```bash
+bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-35（一键回归脚本：verify_all.sh）
+
+- 时间：`2025-12-22 23:52:49 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=21, FAIL=0, SKIP=2)`
+- 关键 ID：
+  - S2 Part：`482c2fc5-aa4a-40bf-9a0f-518282015488`
+  - S2 File：`9d53dd6f-964e-4298-9f26-5648831c07c7`
+  - MBOM Root：`263811ad-e9ad-4913-9594-6a0a073c1d3b`
+  - HAOCHEN File：`7166981e-92df-4c58-9996-8c8757755bb0`
+  - ZHONGWANG File：`433ccfc3-316d-42b9-a9bb-34dc7f0c849d`
+
+执行命令：
+
+```bash
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 21  FAIL: 0  SKIP: 2
+ALL TESTS PASSED
+```
+
+
+## Run ALL-36（一键回归脚本：verify_all.sh，审计+多租户）
+
+- 时间：`2025-12-23 08:26:37 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=23, FAIL=0, SKIP=0)`
+- 模式：`db-per-tenant-org`
+- 审计：`enabled=true`
+- 关键 ID：
+  - S2 Part：`3b7dcf8d-5395-40bd-9361-c93865143ead`
+  - S2 File：`547b3999-b3a4-44c3-9b96-d88e07a94aab`
+  - MBOM Root：`e19812b9-f83d-41da-b6ba-cc6ddb66a39b`
+  - HAOCHEN File：`b0dfd017-9cdb-461a-8d09-996239757425`
+  - ZHONGWANG File：`d0a56173-6ece-4538-a35f-43a4738f98c0`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_AUDIT_ENABLED=true \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 23  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+## Run S5-B-2（CAD 2D Connectors：新增浩辰/中望）
+
+- 时间：`2025-12-22 23:48:57 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GSTARCAD File：`3cb1a56b-d19a-476f-9ec2-fcc2ed2b4f7a`
+  - ZWCAD File：`631a0216-ed5f-4ffe-9626-685f9963272a`
+  - HAOCHEN File：`afdd5dad-df2a-4bcb-a8a5-e7b8a61cc29d`
+  - ZHONGWANG File：`0632085d-3698-413a-9a4d-d8815220a196`
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-34（一键回归脚本：verify_all.sh）
+
+- 时间：`2025-12-22 21:27:49 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=22, FAIL=0, SKIP=0)`
+- 关键 ID（MBOM Convert）：
+  - EBOM Root：`a2c6c8aa-0dfb-465c-8525-cdc13f82e41c`
+  - EBOM Child：`d9ec5b13-f015-4ffb-8709-7b9d6d5090f7`
+  - EBOM Substitute：`f971ab49-b26e-47b6-94f8-01c4aa1ddf01`
+  - EBOM BOM Line：`3c2b5ac5-a6bd-4e89-89c1-ddc8a143144b`
+  - MBOM Root：`d3c6bde0-d209-4761-a21a-43b13e33bd7c`
+- 关键 ID（Item Equivalents）：
+  - A：`8e5bc6a7-883d-4375-a4aa-b99d936101c0`
+  - B：`3ce9a44b-e9ba-47c0-a9c4-6826bbf09a48`
+  - C：`344cf5ab-5786-4792-8734-af732c1052be`
+
+执行命令：
+
+```bash
+bash scripts/verify_all.sh
+```
+
+输出（摘要）：
+
+```text
+PASS: 22  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+
+## Run EQ-1（Equivalents 验收）
+
+- 时间：`2025-12-22 16:46:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_equivalents.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part A：`e8e0b3eb-1857-4681-a0ff-e94017cf160f`
+  - Part B：`fdad1e03-6a62-400e-af84-26fcf41a5279`
+  - Part C：`768be703-d9ab-4b83-b6f8-623166a9a3c5`
+  - Equivalent A-B：`3c2864a9-80ae-4808-ba0d-7b1632b098bc`
+  - Equivalent A-C：`3c71801f-c211-4232-8442-224d27bb15f2`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_equivalents.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-32（一键回归脚本：verify_all.sh，db-per-tenant-org，含 Item Equivalents）
+
+- 时间：`2025-12-22 16:48:48 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=21, FAIL=0, SKIP=0)`
+- 模式：`db-per-tenant-org`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- DB_URL_TEMPLATE：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+- IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+- 审计：`enabled=true`
+- 关键 ID（Item Equivalents）：
+  - Part A：`c5dde0c9-4f7a-4991-96ca-e82100f1f90c`
+  - Part B：`5fa79101-cb0e-4ec9-a2d1-39f96f13c90f`
+  - Part C：`0035c177-c1a5-4ee9-b2ff-b1df79727424`
+  - Equivalent A-B：`daf7acca-b64a-4be7-af6d-ed8b641893ff`
+  - Equivalent A-C：`1d28529b-a52e-4236-9159-bd392e845839`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 21  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+
+## Run MBOM-1（MBOM 转换验收）
+
+- 时间：`2025-12-22 17:19:58 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_mbom_convert.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - EBOM Root：`606f2a5d-4e13-4067-8987-57402a143a60`
+  - EBOM Child：`76c07b63-207f-4d8f-84b9-55cfbecc27f7`
+  - EBOM Substitute：`957d9327-8496-4530-b5e1-44f8e1873709`
+  - EBOM BOM Line：`935f7462-8fec-4067-abf1-9108d6afa13b`
+  - MBOM Root：`d5fa51c1-cb19-4b0f-8927-4daabe67cedd`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_mbom_convert.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+MBOM structure: OK
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-33（一键回归脚本：verify_all.sh，db-per-tenant-org，含 MBOM）
+
+- 时间：`2025-12-22 17:19:58 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=22, FAIL=0, SKIP=0)`
+- 模式：`db-per-tenant-org`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- DB_URL_TEMPLATE：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+- IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+- 审计：`enabled=true`
+- 关键 ID（MBOM Convert）：
+  - EBOM Root：`4d1caa24-5fd4-488b-be18-ffd9a68ca76d`
+  - EBOM Child：`158fdf6b-b71e-4a2b-9574-9f318689e795`
+  - EBOM Substitute：`1d851c63-2de1-4414-acb9-ee39eefc863c`
+  - EBOM BOM Line：`8504500f-e77c-42ce-b143-8e9a61e636b6`
+  - MBOM Root：`c09f9089-6e18-46ca-be08-68d6f1bc3a9c`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 22  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+
+## Run ALL-31（一键回归脚本：verify_all.sh，db-per-tenant-org 全量）
+
+- 时间：`2025-12-22 16:27:57 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=20, FAIL=0, SKIP=0)`
+- 模式：`db-per-tenant-org`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- DB_URL_TEMPLATE：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+- IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+- 审计：`enabled=true`
+- 关键 ID：未记录
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 20  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+
+## Run S7-MT-1（Multi-Tenancy：db-per-tenant-org）
+
+- 时间：`2025-12-22 16:16:25 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：无（脚本未输出）
+
+执行命令：
+
+```bash
+MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run S7-MT-2（Multi-Tenancy：db-per-tenant-org）
+
+- 时间：`2025-12-23 13:30:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：无（脚本未输出）
+
+执行命令：
+
+```bash
+MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+
+## Run S7-Q-1（Quota enforce 验证）
+
+- 时间：`2025-12-22 15:43:23 +0800`
+- 基地址：`http://127.0.0.1:7911`
+- 脚本：`scripts/verify_quotas.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+YUANTUS_DATABASE_URL='sqlite:///./tmp_quota_meta.db' \
+YUANTUS_IDENTITY_DATABASE_URL='sqlite:///./tmp_quota_identity.db' \
+YUANTUS_STORAGE_TYPE='local' \
+YUANTUS_LOCAL_STORAGE_PATH='./data/storage_quota_test' \
+  bash scripts/verify_quotas.sh http://127.0.0.1:7911 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-29（verify_all 回归）
+
+- 时间：`2025-12-22 16:07:38 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 18 / FAIL 0 / SKIP 2`
+
+执行命令：
+
+```bash
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 18  FAIL: 0  SKIP: 2
+ALL TESTS PASSED
+```
+
+
+## Run ALL-30（Audit enabled 回归）
+
+- 时间：`2025-12-22 16:10:38 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 19 / FAIL 0 / SKIP 1`
+- 说明：`YUANTUS_AUDIT_ENABLED=true`
+
+执行命令：
+
+```bash
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 19  FAIL: 0  SKIP: 1
+ALL TESTS PASSED
+```
+
+
+## Run S7-Q-2（Quota enforce / Docker 7910）
+
+- 时间：`2025-12-22 15:55:14 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_quotas.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_quotas.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run S7-Q-3（Quota enforce / Docker 7910，db-per-tenant-org）
+
+- 时间：`2025-12-23 13:29:44 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_quotas.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：`YUANTUS_QUOTA_MODE=enforce`
+
+执行命令：
+
+```bash
+bash scripts/verify_quotas.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run BL-1（Baseline：BOM 快照/对比）
+
+- 时间：`2025-12-22 12:02:28 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_baseline.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent：`716ebcea-6be3-4030-8cf5-331c6c2ca853`
+  - Child B：`3d9c4d90-4a28-4545-99af-e8dc87f07b38`
+  - Child C：`191c2c6c-31b5-41e8-bec9-ad540937a57e`
+  - Baseline：`dd7ceb89-9db4-4c8f-8c61-6bbd8acd79da`
+
+执行命令：
+
+```bash
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_baseline.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run ALL-27（一键回归脚本：verify_all.sh，含 Baseline）
+
+- 时间：`2025-12-22 12:02:28 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS: 17  FAIL: 0  SKIP: 2`
+- 备注：`Audit Logs`、`S7 (Multi-Tenancy)` 在单租户模式下跳过
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 17  FAIL: 0  SKIP: 2
+ALL TESTS PASSED
+```
+
+## Run AUD-4（Audit Logs + Retention，单租户）
+
+- 时间：`2025-12-22 12:18:27 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_audit_logs.sh`
+- 结果：`ALL CHECKS PASSED`
+- 参数：
+  - `AUDIT_RETENTION_DAYS=1`
+  - `AUDIT_RETENTION_MAX_ROWS=5`
+  - `AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1`
+
+执行命令：
+
+```bash
+AUDIT_RETENTION_DAYS=1 AUDIT_RETENTION_MAX_ROWS=5 AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1 VERIFY_RETENTION=1 \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_audit_logs.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Audit logs: OK
+Audit retention: OK
+ALL CHECKS PASSED
+```
+
+## Run S7-5（Multi-Tenancy：db-per-tenant-org，Docker overlay）
+
+- 时间：`2025-12-22 12:18:27 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+- 模式：`db-per-tenant-org`
+
+执行命令：
+
+```bash
+YUANTUS_SCHEMA_MODE=create_all \
+MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+Multi-Tenancy Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-28（一键回归脚本：verify_all.sh，db-per-tenant-org + Audit enabled）
+
+- 时间：`2025-12-22 14:13:53 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS: 19  FAIL: 0  SKIP: 0`
+- 模式：`db-per-tenant-org`
+- 审计保留：`max_rows=5, days=1, prune_interval=1`
+- 关键 ID（S5-C）：
+  - Item：`21f94a57-006e-4b07-8655-49950f1dea24`
+  - File：`456e843f-abc0-491a-a074-f144c681b761`
+  - Job：`4f22084c-3f00-4914-9598-e6951f567543`
+
+执行命令：
+
+```bash
+AUDIT_RETENTION_DAYS=1 AUDIT_RETENTION_MAX_ROWS=5 AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1 VERIFY_RETENTION=1 \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 19  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run BK-1（Backup/Restore 验证）
+
+- 时间：`2025-12-22 14:48:33 +0800`
+- 脚本：`scripts/verify_backup_restore.sh`
+- 结果：`ALL CHECKS PASSED`
+- 备份目录：`/tmp/yuantus_backup_verify_1766386083`
+- 还原 DB 后缀：`_restore_1766386083`
+- 还原 Bucket：`yuantus-restore-test-1766386083`
+
+执行命令：
+
+```bash
+bash scripts/verify_backup_restore.sh
+```
+
+输出（摘要）：
+
+```text
+Backup/Restore Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run BK-2（Cleanup Restore 验证）
+
+- 时间：`2025-12-22 15:00:32 +0800`
+- 脚本：`scripts/verify_cleanup_restore.sh`
+- 结果：`ALL CHECKS PASSED`
+- 清理目标：
+  - DB：`yuantus_cleanup_test_1766386824`
+  - Bucket：`yuantus-cleanup-test-1766386824`
+
+执行命令：
+
+```bash
+bash scripts/verify_cleanup_restore.sh
+```
+
+输出（摘要）：
+
+```text
+Cleanup Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run BK-6（Cleanup Restore 验证）
+
+- 时间：`2025-12-23 13:40:37 +0800`
+- 脚本：`scripts/verify_cleanup_restore.sh`
+- 结果：`ALL CHECKS PASSED`
+- 清理目标：
+  - DB：`yuantus_cleanup_test_1766468424`
+  - Bucket：`yuantus-cleanup-test-1766468424`
+- 说明：`PROJECT=yuantusplm`
+
+执行命令：
+
+```bash
+bash scripts/verify_cleanup_restore.sh
+```
+
+输出（摘要）：
+
+```text
+Cleanup Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run BK-3（Backup Rotation 验证）
+
+- 时间：`2025-12-22 15:04:34 +0800`
+- 脚本：`scripts/verify_backup_rotation.sh`
+- 结果：`ALL CHECKS PASSED`
+- 参数：`KEEP=2`（默认）
+
+执行命令：
+
+```bash
+bash scripts/verify_backup_rotation.sh
+```
+
+输出（摘要）：
+
+```text
+Rotation complete.
+ALL CHECKS PASSED
+```
+
+## Run BK-4（Backup/Restore 验证）
+
+- 时间：`2025-12-23 13:26:34 +0800`
+- 脚本：`scripts/verify_backup_restore.sh`
+- 结果：`ALL CHECKS PASSED`
+- 备份目录：`/tmp/yuantus_backup_verify_1766467544`
+- 还原 DB 后缀：`_restore_1766467544`
+- 还原 Bucket：`yuantus-restore-test-1766467544`
+- 说明：`PROJECT=yuantusplm`
+
+执行命令：
+
+```bash
+PROJECT=yuantusplm BACKUP_DIR=/tmp/yuantus_backup_verify_1766467544 \
+  bash scripts/verify_backup_restore.sh
+```
+
+输出（摘要）：
+
+```text
+Backup/Restore Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run BK-5（Backup Rotation 验证）
+
+- 时间：`2025-12-23 13:27:20 +0800`
+- 脚本：`scripts/verify_backup_rotation.sh`
+- 结果：`ALL CHECKS PASSED`
+- 参数：`KEEP=2`（默认）
+
+执行命令：
+
+```bash
+bash scripts/verify_backup_rotation.sh
+```
+
+输出（摘要）：
+
+```text
+Rotation complete.
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-26（一键回归脚本：verify_all.sh，db-per-tenant-org）
+
+- 时间：`2025-12-22 09:43:36 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=18, FAIL=0, SKIP=0)`
+- 模式：`db-per-tenant-org`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- DB_URL_TEMPLATE：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+- IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+- 关键 ID（S5-C）：
+  - Item：`fd2f5558-d210-4233-8ebf-a3965f81bcea`
+  - File：`ac0dedeb-278a-46ea-88c4-cf9af325e490`
+  - Job：`a50208fe-d932-4afe-8d9f-e2844ce7ced2`
+
+执行命令：
+
+```bash
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 18  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run BC-2（BOM Compare 字段级差异 + 严重度验收）
+
+- 时间：`2025-12-19 22:40:40 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent A：`af9f8507-26ac-47c4-a352-ba4a105baf2a`
+  - Parent B：`d855fdff-2001-4691-9618-7be638b10a05`
+  - Child X：`a15dbbcf-0c49-419b-a10c-8d9528b98125`
+  - Child Y：`139480e4-251c-411c-acd5-874837c6108a`
+  - Child Z：`edf3af9f-8da6-4b44-bdac-739b531bbf1f`
+
+执行命令：
+
+```bash
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+
+CLI=.venv/bin/yuantus PY=.venv/bin/python \
+  bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+BOM Compare: OK (changes list + severity=major validated)
 ALL CHECKS PASSED
 ```
 
@@ -1420,6 +2834,763 @@ Summary:
   - Geometry endpoint: 302
 
 ALL CHECKS PASSED
+```
+
+## Run S5-B（CAD 2D Connectors：GStarCAD/ZWCAD）
+
+- 时间：`2025-12-19 16:04:47 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GStarCAD File：`351314c3-38a0-49a0-888f-24499ba82501`
+  - ZWCAD File：`cf13598c-7b25-45c9-a7aa-542c21538288`
+
+执行命令：
+
+```bash
+# 重建 API/worker 以包含最新代码
+docker compose --project-name yuantusplm up -d --build api worker
+
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出：
+
+```text
+==============================================
+CAD 2D Connectors Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+==> Login as admin
+OK: Admin login
+==> Create dummy DWG/DXF files
+OK: Created files: /tmp/yuantus_gstarcad_1766131469.dwg, /tmp/yuantus_zwcad_1766131469.dxf
+==> Upload gstarcad_1766131469.dwg (GSTARCAD)
+OK: Uploaded file: 351314c3-38a0-49a0-888f-24499ba82501
+Metadata OK
+OK: Metadata verified (GSTARCAD)
+==> Upload zwcad_1766131469.dxf (ZWCAD)
+OK: Uploaded file: cf13598c-7b25-45c9-a7aa-542c21538288
+Metadata OK
+OK: Metadata verified (ZWCAD)
+==> Cleanup
+OK: Cleaned up temp files
+
+==============================================
+CAD 2D Connectors Verification Complete
+==============================================
+ALL CHECKS PASSED
+```
+
+## Run S5-B-2（CAD 2D Connectors：Registry 集成验证）
+
+- 时间：`2025-12-19 18:02:03 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GStarCAD File：`4b29c5ec-bc2d-4abc-a077-f79590d69d79`
+  - ZWCAD File：`a17eeada-af51-4744-bbd5-c910b624a646`
+
+执行命令：
+
+```bash
+docker compose --project-name yuantusplm up -d --build api worker
+
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Upload gstarcad... (GSTARCAD) -> OK
+Upload zwcad... (ZWCAD) -> OK
+ALL CHECKS PASSED
+```
+
+## Run S5-C（CAD Attribute Sync：x-cad-synced mapping）
+
+- 时间：`2025-12-19 22:00:48 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_sync.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Item：`958ada4d-c0e9-448c-bb4b-113bec986e91`
+  - Job：`9c3e6d73-c504-4991-b94f-f772b55a93a9`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_sync.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Created Part: 958ada4d-c0e9-448c-bb4b-113bec986e91
+Created job: 9c3e6d73-c504-4991-b94f-f772b55a93a9
+Job completed
+CAD sync mapping verified
+ALL CHECKS PASSED
+```
+
+## Run ALL-8（一键回归脚本：verify_all.sh，含 S5-B）
+
+- 时间：`2025-12-19 16:16:29 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=12, FAIL=0, SKIP=1)`
+- 关键 ID（节选）：
+  - Run H Part：`5b0c0b18-8996-4094-afcc-eef1156261d9`
+  - Run H RPC Part：`b4c43470-71d5-43e8-b7f5-1ec2d7c46eb8`
+  - Run H File：`7efa0a49-f3dd-43dd-a9eb-441b10827fd7`
+  - Run H ECO：`50126418-0f9f-4b2a-bf78-94622a0a90fe`
+  - S5-A File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - S5-B GStarCAD File：`90473a1f-e8c1-421a-8a45-19a6d97b14c9`
+  - S5-B ZWCAD File：`1f54bb32-5ae5-4310-b2a1-04ee2ac6d5e4`
+
+执行命令：
+
+```bash
+YUANTUS_SCHEMA_MODE=migrations \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Run H (Core APIs)         PASS
+S1 (Meta + RBAC)          PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S7 (Multi-Tenancy)        SKIP
+Where-Used API            PASS
+BOM Compare               PASS
+BOM Substitutes           PASS
+Version-File Binding      PASS
+
+PASS: 12  FAIL: 0  SKIP: 1
+
+ALL TESTS PASSED
+```
+
+## Run ALL-9（一键回归脚本：verify_all.sh，含 S5-C）
+
+- 时间：`2025-12-19 22:23:01 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=13, FAIL=0, SKIP=1)`
+- 关键 ID（节选）：
+  - Run H Part：`5e5b0002-f910-4157-9cd3-ade659fd3260`
+  - Run H RPC Part：`f174e942-012d-46d6-b498-305900768186`
+  - Run H File：`dd80e8c3-1a54-4e1b-acb4-417b6bde1bd9`
+  - Run H ECO：`c35a4224-2dd5-4454-9a32-b4bf96ff6847`
+  - S5-A File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - S5-B GStarCAD File：`7d75e309-0bc4-49d3-903e-a0b4fc621dd5`
+  - S5-B ZWCAD File：`597c6a6f-f65d-4916-8d06-32af4f300c2b`
+  - S5-C Item：`d1a8dcbd-351f-4917-b527-e6674c1134a5`
+  - S5-C Job：`3423ba0f-0fa8-4124-97a1-18e664ddda64`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Run H (Core APIs)         PASS
+S1 (Meta + RBAC)          PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-C (CAD Attribute Sync) PASS
+S7 (Multi-Tenancy)        SKIP
+Where-Used API            PASS
+BOM Compare               PASS
+BOM Substitutes           PASS
+Version-File Binding      PASS
+
+PASS: 13  FAIL: 0  SKIP: 1
+
+ALL TESTS PASSED
+```
+
+## Run ALL-10（一键回归脚本：verify_all.sh，含 BOM Compare 字段级差异）
+
+- 时间：`2025-12-19 23:02:34 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=13, FAIL=0, SKIP=1)`
+- 关键 ID（节选）：
+  - Run H Part：`053aa3d3-014d-4af0-bcdd-be16bf34220f`
+  - Run H RPC Part：`52cb6ebb-b082-4261-8fdd-51e954dfa49f`
+  - Run H File：`d459c41a-8c8f-4e64-bc40-7f0fdb123e19`
+  - Run H ECO：`b1712287-e6be-4233-890d-88ba35a226cd`
+  - S5-A File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - S5-B GStarCAD File：`bc034980-fb47-498d-bb37-1a3d378902b4`
+  - S5-B ZWCAD File：`2295004e-3838-402b-a3f5-500830a7597d`
+  - S5-C Item：`8d19710e-6d66-4255-9b83-45b00b9f430d`
+  - S5-C Job：`94e8f8b0-4602-4f79-94c8-a6db38d79ab7`
+  - BOM Compare Parent A：`f2344544-03e4-4437-a4a1-1b8c15186e3f`
+  - BOM Compare Child Z：`337cdc96-88b7-456f-a3ee-85e96cba30e4`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Run H (Core APIs)         PASS
+S1 (Meta + RBAC)          PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-C (CAD Attribute Sync) PASS
+S7 (Multi-Tenancy)        SKIP
+Where-Used API            PASS
+BOM Compare               PASS
+BOM Substitutes           PASS
+Version-File Binding      PASS
+
+PASS: 13  FAIL: 0  SKIP: 1
+
+ALL TESTS PASSED
+```
+
+## Run ALL-11（一键回归脚本：verify_all.sh，含 ECO Impact 分级）
+
+- 时间：`2025-12-19 23:19:25 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=13, FAIL=0, SKIP=1)`
+- 关键 ID（节选）：
+  - Run H Part：`3794c9b1-93d1-4a52-afda-7c972355a4ff`
+  - Run H RPC Part：`f0b60371-2880-4f32-998d-07573d10af25`
+  - Run H File：`42f341c1-4239-4861-83b7-a2b318e3fb85`
+  - Run H ECO：`f89df011-8fe8-46c6-aa5e-1af82613929d`
+  - S5-A File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - S5-B GStarCAD File：`35962076-f593-4ac0-bede-de5acb5f35df`
+  - S5-B ZWCAD File：`2a1cd37c-95dd-4224-b5b2-0fb43f67f827`
+  - S5-C Item：`dffb9fb2-6d9f-49f3-a695-e8118a3ced4a`
+  - S5-C Job：`112f73d5-f3b1-4510-b5c9-9dd645447643`
+  - BOM Compare Parent A：`84fc9046-222e-477b-9ee6-2853b262f010`
+  - BOM Compare Child Z：`9a41c8ed-62e7-43ee-babc-3648e774be14`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Run H (Core APIs)         PASS
+S1 (Meta + RBAC)          PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-C (CAD Attribute Sync) PASS
+S7 (Multi-Tenancy)        SKIP
+Where-Used API            PASS
+BOM Compare               PASS
+BOM Substitutes           PASS
+Version-File Binding      PASS
+
+PASS: 13  FAIL: 0  SKIP: 1
+
+ALL TESTS PASSED
+```
+
+## Run ALL-12（一键回归脚本：verify_all.sh，DB_URL 对齐）
+
+- 时间：`2025-12-19 23:54:21 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=13, FAIL=0, SKIP=1)`
+- 关键 ID（节选）：
+  - Run H Part：`a95265ea-9297-440f-9fc3-09a40838de98`
+  - Run H RPC Part：`9d865c92-1669-4e23-9c31-82ed6852e138`
+  - Run H File：`9891e7dc-adc2-4f69-bd16-8aa81f9d6bea`
+  - Run H ECO：`ee2e5d45-624b-47ad-a837-ba4eeb94cb13`
+  - S5-A File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - S5-B GStarCAD File：`6d35f02a-ae82-4c26-ad1e-bc567158a5a0`
+  - S5-B ZWCAD File：`0a904675-2f18-430f-95e0-7d71540199a1`
+  - S5-C Item：`5f816d7d-d534-4604-9820-154ed0018663`
+  - S5-C Job：`0a88da6d-8189-418a-973c-252a4557168f`
+  - BOM Compare Parent A：`3e39f9ab-5e95-4957-b414-a063e67c0f42`
+  - BOM Compare Child Z：`bd21ac7f-02e4-497f-9fc1-b51b8556e095`
+  - BOM Substitutes Parent：`ab22acde-4786-4e38-b394-967ddb53e026`
+  - Version-File Binding Part：`23e62da1-000e-4205-8e46-f6e7b9c3efb0`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Run H (Core APIs)         PASS
+S1 (Meta + RBAC)          PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-C (CAD Attribute Sync) PASS
+S7 (Multi-Tenancy)        SKIP
+Where-Used API            PASS
+BOM Compare               PASS
+BOM Substitutes           PASS
+Version-File Binding      PASS
+
+PASS: 13  FAIL: 0  SKIP: 1
+
+ALL TESTS PASSED
+```
+
+## Run ALL-13（一键回归脚本：verify_all.sh，复现记录）
+
+- 时间：`2025-12-19 23:58:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=13, FAIL=0, SKIP=1)`
+- 关键 ID（节选）：
+  - Run H Part：`153038d1-84bb-42e2-b313-8f0ab0ac187c`
+  - Run H RPC Part：`baef079b-090f-41c3-a268-c4a296a915ae`
+  - Run H File：`b9521cb8-7fb0-4c08-a19d-2f098f1f069f`
+  - Run H ECO：`943a7ee6-ce7f-4d32-ad3a-5f9cf82ca3b5`
+  - S5-A File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - S5-B GStarCAD File：`c977e90e-aef9-40af-aa69-502dff3d0188`
+  - S5-B ZWCAD File：`858a7428-5720-4791-8b57-79d86fa30eaa`
+  - S5-C Item：`1caf8378-3977-4f74-8233-07ff67a1d1df`
+  - S5-C Job：`d8d2b0a1-9be7-4d00-87fc-a177bad4c551`
+  - BOM Compare Parent A：`2e43f934-c2a0-4971-84b9-cba51696721d`
+  - BOM Compare Child Z：`69a06b39-a434-49d3-952b-d8b8aee1621b`
+  - BOM Substitutes Parent：`0f030a83-a068-48b2-8539-9edde6d25c0b`
+  - Version-File Binding Part：`3fc6e43e-9f69-4bd5-9600-f1eab93b9db8`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Run H (Core APIs)         PASS
+S1 (Meta + RBAC)          PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-C (CAD Attribute Sync) PASS
+S7 (Multi-Tenancy)        SKIP
+Where-Used API            PASS
+BOM Compare               PASS
+BOM Substitutes           PASS
+Version-File Binding      PASS
+
+PASS: 13  FAIL: 0  SKIP: 1
+
+ALL TESTS PASSED
+```
+
+## Run ALL-14（一键回归脚本：verify_all.sh，含 Search Index）
+
+- 时间：`2025-12-20 08:57:05 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=14, FAIL=0, SKIP=1)`
+- 关键 ID（节选）：
+  - Run H Part：`03445de3-0e85-4d0d-a4c7-cb5b036846e7`
+  - Run H RPC Part：`204b72ca-b4b3-4335-88fe-2f2257af717f`
+  - Run H File：`e624a7e6-22e0-40c6-916b-49f43b8bc8e0`
+  - Run H ECO：`2f3624fb-2836-470b-bd48-bb0266a72212`
+  - S5-A File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - S5-B GStarCAD File：`80a4a6f7-7d97-427d-bec3-35d4f98478d7`
+  - S5-B ZWCAD File：`7bd426bb-a351-457d-87df-d11a2e85f2e0`
+  - S5-C Item：`2ff09810-3d9a-4fea-aec5-e1c474861204`
+  - S5-C Job：`f95add7e-eba8-443e-b1bb-667ea27fc2b5`
+  - Search Index Part：`5dce849a-5114-40ed-a513-fe3fffbbe625`
+  - BOM Compare Parent A：`e82587b4-2f9d-495f-b3ef-3405cf658cb5`
+  - BOM Compare Child Z：`e1dadcc2-ff24-48ce-b000-e23e1516b678`
+  - BOM Substitutes Parent：`e3bcf763-515d-40c5-a771-cd5d65d71843`
+  - Version-File Binding Part：`a6f83a32-2e88-4b22-8dc7-508e28271983`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Run H (Core APIs)         PASS
+S1 (Meta + RBAC)          PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-C (CAD Attribute Sync) PASS
+Search Index              PASS
+S7 (Multi-Tenancy)        SKIP
+Where-Used API            PASS
+BOM Compare               PASS
+BOM Substitutes           PASS
+Version-File Binding      PASS
+
+PASS: 14  FAIL: 0  SKIP: 1
+
+ALL TESTS PASSED
+```
+
+## Run ALL-15（一键回归脚本：verify_all.sh，含 Reports Summary）
+
+- 时间：`2025-12-20 11:04:24 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=15, FAIL=0, SKIP=1)`
+- 关键 ID（节选）：
+  - Run H Part：`3b227e65-7a08-4916-8665-d4e7df0cac58`
+  - Run H RPC Part：`2ea8abe3-844b-4c56-8d75-9b020085c764`
+  - Run H File：`23c41694-fc75-4813-aed7-0ebc86cf4119`
+  - Run H ECO：`0f3d0e47-35e8-4cf6-8c22-313a584ab584`
+  - S5-A File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - S5-B GStarCAD File：`0e008a10-6060-4e78-a0f4-c7febdce0d64`
+  - S5-B ZWCAD File：`c956c2fa-6368-4e23-99f9-ce80693dcadd`
+  - S5-C Item：`a26424f8-6251-4727-b0d8-7a3430fb527f`
+  - S5-C Job：`e3610486-ba00-4cda-95b0-2f27729618f9`
+  - Search Index Part：`6362bcfe-2ba1-4f0b-9764-fbac6eba203a`
+  - Reports Summary Part：`eb585662-22fb-425f-b98d-545a97d06ccd`
+  - Reports Summary File：`c411efb7-8808-4cad-91f4-a8d51bcc8049`
+  - Reports Summary ECO：`9c1b327c-7baa-48a2-a0f7-9246f4b8216d`
+  - Reports Summary Job：`e34f2a6e-05bb-4445-958a-60b061176d12`
+  - BOM Compare Parent A：`b241714c-c422-4670-a8e1-f80d492c8a72`
+  - BOM Compare Child Z：`a3f9bc8f-d715-43af-8dd9-bdd3a153a687`
+  - BOM Substitutes Parent：`22d01592-1b74-4276-bfdc-c5250ae96238`
+  - Version-File Binding Part：`d4aa3ef4-b3bd-4a9b-95c4-b212e67bf3bf`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Run H (Core APIs)         PASS
+S1 (Meta + RBAC)          PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-C (CAD Attribute Sync) PASS
+Search Index              PASS
+Reports Summary           PASS
+S7 (Multi-Tenancy)        SKIP
+Where-Used API            PASS
+BOM Compare               PASS
+BOM Substitutes           PASS
+Version-File Binding      PASS
+
+PASS: 15  FAIL: 0  SKIP: 1
+
+ALL TESTS PASSED
+```
+
+## Run MT-1（S7 多租户隔离：db-per-tenant-org）
+
+- 时间：`2025-12-20 11:16:44 +0800`
+- 基地址：`http://127.0.0.1:7920`
+- 模式：`db-per-tenant-org`
+- 数据库：`sqlite:///yuantus_mt_run4.db`
+- Identity DB：`sqlite:///yuantus_identity_mt_run4.db`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+- 备注：脚本仅校验隔离计数，未输出具体 item_id
+
+执行命令：
+
+```bash
+MODE=db-per-tenant-org \
+DB_URL=sqlite:///yuantus_mt_run4.db \
+IDENTITY_DB_URL=sqlite:///yuantus_identity_mt_run4.db \
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7920 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+OK: Seeded tenant/org schemas
+OK: Login succeeded
+OK: Org + tenant isolation (A1)
+OK: Org isolation (A2)
+OK: Tenant isolation (B1)
+
+ALL CHECKS PASSED
+```
+
+## Run MT-2（S7 多租户隔离：Postgres db-per-tenant-org）
+
+- 时间：`2025-12-20 11:43:25 +0800`
+- 基地址：`http://127.0.0.1:7921`
+- 模式：`db-per-tenant-org`
+- 数据库模板：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+- Identity DB：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+- 备注：创建了租户/组织数据库（未删除）
+
+执行命令：
+
+```bash
+MODE=db-per-tenant-org \
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7921 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+OK: Seeded tenant/org schemas
+OK: Login succeeded
+OK: Org + tenant isolation (A1)
+OK: Org isolation (A2)
+OK: Tenant isolation (B1)
+
+ALL CHECKS PASSED
+```
+
+## Run MT-3（S7 多租户隔离：Docker Compose 覆盖模式）
+
+- 时间：`2025-12-20 12:27:17 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 模式：`db-per-tenant-org`
+- 入口：`docker compose -f docker-compose.yml -f docker-compose.mt.yml up -d --build`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+- 备注：验证后已切回单租户（`docker compose -f docker-compose.yml up -d --build`）
+
+执行命令：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mt.yml up -d --build
+
+MODE=db-per-tenant-org \
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+
+docker compose -f docker-compose.yml up -d --build
+```
+
+输出（摘要）：
+
+```text
+OK: Seeded tenant/org schemas
+OK: Login succeeded
+OK: Org + tenant isolation (A1)
+OK: Org isolation (A2)
+OK: Tenant isolation (B1)
+
+ALL CHECKS PASSED
+```
+
+## Run MT-4（S7 多租户隔离：Docker Compose 覆盖模式 + Wheelhouse）
+
+- 时间：`2025-12-21 11:48:42 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 模式：`db-per-tenant-org`
+- 入口：`docker compose -p yuantusplm -f docker-compose.yml -f docker-compose.mt.yml up -d --build`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+- 备注：验证后已切回单租户（`docker compose -p yuantusplm -f docker-compose.yml up -d --build`）
+
+执行命令：
+
+```bash
+docker compose -p yuantusplm -f docker-compose.yml -f docker-compose.mt.yml up -d --build
+
+MODE=db-per-tenant-org \
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+
+docker compose -p yuantusplm -f docker-compose.yml up -d --build
+```
+
+输出（摘要）：
+
+```text
+OK: Seeded tenant/org schemas
+OK: Login succeeded
+OK: Org + tenant isolation (A1)
+OK: Org isolation (A2)
+OK: Tenant isolation (B1)
+
+ALL CHECKS PASSED
+```
+
+---
+
+## Run ALL-17（一键回归脚本：verify_all.sh，Docker 镜像 + Wheelhouse）
+
+- 时间：`2025-12-21 11:45:46 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=16, FAIL=0, SKIP=1)`
+- 备注：`audit_enabled=true`，镜像构建使用 `requirements.lock` + `vendor/wheels`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Run H (Core APIs)         PASS
+S1 (Meta + RBAC)          PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-C (CAD Attribute Sync) PASS
+Search Index              PASS
+Reports Summary           PASS
+Audit Logs                PASS
+S7 (Multi-Tenancy)        SKIP
+Where-Used API            PASS
+BOM Compare               PASS
+BOM Substitutes           PASS
+Version-File Binding      PASS
+
+PASS: 16  FAIL: 0  SKIP: 1
+ALL TESTS PASSED
+```
+
+---
+
+## Run ALL-16（一键回归脚本：verify_all.sh，切回单租户后）
+
+- 时间：`2025-12-20 13:04:49 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=15, FAIL=0, SKIP=1)`
+- 关键 ID（节选）：
+  - Run H Part：`4db32437-632f-448d-b7e5-9feac2d4b4cb`
+  - Run H RPC Part：`c02dafe6-41bc-43e4-8cbc-d7eb7e42710a`
+  - Run H File：`f065623e-c0e8-419a-aa97-b9a331f8ade1`
+  - Run H ECO：`7b79aa76-b341-4e28-8185-c3b3f115f8ee`
+  - S5-A File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - S5-B GStarCAD File：`36bb215d-e9ef-411e-8124-1aa61ef4b51d`
+  - S5-B ZWCAD File：`2516c32b-f593-410f-8a35-0995dc8a6851`
+  - S5-C Item：`c81550be-6af1-41e3-88a2-c5c495c1e651`
+  - S5-C Job：`bde68f6c-fca7-4101-a1ad-0174b6137763`
+  - Search Index Part：`83b8201f-ca6b-427d-872e-168f8849cf49`
+  - Reports Summary Part：`12afd4f5-59d7-47c5-876d-cde018319393`
+  - Reports Summary File：`cd1890c8-b928-49e8-babb-6d8771159096`
+  - Reports Summary ECO：`f257b2a4-18d6-4172-92ca-65d040d40bd4`
+  - Reports Summary Job：`ca488c57-4905-4bd0-a896-ee56ac3b6528`
+  - BOM Compare Parent A：`f4e3f2f8-ed79-454f-bcd8-9f9f3363839f`
+  - BOM Compare Child Z：`69e18905-006b-4eaf-9e08-f10b451250b7`
+  - BOM Substitutes Parent：`ff834ba0-34e9-46b5-a18a-2767c5085e9e`
+  - Version-File Binding Part：`adfe03c4-9463-48b8-ae96-ed7b02497e2d`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Run H (Core APIs)         PASS
+S1 (Meta + RBAC)          PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-C (CAD Attribute Sync) PASS
+Search Index              PASS
+Reports Summary           PASS
+S7 (Multi-Tenancy)        SKIP
+Where-Used API            PASS
+BOM Compare               PASS
+BOM Substitutes           PASS
+Version-File Binding      PASS
+
+PASS: 15  FAIL: 0  SKIP: 1
+
+ALL TESTS PASSED
 ```
 
 ## Run WU-1（Where-Used API 验收）
@@ -2054,6 +4225,5296 @@ curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
 ```
 
 List orgs：
+
+```bash
+TOKEN='<access_token>'
+curl -s http://127.0.0.1:7910/api/v1/auth/orgs -H "Authorization: Bearer $TOKEN"
+```
+
+```json
+{"tenant_id":"tenant-1","user_id":1,"orgs":[{"id":"org-1","name":"org-1","is_active":true}]}
+```
+
+## Run BC-3（BOM Compare 含生效与替代件）
+
+- 时间：`2025-12-21 12:34:45 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent A：`3cf426b5-8002-4b4e-855d-223b808aa74e`
+  - Parent B：`19718808-a3b7-4812-9fc2-8fc934eff993`
+  - Child X：`fd785fde-4bb0-495c-b541-97c65067547b`
+  - Child Y：`82d53fbc-753a-4e2b-92e3-7e2fd90f7258`
+  - Child Z：`6e3ee964-10c9-4548-b7f7-44a1c08e97cf`
+
+执行命令：
+
+```bash
+# 重建 API/worker 以加载最新 BOM Compare 逻辑
+docker compose -p yuantusplm up -d --build
+
+bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+BOM Compare: OK
+ALL CHECKS PASSED
+```
+
+## Run S5-B-3（CAD 2D Connectors：Haochen/Zhongwang aliases）
+
+- 时间：`2025-12-21 12:34:45 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GStarCAD File：`4aa92285-d18b-450f-8628-dd0693d17a79`
+  - ZWCAD File：`0367a7e8-4a53-4269-8243-f64defb3a584`
+  - Haochen Alias File：`fc4ffab2-a930-4567-a4d0-b6d231b93165`
+  - Zhongwang Alias File：`dfa6863f-c8bb-425b-92be-7d086dc17004`
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD 2D Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-12（一键回归脚本：verify_all.sh，含属性归一化）
+
+- 时间：`2025-12-26 08:26:24 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`
+- 汇总：PASS=39 / FAIL=0 / SKIP=0
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_CAD_ML_BASE_URL='http://127.0.0.1:8001'
+export CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg'
+export YUANTUS_AUTH_MODE=required
+export RUN_CAD_AUTO_PART=1
+export RUN_CAD_EXTRACTOR_STUB=1
+export RUN_CAD_EXTRACTOR_EXTERNAL=1
+export RUN_CAD_EXTRACTOR_SERVICE=1
+export RUN_TENANT_PROVISIONING=1
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 39  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run ALL-18（一键回归脚本：verify_all.sh，含失败项）
+
+- 时间：`2025-12-21 12:47:17 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`REGRESSION FAILED (PASS=11, FAIL=4, SKIP=2)`
+- 失败项：
+  - S1 (Meta + RBAC)：viewer 写操作返回 200（期望 403）
+  - S3.2 (BOM Effectivity)：viewer 写操作返回 200；删除后 NEXT_WEEK 仍返回 2 条
+  - S4 (ECO Advanced)：viewer 登录失败（无 access_token）
+  - S5-C (CAD Attribute Sync)：job 状态停留在 processing
+- 跳过项：
+  - Audit Logs（audit_enabled=false）
+  - S7 (Multi-Tenancy)（tenancy_mode=single）
+
+执行命令：
+
+```bash
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 11  FAIL: 4  SKIP: 2
+REGRESSION FAILED
+```
+
+## Run ALL-19（一键回归脚本：verify_all.sh，DB_URL 自动探测）
+
+- 时间：`2025-12-21 13:00:43 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=15, FAIL=0, SKIP=2)`
+- 跳过项：
+  - Audit Logs（audit_enabled=false）
+  - S7 (Multi-Tenancy)（tenancy_mode=single）
+
+执行命令：
+
+```bash
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 15  FAIL: 0  SKIP: 2
+ALL TESTS PASSED
+```
+
+## Run ALL-20（一键回归脚本：verify_all.sh，Audit Logs enabled）
+
+- 时间：`2025-12-21 13:42:02 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=16, FAIL=0, SKIP=1)`
+- 跳过项：
+  - S7 (Multi-Tenancy)（tenancy_mode=single）
+
+执行命令：
+
+```bash
+YUANTUS_AUDIT_ENABLED=true docker compose -p yuantusplm -f docker-compose.yml up -d --build
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 16  FAIL: 0  SKIP: 1
+ALL TESTS PASSED
+```
+
+## Run S7-1（Multi-Tenancy：db-per-tenant-org）
+
+- 时间：`2025-12-21 13:39:30 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+docker compose -p yuantusplm -f docker-compose.yml -f docker-compose.mt.yml up -d --build
+MODE=db-per-tenant-org DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+Multi-Tenancy Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-B-4（CAD 2D Connectors：cad_connector_id）
+
+- 时间：`2025-12-21 15:31:11 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GStarCAD File：`470cb8aa-cc0a-4543-94e9-751549c7779e`
+  - ZWCAD File：`167bf590-a955-4967-9e40-e58f26ab2d2f`
+  - Haochen Alias File：`c4b81ad0-ef64-43d2-bf72-c2c0b268f40a`
+  - Zhongwang Alias File：`faac3a03-6743-4d0e-8897-2919e851a1f7`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD 2D Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-B-5（CAD 2D Connectors：auto-detect by content）
+
+- 时间：`2025-12-23 13:59:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GStarCAD File：`cd5be06c-755e-4072-b53d-ed7016d5b9ee`
+  - ZWCAD File：`38286688-9cee-4968-b052-10ce25d41bee`
+  - Haochen File：`f97dea62-8c2d-4d37-9767-d5305487f344`
+  - Zhongwang File：`aa0ebbf7-63d6-4a04-8f91-3607ade231ac`
+  - Auto-detect File：`46a7cf35-ebb7-4ed7-aab4-39717a61054b`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD 2D Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-A-4（CAD Pipeline S3）
+
+- 时间：`2025-12-21 15:31:11 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_pipeline_s3.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - Preview Job：`2c2af0fb-b9ef-40dc-a547-69dfc3b4f8e6`
+  - Geometry Job：`8749f6a9-34c4-4bbf-ba47-9b30de716063`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_pipeline_s3.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Pipeline S3 Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-2（CAD Attribute Sync：cad_extract）
+
+- 时间：`2025-12-21 16:30:24 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_sync.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Item：`1e29e819-e6f6-4f56-a79e-d2569f8461aa`
+  - File：`4e25ecad-e484-44c5-861b-01435d77cee8`
+  - Job：`fb57a93f-cc4d-4c44-82a8-4a36e97c2972`
+
+执行命令：
+
+```bash
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_sync.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Attribute Sync Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-47（一键回归：verify_all.sh + 多租户 + CAD Extractor）
+
+- 时间：`2025-12-24 14:14:25 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Tenancy：`db-per-tenant-org`
+- 依赖：`cad-extractor` 运行中（`http://127.0.0.1:8200`）
+- 结果：`PASS=27, FAIL=0, SKIP=0`
+- 说明：`docker compose -f docker-compose.yml -f docker-compose.mt.yml up -d --build`
+
+执行命令：
+
+```bash
+. .venv/bin/activate
+YUANTUS_TENANCY_MODE='db-per-tenant-org' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 27  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run S5-B-Connectors-Config（自定义 CAD 连接器配置）
+
+- 时间：`2025-12-24 14:22:59 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Tenancy：`db-per-tenant-org`（CLI 以 `single` 直连 tenant DB）
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：`file_id=3809b563-91d1-4c10-893b-e412eedb9d89`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE='single' \
+YUANTUS_DATABASE_URL_TEMPLATE='' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE='s3' \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+  bash scripts/verify_cad_connectors_config.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Connectors Config Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-SyncTemplate（CAD Sync Template）
+
+- 时间：`2025-12-24 14:22:59 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Tenancy：`db-per-tenant-org`（CLI 以 `single` 直连 tenant DB）
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE='single' \
+YUANTUS_DATABASE_URL_TEMPLATE='' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE='s3' \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+  bash scripts/verify_cad_sync_template.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Sync Template Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-Stub（外部提取 stub）
+
+- 时间：`2025-12-24 14:22:59 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Tenancy：`db-per-tenant-org`（CLI 以 `single` 直连 tenant DB）
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：`file_id=cf7efbf1-723f-466a-ad47-6b616c6e7fd1`, `job_id=85b6fd69-e33d-4e17-9dc1-d5d2222c5b36`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE='single' \
+YUANTUS_DATABASE_URL_TEMPLATE='' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE='s3' \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+  bash scripts/verify_cad_extractor_stub.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor Stub Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External（真实 DWG 外部提取）
+
+- 时间：`2025-12-24 14:22:59 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 外部服务：`http://127.0.0.1:8200`
+- 样例文件：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：`file_id=46e9ad31-d9f8-4e9e-8617-c9b7b6f34fe9`, `job_id=6e1bcd0c-b5a1-48b8-8fc9-98969b0de904`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE='single' \
+YUANTUS_DATABASE_URL_TEMPLATE='' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE='s3' \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run Backup-Restore（私有化备份/恢复）
+
+- 时间：`2025-12-24 14:29:22 +0800`
+- 结果：`ALL CHECKS PASSED`
+- 关键路径：
+  - 备份目录：`/tmp/yuantus_backup_verify_1766557724`
+  - 恢复数据库后缀：`_restore_1766557724`
+  - 恢复桶：`yuantus-restore-test-1766557724`
+- 说明：使用已运行的 `yuantus` docker compose 项目（避免端口冲突）
+
+执行命令：
+
+```bash
+PROJECT=yuantus bash scripts/verify_backup_restore.sh
+```
+
+输出（摘要）：
+
+```text
+Backup/Restore Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run Cleanup-Restore（清理恢复残留）
+
+- 时间：`2025-12-24 14:29:22 +0800`
+- 结果：`ALL CHECKS PASSED`
+- 关键资源：
+  - 测试数据库：`yuantus_cleanup_test_1766557747`
+  - 测试桶：`yuantus-cleanup-test-1766557747`
+
+执行命令：
+
+```bash
+PROJECT=yuantus bash scripts/verify_cleanup_restore.sh
+```
+
+输出（摘要）：
+
+```text
+Cleanup Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run Backup-Rotation（备份轮转）
+
+- 时间：`2025-12-24 14:29:22 +0800`
+- 结果：`ALL CHECKS PASSED`
+- 说明：保持最新 2 个备份
+
+执行命令：
+
+```bash
+bash scripts/verify_backup_rotation.sh
+```
+
+输出（摘要）：
+
+```text
+Rotation kept newest 2
+ALL CHECKS PASSED
+```
+
+## Run ALL-48（一键回归：verify_all.sh + CAD Extractor 全量）
+
+- 时间：`2025-12-24 14:31:37 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Tenancy：`db-per-tenant-org`
+- 结果：`PASS=31, FAIL=0, SKIP=0`
+- 说明：启用 CAD Extractor Stub/External/Service + CAD Auto Part
+
+执行命令：
+
+```bash
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+RUN_CAD_EXTRACTOR_STUB=1 \
+RUN_CAD_EXTRACTOR_EXTERNAL=1 \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 31  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run S6-Search-Index（搜索索引增量）
+
+- 时间：`2025-12-24 14:45:33 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Tenancy：`db-per-tenant-org`（CLI 以 `single` 直连 tenant DB）
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：`part_id=d8ea3be2-3b12-4355-bf62-9c64954f7bfd`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE='single' \
+YUANTUS_DATABASE_URL_TEMPLATE='' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_search_index.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Search Index Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S6-Search-Reindex（索引状态 + 重建）
+
+- 时间：`2025-12-24 14:45:33 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Engine：`db`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：`part_id=de805297-f782-495e-84db-6973f607dc1b`, `indexed=106`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE='single' \
+YUANTUS_DATABASE_URL_TEMPLATE='' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_search_reindex.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Search Reindex Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-43（一键回归：verify_all.sh + CAD Auto Part + CAD Extractor Service）
+
+- 时间：`2025-12-24 08:48:34 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`（PASS=27, FAIL=0, SKIP=0）
+- 说明：`S5-C (CAD Auto Part)` 与 `S5-C (CAD Extractor Service)` 均通过；脚本检测到已运行的 CAD Extractor 服务并自动设置 `START_SERVICE=0`。
+
+执行命令：
+
+```bash
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 27  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run Compose-No-CAD-Extractor（Compose 配置校验）
+
+- 时间：`2025-12-24 13:54:19 +0800`
+- 结果：`config ok`
+
+执行命令：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.no-cad-extractor.yml config
+```
+
+## Run Compose-No-CAD-Extractor-Startup（轻量启动验证）
+
+- 时间：`2025-12-24 13:58:23 +0800`
+- 结果：`api/worker/minio/postgres/redis` 启动成功，`cad-extractor` 未启动
+
+执行命令：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.no-cad-extractor.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.no-cad-extractor.yml ps
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7910/api/v1/health \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+输出（摘要）：
+
+```text
+api: Up (healthy)
+worker: Up
+postgres: Up (healthy)
+minio: Up (healthy)
+redis: Up
+health: 200
+```
+
+## Run ALL-46（轻量模式回归：no cad-extractor）
+
+- 时间：`2025-12-24 14:05:46 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`（PASS=25, FAIL=0, SKIP=2）
+- 说明：轻量启动（`docker-compose.no-cad-extractor.yml`），跳过 `S5-C (CAD Extractor Service)` 与 `S7 (Multi-Tenancy)`
+
+执行命令：
+
+```bash
+. .venv/bin/activate
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_SERVICE=0 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 25  FAIL: 0  SKIP: 2
+ALL TESTS PASSED
+```
+
+## Run ALL-45（一键回归：verify_all.sh + CAD Auto Part + CAD Extractor Service）
+
+- 时间：`2025-12-24 13:05:40 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`（PASS=27, FAIL=0, SKIP=0）
+- 说明：使用 Python 3.11 虚拟环境运行（不再出现 boto3 3.9 弃用告警）
+
+执行命令：
+
+```bash
+. .venv/bin/activate
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 27  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run CAD-Extractor-Compose-Healthcheck（Docker Compose 健康检查）
+
+- 时间：`2025-12-24 08:57:01 +0800`
+- 服务：`cad-extractor`
+- 结果：`healthy`
+
+执行命令：
+
+```bash
+docker compose -p yuantusplm up -d --build cad-extractor
+docker compose -p yuantusplm ps cad-extractor
+```
+
+输出（摘要）：
+
+```text
+STATUS: Up (healthy)
+PORTS: 0.0.0.0:8200->8200/tcp
+```
+
+## Run Compose-CAD-Extractor-Dependency（API/Worker 依赖 CAD Extractor）
+
+- 时间：`2025-12-24 09:02:43 +0800`
+- 结果：`cad-extractor/api/worker` 启动成功，`cad-extractor` 健康检查通过
+
+执行命令：
+
+```bash
+docker compose -p yuantusplm up -d --build
+docker compose -p yuantusplm ps
+```
+
+输出（摘要）：
+
+```text
+api: Up (healthy)
+cad-extractor: Up (healthy)
+worker: Up
+postgres: Up (healthy)
+minio: Up (healthy)
+```
+
+## Run ALL-44（一键回归：verify_all.sh + CAD Auto Part + CAD Extractor Service）
+
+- 时间：`2025-12-24 12:15:07 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`（PASS=27, FAIL=0, SKIP=0）
+- 说明：`S5-C (CAD Auto Part)` 与 `S5-C (CAD Extractor Service)` 均通过
+
+执行命令：
+
+```bash
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 27  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+## Run ALL-42（一键回归：verify_all.sh + CAD Auto Part + CAD Extractor Service）
+
+- 时间：`2025-12-24 08:43:10 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`（PASS=27, FAIL=0, SKIP=0）
+- 说明：`S5-C (CAD Auto Part)` 与 `S5-C (CAD Extractor Service)` 均通过；脚本检测到已运行的 CAD Extractor 服务并自动设置 `START_SERVICE=0`。
+
+执行命令：
+
+```bash
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 27  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run ALL-41（一键回归：verify_all.sh + CAD Auto Part 通过）
+
+- 时间：`2025-12-24 08:28:22 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`（PASS=26, FAIL=0, SKIP=1）
+- 说明：`S5-C (CAD Auto Part)` 已通过；`S5-C (CAD Extractor Service)` 未开启（RUN_CAD_EXTRACTOR_SERVICE=0）
+
+执行命令：
+
+```bash
+RUN_CAD_AUTO_PART=1 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 26  FAIL: 0  SKIP: 1
+ALL TESTS PASSED
+```
+
+## Run S5-C-Extractor-Service-2（CAD Extractor Service Script）
+
+- 时间：`2025-12-24 08:34:21 +0800`
+- 基地址：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_service.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：健康检查自动检测到已运行服务，脚本将 `START_SERVICE` 置为 `0`
+
+执行命令：
+
+```bash
+START_SERVICE=0 \
+  bash scripts/verify_cad_extractor_service.sh http://127.0.0.1:8200
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor Service Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-RealDWG-AutoPart（真实 DWG + auto_create_part）
+
+- 时间：`2025-12-23 23:37:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_auto_part.sh`
+- 结果：`ALL CHECKS PASSED`
+- 样例文件与关键 ID：
+  - `J2824002-06上封头组件v2.dwg` → `item_number=J2824002-06`, `revision=v2`
+    - Part：`ac005a45-af28-4e89-9ae5-29d6b688bac8`
+    - File：`40021aa5-b21a-43a3-a519-28fafaea879e`
+    - Attachment：`3b8d09fb-dc7a-4067-8354-a7d6ce10432a`
+  - `J2825002-09下轴承支架组件v2.dwg` → `item_number=J2825002-09`, `revision=v2`
+    - Part：`d6079242-54d0-4142-a2c1-d99c01ab0369`
+    - File：`c8fb59d5-7c42-4cd2-822e-20d75be79abb`
+    - Attachment：`98781ce3-9ba2-4db6-abeb-3afa3b7314d0`
+  - `J0724006-01下锥体组件v3.dwg` → `item_number=J0724006-01`, `revision=v3`
+    - Part：`fc9b73c0-a32f-49a8-a47f-0a21b11b6283`
+    - File：`b8904af3-2f3a-4864-bb34-17521dbdf5d9`
+    - Attachment：`da718f9c-752f-446b-a246-1689fe1b5183`
+
+执行命令（示例）：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+CAD_AUTO_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_AUTO_EXPECT_ITEM_NUMBER='J2824002-06' \
+CAD_AUTO_EXPECT_REVISION='v2' \
+  bash scripts/verify_cad_auto_part.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Auto Part Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-Stub-2（CAD Extractor Stub）
+
+- 时间：`2025-12-24 16:39:39 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_stub.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`cf7efbf1-723f-466a-ad47-6b616c6e7fd1`
+  - Job：`53291cae-ce26-4ae9-a33e-0529297d20c8`
+- Extractor：`http://127.0.0.1:63135`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+
+bash scripts/verify_cad_extractor_stub.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor Stub Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-LOCAL-4（CAD Extract Local Verification）
+
+- 时间：`2025-12-24 16:39:49 +0800`
+- 脚本：`scripts/verify_cad_extract_local.sh`
+- 结果：`ALL CHECKS PASSED`
+- DB：`/tmp/yuantus_cad_extract_local.db`
+- Storage：`/tmp/yuantus_cad_extract_storage`
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_extract_local.sh
+```
+
+输出（摘要）：
+
+```text
+CAD Extract Local Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-10（一键回归脚本：verify_all.sh）
+
+- 时间：`2025-12-26 00:14:48 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`
+- 汇总：PASS=33 / FAIL=0 / SKIP=5
+- SKIP 项：
+  - `S5-C (CAD Auto Part)`：`RUN_CAD_AUTO_PART=0`
+  - `S5-C (CAD Extractor Stub)`：`RUN_CAD_EXTRACTOR_STUB=0`
+  - `S5-C (CAD Extractor External)`：`RUN_CAD_EXTRACTOR_EXTERNAL=0`
+  - `S5-C (CAD Extractor Service)`：`RUN_CAD_EXTRACTOR_SERVICE=0`
+  - `S7 (Tenant Provisioning)`：`RUN_TENANT_PROVISIONING=0`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_CAD_ML_BASE_URL='http://127.0.0.1:8001'
+export CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg'
+export YUANTUS_AUTH_MODE=required
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 33  FAIL: 0  SKIP: 5
+ALL TESTS PASSED
+```
+
+## Run ALL-11（一键回归脚本：verify_all.sh，启用全部可选项）
+
+- 时间：`2025-12-26 00:22:53 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`
+- 汇总：PASS=38 / FAIL=0 / SKIP=0
+- 备注：Tenant Provisioning 返回 `SKIP: platform admin disabled`（脚本退出码为 0）
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_CAD_ML_BASE_URL='http://127.0.0.1:8001'
+export CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg'
+export YUANTUS_AUTH_MODE=required
+export RUN_CAD_AUTO_PART=1
+export RUN_CAD_EXTRACTOR_STUB=1
+export RUN_CAD_EXTRACTOR_EXTERNAL=1
+export RUN_CAD_EXTRACTOR_SERVICE=1
+export RUN_TENANT_PROVISIONING=1
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 38  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run S5-C-RealDWG-AutoPart-2（脚本自动探测 DB/租户环境）
+
+- 时间：`2025-12-24 00:00:39 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_auto_part.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：无需显式传 `YUANTUS_TENANCY_MODE/DB_URL_TEMPLATE/IDENTITY_DB_URL`，脚本自动探测
+- 样例文件与关键 ID：
+  - `J2824002-06上封头组件v2.dwg` → `item_number=J2824002-06`, `revision=v2`
+    - Part：`ac005a45-af28-4e89-9ae5-29d6b688bac8`
+    - File：`40021aa5-b21a-43a3-a519-28fafaea879e`
+    - Attachment：`3b8d09fb-dc7a-4067-8354-a7d6ce10432a`
+
+执行命令（示例）：
+
+```bash
+CAD_AUTO_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_AUTO_EXPECT_ITEM_NUMBER='J2824002-06' \
+CAD_AUTO_EXPECT_REVISION='v2' \
+  bash scripts/verify_cad_auto_part.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Auto Part Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run S5-C-3（CAD Attribute Sync：cad_extract + attributes endpoint）
+
+- 时间：`2025-12-21 18:11:32 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_sync.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Item：`460fdbbf-3dd7-4337-8f43-bb09df0e07fb`
+  - File：`4e25ecad-e484-44c5-861b-01435d77cee8`
+  - Job：`9923e63d-617b-47f8-b36b-31e1ab64fa31`
+
+执行命令：
+
+```bash
+YUANTUS_STORAGE_TYPE=s3 YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 YUANTUS_S3_ACCESS_KEY_ID=minioadmin YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'   bash scripts/verify_cad_sync.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Attribute Sync Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-21（一键回归脚本：verify_all.sh，含 cad_extract）
+
+- 时间：`2025-12-21 18:13:48 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=15, FAIL=0, SKIP=2)`
+- 跳过项：
+  - Audit Logs（audit_enabled=false）
+  - S7 (Multi-Tenancy)（tenancy_mode=single）
+- 关键 ID（S5-C）：
+  - Item：`3be82f9b-e46b-4fc3-9e81-e3363acf3c93`
+  - File：`4e25ecad-e484-44c5-861b-01435d77cee8`
+  - Job：`b1c78b82-3b39-4d16-abe4-5ae0dd7a39aa`
+
+执行命令：
+
+```bash
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 15  FAIL: 0  SKIP: 2
+ALL TESTS PASSED
+```
+
+
+## Run S5-C-LOCAL-1（CAD Extract Local Verification）
+
+- 时间：`2025-12-21 20:29:54 +0800`
+- 脚本：`scripts/verify_cad_extract_local.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - PY：`.venv/bin/python`
+  - PYTHONPATH：`src`
+  - DB：`/tmp/yuantus_cad_extract_local.db`
+  - Storage：`/tmp/yuantus_cad_extract_storage`
+- 备注：`cadquery not installed`（已提示，未影响 cad_extract）
+
+执行命令：
+
+```bash
+PY=.venv/bin/python PYTHONPATH=src bash scripts/verify_cad_extract_local.sh
+```
+
+输出（摘要）：
+
+```text
+CAD Extract Local Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-38（一键回归脚本：verify_all.sh，single + S3 env）
+
+- 时间：`2025-12-23 14:22:22 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=23, FAIL=0, SKIP=2)`
+- SKIP：Audit Logs（audit_enabled=false），Multi-Tenancy（tenancy_mode=single）
+- 关键 ID：
+  - Document：`eab43e0d-1803-46ef-9953-06070dbb3133`
+  - Part (lifecycle)：`c14fe667-dde7-4a46-9658-326acba5f7e6`
+  - CAD File (S5-A)：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+
+执行命令：
+
+```bash
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 23  FAIL: 0  SKIP: 2
+ALL TESTS PASSED
+```
+
+
+## Run S5-C-LOCAL-2（CAD Extract Local Verification，默认脚本）
+
+- 时间：`2025-12-21 20:31:04 +0800`
+- 脚本：`scripts/verify_cad_extract_local.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境（脚本默认解析）：
+  - PY：`.venv/bin/python`
+  - PYTHONPATH：`<repo>/src`
+  - DB：`/tmp/yuantus_cad_extract_local.db`
+  - Storage：`/tmp/yuantus_cad_extract_storage`
+- 备注：`cadquery not installed`（已提示，未影响 cad_extract）
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_extract_local.sh
+```
+
+输出（摘要）：
+
+```text
+CAD Extract Local Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-22（一键回归脚本：verify_all.sh）
+
+- 时间：`2025-12-21 20:50:48 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=15, FAIL=0, SKIP=2)`
+- 跳过项：
+  - Audit Logs（audit_enabled=false）
+  - S7 (Multi-Tenancy)（tenancy_mode=single）
+- 关键 ID（S5-C）：
+  - Item：`f3b84ade-9474-42c4-96e9-3b8aa5089912`
+  - File：`7557a108-5acd-443d-affe-1ce90d0654aa`
+  - Job：`0d4b3dff-f335-461b-94ea-28242c6b1a50`
+
+执行命令：
+
+```bash
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 15  FAIL: 0  SKIP: 2
+ALL TESTS PASSED
+```
+
+
+## Run S7-1（Multi-Tenancy：db-per-tenant-org）
+
+- 时间：`2025-12-21 21:24:11 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+- 模式：`db-per-tenant-org`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- DB_URL_TEMPLATE：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+- IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+
+执行命令：
+
+```bash
+MODE=db-per-tenant-org DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'   bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+Multi-Tenancy Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-23（一键回归脚本：verify_all.sh，db-per-tenant-org）
+
+- 时间：`2025-12-21 21:51:27 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=16, FAIL=0, SKIP=1)`
+- 模式：`db-per-tenant-org`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- DB_URL_TEMPLATE：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+- IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+- 跳过项：
+  - Audit Logs（audit_enabled=false）
+- 关键 ID（S5-C）：
+  - Item：`0dfd3777-7be5-4390-8f9d-8bba326a99aa`
+  - File：`88457b79-4551-40b4-965a-49c73b7e50a4`
+  - Job：`26466c1a-36e2-4ecf-b6b3-95ec74b74b0f`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'   bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 16  FAIL: 0  SKIP: 1
+ALL TESTS PASSED
+```
+
+## Run AUDIT-RET-1（Audit Logs + Retention）
+
+- 时间：`2025-12-21 22:23:05 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_audit_logs.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - AUDIT_RETENTION_MAX_ROWS：`5`
+  - AUDIT_RETENTION_DAYS：`1`
+  - AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS：`1`
+  - DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+  - IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+
+执行命令：
+
+```bash
+AUDIT_RETENTION_MAX_ROWS=5 AUDIT_RETENTION_DAYS=1 AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1 VERIFY_RETENTION=1 \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_audit_logs.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Audit retention verified
+ALL CHECKS PASSED
+```
+
+## Run AUDIT-RET-2（Audit Logs + Retention，db-per-tenant-org）
+
+- 时间：`2025-12-23 13:29:44 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_audit_logs.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - AUDIT_RETENTION_MAX_ROWS：`5`
+  - AUDIT_RETENTION_DAYS：`1`
+  - AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS：`1`
+  - DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+  - IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+
+执行命令：
+
+```bash
+AUDIT_RETENTION_DAYS=1 AUDIT_RETENTION_MAX_ROWS=5 AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1 VERIFY_RETENTION=1 \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_audit_logs.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Audit retention: OK
+ALL CHECKS PASSED
+```
+
+
+## Run OPS-1（Ops Health）
+
+- 时间：`2025-12-21 22:23:05 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_ops_health.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+bash scripts/verify_ops_health.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Health deps: OK
+ALL CHECKS PASSED
+```
+
+
+## Run MT-MIGRATE-1（Multi-Tenant Migrations）
+
+- 时间：`2025-12-21 22:23:05 +0800`
+- 脚本：`scripts/mt_migrate.sh`
+- 结果：`Migrations complete`
+- 模式：`db-per-tenant-org`
+- DB_URL_TEMPLATE：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+- IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+- AUTO_STAMP：`1`
+
+执行命令：
+
+```bash
+MODE=db-per-tenant-org \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  ./scripts/mt_migrate.sh
+```
+
+输出（摘要）：
+
+```text
+Migrations complete.
+```
+
+
+## Run CAD-MISSING-1（CAD Missing Source）
+
+- 时间：`2025-12-21 22:23:05 +0800`
+- 基地址：`http://127.0.0.1:7912`
+- 脚本：`scripts/verify_cad_missing_source.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - DB_URL：`sqlite:////tmp/yuantus_missing_source.db`
+  - IDENTITY_DB_URL：`sqlite:////tmp/yuantus_missing_source_identity.db`
+  - LOCAL_STORAGE_PATH：`/tmp/yuantus_missing_source_storage`
+- 关键 ID：
+  - File：`0d921a25-11f3-4d2e-93fc-e50a0088f8a8`
+  - Job：`460d402e-5f62-4e00-bb43-830224a81d3a`
+
+执行命令：
+
+```bash
+DB_URL='sqlite:////tmp/yuantus_missing_source.db' \
+IDENTITY_DB_URL='sqlite:////tmp/yuantus_missing_source_identity.db' \
+LOCAL_STORAGE_PATH='/tmp/yuantus_missing_source_storage' \
+  bash scripts/verify_cad_missing_source.sh http://127.0.0.1:7912 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Job failed without retries
+ALL CHECKS PASSED
+```
+
+
+## Run S5-A-2（CAD Pipeline S3 Regression）
+
+- 时间：`2025-12-21 22:23:05 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_pipeline_s3.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`a5033222-ec3c-4345-b54a-c5fa0de20cc3`
+  - Preview Job：`16a36c52-891c-488e-bfa2-42b1423d7869`
+  - Geometry Job：`a41fa0f3-37a9-44e0-8c4b-03336563fcb4`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_pipeline_s3.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Preview job status: completed
+Geometry job status: completed
+ALL CHECKS PASSED
+```
+
+## Run ALL-24（一键回归脚本：verify_all.sh，审计保留启用）
+
+- 时间：`2025-12-22 08:27:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=17, FAIL=0, SKIP=1)`
+- 跳过项：
+  - S7 (Multi-Tenancy)（tenancy_mode=single）
+- 审计保留：`max_rows=5, days=1, prune_interval=1`
+- 关键 ID（S5-C）：
+  - Item：`221526f7-4438-4469-a1f4-aff8c07f8d60`
+  - File：`66c0612a-d883-473b-998b-610ebb9b8246`
+  - Job：`91a8032b-e9eb-443b-a649-62b688d2997d`
+
+执行命令：
+
+```bash
+AUDIT_RETENTION_MAX_ROWS=5 AUDIT_RETENTION_DAYS=1 AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1 VERIFY_RETENTION=1 \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 17  FAIL: 0  SKIP: 1
+ALL TESTS PASSED
+```
+
+
+## Run ALL-25（一键回归脚本：verify_all.sh，db-per-tenant-org）
+
+- 时间：`2025-12-22 08:27:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=18, FAIL=0, SKIP=0)`
+- 模式：`db-per-tenant-org`
+- DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+- DB_URL_TEMPLATE：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+- IDENTITY_DB_URL：`postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+- 审计保留：`max_rows=5, days=1, prune_interval=1`
+- 关键 ID（S5-C）：
+  - Item：`dea34b65-8c98-4d6c-ad00-cadb0aba4482`
+  - File：`9777a8d1-4f21-4c26-ba90-5d3fc055798e`
+  - Job：`30fcaa80-2f42-4e2c-bc65-11118ea00553`
+
+执行命令：
+
+```bash
+AUDIT_RETENTION_MAX_ROWS=5 AUDIT_RETENTION_DAYS=1 AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1 VERIFY_RETENTION=1 \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 18  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+
+## Run S5-A-MT-2（CAD Pipeline S3，db-per-tenant-org 修复后）
+
+- 时间：`2025-12-22 08:27:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_pipeline_s3.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`9a7dad67-2ac2-46f1-bbb7-b3119f48c533`
+  - Preview Job：`02827d1f-77bf-43a6-bd63-089ed278554e`
+  - Geometry Job：`d16e4bf3-3a6c-493c-8687-8d56348b938b`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_cad_pipeline_s3.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Job processing: completed / completed
+ALL CHECKS PASSED
+```
+
+
+## Run BC-4（BOM Compare：字段对照补充后复验）
+
+- 时间：`2025-12-22 09:17:13 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent A：`a3e92ccb-06fb-4f4e-81d2-b0fb7345d45f`
+  - Parent B：`d702e82d-057e-4e43-a0fd-f76826482d62`
+  - Child X：`0c8b475d-16a4-4552-b772-37a7ce5e0913`
+  - Child Y：`f57ebfee-8721-4f0f-a5b4-35740b8a2680`
+  - Child Z：`f34fa407-26a9-4f68-aab3-50752daecde0`
+  - Substitute：`2022c357-25ce-4597-8e6b-f10b82b6f2cd`
+
+执行命令：
+
+```bash
+bash scripts/verify_bom_compare.sh
+```
+
+输出（摘要）：
+
+```text
+BOM Compare: OK
+ALL CHECKS PASSED
+```
+
+
+## Run DOC-1（Document Lifecycle 控制发布）
+
+- 时间：`2025-12-23 09:02:53 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_document_lifecycle.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Document：`cba51d5c-6337-4c03-b86f-c8a66a1947ca`
+  - Version：`1.A`
+
+执行命令：
+
+```bash
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_document_lifecycle.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+
+## Run ALL-26（一键回归脚本：verify_all.sh，single 模式）
+
+- 时间：`2025-12-23 09:13:48 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=22, FAIL=0, SKIP=2)`
+- SKIP：Audit Logs（audit_enabled=false），Multi-Tenancy（tenancy_mode=single）
+- 关键 ID：
+  - Document：`8cd6fb88-b749-4b40-8ac4-0729563ec00d`
+  - S2 File：`a619e60b-5154-40fc-8c12-d904edc018d3`
+  - Run H File：`682eddc3-b17a-4ef4-ae52-ab7af7730ebf`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 22  FAIL: 0  SKIP: 2
+ALL TESTS PASSED
+```
+
+
+## Run ALL-27（一键回归脚本：verify_all.sh，audit + db-per-tenant-org）
+
+- 时间：`2025-12-23 09:21:26 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=24, FAIL=0, SKIP=0)`
+- 模式：`db-per-tenant-org`
+- 审计：`enabled`
+- 关键 ID：
+  - Document：`58cce8b0-f1cc-4f5d-80e6-f31d293d7b6c`
+  - Run H File：`52e33c24-5ea9-4ee1-b957-514c12784351`
+  - S2 File：`2ed67ffa-eb45-4fbc-bcb1-6337084ff7f8`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_AUDIT_ENABLED=true \
+YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 24  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+
+## Run ALL-28（一键回归脚本：verify_all.sh，audit + db-per-tenant-org + Part Lifecycle）
+
+- 时间：`2025-12-23 10:33:24 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=25, FAIL=0, SKIP=0)`
+- 模式：`db-per-tenant-org`
+- 审计：`enabled`
+- 关键 ID：
+  - Document：`44646439-2d64-42a7-b074-6a7fb639359e`
+  - Part (lifecycle)：`9a69f018-2fe0-465c-be8b-c63cede0b105`
+  - CAD File (S5-A)：`9a7dad67-2ac2-46f1-bbb7-b3119f48c533`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_AUDIT_ENABLED=true \
+YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 25  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+
+## Run ALL-29（一键回归脚本：verify_all.sh，db-per-tenant-org）
+
+- 时间：`2025-12-23 13:21:43 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=25, FAIL=0, SKIP=0)`
+- 模式：`db-per-tenant-org`
+- 审计：`disabled`
+- 关键 ID：
+  - Document：`d7600cc4-f9bb-48dd-8bf5-0e9fb2345503`
+  - Part (lifecycle)：`b1878353-b699-41f7-b872-79cdae2703b3`
+  - CAD File (S5-A)：`9a7dad67-2ac2-46f1-bbb7-b3119f48c533`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 25  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+
+## Run ALL-37（一键回归脚本：verify_all.sh，db-per-tenant-org + quota enforce + audit retention）
+
+- 时间：`2025-12-23 13:33:37 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED (PASS=25, FAIL=0, SKIP=0)`
+- 模式：`db-per-tenant-org`
+- 审计：`enabled`（retention days=1, max_rows=5, prune_interval=1）
+- 配额：`enforce`
+- 关键 ID：
+  - Document：`9482da85-13fc-4a30-a304-f8d8fb29e16f`
+  - Part (lifecycle)：`8fce5908-9477-4e24-8f0c-8305ee6d9ba0`
+  - CAD File (S5-A)：`9a7dad67-2ac2-46f1-bbb7-b3119f48c533`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_SCHEMA_MODE=migrations \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 25  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+
+## Run BC-5（BOM Compare：字段级对照复验）
+
+- 时间：`2025-12-23 11:11:25 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent A：`c249c7d0-74f1-49b9-992c-b2faa93c271f`
+  - Parent B：`1882f18a-ebd9-4283-875f-f11794beca00`
+  - Child X：`bfe0b639-3065-40ee-a978-2be6a55d07b2`
+  - Child Y：`2de41ca2-ae54-41e9-ada1-2e3174668c6c`
+  - Child Z：`3e08119d-2165-4735-b199-5bd553bde110`
+  - Substitute：`082afa3b-4c6a-4968-96db-d6aacb3c3a34`
+
+执行命令：
+
+```bash
+bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+BOM Compare: OK
+ALL CHECKS PASSED
+```
+
+
+## Run S5-B-6（CAD 2D Connectors：auto-detect by content + CN keys）
+
+- 时间：`2025-12-23 14:12:00 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GStarCAD File：`e2f659b9-59d2-44b8-a1d3-54497bcc169f`
+  - ZWCAD File：`6904c7cf-b65b-4fba-a71e-10dba3c390cc`
+  - Haochen File：`641ee1f9-bd21-4341-88a3-3bbb2194e57a`
+  - Zhongwang File：`08df1968-5d40-40e0-881c-66b3ef463227`
+  - Auto-detect File：`55bae091-624b-4ea7-88f5-cb93f14e151c`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD 2D Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run S5-C-4（CAD Attribute Sync：cad_extract + attributes endpoint，S3）
+
+- 时间：`2025-12-23 14:12:00 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_sync.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Item：`628a5f85-b8cd-45fb-9f2d-ffbf75e17d88`
+  - File：`b1078ffb-fc5a-47ee-96e4-6d39c8717852`
+  - Job：`cdc8a2f3-40b0-4d6f-aecc-48b067a10da7`
+
+执行命令：
+
+```bash
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_sync.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Attribute Sync Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run S5-C-LOCAL-3（CAD Extract Local Verification，CN keys）
+
+- 时间：`2025-12-23 14:12:00 +0800`
+- 脚本：`scripts/verify_cad_extract_local.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - PY：`.venv/bin/python`
+  - PYTHONPATH：`src`
+  - DB：`/tmp/yuantus_cad_extract_local.db`
+  - Storage：`/tmp/yuantus_cad_extract_storage`
+- 备注：`cadquery not installed`（已提示，未影响 cad_extract）
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_extract_local.sh
+```
+
+输出（摘要）：
+
+```text
+CAD Extract Local Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-B-Config（CAD Connectors Config Reload）
+
+- 时间：`2025-12-23 15:09:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_config.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Demo File：`abcb82e2-ac65-43e4-9bb7-8167a51b82b4`
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_connectors_config.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Connectors Config Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run S5-C-Template（CAD Sync Template）
+
+- 时间：`2025-12-23 15:09:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_sync_template.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：
+  - Part: item_number/description 设为 CAD sync
+  - item_number cad_key=part_number
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_sync_template.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Sync Template Verification Complete
+ALL CHECKS PASSED
+```
+
+
+## Run S5-C-Extractor（CAD Extractor Stub）
+
+- 时间：`2025-12-23 15:09:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_stub.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`c4bdee3c-5501-45ce-bccb-d22be2c0fc13`
+  - Job：`05e2f7d3-05b3-4ac9-a4be-888680ef4fa8`
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_extractor_stub.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor Stub Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-SVC（CAD Extractor Microservice）
+
+- 时间：`2025-12-23 20:49:52 +0800`
+- 基地址：`http://127.0.0.1:8200`
+- 结果：`ALL CHECKS PASSED`
+- 说明：
+  - 使用临时 DWG 文件提交 `/api/v1/extract`
+  - 返回 `ok=true` 且包含基础属性
+
+执行命令（摘要）：
+
+```bash
+cd services/cad-extractor
+../../.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8200 &
+curl -s -X POST http://127.0.0.1:8200/api/v1/extract \
+  -F "file=@/tmp/sample.dwg" \
+  -F "cad_format=DWG"
+```
+
+输出（摘要）：
+
+```json
+{"ok":true,"attributes":{"file_name":"cad-extractor-XXXXXX.dwg","file_ext":"dwg","file_size_bytes":4,"part_number":"tmpXXXXXX","cad_format":"DWG"},"warnings":[]}
+```
+
+## Run S5-C-Extractor-Service（CAD Extractor Service Script）
+
+- 时间：`2025-12-23 21:02:49 +0800`
+- 基地址：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_service.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_cad_extractor_service.sh http://127.0.0.1:8200
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor Service Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External（CAD Extractor External）
+
+- 时间：`2025-12-23 21:29:13 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 外部服务：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`8b2e5c7a-a271-4d75-b5e2-2a31dc8b9d70`
+  - Job：`e53ab992-ee1a-4c03-8b0d-88e684c7f0f6`
+
+执行命令：
+
+```bash
+export CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200
+export CAD_EXTRACTOR_SAMPLE_FILE=/tmp/yuantus_ext_XXXXXX.dwg
+export CAD_EXTRACTOR_EXPECT_KEY=part_number
+export YUANTUS_STORAGE_TYPE=s3
+export YUANTUS_S3_ENDPOINT_URL=http://localhost:59000
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000
+export YUANTUS_S3_BUCKET_NAME=yuantus
+export YUANTUS_S3_ACCESS_KEY_ID=minioadmin
+export YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-RealDWG-Parsed（真实 DWG + 文件名解析）
+
+- 时间：`2025-12-23 22:46:04 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 外部服务：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 校验：`part_number` 按文件名前缀解析
+- 样例文件与关键 ID：
+  - `J2824002-06上封头组件v2.dwg` → `part_number=J2824002-06`
+    - File：`40021aa5-b21a-43a3-a519-28fafaea879e`
+    - Job：`155260d8-23c2-4c2c-ba67-bb6240d367ae`
+  - `J2825002-09下轴承支架组件v2.dwg` → `part_number=J2825002-09`
+    - File：`c8fb59d5-7c42-4cd2-822e-20d75be79abb`
+    - Job：`0ef33975-8de6-4036-ace9-75c7d457b917`
+  - `J0724006-01下锥体组件v3.dwg` → `part_number=J0724006-01`
+    - File：`b8904af3-2f3a-4864-bb34-17521dbdf5d9`
+    - Job：`c1bf07b4-2641-439c-90f1-c7f152d835b3`
+
+执行命令（示例）：
+
+```bash
+export CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06'
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-39（一键回归脚本：verify_all.sh，含 CAD Extractor Service）
+
+- 时间：`2025-12-23 21:41:17 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`
+- 汇总：`PASS=24 / FAIL=0 / SKIP=2`
+- 说明：
+  - `Audit Logs`：`SKIP`（audit_enabled=False）
+  - `S7 (Multi-Tenancy)`：`SKIP`（tenancy_mode=single）
+
+执行命令：
+
+```bash
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_all.sh
+```
+
+输出（摘要）：
+
+```text
+PASS: 24  FAIL: 0  SKIP: 2
+ALL TESTS PASSED
+```
+
+## Run ALL-40（一键回归脚本：verify_all.sh，启用审计 + 多租户）
+
+- 时间：`2025-12-23 22:00:56 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`
+- 汇总：`PASS=26 / FAIL=0 / SKIP=0`
+- 说明：
+  - `tenancy_mode=db-per-tenant-org`
+  - `audit_enabled=true`
+
+执行命令：
+
+```bash
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_all.sh
+```
+
+输出（摘要）：
+
+```text
+PASS: 26  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run S5-C-Extractor-External-RealDWG（CAD Extractor External：真实 DWG 样例）
+
+- 时间：`2025-12-23 22:28:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 外部服务：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 样例文件与关键 ID：
+  - `J2824002-06上封头组件v2.dwg`
+    - File：`40021aa5-b21a-43a3-a519-28fafaea879e`
+    - Job：`59fb1bb7-cd07-4102-83cf-554f6452207f`
+  - `J2825002-09下轴承支架组件v2.dwg`
+    - File：`c8fb59d5-7c42-4cd2-822e-20d75be79abb`
+    - Job：`4255b4df-e560-49e9-8fcd-1ab53f23ae5f`
+  - `J0724006-01下锥体组件v3.dwg`
+    - File：`b8904af3-2f3a-4864-bb34-17521dbdf5d9`
+    - Job：`7e60cc36-75c7-41aa-a386-da4ef0b96650`
+
+执行命令（示例）：
+
+```bash
+export CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-RealDWG-Parsed-2（真实 DWG + 迁移修复）
+
+- 时间：`2025-12-23 23:00:08 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 外部服务：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 修复：tenant DB 缺列 `meta_files.cad_document_path` → 执行 `yuantus db upgrade`
+- 校验：`part_number` 按文件名前缀解析
+- 样例文件与关键 ID：
+  - `J2824002-06上封头组件v2.dwg` → `part_number=J2824002-06`
+    - File：`40021aa5-b21a-43a3-a519-28fafaea879e`
+    - Job：`1d874746-a2b1-4dc7-91ca-b6deda145c51`
+  - `J2825002-09下轴承支架组件v2.dwg` → `part_number=J2825002-09`
+    - File：`c8fb59d5-7c42-4cd2-822e-20d75be79abb`
+    - Job：`0d8c361f-e47f-4f27-9766-8ab61dc9b261`
+  - `J0724006-01下锥体组件v3.dwg` → `part_number=J0724006-01`
+    - File：`b8904af3-2f3a-4864-bb34-17521dbdf5d9`
+    - Job：`9f37c277-9df8-4024-8b01-4a0812add97c`
+
+执行命令（示例）：
+
+```bash
+YUANTUS_TENANCY_MODE='db-per-tenant-org' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE='s3' \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-RealDWG-Sync（真实 DWG + 属性同步）
+
+- 时间：`2025-12-23 23:10:33 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 外部服务：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_sync.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：`item_number <- part_number`，`description` 默认映射
+- 样例文件与关键 ID：
+  - `J2824002-06上封头组件v2.dwg` → `part_number=J2824002-06`
+    - Part：`ac005a45-af28-4e89-9ae5-29d6b688bac8`
+    - File：`40021aa5-b21a-43a3-a519-28fafaea879e`
+    - Job：`3b147165-4aca-428a-85b2-443200150ab0`
+  - `J2825002-09下轴承支架组件v2.dwg` → `part_number=J2825002-09`
+    - Part：`d6079242-54d0-4142-a2c1-d99c01ab0369`
+    - File：`c8fb59d5-7c42-4cd2-822e-20d75be79abb`
+    - Job：`616f5232-420a-4055-9e4d-c527568634dc`
+  - `J0724006-01下锥体组件v3.dwg` → `part_number=J0724006-01`
+    - Part：`fc9b73c0-a32f-49a8-a47f-0a21b11b6283`
+    - File：`b8904af3-2f3a-4864-bb34-17521dbdf5d9`
+    - Job：`a48a78a1-efbf-4838-8386-5aad1965a9d4`
+
+执行命令（示例）：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+CAD_SYNC_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_SYNC_EXPECT_ITEM_NUMBER='J2824002-06' \
+CAD_SYNC_EXPECT_DESCRIPTION='上封头组件' \
+  bash scripts/verify_cad_sync.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Attribute Sync Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S7-Tenant-Provisioning
+
+- 时间：`2025-12-24 14:58:33 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 结果：`ALL CHECKS PASSED`
+- 新租户：`tenant-provision-1766559513`
+- 新组织：`org-provision-1766559513`
+- 新管理员：`admin-1766559513`
+
+执行命令（示例）：
+
+```bash
+export YUANTUS_TENANCY_MODE='single'
+export YUANTUS_DATABASE_URL_TEMPLATE=''
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Tenant Provisioning Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S7-Quota-Enforcement
+
+- 时间：`2025-12-24 14:58:08 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_quotas.sh`
+- 结果：`ALL CHECKS PASSED`
+- 模式：`enforce`
+
+执行命令（示例）：
+
+```bash
+export YUANTUS_TENANCY_MODE='single'
+export YUANTUS_DATABASE_URL_TEMPLATE=''
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_quotas.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run S6-Search-ECO-1
+
+- 时间：`2025-12-24 15:18:25 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_search_eco.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - ECO Product：`b3cf30e3-048b-4d0f-988f-4d7704467a67`
+  - ECO：`32790871-fb32-44ca-991a-8e59fe30fcb6`
+
+执行命令（示例）：
+
+```bash
+export TENANCY_MODE='single'
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+
+bash scripts/verify_search_eco.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Search ECO Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run BC-7（BOM Compare：db-per-tenant-org 复验）
+
+- 时间：`2025-12-26 08:41:15 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent A：`735fda45-952f-479b-b246-bea32049266a`
+  - Parent B：`3e9a9026-514a-472b-88a2-d79f6e222ce5`
+  - Child X：`4a78a43c-bb77-4f5c-b90c-e0e2dc76e635`
+  - Child Y：`ac234177-c7ad-4aea-9dc4-9183a5d08d87`
+  - Child Z：`0eb19021-b1a7-4054-9d28-3e9d0bfc543b`
+  - Substitute：`8be13c71-09e1-41ca-9ac2-5faea0269ea3`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+BOM Compare: OK
+ALL CHECKS PASSED
+```
+
+## Run WU-2（Where-Used API：db-per-tenant-org 复验）
+
+- 时间：`2025-12-26 08:41:15 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_where_used.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Assembly：`c0a27d75-0603-411e-bca7-f22dac414730`
+  - Sub-Assembly：`810e9aad-978a-47a9-937e-566d75bf66ef`
+  - Component：`096fab58-a800-4dc1-bc88-7234b5f4eea5`
+  - Assembly2：`86ab8993-1fa1-4772-a813-a564e0cdc261`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_where_used.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Where-Used API Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run VF-3（Version-File Binding 复验）
+
+- 时间：`2025-12-26 08:41:15 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_version_files.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Item：`b676981e-3177-4ca6-8e75-5d5ad38a5ed2`
+  - Version：`ce7b4b9e-9cac-4119-a0a8-3abdcef61249`
+  - File：`21134895-7b3f-493d-b64e-9849cbf85f6d`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_version_files.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Version-File Binding Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-B-9（CAD 2D Connectors：Haochen/Zhongwang + auto-detect 复验）
+
+- 时间：`2025-12-26 08:41:15 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GStarCAD：`a6ec3ae9-ac4e-4ada-9a1c-1210f88fcaed`
+  - ZWCAD：`80e1b6e6-64f6-41f5-9052-dffa2c1ba58f`
+  - Haochen：`381e33e2-7baf-4fa4-a391-57a5fb2f5c3c`
+  - Zhongwang：`39b095aa-5e69-4274-9d88-27b5af7a5200`
+  - Auto-Haochen：`3e7282c4-0aaf-4b7a-a03d-91faf37031b3`
+  - Auto-ZWCAD：`e9e6d9d0-85d7-400c-b8fd-c57c1d1cadda`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD 2D Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-B-10（CAD 3D Connectors：SolidWorks/NX/Creo/CATIA/Inventor 复验）
+
+- 时间：`2025-12-26 08:41:15 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_3d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - SolidWorks Part：`efb35c64-8f2c-4fc1-8a49-2e53566512b6`
+  - SolidWorks ASM：`07750f52-5fff-4215-b438-a6e23a5b8a93`
+  - NX：`f335757d-bc2f-428f-9cf8-968bd9d9e451`
+  - Creo：`edfa01fd-1225-4429-9774-e7bf509af838`
+  - CATIA：`fc62ae16-7764-4bb7-80cc-94659efbc298`
+  - Inventor：`b698a28e-fb03-45ac-bd37-08be3a8b3f8b`
+  - Auto-NX：`c5dba21b-04c3-407e-88dc-34803c95f083`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_cad_connectors_3d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD 3D Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-B-Config-3（CAD Connectors Config Reload 复验）
+
+- 时间：`2025-12-26 08:41:15 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_config.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Demo CAD File：`3809b563-91d1-4c10-893b-e412eedb9d89`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_cad_connectors_config.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Connectors Config Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run MT-5（S7 多租户隔离：db-per-tenant-org 复验）
+
+- 时间：`2025-12-26 08:41:15 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+export MODE='db-per-tenant-org'
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+Multi-Tenancy Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run AUDIT-3（Audit Logs：db-per-tenant-org 复验）
+
+- 时间：`2025-12-26 08:41:15 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_audit_logs.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_audit_logs.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Audit Logs Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run BC-8（BOM Compare：compare_mode 复验）
+
+- 时间：`2025-12-26 08:57:01 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent A：`3646e3f0-34e4-4ba3-b097-c6d4a3f26dea`
+  - Parent B：`e252ad1b-2e81-4777-8386-7752e52c797a`
+  - Child X：`85041e54-71e9-4cdd-8bd1-86c4e4bce6d8`
+  - Child Y：`9f734f96-f4f7-48a5-ab67-6bdbdbbc9c6a`
+  - Child Z：`2ea70974-8790-4273-99cc-49b78eafd3ea`
+  - Substitute：`be5a2039-e5e5-4807-8b46-bd95d6b16e83`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+BOM Compare: OK
+BOM Compare only_product: OK
+BOM Compare num_qty: OK
+ALL CHECKS PASSED
+```
+
+## Run S4-8（ECO Advanced：compare_mode 复验）
+
+- 时间：`2025-12-26 09:03:30 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_eco_advanced.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Stage：`06e0664d-6de4-4fa8-a477-7b0036b40546`
+  - Product：`29519d4e-e839-4326-a04f-8b4577863d06`
+  - Assembly：`da4584df-c59a-4116-84dc-e14e75b29848`
+  - ECO1：`add60ef9-6299-4fc3-bb04-24878d954890`
+  - Target Version：`24b18abc-6cf3-4485-b6f4-be20622222f6`
+  - ECO2：`a1b139d2-3775-43d3-b43b-04490af72e35`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+BOM diff: OK
+BOM diff only_product: OK
+Impact analysis: OK
+Impact export files: OK
+Batch approvals (admin): OK
+Batch approvals (viewer denied): OK
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Normalization-1（CAD Attribute Normalization）
+
+- 时间：`2025-12-26 08:23:22 +0800`
+- 脚本：`scripts/verify_cad_attribute_normalization.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键校验：
+  - `material=Stainless Steel 304`
+  - `weight=1.2`（1200g → 1.2kg）
+  - `revision=A`（REV-A → A）
+  - `drawing_no` 补齐
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_attribute_normalization.sh
+```
+
+输出（摘要）：
+
+```text
+CAD Attribute Normalization Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-B-Connectors-2D-2（Auto Detect ZWCAD）
+
+- 时间：`2025-12-26 08:23:22 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Auto ZWCAD File：`2faf98da-517d-43f4-a892-f9ecf955c00f`
+  - Auto Haochen File：`7af13c80-2d87-4553-a7fb-bcfdc5d28bfb`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_AUTH_MODE=required
+
+bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD 2D Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S7-Tenant-Provisioning-2（Platform Admin Enabled）
+
+- 时间：`2025-12-26 00:31:35 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Tenant：`tenant-provision-1766680281`
+  - Default Org：`org-provision-1766680281`
+  - Extra Org：`org-extra-1766680281`
+  - Admin：`admin-1766680281`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_AUTH_MODE=required
+
+bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Tenant Provisioning Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-17（DWG：J2825002-09）
+
+- 时间：`2025-12-26 00:35:22 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 样例：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2825002-09下轴承支架组件v2.dwg`
+- 关键 ID：
+  - File：`b3de1296-953e-492a-b724-13f53133d5de`
+  - Job：`f7e181bb-3537-4fb5-968a-f2969c680402`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2825002-09下轴承支架组件v2.dwg'
+export CAD_EXTRACTOR_CAD_FORMAT='AUTOCAD'
+export YUANTUS_AUTH_MODE=required
+
+bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-18（DWG：J0724006-01）
+
+- 时间：`2025-12-26 00:35:22 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 样例：`/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg`
+- 关键 ID：
+  - File：`bd95109c-ac7f-4fa4-8919-1dcb0f7e01ce`
+  - Job：`1f5a5e85-6b9c-4f08-a602-e3ed23f42d16`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg'
+export CAD_EXTRACTOR_CAD_FORMAT='AUTOCAD'
+export YUANTUS_AUTH_MODE=required
+
+bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-19（STEP：CNC）
+
+- 时间：`2025-12-26 00:35:22 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 样例：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp`
+- 关键 ID：
+  - File：`a2bc42b4-2057-43b9-bfbd-fd98b7e37c07`
+  - Job：`aae7618f-924e-4160-9059-f4f803929026`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp'
+export CAD_EXTRACTOR_CAD_FORMAT='STEP'
+export YUANTUS_AUTH_MODE=required
+
+bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-20（PRT：model2）
+
+- 时间：`2025-12-26 00:35:22 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 样例：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt`
+- 关键 ID：
+  - File：`40894817-c7ef-49ac-a59d-bca77e8bb090`
+  - Job：`b406a20d-982a-4579-a1d6-7845a484e2e8`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt'
+export CAD_EXTRACTOR_CAD_FORMAT='NX'
+export YUANTUS_AUTH_MODE=required
+
+bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-Coverage-Refresh-1（覆盖率刷新）
+
+- 时间：`2025-12-26 00:34:05 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 结果：`覆盖率报告已更新`
+- 覆盖率亮点：
+  - Training DWG：`drawing_no` 100%
+  - JCB1：`revision`/`drawing_no` 100%
+  - UG：`drawing_no` 75%
+  - Ling-jian PRT：`drawing_no` 100%
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CLI='.venv/bin/yuantus'
+
+PY=.venv/bin/python
+$PY scripts/collect_cad_extractor_coverage.py --base-url http://127.0.0.1:7910 --tenant tenant-1 --org org-1 --cad-format AUTOCAD --dir "/Users/huazhou/Downloads/训练图纸/训练图纸" --extensions dwg --output docs/CAD_EXTRACTOR_COVERAGE_TRAINING_DWG.md
+$PY scripts/collect_cad_extractor_coverage.py --base-url http://127.0.0.1:7910 --tenant tenant-1 --org org-1 --cad-format NX --dir "/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug" --output docs/CAD_EXTRACTOR_COVERAGE_UG.md
+$PY scripts/collect_cad_extractor_coverage.py --base-url http://127.0.0.1:7910 --tenant tenant-1 --org org-1 --cad-format CREO --dir "/Users/huazhou/Downloads/JCB1" --output docs/CAD_EXTRACTOR_COVERAGE_JCB1.md
+$PY scripts/collect_cad_extractor_coverage.py --base-url http://127.0.0.1:7910 --tenant tenant-1 --org org-1 --cad-format CATIA --dir "/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian" --extensions catpart,catproduct --output docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_CATIA.md
+$PY scripts/collect_cad_extractor_coverage.py --base-url http://127.0.0.1:7910 --tenant tenant-1 --org org-1 --cad-format STEP --dir "/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian" --extensions step,stp --output docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_STEP.md
+$PY scripts/collect_cad_extractor_coverage.py --base-url http://127.0.0.1:7910 --tenant tenant-1 --org org-1 --cad-format IGES --dir "/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian" --extensions iges,igs --output docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_IGES.md
+$PY scripts/collect_cad_extractor_coverage.py --base-url http://127.0.0.1:7910 --tenant tenant-1 --org org-1 --cad-format NX --dir "/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian" --extensions prt,asm --output docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_PRT.md
+```
+
+输出（摘要）：
+
+```text
+Coverage reports updated
+```
+
+## Run S5-A-Preview-2D-1
+
+- 时间：`2025-12-25 23:55:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_preview_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`46e9ad31-d9f8-4e9e-8617-c9b7b6f34fe9`
+  - Preview HTTP：`302`
+
+执行命令：
+
+```bash
+export YUANTUS_CAD_ML_BASE_URL='http://127.0.0.1:8001'
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_AUTH_MODE=required
+
+bash scripts/verify_cad_preview_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+OK: Preview endpoint HTTP 302
+ALL CHECKS PASSED
+```
+
+## Run S5-C-OCR-TitleBlock-3（CAD OCR Title Block）
+
+- 时间：`2025-12-25 23:59:18 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_ocr_titleblock.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`69046186-de6b-498d-93ea-efa40431d169`
+  - OCR Keys：`drawing_no`
+
+执行命令：
+
+```bash
+export YUANTUS_CAD_ML_BASE_URL='http://127.0.0.1:8001'
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_AUTH_MODE=required
+
+bash scripts/verify_cad_ocr_titleblock.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+OK: Extracted OCR attributes: drawing_no
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Filename-Parse-1（CAD Filename Parsing）
+
+- 时间：`2025-12-26 00:09:29 +0800`
+- 脚本：`scripts/verify_cad_filename_parse.sh`
+- 结果：`ALL CHECKS PASSED`
+- 覆盖样例：
+  - `model2.prt.1` → revision=`1`
+  - `J2824002-06上封头组件v2.dwg` → part_number=`J2824002-06`
+  - `比较_J2825002-09下轴承支架组件v2.dwg` → part_number=`J2825002-09`
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_filename_parse.sh
+```
+
+输出（摘要）：
+
+```text
+CAD Filename Parsing Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-LocalExtract-2（CAD Extract Local）
+
+- 时间：`2025-12-26 00:11:02 +0800`
+- 脚本：`scripts/verify_cad_extract_local.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键校验：
+  - `part_number=HC-LOCAL-001`
+  - `weight=1.2`（解析自 `1.2kg`）
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_extract_local.sh
+```
+
+输出（摘要）：
+
+```text
+CAD Extract Local Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-Coverage-UG（NX 字段覆盖率统计）
+
+- 时间：`2025-12-25 22:16:59 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 目录：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug`
+- 结果：`4 files`
+- 覆盖率摘要：
+  - `part_number`: 4/4
+  - `part_name`: 0/4
+  - `material`: 0/4
+  - `weight`: 0/4
+  - `revision`: 0/4
+  - `drawing_no`: 0/4
+  - `author`: 0/4
+  - `created_at`: 0/4
+- 报告：`docs/CAD_EXTRACTOR_COVERAGE_UG.md`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+  .venv/bin/python scripts/collect_cad_extractor_coverage.py \
+    --base-url http://127.0.0.1:7910 \
+    --tenant tenant-1 \
+    --org org-1 \
+    --cad-format NX \
+    --dir /Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug \
+    --output docs/CAD_EXTRACTOR_COVERAGE_UG.md
+```
+
+## Run S5-C-Extractor-Coverage-JCB1（Creo 字段覆盖率统计）
+
+- 时间：`2025-12-25 16:04:51 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 目录：`/Users/huazhou/Downloads/JCB1`
+- 结果：`16 files`
+- 覆盖率摘要：
+  - `part_number`: 16/16
+  - `part_name`: 0/16
+  - `material`: 0/16
+  - `weight`: 0/16
+  - `revision`: 0/16
+  - `drawing_no`: 0/16
+  - `author`: 0/16
+  - `created_at`: 0/16
+- 报告：`docs/CAD_EXTRACTOR_COVERAGE_JCB1.md`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+  .venv/bin/python scripts/collect_cad_extractor_coverage.py \
+    --base-url http://127.0.0.1:7910 \
+    --tenant tenant-1 \
+    --org org-1 \
+    --cad-format CREO \
+    --dir /Users/huazhou/Downloads/JCB1 \
+    --output docs/CAD_EXTRACTOR_COVERAGE_JCB1.md
+```
+
+## Run S5-C-Extractor-Coverage-LingJian-CATIA（CATIA 字段覆盖率统计）
+
+- 时间：`2025-12-25 22:23:57 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 目录：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian`
+- 结果：`6 files`
+- 覆盖率摘要：
+  - `part_number`: 6/6
+  - `part_name`: 0/6
+  - `material`: 0/6
+  - `weight`: 0/6
+  - `revision`: 0/6
+  - `drawing_no`: 0/6
+  - `author`: 0/6
+  - `created_at`: 0/6
+- 报告：`docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_CATIA.md`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+  .venv/bin/python scripts/collect_cad_extractor_coverage.py \
+    --base-url http://127.0.0.1:7910 \
+    --tenant tenant-1 \
+    --org org-1 \
+    --cad-format CATIA \
+    --extensions catpart \
+    --dir /Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian \
+    --output docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_CATIA.md
+```
+
+## Run S5-C-Extractor-Coverage-LingJian-STEP（STEP 字段覆盖率统计）
+
+- 时间：`2025-12-25 22:24:10 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 目录：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian`
+- 结果：`1 files`
+- 覆盖率摘要：
+  - `part_number`: 1/1
+  - `part_name`: 0/1
+  - `material`: 0/1
+  - `weight`: 0/1
+  - `revision`: 0/1
+  - `drawing_no`: 0/1
+  - `author`: 0/1
+  - `created_at`: 0/1
+- 报告：`docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_STEP.md`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+  .venv/bin/python scripts/collect_cad_extractor_coverage.py \
+    --base-url http://127.0.0.1:7910 \
+    --tenant tenant-1 \
+    --org org-1 \
+    --cad-format STEP \
+    --extensions stp \
+    --dir /Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian \
+    --output docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_STEP.md
+```
+
+## Run S5-C-Extractor-Coverage-LingJian-IGES（IGES 字段覆盖率统计）
+
+- 时间：`2025-12-25 22:24:21 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 目录：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian`
+- 结果：`1 files`
+- 覆盖率摘要：
+  - `part_number`: 1/1
+  - `part_name`: 0/1
+  - `material`: 0/1
+  - `weight`: 0/1
+  - `revision`: 0/1
+  - `drawing_no`: 0/1
+  - `author`: 0/1
+  - `created_at`: 0/1
+- 报告：`docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_IGES.md`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+  .venv/bin/python scripts/collect_cad_extractor_coverage.py \
+    --base-url http://127.0.0.1:7910 \
+    --tenant tenant-1 \
+    --org org-1 \
+    --cad-format IGES \
+    --extensions igs \
+    --dir /Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian \
+    --output docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_IGES.md
+```
+
+## Run S5-C-Extractor-Coverage-LingJian-PRT（PRT 字段覆盖率统计）
+
+- 时间：`2025-12-25 22:34:34 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 目录：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian`
+- 结果：`6 files`
+- 覆盖率摘要：
+  - `part_number`: 6/6
+  - `part_name`: 0/6
+  - `material`: 0/6
+  - `weight`: 0/6
+  - `revision`: 0/6
+  - `drawing_no`: 0/6
+  - `author`: 0/6
+  - `created_at`: 0/6
+- 报告：`docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_PRT.md`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+  .venv/bin/python scripts/collect_cad_extractor_coverage.py \
+    --base-url http://127.0.0.1:7910 \
+    --tenant tenant-1 \
+    --org org-1 \
+    --cad-format NX \
+    --extensions prt \
+    --dir /Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian \
+    --output docs/CAD_EXTRACTOR_COVERAGE_LINGJIAN_PRT.md
+```
+
+## Run S5-C-Extractor-Coverage-Training-DWG（训练图纸 DWG 字段覆盖率统计）
+
+- 时间：`2025-12-25 22:49:29 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 目录：`/Users/huazhou/Downloads/训练图纸/训练图纸`
+- 结果：`110 files`
+- 覆盖率摘要：
+  - `part_number`: 110/110
+  - `part_name`: 110/110
+  - `material`: 0/110
+  - `weight`: 0/110
+  - `revision`: 109/110
+  - `drawing_no`: 0/110
+  - `author`: 0/110
+  - `created_at`: 0/110
+- 报告：`docs/CAD_EXTRACTOR_COVERAGE_TRAINING_DWG.md`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+  .venv/bin/python scripts/collect_cad_extractor_coverage.py \
+    --base-url http://127.0.0.1:7910 \
+    --tenant tenant-1 \
+    --org org-1 \
+    --cad-format AUTOCAD \
+    --extensions dwg \
+    --dir /Users/huazhou/Downloads/训练图纸/训练图纸 \
+    --output docs/CAD_EXTRACTOR_COVERAGE_TRAINING_DWG.md
+```
+
+## Run S5-C-Extractor-External-15（CAD Extractor External：Creo PRT 版本号文件）
+
+- 时间：`2025-12-25 15:36:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/JCB1/prt0098.prt.26`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`0b5bb490-3740-4655-ae94-9067a99b663e`
+  - Job：`1b41a0d1-3810-47a3-ae29-3b403a3db97e`
+- 校验：`part_number=prt0098.prt`，`cad_format=CREO`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/JCB1/prt0098.prt.26' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='prt0098.prt' \
+CAD_EXTRACTOR_CAD_FORMAT='CREO' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+## Run S5-C-OCR-TitleBlock-1（CAD OCR Title Block）
+
+- 时间：`2025-12-25 23:08:05 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_ocr_titleblock.sh`
+- 结果：`SKIP`
+- 原因：`CAD ML Vision not available at http://localhost:8001/api/v1/vision/health`
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_ocr_titleblock.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+## Run S5-C-OCR-TitleBlock-2（CAD OCR Title Block）
+
+- 时间：`2025-12-25 23:48:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- CAD ML：`http://127.0.0.1:8001`
+- 脚本：`scripts/verify_cad_ocr_titleblock.sh`
+- 结果：`ALL CHECKS PASSED`
+- 提取字段：`drawing_no`
+
+执行命令：
+
+```bash
+export YUANTUS_CAD_ML_BASE_URL='http://127.0.0.1:8001'
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_cad_ocr_titleblock.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-16（CAD Extractor External：Creo ASM 版本号文件）
+
+- 时间：`2025-12-25 15:36:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/JCB1/asm0010.asm.18`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`2a9abc28-cc49-400e-a194-ed25cc0b1bea`
+  - Job：`089bfeff-216a-43b3-96e3-ebd0b253d4c2`
+- 校验：`part_number=asm0010.asm`，`cad_format=CREO`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/JCB1/asm0010.asm.18' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='asm0010.asm' \
+CAD_EXTRACTOR_CAD_FORMAT='CREO' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-11（CAD Extractor External：NX/UG 样例 peihejian）
+
+- 时间：`2025-12-25 13:18:11 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug/peihejian.prt`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`1dfbd48e-0496-452f-b38f-60b3c762886e`
+  - Job：`0c940dcc-b2bd-4329-9bec-6694dff67f25`
+- 校验：`part_number=peihejian`，`cad_format=NX`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug/peihejian.prt' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='peihejian' \
+CAD_EXTRACTOR_CAD_FORMAT='NX' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-12（CAD Extractor External：NX/UG 样例 jian2）
+
+- 时间：`2025-12-25 13:18:11 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug/jian2.prt`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`996d865f-3282-434e-b9a4-05cb57187791`
+  - Job：`bd5f8d93-94d1-47e4-bd05-dfa7a9cd9c9a`
+- 校验：`part_number=jian2`，`cad_format=NX`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug/jian2.prt' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='jian2' \
+CAD_EXTRACTOR_CAD_FORMAT='NX' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-13（CAD Extractor External：NX/UG 样例 jian3）
+
+- 时间：`2025-12-25 13:18:11 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug/jian3.prt`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`d30f41b8-1430-4021-9c73-d3312bf3ae92`
+  - Job：`79bafcca-47cb-410f-b61f-7e81a20e97a1`
+- 校验：`part_number=jian3`，`cad_format=NX`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug/jian3.prt' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='jian3' \
+CAD_EXTRACTOR_CAD_FORMAT='NX' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-14（CAD Extractor External：NX/UG 样例 jian1）
+
+- 时间：`2025-12-25 13:18:11 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug/jian1.prt`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`a3c9432c-d10e-4fda-a81f-675d6a9fd0e1`
+  - Job：`8dc84249-ce50-47c0-89ef-d5ccc08bc6b3`
+- 校验：`part_number=jian1`，`cad_format=NX`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/比较杂的收藏/ug/jian1.prt' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='jian1' \
+CAD_EXTRACTOR_CAD_FORMAT='NX' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-7（CAD Extractor External：CATIA 样例）
+
+- 时间：`2025-12-25 11:41:36 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian/Part1.CATPart`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`df6d6c62-bd2d-4b02-b3aa-3681b556f2c0`
+  - Job：`35f7596b-f5e7-4cc1-8f30-68f9093fc997`
+- 校验：`part_number=Part1`，`cad_format=CATIA`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian/Part1.CATPart' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='Part1' \
+CAD_EXTRACTOR_CAD_FORMAT='CATIA' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-8（CAD Extractor External：STEP 样例）
+
+- 时间：`2025-12-25 11:41:36 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian/pat4.stp`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`dcc2fbfe-ed64-46f0-a0cb-3c88f0679a81`
+  - Job：`3ee10fc5-0eb7-4e4f-aa26-65d4182cc23e`
+- 校验：`part_number=pat4`，`cad_format=STEP`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian/pat4.stp' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='pat4' \
+CAD_EXTRACTOR_CAD_FORMAT='STEP' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-9（CAD Extractor External：NX PRT 样例）
+
+- 时间：`2025-12-25 11:41:36 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian/Part1_catpart.prt`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`6ba291bb-5b0b-4a6d-92fe-3a7fd9e4b386`
+  - Job：`c8b0a2db-b273-4ba4-8ce6-f2a39cc30ad7`
+- 校验：`part_number=Part1_catpart`，`cad_format=NX`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian/Part1_catpart.prt' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='Part1_catpart' \
+CAD_EXTRACTOR_CAD_FORMAT='NX' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-10（CAD Extractor External：IGES 样例）
+
+- 时间：`2025-12-25 11:41:36 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian/FrontCarframe_zyl.igs`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`13a1db25-d530-4842-9961-b8df0040e6ac`
+  - Job：`d9fa9d58-48cc-4f1d-89cd-e3b67ce181c5`
+- 校验：`part_number=FrontCarframe_zyl`，`cad_format=IGES`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/复杂产品出图/ling-jian/FrontCarframe_zyl.igs' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='FrontCarframe_zyl' \
+CAD_EXTRACTOR_CAD_FORMAT='IGES' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-5（CAD Extractor External：STEP 样例）
+
+- 时间：`2025-12-24 17:29:46 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`a2bc42b4-2057-43b9-bfbd-fd98b7e37c07`
+  - Job：`2afa1880-f860-4780-9055-32ed6c9f37a4`
+- 校验：`part_number=CNC`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='CNC' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-6（CAD Extractor External：NX PRT 样例）
+
+- 时间：`2025-12-24 17:30:38 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 样例文件：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`40894817-c7ef-49ac-a59d-bca77e8bb090`
+  - Job：`186b87a1-2dce-4793-91ec-7aa96523facf`
+- 校验：`part_number=model2`，`cad_format=NX`（覆盖）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME='yuantus' \
+S3_ACCESS_KEY_ID='minioadmin' \
+S3_SECRET_ACCESS_KEY='minioadmin' \
+CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='model2' \
+CAD_EXTRACTOR_CAD_FORMAT='NX' \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-B-8（CAD 3D Connectors：SolidWorks/NX/Creo/CATIA/Inventor）
+
+- 时间：`2025-12-24 17:21:18 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_3d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - SolidWorks Part：`a30ff1f5-5799-42ee-936d-c1a7e2736119`
+  - SolidWorks Assembly：`b589f349-b7d5-4635-ad52-aa22fc6a324c`
+  - NX：`e44d0435-0fb0-4c0f-a538-3577dd7c3a06`
+  - Creo：`7b16cca9-50a0-49c8-8bb1-76f4647cc471`
+  - CATIA：`8dfe6cbb-3922-4603-89c3-62d7253b6a06`
+  - Inventor：`948b8311-d9da-477c-af41-59c69aa7a30a`
+  - Auto (NX default)：`aac23326-091b-4e2b-9c3a-01021a0dc668`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_cad_connectors_3d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD 3D Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-49（一键回归：verify_all.sh，全量 + S3 + 多租户 + 配额 + CAD Extractor）
+
+- 时间：`2025-12-24 16:51:30 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Tenancy：`db-per-tenant-org`
+- 结果：`PASS=34, FAIL=0, SKIP=0`
+- 说明：启用 `S5-C` Auto Part/Extractor Stub/External/Service + `S7 Tenant Provisioning` + `Quota enforce`，并使用 S3 存储模式
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_PLATFORM_ADMIN_ENABLED='true'
+export YUANTUS_QUOTA_MODE='enforce'
+export RUN_CAD_AUTO_PART=1
+export RUN_CAD_EXTRACTOR_STUB=1
+export RUN_CAD_EXTRACTOR_EXTERNAL=1
+export RUN_CAD_EXTRACTOR_SERVICE=1
+export RUN_TENANT_PROVISIONING=1
+export CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06'
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 34  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run ALL-41（一键回归脚本：verify_all.sh，db-per-tenant-org + S3 + quota enforce）
+
+- 时间：`2025-12-24 16:43:53 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 29 / FAIL 0 / SKIP 5`
+- 模式：`db-per-tenant-org`
+- 审计：`enabled`
+- 配额：`enforce`
+- 跳过项：
+  - `S5-C (CAD Auto Part)`：`RUN_CAD_AUTO_PART=0`
+  - `S5-C (CAD Extractor Stub)`：`RUN_CAD_EXTRACTOR_STUB=0`
+  - `S5-C (CAD Extractor External)`：`RUN_CAD_EXTRACTOR_EXTERNAL=0`
+  - `S5-C (CAD Extractor Service)`：`RUN_CAD_EXTRACTOR_SERVICE=0`
+  - `S7 (Tenant Provisioning)`：`RUN_TENANT_PROVISIONING=0`
+- 关键 ID（节选）：
+  - Run H Part：`5b6b199a-0bb0-4657-a3c7-e353ad079ba7`
+  - Run H RPC Part：`cb01fa5a-1315-4729-9cb9-6e9dac8cf580`
+  - Run H File：`f37106f7-75b4-482f-8c29-99f3cb872f96`
+  - Run H ECO：`a30f728d-3634-44cf-87b9-f44c3d7098d0`
+  - S5-A File：`6520876b-cd7e-4132-9cdf-df47f9bcf3af`
+  - S5-B GStarCAD File：`1fe3e4af-a6ad-4cee-9403-a240a08fc828`
+  - S5-C Item：`29279aab-4ac4-4cc2-afd4-a3cf7ef4d433`
+  - Search Index Part：`edb3b613-f4f1-4f1c-885f-d7a0ec3b0192`
+  - Search ECO：`8c5e23fc-03de-4db8-b015-effb1894dd4e`
+  - Reports Summary Part：`b6acb6a2-6dfe-42e4-8b82-f852ad2713f9`
+  - BOM Compare Parent A：`beb38b70-0c96-436d-921c-8b43092c0fdd`
+  - Baseline：`d10e42d5-bb6b-4b84-a5e9-c1c93ffe4fc9`
+  - MBOM Root：`92a16c1b-3c42-4ec2-9d8b-f2821f8cf548`
+  - Version-File Binding Part：`2bb705c1-d0b0-4a5e-b4e0-1f354f1d6224`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE='s3' \
+YUANTUS_S3_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+YUANTUS_S3_BUCKET_NAME='yuantus' \
+YUANTUS_S3_ACCESS_KEY_ID='minioadmin' \
+YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin' \
+YUANTUS_PLATFORM_ADMIN_ENABLED=true \
+YUANTUS_QUOTA_MODE=enforce \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 29  FAIL: 0  SKIP: 5
+ALL TESTS PASSED
+```
+
+## Run S5-B-7（CAD 2D Connectors：Haochen/Zhongwang + auto-detect）
+
+- 时间：`2025-12-24 16:29:50 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GStarCAD File：`e540edb1-dc39-4bd3-9c61-c976513d3899`
+  - ZWCAD File：`4ef8a839-45e3-44eb-a318-a4b74ef728d4`
+  - Haochen File：`cf998a0f-0f4c-4e8a-8946-c49241e59159`
+  - Zhongwang File：`2c9dba7b-4cf7-4c09-8fae-fdb0f94d85d4`
+  - Auto-detect File：`c833e090-27a9-4c11-80c6-0703c2a591f1`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+
+bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD 2D Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-Service-2（CAD Extractor Service）
+
+- 时间：`2025-12-24 16:30:15 +0800`
+- 基地址：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_service.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_extractor_service.sh
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor Service Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-5（CAD Attribute Sync，S3）
+
+- 时间：`2025-12-24 16:31:10 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_sync.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Item：`e48276d5-4a0c-414b-a748-b2d589dfbb0e`
+  - File：`33ba8986-0f6c-4278-930c-1e19abfa2e12`
+  - Job：`8cb29ec1-c16d-49f8-bb64-0e6aa8f66a43`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+
+bash scripts/verify_cad_sync.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Attribute Sync Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-2（CAD Extractor External）
+
+- 时间：`2025-12-24 16:31:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`46e9ad31-d9f8-4e9e-8617-c9b7b6f34fe9`
+  - Job：`6cdc1dda-dbec-4c51-b591-f1175f848653`
+- 样例文件：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+- 校验字段：`part_number=J2824002-06`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06'
+
+bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-3（CAD Extractor External）
+
+- 时间：`2025-12-24 16:41:18 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`b3de1296-953e-492a-b724-13f53133d5de`
+  - Job：`dca02896-eb88-4cfb-ba12-2cb743dcae9b`
+- 样例文件：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2825002-09下轴承支架组件v2.dwg`
+- 校验字段：`part_number=J2825002-09`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2825002-09下轴承支架组件v2.dwg'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export CAD_EXTRACTOR_EXPECT_VALUE='J2825002-09'
+
+bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Extractor-External-4（CAD Extractor External）
+
+- 时间：`2025-12-24 16:41:25 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`bd95109c-ac7f-4fa4-8919-1dcb0f7e01ce`
+  - Job：`154da872-3087-43eb-9e1e-4371437a6c28`
+- 样例文件：`/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg`
+- 校验字段：`part_number=J0724006-01`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export CAD_EXTRACTOR_EXPECT_VALUE='J0724006-01'
+
+bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Extractor External Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-B-Config-2（CAD Connectors Config Reload）
+
+- 时间：`2025-12-24 16:32:20 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_config.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Demo File：`3809b563-91d1-4c10-893b-e412eedb9d89`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_cad_connectors_config.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Connectors Config Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Template-2（CAD Sync Template）
+
+- 时间：`2025-12-24 16:32:35 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_sync_template.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_cad_sync_template.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Sync Template Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-C-Auto-Part-2（CAD Auto Part）
+
+- 时间：`2025-12-24 16:32:42 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_auto_part.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part：`3d83bd23-396d-4b29-b5be-98c3c964cc1c`
+  - File：`13fe63b3-a315-41aa-9c4b-3c3d5db1d0a9`
+  - Attachment：`9d6cd39e-df9f-4158-924c-b267fc46ec80`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_BUCKET_NAME='yuantus'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+
+bash scripts/verify_cad_auto_part.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Auto Part Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S7-MT-3（Multi-Tenancy：db-per-tenant-org，Docker 7910）
+
+- 时间：`2025-12-24 16:17:56 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+- 模式：`db-per-tenant-org`
+- 关键 ID：无（脚本未输出）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+Multi-Tenancy Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S7-Q-4（Quota enforce / Docker 7910）
+
+- 时间：`2025-12-24 16:18:03 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_quotas.sh`
+- 结果：`ALL CHECKS PASSED`
+- 模式：`enforce`（YUANTUS_QUOTA_MODE）
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_quotas.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run S7-TP-2（Tenant Provisioning）
+
+- 时间：`2025-12-24 16:16:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 结果：`ALL CHECKS PASSED`
+- 平台开关：`enabled`（YUANTUS_PLATFORM_ADMIN_ENABLED=true）
+- 关键 ID：
+  - Tenant：`tenant-provision-1766564172`
+  - Default Org：`org-provision-1766564172`
+  - Extra Org：`org-extra-1766564172`
+  - Admin：`admin-1766564172`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_PLATFORM_ADMIN_ENABLED=true \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Tenant Provisioning Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run BK-6（Backup/Restore 验证）
+
+- 时间：`2025-12-24 16:16:28 +0800`
+- 项目：`yuantus`
+- 脚本：`scripts/verify_backup_restore.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键路径：
+  - BACKUP_DIR：`/tmp/yuantus_backup_verify_1766564188`
+  - RESTORE_DB_SUFFIX：`_restore_1766564188`
+  - RESTORE_DB：`yuantus_restore_1766564188`
+  - RESTORE_BUCKET：`yuantus-restore-test-1766564188`
+
+执行命令：
+
+```bash
+PROJECT=yuantus bash scripts/verify_backup_restore.sh
+```
+
+输出（摘要）：
+
+```text
+Backup/Restore Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run BK-7（Backup Rotation 验证）
+
+- 时间：`2025-12-24 16:18:23 +0800`
+- 脚本：`scripts/verify_backup_rotation.sh`
+- 结果：`ALL CHECKS PASSED`
+- BACKUP_ROOT：`/tmp/yuantus_backup_rotate_test`
+- KEEP：`2`（保留 `yuantus_003`, `yuantus_002`）
+
+执行命令：
+
+```bash
+bash scripts/verify_backup_rotation.sh
+```
+
+输出（摘要）：
+
+```text
+Rotation complete.
+ALL CHECKS PASSED
+```
+
+## Run BC-6（BOM Compare：db-per-tenant-org 复验）
+
+- 时间：`2025-12-24 16:03:10 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent A：`d1295b0c-1146-4375-bcae-579bdf80a77c`
+  - Parent B：`8dd20e04-7d12-4d2b-bf23-4b5c84a22e1e`
+  - Child X：`ee5eb378-8c50-45d8-920a-f6bc18e3f347`
+  - Child Y：`acedd41e-1062-40a6-85f6-e9cfebefd920`
+  - Child Z：`793e003f-0a7a-484a-bf95-dd31c03cf90a`
+  - Substitute：`4485b9c1-aed7-4ffe-a8e6-6c46e98e7b1f`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+BOM Compare: OK
+ALL CHECKS PASSED
+```
+
+## Run SUB-2（BOM Substitutes：db-per-tenant-org 复验）
+
+- 时间：`2025-12-24 16:03:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_substitutes.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent：`9e38cad0-5692-44a2-9385-ff598257e65e`
+  - Child：`693a5505-1aec-4179-a3be-a93178b53e64`
+  - BOM Line：`63d01422-e75e-47df-af04-1e9607e58323`
+  - Substitute 1：`4ecd6cc9-3fcc-4640-b683-bf0e981aeb53`
+  - Substitute 2：`45009196-5d87-42a8-a4e9-557896054836`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_substitutes.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+BOM Substitutes Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S4-7（ECO Advanced：Batch approvals 修复后复验）
+
+- 时间：`2025-12-24 16:05:22 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_eco_advanced.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Stage：`c8832912-9915-43f0-a0b6-2d15cf4c9575`
+  - Product：`7b5704d2-35d4-43da-b6c0-15e4c1a34be5`
+  - Assembly：`4a0844f9-73b9-4f2f-8786-2f620920a7ef`
+  - ECO1：`62c0f1fc-c05b-467d-ad2c-9960f0be94e9`
+  - ECO2：`2f0efac9-bb31-4d1c-b56a-abdd3a554cdb`
+  - Target Version：`6f8fe54d-ba21-4a04-b478-f35ac0e1df7c`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ECO Advanced Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S6-Search-ECO-2
+
+- 时间：`2025-12-24 15:40:46 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_search_eco.sh`
+- 结果：`ALL CHECKS PASSED`
+- 引擎：`db`
+- 关键 ID：
+  - ECO Product：`03177cbe-e560-4709-88cd-283613c4b11f`
+  - ECO：`946fe6a1-5889-44f2-bb7a-e18826f3fc32`
+
+执行命令（示例）：
+
+```bash
+export TENANCY_MODE='single'
+export DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+export IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
+
+bash scripts/verify_search_eco.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Search ECO Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-50（一键回归：verify_all.sh，端口修正 55432）
+
+- 时间：`2025-12-26 09:27:49 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 34 / FAIL 0 / SKIP 5`
+- 说明：修正 Postgres 端口（5434 → 55432）后全量回归通过。
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export RUN_CAD_AUTO_PART=0
+export RUN_CAD_EXTRACTOR_STUB=0
+export RUN_CAD_EXTRACTOR_EXTERNAL=0
+export RUN_CAD_EXTRACTOR_SERVICE=0
+export RUN_TENANT_PROVISIONING=0
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 34  FAIL: 0  SKIP: 5
+ALL TESTS PASSED
+```
+
+## Run ALL-51（一键回归：verify_all.sh，全量 + CAD Extractor External）
+
+- 时间：`2025-12-26 09:40:24 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 38 / FAIL 0 / SKIP 1`
+- 说明：包含 CAD Auto Part + CAD Extractor Stub/External/Service 全量验证。
+- 关键输入：
+  - CAD_EXTRACTOR_SAMPLE_FILE=`/tmp/EXT-123-External-v2.dwg`
+  - CAD_EXTRACTOR_EXPECT_KEY=`part_number`
+  - CAD_EXTRACTOR_EXPECT_VALUE=`EXT-123-External`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export RUN_CAD_AUTO_PART=1
+export RUN_CAD_EXTRACTOR_STUB=1
+export RUN_CAD_EXTRACTOR_EXTERNAL=1
+export RUN_CAD_EXTRACTOR_SERVICE=1
+export RUN_TENANT_PROVISIONING=0
+export CAD_EXTRACTOR_BASE_URL='http://localhost:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/tmp/EXT-123-External-v2.dwg'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export CAD_EXTRACTOR_EXPECT_VALUE='EXT-123-External'
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 38  FAIL: 0  SKIP: 1
+ALL TESTS PASSED
+```
+
+## Run TP-1（Tenant Provisioning：platform admin 启用）
+
+- 时间：`2025-12-26 09:47:25 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - NEW_TENANT：`tenant-provision-1766713630`
+  - NEW_ORG：`org-provision-1766713630`
+  - EXTRA_ORG：`org-extra-1766713630`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_PLATFORM_ADMIN_ENABLED=true
+export YUANTUS_PLATFORM_TENANT_ID=platform
+export YUANTUS_PLATFORM_ORG_ID=platform
+
+bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Tenant Provisioning Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-52（一键回归：verify_all.sh，全量 + Tenant Provisioning）
+
+- 时间：`2025-12-26 09:50:07 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 39 / FAIL 0 / SKIP 0`
+- 说明：平台管理员开启，包含 Tenant Provisioning、CAD Auto Part、CAD Extractor（stub/external/service）全量验证。
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_PLATFORM_ADMIN_ENABLED=true
+export YUANTUS_PLATFORM_TENANT_ID=platform
+export YUANTUS_PLATFORM_ORG_ID=platform
+export RUN_CAD_AUTO_PART=1
+export RUN_CAD_EXTRACTOR_STUB=1
+export RUN_CAD_EXTRACTOR_EXTERNAL=1
+export RUN_CAD_EXTRACTOR_SERVICE=1
+export RUN_TENANT_PROVISIONING=1
+export CAD_EXTRACTOR_BASE_URL='http://localhost:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/tmp/EXT-123-External-v2.dwg'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export CAD_EXTRACTOR_EXPECT_VALUE='EXT-123-External'
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 39  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run CAD-REAL-1（真实 CAD 样本：DWG/STEP/PRT）
+
+- 时间：`2025-12-26 10:11:36 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_real_samples.sh`
+- 结果：`ALL CHECKS PASSED`
+- 样本：
+  - DWG：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+  - STEP：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp`
+  - PRT：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt`
+- 关键 ID：
+  - DWG：file_id=`46e9ad31-d9f8-4e9e-8617-c9b7b6f34fe9`, item_id=`cc4809a5-6ad5-419d-b9f1-8e6bb7582e09`
+  - STEP：file_id=`a2bc42b4-2057-43b9-bfbd-fd98b7e37c07`, item_id=`cdaffdde-9824-4232-b8fa-231f4fe24c81`
+  - PRT：file_id=`40894817-c7ef-49ac-a59d-bca77e8bb090`, item_id=`b4fa56e2-a7a7-47ab-8dd6-9c21d9b9d01b`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export CAD_EXTRACTOR_BASE_URL='http://localhost:8200'
+export CAD_ML_BASE_URL='http://localhost:8001'
+
+bash scripts/verify_cad_real_samples.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+CAD Real Samples Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-53（一键回归：verify_all.sh，全量 + CAD Real Samples）
+
+- 时间：`2025-12-26 10:20:36 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 40 / FAIL 0 / SKIP 0`
+- 说明：平台管理员开启，包含 Tenant Provisioning、CAD Auto Part、CAD Extractor（stub/external/service）、CAD Real Samples 全量验证。
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_PLATFORM_ADMIN_ENABLED=true
+export YUANTUS_PLATFORM_TENANT_ID=platform
+export YUANTUS_PLATFORM_ORG_ID=platform
+export RUN_CAD_AUTO_PART=1
+export RUN_CAD_EXTRACTOR_STUB=1
+export RUN_CAD_EXTRACTOR_EXTERNAL=1
+export RUN_CAD_EXTRACTOR_SERVICE=1
+export RUN_CAD_REAL_SAMPLES=1
+export RUN_TENANT_PROVISIONING=1
+export CAD_EXTRACTOR_BASE_URL='http://localhost:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/tmp/EXT-123-External-v2.dwg'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export CAD_EXTRACTOR_EXPECT_VALUE='EXT-123-External'
+export CAD_ML_BASE_URL='http://localhost:8001'
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full5.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 40  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run CAD-REAL-2（真实 CAD 样本：DWG/STEP/PRT 复跑）
+
+- 时间：`2025-12-26 13:04:00 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_real_samples.sh`
+- 结果：`ALL CHECKS PASSED`
+- 样本：
+  - DWG：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+  - STEP：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp`
+  - PRT：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt`
+- 关键 ID：
+  - DWG：file_id=`46e9ad31-d9f8-4e9e-8617-c9b7b6f34fe9`, item_id=`cc4809a5-6ad5-419d-b9f1-8e6bb7582e09`
+  - STEP：file_id=`a2bc42b4-2057-43b9-bfbd-fd98b7e37c07`, item_id=`cdaffdde-9824-4232-b8fa-231f4fe24c81`
+  - PRT：file_id=`40894817-c7ef-49ac-a59d-bca77e8bb090`, item_id=`b4fa56e2-a7a7-47ab-8dd6-9c21d9b9d01b`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export CAD_EXTRACTOR_BASE_URL='http://localhost:8200'
+export CAD_ML_BASE_URL='http://localhost:8001'
+
+bash scripts/verify_cad_real_samples.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_cad_real_samples_rerun.log
+```
+
+输出（摘要）：
+
+```text
+CAD Real Samples Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-54（一键回归：verify_all.sh，全量 + CAD Real Samples）
+
+- 时间：`2025-12-26 13:07:45 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 40 / FAIL 0 / SKIP 0`
+- 说明：平台管理员开启，包含 Tenant Provisioning、CAD Auto Part、CAD Extractor（stub/external/service）、CAD Real Samples 全量验证。
+
+执行命令：
+
+```bash
+export RUN_CAD_REAL_SAMPLES=1
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_PLATFORM_ADMIN_ENABLED=true
+export YUANTUS_PLATFORM_TENANT_ID=platform
+export YUANTUS_PLATFORM_ORG_ID=platform
+export RUN_CAD_AUTO_PART=1
+export RUN_CAD_EXTRACTOR_STUB=1
+export RUN_CAD_EXTRACTOR_EXTERNAL=1
+export RUN_CAD_EXTRACTOR_SERVICE=1
+export RUN_TENANT_PROVISIONING=1
+export CAD_EXTRACTOR_BASE_URL='http://localhost:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/tmp/EXT-123-External-v2.dwg'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export CAD_EXTRACTOR_EXPECT_VALUE='EXT-123-External'
+export CAD_ML_BASE_URL='http://localhost:8001'
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full6.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 40  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run S5-C-Normalization-2（CAD Attribute Normalization：Haochen/Zhongwang aliases）
+
+- 时间：`2025-12-26 13:20:02 +0800`
+- 脚本：`scripts/verify_cad_attribute_normalization.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键校验：
+  - Haochen：`material=Stainless Steel 304`, `weight=1.2`, `revision=A`, `drawing_no` 补齐
+  - Zhongwang：`drawing_no=ZW-002`, `material=Q235 Steel`, `revision=B`, `weight=2.5`
+  - 别名：`图纸编号/图纸名称/版次/材质/重量(kg)`
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_attribute_normalization.sh
+```
+
+输出（摘要）：
+
+```text
+CAD Attribute Normalization Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run S5-B-Real-2D-1（真实样本 2D 连接器：Haochen/Zhongwang）
+
+- 时间：`2025-12-26 13:33:22 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_real_2d.sh`
+- 结果：`ALL CHECKS PASSED`
+- 样本：
+  - Haochen：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+  - Zhongwang：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2825002-09下轴承支架组件v2.dwg`
+- 关键 ID：
+  - Haochen：file_id=`09c7643a-b14a-4dde-b5d0-e6f9afa51af1`, job_id=`ab2bacf4-2740-42fc-ad0f-c494605e6e73`, part_number=`J2824002-06`
+  - Zhongwang：file_id=`a340f99b-d0b9-41a8-b8ba-b7101b672075`, job_id=`f323e28e-054a-4554-b58c-fab380a380b3`, part_number=`J2825002-09`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export CAD_EXTRACTOR_BASE_URL='http://localhost:8200'
+export CAD_REAL_FORCE_UNIQUE=1
+
+bash scripts/verify_cad_connectors_real_2d.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_cad_connectors_real_2d.log
+```
+
+输出（摘要）：
+
+```text
+CAD 2D Real Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+## Run ALL-55（一键回归：verify_all.sh，全量 + CAD Real Samples + Real 2D Connectors）
+
+- 时间：`2025-12-26 17:28:33 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 41 / FAIL 0 / SKIP 0`
+- 说明：平台管理员开启，包含 Tenant Provisioning、CAD Auto Part、CAD Extractor（stub/external/service）、CAD Real Samples、CAD 2D Real Connectors 全量验证。
+
+执行命令：
+
+```bash
+export RUN_CAD_REAL_CONNECTORS_2D=1
+export RUN_CAD_REAL_SAMPLES=1
+export YUANTUS_TENANCY_MODE='db-per-tenant-org'
+export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1'
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+export YUANTUS_STORAGE_TYPE='s3'
+export YUANTUS_S3_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://localhost:59000'
+export YUANTUS_S3_ACCESS_KEY_ID='minioadmin'
+export YUANTUS_S3_SECRET_ACCESS_KEY='minioadmin'
+export YUANTUS_PLATFORM_ADMIN_ENABLED=true
+export YUANTUS_PLATFORM_TENANT_ID=platform
+export YUANTUS_PLATFORM_ORG_ID=platform
+export RUN_CAD_AUTO_PART=1
+export RUN_CAD_EXTRACTOR_STUB=1
+export RUN_CAD_EXTRACTOR_EXTERNAL=1
+export RUN_CAD_EXTRACTOR_SERVICE=1
+export RUN_TENANT_PROVISIONING=1
+export CAD_EXTRACTOR_BASE_URL='http://localhost:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/tmp/EXT-123-External-v2.dwg'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+export CAD_EXTRACTOR_EXPECT_VALUE='EXT-123-External'
+export CAD_ML_BASE_URL='http://localhost:8001'
+export CAD_REAL_FORCE_UNIQUE=1
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full7.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 41  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run S5-B-Connector-Coverage-Training-DWG-Haochen-1（Haochen 2D 本地连接器覆盖率）
+
+- 时间：`2025-12-27 08:26:38 +0800`
+- 模式：`offline`（本地 connector + SQLite）
+- CAD Format：`HAOCHEN`
+- Connector：`haochencad`
+- 目录：`/Users/huazhou/Downloads/训练图纸/训练图纸`
+- 结果：`110 files`
+- 覆盖率摘要：
+  - `part_number`: 110/110
+  - `part_name`: 110/110
+  - `material`: 0/110
+  - `weight`: 0/110
+  - `revision`: 109/110
+  - `drawing_no`: 110/110
+  - `author`: 0/110
+  - `created_at`: 0/110
+- 报告：`docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_HAOCHEN.md`
+
+执行命令：
+
+```bash
+.venv/bin/python scripts/collect_cad_extractor_coverage.py \
+  --offline \
+  --cad-format HAOCHEN \
+  --cad-connector-id haochencad \
+  --dir /Users/huazhou/Downloads/训练图纸/训练图纸 \
+  --extensions dwg \
+  --report-title "CAD 2D Connector Coverage Report (Haochen, Offline)" \
+  --output docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_HAOCHEN.md
+```
+
+## Run S5-B-Connector-Coverage-Training-DWG-Zhongwang-1（中望 2D 本地连接器覆盖率）
+
+- 时间：`2025-12-27 08:26:45 +0800`
+- 模式：`offline`（本地 connector + SQLite）
+- CAD Format：`ZHONGWANG`
+- Connector：`zhongwangcad`
+- 目录：`/Users/huazhou/Downloads/训练图纸/训练图纸`
+- 结果：`110 files`
+- 覆盖率摘要：
+  - `part_number`: 110/110
+  - `part_name`: 110/110
+  - `material`: 0/110
+  - `weight`: 0/110
+  - `revision`: 109/110
+  - `drawing_no`: 110/110
+  - `author`: 0/110
+  - `created_at`: 0/110
+- 报告：`docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_ZHONGWANG.md`
+
+执行命令：
+
+```bash
+.venv/bin/python scripts/collect_cad_extractor_coverage.py \
+  --offline \
+  --cad-format ZHONGWANG \
+  --cad-connector-id zhongwangcad \
+  --dir /Users/huazhou/Downloads/训练图纸/训练图纸 \
+  --extensions dwg \
+  --report-title "CAD 2D Connector Coverage Report (Zhongwang, Offline)" \
+  --output docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_ZHONGWANG.md
+```
+
+## Run S5-B-Connector-Coverage-2D-1（回归脚本封装：离线 DWG 覆盖率）
+
+- 时间：`2025-12-27 08:37:50 +0800`
+- 脚本：`scripts/verify_cad_connector_coverage_2d.sh`
+- 目录：`/Users/huazhou/Downloads/训练图纸/训练图纸`
+- 结果：`110 files`
+- 覆盖率摘要（Haochen/Zhongwang 一致）：
+  - `part_number`: 110/110
+  - `part_name`: 110/110
+  - `material`: 0/110
+  - `weight`: 0/110
+  - `revision`: 109/110
+  - `drawing_no`: 110/110
+  - `author`: 0/110
+  - `created_at`: 0/110
+- 报告：
+  - `docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_HAOCHEN.md`
+  - `docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_ZHONGWANG.md`
+
+执行命令：
+
+```bash
+CAD_CONNECTOR_COVERAGE_DIR=/Users/huazhou/Downloads/训练图纸/训练图纸 \
+  bash scripts/verify_cad_connector_coverage_2d.sh | tee /tmp/verify_cad_connector_coverage_2d.log
+```
+
+## Run ALL-56（一键回归：verify_all.sh + CAD 2D Connector Coverage）
+
+- 时间：`2025-12-27 11:36:20 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 35 / FAIL 0 / SKIP 7`
+- 说明：开启 `RUN_CAD_CONNECTOR_COVERAGE_2D=1`，离线覆盖统计纳入回归流程。
+
+执行命令：
+
+```bash
+RUN_CAD_CONNECTOR_COVERAGE_2D=1 \
+CAD_CONNECTOR_COVERAGE_DIR=/Users/huazhou/Downloads/训练图纸/训练图纸 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_with_coverage.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 35  FAIL: 0  SKIP: 7
+ALL TESTS PASSED
+```
+
+## Run S5-C-Extractor-External-16（CAD Extractor External：DWG 真实样本）
+
+- 时间：`2025-12-27 11:52:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- Extractor：`http://localhost:8200`
+- 样例文件：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - File：`46e9ad31-d9f8-4e9e-8617-c9b7b6f34fe9`
+  - Job：`bc95425f-d63e-4cb5-8fab-e2f5878d63b0`
+  - part_number：`J2824002-06`
+
+执行命令（在回归中触发）：
+
+```bash
+RUN_CAD_EXTRACTOR_EXTERNAL=1 \
+CAD_EXTRACTOR_BASE_URL='http://localhost:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+## Run CAD-REAL-3（真实 CAD 样本：DWG/STEP/PRT）
+
+- 时间：`2025-12-27 11:52:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`ALL CHECKS PASSED`
+- 样本：
+  - DWG：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+  - STEP：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp`
+  - PRT：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt`
+- 关键 ID：
+  - DWG file_id=`46e9ad31-d9f8-4e9e-8617-c9b7b6f34fe9`, item_number=`J2824002-06`
+  - STEP file_id=`a2bc42b4-2057-43b9-bfbd-fd98b7e37c07`, item_number=`CNC`
+  - PRT file_id=`40894817-c7ef-49ac-a59d-bca77e8bb090`, item_number=`model2`
+
+执行命令（在回归中触发）：
+
+```bash
+RUN_CAD_REAL_SAMPLES=1 \
+CAD_EXTRACTOR_BASE_URL='http://localhost:8200' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+## Run ALL-57（一键回归：verify_all.sh + CAD Real Samples + Extractor External）
+
+- 时间：`2025-12-27 11:52:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 36 / FAIL 0 / SKIP 6`
+- 说明：开启真实样本与外部 Extractor 验证。
+
+执行命令：
+
+```bash
+RUN_CAD_REAL_SAMPLES=1 \
+RUN_CAD_EXTRACTOR_EXTERNAL=1 \
+CAD_EXTRACTOR_BASE_URL='http://localhost:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_real_external.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 36  FAIL: 0  SKIP: 6
+ALL TESTS PASSED
+```
+
+## Run ALL-58（一键回归：verify_all.sh + Real 2D Connectors + Coverage + Auto Part）
+
+- 时间：`2025-12-27 12:29:45 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 39 / FAIL 0 / SKIP 3`
+- 说明：开启 Real 2D Connectors、2D 覆盖统计、Auto Part、Extractor Stub/Service。
+- SKIP：Extractor External、CAD Real Samples、Tenant Provisioning。
+
+执行命令：
+
+```bash
+RUN_CAD_REAL_CONNECTORS_2D=1 \
+RUN_CAD_CONNECTOR_COVERAGE_2D=1 \
+CAD_CONNECTOR_COVERAGE_DIR=/Users/huazhou/Downloads/训练图纸/训练图纸 \
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_STUB=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+CAD_EXTRACTOR_BASE_URL='http://localhost:8200' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_more2.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 39  FAIL: 0  SKIP: 3
+ALL TESTS PASSED
+```
+
+## Run ALL-59（一键回归：verify_all.sh + Real 2D Connectors + Coverage + Auto Part + Stub/Service）
+
+- 时间：`2025-12-27 12:29:45 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 39 / FAIL 0 / SKIP 3`
+- 说明：开启 Real 2D Connectors、2D 覆盖统计、Auto Part、Extractor Stub/Service；Auto Part 已修复通过。
+- SKIP：Extractor External、CAD Real Samples、Tenant Provisioning。
+
+执行命令：
+
+```bash
+RUN_CAD_REAL_CONNECTORS_2D=1 \
+RUN_CAD_CONNECTOR_COVERAGE_2D=1 \
+CAD_CONNECTOR_COVERAGE_DIR=/Users/huazhou/Downloads/训练图纸/训练图纸 \
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_STUB=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+CAD_EXTRACTOR_BASE_URL='http://localhost:8200' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_more2.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 39  FAIL: 0  SKIP: 3
+ALL TESTS PASSED
+```
+
+## Run ALL-60（一键回归：verify_all.sh + 外部 Extractor + Real Samples + Tenant Provisioning）
+
+- 时间：`2025-12-27 13:21:39 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 37 / FAIL 0 / SKIP 5`
+- 说明：启用外部 Extractor、真实样本与 Tenant Provisioning；Tenant Provisioning 输出提示 platform admin disabled（脚本内跳过）。
+- SKIP：CAD 2D Real Connectors、CAD 2D Connector Coverage、CAD Auto Part、CAD Extractor Stub、CAD Extractor Service。
+
+执行命令：
+
+```bash
+RUN_CAD_EXTRACTOR_EXTERNAL=1 \
+RUN_CAD_REAL_SAMPLES=1 \
+RUN_TENANT_PROVISIONING=1 \
+YUANTUS_PLATFORM_ADMIN_ENABLED=true \
+CAD_EXTRACTOR_BASE_URL='http://localhost:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full_open.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 37  FAIL: 0  SKIP: 5
+ALL TESTS PASSED
+```
+
+## Run ALL-61（一键回归：verify_all.sh，启用全部 CAD/Extractor/Provisioning 可选项）
+
+- 时间：`2025-12-27 13:29:28 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 42 / FAIL 0 / SKIP 0`
+- 说明：启用 Real 2D Connectors、2D Coverage、Auto Part、Extractor Stub/External/Service、Real Samples、Tenant Provisioning（平台管理员开启）。
+
+执行命令：
+
+```bash
+RUN_CAD_REAL_CONNECTORS_2D=1 \
+RUN_CAD_CONNECTOR_COVERAGE_2D=1 \
+CAD_CONNECTOR_COVERAGE_DIR=/Users/huazhou/Downloads/训练图纸/训练图纸 \
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_STUB=1 \
+RUN_CAD_EXTRACTOR_EXTERNAL=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+RUN_CAD_REAL_SAMPLES=1 \
+RUN_TENANT_PROVISIONING=1 \
+YUANTUS_PLATFORM_ADMIN_ENABLED=true \
+CAD_EXTRACTOR_BASE_URL='http://localhost:8200' \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_EXTRACTOR_EXPECT_KEY='part_number' \
+CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full_open2.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 42  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run ALL-62（一键回归：run_full_regression.sh 全量回归）
+
+- 时间：`2025-12-27 13:53:40 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/run_full_regression.sh`
+- 结果：`PASS 42 / FAIL 0 / SKIP 0`
+- 说明：使用一键全量回归脚本，包含 CAD Connectors/Extractor/Real Samples/Tenant Provisioning 全部可选项。
+
+执行命令：
+
+```bash
+scripts/run_full_regression.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full_open3.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 42  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
 ## Run H-20251227-Integrations（Run H：独立 Athena 认证头）
 
 - 时间：`2025-12-27 17:10:39 +0800`
@@ -2065,8 +9526,6 @@ List orgs：
 执行命令：
 
 ```bash
-TOKEN='<access_token>'
-curl -s http://127.0.0.1:7910/api/v1/auth/orgs -H "Authorization: Bearer $TOKEN"
 TENANCY_MODE=db-per-tenant-org \
 DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
 IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
@@ -2074,8 +9533,6 @@ ATHENA_AUTH_TOKEN='<athena_token>' \
   bash scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
-```json
-{"tenant_id":"tenant-1","user_id":1,"orgs":[{"id":"org-1","name":"org-1","is_active":true}]}
 输出（摘要）：
 
 ```text

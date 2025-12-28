@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     # Multi-tenant / multi-org headers
     TENANT_HEADER: str = Field(default="x-tenant-id", description="Tenant header name")
     ORG_HEADER: str = Field(default="x-org-id", description="Organization header name")
+    PLATFORM_ADMIN_ENABLED: bool = Field(
+        default=False,
+        description="Enable platform admin capabilities for cross-tenant provisioning",
+    )
+    PLATFORM_TENANT_ID: str = Field(
+        default="platform",
+        description="Tenant id used for platform admin operations",
+    )
+    QUOTA_MODE: str = Field(
+        default="disabled",
+        description="disabled|soft|enforce quota checks for tenant limits",
+    )
 
     # External services
     ATHENA_BASE_URL: str = Field(
@@ -43,6 +55,58 @@ class Settings(BaseSettings):
     )
     DEDUP_VISION_BASE_URL: str = Field(
         default="http://localhost:8100", description="DedupCAD Vision base URL"
+    )
+    DEDUP_VISION_SERVICE_TOKEN: str = Field(
+        default="",
+        description="Optional service token (JWT) for DedupCAD Vision integrations",
+    )
+    CAD_ML_SERVICE_TOKEN: str = Field(
+        default="",
+        description="Optional service token (JWT) for CAD ML Platform integrations",
+    )
+    CAD_EXTRACTOR_BASE_URL: str = Field(
+        default="",
+        description="Optional CAD extractor service base URL",
+    )
+    CAD_EXTRACTOR_SERVICE_TOKEN: str = Field(
+        default="",
+        description="Optional service token (JWT) for CAD extractor service",
+    )
+    CAD_EXTRACTOR_TIMEOUT_SECONDS: int = Field(
+        default=30,
+        description="CAD extractor service timeout in seconds",
+    )
+    CAD_EXTRACTOR_MODE: str = Field(
+        default="optional",
+        description="optional|required (fail cad_extract when external service fails)",
+    )
+    CAD_CONNECTORS_CONFIG_PATH: str = Field(
+        default="",
+        description="Optional JSON config path for custom CAD connectors",
+    )
+    CAD_CONNECTORS_ALLOW_PATH_OVERRIDE: bool = Field(
+        default=False,
+        description="Allow reload endpoint to accept config_path override (admin only)",
+    )
+    CADGF_ROOT: str = Field(
+        default="",
+        description="Path to CADGameFusion repo root (for 2D CAD conversion)",
+    )
+    CADGF_CONVERT_SCRIPT: str = Field(
+        default="",
+        description="Path to CADGameFusion tools/plm_convert.py",
+    )
+    CADGF_CONVERT_CLI: str = Field(
+        default="",
+        description="Path to CADGameFusion convert_cli binary",
+    )
+    CADGF_DXF_PLUGIN_PATH: str = Field(
+        default="",
+        description="Path to CADGameFusion DXF importer plugin",
+    )
+    CADGF_PYTHON_BIN: str = Field(
+        default="",
+        description="Override python executable for CADGF conversion",
     )
 
     # Database
@@ -73,6 +137,21 @@ class Settings(BaseSettings):
     )
 
     AUDIT_ENABLED: bool = Field(default=False, description="Audit log middleware")
+    AUDIT_RETENTION_DAYS: int = Field(
+        default=0, description="Prune audit logs older than N days (0=disabled)"
+    )
+    AUDIT_RETENTION_MAX_ROWS: int = Field(
+        default=0, description="Keep at most N audit rows (0=disabled)"
+    )
+    AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS: int = Field(
+        default=600, description="Min seconds between audit prune runs"
+    )
+    HEALTHCHECK_EXTERNAL: bool = Field(
+        default=False, description="Enable external dependency checks in /health/deps"
+    )
+    HEALTHCHECK_EXTERNAL_TIMEOUT_SECONDS: int = Field(
+        default=2, description="Timeout for external dependency checks"
+    )
 
     # Search engine (optional)
     SEARCH_ENGINE_INDEX_PREFIX: str = Field(default="yuantus")
@@ -84,6 +163,14 @@ class Settings(BaseSettings):
     STORAGE_TYPE: str = Field(default="local", description="local|s3")
     LOCAL_STORAGE_PATH: str = Field(default="./data/storage")
     LOCAL_STORAGE_PUBLIC_URL_PREFIX: str = Field(default="")
+    FILE_UPLOAD_MAX_BYTES: int = Field(
+        default=0,
+        description="Max upload size in bytes (0 disables limit)",
+    )
+    FILE_ALLOWED_EXTENSIONS: str = Field(
+        default="",
+        description="Comma-separated allowed file extensions (no dot). Empty allows all.",
+    )
 
     # Plugins
     PLUGIN_DIRS: str = Field(
@@ -106,6 +193,17 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY_ID: str = Field(default="minioadmin")
     S3_SECRET_ACCESS_KEY: str = Field(default="minioadmin")
     S3_REGION_NAME: str = Field(default="us-east-1")
+
+    # Jobs / Async
+    JOB_MAX_ATTEMPTS_DEFAULT: int = Field(
+        default=3, description="Default max attempts for async jobs"
+    )
+    JOB_RETRY_BACKOFF_SECONDS: int = Field(
+        default=5, description="Retry backoff seconds"
+    )
+    JOB_STALE_TIMEOUT_SECONDS: int = Field(
+        default=900, description="Requeue processing jobs after this timeout (seconds)"
+    )
 
 
 @lru_cache(maxsize=1)

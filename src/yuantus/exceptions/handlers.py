@@ -83,6 +83,20 @@ class PermissionError(PLMException):
         )
 
 
+class StateLockedError(PLMException):
+    def __init__(self, state: str, resource: Optional[str] = None, **kwargs: Any):
+        message = f"Item is locked in state: {state}"
+        details: Dict[str, Any] = {"state": state, "resource": resource}
+        details.update(kwargs)
+        super().__init__(
+            message=message,
+            code="STATE_LOCKED",
+            status_code=409,
+            details=details,
+            user_message=message,
+        )
+
+
 class ConfigurationError(PLMException):
     def __init__(self, message: str, config_key: Optional[str] = None, **kwargs: Any):
         details: Dict[str, Any] = {"config_key": config_key} if config_key else {}
@@ -93,4 +107,15 @@ class ConfigurationError(PLMException):
             status_code=500,
             details=details,
             user_message="System configuration error",
+        )
+
+
+class QuotaExceededError(PLMException):
+    def __init__(self, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            message="Quota exceeded",
+            code="QUOTA_EXCEEDED",
+            status_code=429,
+            details=details or {},
+            user_message="Quota exceeded",
         )

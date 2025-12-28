@@ -2,7 +2,8 @@ from typing import Dict, Any, TYPE_CHECKING
 from .base import BaseOperation
 from ..models.item import Item
 from yuantus.meta_engine.schemas.aml import AMLAction, GenericItem
-from yuantus.exceptions.handlers import PermissionError, ValidationError
+from yuantus.exceptions.handlers import PermissionError, StateLockedError, ValidationError
+from yuantus.meta_engine.lifecycle.guard import is_item_locked
 from yuantus.meta_engine.events.domain_events import ItemUpdatedEvent
 from yuantus.meta_engine.events.transactional import enqueue_event
 
@@ -31,6 +32,10 @@ class UpdateOperation(BaseOperation):
             item_owner_id=str(item.created_by_id) if item.created_by_id else None,
         ):
             raise PermissionError(action=AMLAction.update.value, resource=item_type.id)
+
+        locked, locked_state = is_item_locked(self.session, item, item_type)
+        if locked:
+            raise StateLockedError(locked_state or (item.state or "unknown"), item_type.id)
 
         merged = dict(item.properties or {})
         merged.update(aml.properties or {})

@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+import json
 from datetime import datetime
 import re
 from decimal import Decimal, InvalidOperation
@@ -17,12 +18,35 @@ class BOMService:
         self.session = session
         self.eff_service = EffectivityService(session)
 
+    @staticmethod
+    def resolve_compare_mode(
+        mode: Optional[str],
+    ) -> tuple[Optional[str], Optional[List[str]], bool]:
+        if not mode:
+            return None, None, False
+        normalized = mode.strip().lower().replace("-", "_")
+        if normalized in {"only_product", "only"}:
+            return "child_config", [], False
+        if normalized in {"summarized", "summary"}:
+            return "child_config", ["quantity", "uom"], True
+        if normalized in {"num_qty", "numqty"}:
+            return "child_config_find_num_qty", ["quantity", "uom", "find_num"], False
+        if normalized in {"by_position", "by_pos", "position"}:
+            return "child_config_find_num", ["quantity", "uom", "find_num"], False
+        if normalized in {"by_reference", "by_ref", "reference"}:
+            return "child_config_refdes", ["quantity", "uom", "refdes"], False
+        raise ValueError(
+            "compare_mode must be one of: only_product, summarized, num_qty, "
+            "by_position, by_reference"
+        )
+
     def get_bom_structure(
         self,
         item_id: str,
         levels: int = 10,
         effective_date: datetime = None,
         include_substitutes: bool = False,
+        relationship_types: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Return hierarchical BOM structure.
@@ -38,6 +62,7 @@ class BOMService:
             max_level=levels,
             effective_date=effective_date,
             include_substitutes=include_substitutes,
+            relationship_types=relationship_types,
         )
 
     def _build_tree(
@@ -47,6 +72,7 @@ class BOMService:
         max_level: int,
         effective_date: datetime = None,
         include_substitutes: bool = False,
+        relationship_types: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         node = parent_item.to_dict()
         node["children"] = []
@@ -61,8 +87,12 @@ class BOMService:
                 Item.source_id == parent_item.id,
                 Item.is_current.is_(True),
             )
-            .all()
         )
+
+        if relationship_types:
+            rels = rels.filter(Item.item_type_id.in_(relationship_types))
+
+        rels = rels.all()
 
         # print(f"DEBUG: Processing {parent_item.id}, found {len(rels)} relationships")
 
@@ -92,6 +122,7 @@ class BOMService:
                     max_level,
                     effective_date,
                     include_substitutes=include_substitutes,
+                    relationship_types=relationship_types,
                 ),
             }
 
@@ -221,7 +252,13 @@ class BOMService:
 
         return parents
 
-    def get_bom_for_version(self, version_id: str, levels: int = 10) -> Dict[str, Any]:
+    def get_bom_for_version(
+        self,
+        version_id: str,
+        levels: int = 10,
+        include_substitutes: bool = False,
+        relationship_types: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
         """
         Get BOM structure as defined by the context of a specific ItemVersion.
         Uses the version's effectivity date or creation date to resolve structure.
@@ -248,7 +285,13 @@ class BOMService:
         if not target_date:
             target_date = datetime.utcnow()
 
-        return self.get_bom_structure(ver.item_id, levels, effective_date=target_date)
+        return self.get_bom_structure(
+            ver.item_id,
+            levels,
+            effective_date=target_date,
+            include_substitutes=include_substitutes,
+            relationship_types=relationship_types,
+        )
 
     def get_bom_line_by_parent_child(
         self, parent_item_id: str, child_item_id: str
@@ -519,6 +562,7 @@ class BOMService:
         item_id: str,
         depth: int = 10,
         effective_date: Optional[datetime] = None,
+        relationship_types: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Get BOM tree structure with specified depth.
@@ -538,6 +582,7 @@ class BOMService:
             item_id,
             levels=depth,
             effective_date=effective_date,
+            relationship_types=relationship_types,
         )
 
     def compare_bom_trees(
@@ -546,6 +591,10 @@ class BOMService:
         right_tree: Dict[str, Any],
         include_relationship_props: Optional[List[str]] = None,
         include_child_fields: bool = False,
+        line_key: str = "child_config",
+        include_substitutes: bool = False,
+        include_effectivity: bool = False,
+        aggregate_quantities: bool = False,
     ) -> Dict[str, Any]:
         """
         Compare two BOM trees and return added/removed/changed edges.
@@ -554,11 +603,19 @@ class BOMService:
             left_tree,
             include_relationship_props=include_relationship_props,
             include_child_fields=include_child_fields,
+            line_key=line_key,
+            include_substitutes=include_substitutes,
+            include_effectivity=include_effectivity,
+            aggregate_quantities=aggregate_quantities,
         )
         right_edges = self._flatten_tree(
             right_tree,
             include_relationship_props=include_relationship_props,
             include_child_fields=include_child_fields,
+            line_key=line_key,
+            include_substitutes=include_substitutes,
+            include_effectivity=include_effectivity,
+            aggregate_quantities=aggregate_quantities,
         )
 
         left_keys = set(left_edges.keys())
@@ -576,16 +633,23 @@ class BOMService:
 
         added = [self._format_entry(right_edges[k]) for k in added_keys]
         removed = [self._format_entry(left_edges[k]) for k in removed_keys]
-        changed = [
-            self._format_changed_entry(left_edges[k], right_edges[k])
-            for k in changed_keys
-        ]
+        severity_counts = {"major": 0, "minor": 0, "info": 0}
+        changed: List[Dict[str, Any]] = []
+        for key in changed_keys:
+            entry = self._format_changed_entry(left_edges[key], right_edges[key])
+            severity = entry.get("severity") or "info"
+            if severity in severity_counts:
+                severity_counts[severity] += 1
+            changed.append(entry)
 
         return {
             "summary": {
                 "added": len(added),
                 "removed": len(removed),
                 "changed": len(changed),
+                "changed_major": severity_counts["major"],
+                "changed_minor": severity_counts["minor"],
+                "changed_info": severity_counts["info"],
             },
             "added": added,
             "removed": removed,
@@ -597,12 +661,24 @@ class BOMService:
         tree: Dict[str, Any],
         include_relationship_props: Optional[List[str]] = None,
         include_child_fields: bool = False,
+        line_key: str = "child_config",
+        include_substitutes: bool = False,
+        include_effectivity: bool = False,
+        aggregate_quantities: bool = False,
     ) -> Dict[str, Dict[str, Any]]:
         edges: Dict[str, Dict[str, Any]] = {}
+        effectivity_cache: Dict[str, List[Dict[str, Any]]] = {}
+        substitute_cache: Dict[str, List[Dict[str, Any]]] = {}
+        sub_service = None
+        if include_substitutes:
+            from .substitute_service import SubstituteService
 
-        def walk(node: Dict[str, Any]) -> None:
+            sub_service = SubstituteService(self.session)
+
+        def walk(node: Dict[str, Any], path: List[Dict[str, Any]]) -> None:
             parent_id = node.get("id")
             parent_config_id = node.get("config_id") or parent_id
+            parent_path = path + [self._build_path_node(node)]
             children = node.get("children") or []
             for child_entry in children:
                 rel = child_entry.get("relationship") or {}
@@ -614,14 +690,42 @@ class BOMService:
                     rel,
                     include_relationship_props=include_relationship_props,
                 )
+                rel_id = rel.get("id")
+                if include_effectivity and rel_id:
+                    effectivities = effectivity_cache.get(rel_id)
+                    if effectivities is None:
+                        effectivities = self._serialize_effectivities(rel_id)
+                        effectivity_cache[rel_id] = effectivities
+                    raw_props["effectivities"] = effectivities
+                if include_substitutes and rel_id:
+                    substitutes = substitute_cache.get(rel_id)
+                    if substitutes is None:
+                        existing = child_entry.get("substitutes")
+                        if existing is None and sub_service:
+                            existing = sub_service.get_bom_substitutes(rel_id)
+                        substitutes = self._serialize_substitutes(existing or [])
+                        substitute_cache[rel_id] = substitutes
+                    raw_props["substitutes"] = substitutes
                 norm_props = self._normalize_properties(raw_props)
 
-                key = f"{parent_config_id}::{child_config_id}"
+                key = self._build_line_key(
+                    line_key,
+                    parent_id=parent_id,
+                    child_id=child_id,
+                    parent_config_id=parent_config_id,
+                    child_config_id=child_config_id,
+                    relationship_id=rel_id,
+                    normalized_properties=norm_props,
+                )
                 entry: Dict[str, Any] = {
                     "parent_id": parent_id,
                     "child_id": child_id,
                     "parent_config_id": parent_config_id,
                     "child_config_id": child_config_id,
+                    "relationship_id": rel_id,
+                    "line_key": key,
+                    "path": parent_path + [self._build_path_node(child)],
+                    "level": len(parent_path),
                     "properties": raw_props,
                     "normalized_properties": norm_props,
                 }
@@ -640,11 +744,185 @@ class BOMService:
                         "name": child.get("name"),
                     }
 
-                edges[key] = entry
-                walk(child)
+                if aggregate_quantities and key in edges:
+                    existing = edges[key]
+                    existing_props = existing.get("properties") or {}
+                    existing_norm = existing.get("normalized_properties") or {}
 
-        walk(tree)
+                    combined_qty = self._sum_quantities(
+                        existing_norm.get("quantity"),
+                        norm_props.get("quantity"),
+                    )
+                    combined_uom = self._merge_uom(
+                        existing_norm.get("uom"),
+                        norm_props.get("uom"),
+                    )
+
+                    if combined_qty is not None:
+                        existing_norm["quantity"] = combined_qty
+                        existing_props["quantity"] = combined_qty
+                    if combined_uom:
+                        existing_norm["uom"] = combined_uom
+                        existing_props["uom"] = combined_uom
+
+                    existing["normalized_properties"] = existing_norm
+                    existing["properties"] = existing_props
+                    edges[key] = existing
+                else:
+                    edges[key] = entry
+                walk(child, parent_path)
+
+        walk(tree, [])
         return edges
+
+    def _build_path_node(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "id": item.get("id"),
+            "config_id": item.get("config_id"),
+            "item_number": item.get("item_number"),
+            "name": item.get("name"),
+        }
+
+    def _build_line_key(
+        self,
+        line_key: str,
+        *,
+        parent_id: Optional[str],
+        child_id: Optional[str],
+        parent_config_id: Optional[str],
+        child_config_id: Optional[str],
+        relationship_id: Optional[str],
+        normalized_properties: Dict[str, Any],
+    ) -> str:
+        key = (line_key or "child_config").strip().lower()
+        parent_fallback = parent_config_id or parent_id or ""
+        child_fallback = child_config_id or child_id or ""
+        find_num = normalized_properties.get("find_num")
+        refdes = self._format_key_list(normalized_properties.get("refdes"))
+        eff_key = normalized_properties.get("effectivities")
+        qty_key = self._format_key_number(normalized_properties.get("quantity"))
+        if eff_key:
+            eff_value = self._format_key_list(eff_key)
+        else:
+            eff_from = normalized_properties.get("effectivity_from")
+            eff_to = normalized_properties.get("effectivity_to")
+            eff_value = f"{eff_from or ''}-{eff_to or ''}"
+
+        if key in {"child_id", "item_id"}:
+            return f"{parent_id or parent_fallback}::{child_id or child_fallback}"
+        if key in {"child_config", "config"}:
+            return f"{parent_fallback}::{child_fallback}"
+        if key in {"relationship_id", "line_id", "rel_id"}:
+            return relationship_id or f"{parent_id or parent_fallback}::{child_id or child_fallback}"
+        if key in {"child_id_find_num", "child_id_find"}:
+            return f"{parent_id or parent_fallback}::{child_id or child_fallback}::{find_num or ''}"
+        if key in {"child_config_find_num", "child_config_find"}:
+            return f"{parent_fallback}::{child_fallback}::{find_num or ''}"
+        if key in {"child_id_refdes", "child_id_ref"}:
+            return f"{parent_id or parent_fallback}::{child_id or child_fallback}::{refdes}"
+        if key in {"child_config_refdes", "child_config_ref"}:
+            return f"{parent_fallback}::{child_fallback}::{refdes}"
+        if key in {"child_id_find_refdes", "child_id_find_ref"}:
+            return (
+                f"{parent_id or parent_fallback}::{child_id or child_fallback}"
+                f"::{find_num or ''}::{refdes}"
+            )
+        if key in {"child_config_find_refdes", "child_config_find_ref"}:
+            return (
+                f"{parent_fallback}::{child_fallback}"
+                f"::{find_num or ''}::{refdes}"
+            )
+        if key in {"child_id_find_num_qty", "child_id_find_qty"}:
+            return (
+                f"{parent_id or parent_fallback}::{child_id or child_fallback}"
+                f"::{find_num or ''}::{qty_key}"
+            )
+        if key in {"child_config_find_num_qty", "child_config_find_qty"}:
+            return (
+                f"{parent_fallback}::{child_fallback}"
+                f"::{find_num or ''}::{qty_key}"
+            )
+        if key in {"line_full", "full"}:
+            return (
+                f"{parent_id or parent_fallback}::{child_id or child_fallback}"
+                f"::{find_num or ''}::{refdes}::{eff_value}"
+            )
+        return f"{parent_fallback}::{child_fallback}"
+
+    def _format_key_list(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, (list, tuple, set)):
+            return ",".join(str(v) for v in value)
+        return str(value)
+
+    def _format_key_number(self, value: Any) -> str:
+        if value is None:
+            return ""
+        try:
+            return str(Decimal(str(value)).normalize())
+        except (InvalidOperation, ValueError):
+            return str(value)
+
+    def _sum_quantities(self, left: Any, right: Any) -> Optional[float]:
+        if left is None:
+            return float(right) if right is not None else None
+        if right is None:
+            return float(left) if left is not None else None
+        try:
+            return float(Decimal(str(left)) + Decimal(str(right)))
+        except (InvalidOperation, ValueError, TypeError):
+            try:
+                return float(left) + float(right)
+            except (TypeError, ValueError):
+                return float(right) if right is not None else float(left)
+
+    def _merge_uom(self, left: Any, right: Any) -> Optional[str]:
+        left_val = str(left).strip().upper() if left else ""
+        right_val = str(right).strip().upper() if right else ""
+        if not left_val:
+            return right_val or None
+        if not right_val:
+            return left_val or None
+        if left_val == right_val:
+            return left_val
+        return "MIXED"
+
+    def _serialize_effectivities(self, item_id: str) -> List[Dict[str, Any]]:
+        effectivities = self.eff_service.get_item_effectivities(item_id)
+        entries: List[Dict[str, Any]] = []
+        for eff in effectivities:
+            entries.append(
+                {
+                    "type": eff.effectivity_type,
+                    "start_date": eff.start_date.isoformat() if eff.start_date else None,
+                    "end_date": eff.end_date.isoformat() if eff.end_date else None,
+                    "payload": eff.payload or {},
+                }
+            )
+        return entries
+
+    def _serialize_substitutes(
+        self, substitutes: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        entries: List[Dict[str, Any]] = []
+        for entry in substitutes or []:
+            if not isinstance(entry, dict):
+                continue
+            rel = entry.get("relationship") or {}
+            rel_props = rel.get("properties") or {}
+            sub_part = entry.get("substitute_part") or entry.get("part") or {}
+            sub_id = sub_part.get("id") or rel.get("related_id")
+            if not sub_id:
+                continue
+            entries.append(
+                {
+                    "item_id": sub_id,
+                    "rank": rel_props.get("rank") or entry.get("rank"),
+                    "note": rel_props.get("note"),
+                }
+            )
+        return entries
 
     def _select_relationship_properties(
         self,
@@ -652,7 +930,7 @@ class BOMService:
         include_relationship_props: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         props = relationship.get("properties") or {}
-        if include_relationship_props:
+        if include_relationship_props is not None:
             return {k: props.get(k) for k in include_relationship_props if k in props}
 
         default_keys = [
@@ -686,6 +964,10 @@ class BOMService:
             return str(value).strip()
         if key == "refdes":
             return tuple(self._normalize_refdes(value))
+        if key == "substitutes":
+            return self._normalize_substitutes(value)
+        if key == "effectivities":
+            return self._normalize_effectivities(value)
         if key in {"effectivity_from", "effectivity_to"}:
             return self._normalize_datetime(value)
         return value
@@ -709,6 +991,97 @@ class BOMService:
             except ValueError:
                 return value.strip()
         return value
+
+    def _normalize_substitutes(self, value: Any) -> tuple:
+        entries = []
+        for entry in value or []:
+            if isinstance(entry, dict):
+                item_id = entry.get("item_id") or entry.get("id") or ""
+                rank = entry.get("rank")
+                note = entry.get("note")
+                entries.append((str(item_id), str(rank or ""), str(note or "")))
+            else:
+                entries.append((str(entry), "", ""))
+        return tuple(sorted(entries))
+
+    def _normalize_effectivities(self, value: Any) -> tuple:
+        entries = []
+        for entry in value or []:
+            if not isinstance(entry, dict):
+                continue
+            eff_type = entry.get("type") or entry.get("effectivity_type") or ""
+            start_date = self._normalize_datetime(entry.get("start_date"))
+            end_date = self._normalize_datetime(entry.get("end_date"))
+            payload = entry.get("payload") or {}
+            if isinstance(payload, dict):
+                payload_key = json.dumps(payload, sort_keys=True)
+            else:
+                payload_key = str(payload)
+            entries.append((str(eff_type), str(start_date or ""), str(end_date or ""), payload_key))
+        return tuple(sorted(entries))
+
+    def _field_severity(self, field: str) -> str:
+        major_fields = {
+            "quantity",
+            "uom",
+            "effectivity_from",
+            "effectivity_to",
+            "effectivities",
+        }
+        minor_fields = {"find_num", "refdes", "substitutes"}
+        if field in major_fields:
+            return "major"
+        if field in minor_fields:
+            return "minor"
+        return "info"
+
+    def _severity_rank(self, severity: str) -> int:
+        order = {"info": 0, "minor": 1, "major": 2}
+        return order.get(severity, 0)
+
+    def _summarize_severity(self, diffs: List[Dict[str, Any]]) -> str:
+        if not diffs:
+            return "info"
+        highest = "info"
+        for diff in diffs:
+            severity = diff.get("severity") or "info"
+            if self._severity_rank(severity) > self._severity_rank(highest):
+                highest = severity
+        return highest
+
+    def _build_field_diffs(
+        self,
+        left_entry: Dict[str, Any],
+        right_entry: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        left_props = left_entry.get("properties") or {}
+        right_props = right_entry.get("properties") or {}
+        left_norm = left_entry.get("normalized_properties") or {}
+        right_norm = right_entry.get("normalized_properties") or {}
+
+        diffs: List[Dict[str, Any]] = []
+        for key in sorted(set(left_norm.keys()) | set(right_norm.keys())):
+            left_val = left_norm.get(key)
+            right_val = right_norm.get(key)
+            if key == "quantity" and left_val is not None and right_val is not None:
+                try:
+                    if abs(float(left_val) - float(right_val)) <= 1e-6:
+                        continue
+                except (TypeError, ValueError):
+                    pass
+            if left_val == right_val:
+                continue
+            diffs.append(
+                {
+                    "field": key,
+                    "left": left_props.get(key),
+                    "right": right_props.get(key),
+                    "normalized_left": left_val,
+                    "normalized_right": right_val,
+                    "severity": self._field_severity(key),
+                }
+            )
+        return diffs
 
     def _properties_changed(
         self,
@@ -737,6 +1110,12 @@ class BOMService:
         result = {
             "parent_id": entry.get("parent_id"),
             "child_id": entry.get("child_id"),
+            "relationship_id": entry.get("relationship_id"),
+            "line_key": entry.get("line_key"),
+            "parent_config_id": entry.get("parent_config_id"),
+            "child_config_id": entry.get("child_config_id"),
+            "level": entry.get("level"),
+            "path": entry.get("path"),
             "properties": entry.get("properties", {}),
         }
         if "parent" in entry:
@@ -750,24 +1129,25 @@ class BOMService:
         left_entry: Dict[str, Any],
         right_entry: Dict[str, Any],
     ) -> Dict[str, Any]:
-        left_props = left_entry.get("properties") or {}
-        right_props = right_entry.get("properties") or {}
-        left_norm = left_entry.get("normalized_properties") or {}
-        right_norm = right_entry.get("normalized_properties") or {}
 
-        diffs = {}
-        for key in set(left_norm.keys()) | set(right_norm.keys()):
-            if left_norm.get(key) != right_norm.get(key):
-                diffs[key] = (left_props.get(key), right_props.get(key))
-
-        before = {k: v[0] for k, v in diffs.items()}
-        after = {k: v[1] for k, v in diffs.items()}
+        diffs = self._build_field_diffs(left_entry, right_entry)
+        before = {d["field"]: d["left"] for d in diffs}
+        after = {d["field"]: d["right"] for d in diffs}
+        severity = self._summarize_severity(diffs)
 
         result = {
             "parent_id": left_entry.get("parent_id"),
             "child_id": left_entry.get("child_id"),
+            "relationship_id": left_entry.get("relationship_id"),
+            "line_key": left_entry.get("line_key"),
+            "parent_config_id": left_entry.get("parent_config_id"),
+            "child_config_id": left_entry.get("child_config_id"),
+            "level": left_entry.get("level"),
+            "path": left_entry.get("path"),
             "before": before,
             "after": after,
+            "changes": diffs,
+            "severity": severity,
         }
         if "parent" in left_entry:
             result["parent"] = left_entry["parent"]

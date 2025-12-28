@@ -62,6 +62,7 @@ def init_identity_db(*, create_tables: bool = False) -> None:
             "auth_users",
             "auth_credentials",
             "auth_org_memberships",
+            "auth_tenant_quotas",
         }
         missing = sorted(required_tables - existing_tables)
         if missing:

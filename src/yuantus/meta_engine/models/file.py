@@ -12,7 +12,9 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Text,
+    JSON,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
@@ -94,6 +96,10 @@ class FileContainer(Base):
     file_type = Column(String, index=True)  # extension: "step", "stp", "iges"
     mime_type = Column(String)  # MIME type: "model/step"
     file_size = Column(BigInteger)  # bytes
+    author = Column(String)  # uploader or source author
+    source_system = Column(String)  # external system name
+    source_version = Column(String)  # version in source system
+    document_version = Column(String)  # document revision/label
 
     # Checksum for integrity (SHA256)
     checksum = Column(String, index=True)
@@ -111,12 +117,21 @@ class FileContainer(Base):
     )  # 3d, 2d, pr, other
     is_native_cad = Column(Boolean, default=False)
     cad_format = Column(String)  # "STEP", "IGES", "SOLIDWORKS", etc.
+    cad_connector_id = Column(String)  # e.g. "gstarcad", "zwcad"
+    cad_attributes = Column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=True
+    )  # extracted attributes
+    cad_attributes_source = Column(String)  # local/external
+    cad_attributes_updated_at = Column(DateTime(timezone=True), nullable=True)
 
     # Generated content paths (stored in _{filename}/ subfolder per DocDoku pattern)
     preview_path = Column(String)  # thumbnail PNG path
     preview_data = Column(Text)  # base64 encoded preview (for quick access)
     geometry_path = Column(String)  # converted OBJ/glTF path for 3D viewer
     printout_path = Column(String)  # PDF printout path
+    cad_document_path = Column(String)  # CADGF document.json path for 2D CAD
+    cad_manifest_path = Column(String)  # CADGF manifest.json path for 2D CAD
+    cad_metadata_path = Column(String)  # CADGF mesh_metadata.json path for 2D CAD
 
     # Conversion status
     conversion_status = Column(String, default=ConversionStatus.PENDING.value)
@@ -138,7 +153,14 @@ class FileContainer(Base):
     def get_extension(self) -> str:
         """Get file extension without dot."""
         if self.file_type:
-            return self.file_type.lower().lstrip(".")
+            ext = self.file_type.lower().lstrip(".")
+            if ext.isdigit() and self.filename:
+                parts = self.filename.rsplit(".", 2)
+                if len(parts) == 3:
+                    candidate = parts[1].lower().lstrip(".")
+                    if candidate:
+                        return candidate
+            return ext
         if self.filename and "." in self.filename:
             return self.filename.rsplit(".", 1)[1].lower()
         return ""

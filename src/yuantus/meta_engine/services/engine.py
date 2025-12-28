@@ -473,6 +473,9 @@ class AMLEngine:
 
         # Optional: priority
         priority = kwargs.get("priority", 10)
+        dedupe_key = kwargs.get("dedupe_key")
+        dedupe = bool(kwargs.get("dedupe", False))
+        max_attempts = kwargs.get("max_attempts")
 
         # Get User ID
         user_id_int = (
@@ -480,7 +483,15 @@ class AMLEngine:
         )
 
         svc = JobService(self.session)
-        job = svc.create_job(task_type, payload, user_id=user_id_int, priority=priority)
+        job = svc.create_job(
+            task_type,
+            payload,
+            user_id=user_id_int,
+            priority=priority,
+            max_attempts=max_attempts,
+            dedupe_key=dedupe_key,
+            dedupe=dedupe,
+        )
 
         return {"id": job.id, "status": job.status, "task_type": job.task_type}
 

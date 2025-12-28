@@ -14,6 +14,7 @@
   - sqlite 下默认派生：`yuantus_dev__{tenant_id}.db`（例如 `yuantus_dev__tenant-1.db`）
 - 可选多组织强隔离模式（dev 友好）：`YUANTUS_TENANCY_MODE=db-per-tenant-org`
   - sqlite 下默认派生：`yuantus_dev__{tenant_id}__{org_id}.db`（例如 `yuantus_dev__tenant-1__org-1.db`）
+- 说明：当 `TENANCY_MODE` 为 `db-per-tenant` / `db-per-tenant-org` 时，所有需要 DB 的接口必须提供 tenant/org 上下文，否则返回 400。
 - CLI：
   - 主命令：`yuantus`
   - 兼容别名：`plm`
@@ -77,7 +78,7 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org org-2
 ```
 
-> 说明：`seed-meta` 会写入 `ItemType=Part/Part BOM`、基础属性，以及 dev 环境默认权限集（`world` 具备 CRUD）。
+> 说明：`seed-meta` 会写入 `ItemType=Part/Part BOM/Document`、基础属性，以及 dev 环境默认权限集（`world` 具备 CRUD）。
 
 ---
 
@@ -95,6 +96,8 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - ✅ `GET /api/v1/file/{file_id}/download`：文件下载
 - ✅ `POST /api/v1/file/attach`：附件挂载到 Item
 - ✅ `GET /api/v1/file/item/{item_id}`：查询 Item 附件列表
+- ✅ 文档生命周期：Draft → Review → Released（Released 状态强制锁定更新与附件）
+- ✅ Part 生命周期：Draft → Review → Released（Released 状态锁定 BOM/更新/附件）
 - ✅ `POST /api/v1/cad/import` + `cad_preview`：CAD 导入 → 异步预览任务 → `GET /api/v1/file/{file_id}/preview`
 - ✅ `POST /api/v1/eco`：创建 ECO（变更单）
 - ✅ `POST /api/v1/eco/{eco_id}/new-revision`：为 ECO 创建目标版本（分支）
@@ -123,7 +126,7 @@ curl -s http://127.0.0.1:7910/api/v1/health \
 示例输出（实际）：
 
 ```json
-{"ok":true,"service":"yuantus-plm","version":"0.1.0","tenant_id":"tenant-1","org_id":"org-1"}
+{"ok":true,"service":"yuantus-plm","version":"0.1.0","tenant_id":"tenant-1","org_id":"org-1","tenancy_mode":"single","schema_mode":"create_all"}
 ```
 
 ## 2) Seed Meta（最小元模型）
@@ -135,7 +138,7 @@ yuantus seed-meta
 示例输出（实际）：
 
 ```text
-Seeded meta schema: Part, Part BOM
+Seeded meta schema: Part, Part BOM, Document
 ```
 
 ## 3) Meta：读取 Part 字段定义
@@ -1444,6 +1447,9 @@ curl -s "http://127.0.0.1:7910/api/v1/versions/items/$PART_ID/tree" \
 # 方式 A（推荐）：docker compose 一键启动（Postgres + MinIO + API + Worker）
 docker compose up -d --build
 
+# 可选：轻量启动（不启用 CAD Extractor）
+docker compose -f docker-compose.yml -f docker-compose.no-cad-extractor.yml up -d --build
+
 # 本地 CLI/worker 连接 docker Postgres + MinIO（用于脚本里的 seed/worker）
 export YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus'
 export YUANTUS_SCHEMA_MODE=migrations
@@ -1616,13 +1622,198 @@ curl -v http://127.0.0.1:7910/api/v1/file/<FILE_ID>/geometry \
 
 ---
 
-## 25) 一键回归测试：`scripts/verify_all.sh`
+## 25) CAD 2D Connectors 验收脚本（GStarCAD/ZWCAD/Haochen/Zhongwang）
 
-### 25.1 概述
+### 25.1 一键验收：`scripts/verify_cad_connectors_2d.sh`
+
+此脚本验证 DWG/DXF 文件通过 `/cad/import` 导入时可以用 `cad_format`（或 `cad_connector_id`）覆盖厂商标签，并支持基于文件内容/文件名的自动识别，且正确写入文件元数据：
+
+- `cad_format` = `GSTARCAD` / `ZWCAD` / `HAOCHEN` / `ZHONGWANG`
+- `cad_connector_id` = `gstarcad` / `zwcad` / `haochencad` / `zhongwangcad`
+- `document_type` = `2d`
+- `is_native_cad` = `true`
+- `file_type` = `dwg` / `dxf`
+- 自动识别：未传 `cad_format` 时仍能命中厂商 `cad_connector_id`
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_connectors_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+
+# 可选：自定义 CLI/Python 路径
+# CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_cad_connectors_2d.sh ...
+```
+
+期望输出：
+
+```text
+==============================================
+CAD 2D Connectors Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+==> Login as admin
+OK: Admin login
+==> Create dummy DWG/DXF files
+OK: Created files: /tmp/yuantus_gstarcad_<ts>.dwg, /tmp/yuantus_zwcad_<ts>.dxf, /tmp/yuantus_haochencad_<ts>.dwg, /tmp/yuantus_zhongwang_<ts>.dxf, /tmp/yuantus_cad_auto_<ts>.dwg
+==> Upload gstarcad_<ts>.dwg (GSTARCAD)
+OK: Uploaded file: <file_id>
+Metadata OK
+OK: Metadata verified (GSTARCAD)
+==> Upload zwcad_<ts>.dxf (ZWCAD)
+OK: Uploaded file: <file_id>
+Metadata OK
+OK: Metadata verified (ZWCAD)
+==> Upload haochencad_<ts>.dwg (HAOCHEN)
+OK: Uploaded file: <file_id>
+Metadata OK
+OK: Metadata verified (HAOCHEN)
+==> Upload zhongwangcad_<ts>.dxf (ZHONGWANG)
+OK: Uploaded file: <file_id>
+Metadata OK
+OK: Metadata verified (ZHONGWANG)
+==> Upload cad_auto_<ts>.dwg (auto-detect)
+OK: Uploaded file: <file_id>
+Metadata OK
+OK: Metadata verified (HAOCHEN)
+==> Cleanup
+OK: Cleaned up temp files
+
+==============================================
+CAD 2D Connectors Verification Complete
+==============================================
+ALL CHECKS PASSED
+```
+
+---
+
+### 25.1.2 真实样本 + 连接器：`scripts/verify_cad_connectors_real_2d.sh`
+
+用真实 DWG 文件验证 Haochen/Zhongwang 连接器覆盖，且 `cad_extract` 输出 `part_number/drawing_no`（来源于文件名解析或外部 extractor）。
+
+可选环境变量：
+
+- `CAD_SAMPLE_HAOCHEN_DWG`：浩辰样本 DWG 路径
+- `CAD_SAMPLE_ZHONGWANG_DWG`：中望样本 DWG 路径
+- `CAD_EXTRACTOR_BASE_URL`：外部 extractor 服务（可选）
+- `CAD_REAL_FORCE_UNIQUE`：复制样本并追加标记字节以规避去重（默认 `1`）
+
+```bash
+export CAD_SAMPLE_HAOCHEN_DWG='/path/to/haochencad.dwg'
+export CAD_SAMPLE_ZHONGWANG_DWG='/path/to/zhongwangcad.dwg'
+export CAD_EXTRACTOR_BASE_URL='http://localhost:8200'
+
+bash scripts/verify_cad_connectors_real_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+期望输出（摘要）：
+
+```text
+CAD 2D Real Connectors Verification Complete
+ALL CHECKS PASSED
+```
+
+---
+
+## 25.2) CAD 3D Connectors 验收脚本（SolidWorks/NX/Creo/CATIA/Inventor）
+
+### 25.2.1 一键验收：`scripts/verify_cad_connectors_3d.sh`
+
+此脚本验证 3D 文件通过 `/cad/import` 导入时可以正确解析 `cad_format`/`cad_connector_id`，并写入文件元数据：
+
+- `cad_format` = `SOLIDWORKS` / `NX` / `CREO` / `CATIA` / `INVENTOR`
+- `cad_connector_id` = `solidworks` / `nx` / `creo` / `catia` / `inventor`
+- `document_type` = `3d`
+- `is_native_cad` = `true`
+- `file_type` = `sldprt` / `sldasm` / `prt` / `catpart` / `ipt`
+- `.prt/.asm` 默认 NX，若需 Creo 请传 `cad_format=CREO` 或 `cad_connector_id=creo`
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_cad_connectors_3d.sh http://127.0.0.1:7910 tenant-1 org-1
+
+# 可选：自定义 CLI/Python 路径
+# CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_cad_connectors_3d.sh ...
+```
+
+期望输出：
+
+```text
+==============================================
+CAD 3D Connectors Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+==> Login as admin
+OK: Admin login
+==> Create dummy 3D files
+OK: Created files
+==> Upload solidworks_part_<ts>.sldprt
+OK: Uploaded file: <file_id>
+Metadata OK
+OK: Metadata verified (SOLIDWORKS)
+==> Upload nx_<ts>.prt
+OK: Uploaded file: <file_id>
+Metadata OK
+OK: Metadata verified (NX)
+==> Upload creo_<ts>.prt
+OK: Uploaded file: <file_id>
+Metadata OK
+OK: Metadata verified (CREO)
+==> Upload catia_<ts>.catpart
+OK: Uploaded file: <file_id>
+Metadata OK
+OK: Metadata verified (CATIA)
+==> Upload inventor_<ts>.ipt
+OK: Uploaded file: <file_id>
+Metadata OK
+OK: Metadata verified (INVENTOR)
+==> Cleanup
+OK: Cleaned up temp files
+
+==============================================
+CAD 3D Connectors Verification Complete
+==============================================
+ALL CHECKS PASSED
+```
+
+---
+
+## 26) 一键回归测试：`scripts/verify_all.sh`
+
+### 26.1 概述
 
 `scripts/verify_all.sh` 是 YuantusPLM 的端到端回归测试总入口，依次调用所有验收脚本并汇总结果。
 
-### 25.2 运行方式
+### 26.1.1 Python 版本要求
+
+建议使用 Python 3.10+（推荐 3.11）。若存在旧版 `.venv`，可按以下方式重建：
+
+```bash
+python3.11 -m venv --clear .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.lock
+python -m pip install -e .
+```
+
+升级后建议执行一次全量回归：
+
+```bash
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 26.2 运行方式
 
 ```bash
 # 启动服务（推荐 docker compose）
@@ -1637,26 +1828,61 @@ bash scripts/verify_all.sh
 # 或指定参数
 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 
+# Docker/Postgres 环境可指定 DB_URL（CLI seed 与 API 同库）
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+
 # 自定义 CLI/Python 路径
 CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_all.sh
 ```
 
-### 25.3 测试套件
+### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
 |----------|------|----------|
 | Run H (Core APIs) | `verify_run_h.sh` | Health、AML、Search、RPC、File、BOM |
+| S2 (Documents & Files) | `verify_documents.sh` | 文件元数据、去重、挂载列表 |
 | S1 (Meta + RBAC) | `verify_permissions.sh` | 权限配置、RBAC 执行 |
 | S3.1 (BOM Tree) | `verify_bom_tree.sh` | BOM 写入、循环检测 |
 | S3.2 (BOM Effectivity) | `verify_bom_effectivity.sh` | 生效性过滤 |
 | S3.3 (Versions) | `verify_versions.sh` | 版本初始化、修订、迭代 |
+| S4 (ECO Advanced) | `verify_eco_advanced.sh` | Impact 分析、BOM Redline、批量审批 |
 | S5-A (CAD Pipeline S3) | `verify_cad_pipeline_s3.sh` | S3 存储、Worker 处理 |
+| S5-B (CAD 2D Connectors) | `verify_cad_connectors_2d.sh` | DWG/DXF 厂商标签覆盖 |
+| S5-B (CAD 2D Real Connectors) | `verify_cad_connectors_real_2d.sh` | 真实 DWG + 连接器覆盖验证 |
+| S5-B (CAD 2D Connector Coverage) | `verify_cad_connector_coverage_2d.sh` | 离线 DWG 覆盖率统计（Haochen/Zhongwang） |
+| S5-B (CAD 3D Connectors) | `verify_cad_connectors_3d.sh` | 3D 连接器识别（SOLIDWORKS/NX/CREO/CATIA/INVENTOR） |
+| S5-C (CAD Attribute Sync) | `verify_cad_sync.sh` | x-cad-synced 属性同步 |
+| S5-B (CAD Connectors Config) | `verify_cad_connectors_config.sh` | 自定义连接器配置 reload |
+| S5-C (CAD Sync Template) | `verify_cad_sync_template.sh` | CAD 属性映射模板导入/导出 |
+| S5-C (CAD Auto Part) | `verify_cad_auto_part.sh` | 导入时自动创建 Part + 附件绑定 |
+| S5-C (CAD Extractor Stub) | `verify_cad_extractor_stub.sh` | 外部提取服务对接（stub） |
+| S5-C (CAD Extractor Service) | `verify_cad_extractor_service.sh` | 外部提取服务（microservice） |
+| CAD Real Samples | `verify_cad_real_samples.sh` | 真实 DWG/STEP/PRT 端到端 |
+| S6 (Search Index) | `verify_search_index.sh` | 搜索索引增量刷新 |
+| S6 (Search Reindex) | `verify_search_reindex.sh` | 搜索索引状态 + 全量重建 |
+| S6 (Search ECO) | `verify_search_eco.sh` | ECO 搜索（ES/DB fallback） |
+| S6 (Reports Summary) | `verify_reports_summary.sh` | 聚合报表统计 |
+| Audit Logs | `verify_audit_logs.sh` | 审计日志查询（需启用 AUDIT_ENABLED） |
+| S7 (Multi-Tenancy) | `verify_multitenancy.sh` | 租户/组织隔离（按 TENANCY_MODE） |
+| S7 (Tenant Provisioning) | `verify_tenant_provisioning.sh` | 平台管理员创建 tenant/org |
 | Where-Used API | `verify_where_used.sh` | 反向 BOM 查询 |
 | BOM Compare | `verify_bom_compare.sh` | BOM 差异对比（如端点可用则执行） |
 | BOM Substitutes | `verify_substitutes.sh` | BOM 替代件管理（如端点可用则执行） |
+| MBOM Convert | `verify_mbom_convert.sh` | EBOM → MBOM 转换 |
+| Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
 
-### 25.4 输出格式
+> 说明：`S7 (Multi-Tenancy)` 仅在 `TENANCY_MODE=db-per-tenant` 或 `db-per-tenant-org` 时执行；单租户模式会显示 `SKIP`。
+> `S5-C (CAD Extractor Stub)` 需要设置 `RUN_CAD_EXTRACTOR_STUB=1` 才会执行。
+> `S5-C (CAD Extractor Service)` 需要设置 `RUN_CAD_EXTRACTOR_SERVICE=1` 才会执行。
+> `S5-C (CAD Auto Part)` 需要设置 `RUN_CAD_AUTO_PART=1` 才会执行。
+> `CAD Real Samples` 需要设置 `RUN_CAD_REAL_SAMPLES=1` 才会执行。
+> `S5-B (CAD 2D Real Connectors)` 需要设置 `RUN_CAD_REAL_CONNECTORS_2D=1` 才会执行。
+> `S5-B (CAD 2D Connector Coverage)` 需要设置 `RUN_CAD_CONNECTOR_COVERAGE_2D=1` 且 `CAD_CONNECTOR_COVERAGE_DIR=/path/to/dwg`。
+> `S7 (Tenant Provisioning)` 需要设置 `RUN_TENANT_PROVISIONING=1` 且 `YUANTUS_PLATFORM_ADMIN_ENABLED=true`。
+
+### 26.4 输出格式
 
 ```text
 ==============================================
@@ -1704,20 +1930,46 @@ S1 (Meta + RBAC)          PASS
 S3.1 (BOM Tree)           PASS
 S3.2 (BOM Effectivity)    PASS
 S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
 S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-C (CAD Attribute Sync) PASS
+S7 (Multi-Tenancy)        SKIP
 Where-Used API            PASS
 BOM Compare               PASS
 BOM Substitutes           PASS
 Version-File Binding      PASS
 
 ----------------------------------------------
-PASS: 10  FAIL: 0  SKIP: 0
+PASS: 13  FAIL: 0  SKIP: 1
 ----------------------------------------------
 
 ALL TESTS PASSED
 ```
 
-### 25.5 退出码
+### 26.5 CI 运行建议
+
+默认 CI 使用 `docker compose` 启动全套服务（Postgres + MinIO + CAD Extractor），并开启 CAD 自动建件与 Extractor 校验：
+
+```bash
+docker compose -p yuantusplm up -d --build
+
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+如果 CI 资源受限，可切换为本地存储 + 单库模式（跳过 CAD Extractor 服务）：
+
+```bash
+export YUANTUS_STORAGE_TYPE=local
+export YUANTUS_TENANCY_MODE=single
+export YUANTUS_SCHEMA_MODE=migrations
+
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 26.6 退出码
 
 | 退出码 | 含义 |
 |--------|------|
@@ -1727,9 +1979,9 @@ ALL TESTS PASSED
 
 ---
 
-## 26) Where-Used API 验收脚本
+## 27) Where-Used API 验收脚本
 
-### 26.1 一键验收：`scripts/verify_where_used.sh`
+### 27.1 一键验收：`scripts/verify_where_used.sh`
 
 此脚本验证 BOM Where-Used（反向查询）的完整能力：
 
@@ -1816,20 +2068,20 @@ Summary:
 ALL CHECKS PASSED
 ```
 
-### 26.2 Where-Used API 端点
+### 27.2 Where-Used API 端点
 
 | 端点 | 方法 | 说明 |
 |------|------|------|
 | `/api/v1/bom/{item_id}/where-used` | GET | 查询哪些父件使用了此 Item |
 
-### 26.3 请求参数
+### 27.3 请求参数
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `recursive` | bool | `false` | 是否递归查询祖先 |
 | `max_levels` | int | `10` | 递归查询的最大深度 |
 
-### 26.4 响应格式
+### 27.4 响应格式
 
 ```json
 {
@@ -1859,7 +2111,7 @@ ALL CHECKS PASSED
 }
 ```
 
-### 26.5 使用场景
+### 27.5 使用场景
 
 | 场景 | 说明 |
 |------|------|
@@ -1868,7 +2120,7 @@ ALL CHECKS PASSED
 | **成本汇总** | "包含这个零件的装配体有哪些？" |
 | **变更评估** | "ECO 影响范围有多大？" |
 
-### 26.6 手动验证 Where-Used API
+### 27.6 手动验证 Where-Used API
 
 ```bash
 # 获取 admin token
@@ -1890,15 +2142,17 @@ curl -s "http://127.0.0.1:7910/api/v1/bom/<COMPONENT_ID>/where-used?recursive=tr
 
 ---
 
-## 27) BOM Compare 验收脚本
+## 28) BOM Compare 验收脚本
 
-### 27.1 一键验收：`scripts/verify_bom_compare.sh`
+### 28.1 一键验收：`scripts/verify_bom_compare.sh`
 
 此脚本验证 BOM Compare 的核心能力：
 
 1. **新增/删除差异**：左右 BOM 结构不同
 2. **属性差异**：quantity/uom/find_num/refdes 变化
 3. **输出结构**：summary + added/removed/changed
+4. **字段级差异**：changed[*].changes + severity + summary.changed_major
+5. **compare_mode**：only_product（只存在性）/ num_qty（数量进 line_key）
 
 ```bash
 # 启动服务
@@ -1941,7 +2195,98 @@ BOM Compare Verification Complete
 ALL CHECKS PASSED
 ```
 
-### 27.2 手动验证 BOM Compare
+### 28.2 字段级对照清单（BOM Compare）
+
+#### 28.2.1 Line Key（对齐策略）
+
+| `line_key` | 组成 | 适用场景 | 说明 |
+|---|---|---|---|
+| `child_config` | `parent_config_id + child_config_id` | 默认 | 与历史行为一致，适合一条子件只有一行 |
+| `child_id` | `parent_id + child_id` | 版本对齐 | 忽略 config 变化，适合跨版本对比 |
+| `relationship_id` | `relationship_id` | 精确对齐 | 只用于同一 BOM 行 ID 对比 |
+| `child_config_find_num` | `child_config_id + find_num` | 版本对齐 + 序号 | 同一子件多行、find_num 不同 |
+| `child_config_refdes` | `child_config_id + refdes` | 版本对齐 + 位号 | 同一子件多行、refdes 不同 |
+| `child_config_find_refdes` | `child_config_id + find_num + refdes` | 版本对齐 + 组合区分 | find_num/refdes 组合 |
+| `child_config_find_num_qty` | `child_config_id + find_num + quantity` | 版本对齐 + 数量 | 数量变化视为新增/删除 |
+| `child_id_find_num` | `child_id + find_num` | 序号区分 | 同一子件多行、find_num 不同 |
+| `child_id_refdes` | `child_id + refdes` | 位号区分 | 同一子件多行、refdes 不同 |
+| `child_id_find_refdes` | `child_id + find_num + refdes` | 组合区分 | find_num/refdes 组合 |
+| `child_id_find_num_qty` | `child_id + find_num + quantity` | 数量敏感 | 数量变化视为新增/删除 |
+| `line_full` | `child_id + find_num + refdes + effectivity` | 生效区分 | 生效窗口不同视为不同 BOM 行 |
+
+> 注意：`line_full` 会把 find_num/refdes/effectivity 的变化判定为新增/删除，而非字段级变更。
+
+#### 28.2.7 compare_mode（结构对齐规则）
+
+| `compare_mode` | 默认 `line_key` | 属性比较 | 说明 |
+|---|---|---|---|
+| `only_product` | `child_config` | 无 | 只比较存在性（不比较数量/位号） |
+| `summarized` | `child_config` | `quantity`, `uom` | 汇总同一子件的数量后对比 |
+| `num_qty` | `child_config_find_num_qty` | `quantity`, `uom`, `find_num` | 数量变化视为新增/删除 |
+| `by_position` | `child_config_find_num` | `quantity`, `uom`, `find_num` | 按序号对齐 |
+| `by_reference` | `child_config_refdes` | `quantity`, `uom`, `refdes` | 按位号对齐 |
+
+> 规则：`compare_mode` 会覆盖 `line_key` 与 `include_relationship_props` 的默认策略（若需要自定义，请直接传 `line_key`）。
+
+#### 28.2.2 关系属性字段对照（BOM 行属性）
+
+| 字段 | 含义 | 来源 | 规范化 | 严重度 | 说明 |
+|---|---|---|---|---|---|
+| `quantity` | 用量 | `properties` | `Decimal/float` | `major` | 数量变化影响物料需求 |
+| `uom` | 单位 | `properties` | `upper().strip()` | `major` | 单位变化影响换算 |
+| `find_num` | 序号 | `properties` | `strip()` | `minor` | 工艺装配序号 |
+| `refdes` | 位号 | `properties` | 分隔/去重/排序/大写 | `minor` | 位号变化影响装配说明 |
+| `effectivity_from` | 生效起始 | `properties` | ISO → string | `major` | 生效窗口变化影响结构 |
+| `effectivity_to` | 生效结束 | `properties` | ISO → string | `major` | 生效窗口变化影响结构 |
+| `effectivities` | 生效记录 | `meta_effectivities` | list 归一化 | `major` | 需 `include_effectivity=true` |
+| `substitutes` | 替代件 | `Part BOM Substitute` | list 归一化 | `minor` | 需 `include_substitutes=true` |
+| 其他字段 | 扩展属性 | `properties` | 原样/白名单 | `info` | 仅在 include_relationship_props 时比较 |
+
+> 规则：`changed[*].severity` 取字段级变更中最高严重度；summary 统计 `changed_major/minor/info`。
+
+#### 28.2.3 结构/路径字段（返回值）
+
+| 字段 | 含义 | 说明 |
+|---|---|---|
+| `relationship_id` | BOM 行 ID | 关系对象的 `id` |
+| `line_key` | 对齐 key | 由 `line_key` 策略生成 |
+| `parent_config_id` | 父对象配置 ID | Master/Config ID |
+| `child_config_id` | 子对象配置 ID | Master/Config ID |
+| `level` | 深度 | 根子件为 `1` |
+| `path` | 路径 | `{id, config_id, item_number, name}` 列表 |
+| `parent`/`child` | 父/子字段 | 需 `include_child_fields=true` |
+
+#### 28.2.4 子件字段对照（include_child_fields=true）
+
+| 字段 | 来源 | 说明 |
+|---|---|---|
+| `parent.id` | `meta_items.id` | 父件 ID |
+| `parent.config_id` | `meta_items.config_id` | 父件配置 ID |
+| `parent.item_number` | `meta_items.properties.item_number` | 父件物料号 |
+| `parent.name` | `meta_items.properties.name` | 父件名称 |
+| `child.id` | `meta_items.id` | 子件 ID |
+| `child.config_id` | `meta_items.config_id` | 子件配置 ID |
+| `child.item_number` | `meta_items.properties.item_number` | 子件物料号 |
+| `child.name` | `meta_items.properties.name` | 子件名称 |
+
+#### 28.2.5 替代件字段对照（include_substitutes=true）
+
+| 字段 | 来源 | 说明 |
+|---|---|---|
+| `substitutes[].item_id` | `meta_items.id` | 替代件 ID |
+| `substitutes[].rank` | 关系属性 | 替代优先级 |
+| `substitutes[].note` | 关系属性 | 备注 |
+
+#### 28.2.6 生效性字段对照（include_effectivity=true）
+
+| 字段 | 来源 | 说明 |
+|---|---|---|
+| `effectivities[].type` | `meta_effectivities.effectivity_type` | 生效类型 |
+| `effectivities[].start_date` | `meta_effectivities.start_date` | 起始日期（ISO） |
+| `effectivities[].end_date` | `meta_effectivities.end_date` | 结束日期（ISO） |
+| `effectivities[].payload` | `meta_effectivities.payload` | 扩展数据 |
+
+### 28.3 手动验证 BOM Compare
 
 ```bash
 # 获取 admin token
@@ -1951,16 +2296,21 @@ ADMIN_TOKEN=$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
   | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
 
 # Compare (item 维度)
-curl -s "http://127.0.0.1:7910/api/v1/bom/compare?left_type=item&left_id=<LEFT_ID>&right_type=item&right_id=<RIGHT_ID>&max_levels=10" \
+curl -s "http://127.0.0.1:7910/api/v1/bom/compare?left_type=item&left_id=<LEFT_ID>&right_type=item&right_id=<RIGHT_ID>&max_levels=10&line_key=child_id&include_relationship_props=quantity,uom,find_num,refdes,effectivity_from,effectivity_to&include_substitutes=true&include_effectivity=true" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+
+# Compare with compare_mode (示例：only_product)
+curl -s "http://127.0.0.1:7910/api/v1/bom/compare?left_type=item&left_id=<LEFT_ID>&right_type=item&right_id=<RIGHT_ID>&max_levels=10&compare_mode=only_product" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
 ```
 
 ---
 
-## 28) BOM Substitutes 验收脚本
+## 29) BOM Substitutes 验收脚本
 
-### 28.1 一键验收：`scripts/verify_substitutes.sh`
+### 29.1 一键验收：`scripts/verify_substitutes.sh`
 
 此脚本验证 BOM 替代件的完整能力：
 
@@ -2016,7 +2366,7 @@ BOM Substitutes Verification Complete
 ALL CHECKS PASSED
 ```
 
-### 28.2 手动验证 BOM Substitutes
+### 29.2 手动验证 BOM Substitutes
 
 ```bash
 # 获取 admin token
@@ -2045,9 +2395,9 @@ curl -s -X DELETE "http://127.0.0.1:7910/api/v1/bom/<BOM_LINE_ID>/substitutes/<S
 
 ---
 
-## 29) Version-File Binding 验收脚本
+## 30) Version-File Binding 验收脚本
 
-### 29.1 一键验收：`scripts/verify_version_files.sh`
+### 30.1 一键验收：`scripts/verify_version_files.sh`
 
 此脚本验证版本‑文件绑定与锁定逻辑：
 
@@ -2104,7 +2454,7 @@ Version-File Binding Verification Complete
 ALL CHECKS PASSED
 ```
 
-### 29.2 手动验证 Version-File Binding
+### 30.2 手动验证 Version-File Binding
 
 ```bash
 # 获取 admin token
@@ -2144,4 +2494,898 @@ curl -s -X POST "http://127.0.0.1:7910/api/v1/versions/items/<ITEM_ID>/checkin" 
 curl -s "http://127.0.0.1:7910/api/v1/versions/<VERSION_ID>/files" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+---
+
+## 31) S4 ECO Advanced 验收脚本
+
+### 31.1 一键验收：`scripts/verify_eco_advanced.sh`
+
+```bash
+bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+
+# Docker/Postgres 环境可指定 DB_URL（CLI seed 与 API 同库）
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+验证内容：
+
+- ECO Impact 分析（where-used + files 汇总 + bom_diff 明细 + version diff）
+- ECO Impact 导出（CSV/XLSX/PDF）
+- ECO BOM Redline（source vs target 版本差异）
+- ECO BOM Redline compare_mode（only_product）
+- ECO 导出元信息（compare_mode/line_key）
+- 批量审批（admin 成功，viewer 拒绝 + summary 统计）
+- SLA 逾期提醒（overdue 列表 + notify 触发）
+
+### 31.2 关键 API 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/v1/eco/{eco_id}/impact` | GET | ECO Impact 分析（支持 `compare_mode`、`include_files`、`include_bom_diff`、`include_version_diff`、`max_levels`） |
+| `/api/v1/eco/{eco_id}/impact/export` | GET | ECO Impact 导出（`format=csv|xlsx|pdf|json`） |
+| `/api/v1/eco/{eco_id}/bom-diff` | GET | ECO 源/目标版本 BOM Redline（支持 `compare_mode`） |
+| `/api/v1/eco/approvals/batch` | POST | 批量审批/拒绝 |
+| `/api/v1/eco/approvals/overdue` | GET | SLA 逾期列表 |
+| `/api/v1/eco/approvals/notify-overdue` | POST | 触发 SLA 逾期提醒 |
+
+### 31.3 手动验证示例
+
+```bash
+# 1) Impact (include BOM + version diff)
+curl -s "http://127.0.0.1:7910/api/v1/eco/<ECO_ID>/impact?include_files=true&include_bom_diff=true&include_version_diff=true&max_levels=5&include_relationship_props=quantity" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+
+# 1.1) Impact Export (CSV/XLSX/PDF)
+curl -s -o /tmp/eco_impact.csv \
+  "http://127.0.0.1:7910/api/v1/eco/<ECO_ID>/impact/export?format=csv&include_files=true&include_bom_diff=true&include_version_diff=true&compare_mode=only_product" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+
+curl -s -o /tmp/eco_impact.xlsx \
+  "http://127.0.0.1:7910/api/v1/eco/<ECO_ID>/impact/export?format=xlsx&include_files=true&include_bom_diff=true&include_version_diff=true" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+
+curl -s -o /tmp/eco_impact.pdf \
+  "http://127.0.0.1:7910/api/v1/eco/<ECO_ID>/impact/export?format=pdf&include_files=true&include_bom_diff=true&include_version_diff=true" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+
+# 2) BOM Redline
+curl -s "http://127.0.0.1:7910/api/v1/eco/<ECO_ID>/bom-diff?max_levels=5&include_relationship_props=quantity,uom" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+
+# 2.1) BOM Redline (compare_mode=only_product)
+curl -s "http://127.0.0.1:7910/api/v1/eco/<ECO_ID>/bom-diff?max_levels=5&compare_mode=only_product" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+
+# 3) Batch approvals
+curl -s -X POST "http://127.0.0.1:7910/api/v1/eco/approvals/batch" \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"eco_ids":["<ECO_ID_1>","<ECO_ID_2>"],"mode":"approve","comment":"batch approve"}'
+
+# 4) SLA overdue + notify
+curl -s "http://127.0.0.1:7910/api/v1/eco/approvals/overdue" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+
+curl -s -X POST "http://127.0.0.1:7910/api/v1/eco/approvals/notify-overdue" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+---
+
+## 32) S7 多租户隔离验收脚本
+
+### 32.1 一键验收：`scripts/verify_multitenancy.sh`
+
+> 该脚本要求服务以 `TENANCY_MODE=db-per-tenant` 或 `db-per-tenant-org` 启动。
+
+```bash
+# 示例（SQLite，db-per-tenant-org）
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL=sqlite:///yuantus_mt.db
+export YUANTUS_IDENTITY_DATABASE_URL=sqlite:///yuantus_identity_mt.db
+yuantus start --port 7912 &
+
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7912 tenant-1 tenant-2 org-1 org-2
+```
+
+### 32.2 Postgres 模板模式示例
+
+```bash
+# Docker Compose 覆盖（自动创建租户/组织数据库）
+docker compose -f docker-compose.yml -f docker-compose.mt.yml up -d --build
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+
+# 先准备租户/组织数据库
+./scripts/mt_pg_bootstrap.sh
+#
+# 如需重置（schema 变更时，谨慎使用）
+RESET=1 ./scripts/mt_pg_bootstrap.sh
+
+# 通过 DATABASE_URL_TEMPLATE 指定每租户/组织的数据库
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+yuantus start --port 7912 &
+
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+bash scripts/verify_multitenancy.sh http://127.0.0.1:7912 tenant-1 tenant-2 org-1 org-2
+```
+
+### 32.3 验证内容
+
+- Tenant A 创建的数据不可被 Tenant B 访问
+- 同一 Tenant 下不同 Org 数据互相隔离（db-per-tenant-org）
+- 通过 `x-tenant-id` / `x-org-id` 切换上下文
+
+### 32.4 多租户迁移脚本：`scripts/mt_migrate.sh`
+
+该脚本用于 db-per-tenant / db-per-tenant-org 场景下批量执行 Alembic 迁移。
+
+```bash
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg'
+
+TENANTS=tenant-1,tenant-2 ORGS=org-1,org-2 \
+  ./scripts/mt_migrate.sh
+```
+
+如需禁用自动 stamp（已有表且无 alembic_version 时），可设置：
+
+```bash
+AUTO_STAMP=0 ./scripts/mt_migrate.sh
+```
+
+---
+
+## 33) CAD Attribute Sync（x-cad-synced）验收脚本
+
+### 33.1 一键验收：`scripts/verify_cad_sync.sh`
+
+该脚本验证 CAD 属性只写入标记为 `is_cad_synced` 的字段，并支持 `ui_options.cad_key` 自定义映射。
+流程使用 `/cad/import` 创建 `cad_extract` 任务，并将抽取结果同步到 Item，同时将抽取结果
+持久化到 `meta_files.cad_attributes`，可通过 `GET /cad/files/{file_id}/attributes` 回读。
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_cad_sync.sh http://127.0.0.1:7910 tenant-1 org-1
+
+# 若使用 docker compose (MinIO/S3)，请补充：
+# export YUANTUS_STORAGE_TYPE=s3
+# export YUANTUS_S3_ENDPOINT_URL=http://localhost:59000
+# export YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000
+```
+
+### 33.2 验证内容
+
+- `item_number` 通过 `cad_key=part_number` 更新为 `HC-001`
+- `description` 使用默认映射更新为 `浩辰CAD零件`
+- `name` 不受 CAD 同步影响
+- 未标记字段（如 `material`）不会写入
+- `cad_extract` 回读返回 `part_number=HC-001`
+
+### 33.3 真实 DWG + 外部 Extractor（可选）
+
+使用真实 DWG 时，可通过环境变量覆盖样例文件与期望值，并指向外部 Extractor：
+
+```bash
+export YUANTUS_CAD_EXTRACTOR_BASE_URL='http://127.0.0.1:8200'
+export CAD_SYNC_SAMPLE_FILE='/path/to/sample.dwg'
+export CAD_SYNC_EXPECT_ITEM_NUMBER='ABC-001'
+export CAD_SYNC_EXPECT_DESCRIPTION='零件名称'
+export CAD_SYNC_EXPECT_REVISION='v2'   # 可选
+export CAD_SYNC_CAD_FORMAT='AUTOCAD'   # 可选
+export CAD_SYNC_CONNECTOR_ID='autocad' # 可选
+
+bash scripts/verify_cad_sync.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+### 33.4 CAD Auto Part（导入自动建 Part）
+
+`/cad/import` 支持 `auto_create_part=true`，当未提供 `item_id` 时自动创建 Part 并绑定附件。
+
+```bash
+export CAD_AUTO_SAMPLE_FILE='/path/to/sample.dwg'
+export CAD_AUTO_EXPECT_ITEM_NUMBER='ABC-001'
+export CAD_AUTO_EXPECT_DESCRIPTION='零件名称'
+# 可选：
+export CAD_AUTO_EXPECT_REVISION='v2'
+export CAD_AUTO_CAD_FORMAT='AUTOCAD'
+export CAD_AUTO_CONNECTOR_ID='autocad'
+
+RUN_CAD_AUTO_PART=1 \
+  bash scripts/verify_cad_auto_part.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+验证点：
+
+- 自动创建/复用 Part（`item_id` 返回）
+- `item_number/description` 写入 Part 属性
+- 文件附件绑定成功（`/file/item/{item_id}`）
+
+---
+
+## 34) Search Index 验收脚本
+
+### 34.1 一键验收：`scripts/verify_search_index.sh`
+
+该脚本验证搜索索引在新增/更新/删除后可正确检索。
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_search_index.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 34.2 验证内容
+
+- 新增 Part 后可按 `item_number` 检索到
+- 更新 `name` 后可按新名称检索到
+- 删除后不再被检索到
+
+---
+
+### 34.3 Search ECO 验证
+
+该脚本验证 `/search/ecos` 支持按名称/状态检索 ECO（管理员接口）。当启用 ES/OpenSearch 时，会先调用 `/search/ecos/status` 和 `/search/ecos/reindex`。
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_search_eco.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+验证点：
+
+- `/search/ecos/status` 返回引擎与索引状态（如启用 ES/OS）
+- `/search/ecos/reindex` 成功（如启用 ES/OS）
+- 创建 ECO 后可按 `name` 检索到
+- `state=draft` 过滤可返回目标 ECO
+
+---
+
+## 35) Reports Summary 验收脚本
+
+### 35.1 一键验收：`scripts/verify_reports_summary.sh`
+
+该脚本验证 `/reports/summary` 输出聚合统计信息。
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_reports_summary.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 35.2 验证内容
+
+- Items: `total` 与 `by_type` 包含 Part
+- Files: `by_document_type` 包含 `other`
+- ECO: `by_state` 包含 `draft`
+- Jobs: `by_status` 包含 `pending`
+
+---
+
+## 36) Audit Logs 验收脚本
+
+### 36.1 一键验收：`scripts/verify_audit_logs.sh`
+
+该脚本验证 `/admin/audit` 输出审计日志。运行前需确保：
+
+- `YUANTUS_AUDIT_ENABLED=true`
+- API 已重启加载配置
+
+```bash
+export YUANTUS_AUDIT_ENABLED=true
+docker compose up -d --build
+
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_audit_logs.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 36.2 验证内容
+
+- 调用 `/api/v1/health` 后产生审计记录
+- `/api/v1/admin/audit` 可按 `path` 查询到记录
+
+### 36.3 Retention 验证（可选）
+
+如需验证保留策略，请在启动服务前设置：
+
+```bash
+export YUANTUS_AUDIT_RETENTION_MAX_ROWS=5
+export YUANTUS_AUDIT_RETENTION_DAYS=1
+export YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1
+```
+
+然后运行：
+
+```bash
+VERIFY_RETENTION=1 \
+  DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_audit_logs.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+验证内容：
+
+- 记录总数不超过 `AUDIT_RETENTION_MAX_ROWS`
+- 过期时间前的日志会被清理
+
+---
+
+## 37) Ops Health 验收脚本
+
+### 37.1 一键验收：`scripts/verify_ops_health.sh`
+
+该脚本验证 `/api/v1/health/deps` 返回 DB、Identity DB、Storage 依赖健康状态。
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_ops_health.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+如需同时验证 `/api/v1/integrations/health`（并为 Athena 传独立 token），可执行：
+
+```bash
+CHECK_INTEGRATIONS=1 \
+  ATHENA_AUTH_TOKEN='<athena_token>' \
+  YUANTUS_USERNAME=admin \
+  YUANTUS_PASSWORD=admin \
+  bash scripts/verify_ops_health.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+如需检查外部依赖，可设置：
+
+```bash
+export YUANTUS_HEALTHCHECK_EXTERNAL=true
+```
+
+### 37.2 验证内容
+
+- `/api/v1/health/deps` 返回 `ok=true`
+- `deps.db/identity_db/storage` 均为 `ok=true`
+
+---
+
+## 38) CAD Missing Source 验收脚本
+
+### 38.1 一键验收：`scripts/verify_cad_missing_source.sh`
+
+该脚本验证源文件缺失时，CAD 任务不会进入重试风暴（一次失败即标记为 FAILED）。
+
+```bash
+export YUANTUS_STORAGE_TYPE=local
+export YUANTUS_LOCAL_STORAGE_PATH=./data/storage
+
+DB_URL='sqlite:///./tmp_missing_source.db' \
+  IDENTITY_DB_URL='sqlite:///./tmp_missing_source_identity.db' \
+  bash scripts/verify_cad_missing_source.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 38.2 验证内容
+
+- 删除源文件后执行 preview job
+- Job 状态为 `failed` 且 `attempt_count=1`
+- `last_error` 含 `Source file missing`
+
+---
+
+## 39) Baseline（BOM Snapshot）验收脚本
+
+### 39.1 一键验收：`scripts/verify_baseline.sh`
+
+该脚本验证 Baseline 创建、对比、以及 Baseline-to-Baseline Diff。
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_baseline.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 39.2 验证内容
+
+- 创建 BOM 树（A→B/C）并生成 Baseline
+- Baseline vs 当前 BOM：无差异
+- 修改 BOM（改数量 + 新增子件）后差异正确
+- Baseline-to-Baseline diff 可用
+
+### 39.3 API 端点
+
+- `POST /api/v1/baselines` 创建 Baseline（支持 `root_item_id` 或 `root_version_id`）
+- `GET /api/v1/baselines` 列表（支持筛选）
+- `GET /api/v1/baselines/{id}` 获取 Baseline
+- `POST /api/v1/baselines/{id}/compare` 与 item/version/baseline 对比
+
+---
+
+## 40) Backup/Restore（私有化备份与恢复）
+
+### 40.1 一键验收：`scripts/verify_backup_restore.sh`
+
+该脚本会执行：
+
+- Postgres 备份（`pg_dump`）并生成 `.dump`
+- MinIO bucket 备份（`mc mirror`）
+- 使用隔离的 DB/bucket 进行恢复验证（避免覆盖线上）
+
+```bash
+bash scripts/verify_backup_restore.sh
+```
+
+### 40.2 说明
+
+- 备份脚本：`scripts/backup_private.sh`
+- 恢复脚本：`scripts/restore_private.sh`
+- 恢复默认需设置 `CONFIRM=yes`
+
+---
+
+## 41) Cleanup（清理恢复产物）
+
+### 41.1 一键验收：`scripts/verify_cleanup_restore.sh`
+
+该脚本创建临时 DB + bucket，并验证 cleanup 脚本可移除它们。
+
+```bash
+bash scripts/verify_cleanup_restore.sh
+```
+
+### 41.2 说明
+
+- 清理脚本：`scripts/cleanup_private_restore.sh`
+- 需要设置 `CONFIRM=yes`
+
+---
+
+## 42) Scheduled Backup（定时备份与轮转）
+
+### 42.1 一键验收：`scripts/verify_backup_rotation.sh`
+
+该脚本创建临时备份目录并验证轮转只保留最新 N 份。
+
+```bash
+bash scripts/verify_backup_rotation.sh
+```
+
+### 42.2 说明
+
+- 定时备份脚本：`scripts/backup_scheduled.sh`
+- 轮转脚本：`scripts/backup_rotate.sh`
+
+---
+
+## 43) Quota（租户配额）
+
+### 43.1 一键验收：`scripts/verify_quotas.sh`
+
+该脚本验证用户/组织/文件/任务配额的 enforce 行为。
+
+```bash
+export YUANTUS_QUOTA_MODE=enforce
+bash scripts/verify_quotas.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 43.2 验证内容
+
+- `/api/v1/admin/quota` 返回 `mode=enforce`
+- `PUT /api/v1/admin/quota` 可设置限制
+- 新建用户/组织在超限时返回 `HTTP 429`
+- 文件上传超限时返回 `HTTP 429`
+- Job 创建超限时返回 `HTTP 429`
+
+---
+
+## 44) Equivalents（等效件）
+
+### 44.1 一键验收：`scripts/verify_equivalents.sh`
+
+该脚本验证 Part 等效件的增删改查（包含去重与自引用校验）。
+
+```bash
+bash scripts/verify_equivalents.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 44.2 手动验证（示例）
+
+```bash
+# 1) Add equivalent
+curl -X POST 'http://127.0.0.1:7910/api/v1/items/{item_id}/equivalents' \
+  -H 'content-type: application/json' \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"equivalent_item_id":"{other_id}","properties":{"rank":1}}'
+
+# 2) List equivalents
+curl 'http://127.0.0.1:7910/api/v1/items/{item_id}/equivalents' \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H "Authorization: Bearer $TOKEN"
+
+# 3) Remove equivalent
+curl -X DELETE 'http://127.0.0.1:7910/api/v1/items/{item_id}/equivalents/{equivalent_id}' \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## 45) MBOM Convert（EBOM → MBOM）
+
+### 45.1 一键验收：`scripts/verify_mbom_convert.sh`
+
+该脚本验证 EBOM 转换为 MBOM，并校验关系/替代件复制。
+
+```bash
+bash scripts/verify_mbom_convert.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 45.2 手动验证（示例）
+
+```bash
+curl -X POST 'http://127.0.0.1:7910/api/v1/bom/convert/ebom-to-mbom' \
+  -H 'content-type: application/json' \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"root_id":"{ebom_root_id}"}'
+
+# 查询 MBOM 树
+curl 'http://127.0.0.1:7910/api/v1/bom/mbom/{mbom_root_id}/tree?depth=2' \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+## 46) S2 Documents & Files（文件/文档产品化）
+
+### 46.1 一键验收：`scripts/verify_documents.sh`
+
+该脚本验证文件元数据（作者/来源/版本）、去重策略以及 Item 挂载列表可回读。
+
+```bash
+bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 46.2 额外说明（可选）
+
+- 上传限制可通过环境变量控制：
+  - `YUANTUS_FILE_UPLOAD_MAX_BYTES`：最大上传字节数（0 表示不限制）
+  - `YUANTUS_FILE_ALLOWED_EXTENSIONS`：允许扩展名白名单（逗号分隔、无点）
+
+---
+
+## 47) Document Lifecycle（Controlled Release）
+
+### 47.1 一键验收：`scripts/verify_document_lifecycle.sh`
+
+该脚本验证 Document 的生命周期流转与 Released 状态的强制锁定：
+
+- Draft → Review → Released
+- Released 后 AML update 返回 409
+- Released 后文件 attach 返回 409
+
+```bash
+bash scripts/verify_document_lifecycle.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 48) Part Lifecycle（Released 锁定 BOM）
+
+### 48.1 一键验收：`scripts/verify_part_lifecycle.sh`
+
+该脚本验证 Part 的生命周期流转与 Released 状态的 BOM/更新/附件锁定：
+
+- Draft → Review → Released
+- Released 后 AML update 返回 409
+- Released 后 BOM add/remove 返回 409
+- Released 后文件 attach 返回 409
+
+```bash
+bash scripts/verify_part_lifecycle.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 49) CAD Connectors Config（自定义连接器配置）
+
+### 49.1 一键验收：`scripts/verify_cad_connectors_config.sh`
+
+该脚本验证自定义连接器配置可被 reload 并参与 `/cad/import` 解析。
+
+```bash
+bash scripts/verify_cad_connectors_config.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+说明：脚本通过 `POST /api/v1/cad/connectors/reload` 发送内联 JSON 配置。
+
+---
+
+## 50) CAD Sync Template（属性映射模板）
+
+### 50.1 一键验收：`scripts/verify_cad_sync_template.sh`
+
+该脚本验证 CAD 属性模板的导出/导入流程：
+
+- `GET /cad/sync-template/{item_type}` 下载 CSV
+- `POST /cad/sync-template/{item_type}` 应用 CSV
+
+```bash
+bash scripts/verify_cad_sync_template.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 50.2) CAD OCR Title Block（图纸 OCR 字段）
+
+### 50.2.1 一键验收：`scripts/verify_cad_ocr_titleblock.sh`
+
+该脚本调用 CAD ML Vision OCR，验证 `cad_ml_vision` 会将标题栏字段合并到 `cad_attributes`：
+
+- `drawing_no`
+- `material`
+- `part_name`
+- `revision`（可选）
+- `weight`（可选）
+
+运行前确保 CAD ML Vision 服务可用：
+
+```bash
+export YUANTUS_CAD_ML_BASE_URL='http://localhost:8001'
+```
+
+可选参数：
+
+- `CAD_OCR_SAMPLE_FILE`：指定样例图片（PNG/JPG）。
+- `CAD_OCR_ALLOW_EMPTY=1`：允许 OCR 空结果（仅校验流程）。
+
+```bash
+bash scripts/verify_cad_ocr_titleblock.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 50.3) CAD 2D Preview（DWG/DXF 渲染）
+
+### 50.3.1 一键验收：`scripts/verify_cad_preview_2d.sh`
+
+该脚本调用 CAD ML Render 服务，将 DWG/DXF 渲染为 PNG，并验证 `/file/{id}/preview` 可访问：
+
+- DWG/DXF 上传
+- 触发 `cad_preview` 生成 PNG 预览
+- 预览端点返回 200/302
+
+运行前确保 CAD ML Render 服务可用：
+
+```bash
+export YUANTUS_CAD_ML_BASE_URL='http://localhost:8001'
+```
+
+可选参数：
+
+- `CAD_PREVIEW_SAMPLE_FILE`：指定 DWG/DXF 样例文件。
+
+```bash
+bash scripts/verify_cad_preview_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 50.4) CAD Filename Parsing（文件名解析）
+
+### 50.4.1 一键验收：`scripts/verify_cad_filename_parse.sh`
+
+验证文件名解析的兜底逻辑，可补足 CAD 提取缺失字段：
+
+- `part_number`
+- `drawing_no`
+- `part_name`
+- `revision`
+
+覆盖样例：
+
+- `model2.prt.1` → revision=`1`
+- `J2824002-06上封头组件v2.dwg` → part_number=`J2824002-06`, part_name=`上封头组件`
+- `比较_J2825002-09下轴承支架组件v2.dwg` → 过滤前缀、保留版本
+
+```bash
+bash scripts/verify_cad_filename_parse.sh
+```
+
+---
+
+## 50.5) CAD Extract Local（Key-Value 解析）
+
+### 50.5.1 一键验收：`scripts/verify_cad_extract_local.sh`
+
+验证本地 Key-Value 提取能力（支持重量带单位解析）：
+
+- `part_number`/`drawing_no`
+- `description`
+- `revision`
+- `material`
+- `weight`（如 `1.2kg` → `1.2`）
+
+```bash
+bash scripts/verify_cad_extract_local.sh
+```
+
+---
+
+## 50.6) CAD Attribute Normalization（材料/重量/版本）
+
+### 50.6.1 一键验收：`scripts/verify_cad_attribute_normalization.sh`
+
+验证 CAD 属性归一化：
+
+- `material`：中英文材料映射（如不锈钢304 → Stainless Steel 304）
+- `weight`：支持单位换算（g/kg/吨 → kg）
+- `revision`：去除 `REV/VER/VERSION` 前缀
+- `drawing_no`：缺失时由 `part_number` 补齐
+- 关键别名：`图纸编号`/`图纸名称`/`版次`/`材质`/`重量(kg)`
+
+```bash
+bash scripts/verify_cad_attribute_normalization.sh
+```
+
+---
+
+## 51) CAD Extractor External（真实提取对接）
+
+### 51.1 一键验收：`scripts/verify_cad_extractor_stub.sh`
+
+该脚本启动本地 extractor stub 服务，验证 `cad_extract` 走外部服务并返回 `source=external`。
+
+```bash
+bash scripts/verify_cad_extractor_stub.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 51.2 真实服务验收：`scripts/verify_cad_extractor_external.sh`
+
+需要提供真实 CAD 文件与外部服务地址：
+
+```bash
+docker compose -f docker-compose.cad-extractor.yml up -d
+
+export CAD_EXTRACTOR_BASE_URL='http://host.docker.internal:8200'
+export CAD_EXTRACTOR_SAMPLE_FILE='/path/to/sample.dwg'
+export CAD_EXTRACTOR_SERVICE_TOKEN='...'
+export CAD_EXTRACTOR_EXPECT_KEY='part_number'
+# 可选: CAD_EXTRACTOR_EXPECT_VALUE='ABC-001'
+
+RUN_CAD_EXTRACTOR_EXTERNAL=1 \
+  bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 51.3 微服务自检：`scripts/verify_cad_extractor_service.sh`
+
+仅验证 extractor 微服务本身，不依赖 Yuantus API：
+
+```bash
+docker compose up -d cad-extractor
+
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+  bash scripts/verify_cad_extractor_service.sh http://127.0.0.1:8200
+```
+
+---
+
+## 51.4) CAD Real Samples（DWG/STEP/PRT 实测）
+
+### 51.4.1 一键验收：`scripts/verify_cad_real_samples.sh`
+
+验证真实 CAD 文件链路：导入 → cad_extract → cad_preview → auto_create_part。
+
+默认样本（可通过环境变量覆盖）：
+
+- `CAD_SAMPLE_DWG`：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+- `CAD_SAMPLE_STEP`：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp`
+- `CAD_SAMPLE_PRT`：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt`
+
+执行命令：
+
+```bash
+export CAD_EXTRACTOR_BASE_URL='http://localhost:8200'
+export CAD_ML_BASE_URL='http://localhost:8001'
+
+bash scripts/verify_cad_real_samples.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+验收要点：
+
+- `item_number` 取文件名前缀（如 `J2824002-06`/`CNC`/`model2`）
+- `revision` 在文件名末尾包含 `vN` 时校验（如 `v2`）
+- `preview` 端点可返回 `200/302`
+
+---
+
+## 51.5) CAD 2D Connector Coverage（Offline）
+
+使用 `scripts/collect_cad_extractor_coverage.py` 的 `--offline` 模式，
+直接走本地连接器（SQLite + 本地存储），无需 API / Extractor 服务。
+
+也可通过回归封装脚本执行：
+
+```bash
+export CAD_CONNECTOR_COVERAGE_DIR=/path/to/dwg
+RUN_CAD_CONNECTOR_COVERAGE_2D=1 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+示例（训练图纸 DWG）：
+
+```bash
+.venv/bin/python scripts/collect_cad_extractor_coverage.py \
+  --offline \
+  --cad-format HAOCHEN \
+  --cad-connector-id haochencad \
+  --dir /Users/huazhou/Downloads/训练图纸/训练图纸 \
+  --extensions dwg \
+  --report-title "CAD 2D Connector Coverage Report (Haochen, Offline)" \
+  --output docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_HAOCHEN.md
+
+.venv/bin/python scripts/collect_cad_extractor_coverage.py \
+  --offline \
+  --cad-format ZHONGWANG \
+  --cad-connector-id zhongwangcad \
+  --dir /Users/huazhou/Downloads/训练图纸/训练图纸 \
+  --extensions dwg \
+  --report-title "CAD 2D Connector Coverage Report (Zhongwang, Offline)" \
+  --output docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_ZHONGWANG.md
+```
+
+可选参数：
+
+- `--max-files N`：按数量抽样
+- `--force-unique`：对上传文件追加标记，绕过去重
+
+---
+
+## 52) Search Reindex（索引状态 + 重建）
+
+### 52.1 一键验收：`scripts/verify_search_reindex.sh`
+
+该脚本验证 Search 状态与重建接口：
+
+- `GET /api/v1/search/status` 返回 engine/index
+- `POST /api/v1/search/reindex` 返回 indexed 数量
+- `GET /api/v1/search/?q=...` 搜索结果可命中
+
+```bash
+bash scripts/verify_search_reindex.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 53) Tenant Provisioning（平台管理员创建租户）
+
+### 53.1 一键验收：`scripts/verify_tenant_provisioning.sh`
+
+该脚本验证平台管理员能力：
+
+- `GET /api/v1/admin/tenants` 可用
+- `POST /api/v1/admin/tenants` 创建 tenant + 默认 org + admin
+- `POST /api/v1/admin/tenants/{tenant_id}/orgs` 创建额外 org
+- 新租户 admin 可登录并访问 `/api/v1/admin/tenant`
+
+运行前确保平台管理员开关启用：
+
+```bash
+export YUANTUS_PLATFORM_ADMIN_ENABLED=true
+```
+
+```bash
+bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
 ```

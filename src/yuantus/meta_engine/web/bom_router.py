@@ -6,8 +6,11 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 from yuantus.database import get_db
 from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.models.meta_schema import ItemType
+from yuantus.meta_engine.lifecycle.guard import is_item_locked
 from yuantus.meta_engine.schemas.aml import AMLAction
 from yuantus.meta_engine.services.bom_service import BOMService, CycleDetectedError
+from yuantus.meta_engine.services.bom_conversion_service import BOMConversionService
 from yuantus.meta_engine.services.substitute_service import SubstituteService
 from yuantus.meta_engine.services.meta_permission_service import MetaPermissionService
 from yuantus.api.dependencies.auth import CurrentUser, get_current_user
@@ -60,6 +63,22 @@ class CycleErrorResponse(BaseModel):
     parent_id: str
     child_id: str
     cycle_path: List[str]
+
+
+class ConvertBomRequest(BaseModel):
+    """Request body for EBOM -> MBOM conversion."""
+
+    root_id: str = Field(..., description="Root EBOM Part ID")
+
+
+class ConvertBomResponse(BaseModel):
+    """Response for EBOM -> MBOM conversion."""
+
+    ok: bool
+    source_root_id: str
+    mbom_root_id: str
+    mbom_root_type: str
+    mbom_root_config_id: str
 
 
 @bom_router.get("/{item_id}/effective", response_model=Dict[str, Any])
@@ -124,6 +143,65 @@ async def get_bom_by_version(
 
 
 # ============================================================================
+# MBOM Conversion
+# ============================================================================
+
+
+@bom_router.post(
+    "/convert/ebom-to-mbom",
+    response_model=ConvertBomResponse,
+    summary="Convert EBOM to MBOM",
+)
+async def convert_ebom_to_mbom(
+    request: ConvertBomRequest,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Convert an Engineering BOM (EBOM) to a Manufacturing BOM (MBOM).
+    """
+    root = db.get(Item, request.root_id)
+    if not root:
+        raise HTTPException(status_code=404, detail=f"Item {request.root_id} not found")
+    if root.item_type_id != "Part":
+        raise HTTPException(status_code=400, detail="Only Part EBOM can be converted")
+
+    perm = MetaPermissionService(db)
+    if not perm.check_permission(
+        "Part",
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    if not perm.check_permission(
+        "Part BOM",
+        AMLAction.add,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    service = BOMConversionService(db)
+    try:
+        mbom_root = service.convert_ebom_to_mbom(request.root_id, user_id=int(user.id))
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:  # pragma: no cover - defensive
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    return ConvertBomResponse(
+        ok=True,
+        source_root_id=request.root_id,
+        mbom_root_id=mbom_root.id,
+        mbom_root_type=mbom_root.item_type_id,
+        mbom_root_config_id=mbom_root.config_id,
+    )
+
+
+# ============================================================================
 # S3.1: BOM Write APIs
 # ============================================================================
 
@@ -175,6 +253,49 @@ async def get_bom_tree(
         raise HTTPException(status_code=404, detail=str(e))
 
 
+@bom_router.get("/mbom/{parent_id}/tree", response_model=Dict[str, Any])
+async def get_mbom_tree(
+    parent_id: str,
+    depth: int = Query(10, description="Maximum depth to traverse (-1 for unlimited)"),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get MBOM tree structure with specified depth.
+    """
+    root = db.get(Item, parent_id)
+    if not root:
+        raise HTTPException(status_code=404, detail=f"Item {parent_id} not found")
+    if root.item_type_id != "Manufacturing Part":
+        raise HTTPException(status_code=400, detail="Invalid Manufacturing Part ID")
+
+    perm = MetaPermissionService(db)
+    if not perm.check_permission(
+        "Manufacturing Part",
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    if not perm.check_permission(
+        "Manufacturing BOM",
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    service = BOMService(db)
+    try:
+        return service.get_tree(
+            parent_id,
+            depth=depth,
+            relationship_types=["Manufacturing BOM"],
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @bom_router.post(
     "/{parent_id}/children",
     response_model=AddChildResponse,
@@ -206,6 +327,9 @@ async def add_bom_child(
     """
     service = BOMService(db)
     perm = MetaPermissionService(db)
+    parent = db.get(Item, parent_id)
+    if not parent:
+        raise HTTPException(status_code=404, detail=f"Item {parent_id} not found")
     if not perm.check_permission(
         "Part BOM",
         AMLAction.add,
@@ -213,6 +337,14 @@ async def add_bom_child(
         user_roles=user.roles,
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
+
+    parent_type = db.get(ItemType, parent.item_type_id)
+    locked, locked_state = is_item_locked(db, parent, parent_type)
+    if locked:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Item is locked in state '{locked_state or parent.state}'",
+        )
 
     try:
         result = service.add_child(
@@ -262,6 +394,9 @@ async def remove_bom_child(
     """
     service = BOMService(db)
     perm = MetaPermissionService(db)
+    parent = db.get(Item, parent_id)
+    if not parent:
+        raise HTTPException(status_code=404, detail=f"Item {parent_id} not found")
     if not perm.check_permission(
         "Part BOM",
         AMLAction.delete,
@@ -269,6 +404,14 @@ async def remove_bom_child(
         user_roles=user.roles,
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
+
+    parent_type = db.get(ItemType, parent.item_type_id)
+    locked, locked_state = is_item_locked(db, parent, parent_type)
+    if locked:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Item is locked in state '{locked_state or parent.state}'",
+        )
 
     try:
         result = service.remove_child(parent_id=parent_id, child_id=child_id)
@@ -311,6 +454,9 @@ class BOMCompareSummary(BaseModel):
     added: int
     removed: int
     changed: int
+    changed_major: int = 0
+    changed_minor: int = 0
+    changed_info: int = 0
 
 
 class BOMCompareEntry(BaseModel):
@@ -318,9 +464,26 @@ class BOMCompareEntry(BaseModel):
 
     parent_id: Optional[str] = None
     child_id: Optional[str] = None
+    relationship_id: Optional[str] = None
+    line_key: Optional[str] = None
+    parent_config_id: Optional[str] = None
+    child_config_id: Optional[str] = None
+    level: Optional[int] = None
+    path: Optional[List[Dict[str, Any]]] = None
     properties: Dict[str, Any] = Field(default_factory=dict)
     parent: Optional[Dict[str, Any]] = None
     child: Optional[Dict[str, Any]] = None
+
+
+class BOMCompareFieldDiff(BaseModel):
+    """Field-level diff for changed BOM line properties."""
+
+    field: str
+    left: Any = None
+    right: Any = None
+    normalized_left: Any = None
+    normalized_right: Any = None
+    severity: str = "info"
 
 
 class BOMCompareChangedEntry(BaseModel):
@@ -328,8 +491,16 @@ class BOMCompareChangedEntry(BaseModel):
 
     parent_id: Optional[str] = None
     child_id: Optional[str] = None
+    relationship_id: Optional[str] = None
+    line_key: Optional[str] = None
+    parent_config_id: Optional[str] = None
+    child_config_id: Optional[str] = None
+    level: Optional[int] = None
+    path: Optional[List[Dict[str, Any]]] = None
     before: Dict[str, Any] = Field(default_factory=dict)
     after: Dict[str, Any] = Field(default_factory=dict)
+    changes: List[BOMCompareFieldDiff] = Field(default_factory=list)
+    severity: Optional[str] = None
     parent: Optional[Dict[str, Any]] = None
     child: Optional[Dict[str, Any]] = None
 
@@ -478,6 +649,24 @@ async def compare_bom(
     include_relationship_props: Optional[List[str]] = Query(
         None, description="Comma-separated relationship property whitelist"
     ),
+    line_key: str = Query(
+        "child_config",
+        description=(
+            "Line key strategy: child_config, child_id, relationship_id, "
+            "child_config_find_num, child_config_refdes, child_config_find_refdes, "
+            "child_id_find_num, child_id_refdes, child_id_find_refdes, "
+            "child_config_find_num_qty, child_id_find_num_qty, line_full"
+        ),
+    ),
+    compare_mode: Optional[str] = Query(
+        None,
+        description=(
+            "Optional compare mode: only_product, summarized, num_qty, "
+            "by_position, by_reference"
+        ),
+    ),
+    include_substitutes: bool = Query(False, description="Include substitutes in compare"),
+    include_effectivity: bool = Query(False, description="Include effectivity records in compare"),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -505,7 +694,20 @@ async def compare_bom(
                     flattened.append(part)
         return flattened or None
 
-    include_props = normalize_props(include_relationship_props)
+    aggregate_quantities = False
+
+    try:
+        mode_line_key, mode_props, mode_aggregate = BOMService.resolve_compare_mode(
+            compare_mode
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if mode_line_key:
+        line_key = mode_line_key
+        include_props = mode_props
+        aggregate_quantities = mode_aggregate
+    else:
+        include_props = normalize_props(include_relationship_props)
 
     perm = MetaPermissionService(db)
     if not perm.check_permission(
@@ -534,6 +736,7 @@ async def compare_bom(
                 ref_id,
                 levels=max_levels,
                 effective_date=effective_at,
+                include_substitutes=include_substitutes,
             )
 
         from yuantus.meta_engine.version.models import ItemVersion
@@ -559,9 +762,14 @@ async def compare_bom(
                 item.id,
                 levels=max_levels,
                 effective_date=effective_at,
+                include_substitutes=include_substitutes,
             )
         try:
-            return service.get_bom_for_version(ref_id, levels=max_levels)
+            return service.get_bom_for_version(
+                ref_id,
+                levels=max_levels,
+                include_substitutes=include_substitutes,
+            )
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e))
 
@@ -580,6 +788,10 @@ async def compare_bom(
         right_tree,
         include_relationship_props=include_props,
         include_child_fields=include_child_fields,
+        line_key=line_key,
+        include_substitutes=include_substitutes,
+        include_effectivity=include_effectivity,
+        aggregate_quantities=aggregate_quantities,
     )
 
 
@@ -652,6 +864,17 @@ async def add_bom_substitute(
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
+    if bom_line.source_id:
+        parent = db.get(Item, bom_line.source_id)
+        if parent:
+            parent_type = db.get(ItemType, parent.item_type_id)
+            locked, locked_state = is_item_locked(db, parent, parent_type)
+            if locked:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Item is locked in state '{locked_state or parent.state}'",
+                )
+
     service = SubstituteService(db, user_id=str(user.id), roles=user.roles)
     try:
         sub_rel = service.add_substitute(
@@ -699,6 +922,17 @@ async def remove_bom_substitute(
         user_roles=user.roles,
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
+
+    if bom_line.source_id:
+        parent = db.get(Item, bom_line.source_id)
+        if parent:
+            parent_type = db.get(ItemType, parent.item_type_id)
+            locked, locked_state = is_item_locked(db, parent, parent_type)
+            if locked:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Item is locked in state '{locked_state or parent.state}'",
+                )
 
     service = SubstituteService(db, user_id=str(user.id), roles=user.roles)
     try:

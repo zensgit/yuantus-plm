@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  cad-extractor:
+    build:
+      context: ./services/cad-extractor
+      dockerfile: Dockerfile
+    container_name: yuantus-cad-extractor
+    ports:
+      - "8200:8200"
+    environment:
+      - CAD_EXTRACTOR_AUTH_MODE=${CAD_EXTRACTOR_AUTH_MODE:-disabled}
+      - CAD_EXTRACTOR_SERVICE_TOKEN=${CAD_EXTRACTOR_SERVICE_TOKEN:-}
+      - CAD_EXTRACTOR_MAX_UPLOAD_MB=${CAD_EXTRACTOR_MAX_UPLOAD_MB:-200}
+      - CAD_EXTRACTOR_HASH_ALG=${CAD_EXTRACTOR_HASH_ALG:-}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/health').read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped

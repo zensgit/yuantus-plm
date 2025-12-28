@@ -33,6 +33,38 @@ def _sanitize_tenant_id(raw: str) -> str:
     return cleaned or "default"
 
 
+class MissingTenantContextError(ValueError):
+    """Raised when tenant/org context is required but missing."""
+
+
+def _normalize_context_value(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _require_tenant_context(
+    *, settings, tenant_id: Optional[str], org_id: Optional[str]
+) -> tuple[str, Optional[str]]:
+    if settings.TENANCY_MODE not in {"db-per-tenant", "db-per-tenant-org"}:
+        return (tenant_id or "", org_id)
+
+    tenant_value = _normalize_context_value(tenant_id)
+    if not tenant_value:
+        raise MissingTenantContextError(
+            f"TENANCY_MODE={settings.TENANCY_MODE} requires tenant_id context"
+        )
+
+    org_value = _normalize_context_value(org_id)
+    if settings.TENANCY_MODE == "db-per-tenant-org" and not org_value:
+        raise MissingTenantContextError(
+            "TENANCY_MODE=db-per-tenant-org requires org_id context"
+        )
+
+    return tenant_value, org_value
+
+
 def resolve_database_url(*, tenant_id: Optional[str] = None, org_id: Optional[str] = None) -> str:
     """
     Resolve database URL for the current tenancy mode.
@@ -44,8 +76,11 @@ def resolve_database_url(*, tenant_id: Optional[str] = None, org_id: Optional[st
     if settings.TENANCY_MODE not in {"db-per-tenant", "db-per-tenant-org"}:
         return settings.DATABASE_URL
 
-    effective_tenant = _sanitize_tenant_id(tenant_id or "default")
-    effective_org = _sanitize_tenant_id(org_id or "default")
+    tenant_value, org_value = _require_tenant_context(
+        settings=settings, tenant_id=tenant_id, org_id=org_id
+    )
+    effective_tenant = _sanitize_tenant_id(tenant_value)
+    effective_org = _sanitize_tenant_id(org_value or "default")
 
     if settings.DATABASE_URL_TEMPLATE:
         return settings.DATABASE_URL_TEMPLATE.format(
@@ -154,7 +189,12 @@ def get_db() -> Generator[Session, None, None]:
     if settings.TENANCY_MODE in {"db-per-tenant", "db-per-tenant-org"}:
         tenant_id = tenant_id_var.get()
         org_id = org_id_var.get() if settings.TENANCY_MODE == "db-per-tenant-org" else None
-        url = resolve_database_url(tenant_id=tenant_id, org_id=org_id)
+        try:
+            url = resolve_database_url(tenant_id=tenant_id, org_id=org_id)
+        except MissingTenantContextError as exc:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         with _tenant_lock:
             sess_factory = _tenant_sessions.get(url)
             if sess_factory is None:
@@ -185,7 +225,10 @@ def get_db_session() -> Generator[Session, None, None]:
     if settings.TENANCY_MODE in {"db-per-tenant", "db-per-tenant-org"}:
         tenant_id = tenant_id_var.get()
         org_id = org_id_var.get() if settings.TENANCY_MODE == "db-per-tenant-org" else None
-        sess_factory = get_sessionmaker_for_scope(tenant_id, org_id)
+        try:
+            sess_factory = get_sessionmaker_for_scope(tenant_id, org_id)
+        except MissingTenantContextError as exc:
+            raise RuntimeError(str(exc)) from exc
         session = sess_factory()
     else:
         session = SessionLocal()

@@ -12,10 +12,24 @@ class DedupVisionClient:
     def __init__(self, *, base_url: Optional[str] = None, timeout_s: float = 30.0) -> None:
         settings = get_settings()
         self.base_url = (base_url or settings.DEDUP_VISION_BASE_URL).rstrip("/")
+        self._service_token = settings.DEDUP_VISION_SERVICE_TOKEN
         self.timeout_s = timeout_s
 
+    def _resolve_authorization(self, authorization: Optional[str]) -> Optional[str]:
+        token = authorization or self._service_token
+        if not token:
+            return None
+        token = token.strip()
+        if not token:
+            return None
+        if token.lower().startswith("bearer "):
+            return token
+        return f"Bearer {token}"
+
     async def health(self, *, authorization: Optional[str] = None) -> dict:
-        headers = build_outbound_headers(authorization=authorization).as_dict()
+        headers = build_outbound_headers(
+            authorization=self._resolve_authorization(authorization)
+        ).as_dict()
         async with httpx.AsyncClient(base_url=self.base_url, timeout=self.timeout_s) as client:
             resp = await client.get("/health", headers=headers)
             resp.raise_for_status()
@@ -36,7 +50,9 @@ class DedupVisionClient:
         """
         Call dedupcad-vision `/api/search` (v1) to find similar drawings.
         """
-        headers = build_outbound_headers(authorization=authorization).as_dict()
+        headers = build_outbound_headers(
+            authorization=self._resolve_authorization(authorization)
+        ).as_dict()
         with httpx.Client(base_url=self.base_url, timeout=self.timeout_s) as client:
             with open(file_path, "rb") as f:
                 files = {"file": (os.path.basename(file_path), f)}
@@ -63,7 +79,9 @@ class DedupVisionClient:
         """
         Call dedupcad-vision `/api/index/add` to index a drawing.
         """
-        headers = build_outbound_headers(authorization=authorization).as_dict()
+        headers = build_outbound_headers(
+            authorization=self._resolve_authorization(authorization)
+        ).as_dict()
         with httpx.Client(base_url=self.base_url, timeout=self.timeout_s) as client:
             with open(file_path, "rb") as f:
                 files = {"file": (os.path.basename(file_path), f)}

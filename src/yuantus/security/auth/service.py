@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from yuantus.security.auth.models import (
@@ -68,6 +69,17 @@ class AuthService:
         cred = AuthCredential(user_id=user.id, password_hash=hash_password(password))
         self.session.add(cred)
         self.session.flush()
+
+        if user_id is not None:
+            bind = self.session.get_bind()
+            if bind is not None and bind.dialect.name == "postgresql":
+                self.session.execute(
+                    text(
+                        "SELECT setval("
+                        "pg_get_serial_sequence('auth_users','id'), "
+                        "GREATEST((SELECT MAX(id) FROM auth_users), 1), true)"
+                    )
+                )
         return user
 
     def set_password(self, *, tenant_id: str, username: str, password: str) -> None:
@@ -172,4 +184,3 @@ class AuthService:
             raise PermissionError("User is not a member of this organization")
         roles = membership.roles or []
         return [str(r) for r in roles]
-

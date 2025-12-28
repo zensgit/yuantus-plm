@@ -316,6 +316,22 @@ curl http://localhost:7910/api/v1/health
 bash scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
+### 6.3 运维 Runbook（备份/恢复/轮转/清理/审计/配额）
+
+- 备份/恢复/清理：`docs/RUNBOOK_BACKUP_RESTORE.md`
+  - 相关脚本：`scripts/backup_private.sh` / `scripts/restore_private.sh` / `scripts/cleanup_private_restore.sh`
+  - 验证：`scripts/verify_backup_restore.sh` / `scripts/verify_cleanup_restore.sh`
+- 定时备份与轮转：`docs/RUNBOOK_SCHEDULED_BACKUP.md`
+  - 相关脚本：`scripts/backup_scheduled.sh` / `scripts/backup_rotate.sh`
+  - 验证：`scripts/verify_backup_rotation.sh`
+- 运行/回滚（多租户 + 审计）：`docs/RUNBOOK_RUNTIME.md`
+  - 启用/回退 `db-per-tenant-org` 与 `audit_enabled`
+- 审计与配额（环境开关）：
+  - 审计：`YUANTUS_AUDIT_ENABLED=true` + `scripts/verify_audit_logs.sh`
+  - 配额：`YUANTUS_QUOTA_MODE=enforce` + `scripts/verify_quotas.sh`
+
+验证结果已记录在 `docs/VERIFICATION_RESULTS.md`（BK-4/BK-5/BK-6, AUDIT-RET-2, S7-Q-3）。
+
 ---
 
 ## 7. 文件变更清单

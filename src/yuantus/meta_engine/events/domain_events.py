@@ -48,6 +48,26 @@ class ItemStateChangedEvent(DomainEvent):
     transition_name: Optional[str] = None
 
 
+class EcoCreatedEvent(DomainEvent):
+    event_type: str = "eco.created"
+    eco_id: str
+    eco_type: str
+    state: str
+    product_id: Optional[str] = None
+
+
+class EcoUpdatedEvent(DomainEvent):
+    event_type: str = "eco.updated"
+    eco_id: str
+    changes: Dict[str, Any] = Field(default_factory=dict)
+    state: Optional[str] = None
+
+
+class EcoDeletedEvent(DomainEvent):
+    event_type: str = "eco.deleted"
+    eco_id: str
+
+
 class FileUploadedEvent(DomainEvent):
     event_type: str = "file.uploaded"
     file_id: str

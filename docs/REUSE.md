@@ -288,24 +288,58 @@
 - `parent_key` 优先 `parent_config_id`，否则 `parent_id`  
 - `child_key` 优先 `child_config_id`，否则 `child_id`
 
+#### Line Key（对齐策略）
+
+| `line_key` | 组成 | 适用场景 | 说明 |
+|---|---|---|---|
+| `child_config` | `parent_config_id + child_config_id` | 默认 | 一条子件只有一行 |
+| `child_id` | `parent_id + child_id` | 版本对齐 | 忽略 config 变化 |
+| `relationship_id` | `relationship_id` | 精确对齐 | 仅同一 BOM 行 |
+| `child_config_find_num` | `child_config_id + find_num` | 版本对齐 + 序号 | 同一子件多行 |
+| `child_config_refdes` | `child_config_id + refdes` | 版本对齐 + 位号 | 同一子件多行 |
+| `child_config_find_refdes` | `child_config_id + find_num + refdes` | 版本对齐 + 组合区分 | find_num/refdes 组合 |
+| `child_config_find_num_qty` | `child_config_id + find_num + quantity` | 版本对齐 + 数量 | 数量变化视为新增/删除 |
+| `child_id_find_num` | `child_id + find_num` | 序号区分 | 同一子件多行 |
+| `child_id_refdes` | `child_id + refdes` | 位号区分 | 同一子件多行 |
+| `child_id_find_refdes` | `child_id + find_num + refdes` | 组合区分 | find_num/refdes 组合 |
+| `child_id_find_num_qty` | `child_id + find_num + quantity` | 数量敏感 | 数量变化视为新增/删除 |
+| `line_full` | `child_id + find_num + refdes + effectivity` | 生效区分 | 生效窗口不同视为不同 BOM 行 |
+
+> 注意：`line_full` 会把 find_num/refdes/effectivity 的变化判定为新增/删除，而不是字段级变更。
+
+#### compare_mode（结构对齐策略）
+
+| `compare_mode` | 默认 `line_key` | 属性比较 | 说明 |
+|---|---|---|---|
+| `only_product` | `child_config` | 无 | 只比较存在性 |
+| `summarized` | `child_config` | `quantity`, `uom` | 汇总同一子件数量 |
+| `num_qty` | `child_config_find_num_qty` | `quantity`, `uom`, `find_num` | 数量变化视为新增/删除 |
+| `by_position` | `child_config_find_num` | `quantity`, `uom`, `find_num` | 按序号对齐 |
+| `by_reference` | `child_config_refdes` | `quantity`, `uom`, `refdes` | 按位号对齐 |
+
 ### 9.3 BOM 行属性（必须比较）
 
-这些字段来自 BOM 关系 Item 的 `properties`（`meta_items.properties`）。
+这些字段主要来自 BOM 关系 Item 的 `properties`（`meta_items.properties`），
+若启用替代件/生效性，则需要额外查询关联表。
 
-| 字段 | 含义 | 规范化 | 比较规则 |
-|---|---|---|---|
-| `quantity` | 用量 | 转为 `Decimal` 或 `float` | 数值比较（可设置 `1e-6` 容差） |
-| `uom` | 单位 | `upper().strip()` | 字符串等值 |
-| `find_num` | 序号 | `strip()` | 字符串等值（保留前导零） |
-| `refdes` | 位号 | 分隔符统一、`upper()`、排序 | 集合等值 |
-| `effectivity_from` | 生效起始 | ISO→UTC | 时间等值 |
-| `effectivity_to` | 生效结束 | ISO→UTC | 时间等值 |
-| `extra_properties.*` | 扩展字段 | 仅比较白名单字段 | 深度比较 |
+| 字段 | 含义 | 来源 | 规范化 | 严重度 | 比较规则 |
+|---|---|---|---|---|---|
+| `quantity` | 用量 | `properties` | `Decimal/float` | `major` | 数值比较（可设置 `1e-6` 容差） |
+| `uom` | 单位 | `properties` | `upper().strip()` | `major` | 字符串等值 |
+| `find_num` | 序号 | `properties` | `strip()` | `minor` | 字符串等值（保留前导零） |
+| `refdes` | 位号 | `properties` | 分隔/去重/排序/大写 | `minor` | 集合等值 |
+| `effectivity_from` | 生效起始 | `properties` | ISO→UTC | `major` | 时间等值 |
+| `effectivity_to` | 生效结束 | `properties` | ISO→UTC | `major` | 时间等值 |
+| `effectivities` | 生效记录 | `meta_effectivities` | list 归一化 | `major` | 需 `include_effectivity=true` |
+| `substitutes` | 替代件 | `Part BOM Substitute` | list 归一化 | `minor` | 需 `include_substitutes=true` |
+| `extra_properties.*` | 扩展字段 | `properties` | 仅比较白名单字段 | `info` | 深度比较 |
 
 **refdes 规范化建议**：
 - 分隔符：`,` `;` `|` 空格 → 统一为逗号
 - 去空白、去重复、排序
 - 示例：`"R1, R2;R3"` → `["R1","R2","R3"]`
+
+> 规则：`changed[*].severity` 取字段级变更中最高严重度；summary 可统计 `changed_major/minor/info`。
 
 ### 9.4 Effectivity（可选增强）
 
@@ -313,17 +347,26 @@ Yuantus 的效期既可能在 `properties` 中，也可能在 `meta_effectivitie
 比较策略：
 1. 若提供 `effective_at` 参数：先用效期过滤 BOM，再做 diff。
 2. 若不提供：只比较 `effectivity_from/to` 字段是否一致。
+3. 若 `include_effectivity=true`：额外比较 `meta_effectivities` 明细列表。
 
-### 9.5 子件属性（可选）
+### 9.5 父/子件字段（可选）
 
-默认不比，避免无关字段造成“全量变化”。若业务需要可开启：
+默认不比，避免无关字段造成“全量变化”。若业务需要可开启 `include_child_fields=true`：
 
 | 字段 | 来源 | 说明 |
 |---|---|---|
-| `item_number` | `meta_items.properties.item_number` | 物料号 |
-| `name` | `meta_items.properties.name` | 名称 |
-| `state` | `meta_items.state` | 生命周期 |
-| `revision` | `meta_item_versions.revision` | 版本修订（若 compare 维度是版本） |
+| `parent.id` | `meta_items.id` | 父件 ID |
+| `parent.config_id` | `meta_items.config_id` | 父件配置 ID |
+| `parent.item_number` | `meta_items.properties.item_number` | 父件物料号 |
+| `parent.name` | `meta_items.properties.name` | 父件名称 |
+| `child.id` | `meta_items.id` | 子件 ID |
+| `child.config_id` | `meta_items.config_id` | 子件配置 ID |
+| `child.item_number` | `meta_items.properties.item_number` | 子件物料号 |
+| `child.name` | `meta_items.properties.name` | 子件名称 |
+
+可选扩展字段（按需启用）：
+- `child.state`（生命周期）
+- `child.revision`（版本修订）
 
 ### 9.6 建议输出结构（供 API 设计）
 
@@ -344,6 +387,8 @@ Yuantus 的效期既可能在 `properties` 中，也可能在 `meta_effectivitie
     {
       "parent_id": "...",
       "child_id": "...",
+      "line_key": "...",
+      "severity": "major",
       "before": { "quantity": 1, "uom": "EA" },
       "after": { "quantity": 2, "uom": "EA" }
     }
@@ -577,6 +622,8 @@ echo "ALL CHECKS PASSED"
 | `max_levels` | `int` | `10` | 展开深度 |
 | `effective_at` | `datetime` | `null` | 可选：按效期过滤后再比较 |
 | `include_child_fields` | `bool` | `false` | 是否比较子件字段 |
+| `include_substitutes` | `bool` | `false` | 是否比较替代件 |
+| `include_effectivity` | `bool` | `false` | 是否比较生效性明细 |
 | `include_relationship_props` | `list` | `null` | 只比较白名单 BOM 字段 |
 
 ### 9.11 关键测试用例清单

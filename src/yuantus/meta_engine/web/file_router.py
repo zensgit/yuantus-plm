@@ -7,7 +7,16 @@ Based on patterns from:
 - Odoo PLM: Preview on save, conversion job queue
 """
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query, Response
+from fastapi import (
+    APIRouter,
+    UploadFile,
+    File,
+    Depends,
+    HTTPException,
+    Query,
+    Response,
+    Form,
+)
 from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -21,6 +30,7 @@ import io
 
 from yuantus.database import get_db
 from yuantus.config import get_settings
+from yuantus.context import get_request_context
 from yuantus.meta_engine.models.file import (
     FileContainer,
     ItemFile,
@@ -30,9 +40,13 @@ from yuantus.meta_engine.models.file import (
     ConversionStatus,
 )
 from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.models.meta_schema import ItemType
+from yuantus.meta_engine.lifecycle.guard import is_item_locked
 from yuantus.meta_engine.services.cad_converter_service import CADConverterService
 from yuantus.meta_engine.services.file_service import FileService
 from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.security.auth.database import get_identity_db
+from yuantus.security.auth.quota_service import QuotaService
 
 file_router = APIRouter(prefix="/file", tags=["File Management"])
 
@@ -55,6 +69,14 @@ class FileUploadResponse(BaseModel):
     mime_type: Optional[str] = None
     is_cad: bool = False
     preview_url: Optional[str] = None
+    cad_manifest_url: Optional[str] = None
+    cad_document_url: Optional[str] = None
+    cad_metadata_url: Optional[str] = None
+    document_type: Optional[str] = None
+    author: Optional[str] = None
+    source_system: Optional[str] = None
+    source_version: Optional[str] = None
+    document_version: Optional[str] = None
 
 
 class FileMetadata(BaseModel):
@@ -69,8 +91,16 @@ class FileMetadata(BaseModel):
     document_type: Optional[str] = None
     is_native_cad: bool = False
     cad_format: Optional[str] = None
+    cad_connector_id: Optional[str] = None
+    author: Optional[str] = None
+    source_system: Optional[str] = None
+    source_version: Optional[str] = None
+    document_version: Optional[str] = None
     preview_url: Optional[str] = None
     geometry_url: Optional[str] = None
+    cad_manifest_url: Optional[str] = None
+    cad_document_url: Optional[str] = None
+    cad_metadata_url: Optional[str] = None
     conversion_status: Optional[str] = None
     created_at: Optional[str] = None
 
@@ -115,6 +145,59 @@ def _get_mime_type(filename: str) -> str:
     """Get MIME type from filename."""
     mime_type, _ = mimetypes.guess_type(filename)
     return mime_type or "application/octet-stream"
+
+
+def _guess_media_type(path: str) -> str:
+    ext = Path(path).suffix.lower()
+    media_types = {
+        ".obj": "model/obj",
+        ".gltf": "model/gltf+json",
+        ".glb": "model/gltf-binary",
+        ".stl": "model/stl",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".json": "application/json",
+        ".bin": "application/octet-stream",
+    }
+    return media_types.get(ext, "application/octet-stream")
+
+
+def _serve_storage_path(storage_path: str, media_type: str, error_prefix: str):
+    file_service = FileService()
+
+    # Try local path first (for local storage or performance)
+    local_path = file_service.get_local_path(storage_path)
+    if local_path and os.path.exists(local_path):
+        return FileResponse(path=local_path, media_type=media_type)
+
+    # Try presigned URL (S3) - return 302 redirect
+    try:
+        url = file_service.get_presigned_url(storage_path)
+        return RedirectResponse(url=url, status_code=302)
+    except NotImplementedError:
+        pass
+
+    # Fallback: stream from storage
+    try:
+        output_stream = io.BytesIO()
+        file_service.download_file(storage_path, output_stream)
+        output_stream.seek(0)
+        return StreamingResponse(
+            output_stream,
+            media_type=media_type,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"{error_prefix} download failed: {str(e)}"
+        )
+
+
+def _sanitize_asset_name(asset_name: str) -> str:
+    safe_name = Path(asset_name).name
+    if not safe_name or safe_name != asset_name:
+        raise HTTPException(status_code=400, detail="Invalid asset name")
+    return safe_name
 
 
 def _get_document_type(extension: str) -> str:
@@ -188,6 +271,36 @@ def _get_cad_format(extension: str) -> Optional[str]:
     return cad_formats.get(extension.lower().lstrip("."))
 
 
+def _validate_upload(filename: str, file_size: int) -> None:
+    settings = get_settings()
+    max_bytes = settings.FILE_UPLOAD_MAX_BYTES
+    if max_bytes and file_size > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail={
+                "code": "FILE_TOO_LARGE",
+                "max_bytes": max_bytes,
+                "file_size": file_size,
+            },
+        )
+
+    allowed = {
+        ext.strip().lower().lstrip(".")
+        for ext in settings.FILE_ALLOWED_EXTENSIONS.split(",")
+        if ext.strip()
+    }
+    if allowed:
+        ext = Path(filename).suffix.lower().lstrip(".")
+        if ext not in allowed:
+            raise HTTPException(
+                status_code=415,
+                detail={
+                    "code": "FILE_TYPE_NOT_ALLOWED",
+                    "extension": ext,
+                },
+            )
+
+
 # ============================================================================
 # File Upload Endpoints
 # ============================================================================
@@ -195,11 +308,17 @@ def _get_cad_format(extension: str) -> Optional[str]:
 
 @file_router.post("/upload", response_model=FileUploadResponse)
 async def upload_file(
+    response: Response,
     file: UploadFile = File(...),
     generate_preview: bool = Query(
         True, description="Auto-generate preview for CAD files"
     ),
+    author: Optional[str] = Form(default=None),
+    source_system: Optional[str] = Form(default=None),
+    source_version: Optional[str] = Form(default=None),
+    document_version: Optional[str] = Form(default=None),
     db: Session = Depends(get_db),
+    identity_db: Session = Depends(get_identity_db),
 ):
     """
     Upload a file to the vault.
@@ -215,6 +334,7 @@ async def upload_file(
         # Read file content
         content = await file.read()
         file_size = len(content)
+        _validate_upload(file.filename, file_size)
 
         # Calculate checksum
         checksum = _calculate_checksum(content)
@@ -224,6 +344,14 @@ async def upload_file(
             db.query(FileContainer).filter(FileContainer.checksum == checksum).first()
         )
         if existing:
+            file_service = FileService()
+            if existing.system_path and not file_service.file_exists(existing.system_path):
+                # Repair missing storage object for deduped uploads.
+                file_service.upload_file(io.BytesIO(content), existing.system_path)
+                existing.file_size = file_size
+                existing.mime_type = _get_mime_type(file.filename)
+                db.add(existing)
+                db.commit()
             return FileUploadResponse(
                 id=existing.id,
                 filename=existing.filename,
@@ -236,7 +364,28 @@ async def upload_file(
                     if existing.preview_path
                     else None
                 ),
+                document_type=existing.document_type,
+                author=existing.author,
+                source_system=existing.source_system,
+                source_version=existing.source_version,
+                document_version=existing.document_version,
             )
+
+        tenant_id = get_request_context().tenant_id
+        if tenant_id:
+            quota_service = QuotaService(identity_db, meta_db=db)
+            decisions = quota_service.evaluate(
+                tenant_id, deltas={"files": 1, "storage_bytes": file_size}
+            )
+            if decisions:
+                if quota_service.mode == "soft":
+                    response.headers["X-Quota-Warning"] = QuotaService.build_warning(decisions)
+                else:
+                    detail = {
+                        "code": "QUOTA_EXCEEDED",
+                        **QuotaService.build_error_payload(tenant_id, decisions),
+                    }
+                    raise HTTPException(status_code=429, detail=detail)
 
         # Generate file ID and storage path
         file_id = str(uuid.uuid4())
@@ -266,6 +415,10 @@ async def upload_file(
             conversion_status=(
                 ConversionStatus.PENDING.value if _get_cad_format(ext) else None
             ),
+            author=author,
+            source_system=source_system,
+            source_version=source_version,
+            document_version=document_version,
         )
         db.add(file_container)
 
@@ -296,8 +449,16 @@ async def upload_file(
             mime_type=file_container.mime_type,
             is_cad=file_container.is_cad_file(),
             preview_url=preview_url,
+            document_type=file_container.document_type,
+            author=file_container.author,
+            source_system=file_container.source_system,
+            source_version=file_container.source_version,
+            document_version=file_container.document_version,
         )
 
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
@@ -326,11 +487,31 @@ async def get_file_metadata(file_id: str, db: Session = Depends(get_db)):
         document_type=file_container.document_type,
         is_native_cad=file_container.is_native_cad,
         cad_format=file_container.cad_format,
+        cad_connector_id=file_container.cad_connector_id,
+        author=file_container.author,
+        source_system=file_container.source_system,
+        source_version=file_container.source_version,
+        document_version=file_container.document_version,
         preview_url=(
             f"/api/v1/file/{file_id}/preview" if file_container.preview_path else None
         ),
         geometry_url=(
             f"/api/v1/file/{file_id}/geometry" if file_container.geometry_path else None
+        ),
+        cad_manifest_url=(
+            f"/api/v1/file/{file_id}/cad_manifest"
+            if file_container.cad_manifest_path
+            else None
+        ),
+        cad_document_url=(
+            f"/api/v1/file/{file_id}/cad_document"
+            if file_container.cad_document_path
+            else None
+        ),
+        cad_metadata_url=(
+            f"/api/v1/file/{file_id}/cad_metadata"
+            if file_container.cad_metadata_path
+            else None
         ),
         conversion_status=file_container.conversion_status,
         created_at=(
@@ -434,41 +615,76 @@ async def get_geometry(file_id: str, db: Session = Depends(get_db)):
     if not file_container.geometry_path:
         raise HTTPException(status_code=404, detail="Geometry not available")
 
-    # Determine media type based on extension
-    ext = Path(file_container.geometry_path).suffix.lower()
-    media_types = {
-        ".obj": "model/obj",
-        ".gltf": "model/gltf+json",
-        ".glb": "model/gltf-binary",
-        ".stl": "model/stl",
-    }
-    media_type = media_types.get(ext, "application/octet-stream")
+    media_type = _guess_media_type(file_container.geometry_path)
+    return _serve_storage_path(
+        file_container.geometry_path, media_type, error_prefix="Geometry"
+    )
 
-    file_service = FileService()
 
-    # Try local path first (for local storage or performance)
-    local_path = file_service.get_local_path(file_container.geometry_path)
-    if local_path and os.path.exists(local_path):
-        return FileResponse(path=local_path, media_type=media_type)
+@file_router.get("/{file_id}/asset/{asset_name}")
+async def get_geometry_asset(
+    file_id: str, asset_name: str, db: Session = Depends(get_db)
+):
+    """Get geometry sidecar asset (e.g., mesh.bin) for glTF."""
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
 
-    # Try presigned URL (S3) - return 302 redirect
-    try:
-        url = file_service.get_presigned_url(file_container.geometry_path)
-        return RedirectResponse(url=url, status_code=302)
-    except NotImplementedError:
-        pass
+    if not file_container.geometry_path:
+        raise HTTPException(status_code=404, detail="Geometry not available")
 
-    # Fallback: stream from storage
-    try:
-        output_stream = io.BytesIO()
-        file_service.download_file(file_container.geometry_path, output_stream)
-        output_stream.seek(0)
-        return StreamingResponse(
-            output_stream,
-            media_type=media_type,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Geometry download failed: {str(e)}")
+    safe_name = _sanitize_asset_name(asset_name)
+    base_dir = os.path.dirname(file_container.geometry_path)
+    asset_path = f"{base_dir}/{safe_name}" if base_dir else safe_name
+    media_type = _guess_media_type(asset_path)
+    return _serve_storage_path(
+        asset_path, media_type, error_prefix="Geometry asset"
+    )
+
+
+@file_router.get("/{file_id}/cad_manifest")
+async def get_cad_manifest(file_id: str, db: Session = Depends(get_db)):
+    """Get CADGF manifest.json for 2D CAD conversions."""
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not file_container.cad_manifest_path:
+        raise HTTPException(status_code=404, detail="CAD manifest not available")
+    return _serve_storage_path(
+        file_container.cad_manifest_path,
+        _guess_media_type(file_container.cad_manifest_path),
+        error_prefix="CAD manifest",
+    )
+
+
+@file_router.get("/{file_id}/cad_document")
+async def get_cad_document(file_id: str, db: Session = Depends(get_db)):
+    """Get CADGF document.json for 2D CAD conversions."""
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not file_container.cad_document_path:
+        raise HTTPException(status_code=404, detail="CAD document not available")
+    return _serve_storage_path(
+        file_container.cad_document_path,
+        _guess_media_type(file_container.cad_document_path),
+        error_prefix="CAD document",
+    )
+
+
+@file_router.get("/{file_id}/cad_metadata")
+async def get_cad_metadata(file_id: str, db: Session = Depends(get_db)):
+    """Get CADGF mesh_metadata.json for 2D CAD conversions."""
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not file_container.cad_metadata_path:
+        raise HTTPException(status_code=404, detail="CAD metadata not available")
+    return _serve_storage_path(
+        file_container.cad_metadata_path,
+        _guess_media_type(file_container.cad_metadata_path),
+        error_prefix="CAD metadata",
+    )
 
 
 # ============================================================================
@@ -611,6 +827,14 @@ async def attach_file_to_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
+    item_type = db.get(ItemType, item.item_type_id)
+    locked, locked_state = is_item_locked(db, item, item_type)
+    if locked:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Item is locked in state '{locked_state or item.state}'",
+        )
+
     # Enforce file lock when version is checked out by someone else
     if item.current_version_id:
         from yuantus.meta_engine.version.models import ItemVersion
@@ -684,6 +908,11 @@ async def get_item_files(
                     "description": item_file.description,
                     "file_type": file_container.file_type,
                     "file_size": file_container.file_size,
+                    "document_type": file_container.document_type,
+                    "author": file_container.author,
+                    "source_system": file_container.source_system,
+                    "source_version": file_container.source_version,
+                    "document_version": file_container.document_version,
                     "preview_url": (
                         f"/api/v1/file/{file_container.id}/preview"
                         if file_container.preview_path
@@ -708,6 +937,14 @@ async def detach_file(
         raise HTTPException(status_code=404, detail="Attachment not found")
 
     item = db.get(Item, item_file.item_id)
+    if item:
+        item_type = db.get(ItemType, item.item_type_id)
+        locked, locked_state = is_item_locked(db, item, item_type)
+        if locked:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Item is locked in state '{locked_state or item.state}'",
+            )
     if item and item.current_version_id:
         from yuantus.meta_engine.version.models import ItemVersion
 

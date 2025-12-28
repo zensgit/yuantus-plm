@@ -13,19 +13,28 @@ Specific routes (/kanban, /stages, /approvals/pending) must be defined
 BEFORE parameterized routes (/{eco_id}) to ensure correct matching.
 """
 
+import io
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
 from yuantus.database import get_db
-from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.api.dependencies.auth import get_current_user, get_current_user_id_optional
+from yuantus.meta_engine.schemas.aml import AMLAction
+from yuantus.meta_engine.services.meta_permission_service import MetaPermissionService
+from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.eco_service import (
     ECOService,
     ECOApprovalService,
     ECOStageService,
 )
+from yuantus.meta_engine.services.eco_export_service import EcoImpactExportService
+from yuantus.meta_engine.services.audit_service import AuditService
+from yuantus.meta_engine.services.notification_service import NotificationService
 from yuantus.meta_engine.models.eco import ECOState
 
 eco_router = APIRouter(prefix="/eco", tags=["ECO"])
@@ -80,6 +89,7 @@ class StageCreate(BaseModel):
     approval_roles: Optional[List[str]] = None
     is_blocking: bool = False
     auto_progress: bool = False
+    sla_hours: Optional[int] = None
     description: Optional[str] = None
 
 
@@ -92,7 +102,16 @@ class StageUpdate(BaseModel):
     approval_roles: Optional[List[str]] = None
     is_blocking: Optional[bool] = None
     auto_progress: Optional[bool] = None
+    sla_hours: Optional[int] = None
     description: Optional[str] = None
+
+
+class BatchApprovalRequest(BaseModel):
+    """Batch approval schema."""
+
+    eco_ids: List[str] = Field(..., min_length=1)
+    mode: str = Field(..., description="approve|reject")
+    comment: Optional[str] = None
 
 
 # ============================================================
@@ -126,6 +145,7 @@ async def get_kanban_view(
             "sequence": stage.sequence,
             "fold": stage.fold,
             "approval_type": stage.approval_type,
+            "sla_hours": stage.sla_hours,
         }
         result["stages"].append(stage_data)
 
@@ -151,6 +171,7 @@ async def list_stages(db: Session = Depends(get_db)):
             "sequence": s.sequence,
             "approval_type": s.approval_type,
             "approval_roles": s.approval_roles,
+            "sla_hours": s.sla_hours,
             "is_blocking": s.is_blocking,
             "auto_progress": s.auto_progress,
             "fold": s.fold,
@@ -172,6 +193,7 @@ async def create_stage(data: StageCreate, db: Session = Depends(get_db)):
             approval_roles=data.approval_roles,
             is_blocking=data.is_blocking,
             auto_progress=data.auto_progress,
+            sla_hours=data.sla_hours,
             description=data.description,
         )
         db.commit()
@@ -180,6 +202,7 @@ async def create_stage(data: StageCreate, db: Session = Depends(get_db)):
             "name": stage.name,
             "sequence": stage.sequence,
             "approval_type": stage.approval_type,
+            "sla_hours": stage.sla_hours,
         }
     except Exception as e:
         db.rollback()
@@ -199,6 +222,7 @@ async def update_stage(stage_id: str, data: StageUpdate, db: Session = Depends(g
             "name": stage.name,
             "sequence": stage.sequence,
             "approval_type": stage.approval_type,
+            "sla_hours": stage.sla_hours,
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -235,6 +259,87 @@ async def get_pending_approvals(
     """Get all pending approvals for a user."""
     service = ECOApprovalService(db)
     return service.get_pending_approvals(user_id)
+
+
+@eco_router.post("/approvals/batch", response_model=Dict[str, Any])
+async def batch_approvals(
+    data: BatchApprovalRequest,
+    user_id: int = Depends(get_current_user_id_optional),
+    db: Session = Depends(get_db),
+):
+    """Batch approve/reject ECOs."""
+    mode = data.mode.strip().lower()
+    if mode not in {"approve", "reject"}:
+        raise HTTPException(status_code=400, detail="mode must be approve|reject")
+    if mode == "reject" and not data.comment:
+        raise HTTPException(status_code=400, detail="comment required for reject")
+
+    service = ECOApprovalService(db)
+    audit_service = AuditService(db)
+    notification_service = NotificationService(db)
+    results: List[Dict[str, Any]] = []
+    for eco_id in data.eco_ids:
+        try:
+            if mode == "approve":
+                approval = service.approve(eco_id, user_id, data.comment)
+            else:
+                approval = service.reject(eco_id, user_id, data.comment)
+            db.commit()
+            results.append(
+                {
+                    "eco_id": eco_id,
+                    "ok": True,
+                    "approval_id": approval.id,
+                    "status": approval.status,
+                }
+            )
+        except Exception as e:
+            db.rollback()
+            results.append({"eco_id": eco_id, "ok": False, "error": str(e)})
+
+    ok_count = sum(1 for r in results if r.get("ok"))
+    fail_count = len(results) - ok_count
+    audit_service.log_action(
+        str(user_id),
+        f"eco.batch_{mode}",
+        "ECO",
+        "batch",
+        details={
+            "eco_ids": data.eco_ids,
+            "ok": ok_count,
+            "failed": fail_count,
+        },
+    )
+    notification_service.notify(
+        f"eco.batch_{mode}",
+        {
+            "eco_ids": data.eco_ids,
+            "ok": ok_count,
+            "failed": fail_count,
+            "mode": mode,
+        },
+    )
+
+    return {
+        "mode": mode,
+        "count": len(results),
+        "summary": {"ok": ok_count, "failed": fail_count},
+        "results": results,
+    }
+
+
+@eco_router.get("/approvals/overdue", response_model=List[Dict[str, Any]])
+async def list_overdue_approvals(db: Session = Depends(get_db)):
+    """List overdue ECO approvals based on approval_deadline."""
+    service = ECOApprovalService(db)
+    return service.list_overdue_approvals()
+
+
+@eco_router.post("/approvals/notify-overdue", response_model=Dict[str, Any])
+async def notify_overdue_approvals(db: Session = Depends(get_db)):
+    """Send notifications for overdue ECO approvals."""
+    service = ECOApprovalService(db)
+    return service.notify_overdue_approvals()
 
 
 # ============================================================
@@ -401,6 +506,275 @@ async def create_new_revision(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@eco_router.get("/{eco_id}/impact", response_model=Dict[str, Any])
+async def get_eco_impact(
+    eco_id: str,
+    include_files: bool = Query(False, description="Include file details"),
+    include_bom_diff: bool = Query(False, description="Include BOM diff details"),
+    include_version_diff: bool = Query(
+        False, description="Include version property/file diffs"
+    ),
+    max_levels: int = Query(10, description="Explosion depth (-1 for unlimited)"),
+    effective_at: Optional[datetime] = Query(None, description="Effectivity filter date"),
+    include_child_fields: bool = Query(False, description="Include parent/child fields"),
+    include_relationship_props: Optional[List[str]] = Query(
+        None, description="Comma-separated relationship property whitelist"
+    ),
+    compare_mode: Optional[str] = Query(
+        None,
+        description="Optional compare mode: only_product, summarized, num_qty, by_position, by_reference",
+    ),
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get ECO impact analysis."""
+    if max_levels < -1:
+        raise HTTPException(status_code=400, detail="max_levels must be >= -1")
+
+    def normalize_props(values: Optional[List[str]]) -> Optional[List[str]]:
+        if not values:
+            return None
+        flattened: List[str] = []
+        for raw in values:
+            if raw is None:
+                continue
+            for part in str(raw).split(","):
+                part = part.strip()
+                if part:
+                    flattened.append(part)
+        return flattened or None
+
+    include_props = normalize_props(include_relationship_props)
+    service = ECOService(db)
+    eco = service.get_eco(eco_id)
+    if not eco:
+        raise HTTPException(status_code=404, detail="ECO not found")
+    if not eco.product_id:
+        raise HTTPException(status_code=400, detail="ECO missing product_id")
+
+    product = db.get(Item, eco.product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    perm = MetaPermissionService(db)
+    if not perm.check_permission(
+        product.item_type_id,
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    if not perm.check_permission(
+        "Part BOM",
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    try:
+        return service.analyze_impact(
+            eco_id,
+            include_files=include_files,
+            include_bom_diff=include_bom_diff,
+            include_version_diff=include_version_diff,
+            max_levels=max_levels,
+            effective_at=effective_at,
+            include_relationship_props=include_props,
+            include_child_fields=include_child_fields,
+            compare_mode=compare_mode,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@eco_router.get("/{eco_id}/impact/export")
+async def export_eco_impact(
+    eco_id: str,
+    format: str = Query("csv", description="csv|xlsx|pdf|json"),
+    include_files: bool = Query(True, description="Include file details"),
+    include_bom_diff: bool = Query(True, description="Include BOM diff details"),
+    include_version_diff: bool = Query(True, description="Include version diffs"),
+    max_levels: int = Query(10, description="Explosion depth (-1 for unlimited)"),
+    effective_at: Optional[datetime] = Query(None, description="Effectivity filter date"),
+    include_child_fields: bool = Query(True, description="Include parent/child fields"),
+    include_relationship_props: Optional[List[str]] = Query(
+        None, description="Comma-separated relationship property whitelist"
+    ),
+    compare_mode: Optional[str] = Query(
+        None,
+        description="Optional compare mode: only_product, summarized, num_qty, by_position, by_reference",
+    ),
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if max_levels < -1:
+        raise HTTPException(status_code=400, detail="max_levels must be >= -1")
+
+    def normalize_props(values: Optional[List[str]]) -> Optional[List[str]]:
+        if not values:
+            return None
+        flattened: List[str] = []
+        for raw in values:
+            if raw is None:
+                continue
+            for part in str(raw).split(","):
+                part = part.strip()
+                if part:
+                    flattened.append(part)
+        return flattened or None
+
+    include_props = normalize_props(include_relationship_props)
+    service = ECOService(db)
+    eco = service.get_eco(eco_id)
+    if not eco:
+        raise HTTPException(status_code=404, detail="ECO not found")
+    if not eco.product_id:
+        raise HTTPException(status_code=400, detail="ECO missing product_id")
+
+    product = db.get(Item, eco.product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    perm = MetaPermissionService(db)
+    if not perm.check_permission(
+        product.item_type_id,
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    if not perm.check_permission(
+        "Part BOM",
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    try:
+        impact = service.analyze_impact(
+            eco_id,
+            include_files=include_files,
+            include_bom_diff=include_bom_diff,
+            include_version_diff=include_version_diff,
+            max_levels=max_levels,
+            effective_at=effective_at,
+            include_relationship_props=include_props,
+            include_child_fields=include_child_fields,
+            compare_mode=compare_mode,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    fmt = (format or "").strip().lower()
+    if fmt in {"json", "application/json"}:
+        return impact
+
+    exporter = EcoImpactExportService(impact)
+    if fmt in {"csv"}:
+        data = exporter.to_csv().encode("utf-8-sig")
+        media_type = "text/csv"
+        ext = "csv"
+    elif fmt in {"xlsx", "excel"}:
+        data = exporter.to_xlsx()
+        media_type = (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        ext = "xlsx"
+    elif fmt in {"pdf"}:
+        data = exporter.to_pdf()
+        media_type = "application/pdf"
+        ext = "pdf"
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported export format")
+
+    filename = f"eco-impact-{eco_id}.{ext}"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return StreamingResponse(io.BytesIO(data), media_type=media_type, headers=headers)
+
+
+@eco_router.get("/{eco_id}/bom-diff", response_model=Dict[str, Any])
+async def get_eco_bom_diff(
+    eco_id: str,
+    max_levels: int = Query(10, description="Explosion depth (-1 for unlimited)"),
+    effective_at: Optional[datetime] = Query(None, description="Effectivity filter date"),
+    include_child_fields: bool = Query(False, description="Include parent/child fields"),
+    include_relationship_props: Optional[List[str]] = Query(
+        None, description="Comma-separated relationship property whitelist"
+    ),
+    compare_mode: Optional[str] = Query(
+        None,
+        description="Optional compare mode: only_product, summarized, num_qty, by_position, by_reference",
+    ),
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get BOM redline diff between ECO source and target versions."""
+    if max_levels < -1:
+        raise HTTPException(status_code=400, detail="max_levels must be >= -1")
+
+    def normalize_props(values: Optional[List[str]]) -> Optional[List[str]]:
+        if not values:
+            return None
+        flattened: List[str] = []
+        for raw in values:
+            if raw is None:
+                continue
+            for part in str(raw).split(","):
+                part = part.strip()
+                if part:
+                    flattened.append(part)
+        return flattened or None
+
+    include_props = normalize_props(include_relationship_props)
+
+    service = ECOService(db)
+    eco = service.get_eco(eco_id)
+    if not eco:
+        raise HTTPException(status_code=404, detail="ECO not found")
+    if not eco.product_id:
+        raise HTTPException(status_code=400, detail="ECO missing product_id")
+
+    product = db.get(Item, eco.product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    perm = MetaPermissionService(db)
+    if not perm.check_permission(
+        product.item_type_id,
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    if not perm.check_permission(
+        "Part BOM",
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    try:
+        return service.get_bom_diff(
+            eco_id,
+            max_levels=max_levels,
+            effective_at=effective_at,
+            include_relationship_props=include_props,
+            include_child_fields=include_child_fields,
+            compare_mode=compare_mode,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 

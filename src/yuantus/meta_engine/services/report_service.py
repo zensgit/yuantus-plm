@@ -5,14 +5,113 @@ Phase 5: Reporting
 """
 
 from typing import Dict, Any, List
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from yuantus.meta_engine.services.bom_service import BOMService
+from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.models.eco import ECO, ECOStage
+from yuantus.meta_engine.models.job import ConversionJob
+from yuantus.meta_engine.models.file import FileContainer
+from yuantus.meta_engine.version.models import ItemVersion
 
 
 class ReportService:
     def __init__(self, session: Session):
         self.session = session
         self.bom_service = BOMService(session)
+
+    def get_summary(self) -> Dict[str, Any]:
+        def _group_counts(rows, key_name: str) -> List[Dict[str, Any]]:
+            return [{key_name: key, "count": count} for key, count in rows]
+
+        items_total = self.session.query(func.count(Item.id)).scalar() or 0
+        items_by_type = (
+            self.session.query(Item.item_type_id, func.count(Item.id))
+            .group_by(Item.item_type_id)
+            .order_by(Item.item_type_id.asc())
+            .all()
+        )
+        items_by_state = (
+            self.session.query(Item.state, func.count(Item.id))
+            .group_by(Item.state)
+            .order_by(Item.state.asc())
+            .all()
+        )
+
+        versions_total = self.session.query(func.count(ItemVersion.id)).scalar() or 0
+        versions_by_state = (
+            self.session.query(ItemVersion.state, func.count(ItemVersion.id))
+            .group_by(ItemVersion.state)
+            .order_by(ItemVersion.state.asc())
+            .all()
+        )
+
+        files_total = self.session.query(func.count(FileContainer.id)).scalar() or 0
+        files_by_doc_type = (
+            self.session.query(FileContainer.document_type, func.count(FileContainer.id))
+            .group_by(FileContainer.document_type)
+            .order_by(FileContainer.document_type.asc())
+            .all()
+        )
+
+        eco_total = self.session.query(func.count(ECO.id)).scalar() or 0
+        eco_by_state = (
+            self.session.query(ECO.state, func.count(ECO.id))
+            .group_by(ECO.state)
+            .order_by(ECO.state.asc())
+            .all()
+        )
+        eco_by_stage_rows = (
+            self.session.query(ECO.stage_id, ECOStage.name, func.count(ECO.id))
+            .outerjoin(ECOStage, ECOStage.id == ECO.stage_id)
+            .group_by(ECO.stage_id, ECOStage.name)
+            .order_by(ECOStage.name.asc())
+            .all()
+        )
+        eco_by_stage = [
+            {"stage_id": stage_id, "stage_name": stage_name, "count": count}
+            for stage_id, stage_name, count in eco_by_stage_rows
+        ]
+
+        jobs_total = self.session.query(func.count(ConversionJob.id)).scalar() or 0
+        jobs_by_status = (
+            self.session.query(ConversionJob.status, func.count(ConversionJob.id))
+            .group_by(ConversionJob.status)
+            .order_by(ConversionJob.status.asc())
+            .all()
+        )
+        jobs_by_task = (
+            self.session.query(ConversionJob.task_type, func.count(ConversionJob.id))
+            .group_by(ConversionJob.task_type)
+            .order_by(ConversionJob.task_type.asc())
+            .all()
+        )
+
+        return {
+            "items": {
+                "total": items_total,
+                "by_type": _group_counts(items_by_type, "item_type_id"),
+                "by_state": _group_counts(items_by_state, "state"),
+            },
+            "versions": {
+                "total": versions_total,
+                "by_state": _group_counts(versions_by_state, "state"),
+            },
+            "files": {
+                "total": files_total,
+                "by_document_type": _group_counts(files_by_doc_type, "document_type"),
+            },
+            "ecos": {
+                "total": eco_total,
+                "by_state": _group_counts(eco_by_state, "state"),
+                "by_stage": eco_by_stage,
+            },
+            "jobs": {
+                "total": jobs_total,
+                "by_status": _group_counts(jobs_by_status, "status"),
+                "by_task_type": _group_counts(jobs_by_task, "task_type"),
+            },
+        }
 
     def generate_bom_comparison(self, item_id_a: str, item_id_b: str) -> Dict[str, Any]:
         """

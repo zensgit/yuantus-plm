@@ -2,6 +2,7 @@ from yuantus.exceptions.handlers import (
     ConfigurationError,
     PermissionError,
     PLMException,
+    StateLockedError,
     ValidationError,
 )
 
@@ -10,5 +11,5 @@ __all__ = [
     "ValidationError",
     "PermissionError",
     "ConfigurationError",
+    "StateLockedError",
 ]
-
