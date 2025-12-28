@@ -66,6 +66,10 @@ class Settings(BaseSettings):
         default="",
         description="Optional Athena OAuth client secret for service account",
     )
+    ATHENA_CLIENT_SECRET_FILE: str = Field(
+        default="",
+        description="Optional file path for Athena client secret (preferred)",
+    )
     ATHENA_CLIENT_SCOPE: str = Field(
         default="",
         description="Optional OAuth scope for Athena client credentials",

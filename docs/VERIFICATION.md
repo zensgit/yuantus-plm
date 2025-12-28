@@ -223,6 +223,8 @@ curl -s http://127.0.0.1:7910/api/v1/integrations/health \
   ```
 - 如需服务级认证，可在环境变量设置：
   `YUANTUS_ATHENA_SERVICE_TOKEN=<token>`（自动补 `Bearer ` 前缀）。
+- 如使用 client credentials，可通过文件方式注入：
+  `YUANTUS_ATHENA_CLIENT_SECRET_FILE=/run/secrets/athena_client_secret`。
 - 部署建议：在可提交的 `docker-compose.yml` 或 `.env` 中设置
   `YUANTUS_ATHENA_BASE_URL=http://host.docker.internal:7700/api/v1`，避免只写在
   `docker-compose.override.yml`（已被 `.gitignore` 忽略）。

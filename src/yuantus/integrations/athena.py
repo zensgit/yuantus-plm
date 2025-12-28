@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 import asyncio
 import time
+from pathlib import Path
 from typing import Optional, Tuple
 
 from yuantus.config import get_settings
@@ -18,15 +19,27 @@ class AthenaClient:
         self.token_url = settings.ATHENA_TOKEN_URL.strip()
         self.client_id = settings.ATHENA_CLIENT_ID.strip()
         self.client_secret = settings.ATHENA_CLIENT_SECRET.strip()
+        self.client_secret_file = settings.ATHENA_CLIENT_SECRET_FILE.strip()
         self.client_scope = settings.ATHENA_CLIENT_SCOPE.strip()
 
+    def _resolve_client_secret(self) -> str:
+        if self.client_secret:
+            return self.client_secret
+        if self.client_secret_file:
+            try:
+                return Path(self.client_secret_file).read_text(encoding="utf-8").strip()
+            except OSError:
+                return ""
+        return ""
+
     async def _fetch_client_credentials_token(self) -> Optional[str]:
-        if not self.token_url or not self.client_id or not self.client_secret:
+        client_secret = self._resolve_client_secret()
+        if not self.token_url or not self.client_id or not client_secret:
             return None
         token, _ = await _get_cached_client_token(
             token_url=self.token_url,
             client_id=self.client_id,
-            client_secret=self.client_secret,
+            client_secret=client_secret,
             scope=self.client_scope,
             timeout_s=self.timeout_s,
         )
