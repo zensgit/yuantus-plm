@@ -9539,3 +9539,56 @@ ATHENA_AUTH_TOKEN='<athena_token>' \
 ALL CHECKS PASSED
 Integrations health: OK (ok=False)
 ```
+
+## Run H-20251228-1405（Run H：Core APIs 快速回归）
+
+- 时间：`2025-12-28 14:05:46 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_run_h.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：API 运行于 `db-per-tenant-org` + Postgres + MinIO；`integrations ok=false`（外部服务未启用）。
+- 关键 ID：
+  - Part：`e12b331f-a37d-45ac-9af5-b53a5414ab7e`
+  - RPC Part：`3a41af12-f804-4d21-b59d-398b051e84f9`
+  - File：`6af009b1-686a-4829-92dc-f7881940caa4`
+  - ECO Stage：`8b1e7258-b4e2-4bab-9f2d-b37fba253309`
+  - ECO：`0f24fd54-a361-404e-9882-3dc17c5244af`
+  - Version：`eb9454d1-7bea-4b89-8e69-7a96ce84ee58`
+
+执行命令：
+
+```bash
+TENANCY_MODE=db-per-tenant-org \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Integrations health: OK (ok=False)
+ALL CHECKS PASSED
+```
+
+## Run OPS-20251228-1405（Ops Health 依赖检查）
+
+- 时间：`2025-12-28 14:05:53 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_ops_health.sh`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+bash scripts/verify_ops_health.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+OK: /health ok
+OK: /health/deps ok
+ALL CHECKS PASSED
+```
