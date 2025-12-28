@@ -2,6 +2,7 @@
 # =============================================================================
 # Integrations Athena Verification Script
 # Verifies /integrations/health with Athena auth isolation and service token.
+# Usage: ATHENA_TOKEN=... ./scripts/verify_integrations_athena.sh [base_url] [tenant] [org]
 # =============================================================================
 set -euo pipefail
 

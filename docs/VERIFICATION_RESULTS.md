@@ -1676,6 +1676,39 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run INTEGRATIONS-ATHENA-SVC-20251228-2357（Integrations Athena Service Token）
+
+- 时间：`2025-12-28 23:57:32 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_integrations_athena.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：通过 `YUANTUS_ATHENA_SERVICE_TOKEN` 验证服务级认证（token 为临时 Keycloak access_token）。  
+
+执行命令：
+
+```bash
+ATHENA_TOKEN=$(curl -s -X POST http://localhost:8180/realms/ecm/protocol/openid-connect/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'grant_type=password&client_id=unified-portal&username=admin&password=admin' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+YUANTUS_ATHENA_SERVICE_TOKEN="$ATHENA_TOKEN" docker compose up -d --no-deps --force-recreate api
+
+YUANTUS_TOKEN=$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"tenant-1","org_id":"org-1","username":"admin","password":"admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+YUANTUS_TOKEN="$YUANTUS_TOKEN" YUANTUS_ATHENA_SERVICE_TOKEN="$ATHENA_TOKEN" \
+  bash scripts/verify_integrations_athena.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run INTEGRATIONS-ATHENA-20251228-2347（Integrations Athena）
 
 - 时间：`2025-12-28 23:47:46 +0800`
