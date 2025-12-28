@@ -1676,6 +1676,38 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run INTEGRATIONS-ATHENA-CLIENT-20251229-0012（Integrations Athena Client Credentials）
+
+- 时间：`2025-12-29 00:12:38 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_integrations_athena.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：通过 client credentials 自动取 token（无 `X-Athena-Authorization` / service token）。
+
+执行命令：
+
+```bash
+YUANTUS_ATHENA_BASE_URL='http://host.docker.internal:7700/api/v1' \
+YUANTUS_ATHENA_TOKEN_URL='http://host.docker.internal:8180/realms/ecm/protocol/openid-connect/token' \
+YUANTUS_ATHENA_CLIENT_ID='ecm-api' \
+YUANTUS_ATHENA_CLIENT_SECRET='<redacted>' \
+  docker compose up -d --no-deps --force-recreate api
+
+YUANTUS_TOKEN=$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"tenant-1","org_id":"org-1","username":"admin","password":"admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+YUANTUS_TOKEN="$YUANTUS_TOKEN" VERIFY_CLIENT_CREDENTIALS=1 \
+  bash scripts/verify_integrations_athena.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run INTEGRATIONS-ATHENA-SVC-20251228-2357（Integrations Athena Service Token）
 
 - 时间：`2025-12-28 23:57:32 +0800`

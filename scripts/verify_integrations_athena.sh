@@ -16,6 +16,7 @@ PY="${PY:-.venv/bin/python}"
 YUANTUS_TOKEN="${YUANTUS_TOKEN:-}"
 ATHENA_TOKEN="${ATHENA_TOKEN:-}"
 ATHENA_SERVICE_TOKEN="${ATHENA_SERVICE_TOKEN:-${YUANTUS_ATHENA_SERVICE_TOKEN:-}}"
+VERIFY_CLIENT_CREDENTIALS="${VERIFY_CLIENT_CREDENTIALS:-0}"
 
 if [[ ! -x "$PY" ]]; then
   PY="python3"
@@ -36,8 +37,8 @@ ok() { echo "OK: $1"; }
 
 endpoint="$BASE_URL/api/v1/integrations/health"
 
-if [[ -z "$ATHENA_TOKEN" && -z "$ATHENA_SERVICE_TOKEN" ]]; then
-  echo "SKIP: Set ATHENA_TOKEN or ATHENA_SERVICE_TOKEN to run Athena validation." >&2
+if [[ -z "$ATHENA_TOKEN" && -z "$ATHENA_SERVICE_TOKEN" && "$VERIFY_CLIENT_CREDENTIALS" != "1" ]]; then
+  echo "SKIP: Set ATHENA_TOKEN, ATHENA_SERVICE_TOKEN, or VERIFY_CLIENT_CREDENTIALS=1." >&2
   exit 0
 fi
 
@@ -82,6 +83,30 @@ PY
     fail "Athena health failed with service token"
   fi
   ok "Athena health OK (service token)"
+fi
+
+if [[ "$VERIFY_CLIENT_CREDENTIALS" == "1" ]]; then
+  if [[ -z "$YUANTUS_TOKEN" ]]; then
+    fail "Missing YUANTUS_TOKEN for client credentials verification"
+  fi
+  echo "==> Verify with client credentials"
+  RESP="$($CURL "$endpoint" "${HEADERS[@]}" "${AUTH_HEADERS[@]}")"
+  OK="$(RESP="$RESP" "$PY" - <<'PY'
+import json, os, sys
+raw = os.environ.get("RESP", "")
+try:
+    data = json.loads(raw)
+except Exception:
+    print("0"); sys.exit(0)
+athena = (data.get("services") or {}).get("athena") or {}
+print("1" if athena.get("ok") else "0")
+PY
+)"
+  if [[ "$OK" != "1" ]]; then
+    echo "Response: $RESP" >&2
+    fail "Athena health failed with client credentials"
+  fi
+  ok "Athena health OK (client credentials)"
 fi
 
 echo "ALL CHECKS PASSED"
