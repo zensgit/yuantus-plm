@@ -1676,6 +1676,38 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run REGRESSION-MT-REAL-20251229-0212（Full Regression + Real CAD Samples, db-per-tenant-org）
+
+- 时间：`2025-12-29 02:12:31 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`ALL TESTS PASSED`
+- 汇总：`PASS=35, FAIL=0, SKIP=7`
+- 备注：启用 `RUN_CAD_REAL_CONNECTORS_2D=1` 与 `RUN_CAD_REAL_SAMPLES=1`
+
+执行命令：
+
+```bash
+RUN_CAD_REAL_CONNECTORS_2D=1 \
+RUN_CAD_REAL_SAMPLES=1 \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+CAD_SAMPLE_HAOCHEN_DWG='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_SAMPLE_ZHONGWANG_DWG='/Users/huazhou/Downloads/训练图纸/训练图纸/J2825002-09下轴承支架组件v2.dwg' \
+CAD_SAMPLE_DWG='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_SAMPLE_STEP='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp' \
+CAD_SAMPLE_PRT='/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt' \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 35  FAIL: 0  SKIP: 7
+ALL TESTS PASSED
+```
+
 ## Run REGRESSION-MT-20251229-0146（Full Regression, db-per-tenant-org）
 
 - 时间：`2025-12-29 01:46:54 +0800`
