@@ -16,17 +16,20 @@ from fastapi import (
     Query,
     Response,
     Form,
+    Request,
 )
-from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
+import json
 import os
 import uuid
 import hashlib
 import mimetypes
 from pathlib import Path
 import io
+from urllib.parse import quote
 
 from yuantus.database import get_db
 from yuantus.config import get_settings
@@ -101,6 +104,7 @@ class FileMetadata(BaseModel):
     cad_manifest_url: Optional[str] = None
     cad_document_url: Optional[str] = None
     cad_metadata_url: Optional[str] = None
+    cad_viewer_url: Optional[str] = None
     conversion_status: Optional[str] = None
     created_at: Optional[str] = None
 
@@ -163,6 +167,18 @@ def _guess_media_type(path: str) -> str:
     return media_types.get(ext, "application/octet-stream")
 
 
+def _build_cad_viewer_url(request: Request, file_id: str, cad_manifest_path: Optional[str]) -> Optional[str]:
+    if not cad_manifest_path:
+        return None
+    settings = get_settings()
+    base_url = (settings.CADGF_ROUTER_BASE_URL or "").strip()
+    if not base_url:
+        return None
+    manifest_url = f"{request.url_for('get_cad_manifest', file_id=file_id)}?rewrite=1"
+    manifest_param = quote(str(manifest_url), safe="")
+    return f"{base_url.rstrip('/')}/tools/web_viewer/index.html?manifest={manifest_param}"
+
+
 def _serve_storage_path(storage_path: str, media_type: str, error_prefix: str):
     file_service = FileService()
 
@@ -198,6 +214,54 @@ def _sanitize_asset_name(asset_name: str) -> str:
     if not safe_name or safe_name != asset_name:
         raise HTTPException(status_code=400, detail="Invalid asset name")
     return safe_name
+
+
+def _load_manifest_payload(file_container: FileContainer) -> dict:
+    file_service = FileService()
+    output_stream = io.BytesIO()
+    try:
+        file_service.download_file(file_container.cad_manifest_path, output_stream)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail=f"CAD manifest download failed: {exc}"
+        ) from exc
+    output_stream.seek(0)
+    try:
+        return json.load(output_stream)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=500, detail="CAD manifest invalid JSON"
+        ) from exc
+
+
+def _rewrite_cad_manifest_urls(
+    request: Request, file_container: FileContainer, manifest: dict
+) -> dict:
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, dict):
+        return manifest
+    if file_container.cad_document_path:
+        artifacts["document_json"] = str(
+            request.url_for("get_cad_document", file_id=file_container.id)
+        )
+    if file_container.cad_metadata_path:
+        artifacts["mesh_metadata"] = str(
+            request.url_for("get_cad_metadata", file_id=file_container.id)
+        )
+    gltf_name = artifacts.get("mesh_gltf") or (
+        Path(file_container.geometry_path).name if file_container.geometry_path else ""
+    )
+    if gltf_name:
+        safe_name = _sanitize_asset_name(Path(gltf_name).name)
+        artifacts["mesh_gltf"] = str(
+            request.url_for(
+                "get_cad_asset",
+                file_id=file_container.id,
+                asset_name=safe_name,
+            )
+        )
+    manifest["artifacts"] = artifacts
+    return manifest
 
 
 def _get_document_type(extension: str) -> str:
@@ -471,7 +535,7 @@ async def get_supported_formats(db: Session = Depends(get_db)):
 
 
 @file_router.get("/{file_id}", response_model=FileMetadata)
-async def get_file_metadata(file_id: str, db: Session = Depends(get_db)):
+async def get_file_metadata(file_id: str, request: Request, db: Session = Depends(get_db)):
     """Get file metadata by ID."""
     file_container = db.get(FileContainer, file_id)
     if not file_container:
@@ -512,6 +576,11 @@ async def get_file_metadata(file_id: str, db: Session = Depends(get_db)):
             f"/api/v1/file/{file_id}/cad_metadata"
             if file_container.cad_metadata_path
             else None
+        ),
+        cad_viewer_url=_build_cad_viewer_url(
+            request,
+            file_id,
+            file_container.cad_manifest_path,
         ),
         conversion_status=file_container.conversion_status,
         created_at=(
@@ -642,19 +711,55 @@ async def get_geometry_asset(
     )
 
 
+@file_router.get("/{file_id}/cad_asset/{asset_name}", name="get_cad_asset")
+async def get_cad_asset(
+    file_id: str, asset_name: str, db: Session = Depends(get_db)
+):
+    """Get CADGF conversion assets (mesh.gltf, mesh.bin, etc.)."""
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    base_path = file_container.cad_manifest_path or file_container.geometry_path
+    if not base_path:
+        raise HTTPException(status_code=404, detail="CAD assets not available")
+
+    safe_name = _sanitize_asset_name(asset_name)
+    base_dir = os.path.dirname(base_path)
+    asset_path = f"{base_dir}/{safe_name}" if base_dir else safe_name
+
+    file_service = FileService()
+    if not file_service.file_exists(asset_path):
+        raise HTTPException(status_code=404, detail="CAD asset not available")
+
+    media_type = _guess_media_type(asset_path)
+    return _serve_storage_path(
+        asset_path, media_type, error_prefix="CAD asset"
+    )
+
+
 @file_router.get("/{file_id}/cad_manifest")
-async def get_cad_manifest(file_id: str, db: Session = Depends(get_db)):
+async def get_cad_manifest(
+    file_id: str,
+    request: Request,
+    rewrite: bool = Query(False),
+    db: Session = Depends(get_db),
+):
     """Get CADGF manifest.json for 2D CAD conversions."""
     file_container = db.get(FileContainer, file_id)
     if not file_container:
         raise HTTPException(status_code=404, detail="File not found")
     if not file_container.cad_manifest_path:
         raise HTTPException(status_code=404, detail="CAD manifest not available")
-    return _serve_storage_path(
-        file_container.cad_manifest_path,
-        _guess_media_type(file_container.cad_manifest_path),
-        error_prefix="CAD manifest",
-    )
+    if not rewrite:
+        return _serve_storage_path(
+            file_container.cad_manifest_path,
+            _guess_media_type(file_container.cad_manifest_path),
+            error_prefix="CAD manifest",
+        )
+    manifest = _load_manifest_payload(file_container)
+    manifest = _rewrite_cad_manifest_urls(request, file_container, manifest)
+    return JSONResponse(content=manifest)
 
 
 @file_router.get("/{file_id}/cad_document")

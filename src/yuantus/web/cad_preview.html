@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yuantus PLM - CAD Preview Bridge</title>
+    <style>
+      :root {
+        --ink: #0f1d25;
+        --ink-soft: #22343f;
+        --accent: #ff7a18;
+        --accent-dark: #c65c10;
+        --mint: #17a398;
+        --sand: #f5efe6;
+        --panel: rgba(255, 255, 255, 0.86);
+        --panel-strong: rgba(255, 255, 255, 0.94);
+        --line: rgba(15, 29, 37, 0.15);
+        --shadow: 0 22px 60px rgba(15, 29, 37, 0.15);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at 20% 20%, #ffe6cc 0%, transparent 45%),
+          radial-gradient(circle at 80% 10%, #d8f7f1 0%, transparent 50%),
+          linear-gradient(130deg, #f8f3ea 0%, #edf6ff 60%, #f5efe6 100%);
+        min-height: 100vh;
+      }
+
+      .page {
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 48px 24px 80px;
+        animation: rise 0.8s ease-out;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .hero {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 32px;
+      }
+
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.28em;
+        font-size: 0.72rem;
+        color: var(--accent-dark);
+        font-weight: 700;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 3vw, 3.2rem);
+        margin: 12px 0 16px;
+      }
+
+      .hero p {
+        margin: 0;
+        color: var(--ink-soft);
+        max-width: 520px;
+      }
+
+      .status-card {
+        padding: 20px 24px;
+        border-radius: 18px;
+        background: var(--panel-strong);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+        min-width: 230px;
+      }
+
+      .status-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        color: var(--ink-soft);
+      }
+
+      .status {
+        font-size: 1.6rem;
+        margin: 8px 0 6px;
+        font-weight: 700;
+      }
+
+      .status.bad {
+        color: #b42318;
+      }
+
+      .status.good {
+        color: var(--mint);
+      }
+
+      .status.busy {
+        color: var(--accent-dark);
+      }
+
+      .status-sub {
+        font-size: 0.9rem;
+        color: var(--ink-soft);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+
+      .panel {
+        background: var(--panel);
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        padding: 24px;
+        box-shadow: var(--shadow);
+      }
+
+      .panel h2 {
+        margin-top: 0;
+        font-size: 1.2rem;
+      }
+
+      label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-top: 16px;
+      }
+
+      input,
+      select,
+      button,
+      textarea {
+        width: 100%;
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: #fff;
+        font-family: inherit;
+        font-size: 0.95rem;
+      }
+
+      input[disabled] {
+        background: #f4f4f4;
+        color: #68757d;
+      }
+
+      input[type="file"] {
+        padding: 6px;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+      }
+
+      .toggle-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+      }
+
+      .toggle input {
+        width: auto;
+        margin: 0;
+      }
+
+      button {
+        margin-top: 18px;
+        background: linear-gradient(135deg, var(--accent), #ffb347);
+        color: #1a1006;
+        font-weight: 700;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 12px 24px rgba(255, 122, 24, 0.35);
+      }
+
+      .preview {
+        position: relative;
+        min-height: 320px;
+        border-radius: 16px;
+        border: 1px dashed var(--line);
+        background: rgba(15, 29, 37, 0.03);
+        overflow: hidden;
+      }
+
+      #viewer-frame {
+        width: 100%;
+        height: 320px;
+        border: none;
+        display: none;
+      }
+
+      #preview-placeholder {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 24px;
+        color: var(--ink-soft);
+        font-size: 0.95rem;
+      }
+
+      .link-row {
+        margin-top: 12px;
+        font-size: 0.9rem;
+      }
+
+      .link-row a {
+        color: var(--accent-dark);
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      pre {
+        margin: 0;
+        max-height: 260px;
+        overflow: auto;
+        background: #101820;
+        color: #d1f0ff;
+        padding: 16px;
+        border-radius: 16px;
+        font-size: 0.82rem;
+      }
+
+      .footnote {
+        margin-top: 16px;
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+      }
+
+      @media (max-width: 720px) {
+        .status-card {
+          width: 100%;
+        }
+        #viewer-frame {
+          height: 260px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div>
+          <div class="eyebrow">Yuantus PLM - CAD Bridge</div>
+          <h1>Upload once, preview anywhere.</h1>
+          <p>
+            Connect to the CADGameFusion router service through the PLM backend and
+            open the generated web preview.
+          </p>
+        </div>
+        <div class="status-card">
+          <div class="status-label">Conversion Status</div>
+          <div id="status" class="status">Idle</div>
+          <div id="status-sub" class="status-sub">Waiting for an upload.</div>
+        </div>
+      </header>
+
+      <main class="grid">
+        <section class="panel">
+          <h2>Connection</h2>
+          <form id="preview-form">
+            <label for="router-url">Router base URL (server)</label>
+            <input id="router-url" type="text" disabled />
+
+            <label for="file-input">Upload CAD/JSON file</label>
+            <input id="file-input" type="file" />
+
+            <label for="emit">Emit</label>
+            <select id="emit">
+              <option value="json,gltf,meta">json + glTF + meta</option>
+              <option value="json">json only</option>
+              <option value="gltf">glTF only</option>
+            </select>
+
+            <div class="row">
+              <div>
+                <label for="project-id">Project ID</label>
+                <input id="project-id" type="text" placeholder="plm-demo" />
+              </div>
+              <div>
+                <label for="document-label">Document label</label>
+                <input id="document-label" type="text" placeholder="sample" />
+              </div>
+            </div>
+
+            <div class="row">
+              <div>
+                <label for="plugin-path">Plugin path (optional)</label>
+                <input id="plugin-path" type="text" placeholder="/path/to/plugin.dylib" />
+              </div>
+              <div>
+                <label for="convert-cli">convert_cli path (optional)</label>
+                <input id="convert-cli" type="text" placeholder="/path/to/convert_cli" />
+              </div>
+            </div>
+
+            <div class="toggle-row">
+              <label class="toggle"><input id="async-toggle" type="checkbox" />Async</label>
+              <label class="toggle"><input id="migrate-toggle" type="checkbox" checked />Migrate</label>
+              <label class="toggle"><input id="backup-toggle" type="checkbox" />Backup</label>
+              <label class="toggle"><input id="validate-toggle" type="checkbox" checked />Validate</label>
+            </div>
+
+            <div class="row">
+              <div>
+                <label for="document-target">Document target</label>
+                <input id="document-target" type="number" value="2" min="1" />
+              </div>
+              <div>
+                <label for="document-schema">Document schema</label>
+                <input id="document-schema" type="text" value="schemas/document.schema.json" />
+              </div>
+            </div>
+
+            <button id="submit-btn" type="submit">Upload & Convert</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h2>Preview</h2>
+          <div class="preview">
+            <div id="preview-placeholder">Waiting for a preview URL.</div>
+            <iframe id="viewer-frame" title="CADGameFusion Preview"></iframe>
+          </div>
+          <div class="link-row">
+            <a id="open-link" href="#" target="_blank" rel="noreferrer">Open preview in new tab</a>
+          </div>
+          <div class="footnote">
+            Router access and auth are handled by the PLM backend.
+          </div>
+        </section>
+      </main>
+
+      <section class="panel">
+        <h2>Response</h2>
+        <pre id="response">{}</pre>
+      </section>
+    </div>
+
+    <script>
+      const serverConfig = {
+        routerBaseUrl: "__CADGF_ROUTER_BASE_URL__",
+        defaultEmit: "__CADGF_DEFAULT_EMIT__",
+      };
+
+      const routerInput = document.getElementById("router-url");
+      const fileInput = document.getElementById("file-input");
+      const emitInput = document.getElementById("emit");
+      const projectInput = document.getElementById("project-id");
+      const labelInput = document.getElementById("document-label");
+      const pluginInput = document.getElementById("plugin-path");
+      const cliInput = document.getElementById("convert-cli");
+      const asyncToggle = document.getElementById("async-toggle");
+      const migrateToggle = document.getElementById("migrate-toggle");
+      const backupToggle = document.getElementById("backup-toggle");
+      const validateToggle = document.getElementById("validate-toggle");
+      const targetInput = document.getElementById("document-target");
+      const schemaInput = document.getElementById("document-schema");
+      const statusEl = document.getElementById("status");
+      const statusSubEl = document.getElementById("status-sub");
+      const responseEl = document.getElementById("response");
+      const previewFrame = document.getElementById("viewer-frame");
+      const previewPlaceholder = document.getElementById("preview-placeholder");
+      const openLink = document.getElementById("open-link");
+
+      const CONVERT_ENDPOINT = "/api/v1/cad-preview/convert";
+
+      function setStatus(label, detail, state) {
+        statusEl.textContent = label;
+        statusSubEl.textContent = detail || "";
+        statusEl.classList.remove("good", "bad", "busy");
+        if (state === "good") {
+          statusEl.classList.add("good");
+        } else if (state === "bad") {
+          statusEl.classList.add("bad");
+        } else if (state === "busy") {
+          statusEl.classList.add("busy");
+        }
+      }
+
+      function renderResponse(payload) {
+        responseEl.textContent = JSON.stringify(payload, null, 2);
+      }
+
+      function setPreview(url) {
+        if (!url) {
+          previewFrame.style.display = "none";
+          previewPlaceholder.style.display = "flex";
+          openLink.href = "#";
+          return;
+        }
+        previewFrame.src = url;
+        previewFrame.style.display = "block";
+        previewPlaceholder.style.display = "none";
+        openLink.href = url;
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      async function pollStatus(statusUrl) {
+        for (let attempt = 0; attempt < 60; attempt += 1) {
+          const response = await fetch(statusUrl, { credentials: "include" });
+          const payload = await response.json();
+          renderResponse(payload);
+          if (!response.ok || payload.status !== "ok") {
+            setStatus("Error", payload.message || payload.error || "Request failed", "bad");
+            return;
+          }
+          const state = payload.state || "";
+          if (state === "done") {
+            setStatus("Done", "Preview ready", "good");
+            setPreview(payload.viewer_url);
+            return;
+          }
+          if (state === "error") {
+            setStatus("Error", payload.error || "Conversion failed", "bad");
+            return;
+          }
+          setStatus("Working", `State: ${state}`, "busy");
+          await sleep(1500);
+        }
+        setStatus("Timeout", "Router did not finish in time", "bad");
+      }
+
+      document.getElementById("preview-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const file = fileInput.files[0];
+        if (!file) {
+          setStatus("Missing file", "Select a CAD or JSON file", "bad");
+          return;
+        }
+
+        setStatus("Uploading", "Sending file to router", "busy");
+        setPreview("");
+
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("emit", emitInput.value.trim());
+
+        const projectId = projectInput.value.trim();
+        if (projectId) {
+          formData.append("project_id", projectId);
+        }
+        const documentLabel = labelInput.value.trim();
+        if (documentLabel) {
+          formData.append("document_label", documentLabel);
+        }
+        const plugin = pluginInput.value.trim();
+        if (plugin) {
+          formData.append("plugin", plugin);
+        }
+        const convertCli = cliInput.value.trim();
+        if (convertCli) {
+          formData.append("convert_cli", convertCli);
+        }
+        if (asyncToggle.checked) {
+          formData.append("async", "true");
+        }
+        if (migrateToggle.checked) {
+          formData.append("migrate_document", "true");
+        }
+        if (backupToggle.checked) {
+          formData.append("document_backup", "true");
+        }
+        if (validateToggle.checked) {
+          formData.append("validate_document", "true");
+        }
+        const targetValue = targetInput.value.trim();
+        if (targetValue) {
+          formData.append("document_target", targetValue);
+        }
+        const schemaValue = schemaInput.value.trim();
+        if (schemaValue) {
+          formData.append("document_schema", schemaValue);
+        }
+
+        try {
+          const response = await fetch(CONVERT_ENDPOINT, {
+            method: "POST",
+            credentials: "include",
+            body: formData,
+          });
+          const payload = await response.json();
+          renderResponse(payload);
+          if (!response.ok) {
+            setStatus("Error", payload.message || "Conversion failed", "bad");
+            return;
+          }
+          const state = payload.state || "queued";
+          if (state === "done") {
+            setStatus("Done", "Preview ready", "good");
+            setPreview(payload.viewer_url);
+            return;
+          }
+          const statusUrl = payload.status_url || `/api/v1/cad-preview/status/${payload.task_id}`;
+          setStatus("Queued", `State: ${state}`, "busy");
+          await pollStatus(statusUrl);
+        } catch (err) {
+          setStatus("Error", String(err), "bad");
+          renderResponse({ error: String(err) });
+        }
+      });
+
+      routerInput.value = serverConfig.routerBaseUrl || "Not configured";
+      routerInput.disabled = true;
+      if (serverConfig.defaultEmit) {
+        emitInput.value = serverConfig.defaultEmit;
+      }
+      if (!serverConfig.routerBaseUrl) {
+        setStatus("Missing config", "CADGF router base URL not set", "bad");
+      }
+      setPreview("");
+    </script>
+  </body>
+</html>

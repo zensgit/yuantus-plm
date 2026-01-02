@@ -31,6 +31,10 @@
    - `cad_document_path` → `document.json`
    - `cad_metadata_path` → `mesh_metadata.json`
 
+## 默认行为
+
+- `/api/v1/cad/import` 未显式传 `create_geometry_job` 时，DXF 默认会排队执行 `cad_geometry`。
+
 ## 存储布局
 
 - 本地：`{LOCAL_STORAGE_PATH}/cadgf/{file_id[:2]}/{file_id}/...`
@@ -38,19 +42,26 @@
 
 ## glTF 资产访问
 
-CADGameFusion 输出的 glTF 默认引用 `mesh.bin`。为避免路径解析问题：
+CADGameFusion 的 `manifest.json` 与 glTF 资源位于同一目录。为保证 Web Viewer 能解析资源：
 
-- 转换完成后自动将 `buffers[].uri` 改写为 `asset/mesh.bin`
-- 新增接口：`GET /api/v1/file/{file_id}/asset/{asset_name}`
-
-这样 `GET /api/v1/file/{file_id}/geometry` 返回的 glTF 可以正确加载 `asset/mesh.bin`。
+- `GET /api/v1/file/{file_id}/cad_manifest?rewrite=1` 会将 `artifacts.mesh_gltf`、
+  `document_json`、`mesh_metadata` 改写为绝对 URL。
+- 新增接口：`GET /api/v1/file/{file_id}/cad_asset/{asset_name}` 用于提供
+  `mesh.gltf`、`mesh.bin` 等同目录资源。
+- `cad_viewer_url` 默认使用 `rewrite=1` 的 manifest URL。
 
 ## 新增 API
 
 - `GET /api/v1/file/{file_id}/cad_manifest`
 - `GET /api/v1/file/{file_id}/cad_document`
 - `GET /api/v1/file/{file_id}/cad_metadata`
-- `GET /api/v1/file/{file_id}/asset/{asset_name}`
+- `GET /api/v1/file/{file_id}/cad_asset/{asset_name}`
+
+## File Metadata
+
+- `GET /api/v1/file/{file_id}` will expose `cad_viewer_url` once `cad_manifest_path` exists.
+- The viewer URL is built using `YUANTUS_CADGF_ROUTER_BASE_URL`.
+- The viewer page will fetch the manifest URL; ensure same-origin routing or allow CORS and public access for CAD preview assets.
 
 ## 配置项
 
@@ -61,6 +72,8 @@ CADGameFusion 输出的 glTF 默认引用 `mesh.bin`。为避免路径解析问�
 - `CADGF_CONVERT_CLI`：`convert_cli` 的绝对路径（可选）
 - `CADGF_DXF_PLUGIN_PATH`：DXF importer plugin 路径（可选）
 - `CADGF_PYTHON_BIN`：执行转换时使用的 Python（可选）
+- `CAD_PREVIEW_PUBLIC`：是否开放 CAD 预览资源（可选）
+- `CAD_PREVIEW_CORS_ORIGINS`：允许的 CORS 来源列表（可选）
 
 ## 限制与约束
 

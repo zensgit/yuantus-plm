@@ -132,6 +132,34 @@ class Settings(BaseSettings):
         default="",
         description="Override python executable for CADGF conversion",
     )
+    CADGF_ROUTER_BASE_URL: str = Field(
+        default="http://127.0.0.1:9000",
+        description="CADGameFusion router service base URL",
+    )
+    CADGF_ROUTER_AUTH_TOKEN: str = Field(
+        default="",
+        description="Bearer token for CADGameFusion router service",
+    )
+    CADGF_DEFAULT_EMIT: str = Field(
+        default="json,gltf,meta",
+        description="Default emit mode for CAD preview bridge",
+    )
+    CADGF_ROUTER_TIMEOUT_SECONDS: int = Field(
+        default=60,
+        description="Timeout for CADGameFusion router requests",
+    )
+    DWG_CONVERTER_BIN: str = Field(
+        default="",
+        description="Optional DWG->DXF converter binary (e.g. ODAFileConverter).",
+    )
+    CAD_PREVIEW_PUBLIC: bool = Field(
+        default=False,
+        description="Allow unauthenticated access to CAD preview assets",
+    )
+    CAD_PREVIEW_CORS_ORIGINS: str = Field(
+        default="",
+        description="Comma-separated CORS origins for CAD preview assets",
+    )
 
     # Database
     DATABASE_URL: str = Field(default="sqlite:///yuantus_dev.db")
