@@ -136,6 +136,10 @@ class Settings(BaseSettings):
         default="http://127.0.0.1:9000",
         description="CADGameFusion router service base URL",
     )
+    CADGF_ROUTER_PUBLIC_BASE_URL: str = Field(
+        default="",
+        description="Public CADGameFusion router base URL for viewer links",
+    )
     CADGF_ROUTER_AUTH_TOKEN: str = Field(
         default="",
         description="Bearer token for CADGameFusion router service",

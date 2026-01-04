@@ -171,7 +171,11 @@ def _build_cad_viewer_url(request: Request, file_id: str, cad_manifest_path: Opt
     if not cad_manifest_path:
         return None
     settings = get_settings()
-    base_url = (settings.CADGF_ROUTER_BASE_URL or "").strip()
+    base_url = (
+        settings.CADGF_ROUTER_PUBLIC_BASE_URL
+        or settings.CADGF_ROUTER_BASE_URL
+        or ""
+    ).strip()
     if not base_url:
         return None
     manifest_url = f"{request.url_for('get_cad_manifest', file_id=file_id)}?rewrite=1"
