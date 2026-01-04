@@ -60,7 +60,8 @@ CADGameFusion 的 `manifest.json` 与 glTF 资源位于同一目录。为保证 
 ## File Metadata
 
 - `GET /api/v1/file/{file_id}` will expose `cad_viewer_url` once `cad_manifest_path` exists.
-- The viewer URL is built using `YUANTUS_CADGF_ROUTER_BASE_URL`.
+- The viewer URL uses `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL` when set; otherwise it falls back to
+  `YUANTUS_CADGF_ROUTER_BASE_URL`.
 - The viewer page will fetch the manifest URL; ensure same-origin routing or allow CORS and public access for CAD preview assets.
 
 ## 配置项
@@ -72,6 +73,7 @@ CADGameFusion 的 `manifest.json` 与 glTF 资源位于同一目录。为保证 
 - `CADGF_CONVERT_CLI`：`convert_cli` 的绝对路径（可选）
 - `CADGF_DXF_PLUGIN_PATH`：DXF importer plugin 路径（可选）
 - `CADGF_PYTHON_BIN`：执行转换时使用的 Python（可选）
+- `CADGF_ROUTER_PUBLIC_BASE_URL`：浏览器侧 viewer URL 使用的 router base（可选）
 - `CAD_PREVIEW_PUBLIC`：是否开放 CAD 预览资源（可选）
 - `CAD_PREVIEW_CORS_ORIGINS`：允许的 CORS 来源列表（可选）
 
