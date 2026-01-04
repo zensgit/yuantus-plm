@@ -45,3 +45,29 @@ Provide a minimal PLM-side page that uploads a CAD file to the CADGameFusion rou
 ## Deployment Guidance
 - Recommended: host the CADGF viewer under the same origin as the PLM (reverse proxy or static hosting) to avoid CORS and keep auth enabled.
 - Cross-origin: set `YUANTUS_CAD_PREVIEW_PUBLIC=true` and `YUANTUS_CAD_PREVIEW_CORS_ORIGINS=<viewer origin>` so the viewer can read manifest/assets.
+
+## Same-Origin Reverse Proxy (Nginx)
+Example: serve the CADGF router under `/cadgf/` on the same host as the PLM API.
+
+```nginx
+location /cadgf/ {
+  proxy_pass http://127.0.0.1:9000/;
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-Proto $scheme;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+```
+
+PLM configuration:
+- `YUANTUS_CADGF_ROUTER_BASE_URL=https://plm.example.com/cadgf`
+- keep `YUANTUS_CAD_PREVIEW_PUBLIC=false` (default)
+
+## Same-Origin Reverse Proxy (Caddy)
+```caddy
+handle_path /cadgf/* {
+  reverse_proxy 127.0.0.1:9000
+}
+```
+
+PLM configuration:
+- `YUANTUS_CADGF_ROUTER_BASE_URL=https://plm.example.com/cadgf`
