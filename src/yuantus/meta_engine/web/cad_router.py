@@ -1,15 +1,25 @@
 from __future__ import annotations
 
 import csv
-import json
 import io
+import json
 import os
 import re
-from pathlib import Path
 import uuid
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Response
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+)
 from pydantic import BaseModel, Field
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
@@ -84,6 +94,7 @@ class CadImportResponse(BaseModel):
     cad_manifest_url: Optional[str] = None
     cad_document_url: Optional[str] = None
     cad_metadata_url: Optional[str] = None
+    cad_viewer_url: Optional[str] = None
     cad_format: Optional[str] = None
     cad_connector_id: Optional[str] = None
     document_type: Optional[str] = None
@@ -217,6 +228,18 @@ def _get_document_type(extension: str) -> str:
     }:
         return "3d"
     return "other"
+
+
+def _build_cad_viewer_url(request: Request, file_id: str, cad_manifest_path: Optional[str]) -> Optional[str]:
+    if not cad_manifest_path:
+        return None
+    settings = get_settings()
+    base_url = (settings.CADGF_ROUTER_BASE_URL or "").strip()
+    if not base_url:
+        return None
+    manifest_url = f"{request.url_for('get_cad_manifest', file_id=file_id)}?rewrite=1"
+    manifest_param = quote(str(manifest_url), safe="")
+    return f"{base_url.rstrip('/')}/tools/web_viewer/index.html?manifest={manifest_param}"
 
 
 def _json_text(expr):
@@ -654,6 +677,7 @@ def get_cad_attributes(
 @router.post("/import", response_model=CadImportResponse)
 async def import_cad(
     response: Response,
+    request: Request,
     file: UploadFile = File(...),
     item_id: Optional[str] = Form(default=None, description="Attach to an existing item id"),
     file_role: str = Form(default=FileRole.NATIVE_CAD.value, description="Attachment role"),
@@ -670,7 +694,7 @@ async def import_cad(
         description="Explicit connector id override (e.g., gstarcad, zwcad)",
     ),
     create_preview_job: bool = Form(default=True),
-    create_geometry_job: bool = Form(default=False),
+    create_geometry_job: Optional[bool] = Form(default=None),
     geometry_format: str = Form(default="gltf", description="obj|gltf|glb|stl"),
     create_extract_job: Optional[bool] = Form(
         default=None,
@@ -874,10 +898,15 @@ async def import_cad(
             db.commit()
             attachment_id = link.id
 
+    geometry_enabled = create_geometry_job
+    if geometry_enabled is None:
+        ext = (file_container.get_extension() or "").lower()
+        geometry_enabled = ext in {"dxf", "dwg"}
+
     planned_jobs = 0
     if create_preview_job and file_container.is_cad_file():
         planned_jobs += 1
-    if create_geometry_job and file_container.is_cad_file():
+    if geometry_enabled and file_container.is_cad_file():
         planned_jobs += 1
     extract_enabled = create_extract_job
     if extract_enabled is None:
@@ -932,7 +961,7 @@ async def import_cad(
     if create_preview_job and file_container.is_cad_file():
         _enqueue("cad_preview", {"file_id": file_container.id}, priority=10)
 
-    if create_geometry_job and file_container.is_cad_file():
+    if geometry_enabled and file_container.is_cad_file():
         _enqueue(
             "cad_geometry",
             {"file_id": file_container.id, "target_format": geometry_format},
@@ -974,6 +1003,11 @@ async def import_cad(
         if file_container.cad_metadata_path
         else None
     )
+    cad_viewer_url = _build_cad_viewer_url(
+        request,
+        file_container.id,
+        file_container.cad_manifest_path,
+    )
     return CadImportResponse(
         file_id=file_container.id,
         filename=file_container.filename,
@@ -988,6 +1022,7 @@ async def import_cad(
         cad_manifest_url=cad_manifest_url,
         cad_document_url=cad_document_url,
         cad_metadata_url=cad_metadata_url,
+        cad_viewer_url=cad_viewer_url,
         cad_format=file_container.cad_format,
         cad_connector_id=file_container.cad_connector_id,
         document_type=file_container.document_type,

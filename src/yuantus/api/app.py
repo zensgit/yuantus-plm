@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
 from yuantus import __version__
 from yuantus.api.middleware.auth_enforce import AuthEnforcementMiddleware
@@ -8,6 +9,7 @@ from yuantus.api.middleware.audit import AuditLogMiddleware
 from yuantus.api.middleware.context import TenantOrgContextMiddleware
 from yuantus.api.routers.admin import router as admin_router
 from yuantus.api.routers.auth import router as auth_router
+from yuantus.api.routers.cad_preview import router as cad_preview_router
 from yuantus.api.routers.health import router as health_router
 from yuantus.api.routers.integrations import router as integrations_router
 from yuantus.api.routers.jobs import router as jobs_router
@@ -34,12 +36,27 @@ from yuantus.security.auth.database import init_identity_db
 
 def create_app() -> FastAPI:
     app = FastAPI(title="YuantusPLM", version=__version__)
+    settings = get_settings()
+    origins = [
+        origin.strip()
+        for origin in (settings.CAD_PREVIEW_CORS_ORIGINS or "").split(",")
+        if origin.strip()
+    ]
+    if origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_methods=["GET", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type"],
+            allow_credentials=True,
+        )
     app.add_middleware(AuditLogMiddleware)
     app.add_middleware(TenantOrgContextMiddleware)
     app.add_middleware(AuthEnforcementMiddleware)
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
+    app.include_router(cad_preview_router, prefix="/api/v1")
     app.include_router(integrations_router, prefix="/api/v1")
     app.include_router(plugins_router, prefix="/api/v1")
     app.include_router(jobs_router, prefix="/api/v1")

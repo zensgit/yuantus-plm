@@ -25,12 +25,26 @@ def _get_bearer_token(request: Request) -> Optional[str]:
     return parts[1].strip() or None
 
 
-def _is_public_path(path: str) -> bool:
+def _is_cad_preview_public_path(path: str, settings) -> bool:
+    if not getattr(settings, "CAD_PREVIEW_PUBLIC", False):
+        return False
+    if not path.startswith("/api/v1/file/"):
+        return False
+    if "/cad_asset/" in path:
+        return True
+    return path.endswith(
+        ("/cad_manifest", "/cad_document", "/cad_metadata")
+    )
+
+
+def _is_public_path(path: str, settings=None) -> bool:
     if path in {"/api/v1/health", "/api/v1/health/deps", "/api/v1/auth/login"}:
         return True
     if path in {"/docs", "/redoc", "/openapi.json"}:
         return True
     if path.startswith("/docs/") or path.startswith("/redoc/"):
+        return True
+    if settings and _is_cad_preview_public_path(path, settings):
         return True
     return False
 
@@ -63,7 +77,9 @@ class AuthEnforcementMiddleware(BaseHTTPMiddleware):
         if mode != "required":
             return await call_next(request)
 
-        if request.method.upper() == "OPTIONS" or _is_public_path(request.url.path):
+        if request.method.upper() == "OPTIONS" or _is_public_path(
+            request.url.path, settings
+        ):
             return await call_next(request)
 
         token = _get_bearer_token(request)
