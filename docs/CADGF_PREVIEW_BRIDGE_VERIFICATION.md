@@ -81,6 +81,7 @@ Result:
 ## Public Base Rewrite Smoke (local)
 This validates `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL` rewrites viewer URLs while the
 router remains on localhost.
+Script: `scripts/verify_cad_preview_public_base.sh`
 
 ```bash
 cat <<'EOF' >/tmp/yuantus_cadgf_public_base_smoke.sh
