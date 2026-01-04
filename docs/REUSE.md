@@ -99,6 +99,10 @@
 - 保留接口契约（ContextProvider/StorageProvider/IndexProvider），在 Yuantus 中实现“HTTP provider”对接 `dedupcad-vision`；
 - 把“算法/向量索引实现”放在 dedup 服务侧，Yuantus 侧只保留契约与编排（触发、回写、权限范围）。
 
+**身份透传（报告归档/权限）**
+- 对接 dedupcad-vision 时建议透传 `x-user-id`（或 `Authorization` JWT 的 `sub`）。
+- Yuantus 的 `build_outbound_headers()` 已包含 `x-user-id`，可直接复用，无需额外改造。
+
 ### 2.3 API 中间件（限流/CSRF 等）
 
 **推荐来源：**
