@@ -368,6 +368,16 @@ if [[ -x "$SCRIPT_DIR/verify_cad_preview_2d.sh" ]]; then
     "$BASE_URL" "$TENANT" "$ORG" || true
 fi
 
+# 9.1b S5-A - CADGF Preview Public Base (local, optional)
+if [[ -x "$SCRIPT_DIR/verify_cad_preview_public_base.sh" ]]; then
+  if [[ "${RUN_CADGF_PUBLIC_BASE:-0}" == "1" ]]; then
+    run_test "S5-A (CADGF Public Base)" \
+      "$SCRIPT_DIR/verify_cad_preview_public_base.sh" || true
+  else
+    skip_test "S5-A (CADGF Public Base)" "RUN_CADGF_PUBLIC_BASE=0"
+  fi
+fi
+
 # 10. S5-B - CAD 2D Connectors (GStarCAD/ZWCAD)
 run_test "S5-B (CAD 2D Connectors)" \
   "$SCRIPT_DIR/verify_cad_connectors_2d.sh" \
