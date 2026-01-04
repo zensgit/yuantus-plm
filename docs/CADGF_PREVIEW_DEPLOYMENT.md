@@ -31,7 +31,8 @@ python3 /path/to/CADGameFusion/tools/plm_router_service.py \
 
 ## Yuantus Configuration
 ```bash
-export YUANTUS_CADGF_ROUTER_BASE_URL="https://plm.example.com/cadgf"
+export YUANTUS_CADGF_ROUTER_BASE_URL="http://127.0.0.1:9000"
+export YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL="https://plm.example.com/cadgf"
 export YUANTUS_CAD_PREVIEW_PUBLIC="false"
 ```
 
@@ -59,8 +60,10 @@ PY
 
 ## Notes
 - The `/api/v1/cad-preview` page is for manual debugging; it uses the router's
-  `viewer_url`, which may point to the router host:port. Use it only if the
-  router base URL is directly reachable.
+  `viewer_url`, which is rewritten to `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL` when set.
+- If the router is only reachable on localhost, set
+  `YUANTUS_CADGF_ROUTER_BASE_URL=http://127.0.0.1:9000` and keep
+  `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL` pointed at the reverse-proxy URL.
 - If you later enable router auth, set `YUANTUS_CADGF_ROUTER_AUTH_TOKEN` and pass
   `--auth-token` when starting the router.
 

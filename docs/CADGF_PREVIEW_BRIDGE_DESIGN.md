@@ -22,6 +22,7 @@ Provide a minimal PLM-side page that uploads a CAD file to the CADGameFusion rou
 
 ## Configuration
 - `YUANTUS_CADGF_ROUTER_BASE_URL`
+- `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL` (optional; use for browser-facing viewer links)
 - `YUANTUS_CADGF_ROUTER_AUTH_TOKEN`
 - `YUANTUS_CADGF_DEFAULT_EMIT`
 - `YUANTUS_CADGF_ROUTER_TIMEOUT_SECONDS`
@@ -40,6 +41,8 @@ Provide a minimal PLM-side page that uploads a CAD file to the CADGameFusion rou
 - Router must be started separately (CADGameFusion `tools/plm_router_service.py`).
 - The UI calls Yuantus proxy endpoints; the router auth token stays server-side.
 - The CAD viewer URL uses `cad_manifest?rewrite=1` so artifacts resolve to API URLs.
+- If `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL` is set, viewer links use that value while the
+  server continues to call `YUANTUS_CADGF_ROUTER_BASE_URL`.
 - If the viewer URL is hosted on a different domain, enable CORS/public access for CAD preview assets.
 
 ## Deployment Guidance

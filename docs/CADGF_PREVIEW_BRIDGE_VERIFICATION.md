@@ -78,6 +78,82 @@ bash /tmp/cadgf_plm_bridge_smoke.sh
 Result:
 - `bridge_smoke_ok`
 
+## Public Base Rewrite Smoke (local)
+This validates `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL` rewrites viewer URLs while the
+router remains on localhost.
+
+```bash
+cat <<'EOF' >/tmp/yuantus_cadgf_public_base_smoke.sh
+#!/usr/bin/env bash
+set -euo pipefail
+
+CADGF_ROOT="/Users/huazhou/Downloads/Github/CADGameFusion"
+YUANTUS_ROOT="/Users/huazhou/Downloads/Github/Yuantus"
+YUANTUS_VENV="/tmp/yuantus_plm_venv312"
+ROUTER_PORT=9100
+YUANTUS_PORT=8100
+
+export YUANTUS_DATABASE_URL="sqlite:////tmp/yuantus_cadgf_public_base.db"
+export YUANTUS_LOCAL_STORAGE_PATH="/tmp/yuantus_cadgf_public_base_storage"
+export YUANTUS_CADGF_ROUTER_BASE_URL="http://127.0.0.1:${ROUTER_PORT}"
+export YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL="http://127.0.0.1:${ROUTER_PORT}/cadgf"
+
+python3 "$CADGF_ROOT/tools/plm_router_service.py" \
+  --host 127.0.0.1 --port "$ROUTER_PORT" \
+  --default-plugin "$CADGF_ROOT/build_vcpkg/plugins/libcadgf_json_importer_plugin.dylib" \
+  --default-convert-cli "$CADGF_ROOT/build_vcpkg/tools/convert_cli" \
+  >/tmp/cadgf_router_public_base.log 2>&1 &
+ROUTER_PID=$!
+
+PYTHONPATH="$YUANTUS_ROOT/src" "$YUANTUS_VENV/bin/uvicorn" yuantus.api.app:app \
+  --host 127.0.0.1 --port "$YUANTUS_PORT" \
+  >/tmp/yuantus_api_public_base.log 2>&1 &
+YUANTUS_PID=$!
+
+cleanup() {
+  kill "$ROUTER_PID" "$YUANTUS_PID" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
+
+for _ in {1..40}; do
+  curl -s "http://127.0.0.1:${ROUTER_PORT}/health" | grep -q '"ok"' && break
+  sleep 1
+done
+for _ in {1..40}; do
+  curl -s "http://127.0.0.1:${YUANTUS_PORT}/api/v1/health" | grep -q '"ok"' && break
+  sleep 1
+done
+
+curl -s "http://127.0.0.1:${YUANTUS_PORT}/api/v1/cad-preview" \
+  | grep -Fq "routerBaseUrl: \\\"http://127.0.0.1:${ROUTER_PORT}/cadgf\\\""
+
+RESP=$(curl -s -X POST "http://127.0.0.1:${YUANTUS_PORT}/api/v1/cad-preview/convert" \
+  -F "file=@$CADGF_ROOT/tests/plugin_data/importer_sample.json" \
+  -F "emit=json,gltf,meta" \
+  -F "project_id=demo" \
+  -F "document_label=sample")
+
+STATUS=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("status"))' <<<"$RESP")
+test "$STATUS" = "ok"
+
+VIEWER_URL=$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("viewer_url", ""))' <<<"$RESP")
+case "$VIEWER_URL" in
+  http://127.0.0.1:${ROUTER_PORT}/cadgf/*) ;;
+  *) echo "viewer_url_mismatch:$VIEWER_URL" >&2; exit 1 ;;
+esac
+
+REAL_VIEWER_URL=${VIEWER_URL/\\/cadgf/}
+curl -s "$REAL_VIEWER_URL" | grep -q "Web Preview"
+
+echo "public_base_smoke_ok"
+EOF
+
+bash /tmp/yuantus_cadgf_public_base_smoke.sh
+```
+
+Result:
+- `public_base_smoke_ok`
+
 ## Manifest Rewrite + CAD Assets (local)
 Use a converted DXF file to ensure the rewritten manifest points to API URLs and the CAD asset endpoint resolves.
 
@@ -121,6 +197,7 @@ Notes:
 ```bash
 python3 -m py_compile \
   src/yuantus/api/app.py \
+  src/yuantus/api/routers/cad_preview.py \
   src/yuantus/api/middleware/auth_enforce.py \
   src/yuantus/config/settings.py \
   src/yuantus/meta_engine/web/file_router.py \
@@ -148,6 +225,7 @@ Result:
 
 Notes:
 - If router runs on a different host, update `YUANTUS_CADGF_ROUTER_BASE_URL`.
+- If the browser needs a different base (reverse proxy), set `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL`.
 - If router auth is enabled, set `YUANTUS_CADGF_ROUTER_AUTH_TOKEN`.
 - If port 8000 is in use, pick another port and update the URL.
 

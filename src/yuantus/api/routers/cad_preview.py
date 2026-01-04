@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/cad-preview", tags=["CAD Preview"])
 _HTML_PATH = Path(__file__).resolve().parents[2] / "web" / "cad_preview.html"
 
 _REPLACEMENTS = {
-    "__CADGF_ROUTER_BASE_URL__": "CADGF_ROUTER_BASE_URL",
+    "__CADGF_ROUTER_PUBLIC_BASE_URL__": "CADGF_ROUTER_PUBLIC_BASE_URL",
     "__CADGF_DEFAULT_EMIT__": "CADGF_DEFAULT_EMIT",
 }
 
@@ -32,6 +33,8 @@ def _load_preview_html() -> str:
     settings = get_settings()
     for token, setting_name in _REPLACEMENTS.items():
         value = getattr(settings, setting_name, "") or ""
+        if setting_name == "CADGF_ROUTER_PUBLIC_BASE_URL" and not value:
+            value = getattr(settings, "CADGF_ROUTER_BASE_URL", "") or ""
         html = html.replace(token, _escape_js(str(value)))
     return html
 
@@ -42,6 +45,16 @@ def _router_base_url() -> str:
     if not base_url:
         raise HTTPException(status_code=500, detail="CADGF router base URL not configured")
     return base_url.rstrip("/")
+
+
+def _router_public_base_url() -> str:
+    settings = get_settings()
+    base_url = (
+        settings.CADGF_ROUTER_PUBLIC_BASE_URL
+        or settings.CADGF_ROUTER_BASE_URL
+        or ""
+    ).strip()
+    return base_url.rstrip("/") if base_url else ""
 
 
 def _router_headers() -> dict:
@@ -56,6 +69,20 @@ def _parse_bool(value: Optional[str]) -> bool:
     if value is None:
         return False
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _rewrite_viewer_url(viewer_url: Optional[str]) -> Optional[str]:
+    if not viewer_url:
+        return viewer_url
+    public_base = _router_public_base_url()
+    if not public_base:
+        return viewer_url
+    parts = urlsplit(viewer_url)
+    if not parts.scheme:
+        return viewer_url
+    query = f"?{parts.query}" if parts.query else ""
+    fragment = f"#{parts.fragment}" if parts.fragment else ""
+    return f"{public_base}{parts.path}{query}{fragment}"
 
 
 @router.get("", response_class=HTMLResponse)
@@ -140,6 +167,8 @@ async def cad_preview_convert(
     task_id = result.get("task_id")
     if task_id:
         result["status_url"] = str(request.url_for("cad_preview_status", task_id=task_id))
+    if "viewer_url" in result:
+        result["viewer_url"] = _rewrite_viewer_url(result.get("viewer_url"))
     return JSONResponse(result, status_code=response.status_code)
 
 
@@ -165,4 +194,6 @@ async def cad_preview_status(task_id: str, request: Request) -> JSONResponse:
 
     if response.status_code < 400:
         result["status_url"] = str(request.url_for("cad_preview_status", task_id=task_id))
+        if "viewer_url" in result:
+            result["viewer_url"] = _rewrite_viewer_url(result.get("viewer_url"))
     return JSONResponse(result, status_code=response.status_code)
