@@ -63,6 +63,16 @@ validate the viewer rewrite path.
   RUN_CADGF_PUBLIC_BASE=1 scripts/verify_all.sh
   ```
 
+## 6.1) Online E2E Script (optional)
+- Online verification (report written to `/tmp/cadgf_preview_online_report.md`):
+  ```bash
+  BASE_URL="https://plm.example.com" \
+  TENANT="tenant-1" ORG="org-1" \
+  USERNAME="admin" PASSWORD="admin" \
+  SAMPLE_FILE="/path/to/sample.dxf" \
+  scripts/verify_cad_preview_online.sh
+  ```
+
 ## 7) Rollback
 - Stop CADGF router service.
 - Unset `YUANTUS_CADGF_ROUTER_BASE_URL` and `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL`.
