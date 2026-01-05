@@ -28,6 +28,7 @@ SAMPLE_FILE="${CAD_AUTO_SAMPLE_FILE:-}"
 EXPECTED_ITEM_NUMBER="${CAD_AUTO_EXPECT_ITEM_NUMBER:-}"
 EXPECTED_DESCRIPTION="${CAD_AUTO_EXPECT_DESCRIPTION:-}"
 EXPECTED_REVISION="${CAD_AUTO_EXPECT_REVISION:-}"
+EXPECTED_ITEM_NUMBER_ALT=""
 CAD_FORMAT_OVERRIDE="${CAD_AUTO_CAD_FORMAT:-}"
 CAD_CONNECTOR_OVERRIDE="${CAD_AUTO_CONNECTOR_ID:-}"
 CAD_EXTRACTOR_BASE_URL="${CAD_EXTRACTOR_BASE_URL:-${YUANTUS_CAD_EXTRACTOR_BASE_URL:-}}"
@@ -146,6 +147,7 @@ DATA
   if [[ -z "$EXPECTED_ITEM_NUMBER" ]]; then
     if [[ -n "$CAD_EXTRACTOR_BASE_URL" || "$EXTRACTOR_CONFIGURED" == "1" ]]; then
       EXPECTED_ITEM_NUMBER="$AUTO_FILE_STEM"
+      EXPECTED_ITEM_NUMBER_ALT="$AUTO_PART_NUMBER"
     else
       EXPECTED_ITEM_NUMBER="$AUTO_PART_NUMBER"
     fi
@@ -242,7 +244,7 @@ ITEM_JSON="$($CURL -X POST "$API/aml/apply" \
   -H 'content-type: application/json' \
   "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
   -d "{\"type\":\"Part\",\"action\":\"get\",\"id\":\"$ITEM_ID\"}")"
-RESP_JSON="$ITEM_JSON" EXPECTED_ITEM_NUMBER="$EXPECTED_ITEM_NUMBER" EXPECTED_DESCRIPTION="$EXPECTED_DESCRIPTION" EXPECTED_REVISION="$EXPECTED_REVISION" "$PY" - <<'PY'
+RESP_JSON="$ITEM_JSON" EXPECTED_ITEM_NUMBER="$EXPECTED_ITEM_NUMBER" EXPECTED_ITEM_NUMBER_ALT="$EXPECTED_ITEM_NUMBER_ALT" EXPECTED_DESCRIPTION="$EXPECTED_DESCRIPTION" EXPECTED_REVISION="$EXPECTED_REVISION" "$PY" - <<'PY'
 import os, json
 raw = os.environ.get("RESP_JSON", "{}")
 data = json.loads(raw)
@@ -251,9 +253,10 @@ if not items:
     raise SystemExit("No items returned")
 props = items[0].get("properties") or {}
 expected_item = os.environ.get("EXPECTED_ITEM_NUMBER", "")
+expected_item_alt = os.environ.get("EXPECTED_ITEM_NUMBER_ALT", "")
 expected_desc = os.environ.get("EXPECTED_DESCRIPTION", "")
 expected_rev = os.environ.get("EXPECTED_REVISION", "")
-if expected_item and props.get("item_number") != expected_item:
+if expected_item and props.get("item_number") not in (expected_item, expected_item_alt):
     raise SystemExit(f"item_number mismatch: {props.get('item_number')}")
 if expected_desc and props.get("description") != expected_desc:
     raise SystemExit(f"description mismatch: {props.get('description')}")

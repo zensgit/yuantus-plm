@@ -20,6 +20,12 @@ depends_on: Union[str, None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if "auth_tenant_quotas" in inspector.get_table_names():
+        return
+
     op.create_table(
         "auth_tenant_quotas",
         sa.Column("tenant_id", sa.String(length=64), primary_key=True),
@@ -35,4 +41,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table("auth_tenant_quotas")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if "auth_tenant_quotas" in inspector.get_table_names():
+        op.drop_table("auth_tenant_quotas")

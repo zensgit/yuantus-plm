@@ -13,8 +13,35 @@ DB_URL="${DB_URL:-}"
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLI="${CLI:-.venv/bin/yuantus}"
 PY="${PY:-.venv/bin/python}"
+
+load_server_env() {
+  local pid_file="${REPO_ROOT}/yuantus.pid"
+  if [[ -f "$pid_file" ]]; then
+    local pid
+    pid="$(cat "$pid_file" 2>/dev/null || true)"
+    if [[ -n "$pid" ]] && ps -p "$pid" >/dev/null 2>&1; then
+      local tokens
+      tokens="$(ps eww -p "$pid" -o command= | tr ' ' '\n' | grep '^YUANTUS_' || true)"
+      while IFS= read -r token; do
+        [[ -z "$token" ]] && continue
+        local key="${token%%=*}"
+        local value="${token#*=}"
+        case "$key" in
+          YUANTUS_DATABASE_URL|YUANTUS_DATABASE_URL_TEMPLATE|YUANTUS_IDENTITY_DATABASE_URL|YUANTUS_TENANCY_MODE|YUANTUS_SCHEMA_MODE|YUANTUS_AUTH_MODE|YUANTUS_PLATFORM_ADMIN_ENABLED|YUANTUS_PLATFORM_TENANT_ID|YUANTUS_AUDIT_ENABLED)
+            if [[ -z "${!key:-}" ]]; then
+              export "${key}=${value}"
+            fi
+            ;;
+        esac
+      done <<< "$tokens"
+    fi
+  fi
+}
+
+load_server_env
 
 # Export for child scripts
 export CLI PY
