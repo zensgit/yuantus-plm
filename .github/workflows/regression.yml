@@ -17,9 +17,32 @@ jobs:
     concurrency:
       group: regression-${{ github.ref }}
       cancel-in-progress: true
+    env:
+      CADGF_HOST_ROOT: ${{ github.workspace }}/CADGameFusion
+      YUANTUS_CADGF_DEFAULT_EMIT: "json,gltf,meta"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Checkout CADGameFusion
+        uses: actions/checkout@v4
+        with:
+          repository: zensgit/CADGameFusion
+          path: CADGameFusion
+
+      - name: Build CADGameFusion (core + plugin)
+        run: |
+          cd CADGameFusion
+          ./scripts/bootstrap_vcpkg.sh
+          export VCPKG_ROOT="$PWD/vcpkg"
+          export CC=gcc
+          export CXX=g++
+          cmake -S . -B build_vcpkg \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_EDITOR_QT=OFF \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_MANIFEST_MODE=ON
+          cmake --build build_vcpkg --config Release --parallel
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -35,7 +58,7 @@ jobs:
           python -m pip install -e .
 
       - name: Start services
-        run: docker compose -p yuantusplm up -d --build
+        run: docker compose -p yuantusplm -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.cadgf.yml up -d --build
 
       - name: Wait for API
         run: |
@@ -56,6 +79,8 @@ jobs:
         env:
           RUN_CAD_AUTO_PART: "1"
           RUN_CAD_EXTRACTOR_SERVICE: "1"
+          RUN_CADGF_PREVIEW_ONLINE: "1"
+          CADGF_PREVIEW_SAMPLE_FILE: "docs/samples/cadgf_preview_square.dxf"
         run: |
           . .venv/bin/activate
           bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 2>&1 | tee regression.log

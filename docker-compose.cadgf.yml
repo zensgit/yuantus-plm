@@ -1,0 +1,11 @@
+services:
+  worker:
+    environment:
+      YUANTUS_CADGF_ROOT: /opt/cadgf
+      YUANTUS_CADGF_CONVERT_SCRIPT: /opt/cadgf/tools/plm_convert.py
+      YUANTUS_CADGF_CONVERT_CLI: /opt/cadgf/build_vcpkg/tools/convert_cli
+      YUANTUS_CADGF_DXF_PLUGIN_PATH: /opt/cadgf/build_vcpkg/plugins/libcadgf_dxf_importer_plugin.so
+      YUANTUS_CADGF_DEFAULT_EMIT: ${YUANTUS_CADGF_DEFAULT_EMIT:-json,gltf,meta}
+      LD_LIBRARY_PATH: /opt/cadgf/build_vcpkg/vcpkg_installed/x64-linux/lib:/opt/cadgf/build_vcpkg/vcpkg_installed/x64-linux/lib64
+    volumes:
+      - ${CADGF_HOST_ROOT:-./CADGameFusion}:/opt/cadgf:ro
