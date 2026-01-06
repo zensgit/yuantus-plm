@@ -58,7 +58,7 @@ jobs:
           python -m pip install -e .
 
       - name: Start services
-        run: docker compose -p yuantusplm -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.cadgf.yml up -d --build
+        run: docker compose -p yuantusplm -f docker-compose.yml -f docker-compose.cadgf.yml up -d --build
 
       - name: Wait for API
         run: |
