@@ -7,6 +7,7 @@ import time
 import logging
 import threading
 import inspect
+import contextvars
 from typing import Callable, Dict, Any, Optional
 from yuantus.meta_engine.services.job_service import JobService
 from yuantus.meta_engine.services.job_errors import JobFatalError
@@ -66,8 +67,9 @@ class JobWorker:
 
         logger.info(f"Worker '{self.worker_id}' starting...")
         self._running = True
+        ctx = contextvars.copy_context()
         self._thread = threading.Thread(
-            target=self._run_loop, name=f"Worker-{self.worker_id}-Loop"
+            target=ctx.run, args=(self._run_loop,), name=f"Worker-{self.worker_id}-Loop"
         )
         # self._thread.daemon = True # Allow main program to exit even if worker is running
         self._thread.start()

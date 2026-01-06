@@ -57,6 +57,7 @@ class CADGFConverterService:
         if not python_bin.exists():
             raise CadgfConversionError(f"CADGF python executable missing: {python_bin}")
 
+        emit_tokens = (self.settings.CADGF_DEFAULT_EMIT or "").strip()
         cmd = [
             str(python_bin),
             str(convert_script),
@@ -66,9 +67,11 @@ class CADGFConverterService:
             str(input_path),
             "--out",
             str(output_dir),
-            "--json",
-            "--gltf",
         ]
+        if emit_tokens:
+            cmd.extend(["--emit", emit_tokens])
+        else:
+            cmd.extend(["--json", "--gltf"])
         if convert_cli:
             cmd.extend(["--convert-cli", str(convert_cli)])
 

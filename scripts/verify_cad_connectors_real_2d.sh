@@ -128,7 +128,8 @@ wait_for_job() {
   done
   if [[ "$completed" -ne 1 ]]; then
     echo "Worker did not complete job (status=$status). Running direct processor..."
-    JOB_ID="$job_id" TENANT="$TENANT" ORG="$ORG" \
+    env \
+      JOB_ID="$job_id" TENANT="$TENANT" ORG="$ORG" \
       ${DB_URL:+YUANTUS_DATABASE_URL="$DB_URL"} \
       ${DB_URL_TEMPLATE:+YUANTUS_DATABASE_URL_TEMPLATE="$DB_URL_TEMPLATE"} \
       ${IDENTITY_DB_URL:+YUANTUS_IDENTITY_DATABASE_URL="$IDENTITY_DB_URL"} \

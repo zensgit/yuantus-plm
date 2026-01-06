@@ -18,11 +18,27 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "meta_eco_stages",
-        sa.Column("sla_hours", sa.Integer(), nullable=True),
-    )
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if "meta_eco_stages" not in inspector.get_table_names():
+        return
+
+    columns = {col["name"] for col in inspector.get_columns("meta_eco_stages")}
+    if "sla_hours" not in columns:
+        op.add_column(
+            "meta_eco_stages",
+            sa.Column("sla_hours", sa.Integer(), nullable=True),
+        )
 
 
 def downgrade() -> None:
-    op.drop_column("meta_eco_stages", "sla_hours")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    if "meta_eco_stages" not in inspector.get_table_names():
+        return
+
+    columns = {col["name"] for col in inspector.get_columns("meta_eco_stages")}
+    if "sla_hours" in columns:
+        op.drop_column("meta_eco_stages", "sla_hours")

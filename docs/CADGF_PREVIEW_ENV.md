@@ -40,9 +40,13 @@ export YUANTUS_CADGF_CONVERT_SCRIPT="/path/to/CADGameFusion/tools/plm_convert.py
 export YUANTUS_CADGF_CONVERT_CLI="/path/to/CADGameFusion/build_vcpkg/tools/convert_cli"
 export YUANTUS_CADGF_DXF_PLUGIN_PATH="/path/to/CADGameFusion/build_vcpkg/plugins/libcadgf_dxf_importer_plugin.dylib"
 export YUANTUS_CADGF_PYTHON_BIN="/opt/homebrew/bin/python3.12"
+export YUANTUS_DWG_CONVERTER_BIN="/path/to/dwg_converter"
 ```
 
 Notes:
 - `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL` is only for browser-facing viewer URLs.
   The server still calls `YUANTUS_CADGF_ROUTER_BASE_URL` for router requests.
-- For DWG input, convert to DXF before calling the CADGF 2D pipeline.
+- `YUANTUS_CADGF_DEFAULT_EMIT` is used by the CADGF conversion pipeline; include
+  `meta` to generate `mesh_metadata.json` when triangulated meshes are present.
+- `YUANTUS_DWG_CONVERTER_BIN` can be a wrapper accepting `input.dwg output.dxf`,
+  or the ODA File Converter binary (auto-detected).

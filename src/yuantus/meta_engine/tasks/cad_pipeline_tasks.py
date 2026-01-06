@@ -5,6 +5,7 @@ import io
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 import uuid
 from datetime import datetime
@@ -101,6 +102,104 @@ def _cadgf_storage_prefix(file_id: str) -> str:
 
 def _cadgf_output_dir(vault_base_path: str, file_id: str) -> str:
     return os.path.join(vault_base_path, _cadgf_storage_prefix(file_id))
+
+
+def _resolve_dwg_converter() -> Optional[Path]:
+    converter = str(get_settings().DWG_CONVERTER_BIN or "").strip()
+    if not converter:
+        return None
+    path = Path(converter)
+    if path.exists():
+        return path
+    resolved = shutil.which(converter)
+    return Path(resolved) if resolved else None
+
+
+def _select_dxf_output(output_dir: Path, stem: str) -> Path:
+    candidates = [
+        path
+        for path in output_dir.rglob("*.dxf")
+        if path.is_file() and path.suffix.lower() == ".dxf"
+    ]
+    if not candidates:
+        raise CadgfConversionError("DWG conversion did not produce a DXF file.")
+    for candidate in candidates:
+        if candidate.stem == stem:
+            return candidate
+    if len(candidates) == 1:
+        return candidates[0]
+    raise CadgfConversionError(
+        "DWG conversion produced multiple DXF outputs; unable to pick one."
+    )
+
+
+def _run_dwg_converter_simple(bin_path: Path, source: Path, output_dir: Path) -> Path:
+    output_path = output_dir / f"{source.stem}.dxf"
+    cmd = [str(bin_path), str(source), str(output_path)]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        raise CadgfConversionError(
+            f"DWG converter failed ({result.returncode}): {detail}"
+        )
+    if output_path.exists():
+        return output_path
+    return _select_dxf_output(output_dir, source.stem)
+
+
+def _run_dwg_converter_oda(bin_path: Path, source: Path, output_dir: Path) -> Path:
+    temp_input_dir = Path(tempfile.mkdtemp(prefix="dwg_input_"))
+    try:
+        temp_source = temp_input_dir / source.name
+        shutil.copy2(source, temp_source)
+        cmd = [
+            str(bin_path),
+            str(temp_input_dir),
+            str(output_dir),
+            "ACAD2013",
+            "DXF",
+            "0",
+            "1",
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise CadgfConversionError(
+                f"DWG converter failed ({result.returncode}): {detail}"
+            )
+        return _select_dxf_output(output_dir, source.stem)
+    finally:
+        shutil.rmtree(temp_input_dir, ignore_errors=True)
+
+
+def _convert_dwg_to_dxf(source_path: str, output_dir: str) -> Path:
+    converter = _resolve_dwg_converter()
+    if not converter:
+        raise CadgfConversionError(
+            "DWG converter not configured. Set YUANTUS_DWG_CONVERTER_BIN."
+        )
+    source = Path(source_path)
+    if not source.exists():
+        raise CadgfConversionError(f"DWG source missing: {source}")
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+    if "odafileconverter" in converter.name.lower():
+        return _run_dwg_converter_oda(converter, source, output_dir_path)
+    return _run_dwg_converter_simple(converter, source, output_dir_path)
+
+
+def _normalize_dxf_line_endings(source_path: str) -> Optional[str]:
+    try:
+        data = Path(source_path).read_bytes()
+    except Exception:
+        return None
+    if b"\r\n" not in data:
+        return None
+    normalized = data.replace(b"\r\n", b"\n")
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".dxf")
+    temp_file.write(normalized)
+    temp_file.close()
+    return temp_file.name
 
 
 def _is_nonempty(value: Any) -> bool:
@@ -343,6 +442,8 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
 
         temp_source_path: Optional[str] = None
         temp_output_dir: Optional[str] = None
+        temp_dwg_dir: Optional[str] = None
+        temp_dxf_path: Optional[str] = None
 
         try:
             if use_s3:
@@ -362,10 +463,16 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                 )
                 output_dir = _cadgf_output_dir(vault_base_path, file_container.id)
 
-            if ext != "dxf":
-                raise CadgfConversionError(
-                    "CADGF conversion supports DXF only; convert DWG to DXF first."
-                )
+            if ext == "dwg":
+                temp_dwg_dir = tempfile.mkdtemp(prefix="dwg2dxf_")
+                source_path = str(_convert_dwg_to_dxf(source_path, temp_dwg_dir))
+                ext = "dxf"
+
+            if ext == "dxf":
+                normalized = _normalize_dxf_line_endings(source_path)
+                if normalized:
+                    temp_dxf_path = normalized
+                    source_path = normalized
 
             cadgf = CADGFConverterService()
             artifacts = cadgf.convert(source_path, output_dir, extension=ext)
@@ -457,6 +564,10 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                 "target_format": "gltf",
             }
         finally:
+            if temp_dxf_path and os.path.exists(temp_dxf_path):
+                os.unlink(temp_dxf_path)
+            if temp_dwg_dir and os.path.exists(temp_dwg_dir):
+                shutil.rmtree(temp_dwg_dir)
             if use_s3:
                 if temp_source_path and os.path.exists(temp_source_path):
                     os.unlink(temp_source_path)

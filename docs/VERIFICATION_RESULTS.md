@@ -10368,3 +10368,25 @@ S3_SECRET_ACCESS_KEY=minioadmin \
 ```text
 ALL CHECKS PASSED
 ```
+
+## Run ALL-63（一键回归：run_full_regression.sh 全量回归）
+
+- 时间：`2026-01-05 16:15:12 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/run_full_regression.sh`
+- 结果：`PASS 42 / FAIL 0 / SKIP 0`
+- 日志：`/tmp/verify_all_full_20260105_161403.log`
+- 说明：同步运行服务的 DB 配置并修复迁移兼容/Auto Part 校验后，执行全量回归通过。
+
+执行命令：
+
+```bash
+scripts/run_full_regression.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full_20260105_161403.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 42  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```

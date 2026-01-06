@@ -45,6 +45,7 @@ validate the viewer rewrite path.
   export YUANTUS_CADGF_ROUTER_AUTH_TOKEN="replace-with-bearer-token"
   export YUANTUS_CAD_PREVIEW_PUBLIC="false"
   export YUANTUS_CAD_PREVIEW_CORS_ORIGINS=""
+  export YUANTUS_DWG_CONVERTER_BIN="/path/to/dwg_converter"
   ```
 
 ## 5) PLM Validation (minimal)
