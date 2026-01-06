@@ -30,7 +30,7 @@ load_server_env() {
         local key="${token%%=*}"
         local value="${token#*=}"
         case "$key" in
-          YUANTUS_DATABASE_URL|YUANTUS_DATABASE_URL_TEMPLATE|YUANTUS_IDENTITY_DATABASE_URL|YUANTUS_TENANCY_MODE|YUANTUS_SCHEMA_MODE|YUANTUS_AUTH_MODE|YUANTUS_PLATFORM_ADMIN_ENABLED|YUANTUS_PLATFORM_TENANT_ID|YUANTUS_AUDIT_ENABLED)
+          YUANTUS_DATABASE_URL|YUANTUS_DATABASE_URL_TEMPLATE|YUANTUS_IDENTITY_DATABASE_URL|YUANTUS_TENANCY_MODE|YUANTUS_SCHEMA_MODE|YUANTUS_AUTH_MODE|YUANTUS_PLATFORM_ADMIN_ENABLED|YUANTUS_PLATFORM_TENANT_ID|YUANTUS_AUDIT_ENABLED|YUANTUS_CADGF_DEFAULT_EMIT)
             if [[ -z "${!key:-}" ]]; then
               export "${key}=${value}"
             fi
@@ -402,6 +402,32 @@ if [[ -x "$SCRIPT_DIR/verify_cad_preview_public_base.sh" ]]; then
       "$SCRIPT_DIR/verify_cad_preview_public_base.sh" || true
   else
     skip_test "S5-A (CADGF Public Base)" "RUN_CADGF_PUBLIC_BASE=0"
+  fi
+fi
+
+# 9.1c S5-A - CADGF Preview Online (optional)
+if [[ -x "$SCRIPT_DIR/verify_cad_preview_online.sh" ]]; then
+  if [[ "${RUN_CADGF_PREVIEW_ONLINE:-0}" == "1" ]]; then
+    if [[ -n "${CADGF_PREVIEW_SAMPLE_FILE:-}" && -f "$CADGF_PREVIEW_SAMPLE_FILE" ]]; then
+      export BASE_URL TENANT ORG
+      export LOGIN_USERNAME="${CADGF_PREVIEW_USERNAME:-admin}"
+      export PASSWORD="${CADGF_PREVIEW_PASSWORD:-admin}"
+      export SAMPLE_FILE="$CADGF_PREVIEW_SAMPLE_FILE"
+      if [[ -n "${CADGF_EXPECT_METADATA+x}" ]]; then
+        export EXPECT_METADATA="${CADGF_EXPECT_METADATA}"
+      elif [[ "${YUANTUS_CADGF_DEFAULT_EMIT:-}" == *"meta"* ]]; then
+        export EXPECT_METADATA="1"
+      else
+        export EXPECT_METADATA="0"
+      fi
+      run_test "S5-A (CADGF Preview Online)" \
+        "$SCRIPT_DIR/verify_cad_preview_online.sh" || true
+      unset LOGIN_USERNAME PASSWORD SAMPLE_FILE EXPECT_METADATA
+    else
+      skip_test "S5-A (CADGF Preview Online)" "CADGF_PREVIEW_SAMPLE_FILE missing"
+    fi
+  else
+    skip_test "S5-A (CADGF Preview Online)" "RUN_CADGF_PREVIEW_ONLINE=0"
   fi
 fi
 
