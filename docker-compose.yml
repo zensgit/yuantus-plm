@@ -112,6 +112,18 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:7910/api/v1/health').read()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     # Run migrations and init storage before starting
     command: >
       sh -c "
@@ -161,7 +173,7 @@ services:
       YUANTUS_CAD_CONNECTORS_CONFIG_PATH: ${YUANTUS_CAD_CONNECTORS_CONFIG_PATH:-}
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
 
   # =============================================================================
   # Optional CAD Extractor Microservice
