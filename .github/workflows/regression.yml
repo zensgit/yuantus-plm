@@ -20,6 +20,8 @@ jobs:
     env:
       CADGF_HOST_ROOT: ${{ github.workspace }}/CADGameFusion
       YUANTUS_CADGF_DEFAULT_EMIT: "json,gltf,meta"
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+      VCPKG_FEATURE_FLAGS: "binarycaching"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -102,6 +104,11 @@ jobs:
               echo "ALL TESTS FAILED"
             fi
             echo '```'
+            if [[ -f /tmp/cadgf_preview_online_report.md ]]; then
+              echo ""
+              echo "CADGF Preview Online:"
+              grep -E "^- (metadata_present|file_id|exit_code)" /tmp/cadgf_preview_online_report.md || true
+            fi
           } > regression-summary.md
 
       - name: Compose logs (on failure)
@@ -129,6 +136,14 @@ jobs:
         with:
           name: regression-summary
           path: regression-summary.md
+
+      - name: Upload CADGF preview report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cadgf-preview-report
+          path: /tmp/cadgf_preview_online_report.md
+          if-no-files-found: warn
 
       - name: Upload compose log
         if: always()
