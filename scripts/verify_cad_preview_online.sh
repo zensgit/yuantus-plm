@@ -14,6 +14,7 @@ SAMPLE_FILE="${SAMPLE_FILE:-}"
 PY="${PY:-.venv/bin/python}"
 CURL="${CURL:-curl -sS}"
 REPORT_PATH="${REPORT_PATH:-/tmp/cadgf_preview_online_report.md}"
+SYNC_GEOMETRY="${SYNC_GEOMETRY:-${CADGF_SYNC_GEOMETRY:-0}}"
 
 LOGIN_OK="no"
 UPLOAD_OK="no"
@@ -21,6 +22,8 @@ CONVERSION_OK="no"
 VIEWER_OK="no"
 MANIFEST_OK="no"
 METADATA_OK="n/a"
+JOBS_JSON="[]"
+JOBS_COUNT="0"
 FILE_ID=""
 CAD_VIEWER_URL=""
 CAD_MANIFEST_URL=""
@@ -43,9 +46,15 @@ write_report() {
 - viewer_load: $VIEWER_OK
 - manifest_rewrite: $MANIFEST_OK
 - metadata_present: $METADATA_OK
+- jobs_count: $JOBS_COUNT
 - file_id: $FILE_ID
 - cad_viewer_url: $CAD_VIEWER_URL
 - exit_code: $EXIT_CODE
+
+## Jobs (import response)
+\`\`\`json
+$JOBS_JSON
+\`\`\`
 
 ## Manifest Artifacts (rewrite=1)
 \`\`\`json
@@ -110,6 +119,8 @@ if [[ -z "$FILE_ID" ]]; then
   echo "Upload failed: $FILE_RESP" >&2
   exit 1
 fi
+JOBS_JSON="$("$PY" -c 'import json,sys; data=json.load(sys.stdin); print(json.dumps(data.get("jobs", []), indent=2, sort_keys=True))' <<<"$FILE_RESP")"
+JOBS_COUNT="$("$PY" -c 'import json,sys; data=json.load(sys.stdin); print(len(data.get("jobs", [])))' <<<"$FILE_RESP")"
 UPLOAD_OK="yes"
 
 for _ in {1..60}; do
@@ -122,6 +133,47 @@ for _ in {1..60}; do
   fi
   sleep 2
 done
+
+if [[ -z "$CAD_VIEWER_URL" || "$CAD_VIEWER_URL" == "None" ]]; then
+  if [[ "$SYNC_GEOMETRY" == "1" ]]; then
+    echo "cad_viewer_url missing; running cad_geometry synchronously" >&2
+    export FILE_ID TENANT ORG
+    "$PY" - <<'PY'
+import json
+import os
+import sys
+
+from yuantus.context import tenant_id_var, org_id_var
+from yuantus.database import get_db_session
+from yuantus.meta_engine.bootstrap import import_all_models
+from yuantus.meta_engine.tasks.cad_pipeline_tasks import cad_geometry
+
+tenant = os.environ.get("TENANT") or ""
+org = os.environ.get("ORG") or ""
+file_id = os.environ.get("FILE_ID")
+if not file_id:
+    sys.exit("missing FILE_ID for cad_geometry")
+
+tenant_id_var.set(tenant)
+org_id_var.set(org)
+import_all_models()
+
+with get_db_session() as session:
+    result = cad_geometry({"file_id": file_id, "target_format": "gltf"}, session)
+
+print(json.dumps(result))
+if not result.get("ok"):
+    sys.exit("cad_geometry failed")
+PY
+
+    META_RESP="$($CURL "$BASE_URL/api/v1/file/$FILE_ID" "${HEADERS[@]}" "${AUTH_HEADER[@]}")"
+    CAD_VIEWER_URL="$("$PY" -c 'import json,sys; print(json.load(sys.stdin).get("cad_viewer_url",""))' <<<"$META_RESP")"
+    CAD_MANIFEST_URL="$BASE_URL/api/v1/file/$FILE_ID/cad_manifest?rewrite=1"
+    if [[ -n "$CAD_VIEWER_URL" && "$CAD_VIEWER_URL" != "None" ]]; then
+      CONVERSION_OK="yes"
+    fi
+  fi
+fi
 
 if [[ -n "$CAD_VIEWER_URL" && "$CAD_VIEWER_URL" != "None" ]]; then
   if $CURL "$CAD_VIEWER_URL" | grep -q "Web Preview"; then

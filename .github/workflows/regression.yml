@@ -11,6 +11,48 @@ on:
   pull_request:
 
 jobs:
+  detect_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      cadgf_changed: ${{ steps.cadgf_changes.outputs.cadgf }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect CADGF-related changes
+        id: cadgf_changes
+        run: |
+          set -euo pipefail
+          event="${{ github.event_name }}"
+          if [[ "$event" == "schedule" || "$event" == "workflow_dispatch" ]]; then
+            echo "cadgf=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base=""
+          head=""
+          if [[ "$event" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          elif [[ "$event" == "push" ]]; then
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
+          fi
+
+          if [[ -z "$base" || -z "$head" ]]; then
+            echo "cadgf=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git diff --name-only "$base" "$head" > /tmp/changed.txt
+          if grep -E -q '^(\\.github/workflows/regression\\.yml|docker-compose\\.cadgf\\.yml|docs/samples/cadgf_preview_square\\.dxf|docs/CADGF_|scripts/verify_cad_preview_online\\.sh|scripts/verify_all\\.sh|src/yuantus/config/settings\\.py|src/yuantus/meta_engine/services/cadgf_converter_service\\.py|src/yuantus/meta_engine/tasks/cad_pipeline_tasks\\.py)' /tmp/changed.txt; then
+            echo "cadgf=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "cadgf=false" >> "$GITHUB_OUTPUT"
+          fi
+
   regression:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -18,10 +60,128 @@ jobs:
       group: regression-${{ github.ref }}
       cancel-in-progress: true
     env:
+      YUANTUS_CADGF_DEFAULT_EMIT: "json,gltf,meta"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install CLI
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Start services
+        run: docker compose -p yuantusplm -f docker-compose.yml up -d --build
+
+      - name: Wait for API
+        run: |
+          for i in {1..60}; do
+            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:7910/api/v1/health || true)"
+            if [ "$code" = "200" ]; then
+              echo "API healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API not healthy"
+          docker compose -p yuantusplm ps
+          docker compose -p yuantusplm logs --tail=200 api
+          exit 1
+
+      - name: Run regression suite
+        env:
+          RUN_CAD_AUTO_PART: "1"
+          RUN_CAD_EXTRACTOR_SERVICE: "1"
+        run: |
+          . .venv/bin/activate
+          bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 2>&1 | tee regression.log
+
+      - name: Build regression summary
+        if: always()
+        run: |
+          {
+            echo "# Regression Summary"
+            echo ""
+            echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo ""
+            echo '```text'
+            if grep -q "ALL TESTS PASSED" regression.log; then
+              grep -n "PASS:" -n regression.log | tail -n 1 | sed 's/^.*PASS:/PASS:/'
+              echo "ALL TESTS PASSED"
+            else
+              grep -n "PASS:" -n regression.log | tail -n 1 | sed 's/^.*PASS:/PASS:/' || true
+              echo "ALL TESTS FAILED"
+            fi
+            echo '```'
+            if [[ -f /tmp/cadgf_preview_online_report.md ]]; then
+              echo ""
+              echo "CADGF Preview Online:"
+              grep -E "^- (metadata_present|file_id|exit_code)" /tmp/cadgf_preview_online_report.md || true
+            else
+              echo ""
+              echo "CADGF Preview Online: separate job"
+            fi
+          } > regression-summary.md
+
+      - name: Compose logs (on failure)
+        if: failure()
+        run: |
+          docker compose -p yuantusplm ps
+          docker compose -p yuantusplm logs --tail=200
+
+      - name: Capture compose logs
+        if: always()
+        run: |
+          docker compose -p yuantusplm ps || true
+          docker compose -p yuantusplm logs > compose.log 2>&1 || true
+
+      - name: Upload regression log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-log
+          path: regression.log
+
+      - name: Upload regression summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-summary
+          path: regression-summary.md
+
+      - name: Upload compose log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-log
+          path: compose.log
+
+  cadgf_preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: detect_changes
+    if: >
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      needs.detect_changes.outputs.cadgf_changed == 'true'
+    env:
       CADGF_HOST_ROOT: ${{ github.workspace }}/CADGameFusion
+      YUANTUS_CADGF_ROOT: ${{ github.workspace }}/CADGameFusion
+      YUANTUS_CADGF_CONVERT_SCRIPT: ${{ github.workspace }}/CADGameFusion/tools/plm_convert.py
+      YUANTUS_CADGF_CONVERT_CLI: ${{ github.workspace }}/CADGameFusion/build_vcpkg/tools/convert_cli
+      YUANTUS_CADGF_DXF_PLUGIN_PATH: ${{ github.workspace }}/CADGameFusion/build_vcpkg/plugins/libcadgf_dxf_importer_plugin.so
       YUANTUS_CADGF_DEFAULT_EMIT: "json,gltf,meta"
       VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
       VCPKG_FEATURE_FLAGS: "binarycaching"
+      CADGF_PREVIEW_SAMPLE_FILE: "docs/samples/cadgf_preview_square.dxf"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -77,65 +237,58 @@ jobs:
           docker compose -p yuantusplm logs --tail=200 api
           exit 1
 
-      - name: Run regression suite
+      - name: Restart worker after migrations
+        run: |
+          docker compose -p yuantusplm exec -T api yuantus db upgrade
+          docker compose -p yuantusplm exec -T worker yuantus db upgrade || true
+          docker compose -p yuantusplm restart worker
+
+      - name: Seed identity + meta
         env:
-          RUN_CAD_AUTO_PART: "1"
-          RUN_CAD_EXTRACTOR_SERVICE: "1"
-          RUN_CADGF_PREVIEW_ONLINE: "1"
-          CADGF_PREVIEW_SAMPLE_FILE: "docs/samples/cadgf_preview_square.dxf"
+          YUANTUS_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus
+          YUANTUS_SCHEMA_MODE: migrations
         run: |
           . .venv/bin/activate
-          bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 2>&1 | tee regression.log
+          yuantus seed-identity --tenant tenant-1 --org org-1 --username admin --password admin --user-id 1 --roles admin --superuser
+          yuantus seed-meta --tenant tenant-1 --org org-1 || yuantus seed-meta
 
-      - name: Build regression summary
+      - name: Run CADGF preview online
+        env:
+          BASE_URL: http://127.0.0.1:7910
+          TENANT: tenant-1
+          ORG: org-1
+          LOGIN_USERNAME: admin
+          PASSWORD: admin
+          SAMPLE_FILE: ${{ env.CADGF_PREVIEW_SAMPLE_FILE }}
+          CADGF_SYNC_GEOMETRY: "1"
+          YUANTUS_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus
+          YUANTUS_SCHEMA_MODE: migrations
+          YUANTUS_STORAGE_TYPE: s3
+          YUANTUS_S3_ENDPOINT_URL: http://127.0.0.1:59000
+          YUANTUS_S3_PUBLIC_ENDPOINT_URL: http://127.0.0.1:59000
+          YUANTUS_S3_BUCKET_NAME: yuantus
+          YUANTUS_S3_ACCESS_KEY_ID: minioadmin
+          YUANTUS_S3_SECRET_ACCESS_KEY: minioadmin
+          LD_LIBRARY_PATH: ${{ github.workspace }}/CADGameFusion/build_vcpkg/vcpkg_installed/x64-linux/lib:${{ github.workspace }}/CADGameFusion/build_vcpkg/vcpkg_installed/x64-linux/lib64:${{ env.LD_LIBRARY_PATH }}
+          EXPECT_METADATA: "1"
+        run: |
+          . .venv/bin/activate
+          bash scripts/verify_cad_preview_online.sh
+
+      - name: Build CADGF preview summary
         if: always()
         run: |
           {
-            echo "# Regression Summary"
+            echo "# CADGF Preview Summary"
             echo ""
             echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             echo ""
-            echo '```text'
-            if grep -q "ALL TESTS PASSED" regression.log; then
-              grep -n "PASS:" -n regression.log | tail -n 1 | sed 's/^.*PASS:/PASS:/'
-              echo "ALL TESTS PASSED"
-            else
-              grep -n "PASS:" -n regression.log | tail -n 1 | sed 's/^.*PASS:/PASS:/' || true
-              echo "ALL TESTS FAILED"
-            fi
-            echo '```'
             if [[ -f /tmp/cadgf_preview_online_report.md ]]; then
-              echo ""
-              echo "CADGF Preview Online:"
               grep -E "^- (metadata_present|file_id|exit_code)" /tmp/cadgf_preview_online_report.md || true
+            else
+              echo "cadgf_preview_report: missing"
             fi
-          } > regression-summary.md
-
-      - name: Compose logs (on failure)
-        if: failure()
-        run: |
-          docker compose -p yuantusplm ps
-          docker compose -p yuantusplm logs --tail=200
-
-      - name: Capture compose logs
-        if: always()
-        run: |
-          docker compose -p yuantusplm ps || true
-          docker compose -p yuantusplm logs > compose.log 2>&1 || true
-
-      - name: Upload regression log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: regression-log
-          path: regression.log
-
-      - name: Upload regression summary
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: regression-summary
-          path: regression-summary.md
+          } > cadgf-preview-summary.md
 
       - name: Upload CADGF preview report
         if: always()
@@ -145,9 +298,21 @@ jobs:
           path: /tmp/cadgf_preview_online_report.md
           if-no-files-found: warn
 
+      - name: Upload CADGF preview summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cadgf-preview-summary
+          path: cadgf-preview-summary.md
+
+      - name: Capture compose logs
+        if: always()
+        run: |
+          docker compose -p yuantusplm ps || true
+          docker compose -p yuantusplm logs > compose.log 2>&1 || true
       - name: Upload compose log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: compose-log
+          name: cadgf-preview-compose-log
           path: compose.log
