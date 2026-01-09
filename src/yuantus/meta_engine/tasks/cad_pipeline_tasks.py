@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import logging
 import os
 import shutil
@@ -102,6 +103,38 @@ def _cadgf_storage_prefix(file_id: str) -> str:
 
 def _cadgf_output_dir(vault_base_path: str, file_id: str) -> str:
     return os.path.join(vault_base_path, _cadgf_storage_prefix(file_id))
+
+
+def _parse_schema_version(value: Any) -> Optional[int]:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.isdigit():
+            return int(stripped)
+    return None
+
+
+def _read_cadgf_document_schema_version(
+    manifest_path: Path, document_path: Optional[Path]
+) -> Optional[int]:
+    candidates = [
+        (manifest_path, "document_schema_version"),
+        (document_path, "schema_version"),
+    ]
+    for path, key in candidates:
+        if not path or not path.exists():
+            continue
+        try:
+            with path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except Exception:
+            continue
+        if isinstance(data, dict):
+            version = _parse_schema_version(data.get(key))
+            if version is not None:
+                return version
+    return None
 
 
 def _resolve_dwg_converter() -> Optional[Path]:
@@ -476,6 +509,10 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
 
             cadgf = CADGFConverterService()
             artifacts = cadgf.convert(source_path, output_dir, extension=ext)
+            doc_schema_version = _read_cadgf_document_schema_version(
+                artifacts.manifest_path,
+                artifacts.document_path,
+            )
 
             if not artifacts.mesh_gltf_path:
                 raise CadgfConversionError(
@@ -526,6 +563,7 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                 )
                 file_container.geometry_path = _rel(artifacts.mesh_gltf_path)
 
+            file_container.cad_document_schema_version = doc_schema_version
             file_container.conversion_status = ConversionStatus.COMPLETED.value
             file_container.conversion_error = None
             session.add(file_container)
