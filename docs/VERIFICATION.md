@@ -96,6 +96,11 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - ✅ `GET /api/v1/file/{file_id}/download`：文件下载
 - ✅ `POST /api/v1/file/attach`：附件挂载到 Item
 - ✅ `GET /api/v1/file/item/{item_id}`：查询 Item 附件列表
+- ✅ `GET /api/v1/products/{item_id}`：产品详情聚合（属性/版本/附件）
+- ✅ `GET /api/v1/bom/{item_id}/where-used` + `GET /api/v1/bom/compare` + `POST /api/v1/bom/{bom_line_id}/substitutes`：BOM UI 关键接口
+- ✅ `scripts/verify_docs_approval.sh`：文档流程 + ECO 审批基础闭环
+- ✅ `scripts/verify_cad_connectors.sh`：GStarCAD/ZWCAD 等 2D 连接器验证
+- ✅ `scripts/verify_ops_hardening.sh`：多租户/配额/审计/健康/索引回归
 - ✅ 文档生命周期：Draft → Review → Released（Released 状态强制锁定更新与附件）
 - ✅ Part 生命周期：Draft → Review → Released（Released 状态锁定 BOM/更新/附件）
 - ✅ `POST /api/v1/cad/import` + `cad_preview`：CAD 导入 → 异步预览任务 → `GET /api/v1/file/{file_id}/preview`
@@ -3392,4 +3397,80 @@ export YUANTUS_PLATFORM_ADMIN_ENABLED=true
 
 ```bash
 bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 54) Product Detail Mapping（属性/版本/附件聚合）
+
+### 54.1 一键验收：`scripts/verify_product_detail.sh`
+
+该脚本验证产品详情聚合接口：
+
+- `GET /api/v1/products/{item_id}` 返回 `item/current_version/versions/files`
+- 校验 `item_number` 映射、版本初始化、附件列表
+
+```bash
+bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 55) BOM UI 关键接口（where-used / compare / substitutes）
+
+### 55.1 一键验收：`scripts/verify_bom_ui.sh`
+
+该脚本验证 UI 侧依赖的 BOM API：
+
+- `GET /api/v1/bom/{item_id}/where-used`
+- `GET /api/v1/bom/compare`（`include_child_fields=true`）
+- `POST/GET /api/v1/bom/{bom_line_id}/substitutes`
+
+```bash
+bash scripts/verify_bom_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 56) Docs + Approval（文档流程 + ECO 审批）
+
+### 56.1 一键验收：`scripts/verify_docs_approval.sh`
+
+该脚本串联以下验证：
+
+- `verify_documents.sh`（文档/附件）
+- `verify_document_lifecycle.sh`（文档生命周期）
+- ECO 审批流程（stage → approve → approvals）
+
+```bash
+bash scripts/verify_docs_approval.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 57) CAD Connectors（GStarCAD/ZWCAD/Haochen/Zhongwang）
+
+### 57.1 一键验收：`scripts/verify_cad_connectors.sh`
+
+默认验证 2D 连接器（合成文件），可选开启真实样本：
+
+```bash
+bash scripts/verify_cad_connectors.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+启用真实样本：
+
+```bash
+RUN_REAL=1 \
+  bash scripts/verify_cad_connectors.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 58) Ops Hardening（多租户/配额/审计/健康/索引）
+
+### 58.1 一键验收：`scripts/verify_ops_hardening.sh`
+
+```bash
+bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1
 ```

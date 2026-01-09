@@ -181,6 +181,7 @@ echo "==> Test revision calculation"
 NEXT_REV="$(
   curl -s "$BASE/api/v1/versions/revision/next?current=A&scheme=letter" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["next"])'
 )"
 if [[ "$NEXT_REV" == "B" ]]; then
@@ -193,6 +194,7 @@ fi
 NEXT_REV_Z="$(
   curl -s "$BASE/api/v1/versions/revision/next?current=Z&scheme=letter" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["next"])'
 )"
 if [[ "$NEXT_REV_Z" == "AA" ]]; then
@@ -205,6 +207,7 @@ fi
 NEXT_REV_NUM="$(
   curl -s "$BASE/api/v1/versions/revision/next?current=1&scheme=number" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["next"])'
 )"
 if [[ "$NEXT_REV_NUM" == "2" ]]; then
@@ -220,6 +223,7 @@ echo "==> Test revision comparison"
 REV_CMP="$(
   curl -s "$BASE/api/v1/versions/revision/compare?rev_a=A&rev_b=C" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["comparison"])'
 )"
 if [[ "$REV_CMP" == "-1" ]]; then
