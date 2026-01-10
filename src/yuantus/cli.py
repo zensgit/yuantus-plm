@@ -90,6 +90,12 @@ def worker(
     w.register_handler("cad_dedup_vision", cad_dedup_vision)
     w.register_handler("cad_ml_vision", cad_ml_vision)
     w.register_handler("quota_test", quota_test)
+    try:
+        from yuantus.plugin_manager.worker import register_plugin_job_handlers
+
+        register_plugin_job_handlers(w)
+    except Exception as exc:
+        typer.echo(f"Warning: plugin job handlers not loaded: {exc}", err=True)
 
     if once:
         processed = w.run_once()

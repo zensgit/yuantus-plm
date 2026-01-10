@@ -1,0 +1,11 @@
+{
+  "id": "yuantus-bom-compare",
+  "name": "Yuantus BOM Compare Plugin",
+  "version": "0.1.0",
+  "description": "BOM comparison and merge utilities.",
+  "author": "YuantusPLM",
+  "plugin_type": "extension",
+  "category": "bom",
+  "tags": ["bom", "compare", "merge"],
+  "entry_point": "main.py"
+}
