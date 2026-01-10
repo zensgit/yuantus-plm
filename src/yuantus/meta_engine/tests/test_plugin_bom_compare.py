@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def _load_plugin_module():
     root = Path(__file__).resolve().parents[4]
@@ -80,3 +82,31 @@ def test_compare_only_product_skips_unchanged():
 
     assert result.summary["unchanged"] == 1
     assert result.differences == []
+
+
+def test_export_csv_payload_joins_lists():
+    module = _load_plugin_module()
+    diffs = [
+        module.BomCompareDiff(
+            key="c1",
+            child_id="c1",
+            name="Child 1",
+            status="added",
+            relationship_ids_a=["rel-a", "rel-b"],
+            relationship_ids_b=[],
+        )
+    ]
+    csv_text = module._build_csv_payload(
+        diffs,
+        columns=["key", "relationship_ids_a", "relationship_ids_b"],
+        delimiter=",",
+    )
+    lines = csv_text.strip().splitlines()
+    assert lines[0] == "key,relationship_ids_a,relationship_ids_b"
+    assert lines[1] == "c1,rel-a|rel-b,"
+
+
+def test_normalize_export_columns_rejects_unknown():
+    module = _load_plugin_module()
+    with pytest.raises(ValueError):
+        module._normalize_export_columns(["bad_column"])

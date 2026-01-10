@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import csv
+import io
+from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple, TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 if TYPE_CHECKING:  # pragma: no cover
     from sqlalchemy.orm import Session
@@ -91,6 +95,19 @@ class BomCompareResponse(BaseModel):
     differences: List[BomCompareDiff]
 
 
+class BomCompareExportRequest(BomCompareRequest):
+    format: str = Field(default="csv", description="Export format (csv)")
+    columns: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Optional column list. Defaults to key,status,child_id,name,qty_a,qty_b,"
+            "delta,position_a,position_b,refdes_a,refdes_b,relationship_ids_a,relationship_ids_b"
+        ),
+    )
+    delimiter: str = Field(default=",", description="CSV delimiter (single character)")
+    filename: Optional[str] = Field(default=None, description="Download filename override")
+
+
 class BomApplyChange(BaseModel):
     op: str = Field(..., description="add|remove|update")
     relationship_id: Optional[str] = None
@@ -109,6 +126,22 @@ class BomApplyRequest(BaseModel):
 class BomApplyResponse(BaseModel):
     ok: bool
     results: List[Dict[str, Any]]
+
+_EXPORT_COLUMNS = [
+    "key",
+    "status",
+    "child_id",
+    "name",
+    "qty_a",
+    "qty_b",
+    "delta",
+    "position_a",
+    "position_b",
+    "refdes_a",
+    "refdes_b",
+    "relationship_ids_a",
+    "relationship_ids_b",
+]
 
 
 def _normalize_compare_mode(mode: Optional[str]) -> str:
@@ -225,6 +258,54 @@ def _extract_entries(
         entry["qty"] += qty
 
     return entries
+
+
+def _normalize_export_format(value: Optional[str]) -> str:
+    normalized = (value or "csv").strip().lower()
+    if normalized == "csv":
+        return "csv"
+    raise ValueError("format must be 'csv'")
+
+
+def _normalize_export_columns(columns: Optional[List[str]]) -> List[str]:
+    if not columns:
+        return list(_EXPORT_COLUMNS)
+    normalized = [c.strip() for c in columns if c and c.strip()]
+    if not normalized:
+        return list(_EXPORT_COLUMNS)
+    unknown = [c for c in normalized if c not in _EXPORT_COLUMNS]
+    if unknown:
+        raise ValueError(f"Unknown columns: {', '.join(unknown)}")
+    return normalized
+
+
+def _build_csv_payload(
+    diffs: List[BomCompareDiff],
+    *,
+    columns: List[str],
+    delimiter: str,
+) -> str:
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=delimiter, lineterminator="\n")
+    writer.writerow(columns)
+    for diff in diffs:
+        row: List[Any] = []
+        for column in columns:
+            value = getattr(diff, column, "")
+            if isinstance(value, list):
+                value = "|".join([str(v) for v in value if v is not None])
+            elif value is None:
+                value = ""
+            row.append(value)
+        writer.writerow(row)
+    return output.getvalue()
+
+
+def _export_filename(name: Optional[str]) -> str:
+    if name:
+        return name
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    return f"bom_compare_{timestamp}.csv"
 
 
 def compare_bom_trees(
@@ -345,6 +426,72 @@ def compare_bom(
         position_key=req.position_key,
         refdes_key=req.refdes_key,
         include_unchanged=req.include_unchanged,
+    )
+
+
+@router.post("/export")
+def export_bom(
+    req: BomCompareExportRequest,
+    db: Session = Depends(_get_db),
+    current_user: Any = Depends(_current_user_optional),
+) -> Response:
+    from yuantus.meta_engine.services.bom_service import BOMService
+
+    try:
+        mode = _normalize_compare_mode(req.compare_mode)
+        export_format = _normalize_export_format(req.format)
+        columns = _normalize_export_columns(req.columns)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not req.delimiter or len(req.delimiter) != 1:
+        raise HTTPException(
+            status_code=400, detail="delimiter must be a single character"
+        )
+
+    bom_service = BOMService(db)
+    try:
+        bom_a = bom_service.get_bom_structure(
+            req.item_id_a,
+            levels=req.levels,
+            relationship_types=req.relationship_types,
+        )
+        bom_b = bom_service.get_bom_structure(
+            req.item_id_b,
+            levels=req.levels,
+            relationship_types=req.relationship_types,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    if export_format != "csv":
+        raise HTTPException(status_code=400, detail="format must be 'csv'")
+
+    result = compare_bom_trees(
+        bom_a,
+        bom_b,
+        mode=mode,
+        quantity_key=req.quantity_key,
+        position_key=req.position_key,
+        refdes_key=req.refdes_key,
+        include_unchanged=req.include_unchanged,
+    )
+
+    payload = _build_csv_payload(
+        result.differences, columns=columns, delimiter=req.delimiter
+    )
+    filename = _export_filename(req.filename)
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "X-BOM-Compare-Added": str(result.summary.get("added", 0)),
+        "X-BOM-Compare-Removed": str(result.summary.get("removed", 0)),
+        "X-BOM-Compare-Modified": str(result.summary.get("modified", 0)),
+        "X-BOM-Compare-Unchanged": str(result.summary.get("unchanged", 0)),
+    }
+    return Response(
+        content=payload,
+        media_type="text/csv; charset=utf-8",
+        headers=headers,
     )
 
 

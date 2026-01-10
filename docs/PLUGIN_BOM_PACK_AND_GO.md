@@ -83,6 +83,33 @@ Notes:
 - `update/remove` require relationship item ids.
 - Permissions are enforced by AML.
 
+### Export CSV
+
+`POST /export`
+
+Request:
+```json
+{
+  "item_id_a": "UUID-A",
+  "item_id_b": "UUID-B",
+  "compare_mode": "summarized",
+  "levels": -1,
+  "include_unchanged": false,
+  "format": "csv",
+  "columns": ["key", "status", "child_id", "name", "qty_a", "qty_b", "delta"],
+  "delimiter": ",",
+  "filename": "bom_compare.csv"
+}
+```
+
+Response:
+- CSV file stream
+- Summary counts in headers:
+  - `X-BOM-Compare-Added`
+  - `X-BOM-Compare-Removed`
+  - `X-BOM-Compare-Modified`
+  - `X-BOM-Compare-Unchanged`
+
 ## Pack-and-Go Plugin
 
 Base path: `/api/v1/plugins/pack-and-go`
@@ -146,4 +173,3 @@ Run plugin unit tests:
 pytest -q src/yuantus/meta_engine/tests/test_plugin_bom_compare.py \
   src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py
 ```
-
