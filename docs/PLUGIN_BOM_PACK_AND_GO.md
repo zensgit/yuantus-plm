@@ -129,11 +129,18 @@ Request:
   "include_previews": false,
   "include_printouts": true,
   "include_geometry": true,
+  "include_bom_tree": false,
+  "bom_tree_filename": "bom_tree.json",
+  "include_manifest_csv": false,
+  "manifest_csv_filename": "manifest.csv",
   "async": false
 }
 ```
 
 Response: ZIP file stream (includes `manifest.json`).
+Optional extras when enabled:
+- `bom_tree.json` (set `include_bom_tree=true`)
+- `manifest.csv` (set `include_manifest_csv=true`)
 
 ### Async Pack (optional)
 

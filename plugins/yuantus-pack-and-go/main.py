@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import re
@@ -59,6 +61,17 @@ _DEFAULT_FILE_ROLES = (
     "drawing",
 )
 _DEFAULT_DOCUMENT_TYPES = ("2d", "3d", "pr", "other")
+_MANIFEST_CSV_COLUMNS = (
+    "file_id",
+    "filename",
+    "file_role",
+    "document_type",
+    "cad_format",
+    "size",
+    "path_in_package",
+    "source_item_id",
+    "source_item_number",
+)
 
 
 class PackAndGoRequest(BaseModel):
@@ -69,6 +82,18 @@ class PackAndGoRequest(BaseModel):
     include_previews: bool = Field(default=False)
     include_printouts: bool = Field(default=True)
     include_geometry: bool = Field(default=True)
+    include_bom_tree: bool = Field(
+        default=False, description="Include BOM tree JSON in the package"
+    )
+    bom_tree_filename: Optional[str] = Field(
+        default=None, description="Filename for BOM tree JSON"
+    )
+    include_manifest_csv: bool = Field(
+        default=False, description="Include manifest CSV in the package"
+    )
+    manifest_csv_filename: Optional[str] = Field(
+        default=None, description="Filename for manifest CSV"
+    )
     async_flag: bool = Field(default=False, alias="async")
 
 
@@ -151,6 +176,15 @@ def _build_package_path(item_number: str, file_role: str, filename: str) -> str:
     return f"{safe_item}/{safe_role}/{safe_name}"
 
 
+def _safe_filename(value: Optional[str], default: str) -> str:
+    if value:
+        name = Path(value).name
+        cleaned = _sanitize_component(name)
+        if cleaned:
+            return cleaned
+    return default
+
+
 def _resolve_item_number(item: Item) -> str:
     props = item.properties or {}
     return (
@@ -174,6 +208,22 @@ def _collect_item_ids(tree: Dict[str, Any]) -> List[str]:
 
     _walk(tree)
     return ids
+
+
+def _build_manifest_csv(
+    entries: Sequence[Dict[str, Any]],
+    columns: Sequence[str] = _MANIFEST_CSV_COLUMNS,
+) -> str:
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(list(columns))
+    for entry in entries:
+        row: List[Any] = []
+        for column in columns:
+            value = entry.get(column, "")
+            row.append("" if value is None else value)
+        writer.writerow(row)
+    return output.getvalue()
 
 
 def _resolve_source_path(
@@ -220,6 +270,10 @@ def build_pack_and_go_package(
     include_previews: bool,
     include_printouts: bool,
     include_geometry: bool,
+    include_bom_tree: bool = False,
+    bom_tree_filename: Optional[str] = None,
+    include_manifest_csv: bool = False,
+    manifest_csv_filename: Optional[str] = None,
     output_dir: Path,
     file_service: Optional[FileService] = None,
 ) -> PackAndGoResult:
@@ -336,6 +390,12 @@ def build_pack_and_go_package(
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     zip_name = f"pack_and_go_{_sanitize_component(root_number)}_{timestamp}.zip"
     zip_path = output_dir / zip_name
+    bom_tree_name = None
+    manifest_csv_name = None
+    if include_bom_tree:
+        bom_tree_name = _safe_filename(bom_tree_filename, "bom_tree.json")
+    if include_manifest_csv:
+        manifest_csv_name = _safe_filename(manifest_csv_filename, "manifest.csv")
 
     manifest = {
         "root_item_id": item_id,
@@ -360,6 +420,15 @@ def build_pack_and_go_package(
         ],
         "missing_files": missing_files,
     }
+    extra_files: List[Dict[str, Any]] = []
+    if bom_tree_name:
+        manifest["bom_tree_file"] = bom_tree_name
+        extra_files.append({"kind": "bom_tree", "path": bom_tree_name})
+    if manifest_csv_name:
+        manifest["manifest_csv_file"] = manifest_csv_name
+        extra_files.append({"kind": "manifest_csv", "path": manifest_csv_name})
+    if extra_files:
+        manifest["extra_files"] = extra_files
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
         for entry in pack_files:
@@ -368,6 +437,16 @@ def build_pack_and_go_package(
             "manifest.json",
             json.dumps(manifest, ensure_ascii=True, indent=2),
         )
+        if bom_tree_name:
+            zipf.writestr(
+                bom_tree_name,
+                json.dumps(bom_tree, ensure_ascii=True, indent=2),
+            )
+        if manifest_csv_name:
+            zipf.writestr(
+                manifest_csv_name,
+                _build_manifest_csv(manifest["files"]),
+            )
 
     for temp_path in temp_paths:
         try:
@@ -434,6 +513,10 @@ def pack_and_go(
             include_previews=req.include_previews,
             include_printouts=req.include_printouts,
             include_geometry=req.include_geometry,
+            include_bom_tree=req.include_bom_tree,
+            bom_tree_filename=req.bom_tree_filename,
+            include_manifest_csv=req.include_manifest_csv,
+            manifest_csv_filename=req.manifest_csv_filename,
             output_dir=output_dir,
         )
     except ValueError as exc:
@@ -539,6 +622,10 @@ def handle_pack_and_go_job(payload: Dict[str, Any], session: Session) -> Dict[st
         include_previews=bool(payload.get("include_previews", False)),
         include_printouts=bool(payload.get("include_printouts", True)),
         include_geometry=bool(payload.get("include_geometry", True)),
+        include_bom_tree=bool(payload.get("include_bom_tree", False)),
+        bom_tree_filename=payload.get("bom_tree_filename"),
+        include_manifest_csv=bool(payload.get("include_manifest_csv", False)),
+        manifest_csv_filename=payload.get("manifest_csv_filename"),
         output_dir=output_dir,
     )
 
