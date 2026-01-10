@@ -28,6 +28,7 @@ LOCAL_STORAGE_PATH="${LOCAL_STORAGE_PATH:-${YUANTUS_LOCAL_STORAGE_PATH:-}}"
 CAD_ML_BASE_URL="${CAD_ML_BASE_URL:-${YUANTUS_CAD_ML_BASE_URL:-http://localhost:8001}}"
 CAD_ML_HEALTH_URL="${CAD_ML_HEALTH_URL:-${CAD_ML_BASE_URL}/api/v1/vision/health}"
 CAD_ML_TOKEN="${CAD_ML_SERVICE_TOKEN:-${YUANTUS_CAD_ML_SERVICE_TOKEN:-}}"
+CAD_PREVIEW_ALLOW_FALLBACK="${CAD_PREVIEW_ALLOW_FALLBACK:-0}"
 
 SAMPLE_FILE="${CAD_PREVIEW_SAMPLE_FILE:-/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg}"
 
@@ -46,8 +47,13 @@ fi
 
 HTTP_CODE="$($CURL -o /dev/null -w '%{http_code}' "$CAD_ML_HEALTH_URL" 2>/dev/null || echo "000")"
 if [[ "$HTTP_CODE" != "200" ]]; then
-  echo "SKIP: CAD ML Vision not available at $CAD_ML_HEALTH_URL (HTTP $HTTP_CODE)"
-  exit 0
+  if [[ "$CAD_PREVIEW_ALLOW_FALLBACK" == "1" ]]; then
+    echo "WARN: CAD ML Vision not available at $CAD_ML_HEALTH_URL (HTTP $HTTP_CODE)"
+    echo "      Continuing with fallback preview."
+  else
+    echo "SKIP: CAD ML Vision not available at $CAD_ML_HEALTH_URL (HTTP $HTTP_CODE)"
+    exit 0
+  fi
 fi
 
 run_cli() {
@@ -206,4 +212,124 @@ if [[ "$PREVIEW_CODE" != "200" && "$PREVIEW_CODE" != "302" ]]; then
 fi
 
 ok "Preview endpoint HTTP $PREVIEW_CODE"
+
+echo ""
+echo "==> Update CAD properties"
+PROPS_PAYLOAD='{"properties":{"part_number":"VERIFY-001","revision":"A"},"source":"verify"}'
+PROPS_RESP="$($CURL -X POST "$API/cad/files/$FILE_ID/properties" \
+  "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+  -H "content-type: application/json" \
+  -d "$PROPS_PAYLOAD")"
+PROPS_SOURCE=$(echo "$PROPS_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("source",""))')
+if [[ "$PROPS_SOURCE" != "verify" ]]; then
+  echo "Response: $PROPS_RESP" >&2
+  fail "CAD properties update failed"
+fi
+ok "CAD properties updated"
+
+echo ""
+echo "==> Update CAD view state"
+DOC_PAYLOAD="$($CURL -sS \
+  -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" "${AUTH_HEADERS[@]}" \
+  "$BASE_URL/api/v1/file/$FILE_ID/cad_document" 2>/dev/null || true)"
+ENTITY_ID=$(echo "$DOC_PAYLOAD" | "$PY" - <<'PY'
+import sys
+import json
+
+try:
+    data = json.load(sys.stdin)
+except Exception:
+    data = {}
+
+entities = data.get("entities")
+if isinstance(entities, list):
+    for item in entities:
+        if isinstance(item, dict):
+            entity_id = item.get("id")
+            if isinstance(entity_id, int):
+                print(entity_id)
+                break
+PY
+)
+if [[ -n "$ENTITY_ID" ]]; then
+  VIEW_PAYLOAD=$(cat <<JSON
+{"hidden_entity_ids":[$ENTITY_ID],"notes":[{"entity_id":$ENTITY_ID,"note":"verify view note"}],"source":"verify","refresh_preview":false}
+JSON
+)
+else
+  VIEW_PAYLOAD='{"hidden_entity_ids":[],"notes":[],"source":"verify","refresh_preview":false}'
+fi
+VIEW_RESP="$($CURL -X POST "$API/cad/files/$FILE_ID/view-state" \
+  "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+  -H "content-type: application/json" \
+  -d "$VIEW_PAYLOAD")"
+VIEW_SOURCE=$(echo "$VIEW_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("source",""))')
+if [[ "$VIEW_SOURCE" != "verify" ]]; then
+  echo "Response: $VIEW_RESP" >&2
+  fail "CAD view state update failed"
+fi
+ok "CAD view state updated"
+
+echo ""
+echo "==> Update CAD review"
+REVIEW_RESP="$($CURL -X POST "$API/cad/files/$FILE_ID/review" \
+  "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+  -H "content-type: application/json" \
+  -d '{"state":"approved","note":"verify review"}')"
+REVIEW_STATE=$(echo "$REVIEW_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("state",""))')
+if [[ "$REVIEW_STATE" != "approved" ]]; then
+  echo "Response: $REVIEW_RESP" >&2
+  fail "CAD review update failed"
+fi
+ok "CAD review updated"
+
+echo ""
+echo "==> Check CAD diff"
+DIFF_RESP="$($CURL -sS \
+  "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+  "$API/cad/files/$FILE_ID/diff?other_id=$FILE_ID")"
+DIFF_SIZE=$(echo "$DIFF_RESP" | "$PY" -c 'import sys,json;print(len(json.load(sys.stdin).get("properties",{})))')
+if [[ "$DIFF_SIZE" != "0" ]]; then
+  echo "Response: $DIFF_RESP" >&2
+  fail "CAD diff expected empty properties"
+fi
+ok "CAD diff ok"
+
+echo ""
+echo "==> Check CAD history"
+HISTORY_RESP="$($CURL -sS \
+  "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+  "$API/cad/files/$FILE_ID/history")"
+HISTORY_ACTIONS=$(echo "$HISTORY_RESP" | "$PY" -c 'import sys,json;print("|".join([e.get("action","") for e in json.load(sys.stdin).get("entries",[])]))')
+if [[ "$HISTORY_ACTIONS" != *"cad_properties_update"* ]]; then
+  echo "Response: $HISTORY_RESP" >&2
+  fail "CAD history missing properties update"
+fi
+if [[ "$HISTORY_ACTIONS" != *"cad_view_state_update"* ]]; then
+  echo "Response: $HISTORY_RESP" >&2
+  fail "CAD history missing view state update"
+fi
+if [[ "$HISTORY_ACTIONS" != *"cad_review_update"* ]]; then
+  echo "Response: $HISTORY_RESP" >&2
+  fail "CAD history missing review update"
+fi
+ok "CAD history ok"
+
+echo ""
+echo "==> Check CAD mesh stats (optional)"
+MESH_TMP="$(mktemp)"
+MESH_CODE="$($CURL -o "$MESH_TMP" -w '%{http_code}' \
+  -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" "${AUTH_HEADERS[@]}" \
+  "$API/cad/files/$FILE_ID/mesh-stats" 2>/dev/null || echo "000")"
+if [[ "$MESH_CODE" == "200" ]]; then
+  MESH_KEYS=$("$PY" -c 'import json,sys;print(len(json.load(open(sys.argv[1])).get("stats",{})))' "$MESH_TMP")
+  if [[ "$MESH_KEYS" == "0" ]]; then
+    rm -f "$MESH_TMP"
+    fail "CAD mesh stats empty"
+  fi
+  ok "CAD mesh stats ok"
+else
+  echo "SKIP: mesh stats unavailable (HTTP $MESH_CODE)"
+fi
+rm -f "$MESH_TMP"
 echo "ALL CHECKS PASSED"

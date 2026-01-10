@@ -65,3 +65,7 @@ Notes:
   or the ODA File Converter binary (auto-detected).
 - `CADGF_SYNC_GEOMETRY=1` triggers a synchronous geometry fallback when the worker
   has not picked up the job yet; this is mainly for CI stability.
+- `scripts/verify_cad_preview_2d.sh` now also checks CAD metadata endpoints
+  (properties/view state/review/history/diff) and skips mesh stats when absent.
+- Set `CAD_PREVIEW_ALLOW_FALLBACK=1` to allow `scripts/verify_cad_preview_2d.sh`
+  to proceed without CAD ML.
