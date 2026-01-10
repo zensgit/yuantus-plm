@@ -216,7 +216,7 @@ ok "Preview endpoint HTTP $PREVIEW_CODE"
 echo ""
 echo "==> Update CAD properties"
 PROPS_PAYLOAD='{"properties":{"part_number":"VERIFY-001","revision":"A"},"source":"verify"}'
-PROPS_RESP="$($CURL -X POST "$API/cad/files/$FILE_ID/properties" \
+PROPS_RESP="$($CURL -X PATCH "$API/cad/files/$FILE_ID/properties" \
   "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
   -H "content-type: application/json" \
   -d "$PROPS_PAYLOAD")"
@@ -232,12 +232,13 @@ echo "==> Update CAD view state"
 DOC_PAYLOAD="$($CURL -sS \
   -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" "${AUTH_HEADERS[@]}" \
   "$BASE_URL/api/v1/file/$FILE_ID/cad_document" 2>/dev/null || true)"
-ENTITY_ID=$(echo "$DOC_PAYLOAD" | "$PY" - <<'PY'
-import sys
+ENTITY_ID=$(DOC_PAYLOAD="$DOC_PAYLOAD" "$PY" - <<'PY'
 import json
+import os
 
+raw = os.environ.get("DOC_PAYLOAD", "")
 try:
-    data = json.load(sys.stdin)
+    data = json.loads(raw)
 except Exception:
     data = {}
 
@@ -259,7 +260,7 @@ JSON
 else
   VIEW_PAYLOAD='{"hidden_entity_ids":[],"notes":[],"source":"verify","refresh_preview":false}'
 fi
-VIEW_RESP="$($CURL -X POST "$API/cad/files/$FILE_ID/view-state" \
+VIEW_RESP="$($CURL -X PATCH "$API/cad/files/$FILE_ID/view-state" \
   "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
   -H "content-type: application/json" \
   -d "$VIEW_PAYLOAD")"
