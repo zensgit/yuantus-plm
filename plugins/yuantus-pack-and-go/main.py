@@ -43,9 +43,13 @@ def _current_user(
     identity_db=Depends(_get_identity_db),
     db=Depends(_get_db),
 ):
-    from yuantus.api.dependencies.auth import get_current_user
+    from yuantus.api.dependencies.auth import (
+        get_current_user,
+        get_current_user_optional,
+    )
 
-    return get_current_user(request, identity_db=identity_db, db=db)
+    user = get_current_user_optional(request, identity_db=identity_db, db=db)
+    return get_current_user(user=user)
 
 _DEFAULT_FILE_ROLES = (
     "native_cad",
