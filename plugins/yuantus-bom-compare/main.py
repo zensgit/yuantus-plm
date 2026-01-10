@@ -96,7 +96,7 @@ class BomCompareResponse(BaseModel):
 
 
 class BomCompareExportRequest(BomCompareRequest):
-    format: str = Field(default="csv", description="Export format (csv)")
+    format: str = Field(default="csv", description="Export format (csv|xlsx)")
     columns: Optional[List[str]] = Field(
         default=None,
         description=(
@@ -268,7 +268,9 @@ def _normalize_export_format(value: Optional[str]) -> str:
     normalized = (value or "csv").strip().lower()
     if normalized == "csv":
         return "csv"
-    raise ValueError("format must be 'csv'")
+    if normalized == "xlsx":
+        return "xlsx"
+    raise ValueError("format must be 'csv' or 'xlsx'")
 
 
 def _normalize_export_columns(columns: Optional[List[str]]) -> List[str]:
@@ -305,11 +307,47 @@ def _build_csv_payload(
     return output.getvalue()
 
 
-def _export_filename(name: Optional[str]) -> str:
+def _build_xlsx_payload(
+    diffs: List[BomCompareDiff],
+    *,
+    columns: List[str],
+    summary: Dict[str, int],
+) -> bytes:
+    try:
+        import openpyxl
+    except Exception as exc:  # pragma: no cover - optional dependency
+        raise RuntimeError("openpyxl is required for xlsx export") from exc
+
+    workbook = openpyxl.Workbook()
+    summary_sheet = workbook.active
+    summary_sheet.title = "summary"
+    summary_sheet.append(["status", "count"])
+    for key in ("added", "removed", "modified", "unchanged"):
+        summary_sheet.append([key, summary.get(key, 0)])
+
+    diff_sheet = workbook.create_sheet("diffs")
+    diff_sheet.append(columns)
+    for diff in diffs:
+        row: List[Any] = []
+        for column in columns:
+            value = getattr(diff, column, "")
+            if isinstance(value, list):
+                value = "|".join([str(v) for v in value if v is not None])
+            elif value is None:
+                value = ""
+            row.append(value)
+        diff_sheet.append(row)
+
+    output = io.BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def _export_filename(name: Optional[str], extension: str) -> str:
     if name:
         return name
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    return f"bom_compare_{timestamp}.csv"
+    return f"bom_compare_{timestamp}.{extension}"
 
 
 def compare_bom_trees(
@@ -448,10 +486,11 @@ def export_bom(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if not req.delimiter or len(req.delimiter) != 1:
-        raise HTTPException(
-            status_code=400, detail="delimiter must be a single character"
-        )
+    if export_format == "csv":
+        if not req.delimiter or len(req.delimiter) != 1:
+            raise HTTPException(
+                status_code=400, detail="delimiter must be a single character"
+            )
 
     bom_service = BOMService(db)
     try:
@@ -468,9 +507,6 @@ def export_bom(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    if export_format != "csv":
-        raise HTTPException(status_code=400, detail="format must be 'csv'")
-
     result = compare_bom_trees(
         bom_a,
         bom_b,
@@ -481,10 +517,25 @@ def export_bom(
         include_unchanged=req.include_unchanged,
     )
 
-    payload = _build_csv_payload(
-        result.differences, columns=columns, delimiter=req.delimiter
-    )
-    filename = _export_filename(req.filename)
+    if export_format == "csv":
+        payload = _build_csv_payload(
+            result.differences, columns=columns, delimiter=req.delimiter
+        )
+        media_type = "text/csv; charset=utf-8"
+        extension = "csv"
+    else:
+        try:
+            payload = _build_xlsx_payload(
+                result.differences, columns=columns, summary=result.summary
+            )
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        media_type = (
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        extension = "xlsx"
+
+    filename = _export_filename(req.filename, extension)
     headers = {
         "Content-Disposition": f'attachment; filename="{filename}"',
         "X-BOM-Compare-Added": str(result.summary.get("added", 0)),
@@ -494,7 +545,7 @@ def export_bom(
     }
     return Response(
         content=payload,
-        media_type="text/csv; charset=utf-8",
+        media_type=media_type,
         headers=headers,
     )
 

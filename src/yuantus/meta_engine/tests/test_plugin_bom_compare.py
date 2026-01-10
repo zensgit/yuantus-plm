@@ -110,3 +110,28 @@ def test_normalize_export_columns_rejects_unknown():
     module = _load_plugin_module()
     with pytest.raises(ValueError):
         module._normalize_export_columns(["bad_column"])
+
+
+def test_normalize_export_format_accepts_xlsx():
+    module = _load_plugin_module()
+    assert module._normalize_export_format("xlsx") == "xlsx"
+
+
+def test_build_xlsx_payload_when_available():
+    module = _load_plugin_module()
+    if importlib.util.find_spec("openpyxl") is None:
+        pytest.skip("openpyxl not installed")
+    diffs = [
+        module.BomCompareDiff(
+            key="c1",
+            child_id="c1",
+            name="Child 1",
+            status="added",
+        )
+    ]
+    payload = module._build_xlsx_payload(
+        diffs,
+        columns=["key", "status", "child_id", "name"],
+        summary={"added": 1, "removed": 0, "modified": 0, "unchanged": 0},
+    )
+    assert payload[:2] == b"PK"

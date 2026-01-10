@@ -104,7 +104,7 @@ Request:
 ```
 
 Response:
-- CSV file stream
+- CSV or XLSX file stream (set `format` to `xlsx` for Excel output; requires `openpyxl`)
 - Summary counts in headers:
   - `X-BOM-Compare-Added`
   - `X-BOM-Compare-Removed`
