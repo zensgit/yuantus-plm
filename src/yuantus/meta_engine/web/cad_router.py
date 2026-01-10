@@ -1184,6 +1184,13 @@ def get_cad_mesh_stats(
         raise HTTPException(status_code=404, detail="CAD metadata not available")
 
     payload = _load_cad_metadata_payload(file_container)
+    if not payload or payload.get("kind") == "cad_attributes":
+        raise HTTPException(status_code=404, detail="CAD mesh metadata not available")
+    if not any(
+        key in payload
+        for key in ("entities", "triangle_count", "triangles", "face_count", "faces", "bounds", "bbox")
+    ):
+        raise HTTPException(status_code=404, detail="CAD mesh metadata not available")
     stats = _extract_mesh_stats(payload or {})
     return CadMeshStatsResponse(file_id=file_container.id, stats=stats)
 
