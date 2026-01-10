@@ -68,7 +68,12 @@ def get_database_url() -> str:
         return url
 
     # Fallback to config file (for local dev)
-    return config.get_main_option("sqlalchemy.url", "sqlite:///yuantus_dev.db")
+    config_url = config.get_main_option(
+        "sqlalchemy.url", "sqlite:///yuantus_dev.db"
+    )
+    if config_url.startswith("driver://"):
+        return "sqlite:///yuantus_dev.db"
+    return config_url
 
 
 def run_migrations_offline() -> None:
