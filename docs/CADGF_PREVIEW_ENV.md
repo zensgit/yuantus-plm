@@ -43,6 +43,19 @@ export YUANTUS_CADGF_PYTHON_BIN="/opt/homebrew/bin/python3.12"
 export YUANTUS_DWG_CONVERTER_BIN="/path/to/dwg_converter"
 ```
 
+## CADGF Preview Online Verification (script)
+These environment variables are used by `scripts/verify_cad_preview_online.sh`.
+```bash
+export BASE_URL="http://127.0.0.1:7910"
+export TENANT="tenant-1"
+export ORG="org-1"
+export LOGIN_USERNAME="admin"
+export PASSWORD="admin"
+export SAMPLE_FILE="docs/samples/cadgf_preview_square.dxf"
+export CADGF_SYNC_GEOMETRY="1"
+export EXPECT_METADATA="1"
+```
+
 Notes:
 - `YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL` is only for browser-facing viewer URLs.
   The server still calls `YUANTUS_CADGF_ROUTER_BASE_URL` for router requests.
@@ -50,3 +63,5 @@ Notes:
   `meta` to generate `mesh_metadata.json` when triangulated meshes are present.
 - `YUANTUS_DWG_CONVERTER_BIN` can be a wrapper accepting `input.dwg output.dxf`,
   or the ODA File Converter binary (auto-detected).
+- `CADGF_SYNC_GEOMETRY=1` triggers a synchronous geometry fallback when the worker
+  has not picked up the job yet; this is mainly for CI stability.
