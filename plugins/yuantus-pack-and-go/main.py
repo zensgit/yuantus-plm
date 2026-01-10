@@ -72,11 +72,60 @@ _MANIFEST_CSV_COLUMNS = (
     "source_item_id",
     "source_item_number",
 )
+_EXPORT_TYPE_OPTIONS = ("all", "2d", "3d", "pdf", "2dpdf", "3dpdf", "3d2d")
+_EXPORT_TYPE_PRESETS = {
+    "all": {
+        "file_roles": _DEFAULT_FILE_ROLES,
+        "document_types": _DEFAULT_DOCUMENT_TYPES,
+        "include_printouts": True,
+        "include_geometry": True,
+    },
+    "2d": {
+        "file_roles": ("native_cad", "attachment", "drawing"),
+        "document_types": ("2d",),
+        "include_printouts": False,
+        "include_geometry": False,
+    },
+    "3d": {
+        "file_roles": ("native_cad", "attachment"),
+        "document_types": ("3d",),
+        "include_printouts": False,
+        "include_geometry": True,
+    },
+    "pdf": {
+        "file_roles": ("printout",),
+        "document_types": _DEFAULT_DOCUMENT_TYPES,
+        "include_printouts": True,
+        "include_geometry": False,
+    },
+    "2dpdf": {
+        "file_roles": ("native_cad", "attachment", "drawing"),
+        "document_types": ("2d",),
+        "include_printouts": True,
+        "include_geometry": False,
+    },
+    "3dpdf": {
+        "file_roles": ("native_cad", "attachment"),
+        "document_types": ("3d",),
+        "include_printouts": True,
+        "include_geometry": True,
+    },
+    "3d2d": {
+        "file_roles": ("native_cad", "attachment", "drawing"),
+        "document_types": ("3d", "2d"),
+        "include_printouts": False,
+        "include_geometry": True,
+    },
+}
 
 
 class PackAndGoRequest(BaseModel):
     item_id: str = Field(..., description="Root item id")
     depth: int = Field(default=-1, description="BOM depth (-1 for full)")
+    export_type: Optional[str] = Field(
+        default=None,
+        description="Preset export type (all|2d|3d|pdf|2dpdf|3dpdf|3d2d)",
+    )
     file_roles: Optional[List[str]] = None
     document_types: Optional[List[str]] = None
     include_previews: bool = Field(default=False)
@@ -144,6 +193,59 @@ def _env_str(name: str, default: str) -> str:
 def _sanitize_component(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
     return cleaned or "item"
+
+
+def _normalize_export_type(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    normalized = re.sub(r"[\\s_+\\-]+", "", value.strip().lower())
+    if normalized in _EXPORT_TYPE_PRESETS:
+        return normalized
+    allowed = ", ".join(_EXPORT_TYPE_OPTIONS)
+    raise ValueError(f"export_type must be one of: {allowed}")
+
+
+def _resolve_export_preset(
+    *,
+    export_type: Optional[str],
+    file_roles: Optional[Sequence[str]],
+    document_types: Optional[Sequence[str]],
+    include_printouts: bool,
+    include_geometry: bool,
+    fields_set: set[str],
+) -> Tuple[Optional[List[str]], Optional[List[str]], bool, bool, Optional[str]]:
+    normalized = _normalize_export_type(export_type)
+    if not normalized:
+        return (
+            list(file_roles) if file_roles is not None else None,
+            list(document_types) if document_types is not None else None,
+            include_printouts,
+            include_geometry,
+            None,
+        )
+    preset = _EXPORT_TYPE_PRESETS[normalized]
+    if "file_roles" not in fields_set:
+        file_roles = list(preset["file_roles"])
+    if "document_types" not in fields_set:
+        document_types = list(preset["document_types"])
+    if "include_printouts" not in fields_set:
+        include_printouts = preset["include_printouts"]
+    if "include_geometry" not in fields_set:
+        include_geometry = preset["include_geometry"]
+    return (
+        list(file_roles) if file_roles is not None else None,
+        list(document_types) if document_types is not None else None,
+        include_printouts,
+        include_geometry,
+        normalized,
+    )
+
+
+def _model_fields_set(model: BaseModel) -> set[str]:
+    fields = getattr(model, "model_fields_set", None)
+    if fields is not None:
+        return set(fields)
+    return set(getattr(model, "__fields_set__", set()))
 
 
 def _normalize_file_roles(
@@ -488,11 +590,38 @@ def pack_and_go(
     db: Session = Depends(_get_db),
     current_user: Any = Depends(_current_user),
 ):
+    try:
+        (
+            file_roles,
+            document_types,
+            include_printouts,
+            include_geometry,
+            export_type,
+        ) = _resolve_export_preset(
+            export_type=req.export_type,
+            file_roles=req.file_roles,
+            document_types=req.document_types,
+            include_printouts=req.include_printouts,
+            include_geometry=req.include_geometry,
+            fields_set=_model_fields_set(req),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     if req.async_flag:
         from yuantus.meta_engine.services.job_service import JobService
 
         job_service = JobService(db)
         payload = _build_job_payload(req, user_id=str(getattr(current_user, "id", "")) or None)
+        payload.update(
+            {
+                "export_type": export_type,
+                "file_roles": file_roles,
+                "document_types": document_types,
+                "include_printouts": include_printouts,
+                "include_geometry": include_geometry,
+            }
+        )
         job = job_service.create_job("pack_and_go", payload, user_id=getattr(current_user, "id", None))
         status_url = str(request.url_for("pack_and_go_job_status", job_id=job.id))
         return JSONResponse(
@@ -508,11 +637,11 @@ def pack_and_go(
             db,
             item_id=req.item_id,
             depth=req.depth,
-            file_roles=req.file_roles or _DEFAULT_FILE_ROLES,
-            document_types=req.document_types or _DEFAULT_DOCUMENT_TYPES,
+            file_roles=file_roles or _DEFAULT_FILE_ROLES,
+            document_types=document_types or _DEFAULT_DOCUMENT_TYPES,
             include_previews=req.include_previews,
-            include_printouts=req.include_printouts,
-            include_geometry=req.include_geometry,
+            include_printouts=include_printouts,
+            include_geometry=include_geometry,
             include_bom_tree=req.include_bom_tree,
             bom_tree_filename=req.bom_tree_filename,
             include_manifest_csv=req.include_manifest_csv,
@@ -612,16 +741,38 @@ def handle_pack_and_go_job(payload: Dict[str, Any], session: Session) -> Dict[st
     output_dir = Path(_env_str("YUANTUS_PACKGO_OUTPUT_DIR", "./tmp/pack_and_go"))
     retention_minutes = _env_int("YUANTUS_PACKGO_RETENTION_MINUTES", 30)
     _prune_old_outputs(output_dir, retention_minutes)
+    fields_set = {
+        key
+        for key in payload
+        if key in {"file_roles", "document_types", "include_printouts", "include_geometry"}
+    }
+    try:
+        (
+            file_roles,
+            document_types,
+            include_printouts,
+            include_geometry,
+            _,
+        ) = _resolve_export_preset(
+            export_type=payload.get("export_type"),
+            file_roles=payload.get("file_roles"),
+            document_types=payload.get("document_types"),
+            include_printouts=bool(payload.get("include_printouts", True)),
+            include_geometry=bool(payload.get("include_geometry", True)),
+            fields_set=fields_set,
+        )
+    except ValueError as exc:
+        raise ValueError(str(exc)) from exc
 
     result = build_pack_and_go_package(
         session,
         item_id=item_id,
         depth=int(payload.get("depth", -1)),
-        file_roles=payload.get("file_roles") or _DEFAULT_FILE_ROLES,
-        document_types=payload.get("document_types") or _DEFAULT_DOCUMENT_TYPES,
+        file_roles=file_roles or _DEFAULT_FILE_ROLES,
+        document_types=document_types or _DEFAULT_DOCUMENT_TYPES,
         include_previews=bool(payload.get("include_previews", False)),
-        include_printouts=bool(payload.get("include_printouts", True)),
-        include_geometry=bool(payload.get("include_geometry", True)),
+        include_printouts=include_printouts,
+        include_geometry=include_geometry,
         include_bom_tree=bool(payload.get("include_bom_tree", False)),
         bom_tree_filename=payload.get("bom_tree_filename"),
         include_manifest_csv=bool(payload.get("include_manifest_csv", False)),

@@ -63,3 +63,27 @@ def test_build_manifest_csv_includes_columns():
     rows = list(csv.reader(io.StringIO(payload)))
     assert rows[0] == list(module._MANIFEST_CSV_COLUMNS)
     assert rows[1][0] == "file-1"
+
+
+def test_normalize_export_type_accepts_aliases():
+    module = _load_plugin_module()
+    assert module._normalize_export_type("2d+pdf") == "2dpdf"
+    assert module._normalize_export_type("3d-2d") == "3d2d"
+
+
+def test_resolve_export_preset_pdf_defaults():
+    module = _load_plugin_module()
+    file_roles, document_types, include_printouts, include_geometry, normalized = (
+        module._resolve_export_preset(
+            export_type="pdf",
+            file_roles=None,
+            document_types=None,
+            include_printouts=True,
+            include_geometry=True,
+            fields_set=set(),
+        )
+    )
+    assert normalized == "pdf"
+    assert file_roles == ["printout"]
+    assert include_printouts is True
+    assert include_geometry is False

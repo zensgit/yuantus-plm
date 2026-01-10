@@ -124,6 +124,7 @@ Request:
 {
   "item_id": "UUID-A",
   "depth": -1,
+  "export_type": "all",
   "file_roles": ["native_cad", "attachment", "printout", "geometry", "drawing"],
   "document_types": ["2d", "3d", "pr", "other"],
   "include_previews": false,
@@ -141,6 +142,10 @@ Response: ZIP file stream (includes `manifest.json`).
 Optional extras when enabled:
 - `bom_tree.json` (set `include_bom_tree=true`)
 - `manifest.csv` (set `include_manifest_csv=true`)
+
+Notes:
+- `export_type` presets: `all`, `2d`, `3d`, `pdf`, `2dpdf`, `3dpdf`, `3d2d` (separators like `2d+pdf` are accepted).
+- When `export_type` is set, defaults for `file_roles`, `document_types`, `include_printouts`, `include_geometry` are applied unless those fields are explicitly provided.
 
 ### Async Pack (optional)
 
