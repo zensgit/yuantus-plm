@@ -16,6 +16,8 @@ Date: 2026-01-09
 - DXF: validated online preview and metadata generation.
 - DWG: validated ODA -> DXF -> CADGF conversion with metadata for multiple
   samples (see Stage 2 report).
+- Metadata endpoints: validated properties/view state/review/history/diff via
+  `scripts/verify_cad_preview_2d.sh`.
 
 ## Failure Classes (from DWG scan)
 - Unsupported DXF entities (import_to_document failed)
