@@ -232,12 +232,13 @@ echo "==> Update CAD view state"
 DOC_PAYLOAD="$($CURL -sS \
   -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" "${AUTH_HEADERS[@]}" \
   "$BASE_URL/api/v1/file/$FILE_ID/cad_document" 2>/dev/null || true)"
-ENTITY_ID=$(echo "$DOC_PAYLOAD" | "$PY" - <<'PY'
-import sys
+ENTITY_ID=$(DOC_PAYLOAD="$DOC_PAYLOAD" "$PY" - <<'PY'
 import json
+import os
 
+raw = os.environ.get("DOC_PAYLOAD", "")
 try:
-    data = json.load(sys.stdin)
+    data = json.loads(raw)
 except Exception:
     data = {}
 
