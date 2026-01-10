@@ -75,6 +75,7 @@ class FileUploadResponse(BaseModel):
     cad_manifest_url: Optional[str] = None
     cad_document_url: Optional[str] = None
     cad_metadata_url: Optional[str] = None
+    cad_document_schema_version: Optional[int] = None
     document_type: Optional[str] = None
     author: Optional[str] = None
     source_system: Optional[str] = None
@@ -105,6 +106,11 @@ class FileMetadata(BaseModel):
     cad_document_url: Optional[str] = None
     cad_metadata_url: Optional[str] = None
     cad_viewer_url: Optional[str] = None
+    cad_document_schema_version: Optional[int] = None
+    cad_review_state: Optional[str] = None
+    cad_review_note: Optional[str] = None
+    cad_review_by_id: Optional[int] = None
+    cad_reviewed_at: Optional[str] = None
     conversion_status: Optional[str] = None
     created_at: Optional[str] = None
 
@@ -432,6 +438,7 @@ async def upload_file(
                     if existing.preview_path
                     else None
                 ),
+                cad_document_schema_version=existing.cad_document_schema_version,
                 document_type=existing.document_type,
                 author=existing.author,
                 source_system=existing.source_system,
@@ -517,6 +524,7 @@ async def upload_file(
             mime_type=file_container.mime_type,
             is_cad=file_container.is_cad_file(),
             preview_url=preview_url,
+            cad_document_schema_version=file_container.cad_document_schema_version,
             document_type=file_container.document_type,
             author=file_container.author,
             source_system=file_container.source_system,
@@ -585,6 +593,15 @@ async def get_file_metadata(file_id: str, request: Request, db: Session = Depend
             request,
             file_id,
             file_container.cad_manifest_path,
+        ),
+        cad_document_schema_version=file_container.cad_document_schema_version,
+        cad_review_state=file_container.cad_review_state,
+        cad_review_note=file_container.cad_review_note,
+        cad_review_by_id=file_container.cad_review_by_id,
+        cad_reviewed_at=(
+            file_container.cad_reviewed_at.isoformat()
+            if file_container.cad_reviewed_at
+            else None
         ),
         conversion_status=file_container.conversion_status,
         created_at=(

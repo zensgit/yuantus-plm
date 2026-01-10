@@ -19,6 +19,7 @@ def import_all_models() -> None:
     from yuantus.meta_engine.models import job as _job  # noqa: F401
     from yuantus.meta_engine.models import meta_schema as _meta_schema  # noqa: F401
     from yuantus.meta_engine.models import baseline as _baseline  # noqa: F401
+    from yuantus.meta_engine.models import cad_audit as _cad_audit  # noqa: F401
 
     # Subsystems
     from yuantus.meta_engine.app_framework import models as _app_framework  # noqa: F401
