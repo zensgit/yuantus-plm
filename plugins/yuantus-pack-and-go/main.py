@@ -20,7 +20,6 @@ if TYPE_CHECKING:  # pragma: no cover
 else:
     Session = Any
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
 from yuantus.context import get_request_context
 from yuantus.meta_engine.services.file_service import FileService
 
@@ -33,10 +32,24 @@ def _get_db():
     yield from get_db()
 
 
+def _get_identity_db():
+    from yuantus.security.auth.database import get_identity_db
+
+    yield from get_identity_db()
+
+
 def _current_user(
-    user: CurrentUser = Depends(get_current_user),
+    request: Request,
+    identity_db=Depends(_get_identity_db),
+    db=Depends(_get_db),
 ):
-    return user
+    from yuantus.api.dependencies.auth import (
+        get_current_user,
+        get_current_user_optional,
+    )
+
+    user = get_current_user_optional(request, identity_db=identity_db, db=db)
+    return get_current_user(user=user)
 
 _DEFAULT_FILE_ROLES = (
     "native_cad",
