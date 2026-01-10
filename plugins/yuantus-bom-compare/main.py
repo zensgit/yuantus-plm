@@ -121,11 +121,15 @@ class BomApplyChange(BaseModel):
 class BomApplyRequest(BaseModel):
     relationship_types: Optional[List[str]] = None
     changes: List[BomApplyChange]
+    dry_run: bool = Field(
+        default=False, description="Validate and return results without applying changes"
+    )
 
 
 class BomApplyResponse(BaseModel):
     ok: bool
     results: List[Dict[str, Any]]
+    dry_run: bool = False
 
 _EXPORT_COLUMNS = [
     "key",
@@ -511,6 +515,7 @@ def apply_bom_changes(
     bom_service = BOMService(db)
 
     results: List[Dict[str, Any]] = []
+    dry_run = bool(req.dry_run)
     try:
         for change in req.changes:
             op = change.op.strip().lower()
@@ -587,7 +592,10 @@ def apply_bom_changes(
 
             raise HTTPException(status_code=400, detail=f"Unknown op: {change.op}")
 
-        db.commit()
+        if dry_run:
+            db.rollback()
+        else:
+            db.commit()
     except PLMException as exc:
         db.rollback()
         raise HTTPException(status_code=exc.status_code, detail=exc.to_dict()) from exc
@@ -598,4 +606,4 @@ def apply_bom_changes(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return BomApplyResponse(ok=True, results=results)
+    return BomApplyResponse(ok=True, results=results, dry_run=dry_run)

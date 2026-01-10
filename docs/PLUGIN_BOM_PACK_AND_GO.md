@@ -74,7 +74,8 @@ Request:
     {"op": "add", "parent_id": "UUID-A", "child_id": "UUID-NEW", "quantity": 2},
     {"op": "remove", "relationship_id": "UUID-REL"},
     {"op": "update", "relationship_id": "UUID-REL2", "quantity": 5}
-  ]
+  ],
+  "dry_run": false
 }
 ```
 
