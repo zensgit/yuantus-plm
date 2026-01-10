@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yuantus PLM - CAD Review Workbench</title>
+    <style>
+      :root {
+        --ink: #0b1b22;
+        --ink-soft: #2a3b45;
+        --accent: #ff7f11;
+        --accent-strong: #e2650b;
+        --mint: #14b8a6;
+        --sky: #88c6ff;
+        --storm: #0f172a;
+        --sand: #f7f1e8;
+        --panel: rgba(255, 255, 255, 0.88);
+        --panel-strong: rgba(255, 255, 255, 0.95);
+        --line: rgba(15, 23, 42, 0.18);
+        --shadow: 0 26px 60px rgba(15, 23, 42, 0.16);
+        --radius: 18px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Avenir Next", "Futura", "Trebuchet MS", sans-serif;
+        color: var(--ink);
+        background: radial-gradient(circle at 12% 18%, rgba(255, 225, 200, 0.9) 0%, transparent 45%),
+          radial-gradient(circle at 88% 12%, rgba(165, 230, 255, 0.9) 0%, transparent 48%),
+          linear-gradient(145deg, #f8f3ea 0%, #e9f2ff 55%, #f6efe6 100%);
+        min-height: 100vh;
+      }
+
+      .page {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 40px 24px 80px;
+        animation: rise 0.9s ease-out;
+      }
+
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(18px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 26px;
+      }
+
+      .title-block {
+        max-width: 640px;
+      }
+
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.32em;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--accent-strong);
+      }
+
+      h1 {
+        font-size: clamp(2rem, 3.4vw, 3.4rem);
+        margin: 10px 0 12px;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      .status-card {
+        min-width: 240px;
+        padding: 18px 22px;
+        border-radius: var(--radius);
+        background: var(--panel-strong);
+        border: 1px solid var(--line);
+        box-shadow: var(--shadow);
+      }
+
+      .status-label {
+        font-size: 0.72rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .status {
+        font-size: 1.4rem;
+        font-weight: 700;
+        margin: 8px 0 6px;
+      }
+
+      .status.good {
+        color: var(--mint);
+      }
+
+      .status.warn {
+        color: var(--accent-strong);
+      }
+
+      .status.bad {
+        color: #d14343;
+      }
+
+      .status-sub {
+        font-size: 0.9rem;
+        color: var(--ink-soft);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+        gap: 24px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      .card {
+        background: var(--panel);
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        padding: 20px 22px;
+        box-shadow: var(--shadow);
+        animation: floatIn 0.7s ease-out;
+        animation-delay: var(--delay, 0s);
+        animation-fill-mode: both;
+      }
+
+      @keyframes floatIn {
+        from {
+          opacity: 0;
+          transform: translateY(16px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .card h2 {
+        margin: 0 0 14px;
+        font-size: 1.1rem;
+      }
+
+      label {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-top: 12px;
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        width: 100%;
+        margin-top: 8px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        font-family: inherit;
+        font-size: 0.92rem;
+        background: #fff;
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+        font-family: "IBM Plex Mono", "Menlo", "Consolas", monospace;
+        font-size: 0.82rem;
+      }
+
+      button {
+        margin-top: 16px;
+        background: linear-gradient(135deg, var(--accent), #ffb347);
+        color: #1a1006;
+        font-weight: 700;
+        border: none;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      button.secondary {
+        background: linear-gradient(135deg, #f1f5f9, #dbeafe);
+        color: var(--storm);
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 14px 24px rgba(255, 127, 17, 0.28);
+      }
+
+      button.secondary:hover {
+        box-shadow: 0 14px 24px rgba(148, 163, 184, 0.28);
+      }
+
+      .small {
+        font-size: 0.82rem;
+        color: var(--ink-soft);
+      }
+
+      .file-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 260px;
+        overflow: auto;
+      }
+
+      .file-list li {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid transparent;
+        margin-bottom: 8px;
+        background: rgba(255, 255, 255, 0.6);
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .file-list li:hover {
+        border-color: var(--accent);
+        transform: translateY(-1px);
+      }
+
+      .file-list li.active {
+        border-color: var(--mint);
+        background: rgba(20, 184, 166, 0.1);
+      }
+
+      .preview {
+        position: relative;
+        border-radius: 16px;
+        border: 1px dashed var(--line);
+        min-height: 320px;
+        overflow: hidden;
+        background: rgba(15, 23, 42, 0.04);
+      }
+
+      #viewer-frame,
+      #preview-image {
+        width: 100%;
+        height: 320px;
+        border: none;
+        display: none;
+      }
+
+      #preview-image {
+        object-fit: contain;
+        background: #fff;
+      }
+
+      #preview-placeholder {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 20px;
+        color: var(--ink-soft);
+      }
+
+      .link-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .link-row a {
+        text-decoration: none;
+        color: var(--accent-strong);
+        font-weight: 700;
+        font-size: 0.9rem;
+      }
+
+      .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        font-size: 0.9rem;
+      }
+
+      .meta-item {
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid var(--line);
+      }
+
+      .meta-item span {
+        display: block;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        color: var(--ink-soft);
+      }
+
+      .history {
+        max-height: 220px;
+        overflow: auto;
+        padding-left: 0;
+        list-style: none;
+        margin: 0;
+      }
+
+      .history li {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        margin-bottom: 10px;
+        background: rgba(255, 255, 255, 0.7);
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        background: rgba(15, 23, 42, 0.08);
+        color: var(--storm);
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 12px;
+      }
+
+      .code-block {
+        background: #111827;
+        color: #e2f2ff;
+        padding: 12px;
+        border-radius: 12px;
+        font-family: "IBM Plex Mono", "Menlo", "Consolas", monospace;
+        font-size: 0.78rem;
+        white-space: pre-wrap;
+        min-height: 120px;
+      }
+
+      @media (max-width: 960px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        #viewer-frame,
+        #preview-image {
+          height: 260px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <div class="title-block">
+          <div class="eyebrow">CAD Review Workbench</div>
+          <h1>Review, annotate, and approve CAD files with one pass.</h1>
+          <p class="subtitle">
+            This workspace connects to the PLM API to manage CAD metadata, view
+            state, and review status alongside the preview viewer.
+          </p>
+        </div>
+        <div class="status-card">
+          <div class="status-label">Session</div>
+          <div id="status" class="status warn">Logged out</div>
+          <div id="status-sub" class="status-sub">Awaiting credentials.</div>
+        </div>
+      </header>
+
+      <div class="layout">
+        <div class="stack">
+          <section class="card" style="--delay: 0.05s">
+            <h2>Session</h2>
+            <label for="api-base">API Base URL</label>
+            <input id="api-base" type="text" />
+
+            <div class="two-col">
+              <div>
+                <label for="tenant-id">Tenant</label>
+                <input id="tenant-id" type="text" value="tenant-1" />
+              </div>
+              <div>
+                <label for="org-id">Org</label>
+                <input id="org-id" type="text" value="org-1" />
+              </div>
+            </div>
+
+            <label for="username">Username</label>
+            <input id="username" type="text" value="admin" />
+
+            <label for="password">Password</label>
+            <input id="password" type="password" value="admin" />
+
+            <button id="login-btn" type="button">Login</button>
+            <div class="small" id="token-preview">Token: --</div>
+          </section>
+
+          <section class="card" style="--delay: 0.12s">
+            <h2>Find Files</h2>
+            <label for="search-query">Search</label>
+            <input id="search-query" type="text" placeholder="Part name, file id, or metadata" />
+            <button id="search-btn" class="secondary" type="button">Search</button>
+            <ul class="file-list" id="file-list"></ul>
+            <div class="small" id="search-meta">0 results.</div>
+          </section>
+        </div>
+
+        <div class="stack">
+          <section class="card" style="--delay: 0.08s">
+            <h2>Preview</h2>
+            <div class="preview">
+              <div id="preview-placeholder">Select a file to load preview.</div>
+              <iframe id="viewer-frame" title="CAD Viewer"></iframe>
+              <img id="preview-image" alt="CAD preview" />
+            </div>
+            <div class="link-row">
+              <a id="viewer-link" href="#" target="_blank" rel="noreferrer">Open viewer</a>
+              <a id="preview-link" href="#" target="_blank" rel="noreferrer">Open preview</a>
+              <a id="document-link" href="#" target="_blank" rel="noreferrer">Document JSON</a>
+            </div>
+          </section>
+
+          <section class="card" style="--delay: 0.16s">
+            <h2>File Metadata</h2>
+            <div class="meta-grid" id="meta-grid"></div>
+            <div class="link-row">
+              <a id="manifest-link" href="#" target="_blank" rel="noreferrer">Manifest</a>
+              <a id="metadata-link" href="#" target="_blank" rel="noreferrer">Mesh metadata</a>
+              <a id="refresh-btn" href="#" rel="noreferrer">Refresh data</a>
+            </div>
+          </section>
+
+          <section class="card" style="--delay: 0.2s">
+            <h2>CAD Properties</h2>
+            <label for="properties-source">Source</label>
+            <input id="properties-source" type="text" value="manual" />
+            <label for="properties-json">Properties JSON</label>
+            <textarea id="properties-json">{}</textarea>
+            <button id="save-properties" type="button">Save properties</button>
+          </section>
+
+          <section class="card" style="--delay: 0.24s">
+            <h2>View State</h2>
+            <label for="hidden-ids">Hidden entity ids (CSV)</label>
+            <input id="hidden-ids" type="text" placeholder="12, 45, 108" />
+            <label for="notes-json">Notes JSON</label>
+            <textarea id="notes-json">[]</textarea>
+            <label for="view-source">Source</label>
+            <input id="view-source" type="text" value="manual" />
+            <label class="small"><input id="refresh-preview" type="checkbox" /> Refresh preview after save</label>
+            <button id="save-view" type="button">Save view state</button>
+          </section>
+
+          <section class="card" style="--delay: 0.28s">
+            <h2>Review</h2>
+            <label for="review-state">State</label>
+            <select id="review-state">
+              <option value="pending">pending</option>
+              <option value="approved">approved</option>
+              <option value="rejected">rejected</option>
+            </select>
+            <label for="review-note">Note</label>
+            <textarea id="review-note" placeholder="Approval notes..."></textarea>
+            <button id="save-review" type="button">Save review</button>
+          </section>
+
+          <section class="card" style="--delay: 0.32s">
+            <h2>History</h2>
+            <ul class="history" id="history-list"></ul>
+          </section>
+
+          <section class="card" style="--delay: 0.36s">
+            <h2>Diff Properties</h2>
+            <label for="diff-file-id">Compare with file id</label>
+            <input id="diff-file-id" type="text" placeholder="Other file id" />
+            <button id="diff-btn" class="secondary" type="button">Run diff</button>
+            <div class="code-block" id="diff-output">{}</div>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const ui = {
+        apiBase: document.getElementById("api-base"),
+        tenant: document.getElementById("tenant-id"),
+        org: document.getElementById("org-id"),
+        username: document.getElementById("username"),
+        password: document.getElementById("password"),
+        loginBtn: document.getElementById("login-btn"),
+        status: document.getElementById("status"),
+        statusSub: document.getElementById("status-sub"),
+        tokenPreview: document.getElementById("token-preview"),
+        searchQuery: document.getElementById("search-query"),
+        searchBtn: document.getElementById("search-btn"),
+        fileList: document.getElementById("file-list"),
+        searchMeta: document.getElementById("search-meta"),
+        previewFrame: document.getElementById("viewer-frame"),
+        previewImage: document.getElementById("preview-image"),
+        previewPlaceholder: document.getElementById("preview-placeholder"),
+        viewerLink: document.getElementById("viewer-link"),
+        previewLink: document.getElementById("preview-link"),
+        documentLink: document.getElementById("document-link"),
+        manifestLink: document.getElementById("manifest-link"),
+        metadataLink: document.getElementById("metadata-link"),
+        refreshBtn: document.getElementById("refresh-btn"),
+        metaGrid: document.getElementById("meta-grid"),
+        propertiesSource: document.getElementById("properties-source"),
+        propertiesJson: document.getElementById("properties-json"),
+        saveProperties: document.getElementById("save-properties"),
+        hiddenIds: document.getElementById("hidden-ids"),
+        notesJson: document.getElementById("notes-json"),
+        viewSource: document.getElementById("view-source"),
+        refreshPreview: document.getElementById("refresh-preview"),
+        saveView: document.getElementById("save-view"),
+        reviewState: document.getElementById("review-state"),
+        reviewNote: document.getElementById("review-note"),
+        saveReview: document.getElementById("save-review"),
+        historyList: document.getElementById("history-list"),
+        diffFileId: document.getElementById("diff-file-id"),
+        diffBtn: document.getElementById("diff-btn"),
+        diffOutput: document.getElementById("diff-output"),
+      };
+
+      const state = {
+        token: "",
+        fileId: "",
+        fileMeta: null,
+      };
+
+      ui.apiBase.value = window.location.origin;
+
+      const setStatus = (text, detail, tone) => {
+        ui.status.textContent = text;
+        ui.statusSub.textContent = detail || "";
+        ui.status.className = `status ${tone || "warn"}`;
+      };
+
+      const setTokenPreview = () => {
+        ui.tokenPreview.textContent = state.token
+          ? `Token: ${state.token.slice(0, 12)}...`
+          : "Token: --";
+      };
+
+      const apiUrl = (path) => `${ui.apiBase.value.replace(/\\/$/, "")}${path}`;
+
+      const apiHeaders = (json = true) => {
+        const headers = {};
+        if (json) headers["Content-Type"] = "application/json";
+        if (state.token) headers["Authorization"] = `Bearer ${state.token}`;
+        if (ui.tenant.value) headers["x-tenant-id"] = ui.tenant.value;
+        if (ui.org.value) headers["x-org-id"] = ui.org.value;
+        return headers;
+      };
+
+      const safeJson = (value, fallback) => {
+        try {
+          return JSON.parse(value);
+        } catch (err) {
+          return fallback;
+        }
+      };
+
+      const fetchJson = async (path, options = {}) => {
+        const response = await fetch(apiUrl(path), options);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.detail || `Request failed (${response.status})`);
+        }
+        return data;
+      };
+
+      const updateLinks = (meta) => {
+        const links = [
+          { el: ui.viewerLink, value: meta?.cad_viewer_url },
+          { el: ui.previewLink, value: meta?.preview_url },
+          { el: ui.documentLink, value: meta?.cad_document_url },
+          { el: ui.manifestLink, value: meta?.cad_manifest_url },
+          { el: ui.metadataLink, value: meta?.cad_metadata_url },
+        ];
+        links.forEach(({ el, value }) => {
+          if (value) {
+            el.href = value;
+            el.style.pointerEvents = "auto";
+            el.style.opacity = "1";
+          } else {
+            el.href = "#";
+            el.style.pointerEvents = "none";
+            el.style.opacity = "0.4";
+          }
+        });
+      };
+
+      const updatePreview = (meta) => {
+        ui.previewFrame.style.display = "none";
+        ui.previewImage.style.display = "none";
+        ui.previewPlaceholder.style.display = "flex";
+        if (meta?.cad_viewer_url) {
+          ui.previewFrame.src = meta.cad_viewer_url;
+          ui.previewFrame.style.display = "block";
+          ui.previewPlaceholder.style.display = "none";
+        } else if (meta?.preview_url) {
+          ui.previewImage.src = meta.preview_url;
+          ui.previewImage.style.display = "block";
+          ui.previewPlaceholder.style.display = "none";
+        }
+      };
+
+      const setMetaGrid = (meta) => {
+        if (!meta) {
+          ui.metaGrid.innerHTML = "";
+          return;
+        }
+        const items = [
+          ["File ID", meta.id],
+          ["Filename", meta.filename],
+          ["CAD Format", meta.cad_format || "--"],
+          ["Review", meta.cad_review_state || "pending"],
+          ["Schema", meta.cad_document_schema_version ?? "--"],
+          ["Conversion", meta.conversion_status || "--"],
+          ["Created", meta.created_at || "--"],
+        ];
+        ui.metaGrid.innerHTML = items
+          .map(
+            ([label, value]) =>
+              `<div class="meta-item"><span>${label}</span>${value}</div>`
+          )
+          .join("");
+      };
+
+      const renderHistory = (entries) => {
+        ui.historyList.innerHTML = "";
+        if (!entries?.length) {
+          ui.historyList.innerHTML = "<li>No history yet.</li>";
+          return;
+        }
+        entries.forEach((entry) => {
+          const payload = JSON.stringify(entry.payload || {}, null, 2);
+          const item = document.createElement("li");
+          item.innerHTML = `
+            <div class="pill">${entry.action}</div>
+            <div class="small">${entry.created_at}</div>
+            <div class="small">User: ${entry.user_id ?? "--"}</div>
+            <div class="code-block">${payload}</div>
+          `;
+          ui.historyList.appendChild(item);
+        });
+      };
+
+      const loadFileData = async (fileId) => {
+        state.fileId = fileId;
+        setStatus("Loading", "Fetching metadata...", "warn");
+        const meta = await fetchJson(`/api/v1/file/${fileId}`, {
+          headers: apiHeaders(false),
+        });
+        state.fileMeta = meta;
+        updateLinks(meta);
+        updatePreview(meta);
+        setMetaGrid(meta);
+
+        const [props, viewState, review, history] = await Promise.all([
+          fetchJson(`/api/v1/cad/files/${fileId}/properties`, {
+            headers: apiHeaders(false),
+          }),
+          fetchJson(`/api/v1/cad/files/${fileId}/view-state`, {
+            headers: apiHeaders(false),
+          }),
+          fetchJson(`/api/v1/cad/files/${fileId}/review`, {
+            headers: apiHeaders(false),
+          }),
+          fetchJson(`/api/v1/cad/files/${fileId}/history?limit=50`, {
+            headers: apiHeaders(false),
+          }),
+        ]);
+
+        ui.propertiesSource.value = props.source || "manual";
+        ui.propertiesJson.value = JSON.stringify(props.properties || {}, null, 2);
+
+        ui.viewSource.value = viewState.source || "manual";
+        ui.hiddenIds.value = (viewState.hidden_entity_ids || []).join(", ");
+        ui.notesJson.value = JSON.stringify(viewState.notes || [], null, 2);
+
+        ui.reviewState.value = review.state || "pending";
+        ui.reviewNote.value = review.note || "";
+
+        renderHistory(history.entries || []);
+
+        setStatus("Ready", `Loaded file ${meta.filename}`, "good");
+      };
+
+      ui.loginBtn.addEventListener("click", async () => {
+        setStatus("Authenticating", "Logging in...", "warn");
+        try {
+          const payload = {
+            tenant_id: ui.tenant.value.trim(),
+            org_id: ui.org.value.trim(),
+            username: ui.username.value.trim(),
+            password: ui.password.value,
+          };
+          const resp = await fetchJson("/api/v1/auth/login", {
+            method: "POST",
+            headers: apiHeaders(true),
+            body: JSON.stringify(payload),
+          });
+          state.token = resp.access_token || "";
+          setTokenPreview();
+          setStatus("Ready", "Authenticated", "good");
+        } catch (err) {
+          setStatus("Auth failed", err.message, "bad");
+        }
+      });
+
+      ui.searchBtn.addEventListener("click", async () => {
+        setStatus("Searching", "Looking for CAD files...", "warn");
+        try {
+          const query = encodeURIComponent(ui.searchQuery.value.trim());
+          const resp = await fetchJson(`/api/v1/search/files?q=${query}`, {
+            headers: apiHeaders(false),
+          });
+          ui.fileList.innerHTML = "";
+          (resp.results || []).forEach((file) => {
+            const item = document.createElement("li");
+            item.textContent = `${file.filename} (${file.id})`;
+            item.addEventListener("click", async () => {
+              ui.fileList.querySelectorAll("li").forEach((el) => el.classList.remove("active"));
+              item.classList.add("active");
+              await loadFileData(file.id);
+            });
+            ui.fileList.appendChild(item);
+          });
+          ui.searchMeta.textContent = `${resp.total || 0} results.`;
+          setStatus("Ready", "Search complete", "good");
+        } catch (err) {
+          setStatus("Search failed", err.message, "bad");
+        }
+      });
+
+      ui.refreshBtn.addEventListener("click", async (event) => {
+        event.preventDefault();
+        if (!state.fileId) return;
+        await loadFileData(state.fileId);
+      });
+
+      ui.saveProperties.addEventListener("click", async () => {
+        if (!state.fileId) return;
+        try {
+          const props = safeJson(ui.propertiesJson.value, {});
+          const payload = {
+            properties: props,
+            source: ui.propertiesSource.value.trim() || "manual",
+          };
+          await fetchJson(`/api/v1/cad/files/${state.fileId}/properties`, {
+            method: "PATCH",
+            headers: apiHeaders(true),
+            body: JSON.stringify(payload),
+          });
+          await loadFileData(state.fileId);
+        } catch (err) {
+          setStatus("Save failed", err.message, "bad");
+        }
+      });
+
+      ui.saveView.addEventListener("click", async () => {
+        if (!state.fileId) return;
+        try {
+          const hidden = ui.hiddenIds.value
+            .split(",")
+            .map((val) => val.trim())
+            .filter(Boolean)
+            .map((val) => parseInt(val, 10))
+            .filter((val) => Number.isFinite(val));
+          const notes = safeJson(ui.notesJson.value, []);
+          const payload = {
+            hidden_entity_ids: hidden,
+            notes: Array.isArray(notes) ? notes : [],
+            source: ui.viewSource.value.trim() || "manual",
+            refresh_preview: ui.refreshPreview.checked,
+          };
+          await fetchJson(`/api/v1/cad/files/${state.fileId}/view-state`, {
+            method: "PATCH",
+            headers: apiHeaders(true),
+            body: JSON.stringify(payload),
+          });
+          await loadFileData(state.fileId);
+        } catch (err) {
+          setStatus("Save failed", err.message, "bad");
+        }
+      });
+
+      ui.saveReview.addEventListener("click", async () => {
+        if (!state.fileId) return;
+        try {
+          const payload = {
+            state: ui.reviewState.value,
+            note: ui.reviewNote.value.trim(),
+          };
+          await fetchJson(`/api/v1/cad/files/${state.fileId}/review`, {
+            method: "POST",
+            headers: apiHeaders(true),
+            body: JSON.stringify(payload),
+          });
+          await loadFileData(state.fileId);
+        } catch (err) {
+          setStatus("Save failed", err.message, "bad");
+        }
+      });
+
+      ui.diffBtn.addEventListener("click", async () => {
+        if (!state.fileId) return;
+        const otherId = ui.diffFileId.value.trim();
+        if (!otherId) return;
+        try {
+          const diff = await fetchJson(
+            `/api/v1/cad/files/${state.fileId}/diff?other_id=${encodeURIComponent(otherId)}`,
+            { headers: apiHeaders(false) }
+          );
+          ui.diffOutput.textContent = JSON.stringify(diff.properties || {}, null, 2);
+        } catch (err) {
+          ui.diffOutput.textContent = `Error: ${err.message}`;
+        }
+      });
+
+      setStatus("Logged out", "Awaiting credentials.", "warn");
+      setTokenPreview();
+    </script>
+  </body>
+</html>

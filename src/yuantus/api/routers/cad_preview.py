@@ -14,6 +14,7 @@ from yuantus.config import get_settings
 router = APIRouter(prefix="/cad-preview", tags=["CAD Preview"])
 
 _HTML_PATH = Path(__file__).resolve().parents[2] / "web" / "cad_preview.html"
+_REVIEW_HTML_PATH = Path(__file__).resolve().parents[2] / "web" / "cad_review.html"
 
 _REPLACEMENTS = {
     "__CADGF_ROUTER_PUBLIC_BASE_URL__": "CADGF_ROUTER_PUBLIC_BASE_URL",
@@ -37,6 +38,13 @@ def _load_preview_html() -> str:
             value = getattr(settings, "CADGF_ROUTER_BASE_URL", "") or ""
         html = html.replace(token, _escape_js(str(value)))
     return html
+
+
+def _load_review_html() -> str:
+    try:
+        return _REVIEW_HTML_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail="cad_review.html not found") from exc
 
 
 def _router_base_url() -> str:
@@ -88,6 +96,11 @@ def _rewrite_viewer_url(viewer_url: Optional[str]) -> Optional[str]:
 @router.get("", response_class=HTMLResponse)
 def cad_preview_page() -> HTMLResponse:
     return HTMLResponse(_load_preview_html())
+
+
+@router.get("/review", response_class=HTMLResponse)
+def cad_review_page() -> HTMLResponse:
+    return HTMLResponse(_load_review_html())
 
 
 @router.post("/convert")
