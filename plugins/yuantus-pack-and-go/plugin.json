@@ -1,0 +1,11 @@
+{
+  "id": "yuantus-pack-and-go",
+  "name": "Yuantus Pack-and-Go Plugin",
+  "version": "0.1.0",
+  "description": "Pack related CAD files into a zip bundle.",
+  "author": "YuantusPLM",
+  "plugin_type": "extension",
+  "category": "files",
+  "tags": ["pack", "bom", "files"],
+  "entry_point": "main.py"
+}
