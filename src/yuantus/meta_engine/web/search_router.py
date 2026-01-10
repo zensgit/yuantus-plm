@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from yuantus.database import get_db
 from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.meta_engine.services.file_search_service import FileSearchService
 from yuantus.meta_engine.services.search_service import SearchService
 
 search_router = APIRouter(prefix="/search", tags=["Search"])
@@ -58,6 +59,21 @@ class EcoReindexResponse(BaseModel):
     note: Optional[str] = None
 
 
+class FileSearchResult(BaseModel):
+    id: str
+    filename: str
+    cad_format: Optional[str] = None
+    document_type: Optional[str] = None
+    document_version: Optional[str] = None
+    cad_review_state: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class FileSearchResponse(BaseModel):
+    total: int
+    results: list[FileSearchResult]
+
+
 @search_router.get("/")
 def search_items(
     q: str,
@@ -85,6 +101,18 @@ def search_ecos(
 ) -> Dict[str, Any]:
     service = SearchService(db)
     return service.search_ecos(q, state=state, limit=limit)
+
+
+@search_router.get("/files", response_model=FileSearchResponse)
+def search_files(
+    q: str = Query("", description="Search CAD files by id/filename/metadata"),
+    limit: int = Query(20, ge=1, le=200),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FileSearchResponse:
+    service = FileSearchService(db)
+    result = service.search_files(q, limit=limit)
+    return FileSearchResponse(**result)
 
 
 @search_router.get("/ecos/status", response_model=SearchStatusResponse)

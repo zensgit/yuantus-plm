@@ -123,6 +123,16 @@ class FileContainer(Base):
     )  # extracted attributes
     cad_attributes_source = Column(String)  # local/external
     cad_attributes_updated_at = Column(DateTime(timezone=True), nullable=True)
+    cad_properties = Column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=True
+    )  # user-specified CAD metadata
+    cad_properties_source = Column(String)  # manual/imported
+    cad_properties_updated_at = Column(DateTime(timezone=True), nullable=True)
+    cad_view_state = Column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=True
+    )  # lightweight viewer state (annotations/visibility)
+    cad_view_state_source = Column(String)  # manual/client
+    cad_view_state_updated_at = Column(DateTime(timezone=True), nullable=True)
 
     # Generated content paths (stored in _{filename}/ subfolder per DocDoku pattern)
     preview_path = Column(String)  # thumbnail PNG path
@@ -132,6 +142,13 @@ class FileContainer(Base):
     cad_document_path = Column(String)  # CADGF document.json path for 2D CAD
     cad_manifest_path = Column(String)  # CADGF manifest.json path for 2D CAD
     cad_metadata_path = Column(String)  # CADGF mesh_metadata.json path for 2D CAD
+    cad_document_schema_version = Column(
+        Integer
+    )  # CADGF document.json schema_version
+    cad_review_state = Column(String)  # pending/approved/rejected
+    cad_review_note = Column(Text)
+    cad_review_by_id = Column(Integer, ForeignKey("rbac_users.id"), nullable=True)
+    cad_reviewed_at = Column(DateTime(timezone=True), nullable=True)
 
     # Conversion status
     conversion_status = Column(String, default=ConversionStatus.PENDING.value)
