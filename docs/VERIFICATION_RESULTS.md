@@ -785,6 +785,109 @@ PASS: 34  FAIL: 0  SKIP: 5
 ALL TESTS PASSED
 ```
 
+## Run CAD-MESH-STATS-20260110-2119（mesh-stats 404 守护）
+
+- 时间：`2026-01-10 21:19:00 +0800`
+- 方式：直接调用 `get_cad_mesh_stats`（无 HTTP 网络层）
+- 结果：`cad_attributes` 返回 404；`cad_mesh` 返回 200 + 统计
+- 环境：`sqlite` 临时库 + `local` 存储（`/tmp`）
+
+执行命令（摘要）：
+
+```bash
+python3 - <<'PY'
+import io, json, os, shutil, uuid
+
+DB_PATH = "/tmp/yuantus_mesh_stats_test.db"
+STORAGE_PATH = "/tmp/yuantus_mesh_stats_storage"
+
+if os.path.exists(DB_PATH):
+    os.remove(DB_PATH)
+if os.path.exists(STORAGE_PATH):
+    shutil.rmtree(STORAGE_PATH)
+
+os.environ["YUANTUS_DATABASE_URL"] = f"sqlite:///{DB_PATH}"
+os.environ["YUANTUS_LOCAL_STORAGE_PATH"] = STORAGE_PATH
+os.environ["YUANTUS_SCHEMA_MODE"] = "create_all"
+
+from yuantus.config import get_settings
+get_settings.cache_clear()
+
+from sqlalchemy.orm import sessionmaker
+from fastapi import HTTPException
+
+from yuantus.database import create_db_engine, init_db
+from yuantus.meta_engine.models.file import FileContainer
+from yuantus.meta_engine.services.file_service import FileService
+from yuantus.api.dependencies.auth import CurrentUser
+from yuantus.meta_engine.web.cad_router import get_cad_mesh_stats
+
+engine = create_db_engine()
+init_db(create_tables=True, bind_engine=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
+
+session = SessionLocal()
+file_service = FileService()
+
+user = CurrentUser(
+    id=1,
+    tenant_id="tenant-test",
+    org_id="org-test",
+    username="tester",
+    email=None,
+    roles=[],
+    is_superuser=False,
+)
+
+def create_file_with_metadata(payload):
+    file_id = str(uuid.uuid4())
+    path = f"cad_metadata/{file_id[:2]}/{file_id}.json"
+    file_service.upload_file(io.BytesIO(json.dumps(payload).encode("utf-8")), path)
+    file_row = FileContainer(
+        id=file_id,
+        filename=f"{file_id}.json",
+        file_type="json",
+        system_path=f"files/{file_id}.json",
+        cad_metadata_path=path,
+    )
+    session.add(file_row)
+    session.commit()
+    return file_id
+
+attr_id = create_file_with_metadata({"kind": "cad_attributes", "attributes": {"foo": "bar"}})
+mesh_id = create_file_with_metadata({"kind": "cad_mesh", "triangle_count": 12, "bounds": [0, 0, 0, 1, 1, 1]})
+
+print("[Case A] cad_attributes payload -> expect 404")
+try:
+    get_cad_mesh_stats(file_id=attr_id, user=user, db=session)
+    print("  [FAIL] Expected 404, got success")
+except HTTPException as exc:
+    print(f"  [PASS] HTTP {exc.status_code}: {exc.detail}")
+
+print("[Case B] cad_mesh payload -> expect 200")
+try:
+    resp = get_cad_mesh_stats(file_id=mesh_id, user=user, db=session)
+    print(f"  [PASS] stats: {resp.stats}")
+except HTTPException as exc:
+    print(f"  [FAIL] HTTP {exc.status_code}: {exc.detail}")
+
+session.close()
+if os.path.exists(DB_PATH):
+    os.remove(DB_PATH)
+if os.path.exists(STORAGE_PATH):
+    shutil.rmtree(STORAGE_PATH)
+PY
+```
+
+输出（摘要）：
+
+```text
+[Case A] cad_attributes payload -> expect 404
+  [PASS] HTTP 404: CAD mesh metadata not available
+[Case B] cad_mesh payload -> expect 200
+  [PASS] stats: {'raw_keys': ['bounds', 'kind', 'triangle_count'], 'triangle_count': 12, 'bounds': [0, 0, 0, 1, 1, 1]}
+```
+
 ## Run BC-9（BOM Compare：summarized 复验）
 
 - 时间：`2025-12-26 09:15:01 +0800`
@@ -9867,6 +9970,40 @@ CAD_EXTRACTOR_EXPECT_VALUE='J2824002-06' \
 ```text
 PASS: 42  FAIL: 0  SKIP: 0
 ALL TESTS PASSED
+```
+
+## Run CAD-EXTRACT-METADATA-20260110-2121（CAD Extract Metadata + Mesh Stats Guard）
+
+- 时间：`2026-01-10 21:21:50 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 文件：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+- 关键 ID：File `c1fb5877-5316-459e-8f4c-14dd2a2fca26`; Jobs `cad_preview=1fbbf8b9-9612-40c5-b756-061a638e0009`, `cad_geometry=760cb173-60cd-468a-9090-64b49fb3bb63`, `cad_extract=a567f3e7-b29d-4cf8-9ec0-36f2b48b8444`, `cad_dedup_vision=f65aab5b-cd83-41e1-9717-d08bff11c47b`
+- 结果：cad_metadata `302`（S3 presigned），attributes `200`，mesh-stats `404`（cad_attributes guard 生效），geometry `404`（DWG converter 未配置，预期），cad_geometry 报错 `DWG converter not configured. Set YUANTUS_DWG_CONVERTER_BIN.`，cad_dedup_vision `400`（外部服务未配置）
+
+执行命令：
+
+```bash
+TOKEN=$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"tenant-1","org_id":"org-1","username":"admin","password":"admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -F "file=@/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg" \
+  -F "create_preview_job=true" \
+  -F "create_geometry_job=true" \
+  -F "create_extract_job=true"
+
+for endpoint in \
+  "/api/v1/file/c1fb5877-5316-459e-8f4c-14dd2a2fca26/cad_metadata" \
+  "/api/v1/cad/files/c1fb5877-5316-459e-8f4c-14dd2a2fca26/attributes" \
+  "/api/v1/cad/files/c1fb5877-5316-459e-8f4c-14dd2a2fca26/mesh-stats" \
+  "/api/v1/file/c1fb5877-5316-459e-8f4c-14dd2a2fca26/geometry"; do
+  curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:7910${endpoint}" \
+    -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' -H "Authorization: Bearer $TOKEN"
+done
 ```
 
 ## Run ALL-62（一键回归：run_full_regression.sh 全量回归）
