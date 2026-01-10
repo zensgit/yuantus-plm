@@ -216,7 +216,7 @@ ok "Preview endpoint HTTP $PREVIEW_CODE"
 echo ""
 echo "==> Update CAD properties"
 PROPS_PAYLOAD='{"properties":{"part_number":"VERIFY-001","revision":"A"},"source":"verify"}'
-PROPS_RESP="$($CURL -X POST "$API/cad/files/$FILE_ID/properties" \
+PROPS_RESP="$($CURL -X PATCH "$API/cad/files/$FILE_ID/properties" \
   "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
   -H "content-type: application/json" \
   -d "$PROPS_PAYLOAD")"
@@ -259,7 +259,7 @@ JSON
 else
   VIEW_PAYLOAD='{"hidden_entity_ids":[],"notes":[],"source":"verify","refresh_preview":false}'
 fi
-VIEW_RESP="$($CURL -X POST "$API/cad/files/$FILE_ID/view-state" \
+VIEW_RESP="$($CURL -X PATCH "$API/cad/files/$FILE_ID/view-state" \
   "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
   -H "content-type: application/json" \
   -d "$VIEW_PAYLOAD")"
