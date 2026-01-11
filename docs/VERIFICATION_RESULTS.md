@@ -9972,6 +9972,234 @@ PASS: 42  FAIL: 0  SKIP: 0
 ALL TESTS PASSED
 ```
 
+## Run PACKGO-E2E-20260111-2236（Pack-and-Go sync/async + naming/path/collision）
+
+- 时间：`2026-01-11 22:36:19 +0800`
+- 方式：直接调用插件函数（无 HTTP 网络层）
+- 结果：sync/async zip 均含 `tree.json`/`manifest.csv`，`export_type=3d` 生效，`collision_strategy=error` 返回 409
+- 环境：`sqlite` 临时库 + `local` 存储（`/tmp`）
+
+执行命令（摘要）：
+
+```bash
+python3 - <<'PY'
+import json
+import os
+import shutil
+import uuid
+import zipfile
+import importlib.util
+import sys
+from pathlib import Path
+
+DB_PATH = "/tmp/yuantus_packgo_verify.db"
+STORAGE_PATH = "/tmp/yuantus_packgo_storage"
+OUTPUT_DIR = "/tmp/yuantus_packgo_output"
+
+for path in [DB_PATH]:
+    if os.path.exists(path):
+        os.remove(path)
+for path in [STORAGE_PATH, OUTPUT_DIR]:
+    if os.path.exists(path):
+        shutil.rmtree(path)
+
+os.environ["YUANTUS_DATABASE_URL"] = f"sqlite:///{DB_PATH}"
+os.environ["YUANTUS_LOCAL_STORAGE_PATH"] = STORAGE_PATH
+os.environ["YUANTUS_SCHEMA_MODE"] = "create_all"
+
+from yuantus.config import get_settings
+get_settings.cache_clear()
+
+from sqlalchemy.orm import sessionmaker
+from yuantus.database import create_db_engine, init_db
+from yuantus.meta_engine.models.file import FileContainer, ItemFile
+from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.models.meta_schema import ItemType
+from yuantus.meta_engine.version.models import ItemVersion
+from yuantus.meta_engine.services.file_service import FileService
+
+plugin_path = Path("plugins") / "yuantus-pack-and-go" / "main.py"
+spec = importlib.util.spec_from_file_location("pack_and_go_plugin", plugin_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+engine = create_db_engine()
+init_db(create_tables=True, bind_engine=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
+
+session = SessionLocal()
+file_service = FileService()
+
+part_type = ItemType(id="Part", label="Part", is_relationship=False)
+bom_type = ItemType(
+    id="Part BOM",
+    label="Part BOM",
+    is_relationship=True,
+    source_item_type_id="Part",
+    related_item_type_id="Part",
+)
+session.add_all([part_type, bom_type])
+session.commit()
+
+root_id = str(uuid.uuid4())
+child_id = str(uuid.uuid4())
+rel_id = str(uuid.uuid4())
+root_version_id = str(uuid.uuid4())
+
+root_item = Item(
+    id=root_id,
+    item_type_id="Part",
+    config_id=f"cfg-{root_id}",
+    properties={"item_number": "ASM-001"},
+)
+child_item = Item(
+    id=child_id,
+    item_type_id="Part",
+    config_id=f"cfg-{child_id}",
+    properties={"item_number": "PRT-002", "revision": "C"},
+)
+relationship = Item(
+    id=rel_id,
+    item_type_id="Part BOM",
+    config_id=f"cfg-{rel_id}",
+    source_id=root_id,
+    related_id=child_id,
+    properties={"quantity": 2},
+)
+
+session.add_all([root_item, child_item, relationship])
+session.commit()
+
+root_version = ItemVersion(
+    id=root_version_id,
+    item_id=root_id,
+    revision="B",
+    generation=1,
+    version_label="1.B",
+)
+session.add(root_version)
+session.commit()
+
+root_item.current_version_id = root_version_id
+session.add(root_item)
+session.commit()
+
+os.makedirs(STORAGE_PATH, exist_ok=True)
+
+def add_file(filename, system_path, document_type, file_role, item_id):
+    full_path = os.path.join(STORAGE_PATH, system_path)
+    Path(full_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(full_path, "wb") as handle:
+        handle.write(f"{filename}".encode("utf-8"))
+    file_id = str(uuid.uuid4())
+    container = FileContainer(
+        id=file_id,
+        filename=filename,
+        file_type=Path(filename).suffix.lstrip(".") or "dat",
+        system_path=system_path,
+        file_size=os.path.getsize(full_path),
+        document_type=document_type,
+    )
+    session.add(container)
+    item_file = ItemFile(
+        id=str(uuid.uuid4()),
+        item_id=item_id,
+        file_id=file_id,
+        file_role=file_role,
+    )
+    session.add(item_file)
+
+add_file("asm.step", "files/asm.step", "3d", "native_cad", root_id)
+add_file("asm.step", "files/asm_copy.step", "3d", "native_cad", root_id)
+add_file("child.step", "files/child.step", "3d", "native_cad", child_id)
+session.commit()
+
+file_roles, doc_types, include_printouts, include_geometry, _ = module._resolve_export_preset(
+    export_type="3d",
+    file_roles=None,
+    document_types=None,
+    include_printouts=True,
+    include_geometry=True,
+    fields_set=set(),
+)
+
+result = module.build_pack_and_go_package(
+    session,
+    item_id=root_id,
+    depth=-1,
+    file_roles=file_roles,
+    document_types=doc_types,
+    include_previews=False,
+    include_printouts=include_printouts,
+    include_geometry=include_geometry,
+    filename_mode=module._normalize_filename_mode("item_number_rev"),
+    path_strategy=module._normalize_path_strategy("item"),
+    collision_strategy=module._normalize_collision_strategy("append_counter"),
+    include_bom_tree=True,
+    bom_tree_filename="tree.json",
+    include_manifest_csv=True,
+    manifest_csv_filename="manifest.csv",
+    output_dir=Path(OUTPUT_DIR),
+    file_service=file_service,
+)
+
+with zipfile.ZipFile(result.zip_path, "r") as zipf:
+    names = sorted(zipf.namelist())
+print("[SYNC] zip entries:", names)
+
+try:
+    module.build_pack_and_go_package(
+        session,
+        item_id=root_id,
+        depth=-1,
+        file_roles=file_roles,
+        document_types=doc_types,
+        include_previews=False,
+        include_printouts=include_printouts,
+        include_geometry=include_geometry,
+        filename_mode=module._normalize_filename_mode("item_number_rev"),
+        path_strategy=module._normalize_path_strategy("item"),
+        collision_strategy=module._normalize_collision_strategy("error"),
+        output_dir=Path(OUTPUT_DIR),
+        file_service=file_service,
+    )
+except Exception as exc:
+    print("[ERROR] collision_strategy=error raised:", exc)
+
+payload = {
+    "item_id": root_id,
+    "depth": -1,
+    "export_type": "3d",
+    "include_previews": False,
+    "include_printouts": include_printouts,
+    "include_geometry": include_geometry,
+    "filename_mode": "item_number_rev",
+    "path_strategy": "item",
+    "collision_strategy": "append_counter",
+    "include_bom_tree": True,
+    "bom_tree_filename": "tree.json",
+    "include_manifest_csv": True,
+    "manifest_csv_filename": "manifest.csv",
+}
+
+async_result = module.handle_pack_and_go_job(payload, session)
+with zipfile.ZipFile(async_result["zip_path"], "r") as zipf:
+    async_names = sorted(zipf.namelist())
+print("[ASYNC] zip entries:", async_names)
+session.close()
+PY
+```
+
+输出（摘要）：
+
+```text
+[SYNC] zip entries: ['ASM-001/ASM-001_B.step', 'ASM-001/ASM-001_B_1.step', 'PRT-002/PRT-002_C.step', 'manifest.csv', 'manifest.json', 'tree.json']
+[ERROR] collision_strategy=error raised: 409: Path collision: ASM-001/ASM-001_B.step
+[ASYNC] zip entries: ['ASM-001/ASM-001_B.step', 'ASM-001/ASM-001_B_1.step', 'PRT-002/PRT-002_C.step', 'manifest.csv', 'manifest.json', 'tree.json']
+```
+
 ## Run CAD-IMPORT-DEFAULT-20260110-2240（CAD Import 默认仅 preview+extract）
 
 - 时间：`2026-01-10 22:40:58 +0800`
