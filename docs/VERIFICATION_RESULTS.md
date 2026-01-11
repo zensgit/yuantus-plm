@@ -10070,6 +10070,29 @@ bash scripts/verify_docs_approval.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run SEARCH-REINDEX-20260111-2222（索引状态 + 重建）
+
+- 时间：`2026-01-11 22:22:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_search_reindex.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Item：`f7c7b21c-2b91-4e95-af83-c5b53fc7ed8c`
+  - Engine：`db`
+  - Indexed：`361`
+
+执行命令：
+
+```bash
+bash scripts/verify_search_reindex.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-IMPORT-DEFAULT-20260110-2200（CAD Import Default: Preview + Extract）
 
 - 时间：`2026-01-10 22:00:16 +0800`
