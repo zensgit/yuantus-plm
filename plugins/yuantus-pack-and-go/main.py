@@ -120,6 +120,7 @@ _EXPORT_TYPE_PRESETS = {
 }
 _FILENAME_MODES = ("original", "item_number", "item_number_rev", "internal_ref")
 _PATH_STRATEGIES = ("item_role", "item", "role", "flat", "document_type")
+_COLLISION_STRATEGIES = ("append_id", "append_counter", "error")
 
 
 class PackAndGoRequest(BaseModel):
@@ -136,6 +137,10 @@ class PackAndGoRequest(BaseModel):
     path_strategy: Optional[str] = Field(
         default=None,
         description="Path strategy (item_role|item|role|flat|document_type)",
+    )
+    collision_strategy: Optional[str] = Field(
+        default=None,
+        description="Collision strategy (append_id|append_counter|error)",
     )
     file_roles: Optional[List[str]] = None
     document_types: Optional[List[str]] = None
@@ -254,6 +259,23 @@ def _normalize_path_strategy(value: Optional[str]) -> str:
         return mapping[normalized]
     allowed = ", ".join(_PATH_STRATEGIES)
     raise ValueError(f"path_strategy must be one of: {allowed}")
+
+
+def _normalize_collision_strategy(value: Optional[str]) -> str:
+    if not value:
+        return "append_id"
+    normalized = re.sub(r"[\\s_+\\-]+", "", value.strip().lower())
+    mapping = {
+        "appendid": "append_id",
+        "appendcounter": "append_counter",
+        "counter": "append_counter",
+        "error": "error",
+        "fail": "error",
+    }
+    if normalized in mapping:
+        return mapping[normalized]
+    allowed = ", ".join(_COLLISION_STRATEGIES)
+    raise ValueError(f"collision_strategy must be one of: {allowed}")
 
 
 def _resolve_export_preset(
@@ -408,10 +430,25 @@ def _build_package_path(
     return f"{safe_item}/{safe_role}/{safe_name}"
 
 
-def _ensure_unique_path(path: str, *, file_id: str, used_paths: set[str]) -> str:
+def _ensure_unique_path(
+    path: str,
+    *,
+    file_id: str,
+    used_paths: set[str],
+    strategy: str,
+) -> str:
     if path not in used_paths:
         return path
+    if strategy == "error":
+        raise HTTPException(status_code=409, detail=f"Path collision: {path}")
     base, ext = os.path.splitext(path)
+    if strategy == "append_counter":
+        counter = 1
+        candidate = f"{base}_{counter}{ext}"
+        while candidate in used_paths:
+            counter += 1
+            candidate = f"{base}_{counter}{ext}"
+        return candidate
     suffix = file_id[:8]
     candidate = f"{base}_{suffix}{ext}"
     counter = 1
@@ -517,6 +554,7 @@ def build_pack_and_go_package(
     include_geometry: bool,
     filename_mode: str = "original",
     path_strategy: str = "item_role",
+    collision_strategy: str = "append_id",
     include_bom_tree: bool = False,
     bom_tree_filename: Optional[str] = None,
     include_manifest_csv: bool = False,
@@ -632,7 +670,10 @@ def build_pack_and_go_package(
             document_type=document_type or None,
         )
         package_path = _ensure_unique_path(
-            package_path, file_id=file.id, used_paths=used_paths
+            package_path,
+            file_id=file.id,
+            used_paths=used_paths,
+            strategy=collision_strategy,
         )
         output_filename = Path(package_path).name
         source_path, temp_path = _resolve_source_path(file_service, file, temp_dir)
@@ -691,6 +732,7 @@ def build_pack_and_go_package(
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "filename_mode": filename_mode,
         "path_strategy": path_strategy,
+        "collision_strategy": collision_strategy,
         "file_count": len(pack_files),
         "total_bytes": total_bytes,
         "files": [
@@ -798,6 +840,7 @@ def pack_and_go(
     try:
         filename_mode = _normalize_filename_mode(req.filename_mode)
         path_strategy = _normalize_path_strategy(req.path_strategy)
+        collision_strategy = _normalize_collision_strategy(req.collision_strategy)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -815,6 +858,7 @@ def pack_and_go(
                 "include_geometry": include_geometry,
                 "filename_mode": filename_mode,
                 "path_strategy": path_strategy,
+                "collision_strategy": collision_strategy,
             }
         )
         job = job_service.create_job("pack_and_go", payload, user_id=getattr(current_user, "id", None))
@@ -839,6 +883,7 @@ def pack_and_go(
             include_geometry=include_geometry,
             filename_mode=filename_mode,
             path_strategy=path_strategy,
+            collision_strategy=collision_strategy,
             include_bom_tree=req.include_bom_tree,
             bom_tree_filename=req.bom_tree_filename,
             include_manifest_csv=req.include_manifest_csv,
@@ -963,6 +1008,9 @@ def handle_pack_and_go_job(payload: Dict[str, Any], session: Session) -> Dict[st
     try:
         filename_mode = _normalize_filename_mode(payload.get("filename_mode"))
         path_strategy = _normalize_path_strategy(payload.get("path_strategy"))
+        collision_strategy = _normalize_collision_strategy(
+            payload.get("collision_strategy")
+        )
     except ValueError as exc:
         raise ValueError(str(exc)) from exc
 
@@ -977,6 +1025,7 @@ def handle_pack_and_go_job(payload: Dict[str, Any], session: Session) -> Dict[st
         include_geometry=include_geometry,
         filename_mode=filename_mode,
         path_strategy=path_strategy,
+        collision_strategy=collision_strategy,
         include_bom_tree=bool(payload.get("include_bom_tree", False)),
         bom_tree_filename=payload.get("bom_tree_filename"),
         include_manifest_csv=bool(payload.get("include_manifest_csv", False)),

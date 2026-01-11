@@ -127,6 +127,7 @@ Request:
   "export_type": "all",
   "filename_mode": "original",
   "path_strategy": "item_role",
+  "collision_strategy": "append_id",
   "file_roles": ["native_cad", "attachment", "printout", "geometry", "drawing"],
   "document_types": ["2d", "3d", "pr", "other"],
   "include_previews": false,
@@ -150,6 +151,7 @@ Notes:
 - When `export_type` is set, defaults for `file_roles`, `document_types`, `include_printouts`, `include_geometry` are applied unless those fields are explicitly provided.
 - `filename_mode` options: `original`, `item_number`, `item_number_rev`, `internal_ref` (`item_number_rev` uses item properties or `current_version_id` when available).
 - `path_strategy` options: `item_role`, `item`, `role`, `flat`, `document_type`.
+- `collision_strategy` options: `append_id` (default), `append_counter`, `error`.
 - Manifest file entries include `output_filename` (final name after naming mode/collision).
 
 ### Async Pack (optional)

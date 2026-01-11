@@ -6,6 +6,8 @@ import io
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def _load_plugin_module():
     root = Path(__file__).resolve().parents[4]
@@ -148,7 +150,10 @@ def test_ensure_unique_path_appends_suffix():
     module = _load_plugin_module()
     used = {"P-1/native_cad/part.step"}
     path = module._ensure_unique_path(
-        "P-1/native_cad/part.step", file_id="abcdef123456", used_paths=used
+        "P-1/native_cad/part.step",
+        file_id="abcdef123456",
+        used_paths=used,
+        strategy="append_id",
     )
     assert path != "P-1/native_cad/part.step"
     assert "abcdef12" in path
@@ -161,6 +166,21 @@ def test_ensure_unique_path_increments_counter():
         "P-1/native_cad/part_abcdef12.step",
     }
     path = module._ensure_unique_path(
-        "P-1/native_cad/part.step", file_id="abcdef123456", used_paths=used
+        "P-1/native_cad/part.step",
+        file_id="abcdef123456",
+        used_paths=used,
+        strategy="append_id",
     )
     assert path.endswith("_1.step")
+
+
+def test_ensure_unique_path_error_strategy_raises():
+    module = _load_plugin_module()
+    used = {"P-1/native_cad/part.step"}
+    with pytest.raises(Exception):
+        module._ensure_unique_path(
+            "P-1/native_cad/part.step",
+            file_id="abcdef123456",
+            used_paths=used,
+            strategy="error",
+        )
