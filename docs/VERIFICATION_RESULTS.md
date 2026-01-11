@@ -9999,6 +9999,27 @@ curl -s -o /dev/null -w "%{http_code}" \
   http://127.0.0.1:7910/api/v1/cad/files/763b98a4-4126-4dd8-aabb-092c486f97aa/attributes
 ```
 
+## Run BOM-UI-20260111-2218（BOM UI 关键接口）
+
+- 时间：`2026-01-11 22:18:39 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_ui.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Substitute：`8122c0c0-141c-43ad-84a7-12b1e1dbb013`
+
+执行命令：
+
+```bash
+bash scripts/verify_bom_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-IMPORT-DEFAULT-20260110-2200（CAD Import Default: Preview + Extract）
 
 - 时间：`2026-01-10 22:00:16 +0800`
