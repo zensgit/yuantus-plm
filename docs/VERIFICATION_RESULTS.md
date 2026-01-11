@@ -10043,6 +10043,33 @@ bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run DOCS-APPROVAL-20260111-2221（文档流程 + ECO 审批）
+
+- 时间：`2026-01-11 22:21:00 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_docs_approval.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part：`a835ac75-dfde-402e-9a11-3c7e79b1c4c4`
+  - File：`856c95c3-be7d-439d-939b-a8cf10d2f5c0`
+  - Document：`e23f48e6-a7e3-43b6-b965-52734a4676c8`
+  - ECO Stage：`1e1e08c3-9ca7-4b0d-b24d-56daea8d1c4a`
+  - ECO Product：`a2519c80-bcaa-4971-a4d5-432a0c5707b8`
+  - ECO：`47134299-8409-49c0-af19-c5a3a869ac5a`
+  - ECO Approval：`6b6d01a3-ae09-4e2e-a8fa-02a2884a1416`
+
+执行命令：
+
+```bash
+bash scripts/verify_docs_approval.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-IMPORT-DEFAULT-20260110-2200（CAD Import Default: Preview + Extract）
 
 - 时间：`2026-01-10 22:00:16 +0800`
