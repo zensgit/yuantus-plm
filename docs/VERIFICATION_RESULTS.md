@@ -10119,6 +10119,33 @@ IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
 ALL CHECKS PASSED
 ```
 
+## Run CAD-CONNECTORS-20260111-2226（CAD 连接器：2D 合成样本）
+
+- 时间：`2026-01-11 22:26:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GSTARCAD：`66832fbc-163b-46ed-9a67-567585af6404`
+  - ZWCAD：`6cfa0b1e-e075-4ec7-9928-88e027a3fd11`
+  - HAOCHEN：`5a78856b-6e6a-4751-a745-f7d83d9aa04d`
+  - ZHONGWANG：`a084ccdc-a1e1-4ba6-a916-c4bdb5e14e66`
+  - Auto Detect 1：`9c85c29e-c1c4-42a5-94a5-591ad6c059ee`
+  - Auto Detect 2：`78aead16-147a-438e-b313-f452d782e777`
+- 说明：`RUN_REAL=0`，真实样本验证跳过。
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_connectors.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-IMPORT-DEFAULT-20260110-2200（CAD Import Default: Preview + Extract）
 
 - 时间：`2026-01-10 22:00:16 +0800`
