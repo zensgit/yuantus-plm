@@ -10093,6 +10093,32 @@ bash scripts/verify_search_reindex.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run TENANT-PROVISION-20260111-2225（平台管理员创建租户）
+
+- 时间：`2026-01-11 22:25:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Tenant：`tenant-provision-1768141491`
+  - Org：`org-provision-1768141491`
+  - Extra Org：`org-extra-1768141491`
+  - Admin：`admin-1768141491`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-IMPORT-DEFAULT-20260110-2200（CAD Import Default: Preview + Extract）
 
 - 时间：`2026-01-10 22:00:16 +0800`
