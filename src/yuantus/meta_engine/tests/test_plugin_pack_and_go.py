@@ -120,6 +120,30 @@ def test_build_output_filename_item_number_rev():
     assert filename == "P-100_A.step"
 
 
+def test_resolve_item_revision_uses_version_map():
+    module = _load_plugin_module()
+
+    class DummyItem:
+        def __init__(self, properties, current_version_id):
+            self.properties = properties
+            self.current_version_id = current_version_id
+
+    dummy = DummyItem({}, "ver-1")
+    assert module._resolve_item_revision(dummy, {"ver-1": "B"}) == "B"
+
+
+def test_resolve_item_revision_prefers_properties():
+    module = _load_plugin_module()
+
+    class DummyItem:
+        def __init__(self, properties, current_version_id):
+            self.properties = properties
+            self.current_version_id = current_version_id
+
+    dummy = DummyItem({"revision": "A"}, "ver-1")
+    assert module._resolve_item_revision(dummy, {"ver-1": "B"}) == "A"
+
+
 def test_ensure_unique_path_appends_suffix():
     module = _load_plugin_module()
     used = {"P-1/native_cad/part.step"}

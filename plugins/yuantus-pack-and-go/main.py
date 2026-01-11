@@ -322,7 +322,10 @@ def _normalize_document_types(document_types: Optional[Sequence[str]]) -> List[s
     return sorted(set(types))
 
 
-def _resolve_item_revision(item: Optional[Item]) -> Optional[str]:
+def _resolve_item_revision(
+    item: Optional[Item],
+    version_by_id: Optional[Dict[str, str]] = None,
+) -> Optional[str]:
     if not item:
         return None
     props = item.properties or {}
@@ -330,6 +333,12 @@ def _resolve_item_revision(item: Optional[Item]) -> Optional[str]:
         value = props.get(key)
         if value:
             return str(value).strip()
+    if version_by_id:
+        version_id = getattr(item, "current_version_id", None)
+        if version_id:
+            revision = version_by_id.get(version_id)
+            if revision:
+                return str(revision).strip()
     return None
 
 
@@ -519,6 +528,7 @@ def build_pack_and_go_package(
     from yuantus.meta_engine.models.file import ItemFile
     from yuantus.meta_engine.models.item import Item
     from yuantus.meta_engine.services.bom_service import BOMService
+    from yuantus.meta_engine.version.models import ItemVersion
 
     bom_service = BOMService(session)
     bom_tree = bom_service.get_bom_structure(item_id, levels=depth)
@@ -531,6 +541,21 @@ def build_pack_and_go_package(
         .all()
     )
     item_by_id = {item.id: item for item in items}
+    version_by_id: Dict[str, str] = {}
+    current_version_ids = {
+        item.current_version_id for item in items if item.current_version_id
+    }
+    if current_version_ids:
+        versions = (
+            session.query(ItemVersion)
+            .filter(ItemVersion.id.in_(current_version_ids))
+            .all()
+        )
+        version_by_id = {
+            version.id: version.revision
+            for version in versions
+            if version.revision
+        }
 
     item_files = (
         session.query(ItemFile)
@@ -591,7 +616,7 @@ def build_pack_and_go_package(
             _resolve_item_number(source_item) if source_item else item_file.item_id
         )
         internal_ref = _resolve_internal_ref(source_item)
-        revision = _resolve_item_revision(source_item)
+        revision = _resolve_item_revision(source_item, version_by_id)
         output_name = _build_output_filename(
             file.filename,
             filename_mode=filename_mode,

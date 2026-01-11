@@ -148,7 +148,7 @@ Optional extras when enabled:
 Notes:
 - `export_type` presets: `all`, `2d`, `3d`, `pdf`, `2dpdf`, `3dpdf`, `3d2d` (separators like `2d+pdf` are accepted).
 - When `export_type` is set, defaults for `file_roles`, `document_types`, `include_printouts`, `include_geometry` are applied unless those fields are explicitly provided.
-- `filename_mode` options: `original`, `item_number`, `item_number_rev`, `internal_ref`.
+- `filename_mode` options: `original`, `item_number`, `item_number_rev`, `internal_ref` (`item_number_rev` uses item properties or `current_version_id` when available).
 - `path_strategy` options: `item_role`, `item`, `role`, `flat`, `document_type`.
 - Manifest file entries include `output_filename` (final name after naming mode/collision).
 
