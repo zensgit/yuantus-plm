@@ -1219,13 +1219,13 @@ async def import_cad(
     geometry_format: str = Form(default="gltf", description="obj|gltf|glb|stl"),
     create_extract_job: Optional[bool] = Form(
         default=None,
-        description="Extract CAD attributes for sync (default: true when item_id is set)",
+        description="Extract CAD attributes for sync (default: true)",
     ),
     auto_create_part: bool = Form(
         default=False,
         description="Auto-create Part when item_id is not provided",
     ),
-    create_dedup_job: bool = Form(default=True),
+    create_dedup_job: bool = Form(default=False),
     dedup_mode: str = Form(default="balanced", description="fast|balanced|precise"),
     create_ml_job: bool = Form(default=False, description="Call cad-ml-platform vision analyze"),
     user: CurrentUser = Depends(get_current_user),
@@ -1421,8 +1421,7 @@ async def import_cad(
 
     geometry_enabled = create_geometry_job
     if geometry_enabled is None:
-        ext = (file_container.get_extension() or "").lower()
-        geometry_enabled = ext in {"dxf", "dwg"}
+        geometry_enabled = False
 
     planned_jobs = 0
     if create_preview_job and file_container.is_cad_file():
@@ -1431,7 +1430,7 @@ async def import_cad(
         planned_jobs += 1
     extract_enabled = create_extract_job
     if extract_enabled is None:
-        extract_enabled = bool(item_id)
+        extract_enabled = bool(file_container.is_cad_file())
     if extract_enabled and file_container.is_cad_file():
         planned_jobs += 1
     if create_dedup_job and file_container.file_type in {"dwg", "dxf", "pdf", "png", "jpg", "jpeg"}:

@@ -9972,6 +9972,62 @@ PASS: 42  FAIL: 0  SKIP: 0
 ALL TESTS PASSED
 ```
 
+## Run CAD-IMPORT-DEFAULT-20260110-2240（CAD Import 默认仅 preview+extract）
+
+- 时间：`2026-01-10 22:40:58 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 方式：手动验证
+- 结果：`PASS`
+- 关键 ID：
+  - File：`763b98a4-4126-4dd8-aabb-092c486f97aa`
+  - Jobs：`cad_preview=04bbf67c-e445-4ba1-86e3-382ca8cffdc7`，`cad_extract=e8347b49-d872-4a10-a9ab-77069866a42f`
+
+执行要点：
+
+```bash
+# 导入文件（不传 create_geometry_job/create_dedup_job）
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: tenant-1" -H "x-org-id: org-1" \
+  -F "file=@/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg"
+
+# 断言：jobs 仅包含 cad_preview、cad_extract
+# cad_metadata 返回 302，attributes 返回 200
+curl -s -o /dev/null -w "%{http_code}" \
+  http://127.0.0.1:7910/api/v1/file/763b98a4-4126-4dd8-aabb-092c486f97aa/cad_metadata
+curl -s -o /dev/null -w "%{http_code}" \
+  http://127.0.0.1:7910/api/v1/cad/files/763b98a4-4126-4dd8-aabb-092c486f97aa/attributes
+```
+
+## Run CAD-IMPORT-DEFAULT-20260110-2200（CAD Import Default: Preview + Extract）
+
+- 时间：`2026-01-10 22:00:16 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 文件：`/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg`
+- 关键 ID：File `763b98a4-4126-4dd8-aabb-092c486f97aa`; Jobs `cad_preview=71b7f1c3-3b7a-4879-939f-3081e337b7fd`, `cad_extract=85f2aafe-5aba-4728-a2d5-ff508f1e8e0f`
+- 结果：默认只创建 preview + extract 两个任务；cad_metadata `302`（S3 presigned），attributes `200`
+
+执行命令：
+
+```bash
+TOKEN=$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"tenant-1","org_id":"org-1","username":"admin","password":"admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -F "file=@/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg"
+
+for endpoint in \
+  "/api/v1/file/763b98a4-4126-4dd8-aabb-092c486f97aa/cad_metadata" \
+  "/api/v1/cad/files/763b98a4-4126-4dd8-aabb-092c486f97aa/attributes"; do
+  curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:7910${endpoint}" \
+    -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' -H "Authorization: Bearer $TOKEN"
+done
+```
+
 ## Run CAD-EXTRACT-METADATA-20260110-2121（CAD Extract Metadata + Mesh Stats Guard）
 
 - 时间：`2026-01-10 21:21:50 +0800`
