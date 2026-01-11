@@ -125,6 +125,8 @@ Request:
   "item_id": "UUID-A",
   "depth": -1,
   "export_type": "all",
+  "filename_mode": "original",
+  "path_strategy": "item_role",
   "file_roles": ["native_cad", "attachment", "printout", "geometry", "drawing"],
   "document_types": ["2d", "3d", "pr", "other"],
   "include_previews": false,
@@ -146,6 +148,9 @@ Optional extras when enabled:
 Notes:
 - `export_type` presets: `all`, `2d`, `3d`, `pdf`, `2dpdf`, `3dpdf`, `3d2d` (separators like `2d+pdf` are accepted).
 - When `export_type` is set, defaults for `file_roles`, `document_types`, `include_printouts`, `include_geometry` are applied unless those fields are explicitly provided.
+- `filename_mode` options: `original`, `item_number`, `item_number_rev`, `internal_ref`.
+- `path_strategy` options: `item_role`, `item`, `role`, `flat`, `document_type`.
+- Manifest file entries include `output_filename` (final name after naming mode/collision).
 
 ### Async Pack (optional)
 

@@ -64,6 +64,7 @@ _DEFAULT_DOCUMENT_TYPES = ("2d", "3d", "pr", "other")
 _MANIFEST_CSV_COLUMNS = (
     "file_id",
     "filename",
+    "output_filename",
     "file_role",
     "document_type",
     "cad_format",
@@ -117,6 +118,8 @@ _EXPORT_TYPE_PRESETS = {
         "include_geometry": True,
     },
 }
+_FILENAME_MODES = ("original", "item_number", "item_number_rev", "internal_ref")
+_PATH_STRATEGIES = ("item_role", "item", "role", "flat", "document_type")
 
 
 class PackAndGoRequest(BaseModel):
@@ -125,6 +128,14 @@ class PackAndGoRequest(BaseModel):
     export_type: Optional[str] = Field(
         default=None,
         description="Preset export type (all|2d|3d|pdf|2dpdf|3dpdf|3d2d)",
+    )
+    filename_mode: Optional[str] = Field(
+        default=None,
+        description="Filename mode (original|item_number|item_number_rev|internal_ref)",
+    )
+    path_strategy: Optional[str] = Field(
+        default=None,
+        description="Path strategy (item_role|item|role|flat|document_type)",
     )
     file_roles: Optional[List[str]] = None
     document_types: Optional[List[str]] = None
@@ -156,6 +167,7 @@ class PackAndGoJobResponse(BaseModel):
 class PackAndGoFile:
     file_id: str
     filename: str
+    output_filename: str
     file_role: str
     document_type: Optional[str]
     cad_format: Optional[str]
@@ -203,6 +215,45 @@ def _normalize_export_type(value: Optional[str]) -> Optional[str]:
         return normalized
     allowed = ", ".join(_EXPORT_TYPE_OPTIONS)
     raise ValueError(f"export_type must be one of: {allowed}")
+
+
+def _normalize_filename_mode(value: Optional[str]) -> str:
+    if not value:
+        return "original"
+    normalized = re.sub(r"[\\s_+\\-]+", "", value.strip().lower())
+    mapping = {
+        "original": "original",
+        "filename": "original",
+        "file": "original",
+        "itemnumber": "item_number",
+        "itemnumberrev": "item_number_rev",
+        "itemnumberrevision": "item_number_rev",
+        "internalref": "internal_ref",
+        "internalreference": "internal_ref",
+    }
+    if normalized in mapping:
+        return mapping[normalized]
+    allowed = ", ".join(_FILENAME_MODES)
+    raise ValueError(f"filename_mode must be one of: {allowed}")
+
+
+def _normalize_path_strategy(value: Optional[str]) -> str:
+    if not value:
+        return "item_role"
+    normalized = re.sub(r"[\\s_+\\-]+", "", value.strip().lower())
+    mapping = {
+        "itemrole": "item_role",
+        "item": "item",
+        "role": "role",
+        "flat": "flat",
+        "root": "flat",
+        "documenttype": "document_type",
+        "doctype": "document_type",
+    }
+    if normalized in mapping:
+        return mapping[normalized]
+    allowed = ", ".join(_PATH_STRATEGIES)
+    raise ValueError(f"path_strategy must be one of: {allowed}")
 
 
 def _resolve_export_preset(
@@ -271,11 +322,94 @@ def _normalize_document_types(document_types: Optional[Sequence[str]]) -> List[s
     return sorted(set(types))
 
 
-def _build_package_path(item_number: str, file_role: str, filename: str) -> str:
+def _resolve_item_revision(item: Optional[Item]) -> Optional[str]:
+    if not item:
+        return None
+    props = item.properties or {}
+    for key in ("revision", "rev", "version"):
+        value = props.get(key)
+        if value:
+            return str(value).strip()
+    return None
+
+
+def _resolve_internal_ref(item: Optional[Item]) -> Optional[str]:
+    if not item:
+        return None
+    props = item.properties or {}
+    for key in (
+        "internal_ref",
+        "internal_reference",
+        "default_code",
+        "internal_number",
+        "number",
+    ):
+        value = props.get(key)
+        if value:
+            return str(value).strip()
+    return None
+
+
+def _build_output_filename(
+    original_name: str,
+    *,
+    filename_mode: str,
+    item_number: str,
+    internal_ref: Optional[str],
+    revision: Optional[str],
+) -> str:
+    original = Path(original_name).name
+    if filename_mode == "original":
+        return original
+    suffix = Path(original).suffix
+    if filename_mode == "item_number":
+        base = item_number
+    elif filename_mode == "item_number_rev":
+        base = item_number
+        if revision:
+            base = f"{base}_{revision}"
+    elif filename_mode == "internal_ref":
+        base = internal_ref or item_number
+    else:
+        base = item_number
+    safe_base = _sanitize_component(base)
+    return f"{safe_base}{suffix}" if suffix else safe_base
+
+
+def _build_package_path(
+    item_number: str,
+    file_role: str,
+    filename: str,
+    *,
+    path_strategy: str,
+    document_type: Optional[str],
+) -> str:
     safe_item = _sanitize_component(item_number)
     safe_role = _sanitize_component(file_role)
+    safe_doc = _sanitize_component(document_type or "other")
     safe_name = Path(filename).name
+    if path_strategy == "item":
+        return f"{safe_item}/{safe_name}"
+    if path_strategy == "role":
+        return f"{safe_role}/{safe_name}"
+    if path_strategy == "flat":
+        return safe_name
+    if path_strategy == "document_type":
+        return f"{safe_doc}/{safe_name}"
     return f"{safe_item}/{safe_role}/{safe_name}"
+
+
+def _ensure_unique_path(path: str, *, file_id: str, used_paths: set[str]) -> str:
+    if path not in used_paths:
+        return path
+    base, ext = os.path.splitext(path)
+    suffix = file_id[:8]
+    candidate = f"{base}_{suffix}{ext}"
+    counter = 1
+    while candidate in used_paths:
+        candidate = f"{base}_{suffix}_{counter}{ext}"
+        counter += 1
+    return candidate
 
 
 def _safe_filename(value: Optional[str], default: str) -> str:
@@ -372,6 +506,8 @@ def build_pack_and_go_package(
     include_previews: bool,
     include_printouts: bool,
     include_geometry: bool,
+    filename_mode: str = "original",
+    path_strategy: str = "item_role",
     include_bom_tree: bool = False,
     bom_tree_filename: Optional[str] = None,
     include_manifest_csv: bool = False,
@@ -419,6 +555,7 @@ def build_pack_and_go_package(
     pack_files: List[PackAndGoFile] = []
     missing_files: List[Dict[str, Any]] = []
     seen_files: set[str] = set()
+    used_paths: set[str] = set()
 
     for item_file in item_files:
         file = item_file.file
@@ -450,8 +587,29 @@ def build_pack_and_go_package(
             continue
 
         source_item = item_by_id.get(item_file.item_id)
-        source_item_number = _resolve_item_number(source_item) if source_item else item_file.item_id
-        package_path = _build_package_path(source_item_number, file_role, file.filename)
+        source_item_number = (
+            _resolve_item_number(source_item) if source_item else item_file.item_id
+        )
+        internal_ref = _resolve_internal_ref(source_item)
+        revision = _resolve_item_revision(source_item)
+        output_name = _build_output_filename(
+            file.filename,
+            filename_mode=filename_mode,
+            item_number=source_item_number,
+            internal_ref=internal_ref,
+            revision=revision,
+        )
+        package_path = _build_package_path(
+            source_item_number,
+            file_role,
+            output_name,
+            path_strategy=path_strategy,
+            document_type=document_type or None,
+        )
+        package_path = _ensure_unique_path(
+            package_path, file_id=file.id, used_paths=used_paths
+        )
+        output_filename = Path(package_path).name
         source_path, temp_path = _resolve_source_path(file_service, file, temp_dir)
         if temp_path:
             temp_paths.append(temp_path)
@@ -467,6 +625,7 @@ def build_pack_and_go_package(
             PackAndGoFile(
                 file_id=file.id,
                 filename=file.filename,
+                output_filename=output_filename,
                 file_role=file_role,
                 document_type=document_type or None,
                 cad_format=file.cad_format,
@@ -478,6 +637,7 @@ def build_pack_and_go_package(
             )
         )
         seen_files.add(file.id)
+        used_paths.add(package_path)
 
         if max_files > 0 and len(pack_files) > max_files:
             raise HTTPException(status_code=413, detail="pack-and-go max files exceeded")
@@ -504,12 +664,15 @@ def build_pack_and_go_package(
         "root_item_number": root_number,
         "depth": depth,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "filename_mode": filename_mode,
+        "path_strategy": path_strategy,
         "file_count": len(pack_files),
         "total_bytes": total_bytes,
         "files": [
             {
                 "file_id": entry.file_id,
                 "filename": entry.filename,
+                "output_filename": entry.output_filename,
                 "file_role": entry.file_role,
                 "document_type": entry.document_type,
                 "cad_format": entry.cad_format,
@@ -607,6 +770,11 @@ def pack_and_go(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        filename_mode = _normalize_filename_mode(req.filename_mode)
+        path_strategy = _normalize_path_strategy(req.path_strategy)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if req.async_flag:
         from yuantus.meta_engine.services.job_service import JobService
@@ -620,6 +788,8 @@ def pack_and_go(
                 "document_types": document_types,
                 "include_printouts": include_printouts,
                 "include_geometry": include_geometry,
+                "filename_mode": filename_mode,
+                "path_strategy": path_strategy,
             }
         )
         job = job_service.create_job("pack_and_go", payload, user_id=getattr(current_user, "id", None))
@@ -642,6 +812,8 @@ def pack_and_go(
             include_previews=req.include_previews,
             include_printouts=include_printouts,
             include_geometry=include_geometry,
+            filename_mode=filename_mode,
+            path_strategy=path_strategy,
             include_bom_tree=req.include_bom_tree,
             bom_tree_filename=req.bom_tree_filename,
             include_manifest_csv=req.include_manifest_csv,
@@ -763,6 +935,11 @@ def handle_pack_and_go_job(payload: Dict[str, Any], session: Session) -> Dict[st
         )
     except ValueError as exc:
         raise ValueError(str(exc)) from exc
+    try:
+        filename_mode = _normalize_filename_mode(payload.get("filename_mode"))
+        path_strategy = _normalize_path_strategy(payload.get("path_strategy"))
+    except ValueError as exc:
+        raise ValueError(str(exc)) from exc
 
     result = build_pack_and_go_package(
         session,
@@ -773,6 +950,8 @@ def handle_pack_and_go_job(payload: Dict[str, Any], session: Session) -> Dict[st
         include_previews=bool(payload.get("include_previews", False)),
         include_printouts=include_printouts,
         include_geometry=include_geometry,
+        filename_mode=filename_mode,
+        path_strategy=path_strategy,
         include_bom_tree=bool(payload.get("include_bom_tree", False)),
         bom_tree_filename=payload.get("bom_tree_filename"),
         include_manifest_csv=bool(payload.get("include_manifest_csv", False)),
