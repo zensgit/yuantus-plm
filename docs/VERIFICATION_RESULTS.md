@@ -10146,6 +10146,34 @@ bash scripts/verify_cad_connectors.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run OPS-HARDENING-20260111-2233（多租户/配额/审计/健康/索引）
+
+- 时间：`2026-01-11 22:33:23 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_ops_hardening.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Search Item：`0f2b4c9d-4f63-45fb-aeea-38b12591943e`
+  - Search Indexed：`1485`
+- 说明：
+  - Quota：`SKIP`（quota mode=disabled）
+  - Audit：`SKIP`（audit_enabled=false）
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-IMPORT-DEFAULT-20260110-2200（CAD Import Default: Preview + Extract）
 
 - 时间：`2026-01-10 22:00:16 +0800`
