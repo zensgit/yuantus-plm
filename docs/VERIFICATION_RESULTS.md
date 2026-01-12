@@ -11383,3 +11383,73 @@ pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \
 ```text
 27 passed, 1 skipped in 1.44s
 ```
+
+## Run PLUGIN-VERIFY-20260112-1649（插件回归 + 迁移验证）
+
+- 时间：`2026-01-12 16:49:23 +0800`
+- 说明：插件单测回归 + SQLite 临时库迁移到 head（`tmp/verify_plugin.db`）。
+
+### 1) DB 迁移到 Head
+
+```bash
+PYTHONPATH=src YUANTUS_DATABASE_URL=sqlite:///./tmp/verify_plugin.db \
+  python3 -m alembic -c alembic.ini upgrade head
+```
+
+```text
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> f87ce5711ce1, initial schema
+INFO  [alembic.runtime.migration] Running upgrade f87ce5711ce1 -> e5c1f9a4b7d2, add eco stage sla hours
+INFO  [alembic.runtime.migration] Running upgrade e5c1f9a4b7d2 -> a1b2c3d4e5f6, add audit logs
+INFO  [alembic.runtime.migration] Running upgrade a1b2c3d4e5f6 -> b7c9d2e1f4a6, add cad connector id and job dedupe key
+INFO  [alembic.runtime.migration] Running upgrade b7c9d2e1f4a6 -> c9d4e6f7a8b9, add cad attributes storage
+INFO  [alembic.runtime.migration] Running upgrade c9d4e6f7a8b9 -> d4f1a2b3c4d5, add baselines
+INFO  [alembic.runtime.migration] Running upgrade d4f1a2b3c4d5 -> g8f9a0b1c2d3, add_tenant_quotas
+INFO  [alembic.runtime.migration] Running upgrade g8f9a0b1c2d3 -> f1a2b3c4d5e6, add file metadata columns
+INFO  [alembic.runtime.migration] Running upgrade f1a2b3c4d5e6 -> h1b2c3d4e5f6, add cadgf artifact paths
+INFO  [alembic.runtime.migration] Running upgrade h1b2c3d4e5f6 -> i1b2c3d4e5f7, add cad document schema version and properties
+INFO  [alembic.runtime.migration] Running upgrade i1b2c3d4e5f7 -> j1b2c3d4e5f8, add cad view state
+INFO  [alembic.runtime.migration] Running upgrade j1b2c3d4e5f8 -> k1b2c3d4e5f9, add cad review fields
+INFO  [alembic.runtime.migration] Running upgrade k1b2c3d4e5f9 -> l1b2c3d4e6a0, add cad change logs
+INFO  [alembic.runtime.migration] Running upgrade l1b2c3d4e6a0 -> m1b2c3d4e6a1, add plugin configs
+```
+
+### 2) 插件单测回归
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \
+  src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
+```
+
+```text
+28 passed, 1 skipped in 1.64s
+```
+
+## Run ALL-64（一键回归：verify_all.sh，主干合并后）
+
+- 时间：`2026-01-12 16:51:59 +0800`
+- 脚本：`scripts/verify_all.sh`
+- 环境：`BASE_URL=http://127.0.0.1:7910`，`TENANT=tenant-1`，`ORG=org-1`
+- 结果：`PASS 34 / FAIL 0 / SKIP 9`
+
+跳过项（均为可选开关未开启）：
+
+- `S5-A (CADGF Preview Online)`（`RUN_CADGF_PREVIEW_ONLINE=0`）
+- `S5-B (CAD 2D Real Connectors)`（`RUN_CAD_REAL_CONNECTORS_2D=0`）
+- `S5-B (CAD 2D Connector Coverage)`（`RUN_CAD_CONNECTOR_COVERAGE_2D=0`）
+- `S5-C (CAD Auto Part)`（`RUN_CAD_AUTO_PART=0`）
+- `S5-C (CAD Extractor Stub)`（`RUN_CAD_EXTRACTOR_STUB=0`）
+- `S5-C (CAD Extractor External)`（`RUN_CAD_EXTRACTOR_EXTERNAL=0`）
+- `S5-C (CAD Extractor Service)`（`RUN_CAD_EXTRACTOR_SERVICE=0`）
+- `CAD Real Samples`（`RUN_CAD_REAL_SAMPLES=0`）
+- `S7 (Tenant Provisioning)`（`RUN_TENANT_PROVISIONING=0`）
+
+说明：
+
+- `CAD ML Vision` 未启用时，2D 预览与 OCR 标题栏脚本输出提示为 skip，但整体统计为 PASS。
+
+```text
+PASS: 34  FAIL: 0  SKIP: 9
+ALL TESTS PASSED
+```
