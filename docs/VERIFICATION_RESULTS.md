@@ -11453,3 +11453,41 @@ pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \
 PASS: 34  FAIL: 0  SKIP: 9
 ALL TESTS PASSED
 ```
+
+## Run TENANT-PROVISION-20260112-2137（租户开通/组织创建）
+
+- 时间：`2026-01-12 21:37:48 +0800`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 环境：`BASE_URL=http://127.0.0.1:7910`
+
+```bash
+bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-REAL-SAMPLES-20260112-2137（真实样本 CAD 导入/预览/抽取）
+
+- 时间：`2026-01-12 21:37:48 +0800`
+- 脚本：`scripts/verify_cad_real_samples.sh`
+- 环境：`BASE_URL=http://127.0.0.1:7910`，S3 storage（MinIO: `http://localhost:59000`）
+- 样本：
+  - DWG：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+  - STEP：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp`
+  - PRT：`/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt`
+
+```bash
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+bash scripts/verify_cad_real_samples.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
