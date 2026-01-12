@@ -60,6 +60,7 @@ class PluginMetadata:
     tags: List[str] = field(default_factory=list)
 
     config_schema: Dict[str, Any] = field(default_factory=dict)
+    capabilities: Dict[str, Any] = field(default_factory=dict)
     permissions: List[str] = field(default_factory=list)
     api_version: str = "1.0"
 
@@ -169,6 +170,8 @@ class Plugin:
             "category": self.metadata.category,
             "tags": self.metadata.tags,
             "dependencies": self.metadata.dependencies,
+            "config_schema": self.metadata.config_schema,
+            "capabilities": self.metadata.capabilities,
             "loaded_at": self.loaded_at.isoformat() if self.loaded_at else None,
             "activated_at": self.activated_at.isoformat() if self.activated_at else None,
             "error_count": self.error_count,
@@ -282,6 +285,7 @@ class PluginManager:
                 category=data.get("category", "general"),
                 tags=data.get("tags", []),
                 config_schema=data.get("config_schema", {}),
+                capabilities=data.get("capabilities", {}),
                 permissions=data.get("permissions", []),
                 api_version=data.get("api_version", "1.0"),
                 hooks=data.get("hooks", {}),
@@ -468,4 +472,3 @@ class PluginManager:
             self._executor.shutdown(wait=True)
         except Exception:
             pass
-

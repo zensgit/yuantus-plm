@@ -7,5 +7,65 @@
   "plugin_type": "extension",
   "category": "files",
   "tags": ["pack", "bom", "files"],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "max_files": {"type": "integer", "default": 2000},
+      "max_bytes": {"type": "integer", "default": 0},
+      "cache_enabled": {"type": "boolean", "default": false},
+      "cache_ttl_minutes": {"type": "integer", "default": 60},
+      "progress_interval": {"type": "integer", "default": 50},
+      "default_export_type": {
+        "type": "string",
+        "enum": ["all", "2d", "3d", "pdf", "2dpdf", "3dpdf", "3d2d"],
+        "default": "all"
+      },
+      "default_path_strategy": {
+        "type": "string",
+        "enum": [
+          "item_role",
+          "item",
+          "role",
+          "flat",
+          "document_type",
+          "item_document_type",
+          "role_document_type",
+          "item_role_document_type"
+        ],
+        "default": "item_role"
+      },
+      "default_filename_mode": {
+        "type": "string",
+        "enum": ["original", "item_number", "item_number_rev", "internal_ref"],
+        "default": "original"
+      },
+      "default_file_scope": {
+        "type": "string",
+        "enum": ["item", "version"],
+        "default": "item"
+      }
+    }
+  },
+  "capabilities": {
+    "exports": ["zip"],
+    "manifest": true,
+    "bom_tree": true,
+    "bom_flat": ["csv", "jsonl"],
+    "path_strategies": [
+      "item_role",
+      "item",
+      "role",
+      "flat",
+      "document_type",
+      "item_document_type",
+      "role_document_type",
+      "item_role_document_type"
+    ],
+    "filename_modes": ["original", "item_number", "item_number_rev", "internal_ref"],
+    "file_scopes": ["item", "version"],
+    "filters": ["item_ids", "item_types", "states", "extensions"],
+    "async": true,
+    "cache": true
+  },
   "entry_point": "main.py"
 }

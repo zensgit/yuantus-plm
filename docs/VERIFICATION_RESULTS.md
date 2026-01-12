@@ -744,6 +744,32 @@ OK: Audit logs verified
 ALL CHECKS PASSED
 ```
 
+## Run MT-MIGRATE-AUTOSTAMP-20260112-0915（无 alembic_version 自动 stamp 初始版本）
+
+- 时间：`2026-01-12 09:15:02 +0800`
+- 脚本：`scripts/mt_migrate.sh`
+- 结果：`Migrations complete`
+- 测试 DB：`yuantus_mt_pg__tenant-stamp2__org-stamp2`
+- 说明：DB 由 `create_all` 生成且无 `alembic_version`，自动 stamp `f87ce5711ce1` 后顺利 upgrade 到 head。
+
+执行命令：
+
+```bash
+MODE=db-per-tenant-org \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+TENANTS=tenant-stamp2 ORGS=org-stamp2 \
+IDENTITY_DB_URL='' \
+AUTO_STAMP_REVISION=f87ce5711ce1 \
+  bash scripts/mt_migrate.sh
+```
+
+输出（摘要）：
+
+```text
+Existing tables without alembic_version; stamping f87ce5711ce1
+Running upgrade ... -> m1b2c3d4e6a1
+Migrations complete.
+```
 ## Run ALL-13（一键回归脚本：compare_mode + ECO 导出）
 
 - 时间：`2025-12-26 09:17:52 +0800`
@@ -783,6 +809,109 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 ```text
 PASS: 34  FAIL: 0  SKIP: 5
 ALL TESTS PASSED
+```
+
+## Run CAD-MESH-STATS-20260110-2119（mesh-stats 404 守护）
+
+- 时间：`2026-01-10 21:19:00 +0800`
+- 方式：直接调用 `get_cad_mesh_stats`（无 HTTP 网络层）
+- 结果：`cad_attributes` 返回 404；`cad_mesh` 返回 200 + 统计
+- 环境：`sqlite` 临时库 + `local` 存储（`/tmp`）
+
+执行命令（摘要）：
+
+```bash
+python3 - <<'PY'
+import io, json, os, shutil, uuid
+
+DB_PATH = "/tmp/yuantus_mesh_stats_test.db"
+STORAGE_PATH = "/tmp/yuantus_mesh_stats_storage"
+
+if os.path.exists(DB_PATH):
+    os.remove(DB_PATH)
+if os.path.exists(STORAGE_PATH):
+    shutil.rmtree(STORAGE_PATH)
+
+os.environ["YUANTUS_DATABASE_URL"] = f"sqlite:///{DB_PATH}"
+os.environ["YUANTUS_LOCAL_STORAGE_PATH"] = STORAGE_PATH
+os.environ["YUANTUS_SCHEMA_MODE"] = "create_all"
+
+from yuantus.config import get_settings
+get_settings.cache_clear()
+
+from sqlalchemy.orm import sessionmaker
+from fastapi import HTTPException
+
+from yuantus.database import create_db_engine, init_db
+from yuantus.meta_engine.models.file import FileContainer
+from yuantus.meta_engine.services.file_service import FileService
+from yuantus.api.dependencies.auth import CurrentUser
+from yuantus.meta_engine.web.cad_router import get_cad_mesh_stats
+
+engine = create_db_engine()
+init_db(create_tables=True, bind_engine=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
+
+session = SessionLocal()
+file_service = FileService()
+
+user = CurrentUser(
+    id=1,
+    tenant_id="tenant-test",
+    org_id="org-test",
+    username="tester",
+    email=None,
+    roles=[],
+    is_superuser=False,
+)
+
+def create_file_with_metadata(payload):
+    file_id = str(uuid.uuid4())
+    path = f"cad_metadata/{file_id[:2]}/{file_id}.json"
+    file_service.upload_file(io.BytesIO(json.dumps(payload).encode("utf-8")), path)
+    file_row = FileContainer(
+        id=file_id,
+        filename=f"{file_id}.json",
+        file_type="json",
+        system_path=f"files/{file_id}.json",
+        cad_metadata_path=path,
+    )
+    session.add(file_row)
+    session.commit()
+    return file_id
+
+attr_id = create_file_with_metadata({"kind": "cad_attributes", "attributes": {"foo": "bar"}})
+mesh_id = create_file_with_metadata({"kind": "cad_mesh", "triangle_count": 12, "bounds": [0, 0, 0, 1, 1, 1]})
+
+print("[Case A] cad_attributes payload -> expect 404")
+try:
+    get_cad_mesh_stats(file_id=attr_id, user=user, db=session)
+    print("  [FAIL] Expected 404, got success")
+except HTTPException as exc:
+    print(f"  [PASS] HTTP {exc.status_code}: {exc.detail}")
+
+print("[Case B] cad_mesh payload -> expect 200")
+try:
+    resp = get_cad_mesh_stats(file_id=mesh_id, user=user, db=session)
+    print(f"  [PASS] stats: {resp.stats}")
+except HTTPException as exc:
+    print(f"  [FAIL] HTTP {exc.status_code}: {exc.detail}")
+
+session.close()
+if os.path.exists(DB_PATH):
+    os.remove(DB_PATH)
+if os.path.exists(STORAGE_PATH):
+    shutil.rmtree(STORAGE_PATH)
+PY
+```
+
+输出（摘要）：
+
+```text
+[Case A] cad_attributes payload -> expect 404
+  [PASS] HTTP 404: CAD mesh metadata not available
+[Case B] cad_mesh payload -> expect 200
+  [PASS] stats: {'raw_keys': ['bounds', 'kind', 'triangle_count'], 'triangle_count': 12, 'bounds': [0, 0, 0, 1, 1, 1]}
 ```
 
 ## Run BC-9（BOM Compare：summarized 复验）
@@ -9869,6 +9998,626 @@ PASS: 42  FAIL: 0  SKIP: 0
 ALL TESTS PASSED
 ```
 
+## Run OPS-HARDENING-20260111-2330（强制配额/审计模式）
+
+- 时间：`2026-01-11 23:30:10 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_ops_hardening.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Search Item：`efb4f56a-315c-410c-a0b7-9eeb7bb093e1`
+  - Search Indexed：`1513`
+- 说明：
+  - Quota：`enforce`
+  - Audit：`enabled`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run PACKGO-E2E-20260111-2236（Pack-and-Go sync/async + naming/path/collision）
+
+- 时间：`2026-01-11 22:36:19 +0800`
+- 方式：直接调用插件函数（无 HTTP 网络层）
+- 结果：sync/async zip 均含 `tree.json`/`manifest.csv`，`export_type=3d` 生效，`collision_strategy=error` 返回 409
+- 环境：`sqlite` 临时库 + `local` 存储（`/tmp`）
+
+执行命令（摘要）：
+
+```bash
+python3 - <<'PY'
+import json
+import os
+import shutil
+import uuid
+import zipfile
+import importlib.util
+import sys
+from pathlib import Path
+
+DB_PATH = "/tmp/yuantus_packgo_verify.db"
+STORAGE_PATH = "/tmp/yuantus_packgo_storage"
+OUTPUT_DIR = "/tmp/yuantus_packgo_output"
+
+for path in [DB_PATH]:
+    if os.path.exists(path):
+        os.remove(path)
+for path in [STORAGE_PATH, OUTPUT_DIR]:
+    if os.path.exists(path):
+        shutil.rmtree(path)
+
+os.environ["YUANTUS_DATABASE_URL"] = f"sqlite:///{DB_PATH}"
+os.environ["YUANTUS_LOCAL_STORAGE_PATH"] = STORAGE_PATH
+os.environ["YUANTUS_SCHEMA_MODE"] = "create_all"
+
+from yuantus.config import get_settings
+get_settings.cache_clear()
+
+from sqlalchemy.orm import sessionmaker
+from yuantus.database import create_db_engine, init_db
+from yuantus.meta_engine.models.file import FileContainer, ItemFile
+from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.models.meta_schema import ItemType
+from yuantus.meta_engine.version.models import ItemVersion
+from yuantus.meta_engine.services.file_service import FileService
+
+plugin_path = Path("plugins") / "yuantus-pack-and-go" / "main.py"
+spec = importlib.util.spec_from_file_location("pack_and_go_plugin", plugin_path)
+module = importlib.util.module_from_spec(spec)
+assert spec and spec.loader
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+engine = create_db_engine()
+init_db(create_tables=True, bind_engine=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
+
+session = SessionLocal()
+file_service = FileService()
+
+part_type = ItemType(id="Part", label="Part", is_relationship=False)
+bom_type = ItemType(
+    id="Part BOM",
+    label="Part BOM",
+    is_relationship=True,
+    source_item_type_id="Part",
+    related_item_type_id="Part",
+)
+session.add_all([part_type, bom_type])
+session.commit()
+
+root_id = str(uuid.uuid4())
+child_id = str(uuid.uuid4())
+rel_id = str(uuid.uuid4())
+root_version_id = str(uuid.uuid4())
+
+root_item = Item(
+    id=root_id,
+    item_type_id="Part",
+    config_id=f"cfg-{root_id}",
+    properties={"item_number": "ASM-001"},
+)
+child_item = Item(
+    id=child_id,
+    item_type_id="Part",
+    config_id=f"cfg-{child_id}",
+    properties={"item_number": "PRT-002", "revision": "C"},
+)
+relationship = Item(
+    id=rel_id,
+    item_type_id="Part BOM",
+    config_id=f"cfg-{rel_id}",
+    source_id=root_id,
+    related_id=child_id,
+    properties={"quantity": 2},
+)
+
+session.add_all([root_item, child_item, relationship])
+session.commit()
+
+root_version = ItemVersion(
+    id=root_version_id,
+    item_id=root_id,
+    revision="B",
+    generation=1,
+    version_label="1.B",
+)
+session.add(root_version)
+session.commit()
+
+root_item.current_version_id = root_version_id
+session.add(root_item)
+session.commit()
+
+os.makedirs(STORAGE_PATH, exist_ok=True)
+
+def add_file(filename, system_path, document_type, file_role, item_id):
+    full_path = os.path.join(STORAGE_PATH, system_path)
+    Path(full_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(full_path, "wb") as handle:
+        handle.write(f"{filename}".encode("utf-8"))
+    file_id = str(uuid.uuid4())
+    container = FileContainer(
+        id=file_id,
+        filename=filename,
+        file_type=Path(filename).suffix.lstrip(".") or "dat",
+        system_path=system_path,
+        file_size=os.path.getsize(full_path),
+        document_type=document_type,
+    )
+    session.add(container)
+    item_file = ItemFile(
+        id=str(uuid.uuid4()),
+        item_id=item_id,
+        file_id=file_id,
+        file_role=file_role,
+    )
+    session.add(item_file)
+
+add_file("asm.step", "files/asm.step", "3d", "native_cad", root_id)
+add_file("asm.step", "files/asm_copy.step", "3d", "native_cad", root_id)
+add_file("child.step", "files/child.step", "3d", "native_cad", child_id)
+session.commit()
+
+file_roles, doc_types, include_printouts, include_geometry, _ = module._resolve_export_preset(
+    export_type="3d",
+    file_roles=None,
+    document_types=None,
+    include_printouts=True,
+    include_geometry=True,
+    fields_set=set(),
+)
+
+result = module.build_pack_and_go_package(
+    session,
+    item_id=root_id,
+    depth=-1,
+    file_roles=file_roles,
+    document_types=doc_types,
+    include_previews=False,
+    include_printouts=include_printouts,
+    include_geometry=include_geometry,
+    filename_mode=module._normalize_filename_mode("item_number_rev"),
+    path_strategy=module._normalize_path_strategy("item"),
+    collision_strategy=module._normalize_collision_strategy("append_counter"),
+    include_bom_tree=True,
+    bom_tree_filename="tree.json",
+    include_manifest_csv=True,
+    manifest_csv_filename="manifest.csv",
+    output_dir=Path(OUTPUT_DIR),
+    file_service=file_service,
+)
+
+with zipfile.ZipFile(result.zip_path, "r") as zipf:
+    names = sorted(zipf.namelist())
+print("[SYNC] zip entries:", names)
+
+try:
+    module.build_pack_and_go_package(
+        session,
+        item_id=root_id,
+        depth=-1,
+        file_roles=file_roles,
+        document_types=doc_types,
+        include_previews=False,
+        include_printouts=include_printouts,
+        include_geometry=include_geometry,
+        filename_mode=module._normalize_filename_mode("item_number_rev"),
+        path_strategy=module._normalize_path_strategy("item"),
+        collision_strategy=module._normalize_collision_strategy("error"),
+        output_dir=Path(OUTPUT_DIR),
+        file_service=file_service,
+    )
+except Exception as exc:
+    print("[ERROR] collision_strategy=error raised:", exc)
+
+payload = {
+    "item_id": root_id,
+    "depth": -1,
+    "export_type": "3d",
+    "include_previews": False,
+    "include_printouts": include_printouts,
+    "include_geometry": include_geometry,
+    "filename_mode": "item_number_rev",
+    "path_strategy": "item",
+    "collision_strategy": "append_counter",
+    "include_bom_tree": True,
+    "bom_tree_filename": "tree.json",
+    "include_manifest_csv": True,
+    "manifest_csv_filename": "manifest.csv",
+}
+
+async_result = module.handle_pack_and_go_job(payload, session)
+with zipfile.ZipFile(async_result["zip_path"], "r") as zipf:
+    async_names = sorted(zipf.namelist())
+print("[ASYNC] zip entries:", async_names)
+session.close()
+PY
+```
+
+输出（摘要）：
+
+```text
+[SYNC] zip entries: ['ASM-001/ASM-001_B.step', 'ASM-001/ASM-001_B_1.step', 'PRT-002/PRT-002_C.step', 'manifest.csv', 'manifest.json', 'tree.json']
+[ERROR] collision_strategy=error raised: 409: Path collision: ASM-001/ASM-001_B.step
+[ASYNC] zip entries: ['ASM-001/ASM-001_B.step', 'ASM-001/ASM-001_B_1.step', 'PRT-002/PRT-002_C.step', 'manifest.csv', 'manifest.json', 'tree.json']
+```
+
+## Run CAD-IMPORT-DEFAULT-20260110-2240（CAD Import 默认仅 preview+extract）
+
+- 时间：`2026-01-10 22:40:58 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 方式：手动验证
+- 结果：`PASS`
+- 关键 ID：
+  - File：`763b98a4-4126-4dd8-aabb-092c486f97aa`
+  - Jobs：`cad_preview=04bbf67c-e445-4ba1-86e3-382ca8cffdc7`，`cad_extract=e8347b49-d872-4a10-a9ab-77069866a42f`
+
+执行要点：
+
+```bash
+# 导入文件（不传 create_geometry_job/create_dedup_job）
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "x-tenant-id: tenant-1" -H "x-org-id: org-1" \
+  -F "file=@/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg"
+
+# 断言：jobs 仅包含 cad_preview、cad_extract
+# cad_metadata 返回 302，attributes 返回 200
+curl -s -o /dev/null -w "%{http_code}" \
+  http://127.0.0.1:7910/api/v1/file/763b98a4-4126-4dd8-aabb-092c486f97aa/cad_metadata
+curl -s -o /dev/null -w "%{http_code}" \
+  http://127.0.0.1:7910/api/v1/cad/files/763b98a4-4126-4dd8-aabb-092c486f97aa/attributes
+```
+
+## Run BOM-UI-20260111-2218（BOM UI 关键接口）
+
+- 时间：`2026-01-11 22:18:39 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_ui.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Substitute：`8122c0c0-141c-43ad-84a7-12b1e1dbb013`
+
+执行命令：
+
+```bash
+bash scripts/verify_bom_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run PRODUCT-DETAIL-20260111-2219（产品详情聚合）
+
+- 时间：`2026-01-11 22:19:52 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_product_detail.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Item：`904e013f-7c84-4fb0-8398-d94bc132ea6b`
+  - Version：`bd3b6842-0c9b-4062-89c9-01acc3277e3f`
+  - File：`7364e79e-b500-4683-88d8-72e2af449d81`
+
+执行命令：
+
+```bash
+bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run DOCS-APPROVAL-20260111-2221（文档流程 + ECO 审批）
+
+- 时间：`2026-01-11 22:21:00 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_docs_approval.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part：`a835ac75-dfde-402e-9a11-3c7e79b1c4c4`
+  - File：`856c95c3-be7d-439d-939b-a8cf10d2f5c0`
+  - Document：`e23f48e6-a7e3-43b6-b965-52734a4676c8`
+  - ECO Stage：`1e1e08c3-9ca7-4b0d-b24d-56daea8d1c4a`
+  - ECO Product：`a2519c80-bcaa-4971-a4d5-432a0c5707b8`
+  - ECO：`47134299-8409-49c0-af19-c5a3a869ac5a`
+  - ECO Approval：`6b6d01a3-ae09-4e2e-a8fa-02a2884a1416`
+
+执行命令：
+
+```bash
+bash scripts/verify_docs_approval.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run SEARCH-REINDEX-20260111-2222（索引状态 + 重建）
+
+- 时间：`2026-01-11 22:22:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_search_reindex.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Item：`f7c7b21c-2b91-4e95-af83-c5b53fc7ed8c`
+  - Engine：`db`
+  - Indexed：`361`
+
+执行命令：
+
+```bash
+bash scripts/verify_search_reindex.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run TENANT-PROVISION-20260111-2225（平台管理员创建租户）
+
+- 时间：`2026-01-11 22:25:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Tenant：`tenant-provision-1768141491`
+  - Org：`org-provision-1768141491`
+  - Extra Org：`org-extra-1768141491`
+  - Admin：`admin-1768141491`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+  bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-CONNECTORS-20260111-2226（CAD 连接器：2D 合成样本）
+
+- 时间：`2026-01-11 22:26:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - GSTARCAD：`66832fbc-163b-46ed-9a67-567585af6404`
+  - ZWCAD：`6cfa0b1e-e075-4ec7-9928-88e027a3fd11`
+  - HAOCHEN：`5a78856b-6e6a-4751-a745-f7d83d9aa04d`
+  - ZHONGWANG：`a084ccdc-a1e1-4ba6-a916-c4bdb5e14e66`
+  - Auto Detect 1：`9c85c29e-c1c4-42a5-94a5-591ad6c059ee`
+  - Auto Detect 2：`78aead16-147a-438e-b313-f452d782e777`
+- 说明：`RUN_REAL=0`，真实样本验证跳过。
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_connectors.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run OPS-HARDENING-20260111-2233（多租户/配额/审计/健康/索引）
+
+- 时间：`2026-01-11 22:33:23 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_ops_hardening.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Search Item：`0f2b4c9d-4f63-45fb-aeea-38b12591943e`
+  - Search Indexed：`1485`
+- 说明：
+  - Quota：`SKIP`（quota mode=disabled）
+  - Audit：`SKIP`（audit_enabled=false）
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run BOM-COMPARE-FIELDS-20260111-2248（BOM Compare 字段级对照）
+
+- 时间：`2026-01-11 22:48:04 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare_fields.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Left Item：`99ea07d1-74b7-4e73-a310-029cdc4f37c8`
+  - Right Item：`8712b5d7-94bd-4c4f-9337-d7c8025f0c0b`
+  - Child Item：`1476fb78-9cbb-453f-9a59-82b170a9aeff`
+  - Substitute Item：`4c180b49-63a0-4422-bd6b-2d4235df5ec8`
+  - Left BOM Line：`15372c3f-1ca2-4803-9e85-a87cbfb706b1`
+  - Right BOM Line：`437fb3ce-d1f6-46d5-8326-a10bca27d2af`
+  - Substitute Rel：`c730b881-ee75-4c54-b817-174e0c7f9998`
+
+执行命令：
+
+```bash
+bash scripts/verify_bom_compare_fields.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run PRODUCT-UI-20260111-2253（产品详情 UI 聚合）
+
+- 时间：`2026-01-11 22:53:59 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_product_ui.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent Item：`7f809f0c-3df7-4b4f-bd78-03b9f5dbab85`
+  - Child Item：`59218840-a871-4654-988e-a594e7d81e8c`
+  - BOM Line：`8b822076-74a0-4ac3-9d90-957f3c5ae839`
+
+执行命令：
+
+```bash
+bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run WHERE-USED-UI-20260111-2300（Where-Used UI 输出）
+
+- 时间：`2026-01-11 23:00:53 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_where_used_ui.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Grand：`1a185290-44c8-453e-a7de-56b56ae8cb67`
+  - Parent：`a2ae62cb-e9dc-4cbb-9160-4b3e1de2a17b`
+  - Child：`214a693b-27f9-4246-89f1-d78829d110fe`
+  - Parent BOM：`63c88952-92e0-448d-b363-0701393e5b7d`
+  - Grand BOM：`c070a8e6-effc-4371-bb3a-be5bb360bc7b`
+
+执行命令：
+
+```bash
+bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run DOCS-ECO-UI-20260111-2313（文档/审批聚合）
+
+- 时间：`2026-01-11 23:13:32 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_docs_eco_ui.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part：`cc64c49b-5d51-48a7-9ec2-6bea074f91b6`
+  - Document：`da1f08bc-638b-4d8b-8dae-d87c2594c7b3`
+  - ECO：`563298f8-0e3b-4a5f-b1b3-1777a225387d`
+  - ECO Stage：`7c7e7c12-b607-4a9e-a931-947defe7cae4`
+
+执行命令：
+
+```bash
+bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-IMPORT-DEFAULT-20260110-2200（CAD Import Default: Preview + Extract）
+
+- 时间：`2026-01-10 22:00:16 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 文件：`/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg`
+- 关键 ID：File `763b98a4-4126-4dd8-aabb-092c486f97aa`; Jobs `cad_preview=71b7f1c3-3b7a-4879-939f-3081e337b7fd`, `cad_extract=85f2aafe-5aba-4728-a2d5-ff508f1e8e0f`
+- 结果：默认只创建 preview + extract 两个任务；cad_metadata `302`（S3 presigned），attributes `200`
+
+执行命令：
+
+```bash
+TOKEN=$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"tenant-1","org_id":"org-1","username":"admin","password":"admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -F "file=@/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg"
+
+for endpoint in \
+  "/api/v1/file/763b98a4-4126-4dd8-aabb-092c486f97aa/cad_metadata" \
+  "/api/v1/cad/files/763b98a4-4126-4dd8-aabb-092c486f97aa/attributes"; do
+  curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:7910${endpoint}" \
+    -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' -H "Authorization: Bearer $TOKEN"
+done
+```
+
+## Run CAD-EXTRACT-METADATA-20260110-2121（CAD Extract Metadata + Mesh Stats Guard）
+
+- 时间：`2026-01-10 21:21:50 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 文件：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+- 关键 ID：File `c1fb5877-5316-459e-8f4c-14dd2a2fca26`; Jobs `cad_preview=1fbbf8b9-9612-40c5-b756-061a638e0009`, `cad_geometry=760cb173-60cd-468a-9090-64b49fb3bb63`, `cad_extract=a567f3e7-b29d-4cf8-9ec0-36f2b48b8444`, `cad_dedup_vision=f65aab5b-cd83-41e1-9717-d08bff11c47b`
+- 结果：cad_metadata `302`（S3 presigned），attributes `200`，mesh-stats `404`（cad_attributes guard 生效），geometry `404`（DWG converter 未配置，预期），cad_geometry 报错 `DWG converter not configured. Set YUANTUS_DWG_CONVERTER_BIN.`，cad_dedup_vision `400`（外部服务未配置）
+
+执行命令：
+
+```bash
+TOKEN=$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"tenant-1","org_id":"org-1","username":"admin","password":"admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -F "file=@/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg" \
+  -F "create_preview_job=true" \
+  -F "create_geometry_job=true" \
+  -F "create_extract_job=true"
+
+for endpoint in \
+  "/api/v1/file/c1fb5877-5316-459e-8f4c-14dd2a2fca26/cad_metadata" \
+  "/api/v1/cad/files/c1fb5877-5316-459e-8f4c-14dd2a2fca26/attributes" \
+  "/api/v1/cad/files/c1fb5877-5316-459e-8f4c-14dd2a2fca26/mesh-stats" \
+  "/api/v1/file/c1fb5877-5316-459e-8f4c-14dd2a2fca26/geometry"; do
+  curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:7910${endpoint}" \
+    -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' -H "Authorization: Bearer $TOKEN"
+done
+```
+
 ## Run ALL-62（一键回归：run_full_regression.sh 全量回归）
 
 - 时间：`2025-12-27 13:53:40 +0800`
@@ -10389,4 +11138,248 @@ scripts/run_full_regression.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/v
 ```text
 PASS: 42  FAIL: 0  SKIP: 0
 ALL TESTS PASSED
+```
+
+## Run P（插件增强回归测试）
+
+- 时间：`2026-01-11 23:34:14 +0800`
+- 说明：验证 BOM Compare 与 Pack-and-Go 插件单测覆盖新增功能。
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py   src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
+```
+
+```text
+27 passed, 1 skipped in 0.34s
+```
+
+## Run PACKGO-PROGRESS-20260112-1014（插件配置迁移 + Pack-and-Go 进度）
+
+- 时间：`2026-01-12 10:14:03 +0800`
+- 说明：升级迁移到 plugin configs 表，验证 pack-and-go 异步进度回写（file_scope=version），并重跑插件单测。
+
+### 1) DB 迁移到 Head
+
+```bash
+PYTHONPATH=src YUANTUS_DATABASE_URL=sqlite:///./yuantus_dev_verify.db \
+  python3 -m alembic -c alembic.ini upgrade head
+```
+
+```text
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade h1b2c3d4e5f6 -> i1b2c3d4e5f7, add cad document schema version and properties
+INFO  [alembic.runtime.migration] Running upgrade i1b2c3d4e5f7 -> j1b2c3d4e5f8, add cad view state
+INFO  [alembic.runtime.migration] Running upgrade j1b2c3d4e5f8 -> k1b2c3d4e5f9, add cad review fields
+INFO  [alembic.runtime.migration] Running upgrade k1b2c3d4e5f9 -> l1b2c3d4e6a0, add cad change logs
+INFO  [alembic.runtime.migration] Running upgrade l1b2c3d4e6a0 -> m1b2c3d4e6a1, add plugin configs
+```
+
+### 2) 确认插件配置表
+
+```bash
+python3 - <<'PY'
+import sqlite3
+conn = sqlite3.connect('yuantus_dev_verify.db')
+rows = list(conn.execute("select name from sqlite_master where type='table' and name='meta_plugin_configs'"))
+print(rows)
+conn.close()
+PY
+```
+
+```text
+[('meta_plugin_configs',)]
+```
+
+### 3) Seed Meta Schema（Part/Part BOM/Document）
+
+```bash
+PYTHONPATH=src YUANTUS_DATABASE_URL=sqlite:///./yuantus_dev_verify.db \
+  python3 -m yuantus.cli seed-meta
+```
+
+```bash
+python3 - <<'PY'
+import sqlite3
+conn = sqlite3.connect('yuantus_dev_verify.db')
+rows = list(conn.execute("select id from meta_item_types where id in ('Part','Document','Part BOM') order by id"))
+print(rows)
+conn.close()
+PY
+```
+
+```text
+[('Document',), ('Part',), ('Part BOM',)]
+```
+
+### 4) Pack-and-Go 异步进度（file_scope=version）
+
+```bash
+PYTHONPATH=src YUANTUS_DATABASE_URL=sqlite:///./yuantus_dev_verify.db python3 - <<'PY'
+import json
+import sys
+import uuid
+from pathlib import Path
+import importlib.util
+
+from yuantus.config import get_settings
+from yuantus.database import SessionLocal
+from yuantus.meta_engine.bootstrap import import_all_models
+from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.version.models import ItemVersion, VersionFile
+from yuantus.meta_engine.models.file import FileContainer
+from yuantus.meta_engine.services.job_service import JobService
+
+import_all_models()
+
+session = SessionLocal()
+try:
+    settings = get_settings()
+    base_path = Path(settings.LOCAL_STORAGE_PATH)
+    rel_path = Path("packgo_verify") / "part.step"
+    full_path = base_path / rel_path
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    full_path.write_text("packgo verify file\n", encoding="utf-8")
+    size = full_path.stat().st_size
+
+    file_id = str(uuid.uuid4())
+    item_id = str(uuid.uuid4())
+    version_id = str(uuid.uuid4())
+
+    file_entry = FileContainer(
+        id=file_id,
+        filename="part.step",
+        file_type="step",
+        mime_type="model/step",
+        file_size=size,
+        system_path=str(rel_path),
+        document_type="3d",
+        is_native_cad=True,
+    )
+    session.add(file_entry)
+
+    item = Item(
+        id=item_id,
+        item_type_id="Part",
+        config_id=item_id,
+        generation=1,
+        is_current=True,
+        state="Released",
+        is_versionable=True,
+        properties={"item_number": "P-PACKGO-001", "name": "PackGo Verify"},
+    )
+    session.add(item)
+
+    version = ItemVersion(
+        id=version_id,
+        item_id=item_id,
+        generation=1,
+        revision="A",
+        version_label="1.A",
+        state="Released",
+        is_current=True,
+    )
+    session.add(version)
+    session.flush()
+    item.current_version_id = version_id
+
+    vfile = VersionFile(
+        id=str(uuid.uuid4()),
+        version_id=version_id,
+        file_id=file_id,
+        file_role="native_cad",
+        sequence=0,
+        is_primary=True,
+    )
+    session.add(vfile)
+    session.commit()
+
+    plugin_path = Path.cwd() / "plugins" / "yuantus-pack-and-go" / "main.py"
+    spec = importlib.util.spec_from_file_location("packgo_plugin", plugin_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    payload = {
+        "item_id": item_id,
+        "depth": 0,
+        "file_scope": "version",
+        "file_roles": ["native_cad"],
+        "document_types": ["3d"],
+        "include_previews": False,
+        "include_printouts": False,
+        "include_geometry": False,
+        "include_manifest_csv": True,
+        "manifest_csv_columns": [
+            "file_id",
+            "source_item_number",
+            "source_version_id",
+            "item_revision",
+        ],
+    }
+
+    job_service = JobService(session)
+    job = job_service.create_job("pack_and_go", payload, user_id=1)
+    result = module.handle_pack_and_go_job(payload, session, job_id=job.id)
+    job_service.complete_job(job.id, result)
+    job = job_service.get_job(job.id)
+
+    print("job_id", job.id)
+    print("status", job.status)
+    print("progress", json.dumps(job.payload.get("progress"), ensure_ascii=True))
+    print("zip_path", job.payload.get("result", {}).get("zip_path"))
+finally:
+    session.close()
+PY
+```
+
+```text
+job_id 0fee06c6-824f-4271-a7ab-253195c306f8
+status completed
+progress {"stage": "complete", "current": 1, "total": 1, "percent": 100, "updated_at": "2026-01-12T02:13:04.636813", "message": "complete", "extra": {"file_count": 1, "total_bytes": 19, "duration_sec": 0.009}}
+zip_path tmp/pack_and_go/pack_and_go_P-PACKGO-001_20260112021304.zip
+```
+
+### 5) 插件单测回归
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \
+  src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
+```
+
+```text
+27 passed, 1 skipped in 1.45s
+```
+
+## Run PACKGO-TEST-20260112-1326（Pack-and-Go 映射单测）
+
+- 时间：`2026-01-12 13:26:04 +0800`
+- 说明：新增 `file_scope=version` 的映射单测覆盖。
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py
+```
+
+```text
+19 passed in 0.30s
+```
+
+## Run PLUGIN-TESTS-20260112-1310（插件单测回归）
+
+- 时间：`2026-01-12 13:10:16 +0800`
+- 脚本：`pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py src/yuantus/meta_engine/tests/test_plugin_bom_compare.py`
+- 结果：`27 passed, 1 skipped`
+
+执行命令：
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \
+  src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
+```
+
+输出（摘要）：
+
+```text
+27 passed, 1 skipped in 1.44s
 ```

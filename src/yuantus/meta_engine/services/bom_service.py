@@ -233,9 +233,15 @@ class BOMService:
                 continue
             parent = self.session.get(Item, rel.source_id)
             if parent:
+                rel_props = rel.properties or {}
+                norm_props = self._normalize_properties(rel_props)
+                child_item = self.session.get(Item, rel.related_id) if rel.related_id else None
                 parent_entry = {
                     "relationship": rel.to_dict(),
                     "parent": parent.to_dict(),
+                    "child": child_item.to_dict() if child_item else None,
+                    "line": self._line_fields(rel_props),
+                    "line_normalized": self._line_fields_normalized(norm_props),
                     "level": _current_level + 1,
                 }
                 parents.append(parent_entry)
@@ -950,6 +956,33 @@ class BOMService:
             normalized[key] = self._normalize_value(key, value)
         return normalized
 
+    def _line_field_keys(self) -> tuple[str, ...]:
+        return (
+            "quantity",
+            "uom",
+            "find_num",
+            "refdes",
+            "effectivity_from",
+            "effectivity_to",
+            "effectivities",
+            "substitutes",
+        )
+
+    def _line_fields(self, props: Dict[str, Any]) -> Dict[str, Any]:
+        return {key: props.get(key) for key in self._line_field_keys()}
+
+    def _jsonify_value(self, value: Any) -> Any:
+        if isinstance(value, tuple):
+            return [self._jsonify_value(item) for item in value]
+        if isinstance(value, list):
+            return [self._jsonify_value(item) for item in value]
+        if isinstance(value, dict):
+            return {key: self._jsonify_value(item) for key, item in value.items()}
+        return value
+
+    def _line_fields_normalized(self, props: Dict[str, Any]) -> Dict[str, Any]:
+        return self._jsonify_value(self._line_fields(props))
+
     def _normalize_value(self, key: str, value: Any) -> Any:
         if value is None:
             return None
@@ -1107,6 +1140,8 @@ class BOMService:
         return False
 
     def _format_entry(self, entry: Dict[str, Any]) -> Dict[str, Any]:
+        props = entry.get("properties") or {}
+        norm_props = entry.get("normalized_properties") or {}
         result = {
             "parent_id": entry.get("parent_id"),
             "child_id": entry.get("child_id"),
@@ -1116,7 +1151,9 @@ class BOMService:
             "child_config_id": entry.get("child_config_id"),
             "level": entry.get("level"),
             "path": entry.get("path"),
-            "properties": entry.get("properties", {}),
+            "properties": props,
+            "line": self._line_fields(props),
+            "line_normalized": self._line_fields_normalized(norm_props),
         }
         if "parent" in entry:
             result["parent"] = entry["parent"]
@@ -1134,6 +1171,10 @@ class BOMService:
         before = {d["field"]: d["left"] for d in diffs}
         after = {d["field"]: d["right"] for d in diffs}
         severity = self._summarize_severity(diffs)
+        left_props = left_entry.get("properties") or {}
+        right_props = right_entry.get("properties") or {}
+        left_norm = left_entry.get("normalized_properties") or {}
+        right_norm = right_entry.get("normalized_properties") or {}
 
         result = {
             "parent_id": left_entry.get("parent_id"),
@@ -1146,6 +1187,10 @@ class BOMService:
             "path": left_entry.get("path"),
             "before": before,
             "after": after,
+            "before_line": self._line_fields(left_props),
+            "after_line": self._line_fields(right_props),
+            "before_normalized": self._line_fields_normalized(left_norm),
+            "after_normalized": self._line_fields_normalized(right_norm),
             "changes": diffs,
             "severity": severity,
         }

@@ -432,6 +432,15 @@ class WhereUsedEntry(BaseModel):
 
     relationship: Dict[str, Any] = Field(..., description="BOM relationship item")
     parent: Dict[str, Any] = Field(..., description="Parent item that uses this item")
+    child: Optional[Dict[str, Any]] = Field(
+        None, description="Child item (the queried item)"
+    )
+    line: Dict[str, Any] = Field(
+        default_factory=dict, description="Standardized BOM line fields"
+    )
+    line_normalized: Dict[str, Any] = Field(
+        default_factory=dict, description="Normalized BOM line fields"
+    )
     level: int = Field(..., description="Level in the where-used hierarchy (1=direct)")
 
 
@@ -441,6 +450,10 @@ class WhereUsedResponse(BaseModel):
     item_id: str = Field(..., description="The queried item ID")
     count: int = Field(..., description="Number of parents found")
     parents: List[WhereUsedEntry] = Field(..., description="List of parent usages")
+    recursive: bool = Field(
+        False, description="Whether recursive search was enabled"
+    )
+    max_levels: int = Field(10, description="Maximum recursion depth applied")
 
 
 # ============================================================================
@@ -471,6 +484,10 @@ class BOMCompareEntry(BaseModel):
     level: Optional[int] = None
     path: Optional[List[Dict[str, Any]]] = None
     properties: Dict[str, Any] = Field(default_factory=dict)
+    line: Dict[str, Any] = Field(default_factory=dict, description="Standardized BOM line fields")
+    line_normalized: Dict[str, Any] = Field(
+        default_factory=dict, description="Normalized line fields for comparisons"
+    )
     parent: Optional[Dict[str, Any]] = None
     child: Optional[Dict[str, Any]] = None
 
@@ -499,6 +516,10 @@ class BOMCompareChangedEntry(BaseModel):
     path: Optional[List[Dict[str, Any]]] = None
     before: Dict[str, Any] = Field(default_factory=dict)
     after: Dict[str, Any] = Field(default_factory=dict)
+    before_line: Dict[str, Any] = Field(default_factory=dict)
+    after_line: Dict[str, Any] = Field(default_factory=dict)
+    before_normalized: Dict[str, Any] = Field(default_factory=dict)
+    after_normalized: Dict[str, Any] = Field(default_factory=dict)
     changes: List[BOMCompareFieldDiff] = Field(default_factory=list)
     severity: Optional[str] = None
     parent: Optional[Dict[str, Any]] = None
@@ -625,10 +646,15 @@ async def get_where_used(
             WhereUsedEntry(
                 relationship=p["relationship"],
                 parent=p["parent"],
+                child=p.get("child"),
+                line=p.get("line") or {},
+                line_normalized=p.get("line_normalized") or {},
                 level=p["level"],
             )
             for p in parents
         ],
+        recursive=recursive,
+        max_levels=max_levels,
     )
 
 
