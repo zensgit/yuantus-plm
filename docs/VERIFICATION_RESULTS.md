@@ -1805,6 +1805,88 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run CAD-ML-PREVIEW-20260112-2208（CAD 2D 预览渲染）
+
+- 时间：`2026-01-12 22:08:26 +0800`
+- 脚本：`scripts/verify_cad_preview_2d.sh`
+- 环境：`CAD_ML_BASE_URL=http://localhost:8000`，S3 storage（MinIO: `http://localhost:59000`）
+- 样本：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE= \
+YUANTUS_IDENTITY_DATABASE_URL= \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+CAD_ML_BASE_URL=http://localhost:8000 \
+bash scripts/verify_cad_preview_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED (mesh stats optional: SKIP)
+```
+
+## Run CAD-ML-OCR-20260112-2208（CAD OCR 标题栏）
+
+- 时间：`2026-01-12 22:08:26 +0800`
+- 脚本：`scripts/verify_cad_ocr_titleblock.sh`
+- 环境：`CAD_ML_BASE_URL=http://localhost:8000`，S3 storage（MinIO: `http://localhost:59000`）
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE= \
+YUANTUS_IDENTITY_DATABASE_URL= \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+CAD_ML_BASE_URL=http://localhost:8000 \
+bash scripts/verify_cad_ocr_titleblock.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CADGF-PREVIEW-ONLINE-20260112-2208（CADGF 在线预览）
+
+- 时间：`2026-01-12 22:08:26 +0800`
+- 脚本：`scripts/verify_cad_preview_online.sh`
+- 环境：`CADGF router http://localhost:9000`，S3 storage（MinIO: `http://localhost:59000`）
+- 样本：`/Users/huazhou/Downloads/新建文件夹/converted/J0224022-06上罐体组件v1.dxf`
+- 结果报告：`/tmp/cadgf_preview_online_report.md`
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE= \
+YUANTUS_IDENTITY_DATABASE_URL= \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+BASE_URL=http://127.0.0.1:7910 \
+TENANT=tenant-1 \
+ORG=org-1 \
+SAMPLE_FILE="/Users/huazhou/Downloads/新建文件夹/converted/J0224022-06上罐体组件v1.dxf" \
+SYNC_GEOMETRY=1 \
+bash scripts/verify_cad_preview_online.sh
+```
+
+```text
+login_ok=yes, upload_ok=yes, conversion_ok=yes, viewer_load=yes, manifest_rewrite=yes
+```
+
 ## Run REGRESSION-MT-REAL-20251229-0212（Full Regression + Real CAD Samples, db-per-tenant-org）
 
 - 时间：`2025-12-29 02:12:31 +0800`
