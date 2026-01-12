@@ -235,3 +235,24 @@ def test_manifest_csv_columns_allow_extended_fields():
 def test_normalize_bom_flat_format_accepts_jsonl():
     module = _load_plugin_module()
     assert module._normalize_bom_flat_format("jsonl") == "jsonl"
+
+
+def test_map_item_versions_builds_reverse_lookup():
+    module = _load_plugin_module()
+
+    class DummyItem:
+        def __init__(self, item_id, version_id):
+            self.id = item_id
+            self.current_version_id = version_id
+
+    items = [
+        DummyItem("item-1", "ver-1"),
+        DummyItem("item-2", None),
+    ]
+
+    version_by_item, item_by_version = module._map_item_versions(
+        items, eligible_item_set={"item-1", "item-2"}
+    )
+
+    assert version_by_item == {"item-1": "ver-1"}
+    assert item_by_version == {"ver-1": "item-1"}

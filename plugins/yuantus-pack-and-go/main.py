@@ -733,6 +733,25 @@ def _normalize_set(
     return normalized
 
 
+def _map_item_versions(
+    items: Sequence[Any], *, eligible_item_set: Optional[set[str]] = None
+) -> Tuple[Dict[str, str], Dict[str, str]]:
+    version_by_item: Dict[str, str] = {}
+    for item in items:
+        item_id = getattr(item, "id", None)
+        if not item_id:
+            continue
+        if eligible_item_set and item_id not in eligible_item_set:
+            continue
+        version_id = getattr(item, "current_version_id", None)
+        if version_id:
+            version_by_item[item_id] = str(version_id)
+    item_by_version = {
+        version_id: item_id for item_id, version_id in version_by_item.items()
+    }
+    return version_by_item, item_by_version
+
+
 def _should_include_item(
     item: Optional[Item],
     *,
@@ -1200,14 +1219,9 @@ def build_pack_and_go_package(
     file_links: List[Dict[str, Any]] = []
     fallback_item_ids: List[str] = []
     if file_scope == "version":
-        version_by_item = {
-            item.id: item.current_version_id
-            for item in items
-            if item.id in eligible_item_set and item.current_version_id
-        }
-        item_by_version = {
-            version_id: item_id for item_id, version_id in version_by_item.items()
-        }
+        version_by_item, item_by_version = _map_item_versions(
+            items, eligible_item_set=eligible_item_set
+        )
         version_ids = [vid for vid in version_by_item.values() if vid]
         if version_ids:
             version_files = (

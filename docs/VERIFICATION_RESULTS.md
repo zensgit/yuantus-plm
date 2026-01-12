@@ -11352,6 +11352,19 @@ pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \
 27 passed, 1 skipped in 1.45s
 ```
 
+## Run PACKGO-TEST-20260112-1326（Pack-and-Go 映射单测）
+
+- 时间：`2026-01-12 13:26:04 +0800`
+- 说明：新增 `file_scope=version` 的映射单测覆盖。
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py
+```
+
+```text
+19 passed in 0.30s
+```
+
 ## Run PLUGIN-TESTS-20260112-1310（插件单测回归）
 
 - 时间：`2026-01-12 13:10:16 +0800`
