@@ -86,7 +86,7 @@ Request:
     {"op": "remove", "relationship_id": "UUID-REL"},
     {"op": "update", "relationship_id": "UUID-REL2", "quantity": 5}
   ],
-  "dry_run": false
+  "dry_run": false,
   "preview": false
 }
 ```
