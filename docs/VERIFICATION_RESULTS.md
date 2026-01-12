@@ -11491,3 +11491,73 @@ bash scripts/verify_cad_real_samples.sh http://127.0.0.1:7910 tenant-1 org-1
 ```text
 ALL CHECKS PASSED
 ```
+
+## Run CAD-EXTRACTOR-SERVICE-20260112-2143（Extractor 服务直连）
+
+- 时间：`2026-01-12 21:43:42 +0800`
+- 脚本：`scripts/verify_cad_extractor_service.sh`
+- 环境：`CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200`
+
+```bash
+bash scripts/verify_cad_extractor_service.sh
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-EXTRACTOR-EXTERNAL-20260112-2143（外部 Extractor 接入）
+
+- 时间：`2026-01-12 21:43:42 +0800`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 环境：`TENANCY=db-per-tenant-org`，S3 storage（MinIO: `http://localhost:59000`）
+- 样本：`/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+CAD_EXTRACTOR_BASE_URL=http://localhost:8200 \
+CAD_EXTRACTOR_SAMPLE_FILE="/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg" \
+bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-REAL-CONNECTORS-2D-20260112-2143（2D 实际连接器：浩辰/中望）
+
+- 时间：`2026-01-12 21:43:42 +0800`
+- 脚本：`scripts/verify_cad_connectors_real_2d.sh`
+- 环境：`TENANCY=db-per-tenant-org`，S3 storage（MinIO: `http://localhost:59000`）
+- 样本：
+  - `CAD_SAMPLE_HAOCHEN_DWG=/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg`
+  - `CAD_SAMPLE_ZHONGWANG_DWG=/Users/huazhou/Downloads/训练图纸/训练图纸/J2825002-09下轴承支架组件v2.dwg`
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_CAD_EXTRACTOR_BASE_URL=http://localhost:8200 \
+YUANTUS_CAD_EXTRACTOR_MODE=required \
+bash scripts/verify_cad_connectors_real_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
