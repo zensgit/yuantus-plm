@@ -115,6 +115,45 @@ class JobService:
             self.session.add(job)
             self.session.commit()
 
+    def update_job_progress(
+        self,
+        job_id: str,
+        *,
+        stage: str,
+        current: int,
+        total: int,
+        message: Optional[str] = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Update progress metadata stored in the job payload."""
+        job = self.session.get(ConversionJob, job_id)
+        if not job:
+            return
+        payload = dict(job.payload or {})
+        progress = payload.get("progress")
+        if not isinstance(progress, dict):
+            progress = {}
+        percent = None
+        if total:
+            percent = max(0, min(100, int(round(current / total * 100))))
+        progress.update(
+            {
+                "stage": stage,
+                "current": current,
+                "total": total,
+                "percent": percent,
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+        )
+        if message:
+            progress["message"] = message
+        if extra:
+            progress["extra"] = extra
+        payload["progress"] = progress
+        job.payload = payload
+        self.session.add(job)
+        self.session.commit()
+
     def fail_job(self, job_id: str, error_message: str, *, retry: bool = True):
         """Mark a job as failed, potentially scheduling a retry."""
         job = self.session.get(ConversionJob, job_id)

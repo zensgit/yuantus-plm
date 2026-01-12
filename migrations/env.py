@@ -17,7 +17,8 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 # Ensure yuantus package is importable
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(repo_root, "src"))
 
 # Mark Alembic as running to prevent circular imports
 os.environ["ALEMBIC_RUNNING"] = "true"

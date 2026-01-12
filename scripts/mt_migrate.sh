@@ -15,6 +15,7 @@ TENANTS="${TENANTS:-tenant-1,tenant-2}"
 ORGS="${ORGS:-org-1,org-2}"
 ACTION="${ACTION:-upgrade}"
 AUTO_STAMP="${AUTO_STAMP:-1}"
+AUTO_STAMP_REVISION="${AUTO_STAMP_REVISION:-f87ce5711ce1}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -54,9 +55,8 @@ else:
 PY
     )"
     if [[ "$needs_stamp" == "1" ]]; then
-      echo "Existing tables without alembic_version; stamping head"
-      YUANTUS_DATABASE_URL="$url" "$CLI" db stamp --revision head
-      return
+      echo "Existing tables without alembic_version; stamping $AUTO_STAMP_REVISION"
+      YUANTUS_DATABASE_URL="$url" "$CLI" db stamp --revision "$AUTO_STAMP_REVISION"
     fi
   fi
   if ! YUANTUS_DATABASE_URL="$url" "$CLI" db "$ACTION"; then

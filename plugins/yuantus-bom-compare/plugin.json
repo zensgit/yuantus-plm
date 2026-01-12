@@ -7,5 +7,25 @@
   "plugin_type": "extension",
   "category": "bom",
   "tags": ["bom", "compare", "merge"],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "default_compare_mode": {
+        "type": "string",
+        "enum": ["only_product", "summarized", "num_qty", "by_position", "by_reference"],
+        "default": "only_product"
+      },
+      "default_quantity_tolerance": {"type": "number", "default": 0},
+      "allow_apply": {"type": "boolean", "default": true}
+    }
+  },
+  "capabilities": {
+    "compare_modes": ["only_product", "summarized", "num_qty", "by_position", "by_reference"],
+    "export_formats": ["csv", "xlsx"],
+    "apply": true,
+    "preview": true,
+    "filters": ["status", "regex", "delta"],
+    "dry_run": true
+  },
   "entry_point": "main.py"
 }

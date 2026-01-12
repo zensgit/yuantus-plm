@@ -887,6 +887,22 @@ def cad_extract(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
     file_container.cad_attributes = dict(attributes or {})
     file_container.cad_attributes_source = source
     file_container.cad_attributes_updated_at = datetime.utcnow()
+    if not file_container.cad_metadata_path:
+        metadata_payload = {
+            "kind": "cad_attributes",
+            "file_id": file_container.id,
+            "source": source,
+            "attributes": dict(attributes or {}),
+        }
+        metadata_key = f"cad_metadata/{file_container.id[:2]}/{file_container.id}.json"
+        stored_key = file_service.upload_file(
+            file_obj=io.BytesIO(
+                json.dumps(metadata_payload, ensure_ascii=False).encode("utf-8")
+            ),
+            file_path=metadata_key,
+            metadata={"content-type": "application/json"},
+        )
+        file_container.cad_metadata_path = stored_key
     session.add(file_container)
     session.flush()
 

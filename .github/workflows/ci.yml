@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  plugin-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+          pip install pytest
+      - name: Migrations smoke
+        env:
+          YUANTUS_DATABASE_URL: sqlite:///./ci.db
+        run: |
+          python -m alembic -c alembic.ini upgrade head
+      - name: Plugin tests
+        run: |
+          pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \
+            src/yuantus/meta_engine/tests/test_plugin_bom_compare.py

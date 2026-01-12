@@ -22,6 +22,28 @@ def get_product_detail(
     include_version_files: bool = Query(
         False, description="Include files attached to the current version"
     ),
+    include_bom_summary: bool = Query(
+        False, description="Include BOM summary (counts/depth)"
+    ),
+    bom_summary_depth: int = Query(
+        1, description="BOM summary depth for counts (1=direct children)"
+    ),
+    bom_effective_at: str = Query(
+        "", description="Optional ISO datetime for BOM summary effectivity"
+    ),
+    include_where_used_summary: bool = Query(
+        False, description="Include where-used summary"
+    ),
+    where_used_recursive: bool = Query(
+        False, description="Include recursive where-used summary"
+    ),
+    where_used_max_levels: int = Query(5, description="Max levels for where-used"),
+    include_document_summary: bool = Query(
+        False, description="Include related document lifecycle summary"
+    ),
+    include_eco_summary: bool = Query(
+        False, description="Include ECO summary for this product"
+    ),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -32,6 +54,14 @@ def get_product_detail(
             include_versions=include_versions,
             include_files=include_files,
             include_version_files=include_version_files,
+            include_bom_summary=include_bom_summary,
+            bom_summary_depth=bom_summary_depth,
+            bom_effective_at=bom_effective_at or None,
+            include_where_used_summary=include_where_used_summary,
+            where_used_recursive=where_used_recursive,
+            where_used_max_levels=where_used_max_levels,
+            include_document_summary=include_document_summary,
+            include_eco_summary=include_eco_summary,
         )
     except PLMException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.to_dict())

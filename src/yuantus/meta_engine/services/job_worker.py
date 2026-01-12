@@ -158,7 +158,9 @@ class JobWorker:
                 # If the handler supports (payload, session), pass the current DB session to avoid nested sessions.
                 try:
                     params = list(inspect.signature(handler).parameters.values())
-                    if len(params) >= 2:
+                    if len(params) >= 3:
+                        result = handler(job.payload, job_service.session, job.id)
+                    elif len(params) >= 2:
                         result = handler(job.payload, job_service.session)
                     else:
                         result = handler(job.payload)

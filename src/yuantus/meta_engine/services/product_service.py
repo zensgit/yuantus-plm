@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from yuantus.exceptions.handlers import PermissionError
+from yuantus.meta_engine.models.eco import ECO, ECOState
 from yuantus.meta_engine.models.file import FileContainer, ItemFile
 from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.schemas.aml import AMLAction
+from yuantus.meta_engine.services.eco_service import ECOApprovalService
+from yuantus.meta_engine.services.bom_service import BOMService
 from yuantus.meta_engine.services.meta_permission_service import MetaPermissionService
 from yuantus.meta_engine.version.models import ItemVersion
 
@@ -31,6 +36,14 @@ class ProductDetailService:
         include_versions: bool = True,
         include_files: bool = True,
         include_version_files: bool = False,
+        include_bom_summary: bool = False,
+        bom_summary_depth: int = 1,
+        bom_effective_at: Optional[str] = None,
+        include_where_used_summary: bool = False,
+        where_used_recursive: bool = False,
+        where_used_max_levels: int = 5,
+        include_document_summary: bool = False,
+        include_eco_summary: bool = False,
     ) -> Dict[str, Any]:
         item = self.session.get(Item, item_id)
         if not item:
@@ -64,6 +77,56 @@ class ProductDetailService:
 
         if include_version_files and current_version:
             payload["version_files"] = self._get_version_files(current_version)
+
+        if include_bom_summary or include_where_used_summary:
+            bom_allowed = self.permission_service.check_permission(
+                "Part BOM",
+                AMLAction.get,
+                user_id=str(self.user_id),
+                user_roles=self.roles,
+            )
+            if include_bom_summary:
+                if bom_allowed:
+                    payload["bom_summary"] = self._get_bom_summary(
+                        item.id,
+                        depth=bom_summary_depth,
+                        effective_at=bom_effective_at,
+                    )
+                else:
+                    payload["bom_summary"] = {"authorized": False}
+            if include_where_used_summary:
+                if bom_allowed:
+                    payload["where_used_summary"] = self._get_where_used_summary(
+                        item.id,
+                        recursive=where_used_recursive,
+                        max_levels=where_used_max_levels,
+                    )
+                else:
+                    payload["where_used_summary"] = {"authorized": False}
+
+        if include_document_summary:
+            doc_allowed = self.permission_service.check_permission(
+                "Document",
+                AMLAction.get,
+                user_id=str(self.user_id),
+                user_roles=self.roles,
+            )
+            if doc_allowed:
+                payload["document_summary"] = self._get_document_summary(item.id)
+            else:
+                payload["document_summary"] = {"authorized": False}
+
+        if include_eco_summary:
+            eco_allowed = self.permission_service.check_permission(
+                "ECO",
+                AMLAction.get,
+                user_id=str(self.user_id),
+                user_roles=self.roles,
+            )
+            if eco_allowed:
+                payload["eco_summary"] = self._get_eco_summary(item.id)
+            else:
+                payload["eco_summary"] = {"authorized": False}
 
         return payload
 
@@ -183,3 +246,193 @@ class ProductDetailService:
                 }
             )
         return files
+
+    def _get_bom_summary(
+        self,
+        item_id: str,
+        *,
+        depth: int,
+        effective_at: Optional[str],
+    ) -> Dict[str, Any]:
+        service = BOMService(self.session)
+        effective_date = None
+        if effective_at:
+            try:
+                from datetime import datetime
+
+                effective_date = datetime.fromisoformat(effective_at)
+            except ValueError:
+                effective_date = None
+
+        tree = service.get_bom_structure(
+            item_id,
+            levels=max(depth, 0),
+            effective_date=effective_date,
+        )
+
+        direct_children = len(tree.get("children") or [])
+        total_children = 0
+        max_depth = 0
+
+        def walk(node: Dict[str, Any], level: int) -> None:
+            nonlocal total_children, max_depth
+            max_depth = max(max_depth, level)
+            for child_entry in node.get("children") or []:
+                total_children += 1
+                child = child_entry.get("child") or {}
+                walk(child, level + 1)
+
+        walk(tree, 0)
+        return {
+            "authorized": True,
+            "depth": depth,
+            "direct_children": direct_children,
+            "total_children": total_children,
+            "max_depth": max_depth,
+        }
+
+    def _get_where_used_summary(
+        self,
+        item_id: str,
+        *,
+        recursive: bool,
+        max_levels: int,
+    ) -> Dict[str, Any]:
+        service = BOMService(self.session)
+        parents = service.get_where_used(
+            item_id=item_id,
+            recursive=recursive,
+            max_levels=max_levels,
+        )
+        sample: List[Dict[str, Any]] = []
+        for entry in parents[:5]:
+            parent = entry.get("parent") or {}
+            props = parent.get("properties") or {}
+            item_number = parent.get("item_number") or props.get("item_number") or props.get(
+                "number"
+            )
+            sample.append(
+                {
+                    "id": parent.get("id"),
+                    "item_number": item_number,
+                    "name": parent.get("name") or props.get("name"),
+                    "level": entry.get("level"),
+                }
+            )
+
+        return {
+            "authorized": True,
+            "count": len(parents),
+            "recursive": recursive,
+            "max_levels": max_levels,
+            "sample": sample,
+        }
+
+    def _get_document_summary(self, item_id: str) -> Dict[str, Any]:
+        rel_types = (
+            self.session.query(ItemType.id)
+            .filter(ItemType.is_relationship.is_(True))
+            .filter(
+                or_(
+                    ItemType.id.ilike("%document%part%"),
+                    ItemType.id.ilike("%part%document%"),
+                )
+            )
+            .all()
+        )
+        rel_type_ids = [row[0] for row in rel_types]
+        if not rel_type_ids:
+            return {"authorized": True, "count": 0, "state_counts": {}, "sample": []}
+
+        relations = (
+            self.session.query(Item)
+            .filter(
+                Item.item_type_id.in_(rel_type_ids),
+                Item.is_current.is_(True),
+                or_(Item.source_id == item_id, Item.related_id == item_id),
+            )
+            .all()
+        )
+
+        doc_ids = set()
+        for rel in relations:
+            if rel.source_id == item_id and rel.related_id:
+                doc_ids.add(rel.related_id)
+            elif rel.related_id == item_id and rel.source_id:
+                doc_ids.add(rel.source_id)
+
+        if not doc_ids:
+            return {"authorized": True, "count": 0, "state_counts": {}, "sample": []}
+
+        docs = (
+            self.session.query(Item)
+            .filter(Item.id.in_(list(doc_ids)))
+            .order_by(Item.updated_at.desc(), Item.created_at.desc())
+            .all()
+        )
+        state_counts: Dict[str, int] = {}
+        sample: List[Dict[str, Any]] = []
+        for doc in docs:
+            state_counts[doc.state] = state_counts.get(doc.state, 0) + 1
+            if len(sample) < 5:
+                props = doc.properties or {}
+                item_number = props.get("item_number") or props.get("number")
+                sample.append(
+                    {
+                        "id": doc.id,
+                        "item_number": item_number,
+                        "name": props.get("name"),
+                        "state": doc.state,
+                        "current_version_id": doc.current_version_id,
+                    }
+                )
+
+        return {
+            "authorized": True,
+            "count": len(docs),
+            "state_counts": state_counts,
+            "sample": sample,
+        }
+
+    def _get_eco_summary(self, item_id: str) -> Dict[str, Any]:
+        ecos = (
+            self.session.query(ECO)
+            .filter(ECO.product_id == item_id)
+            .order_by(ECO.updated_at.desc(), ECO.created_at.desc())
+            .all()
+        )
+        state_counts: Dict[str, int] = {}
+        for eco in ecos:
+            state_counts[eco.state] = state_counts.get(eco.state, 0) + 1
+
+        last_applied = None
+        for eco in ecos:
+            if eco.state == ECOState.DONE.value:
+                last_applied = {
+                    "eco_id": eco.id,
+                    "name": eco.name,
+                    "product_version_after": eco.product_version_after,
+                    "updated_at": eco.updated_at.isoformat() if eco.updated_at else None,
+                }
+                break
+
+        pending_items: List[Dict[str, Any]] = []
+        try:
+            approval_service = ECOApprovalService(self.session)
+            user_id_int = int(self.user_id)
+            pending = approval_service.get_pending_approvals(user_id_int)
+            eco_ids = {eco.id for eco in ecos}
+            pending_items = [p for p in pending if p.get("eco_id") in eco_ids][:5]
+        except (ValueError, TypeError):
+            pending_items = []
+
+        return {
+            "authorized": True,
+            "count": len(ecos),
+            "state_counts": state_counts,
+            "pending_approvals": {
+                "count": len(pending_items),
+                "items": pending_items,
+            },
+            "last_applied": last_applied,
+        }
