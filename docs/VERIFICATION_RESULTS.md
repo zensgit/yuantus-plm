@@ -11152,3 +11152,221 @@ pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py   src/yuantus
 ```text
 27 passed, 1 skipped in 0.34s
 ```
+
+## Run PACKGO-PROGRESS-20260112-1014（插件配置迁移 + Pack-and-Go 进度）
+
+- 时间：`2026-01-12 10:14:03 +0800`
+- 说明：升级迁移到 plugin configs 表，验证 pack-and-go 异步进度回写（file_scope=version），并重跑插件单测。
+
+### 1) DB 迁移到 Head
+
+```bash
+PYTHONPATH=src YUANTUS_DATABASE_URL=sqlite:///./yuantus_dev_verify.db \
+  python3 -m alembic -c alembic.ini upgrade head
+```
+
+```text
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade h1b2c3d4e5f6 -> i1b2c3d4e5f7, add cad document schema version and properties
+INFO  [alembic.runtime.migration] Running upgrade i1b2c3d4e5f7 -> j1b2c3d4e5f8, add cad view state
+INFO  [alembic.runtime.migration] Running upgrade j1b2c3d4e5f8 -> k1b2c3d4e5f9, add cad review fields
+INFO  [alembic.runtime.migration] Running upgrade k1b2c3d4e5f9 -> l1b2c3d4e6a0, add cad change logs
+INFO  [alembic.runtime.migration] Running upgrade l1b2c3d4e6a0 -> m1b2c3d4e6a1, add plugin configs
+```
+
+### 2) 确认插件配置表
+
+```bash
+python3 - <<'PY'
+import sqlite3
+conn = sqlite3.connect('yuantus_dev_verify.db')
+rows = list(conn.execute("select name from sqlite_master where type='table' and name='meta_plugin_configs'"))
+print(rows)
+conn.close()
+PY
+```
+
+```text
+[('meta_plugin_configs',)]
+```
+
+### 3) Seed Meta Schema（Part/Part BOM/Document）
+
+```bash
+PYTHONPATH=src YUANTUS_DATABASE_URL=sqlite:///./yuantus_dev_verify.db \
+  python3 -m yuantus.cli seed-meta
+```
+
+```bash
+python3 - <<'PY'
+import sqlite3
+conn = sqlite3.connect('yuantus_dev_verify.db')
+rows = list(conn.execute("select id from meta_item_types where id in ('Part','Document','Part BOM') order by id"))
+print(rows)
+conn.close()
+PY
+```
+
+```text
+[('Document',), ('Part',), ('Part BOM',)]
+```
+
+### 4) Pack-and-Go 异步进度（file_scope=version）
+
+```bash
+PYTHONPATH=src YUANTUS_DATABASE_URL=sqlite:///./yuantus_dev_verify.db python3 - <<'PY'
+import json
+import sys
+import uuid
+from pathlib import Path
+import importlib.util
+
+from yuantus.config import get_settings
+from yuantus.database import SessionLocal
+from yuantus.meta_engine.bootstrap import import_all_models
+from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.version.models import ItemVersion, VersionFile
+from yuantus.meta_engine.models.file import FileContainer
+from yuantus.meta_engine.services.job_service import JobService
+
+import_all_models()
+
+session = SessionLocal()
+try:
+    settings = get_settings()
+    base_path = Path(settings.LOCAL_STORAGE_PATH)
+    rel_path = Path("packgo_verify") / "part.step"
+    full_path = base_path / rel_path
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    full_path.write_text("packgo verify file\n", encoding="utf-8")
+    size = full_path.stat().st_size
+
+    file_id = str(uuid.uuid4())
+    item_id = str(uuid.uuid4())
+    version_id = str(uuid.uuid4())
+
+    file_entry = FileContainer(
+        id=file_id,
+        filename="part.step",
+        file_type="step",
+        mime_type="model/step",
+        file_size=size,
+        system_path=str(rel_path),
+        document_type="3d",
+        is_native_cad=True,
+    )
+    session.add(file_entry)
+
+    item = Item(
+        id=item_id,
+        item_type_id="Part",
+        config_id=item_id,
+        generation=1,
+        is_current=True,
+        state="Released",
+        is_versionable=True,
+        properties={"item_number": "P-PACKGO-001", "name": "PackGo Verify"},
+    )
+    session.add(item)
+
+    version = ItemVersion(
+        id=version_id,
+        item_id=item_id,
+        generation=1,
+        revision="A",
+        version_label="1.A",
+        state="Released",
+        is_current=True,
+    )
+    session.add(version)
+    session.flush()
+    item.current_version_id = version_id
+
+    vfile = VersionFile(
+        id=str(uuid.uuid4()),
+        version_id=version_id,
+        file_id=file_id,
+        file_role="native_cad",
+        sequence=0,
+        is_primary=True,
+    )
+    session.add(vfile)
+    session.commit()
+
+    plugin_path = Path.cwd() / "plugins" / "yuantus-pack-and-go" / "main.py"
+    spec = importlib.util.spec_from_file_location("packgo_plugin", plugin_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    payload = {
+        "item_id": item_id,
+        "depth": 0,
+        "file_scope": "version",
+        "file_roles": ["native_cad"],
+        "document_types": ["3d"],
+        "include_previews": False,
+        "include_printouts": False,
+        "include_geometry": False,
+        "include_manifest_csv": True,
+        "manifest_csv_columns": [
+            "file_id",
+            "source_item_number",
+            "source_version_id",
+            "item_revision",
+        ],
+    }
+
+    job_service = JobService(session)
+    job = job_service.create_job("pack_and_go", payload, user_id=1)
+    result = module.handle_pack_and_go_job(payload, session, job_id=job.id)
+    job_service.complete_job(job.id, result)
+    job = job_service.get_job(job.id)
+
+    print("job_id", job.id)
+    print("status", job.status)
+    print("progress", json.dumps(job.payload.get("progress"), ensure_ascii=True))
+    print("zip_path", job.payload.get("result", {}).get("zip_path"))
+finally:
+    session.close()
+PY
+```
+
+```text
+job_id 0fee06c6-824f-4271-a7ab-253195c306f8
+status completed
+progress {"stage": "complete", "current": 1, "total": 1, "percent": 100, "updated_at": "2026-01-12T02:13:04.636813", "message": "complete", "extra": {"file_count": 1, "total_bytes": 19, "duration_sec": 0.009}}
+zip_path tmp/pack_and_go/pack_and_go_P-PACKGO-001_20260112021304.zip
+```
+
+### 5) 插件单测回归
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \
+  src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
+```
+
+```text
+27 passed, 1 skipped in 1.45s
+```
+
+## Run PLUGIN-TESTS-20260112-1310（插件单测回归）
+
+- 时间：`2026-01-12 13:10:16 +0800`
+- 脚本：`pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py src/yuantus/meta_engine/tests/test_plugin_bom_compare.py`
+- 结果：`27 passed, 1 skipped`
+
+执行命令：
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \
+  src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
+```
+
+输出（摘要）：
+
+```text
+27 passed, 1 skipped in 1.44s
+```

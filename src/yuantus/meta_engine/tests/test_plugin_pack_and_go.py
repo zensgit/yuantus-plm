@@ -108,6 +108,8 @@ def test_normalize_path_strategy_accepts_aliases():
     module = _load_plugin_module()
     assert module._normalize_path_strategy("item-role") == "item_role"
     assert module._normalize_path_strategy("doc-type") == "document_type"
+    assert module._normalize_path_strategy("item-doc-type") == "item_document_type"
+    assert module._normalize_path_strategy("role-document-type") == "role_document_type"
 
 
 def test_build_output_filename_item_number_rev():
@@ -115,9 +117,39 @@ def test_build_output_filename_item_number_rev():
     filename = module._build_output_filename(
         "part.step",
         filename_mode="item_number_rev",
+        filename_template=None,
         item_number="P-100",
+        item_id="item-1",
+        item_type="Part",
+        item_state="Released",
         internal_ref=None,
         revision="A",
+        file_role="native_cad",
+        document_type="3d",
+        cad_format="STEP",
+        file_id="file-1",
+        index=1,
+    )
+    assert filename == "P-100_A.step"
+
+
+def test_build_output_filename_template():
+    module = _load_plugin_module()
+    filename = module._build_output_filename(
+        "part.step",
+        filename_mode="original",
+        filename_template="{item_number}_{revision}{original_ext}",
+        item_number="P-100",
+        item_id="item-1",
+        item_type="Part",
+        item_state="Released",
+        internal_ref=None,
+        revision="A",
+        file_role="native_cad",
+        document_type="3d",
+        cad_format="STEP",
+        file_id="file-1",
+        index=1,
     )
     assert filename == "P-100_A.step"
 
@@ -184,3 +216,22 @@ def test_ensure_unique_path_error_strategy_raises():
             used_paths=used,
             strategy="error",
         )
+
+
+def test_normalize_file_scope_accepts_aliases():
+    module = _load_plugin_module()
+    assert module._normalize_file_scope("current-version") == "version"
+    assert module._normalize_file_scope(None) == "item"
+
+
+def test_manifest_csv_columns_allow_extended_fields():
+    module = _load_plugin_module()
+    columns = module._normalize_manifest_csv_columns(
+        ["file_id", "file_extension", "source_item_state"]
+    )
+    assert columns == ["file_id", "file_extension", "source_item_state"]
+
+
+def test_normalize_bom_flat_format_accepts_jsonl():
+    module = _load_plugin_module()
+    assert module._normalize_bom_flat_format("jsonl") == "jsonl"

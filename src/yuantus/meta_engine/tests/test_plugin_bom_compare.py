@@ -84,6 +84,48 @@ def test_compare_only_product_skips_unchanged():
     assert result.differences == []
 
 
+def test_compare_quantity_tolerance_allows_small_delta():
+    module = _load_plugin_module()
+    tree_a = {"id": "root", "children": [_child("rel1", "c1", 1.0)]}
+    tree_b = {"id": "root", "children": [_child("rel2", "c1", 1.4)]}
+
+    result = module.compare_bom_trees(
+        tree_a,
+        tree_b,
+        mode="summarized",
+        quantity_key="quantity",
+        position_key="find_num",
+        refdes_key="refdes",
+        include_unchanged=True,
+        quantity_tolerance=0.5,
+    )
+
+    assert result.summary["unchanged"] == 1
+    assert result.differences[0].status == "unchanged"
+
+
+def test_compare_filters_exclude_added():
+    module = _load_plugin_module()
+    tree_a = {"id": "root", "children": []}
+    tree_b = {"id": "root", "children": [_child("rel2", "c1", 1)]}
+    filters = module.BomCompareFilters(exclude_statuses=["added"])
+
+    result = module.compare_bom_trees(
+        tree_a,
+        tree_b,
+        mode="summarized",
+        quantity_key="quantity",
+        position_key="find_num",
+        refdes_key="refdes",
+        include_unchanged=True,
+        filters=filters,
+    )
+
+    assert result.summary["added"] == 1
+    assert result.differences == []
+    assert result.summary_filtered == {"added": 0, "removed": 0, "modified": 0, "unchanged": 0}
+
+
 def test_export_csv_payload_joins_lists():
     module = _load_plugin_module()
     diffs = [
@@ -110,6 +152,14 @@ def test_normalize_export_columns_rejects_unknown():
     module = _load_plugin_module()
     with pytest.raises(ValueError):
         module._normalize_export_columns(["bad_column"])
+
+
+def test_normalize_export_columns_excludes_fields():
+    module = _load_plugin_module()
+    columns = module._normalize_export_columns(
+        ["key", "status", "child_id"], exclude_columns=["status"]
+    )
+    assert columns == ["key", "child_id"]
 
 
 def test_normalize_export_format_accepts_xlsx():
