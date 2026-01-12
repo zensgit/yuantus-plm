@@ -2659,6 +2659,13 @@ TENANTS=tenant-1,tenant-2 ORGS=org-1,org-2 \
 AUTO_STAMP=0 ./scripts/mt_migrate.sh
 ```
 
+当数据库已有表但缺少 `alembic_version`（例如 `create_all` 创建），
+脚本默认先 stamp 到初始版本再执行 upgrade。可通过 `AUTO_STAMP_REVISION` 覆盖默认初始 revision：
+
+```bash
+AUTO_STAMP_REVISION=f87ce5711ce1 ./scripts/mt_migrate.sh
+```
+
 ---
 
 ## 33) CAD Attribute Sync（x-cad-synced）验收脚本
@@ -3473,4 +3480,90 @@ RUN_REAL=1 \
 
 ```bash
 bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### 58.2 配额/审计强制模式示例
+
+启用配额与审计后再执行验收脚本：
+
+```bash
+export YUANTUS_QUOTA_MODE=enforce
+export YUANTUS_AUDIT_ENABLED=true
+
+docker compose -f docker-compose.yml -f docker-compose.mt.yml up -d --build
+bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+### 58.3 多租户迁移（migrations 模式）
+
+当 `SCHEMA_MODE=migrations` 时，请先执行多租户迁移：
+
+```bash
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus
+export YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}'
+export YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg
+
+./scripts/mt_migrate.sh
+```
+
+---
+
+## 59) BOM Compare Field Contract（字段级对照）
+
+### 59.1 一键验收：`scripts/verify_bom_compare_fields.sh`
+
+该脚本验证 BOM compare 返回字段级对照与标准化字段：
+
+- `before_line/after_line` 含 `quantity/uom/find_num/refdes/effectivity/substitutes`
+- `before_normalized/after_normalized` 含对应标准化字段
+- `changes` 至少包含 `quantity/find_num` 变更
+
+```bash
+bash scripts/verify_bom_compare_fields.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 60) Product UI Aggregation（产品详情聚合）
+
+### 60.1 一键验收：`scripts/verify_product_ui.sh`
+
+该脚本验证 `/products/{id}` 的 UI 聚合输出：
+
+- `bom_summary`（直接子件、总子件、深度）
+- `where_used_summary`（被引用统计与样本）
+
+```bash
+bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 61) Where-Used UI Payload（Where-Used UI 输出）
+
+### 61.1 一键验收：`scripts/verify_where_used_ui.sh`
+
+该脚本验证 where-used 输出包含 line 字段与递归标记：
+
+- `line/line_normalized` 字段存在
+- `recursive/max_levels` 回显
+
+```bash
+bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 62) Docs + ECO UI Summary（文档/审批聚合）
+
+### 62.1 一键验收：`scripts/verify_docs_eco_ui.sh`
+
+该脚本验证产品详情输出中：
+
+- `document_summary` 生命周期统计
+- `eco_summary` 审批与变更统计
+
+```bash
+bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 ```

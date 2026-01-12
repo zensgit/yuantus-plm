@@ -744,6 +744,32 @@ OK: Audit logs verified
 ALL CHECKS PASSED
 ```
 
+## Run MT-MIGRATE-AUTOSTAMP-20260112-0915（无 alembic_version 自动 stamp 初始版本）
+
+- 时间：`2026-01-12 09:15:02 +0800`
+- 脚本：`scripts/mt_migrate.sh`
+- 结果：`Migrations complete`
+- 测试 DB：`yuantus_mt_pg__tenant-stamp2__org-stamp2`
+- 说明：DB 由 `create_all` 生成且无 `alembic_version`，自动 stamp `f87ce5711ce1` 后顺利 upgrade 到 head。
+
+执行命令：
+
+```bash
+MODE=db-per-tenant-org \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+TENANTS=tenant-stamp2 ORGS=org-stamp2 \
+IDENTITY_DB_URL='' \
+AUTO_STAMP_REVISION=f87ce5711ce1 \
+  bash scripts/mt_migrate.sh
+```
+
+输出（摘要）：
+
+```text
+Existing tables without alembic_version; stamping f87ce5711ce1
+Running upgrade ... -> m1b2c3d4e6a1
+Migrations complete.
+```
 ## Run ALL-13（一键回归脚本：compare_mode + ECO 导出）
 
 - 时间：`2025-12-26 09:17:52 +0800`
@@ -9972,6 +9998,34 @@ PASS: 42  FAIL: 0  SKIP: 0
 ALL TESTS PASSED
 ```
 
+## Run OPS-HARDENING-20260111-2330（强制配额/审计模式）
+
+- 时间：`2026-01-11 23:30:10 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_ops_hardening.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Search Item：`efb4f56a-315c-410c-a0b7-9eeb7bb093e1`
+  - Search Indexed：`1513`
+- 说明：
+  - Quota：`enforce`
+  - Audit：`enabled`
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run PACKGO-E2E-20260111-2236（Pack-and-Go sync/async + naming/path/collision）
 
 - 时间：`2026-01-11 22:36:19 +0800`
@@ -10394,6 +10448,105 @@ DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
 DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
 IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
   bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run BOM-COMPARE-FIELDS-20260111-2248（BOM Compare 字段级对照）
+
+- 时间：`2026-01-11 22:48:04 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_bom_compare_fields.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Left Item：`99ea07d1-74b7-4e73-a310-029cdc4f37c8`
+  - Right Item：`8712b5d7-94bd-4c4f-9337-d7c8025f0c0b`
+  - Child Item：`1476fb78-9cbb-453f-9a59-82b170a9aeff`
+  - Substitute Item：`4c180b49-63a0-4422-bd6b-2d4235df5ec8`
+  - Left BOM Line：`15372c3f-1ca2-4803-9e85-a87cbfb706b1`
+  - Right BOM Line：`437fb3ce-d1f6-46d5-8326-a10bca27d2af`
+  - Substitute Rel：`c730b881-ee75-4c54-b817-174e0c7f9998`
+
+执行命令：
+
+```bash
+bash scripts/verify_bom_compare_fields.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run PRODUCT-UI-20260111-2253（产品详情 UI 聚合）
+
+- 时间：`2026-01-11 22:53:59 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_product_ui.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Parent Item：`7f809f0c-3df7-4b4f-bd78-03b9f5dbab85`
+  - Child Item：`59218840-a871-4654-988e-a594e7d81e8c`
+  - BOM Line：`8b822076-74a0-4ac3-9d90-957f3c5ae839`
+
+执行命令：
+
+```bash
+bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run WHERE-USED-UI-20260111-2300（Where-Used UI 输出）
+
+- 时间：`2026-01-11 23:00:53 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_where_used_ui.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Grand：`1a185290-44c8-453e-a7de-56b56ae8cb67`
+  - Parent：`a2ae62cb-e9dc-4cbb-9160-4b3e1de2a17b`
+  - Child：`214a693b-27f9-4246-89f1-d78829d110fe`
+  - Parent BOM：`63c88952-92e0-448d-b363-0701393e5b7d`
+  - Grand BOM：`c070a8e6-effc-4371-bb3a-be5bb360bc7b`
+
+执行命令：
+
+```bash
+bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run DOCS-ECO-UI-20260111-2313（文档/审批聚合）
+
+- 时间：`2026-01-11 23:13:32 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_docs_eco_ui.sh`
+- 结果：`ALL CHECKS PASSED`
+- 关键 ID：
+  - Part：`cc64c49b-5d51-48a7-9ec2-6bea074f91b6`
+  - Document：`da1f08bc-638b-4d8b-8dae-d87c2594c7b3`
+  - ECO：`563298f8-0e3b-4a5f-b1b3-1777a225387d`
+  - ECO Stage：`7c7e7c12-b607-4a9e-a931-947defe7cae4`
+
+执行命令：
+
+```bash
+bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
 输出（摘要）：
@@ -10985,4 +11138,17 @@ scripts/run_full_regression.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/v
 ```text
 PASS: 42  FAIL: 0  SKIP: 0
 ALL TESTS PASSED
+```
+
+## Run P（插件增强回归测试）
+
+- 时间：`2026-01-11 23:34:14 +0800`
+- 说明：验证 BOM Compare 与 Pack-and-Go 插件单测覆盖新增功能。
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py   src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
+```
+
+```text
+27 passed, 1 skipped in 0.34s
 ```
