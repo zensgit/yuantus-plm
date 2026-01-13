@@ -417,7 +417,9 @@ class CadService:
                 if attrs:
                     if local_attrs and not _is_generic_attrs(local_attrs):
                         attrs = _merge_missing(attrs, local_attrs)
-                        local_part = _resolve_attr(local_attrs, "part_number", "item_number")
+                        local_part = _resolve_attr(
+                            local_attrs, "part_number", "item_number", "drawing_no"
+                        )
                         if local_part and external_part and stem and external_part == stem:
                             attrs["part_number"] = local_part
                     if filename_attrs:

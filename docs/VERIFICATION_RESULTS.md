@@ -11711,3 +11711,55 @@ bash scripts/verify_cad_connectors_real_2d.sh http://127.0.0.1:7910 tenant-1 org
 ```text
 ALL CHECKS PASSED
 ```
+
+## Run ALL-65（verify_all.sh 全量回归：可选项全开）
+
+- 时间：`2026-01-13 10:46:52 +0800`
+- 脚本：`scripts/verify_all.sh`
+- 日志：`/tmp/verify_all_full_optional_20260113_1045.log`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+  - `DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+  - `IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+  - `S3=MinIO http://localhost:59000`
+  - `CAD_EXTRACTOR_BASE_URL=http://localhost:8200`
+  - `CAD_ML_BASE_URL=http://localhost:8000`
+  - `CADGF_PREVIEW_SAMPLE_FILE=/Users/huazhou/Downloads/新建文件夹/converted/J0224022-06上罐体组件v1.dxf`
+  - `CAD_CONNECTOR_COVERAGE_DIR=/Users/huazhou/Downloads/训练图纸/训练图纸`
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+CAD_EXTRACTOR_BASE_URL=http://localhost:8200 \
+YUANTUS_CAD_EXTRACTOR_BASE_URL=http://localhost:8200 \
+CAD_ML_BASE_URL=http://localhost:8000 \
+CADGF_PREVIEW_SAMPLE_FILE="/Users/huazhou/Downloads/新建文件夹/converted/J0224022-06上罐体组件v1.dxf" \
+CAD_CONNECTOR_COVERAGE_DIR="/Users/huazhou/Downloads/训练图纸/训练图纸" \
+CAD_CONNECTOR_COVERAGE_MAX_FILES=30 \
+RUN_CADGF_PUBLIC_BASE=1 \
+RUN_CADGF_PREVIEW_ONLINE=1 \
+RUN_CAD_REAL_CONNECTORS_2D=1 \
+RUN_CAD_CONNECTOR_COVERAGE_2D=1 \
+RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_STUB=1 \
+RUN_CAD_EXTRACTOR_EXTERNAL=1 \
+RUN_CAD_EXTRACTOR_SERVICE=1 \
+RUN_CAD_REAL_SAMPLES=1 \
+RUN_TENANT_PROVISIONING=1 \
+CADGF_SYNC_GEOMETRY=1 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+PASS: 43  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
