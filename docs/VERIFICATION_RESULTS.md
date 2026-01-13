@@ -1887,6 +1887,74 @@ bash scripts/verify_cad_preview_online.sh
 login_ok=yes, upload_ok=yes, conversion_ok=yes, viewer_load=yes, manifest_rewrite=yes
 ```
 
+## Run CAD-AUTO-PART-20260113-1004（Auto Create Part）
+
+- 时间：`2026-01-13 10:04:26 +0800`
+- 脚本：`scripts/verify_cad_auto_part.sh`
+- 环境：`TENANCY=db-per-tenant-org`，S3 storage（MinIO: `http://localhost:59000`）
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_IDENTITY_DATABASE_URL= \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+bash scripts/verify_cad_auto_part.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-EXTRACTOR-STUB-20260113-1004（Extractor Stub）
+
+- 时间：`2026-01-13 10:04:26 +0800`
+- 脚本：`scripts/verify_cad_extractor_stub.sh`
+- 环境：`TENANCY=db-per-tenant-org`，S3 storage（MinIO: `http://localhost:59000`）
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_IDENTITY_DATABASE_URL= \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+bash scripts/verify_cad_extractor_stub.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run CAD-2D-COVERAGE-20260113-1004（2D 连接器覆盖率离线统计）
+
+- 时间：`2026-01-13 10:04:26 +0800`
+- 脚本：`scripts/verify_cad_connector_coverage_2d.sh`
+- 输入：`/Users/huazhou/Downloads/训练图纸/训练图纸`（DWG，最多 30 个）
+- 输出：
+  - `docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_HAOCHEN.md`
+  - `docs/CAD_CONNECTORS_COVERAGE_TRAINING_DWG_ZHONGWANG.md`
+
+```bash
+CAD_CONNECTOR_COVERAGE_DIR="/Users/huazhou/Downloads/训练图纸/训练图纸" \
+CAD_CONNECTOR_COVERAGE_MAX_FILES=30 \
+CAD_CONNECTOR_COVERAGE_EXTENSIONS=dwg \
+bash scripts/verify_cad_connector_coverage_2d.sh
+```
+
+```text
+CAD 2D Connector Coverage Complete
+```
+
 ## Run REGRESSION-MT-REAL-20251229-0212（Full Regression + Real CAD Samples, db-per-tenant-org）
 
 - 时间：`2025-12-29 02:12:31 +0800`
