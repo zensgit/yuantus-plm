@@ -609,6 +609,22 @@ if [[ -x "$SCRIPT_DIR/verify_audit_logs.sh" ]]; then
   fi
 fi
 
+# 14.1 S8 - Ops Monitoring (optional; requires AUDIT_ENABLED + platform admin)
+if [[ -x "$SCRIPT_DIR/verify_ops_s8.sh" ]]; then
+  if [[ "${RUN_OPS_S8:-0}" == "1" ]]; then
+    if [[ "$AUDIT_ENABLED_HEALTH" == "true" || "$AUDIT_ENABLED_HEALTH" == "True" ]]; then
+      VERIFY_QUOTA_MONITORING=1 VERIFY_RETENTION_ENDPOINTS=1 \
+        run_test "S8 (Ops Monitoring)" \
+        "$SCRIPT_DIR/verify_ops_s8.sh" \
+        "$BASE_URL" "$TENANT" "$ORG" || true
+    else
+      skip_test "S8 (Ops Monitoring)" "audit_enabled=$AUDIT_ENABLED_HEALTH"
+    fi
+  else
+    skip_test "S8 (Ops Monitoring)" "RUN_OPS_S8=0"
+  fi
+fi
+
 # 15. S7 - Multi-Tenancy (only when TENANCY_MODE is enabled)
 if [[ "$TENANCY_MODE_HEALTH" == "db-per-tenant" || "$TENANCY_MODE_HEALTH" == "db-per-tenant-org" ]]; then
   run_test "S7 (Multi-Tenancy)" \
@@ -715,7 +731,7 @@ echo ""
 printf "%-25s %s\n" "Test Suite" "Result"
 printf "%-25s %s\n" "-------------------------" "------"
 
-for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "BOM Compare" "Baseline" "BOM Substitutes" "MBOM Convert" "Item Equivalents" "Version-File Binding"; do
+for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "BOM Compare" "Baseline" "BOM Substitutes" "MBOM Convert" "Item Equivalents" "Version-File Binding"; do
   result="${RESULTS[$name]:-N/A}"
   case "$result" in
     PASS) printf "%-25s ${GREEN}%s${NC}\n" "$name" "$result" ;;

@@ -13,6 +13,13 @@ ORG="${3:-org-1}"
 
 CLI="${CLI:-.venv/bin/yuantus}"
 PY="${PY:-.venv/bin/python}"
+VERIFY_QUOTA_MONITORING="${VERIFY_QUOTA_MONITORING:-0}"
+
+PLATFORM_TENANT="${PLATFORM_TENANT:-platform}"
+PLATFORM_ORG="${PLATFORM_ORG:-platform}"
+PLATFORM_USER="${PLATFORM_USER:-platform-admin}"
+PLATFORM_PASSWORD="${PLATFORM_PASSWORD:-platform-admin}"
+PLATFORM_USER_ID="${PLATFORM_USER_ID:-9001}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -54,6 +61,68 @@ MODE="$("$PY" -c 'import sys,json;print(json.load(sys.stdin).get("mode",""))' <<
 if [[ "$MODE" != "enforce" ]]; then
   echo "SKIP: quota mode is '$MODE' (expected enforce)"
   exit 0
+fi
+
+if [[ "$VERIFY_QUOTA_MONITORING" == "1" ]]; then
+  echo "==> Platform admin quota monitoring"
+  "$CLI" seed-identity \
+    --tenant "$PLATFORM_TENANT" \
+    --org "$PLATFORM_ORG" \
+    --username "$PLATFORM_USER" \
+    --password "$PLATFORM_PASSWORD" \
+    --user-id "$PLATFORM_USER_ID" \
+    --roles admin \
+    --superuser >/dev/null
+
+  PLATFORM_TOKEN="$(
+    curl -s -X POST "$BASE/api/v1/auth/login" \
+      -H 'content-type: application/json' \
+      -d "{\"tenant_id\":\"$PLATFORM_TENANT\",\"username\":\"$PLATFORM_USER\",\"password\":\"$PLATFORM_PASSWORD\"}" \
+      | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))'
+  )"
+  if [[ -z "$PLATFORM_TOKEN" ]]; then
+    fail "Platform admin login failed"
+  fi
+
+  QUOTAS_RAW="$(
+    curl -s -w 'HTTPSTATUS:%{http_code}' \
+      "$BASE/api/v1/admin/tenants/quotas" \
+      -H "Authorization: Bearer $PLATFORM_TOKEN" \
+      -H "x-tenant-id: $PLATFORM_TENANT"
+  )"
+  QUOTAS_BODY="${QUOTAS_RAW%HTTPSTATUS:*}"
+  QUOTAS_STATUS="${QUOTAS_RAW##*HTTPSTATUS:}"
+  if [[ "$QUOTAS_STATUS" == "403" && "$QUOTAS_BODY" == *"Platform admin disabled"* ]]; then
+    echo "SKIP: platform admin disabled"
+  elif [[ "$QUOTAS_STATUS" != "200" ]]; then
+    echo "Response: $QUOTAS_BODY" >&2
+    fail "Expected /admin/tenants/quotas to succeed, got HTTP $QUOTAS_STATUS"
+  else
+    TENANT="$TENANT" QUOTAS_JSON="$QUOTAS_BODY" "$PY" - <<'PY'
+import json
+import os
+
+raw = os.environ.get("QUOTAS_JSON", "")
+tenant = os.environ.get("TENANT", "")
+if not raw:
+    raise SystemExit("Empty response from /admin/tenants/quotas")
+
+data = json.loads(raw)
+items = data.get("items") or []
+if not items:
+    raise SystemExit("Expected items list in /admin/tenants/quotas")
+
+match = [item for item in items if item.get("tenant_id") == tenant]
+if not match:
+    raise SystemExit(f"Missing tenant {tenant} in /admin/tenants/quotas")
+
+required = {"mode", "quota", "usage"}
+for key in required:
+    if key not in match[0]:
+        raise SystemExit(f"Missing {key} in tenant quota summary")
+print("Quota monitoring: OK")
+PY
+  fi
 fi
 
 ORIG_QUOTA_JSON="$("$PY" -c 'import sys,json;print(json.dumps(json.load(sys.stdin).get("quota") or {}))' <<<"$QUOTA_JSON")"

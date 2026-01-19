@@ -18,6 +18,7 @@ RETENTION_DAYS="${AUDIT_RETENTION_DAYS:-${YUANTUS_AUDIT_RETENTION_DAYS:-0}}"
 RETENTION_MAX_ROWS="${AUDIT_RETENTION_MAX_ROWS:-${YUANTUS_AUDIT_RETENTION_MAX_ROWS:-0}}"
 RETENTION_PRUNE_INTERVAL="${AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS:-${YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS:-0}}"
 VERIFY_RETENTION="${VERIFY_RETENTION:-}"
+VERIFY_RETENTION_ENDPOINTS="${VERIFY_RETENTION_ENDPOINTS:-}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -120,6 +121,10 @@ if [[ -z "$VERIFY_RETENTION" ]]; then
   fi
 fi
 
+if [[ -z "$VERIFY_RETENTION_ENDPOINTS" ]]; then
+  VERIFY_RETENTION_ENDPOINTS="$VERIFY_RETENTION"
+fi
+
 if [[ "$VERIFY_RETENTION" == "1" ]]; then
   echo ""
   echo "==> Retention check"
@@ -199,6 +204,60 @@ if old_id:
 print("Audit retention: OK")
 PY
   ok "Audit retention verified"
+fi
+
+if [[ "$VERIFY_RETENTION_ENDPOINTS" == "1" ]]; then
+  echo ""
+  echo "==> Retention endpoints"
+  RET_META_RAW="$($CURL -w 'HTTPSTATUS:%{http_code}' \
+    "$API/admin/audit/retention" "${HEADERS[@]}" "${AUTH[@]}")"
+  RET_META_BODY="${RET_META_RAW%HTTPSTATUS:*}"
+  RET_META_STATUS="${RET_META_RAW##*HTTPSTATUS:}"
+  if [[ "$RET_META_STATUS" != "200" ]]; then
+    echo "Response: $RET_META_BODY" >&2
+    fail "Expected /admin/audit/retention to succeed, got HTTP $RET_META_STATUS"
+  fi
+
+  TENANT="$TENANT" RET_META_JSON="$RET_META_BODY" "$PY" - <<'PY'
+import json
+import os
+
+raw = os.environ.get("RET_META_JSON", "")
+tenant = os.environ.get("TENANT", "")
+if not raw:
+    raise SystemExit("Empty response from /admin/audit/retention")
+
+data = json.loads(raw)
+if data.get("tenant_id") != tenant:
+    raise SystemExit("Unexpected tenant_id in audit retention response")
+for key in ("retention_days", "retention_max_rows", "prune_interval_seconds", "last_prune_ts"):
+    if key not in data:
+        raise SystemExit(f"Missing {key} in audit retention response")
+print("Retention endpoints: OK")
+PY
+
+  PRUNE_RAW="$($CURL -w 'HTTPSTATUS:%{http_code}' -X POST \
+    "$API/admin/audit/prune" "${HEADERS[@]}" "${AUTH[@]}")"
+  PRUNE_BODY="${PRUNE_RAW%HTTPSTATUS:*}"
+  PRUNE_STATUS="${PRUNE_RAW##*HTTPSTATUS:}"
+  if [[ "$PRUNE_STATUS" != "200" ]]; then
+    echo "Response: $PRUNE_BODY" >&2
+    fail "Expected /admin/audit/prune to succeed, got HTTP $PRUNE_STATUS"
+  fi
+  PRUNE_JSON="$PRUNE_BODY" "$PY" - <<'PY'
+import json
+import os
+
+raw = os.environ.get("PRUNE_JSON", "")
+if not raw:
+    raise SystemExit("Empty response from /admin/audit/prune")
+data = json.loads(raw)
+for key in ("tenant_id", "retention_days", "retention_max_rows", "deleted"):
+    if key not in data:
+        raise SystemExit(f"Missing {key} in audit prune response")
+print("Audit prune endpoint: OK")
+PY
+  ok "Retention endpoints verified"
 fi
 
 echo ""

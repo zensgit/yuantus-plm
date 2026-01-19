@@ -13,6 +13,7 @@ from yuantus.database import SessionLocal as GlobalSessionLocal
 from yuantus.database import get_db
 from yuantus.database import get_sessionmaker_for_scope, get_sessionmaker_for_tenant
 from yuantus.models.audit import AuditLog
+from yuantus.security.audit_retention import get_last_prune_ts, prune_audit_logs
 from yuantus.security.auth.database import get_identity_db
 from yuantus.security.auth.models import (
     AuthCredential,
@@ -103,6 +104,25 @@ class TenantQuotaResponse(BaseModel):
     quota: TenantQuotaData
     usage: Dict[str, Optional[int]]
     updated_at: Optional[datetime] = None
+
+
+class TenantQuotaListResponse(BaseModel):
+    items: List[TenantQuotaResponse]
+
+
+class AuditRetentionResponse(BaseModel):
+    tenant_id: str
+    retention_days: int
+    retention_max_rows: int
+    prune_interval_seconds: int
+    last_prune_ts: float
+
+
+class AuditPruneResponse(BaseModel):
+    tenant_id: str
+    retention_days: int
+    retention_max_rows: int
+    deleted: int
 
 
 class OrganizationCreateRequest(BaseModel):
@@ -233,6 +253,13 @@ def _open_meta_session(tenant_id: str, org_id: Optional[str]) -> Optional[Sessio
     return SessionLocal()
 
 
+def _resolve_audit_tenant(identity: Identity, tenant_id: Optional[str]) -> str:
+    if tenant_id and tenant_id != identity.tenant_id:
+        require_platform_admin(identity)
+        return tenant_id
+    return tenant_id or identity.tenant_id
+
+
 def _apply_quota_limits(
     quota_service: QuotaService,
     tenant_id: str,
@@ -298,6 +325,37 @@ def list_tenants(
         ],
         "total": len(tenants),
     }
+
+
+@router.get("/tenants/quotas", response_model=TenantQuotaListResponse)
+def list_tenant_quotas(
+    org_id: Optional[str] = Query(None, description="Org id for meta usage in db-per-tenant-org"),
+    identity: Identity = Depends(require_platform_admin),
+    identity_db: Session = Depends(get_identity_db),
+) -> TenantQuotaListResponse:
+    tenants = identity_db.query(Tenant).order_by(Tenant.id.asc()).all()
+    items: List[TenantQuotaResponse] = []
+    for tenant in tenants:
+        quota_service = QuotaService(identity_db)
+        quota = quota_service.get_quota(tenant.id)
+        meta_session = _open_meta_session(tenant.id, org_id)
+        try:
+            if meta_session is not None:
+                quota_service = QuotaService(identity_db, meta_db=meta_session)
+            usage = quota_service.get_usage(tenant.id)
+        finally:
+            if meta_session is not None:
+                meta_session.close()
+        items.append(
+            TenantQuotaResponse(
+                tenant_id=tenant.id,
+                mode=quota_service.mode,
+                quota=_serialize_quota(quota),
+                usage=usage.to_dict(),
+                updated_at=quota.updated_at if quota else None,
+            )
+        )
+    return TenantQuotaListResponse(items=items)
 
 
 @router.get("/tenants/{tenant_id}", response_model=TenantResponse)
@@ -959,3 +1017,45 @@ def list_audit_logs(
         "limit": limit,
         "offset": offset,
     }
+
+
+@router.get("/audit/retention", response_model=AuditRetentionResponse)
+def get_audit_retention(
+    tenant_id: Optional[str] = Query(
+        None, description="Tenant id (defaults to current; platform admin can target others)"
+    ),
+    identity: Identity = Depends(require_superuser),
+) -> AuditRetentionResponse:
+    settings = get_settings()
+    target_tenant = _resolve_audit_tenant(identity, tenant_id)
+    return AuditRetentionResponse(
+        tenant_id=target_tenant,
+        retention_days=int(settings.AUDIT_RETENTION_DAYS or 0),
+        retention_max_rows=int(settings.AUDIT_RETENTION_MAX_ROWS or 0),
+        prune_interval_seconds=int(settings.AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS or 0),
+        last_prune_ts=get_last_prune_ts(target_tenant),
+    )
+
+
+@router.post("/audit/prune", response_model=AuditPruneResponse)
+def prune_audit(
+    tenant_id: Optional[str] = Query(
+        None, description="Tenant id (defaults to current; platform admin can target others)"
+    ),
+    identity: Identity = Depends(require_superuser),
+    db: Session = Depends(get_identity_db),
+) -> AuditPruneResponse:
+    settings = get_settings()
+    target_tenant = _resolve_audit_tenant(identity, tenant_id)
+    deleted = prune_audit_logs(
+        db,
+        retention_days=int(settings.AUDIT_RETENTION_DAYS or 0),
+        retention_max_rows=int(settings.AUDIT_RETENTION_MAX_ROWS or 0),
+        tenant_id=target_tenant,
+    )
+    return AuditPruneResponse(
+        tenant_id=target_tenant,
+        retention_days=int(settings.AUDIT_RETENTION_DAYS or 0),
+        retention_max_rows=int(settings.AUDIT_RETENTION_MAX_ROWS or 0),
+        deleted=int(deleted),
+    )

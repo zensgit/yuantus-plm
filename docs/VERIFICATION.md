@@ -1873,6 +1873,7 @@ CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_all.sh
 | S6 (Search ECO) | `verify_search_eco.sh` | ECO 搜索（ES/DB fallback） |
 | S6 (Reports Summary) | `verify_reports_summary.sh` | 聚合报表统计 |
 | Audit Logs | `verify_audit_logs.sh` | 审计日志查询（需启用 AUDIT_ENABLED） |
+| S8 (Ops Monitoring) | `verify_ops_s8.sh` | 配额监控/审计留存/报表元信息 |
 | S7 (Multi-Tenancy) | `verify_multitenancy.sh` | 租户/组织隔离（按 TENANCY_MODE） |
 | S7 (Tenant Provisioning) | `verify_tenant_provisioning.sh` | 平台管理员创建 tenant/org |
 | Where-Used API | `verify_where_used.sh` | 反向 BOM 查询 |
@@ -1890,6 +1891,7 @@ CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_all.sh
 > `S5-B (CAD 2D Real Connectors)` 需要设置 `RUN_CAD_REAL_CONNECTORS_2D=1` 才会执行。
 > `S5-B (CAD 2D Connector Coverage)` 需要设置 `RUN_CAD_CONNECTOR_COVERAGE_2D=1` 且 `CAD_CONNECTOR_COVERAGE_DIR=/path/to/dwg`。
 > `S7 (Tenant Provisioning)` 需要设置 `RUN_TENANT_PROVISIONING=1` 且 `YUANTUS_PLATFORM_ADMIN_ENABLED=true`。
+> `S8 (Ops Monitoring)` 需要设置 `RUN_OPS_S8=1` 且启用 `YUANTUS_PLATFORM_ADMIN_ENABLED=true`、`YUANTUS_AUDIT_ENABLED=true`、`YUANTUS_QUOTA_MODE=enforce`。
 
 ### 26.4 输出格式
 
@@ -3567,3 +3569,31 @@ bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 ```bash
 bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+---
+
+## 63) S8 Ops Monitoring（配额/审计/报表元信息）
+
+### 63.1 一键验收：`scripts/verify_ops_s8.sh`
+
+该脚本串行验证：
+
+- `verify_quotas.sh`（含 `/admin/tenants/quotas` 监控输出）
+- `verify_audit_logs.sh`（含 `/admin/audit/retention` 与 `/admin/audit/prune`）
+- `verify_reports_summary.sh`（`meta` 字段）
+
+```bash
+# 必需开关
+export YUANTUS_QUOTA_MODE=enforce
+export YUANTUS_AUDIT_ENABLED=true
+export YUANTUS_PLATFORM_ADMIN_ENABLED=true
+
+# 可选：审计留存配置（便于 retention 验证）
+export YUANTUS_AUDIT_RETENTION_DAYS=1
+export YUANTUS_AUDIT_RETENTION_MAX_ROWS=10
+export YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1
+
+bash scripts/verify_ops_s8.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+> 若需验证 retention days 强制清理，需设置 `IDENTITY_DB_URL`/`YUANTUS_IDENTITY_DATABASE_URL` 以便脚本回写审计记录时间。

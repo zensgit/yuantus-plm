@@ -144,12 +144,24 @@ ok "Created job: $JOB_ID"
 echo ""
 echo "==> Fetch reports summary"
 SUMMARY="$($CURL "$API/reports/summary" "${HEADERS[@]}" "${AUTH_HEADERS[@]}")"
-RESP_JSON="$SUMMARY" "$PY" - <<'PY'
+TENANT="$TENANT" ORG="$ORG" RESP_JSON="$SUMMARY" "$PY" - <<'PY'
 import json
 import os
 
 raw = os.environ.get("RESP_JSON", "{}")
 data = json.loads(raw)
+tenant = os.environ.get("TENANT", "")
+org = os.environ.get("ORG", "")
+
+meta = data.get("meta") or {}
+if meta.get("tenant_id") != tenant:
+    raise SystemExit("meta.tenant_id mismatch")
+if meta.get("org_id") != org:
+    raise SystemExit("meta.org_id mismatch")
+if not meta.get("tenancy_mode"):
+    raise SystemExit("meta.tenancy_mode missing")
+if not meta.get("generated_at"):
+    raise SystemExit("meta.generated_at missing")
 
 items = data.get("items") or {}
 if items.get("total", 0) < 1:

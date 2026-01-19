@@ -11898,3 +11898,126 @@ CLI=/tmp/yuantus_cli_compose.sh \
 Integrations health: OK (ok=False)
 ALL CHECKS PASSED
 ```
+
+## Run S8-20260119-1455（S8 Ops Monitoring）
+
+- 时间：`2026-01-19 14:55:23 +0800`
+- 基地址：`http://127.0.0.1:7915`
+- 脚本：`scripts/verify_ops_s8.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - `PYTHONPATH=/Users/huazhou/Downloads/Github/Yuantus-worktrees/main-codex-yuantus/src`
+  - `YUANTUS_DATABASE_URL=sqlite:///yuantus_s8_meta.db`
+  - `YUANTUS_IDENTITY_DATABASE_URL=sqlite:///yuantus_s8_identity.db`
+  - `YUANTUS_SCHEMA_MODE=create_all`
+  - `YUANTUS_TENANCY_MODE=single`
+  - `YUANTUS_QUOTA_MODE=enforce`
+  - `YUANTUS_AUDIT_ENABLED=true`
+  - `YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+  - `YUANTUS_AUDIT_RETENTION_DAYS=1`
+  - `YUANTUS_AUDIT_RETENTION_MAX_ROWS=10`
+  - `YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1`
+- 关键 ID：
+  - Part：`df3311fa-d22a-4e5a-beb4-40a455190ff1`
+  - File：`19d6ce9b-1c52-4b9d-a20e-6bb05ce79ae3`
+  - ECO：`81e36bde-0383-4dd9-bb88-51c099b363b3`
+  - Job：`7b638feb-3cda-40b1-ae04-26eff85a061a`
+
+执行命令：
+
+```bash
+PYTHONPATH=/Users/huazhou/Downloads/Github/Yuantus-worktrees/main-codex-yuantus/src \
+CLI=/Users/huazhou/Downloads/Github/Yuantus/.venv/bin/yuantus \
+PY=/Users/huazhou/Downloads/Github/Yuantus/.venv/bin/python \
+YUANTUS_DATABASE_URL=sqlite:///yuantus_s8_meta.db \
+YUANTUS_IDENTITY_DATABASE_URL=sqlite:///yuantus_s8_identity.db \
+DB_URL=sqlite:///yuantus_s8_meta.db \
+IDENTITY_DB_URL=sqlite:///yuantus_s8_identity.db \
+bash scripts/verify_ops_s8.sh http://127.0.0.1:7915 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Quota monitoring: OK
+Retention endpoints: OK
+Audit prune endpoint: OK
+Summary checks: OK
+ALL CHECKS PASSED
+```
+
+## Run S8-20260119-1536（S8 Ops Monitoring / Compose MT）
+
+- 时间：`2026-01-19 15:36:32 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_ops_s8.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+  - `YUANTUS_QUOTA_MODE=enforce`
+  - `YUANTUS_AUDIT_ENABLED=true`
+  - `YUANTUS_AUDIT_RETENTION_DAYS=1`
+  - `YUANTUS_AUDIT_RETENTION_MAX_ROWS=10`
+  - `YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1`
+  - `IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+  - `S3=MinIO http://localhost:59000`
+- 关键 ID：
+  - Part：`74cf4a56-a57a-42b7-afdd-3692be1148bf`
+  - File：`7733b044-870e-4188-8356-5b21925205ae`
+  - ECO：`12a12094-7b4c-4a6e-933d-97867a9684fb`
+  - Job：`2e85bda6-85b1-460e-8c65-2e5d1f295deb`
+
+执行命令：
+
+```bash
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+bash scripts/verify_ops_s8.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Quota monitoring: OK
+Retention endpoints: OK
+Audit prune endpoint: OK
+Summary checks: OK
+ALL CHECKS PASSED
+```
+
+## Run ALL-20260119-1554（Full Regression + S8）
+
+- 时间：`2026-01-19 15:54:34 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`（`RUN_OPS_S8=1`）
+- 日志：`/tmp/verify_all_s8.log`
+- 结果：`PASS: 35  FAIL: 0  SKIP: 9`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `RUN_OPS_S8=1`
+  - `YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+  - `YUANTUS_QUOTA_MODE=enforce`
+  - `YUANTUS_AUDIT_ENABLED=true`
+  - `YUANTUS_AUDIT_RETENTION_DAYS=1`
+  - `YUANTUS_AUDIT_RETENTION_MAX_ROWS=10`
+  - `YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1`
+
+执行命令：
+
+```bash
+RUN_OPS_S8=1 \
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 35  FAIL: 0  SKIP: 9
+ALL TESTS PASSED
+```
