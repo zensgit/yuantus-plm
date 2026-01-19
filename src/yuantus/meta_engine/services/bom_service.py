@@ -13,6 +13,101 @@ class BOMService:
     Manages Product Structure (BOM).
     Handles Explosion, Where-Used, and Circularity Checks.
     """
+    LINE_FIELD_KEYS = (
+        "quantity",
+        "uom",
+        "find_num",
+        "refdes",
+        "effectivity_from",
+        "effectivity_to",
+        "effectivities",
+        "substitutes",
+    )
+    MAJOR_FIELDS = {
+        "quantity",
+        "uom",
+        "effectivity_from",
+        "effectivity_to",
+        "effectivities",
+    }
+    MINOR_FIELDS = {"find_num", "refdes", "substitutes"}
+    FIELD_DESCRIPTIONS = {
+        "quantity": "BOM quantity on the relationship line.",
+        "uom": "Unit of measure for the BOM quantity.",
+        "find_num": "BOM position/find number.",
+        "refdes": "Reference designator(s) for BOM line.",
+        "effectivity_from": "Effectivity start datetime (ISO).",
+        "effectivity_to": "Effectivity end datetime (ISO).",
+        "effectivities": "Expanded effectivity records attached to the line.",
+        "substitutes": "Substitute items for the BOM line.",
+    }
+    FIELD_NORMALIZATION = {
+        "quantity": "float",
+        "uom": "upper-case string",
+        "find_num": "trimmed string",
+        "refdes": "sorted unique list",
+        "effectivity_from": "ISO datetime string",
+        "effectivity_to": "ISO datetime string",
+        "effectivities": "sorted tuples (type,start,end,payload)",
+        "substitutes": "sorted tuples (item_id,rank,note)",
+    }
+    COMPARE_MODES = {
+        "only_product": {
+            "line_key": "child_config",
+            "include_relationship_props": [],
+            "aggregate_quantities": False,
+            "aliases": ["only"],
+            "description": "Compare by parent/child config only.",
+        },
+        "summarized": {
+            "line_key": "child_config",
+            "include_relationship_props": ["quantity", "uom"],
+            "aggregate_quantities": True,
+            "aliases": ["summary"],
+            "description": "Aggregate quantities for identical children.",
+        },
+        "num_qty": {
+            "line_key": "child_config_find_num_qty",
+            "include_relationship_props": ["quantity", "uom", "find_num"],
+            "aggregate_quantities": False,
+            "aliases": ["numqty"],
+            "description": "Compare by child config + find_num + quantity.",
+        },
+        "by_position": {
+            "line_key": "child_config_find_num",
+            "include_relationship_props": ["quantity", "uom", "find_num"],
+            "aggregate_quantities": False,
+            "aliases": ["by_pos", "position"],
+            "description": "Compare by child config + find_num.",
+        },
+        "by_reference": {
+            "line_key": "child_config_refdes",
+            "include_relationship_props": ["quantity", "uom", "refdes"],
+            "aggregate_quantities": False,
+            "aliases": ["by_ref", "reference"],
+            "description": "Compare by child config + refdes.",
+        },
+    }
+    LINE_KEY_OPTIONS = (
+        "child_config",
+        "child_id",
+        "relationship_id",
+        "child_config_find_num",
+        "child_config_refdes",
+        "child_config_find_refdes",
+        "child_id_find_num",
+        "child_id_refdes",
+        "child_id_find_refdes",
+        "child_config_find_num_qty",
+        "child_id_find_num_qty",
+        "line_full",
+    )
+    COMPARE_DEFAULTS = {
+        "max_levels": 10,
+        "line_key": "child_config",
+        "include_substitutes": False,
+        "include_effectivity": False,
+    }
 
     def __init__(self, session: Session):
         self.session = session
@@ -25,20 +120,51 @@ class BOMService:
         if not mode:
             return None, None, False
         normalized = mode.strip().lower().replace("-", "_")
-        if normalized in {"only_product", "only"}:
-            return "child_config", [], False
-        if normalized in {"summarized", "summary"}:
-            return "child_config", ["quantity", "uom"], True
-        if normalized in {"num_qty", "numqty"}:
-            return "child_config_find_num_qty", ["quantity", "uom", "find_num"], False
-        if normalized in {"by_position", "by_pos", "position"}:
-            return "child_config_find_num", ["quantity", "uom", "find_num"], False
-        if normalized in {"by_reference", "by_ref", "reference"}:
-            return "child_config_refdes", ["quantity", "uom", "refdes"], False
+        for mode_key, spec in BOMService.COMPARE_MODES.items():
+            aliases = spec.get("aliases") or []
+            if normalized == mode_key or normalized in aliases:
+                return (
+                    spec.get("line_key"),
+                    spec.get("include_relationship_props"),
+                    bool(spec.get("aggregate_quantities")),
+                )
         raise ValueError(
             "compare_mode must be one of: only_product, summarized, num_qty, "
             "by_position, by_reference"
         )
+
+    @classmethod
+    def compare_schema(cls) -> Dict[str, Any]:
+        fields = []
+        for field in cls.LINE_FIELD_KEYS:
+            fields.append(
+                {
+                    "field": field,
+                    "severity": cls.field_severity(field),
+                    "normalized": cls.FIELD_NORMALIZATION.get(field, "raw"),
+                    "description": cls.FIELD_DESCRIPTIONS.get(field, ""),
+                }
+            )
+
+        modes = []
+        for mode, spec in cls.COMPARE_MODES.items():
+            modes.append(
+                {
+                    "mode": mode,
+                    "line_key": spec.get("line_key"),
+                    "include_relationship_props": spec.get("include_relationship_props", []),
+                    "aggregate_quantities": bool(spec.get("aggregate_quantities")),
+                    "aliases": spec.get("aliases", []),
+                    "description": spec.get("description", ""),
+                }
+            )
+
+        return {
+            "line_fields": fields,
+            "compare_modes": modes,
+            "line_key_options": list(cls.LINE_KEY_OPTIONS),
+            "defaults": dict(cls.COMPARE_DEFAULTS),
+        }
 
     def get_bom_structure(
         self,
@@ -957,16 +1083,7 @@ class BOMService:
         return normalized
 
     def _line_field_keys(self) -> tuple[str, ...]:
-        return (
-            "quantity",
-            "uom",
-            "find_num",
-            "refdes",
-            "effectivity_from",
-            "effectivity_to",
-            "effectivities",
-            "substitutes",
-        )
+        return self.LINE_FIELD_KEYS
 
     def _line_fields(self, props: Dict[str, Any]) -> Dict[str, Any]:
         return {key: props.get(key) for key in self._line_field_keys()}
@@ -1053,20 +1170,16 @@ class BOMService:
             entries.append((str(eff_type), str(start_date or ""), str(end_date or ""), payload_key))
         return tuple(sorted(entries))
 
-    def _field_severity(self, field: str) -> str:
-        major_fields = {
-            "quantity",
-            "uom",
-            "effectivity_from",
-            "effectivity_to",
-            "effectivities",
-        }
-        minor_fields = {"find_num", "refdes", "substitutes"}
-        if field in major_fields:
+    @classmethod
+    def field_severity(cls, field: str) -> str:
+        if field in cls.MAJOR_FIELDS:
             return "major"
-        if field in minor_fields:
+        if field in cls.MINOR_FIELDS:
             return "minor"
         return "info"
+
+    def _field_severity(self, field: str) -> str:
+        return self.field_severity(field)
 
     def _severity_rank(self, severity: str) -> int:
         order = {"info": 0, "minor": 1, "major": 2}

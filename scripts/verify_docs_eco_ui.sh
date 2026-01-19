@@ -22,6 +22,189 @@ if [[ ! -x "$PY" ]]; then
   exit 2
 fi
 
+if [[ "${LOCAL_TESTCLIENT:-0}" == "1" ]]; then
+  BASE_URL="$BASE_URL" TENANT="$TENANT" ORG="$ORG" CLI="$CLI" PY="$PY" "$PY" - <<'PY'
+import os
+import random
+import subprocess
+import time
+
+from fastapi.testclient import TestClient
+
+from yuantus.api.app import app
+
+tenant = os.environ["TENANT"]
+org = os.environ["ORG"]
+cli = os.environ["CLI"]
+
+def run_cli(*args: str) -> None:
+    subprocess.run([cli, *args], check=True)
+
+ts = int(time.time())
+admin_uid = int(os.environ.get("ADMIN_UID") or random.randint(600000, 980000))
+username = f"admin-{ts}"
+run_cli("seed-identity", "--tenant", tenant, "--org", org, "--username", username,
+        "--password", "admin", "--user-id", str(admin_uid), "--roles", "admin")
+run_cli("seed-meta", "--tenant", tenant, "--org", org)
+
+client = TestClient(app)
+headers = {"x-tenant-id": tenant, "x-org-id": org}
+
+resp = client.post(
+    "/api/v1/auth/login",
+    json={
+        "tenant_id": tenant,
+        "username": username,
+        "password": "admin",
+        "org_id": org,
+    },
+)
+resp.raise_for_status()
+token = resp.json().get("access_token")
+if not token:
+    raise SystemExit("Admin login failed (no access_token)")
+
+auth_headers = {**headers, "Authorization": f"Bearer {token}"}
+
+def ensure_item_type(type_id: str, payload: dict) -> None:
+    resp = client.get(f"/api/v1/meta/item-types/{type_id}", headers=auth_headers)
+    if resp.status_code == 200:
+        return
+    resp = client.post("/api/v1/meta/item-types", headers=auth_headers, json=payload)
+    if resp.status_code not in (200, 409):
+        raise SystemExit(f"Failed to ensure ItemType {type_id}")
+
+ensure_item_type(
+    "Document",
+    {"id": "Document", "label": "Document", "is_relationship": False, "is_versionable": True},
+)
+ensure_item_type(
+    "Document Part",
+    {
+        "id": "Document Part",
+        "label": "Document Part",
+        "is_relationship": True,
+        "is_versionable": False,
+        "source_item_type_id": "Part",
+        "related_item_type_id": "Document",
+    },
+)
+
+part_num = f"DOCUI-P-{ts}"
+doc_num = f"DOCUI-D-{ts}"
+
+resp = client.post(
+    "/api/v1/aml/apply",
+    headers=auth_headers,
+    json={
+        "type": "Part",
+        "action": "add",
+        "properties": {"item_number": part_num, "name": "Doc UI Product"},
+    },
+)
+resp.raise_for_status()
+part_id = resp.json().get("id")
+
+resp = client.post(
+    "/api/v1/aml/apply",
+    headers=auth_headers,
+    json={
+        "type": "Document",
+        "action": "add",
+        "properties": {"item_number": doc_num, "doc_number": doc_num, "name": "Doc UI Doc"},
+    },
+)
+resp.raise_for_status()
+doc_id = resp.json().get("id")
+
+if not part_id or not doc_id:
+    raise SystemExit("Failed to create Part/Document")
+
+resp = client.post(
+    "/api/v1/rpc/",
+    headers=auth_headers,
+    json={"model": "Relationship", "method": "add", "args": [part_id, "Document Part", doc_id, {}]},
+)
+resp.raise_for_status()
+if resp.json().get("result", {}).get("status") != "success":
+    raise SystemExit("Failed to create Document Part relationship")
+
+resp = client.post(
+    "/api/v1/eco/stages",
+    headers=auth_headers,
+    json={
+        "name": f"DOCUI-STAGE-{ts}",
+        "sequence": 90,
+        "approval_type": "mandatory",
+        "approval_roles": ["admin"],
+        "auto_progress": False,
+        "is_blocking": False,
+        "sla_hours": 0,
+    },
+)
+resp.raise_for_status()
+stage_id = resp.json().get("id")
+if not stage_id:
+    raise SystemExit("Failed to create ECO stage")
+
+resp = client.post(
+    "/api/v1/eco",
+    headers=auth_headers,
+    json={
+        "name": f"DOCUI-ECO-{ts}",
+        "eco_type": "bom",
+        "product_id": part_id,
+        "description": "doc ui summary",
+    },
+)
+resp.raise_for_status()
+eco_id = resp.json().get("id")
+if not eco_id:
+    raise SystemExit("Failed to create ECO")
+
+resp = client.post(
+    f"/api/v1/eco/{eco_id}/move-stage",
+    headers=auth_headers,
+    json={"stage_id": stage_id},
+)
+resp.raise_for_status()
+if resp.json().get("stage_id") != stage_id:
+    raise SystemExit("Failed to move ECO to stage")
+
+resp = client.get(
+    f"/api/v1/products/{part_id}",
+    headers=auth_headers,
+    params={
+        "include_versions": "false",
+        "include_files": "false",
+        "include_document_summary": "true",
+        "include_eco_summary": "true",
+    },
+)
+resp.raise_for_status()
+data = resp.json()
+
+doc_summary = data.get("document_summary") or {}
+eco_summary = data.get("eco_summary") or {}
+
+if doc_summary.get("authorized") is False:
+    raise SystemExit("document summary unauthorized")
+if doc_summary.get("count", 0) < 1:
+    raise SystemExit("expected document summary count >= 1")
+
+eco_count = eco_summary.get("count", 0)
+if eco_summary.get("authorized") is False or eco_count < 1:
+    raise SystemExit("expected eco summary count >= 1")
+
+pending = eco_summary.get("pending_approvals") or {}
+if pending.get("count", 0) < 1:
+    raise SystemExit("expected pending approval count >= 1")
+
+print("ALL CHECKS PASSED")
+PY
+  exit 0
+fi
+
 API="$BASE_URL/api/v1"
 HEADERS=(-H "x-tenant-id: $TENANT" -H "x-org-id: $ORG")
 

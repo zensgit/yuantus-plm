@@ -22,6 +22,126 @@ if [[ ! -x "$PY" ]]; then
   exit 2
 fi
 
+if [[ "${LOCAL_TESTCLIENT:-0}" == "1" ]]; then
+  BASE_URL="$BASE_URL" TENANT="$TENANT" ORG="$ORG" CLI="$CLI" PY="$PY" "$PY" - <<'PY'
+import os
+import random
+import subprocess
+import time
+
+from fastapi.testclient import TestClient
+
+from yuantus.api.app import app
+
+tenant = os.environ["TENANT"]
+org = os.environ["ORG"]
+cli = os.environ["CLI"]
+
+def run_cli(*args: str) -> None:
+    subprocess.run([cli, *args], check=True)
+
+ts = int(time.time())
+admin_uid = int(os.environ.get("ADMIN_UID") or random.randint(500000, 950000))
+username = f"admin-{ts}"
+run_cli("seed-identity", "--tenant", tenant, "--org", org, "--username", username,
+        "--password", "admin", "--user-id", str(admin_uid), "--roles", "admin")
+run_cli("seed-meta", "--tenant", tenant, "--org", org)
+
+client = TestClient(app)
+headers = {"x-tenant-id": tenant, "x-org-id": org}
+
+resp = client.post(
+    "/api/v1/auth/login",
+    json={
+        "tenant_id": tenant,
+        "username": username,
+        "password": "admin",
+        "org_id": org,
+    },
+)
+resp.raise_for_status()
+token = resp.json().get("access_token")
+if not token:
+    raise SystemExit("Admin login failed (no access_token)")
+
+auth_headers = {**headers, "Authorization": f"Bearer {token}"}
+
+def create_part(item_number: str, name: str) -> str:
+    resp = client.post(
+        "/api/v1/aml/apply",
+        headers=auth_headers,
+        json={
+            "type": "Part",
+            "action": "add",
+            "properties": {"item_number": item_number, "name": name},
+        },
+    )
+    resp.raise_for_status()
+    item_id = resp.json().get("id")
+    if not item_id:
+        raise SystemExit("Failed to create part")
+    return item_id
+
+grand_id = create_part(f"WU-G-{ts}", f"WU Grand {ts}")
+parent_id = create_part(f"WU-P-{ts}", f"WU Parent {ts}")
+child_id = create_part(f"WU-C-{ts}", f"WU Child {ts}")
+
+resp = client.post(
+    f"/api/v1/bom/{parent_id}/children",
+    headers=auth_headers,
+    json={"child_id": child_id, "quantity": 2, "uom": "EA", "find_num": "10"},
+)
+resp.raise_for_status()
+rel_parent_id = resp.json().get("relationship_id")
+if not rel_parent_id:
+    raise SystemExit("Failed to add parent->child")
+
+resp = client.post(
+    f"/api/v1/bom/{grand_id}/children",
+    headers=auth_headers,
+    json={"child_id": parent_id, "quantity": 1, "uom": "EA", "find_num": "20"},
+)
+resp.raise_for_status()
+rel_grand_id = resp.json().get("relationship_id")
+if not rel_grand_id:
+    raise SystemExit("Failed to add grand->parent")
+
+resp = client.get(
+    f"/api/v1/bom/{child_id}/where-used",
+    headers=auth_headers,
+    params={"recursive": "true", "max_levels": "3"},
+)
+resp.raise_for_status()
+data = resp.json()
+
+if data.get("recursive") is not True:
+    raise SystemExit("recursive flag missing or false")
+if data.get("max_levels") != 3:
+    raise SystemExit("max_levels mismatch")
+
+parents = data.get("parents") or []
+if len(parents) < 2:
+    raise SystemExit("expected at least 2 where-used entries")
+
+parent_ids = {p.get("parent", {}).get("id") for p in parents}
+if parent_id not in parent_ids or grand_id not in parent_ids:
+    raise SystemExit("missing expected parent/grand entries")
+
+for entry in parents:
+    line = entry.get("line") or {}
+    line_norm = entry.get("line_normalized") or {}
+    if "quantity" not in line or "quantity" not in line_norm:
+        raise SystemExit("missing line quantity fields")
+    child = entry.get("child") or {}
+    rel = entry.get("relationship") or {}
+    if child.get("id") != rel.get("related_id"):
+        raise SystemExit("child mismatch in where-used entry")
+
+print("ALL CHECKS PASSED")
+PY
+  exit 0
+fi
+
 API="$BASE_URL/api/v1"
 HEADERS=(-H "x-tenant-id: $TENANT" -H "x-org-id: $ORG")
 

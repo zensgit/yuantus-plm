@@ -22,6 +22,137 @@ if [[ ! -x "$PY" ]]; then
   exit 2
 fi
 
+if [[ "${LOCAL_TESTCLIENT:-0}" == "1" ]]; then
+  BASE_URL="$BASE_URL" TENANT="$TENANT" ORG="$ORG" CLI="$CLI" PY="$PY" "$PY" - <<'PY'
+import os
+import random
+import subprocess
+import time
+
+from fastapi.testclient import TestClient
+
+from yuantus.api.app import app
+
+tenant = os.environ["TENANT"]
+org = os.environ["ORG"]
+cli = os.environ["CLI"]
+
+def run_cli(*args: str) -> None:
+    subprocess.run([cli, *args], check=True)
+
+ts = int(time.time())
+admin_uid = int(os.environ.get("ADMIN_UID") or random.randint(400000, 900000))
+username = f"admin-{ts}"
+run_cli("seed-identity", "--tenant", tenant, "--org", org, "--username", username,
+        "--password", "admin", "--user-id", str(admin_uid), "--roles", "admin")
+run_cli("seed-meta", "--tenant", tenant, "--org", org)
+
+client = TestClient(app)
+headers = {"x-tenant-id": tenant, "x-org-id": org}
+
+resp = client.post(
+    "/api/v1/auth/login",
+    json={
+        "tenant_id": tenant,
+        "username": username,
+        "password": "admin",
+        "org_id": org,
+    },
+)
+resp.raise_for_status()
+token = resp.json().get("access_token")
+if not token:
+    raise SystemExit("Admin login failed (no access_token)")
+
+auth_headers = {**headers, "Authorization": f"Bearer {token}"}
+
+def create_part(item_number: str, name: str) -> str:
+    resp = client.post(
+        "/api/v1/aml/apply",
+        headers=auth_headers,
+        json={
+            "type": "Part",
+            "action": "add",
+            "properties": {"item_number": item_number, "name": name},
+        },
+    )
+    resp.raise_for_status()
+    item_id = resp.json().get("id")
+    if not item_id:
+        raise SystemExit("Failed to create part")
+    return item_id
+
+parent_id = create_part(f"PROD-UI-P-{ts}", f"Product UI Parent {ts}")
+child_id = create_part(f"PROD-UI-C-{ts}", f"Product UI Child {ts}")
+
+resp = client.post(
+    f"/api/v1/bom/{parent_id}/children",
+    headers=auth_headers,
+    json={"child_id": child_id, "quantity": 1, "uom": "EA"},
+)
+resp.raise_for_status()
+rel_id = resp.json().get("relationship_id")
+if not rel_id:
+    raise SystemExit("Failed to add BOM child")
+
+parent_detail = client.get(
+    f"/api/v1/products/{parent_id}",
+    headers=auth_headers,
+    params={
+        "include_versions": "false",
+        "include_files": "false",
+        "include_bom_summary": "true",
+        "bom_summary_depth": "2",
+        "include_where_used_summary": "true",
+    },
+)
+parent_detail.raise_for_status()
+
+child_detail = client.get(
+    f"/api/v1/products/{child_id}",
+    headers=auth_headers,
+    params={
+        "include_versions": "false",
+        "include_files": "false",
+        "include_bom_summary": "true",
+        "include_where_used_summary": "true",
+        "where_used_recursive": "true",
+        "where_used_max_levels": "3",
+    },
+)
+child_detail.raise_for_status()
+
+parent = parent_detail.json()
+child = child_detail.json()
+
+bom_summary = parent.get("bom_summary") or {}
+if not bom_summary or bom_summary.get("authorized") is False:
+    raise SystemExit("missing or unauthorized bom_summary for parent")
+if bom_summary.get("direct_children", 0) < 1:
+    raise SystemExit("expected direct_children >= 1")
+
+wu_parent = parent.get("where_used_summary") or {}
+if wu_parent.get("authorized") is False:
+    raise SystemExit("unexpected where_used unauthorized")
+
+wu_child = child.get("where_used_summary") or {}
+if wu_child.get("authorized") is False:
+    raise SystemExit("missing where_used_summary for child")
+if wu_child.get("count", 0) < 1:
+    raise SystemExit("expected where_used count >= 1")
+
+sample = wu_child.get("sample") or []
+if not sample:
+    raise SystemExit("missing where-used sample")
+sample_parent = sample[0]
+if sample_parent.get("id") != parent_id:
+    raise SystemExit("where-used sample parent mismatch")
+
+print("ALL CHECKS PASSED")
+PY
+  exit 0
+fi
+
 API="$BASE_URL/api/v1"
 HEADERS=(-H "x-tenant-id: $TENANT" -H "x-org-id: $ORG")
 
