@@ -38,8 +38,7 @@ fail() {
 # =============================================================================
 echo "==> Seed identity (admin + viewer)"
 "$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin --superuser >/dev/null
-"$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username viewer --password viewer --user-id 2 --roles viewer --no-superuser >/dev/null
-echo "Created users: admin (superuser), viewer (no write)"
+echo "Created user: admin (superuser)"
 
 echo "==> Seed meta schema"
 "$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
@@ -61,20 +60,34 @@ echo "Admin login: OK"
 # =============================================================================
 echo "==> Ensure viewer identity (server) is non-superuser"
 
-# Create viewer user if missing (ignore 409)
-HTTP_CODE="$(curl -s -o /tmp/admin_user_create.json -w '%{http_code}' \
+VIEWER_USERNAME="viewer-$TS"
+VIEWER_PASSWORD="viewer-$TS"
+VIEWER_ID=""
+
+CREATE_RAW="$(curl -s -w 'HTTPSTATUS:%{http_code}' \
   -X POST "$BASE/api/v1/admin/users" \
   -H 'content-type: application/json' \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d "{\"username\":\"viewer\",\"password\":\"viewer\",\"user_id\":2,\"is_superuser\":false}"
+  -d "{\"username\":\"$VIEWER_USERNAME\",\"password\":\"$VIEWER_PASSWORD\",\"is_superuser\":false}"
 )"
-if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "201" && "$HTTP_CODE" != "409" ]]; then
-  fail "Failed to create viewer user via admin API: HTTP $HTTP_CODE"
+CREATE_BODY="${CREATE_RAW%HTTPSTATUS:*}"
+CREATE_STATUS="${CREATE_RAW##*HTTPSTATUS:}"
+if [[ "$CREATE_STATUS" == "200" || "$CREATE_STATUS" == "201" ]]; then
+  VIEWER_ID="$("$PY" -c 'import sys,json;print(json.load(sys.stdin).get("id",""))' <<<"$CREATE_BODY")"
+elif [[ "$CREATE_STATUS" == "409" ]]; then
+  USERS_JSON="$(curl -s "$BASE/api/v1/admin/users" -H "Authorization: Bearer $ADMIN_TOKEN")"
+  VIEWER_ID="$(
+    VIEWER_USERNAME="$VIEWER_USERNAME" "$PY" -c 'import json,os,sys; data=json.load(sys.stdin); username=os.environ.get("VIEWER_USERNAME",""); items=data.get("items") or []; print(next((str(i.get("id","")) for i in items if i.get("username")==username), ""))' \
+      <<<"$USERS_JSON"
+  )"
 fi
 
-# Force viewer is_superuser=false (in case of previous runs)
+if [[ -z "$VIEWER_ID" ]]; then
+  fail "Failed to resolve viewer user id"
+fi
+
 HTTP_CODE="$(curl -s -o /tmp/admin_user_update.json -w '%{http_code}' \
-  -X PATCH "$BASE/api/v1/admin/users/2" \
+  -X PATCH "$BASE/api/v1/admin/users/$VIEWER_ID" \
   -H 'content-type: application/json' \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -d "{\"is_superuser\":false,\"is_active\":true}"
@@ -83,17 +96,16 @@ if [[ "$HTTP_CODE" != "200" ]]; then
   fail "Failed to update viewer user via admin API: HTTP $HTTP_CODE"
 fi
 
-# Ensure viewer membership in org with viewer role
 HTTP_CODE="$(curl -s -o /tmp/admin_member_upsert.json -w '%{http_code}' \
   -X POST "$BASE/api/v1/admin/orgs/$ORG/members" \
   -H 'content-type: application/json' \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -d "{\"user_id\":2,\"roles\":[\"viewer\"],\"is_active\":true}"
+  -d "{\"user_id\":$VIEWER_ID,\"roles\":[\"viewer\"],\"is_active\":true}"
 )"
 if [[ "$HTTP_CODE" != "200" && "$HTTP_CODE" != "201" ]]; then
   fail "Failed to ensure viewer membership via admin API: HTTP $HTTP_CODE"
 fi
-echo "Viewer identity: OK"
+echo "Viewer identity: OK (id=$VIEWER_ID)"
 
 # =============================================================================
 # Step 3: Create PermissionSet for read-only access
@@ -184,7 +196,7 @@ echo "==> Login as viewer"
 VIEWER_TOKEN="$(
   curl -s -X POST "$BASE/api/v1/auth/login" \
     -H 'content-type: application/json' \
-    -d "{\"tenant_id\":\"$TENANT\",\"username\":\"viewer\",\"password\":\"viewer\",\"org_id\":\"$ORG\"}" \
+    -d "{\"tenant_id\":\"$TENANT\",\"username\":\"$VIEWER_USERNAME\",\"password\":\"$VIEWER_PASSWORD\",\"org_id\":\"$ORG\"}" \
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["access_token"])'
 )"
 echo "Viewer login: OK"

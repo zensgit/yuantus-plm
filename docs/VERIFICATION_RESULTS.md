@@ -1805,6 +1805,66 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run S7-20260119-1355（Quota + Audit + Multi-Tenancy）
+
+- 时间：`2026-01-19 13:55:40 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 模式：`db-per-tenant-org`
+- 开关：`YUANTUS_QUOTA_MODE=enforce`、`YUANTUS_AUDIT_ENABLED=true`、`YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+- 结果：全部通过
+
+执行命令：
+
+```bash
+DOCKER_HOST=unix:///Users/huazhou/Library/Containers/com.docker.docker/Data/docker.raw.sock \
+PY=/usr/bin/python3 \
+CLI=/tmp/yuantus_cli_compose.sh \
+  bash scripts/verify_quotas.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/Library/Containers/com.docker.docker/Data/docker.raw.sock \
+PY=/usr/bin/python3 \
+CLI=/tmp/yuantus_cli_compose.sh \
+  bash scripts/verify_audit_logs.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/Library/Containers/com.docker.docker/Data/docker.raw.sock \
+PY=/usr/bin/python3 \
+CLI=/tmp/yuantus_cli_compose.sh \
+  bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+verify_quotas.sh: ALL CHECKS PASSED
+verify_audit_logs.sh: ALL CHECKS PASSED
+verify_multitenancy.sh: ALL CHECKS PASSED
+```
+
+## Run S7-20260119-1204（Tenant Provisioning）
+
+- 时间：`2026-01-19 12:04:33 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：启用平台管理员（platform tenant）后完成新租户/组织创建。
+- 新租户：`tenant-provision-1768795448`
+- 默认组织：`org-provision-1768795448`
+- 额外组织：`org-extra-1768795448`
+
+执行命令：
+
+```bash
+PY=/usr/bin/python3 \
+CLI=/tmp/yuantus_cli_compose.sh \
+  bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-ML-PREVIEW-20260112-2208（CAD 2D 预览渲染）
 
 - 时间：`2026-01-12 22:08:26 +0800`
@@ -10846,6 +10906,51 @@ Integrations health: OK (ok=False)
 ALL CHECKS PASSED
 ```
 
+## Run ALL-20260119-1134（verify_all.sh 全量回归）
+
+- 时间：`2026-01-19 11:34:01 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`
+- 结果：`PASS 32 / FAIL 0 / SKIP 11`
+- 说明：`CAD ML Vision` 未启用，相关步骤跳过；CAD Extractor 外部地址不可达时脚本回退本地处理。
+
+执行命令：
+
+```bash
+PY=/usr/bin/python3 \
+CLI=/tmp/yuantus_cli_compose.sh \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 32  FAIL: 0  SKIP: 11
+ALL TESTS PASSED
+```
+
+## Run S7-20260119-1203（Multi-Tenancy Isolation）
+
+- 时间：`2026-01-19 12:03:33 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_multitenancy.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：运行于 `db-per-tenant-org`，验证 tenant/org 隔离。
+
+执行命令：
+
+```bash
+PY=/usr/bin/python3 \
+CLI=/tmp/yuantus_cli_compose.sh \
+  bash scripts/verify_multitenancy.sh http://127.0.0.1:7910 tenant-1 tenant-2 org-1 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run OPS-20251228-1405（Ops Health 依赖检查）
 
 - 时间：`2025-12-28 14:05:53 +0800`
@@ -11761,5 +11866,240 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 
 ```text
 PASS: 43  FAIL: 0  SKIP: 0
+ALL TESTS PASSED
+```
+
+## Run H-20260119-1014（Run H：Compose 基线回归）
+
+- 时间：`2026-01-19 10:14:45 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_run_h.sh`
+- 结果：`ALL CHECKS PASSED`
+- 说明：使用 docker compose 启动服务（Postgres + MinIO + API + Worker），通过临时 CLI wrapper 执行 seed。
+- 关键 ID：
+  - Part：`4fe2cc74-6804-4924-a3d9-7053e30846ae`
+  - RPC Part：`86e1743d-e3c9-40ee-a287-b25b805aeb77`
+  - File：`a47baa5f-7431-4a09-a8eb-acbc0b1096ad`
+  - ECO Stage：`abbad498-87e4-4cca-8012-a6d4512d7f18`
+  - ECO：`229dd819-4615-48b5-891d-ff9a1a830edf`
+  - Version：`672a0e58-9025-40d2-9713-c34bd2421cc3`
+
+执行命令：
+
+```bash
+PY=/usr/bin/python3 \
+CLI=/tmp/yuantus_cli_compose.sh \
+  bash scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Integrations health: OK (ok=False)
+ALL CHECKS PASSED
+```
+
+## Run S8-20260119-1455（S8 Ops Monitoring）
+
+- 时间：`2026-01-19 14:55:23 +0800`
+- 基地址：`http://127.0.0.1:7915`
+- 脚本：`scripts/verify_ops_s8.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - `PYTHONPATH=/Users/huazhou/Downloads/Github/Yuantus-worktrees/main-codex-yuantus/src`
+  - `YUANTUS_DATABASE_URL=sqlite:///yuantus_s8_meta.db`
+  - `YUANTUS_IDENTITY_DATABASE_URL=sqlite:///yuantus_s8_identity.db`
+  - `YUANTUS_SCHEMA_MODE=create_all`
+  - `YUANTUS_TENANCY_MODE=single`
+  - `YUANTUS_QUOTA_MODE=enforce`
+  - `YUANTUS_AUDIT_ENABLED=true`
+  - `YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+  - `YUANTUS_AUDIT_RETENTION_DAYS=1`
+  - `YUANTUS_AUDIT_RETENTION_MAX_ROWS=10`
+  - `YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1`
+- 关键 ID：
+  - Part：`df3311fa-d22a-4e5a-beb4-40a455190ff1`
+  - File：`19d6ce9b-1c52-4b9d-a20e-6bb05ce79ae3`
+  - ECO：`81e36bde-0383-4dd9-bb88-51c099b363b3`
+  - Job：`7b638feb-3cda-40b1-ae04-26eff85a061a`
+
+执行命令：
+
+```bash
+PYTHONPATH=/Users/huazhou/Downloads/Github/Yuantus-worktrees/main-codex-yuantus/src \
+CLI=/Users/huazhou/Downloads/Github/Yuantus/.venv/bin/yuantus \
+PY=/Users/huazhou/Downloads/Github/Yuantus/.venv/bin/python \
+YUANTUS_DATABASE_URL=sqlite:///yuantus_s8_meta.db \
+YUANTUS_IDENTITY_DATABASE_URL=sqlite:///yuantus_s8_identity.db \
+DB_URL=sqlite:///yuantus_s8_meta.db \
+IDENTITY_DB_URL=sqlite:///yuantus_s8_identity.db \
+bash scripts/verify_ops_s8.sh http://127.0.0.1:7915 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Quota monitoring: OK
+Retention endpoints: OK
+Audit prune endpoint: OK
+Summary checks: OK
+ALL CHECKS PASSED
+```
+
+## Run S8-20260119-1536（S8 Ops Monitoring / Compose MT）
+
+- 时间：`2026-01-19 15:36:32 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_ops_s8.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+  - `YUANTUS_QUOTA_MODE=enforce`
+  - `YUANTUS_AUDIT_ENABLED=true`
+  - `YUANTUS_AUDIT_RETENTION_DAYS=1`
+  - `YUANTUS_AUDIT_RETENTION_MAX_ROWS=10`
+  - `YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1`
+  - `IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+  - `S3=MinIO http://localhost:59000`
+- 关键 ID：
+  - Part：`74cf4a56-a57a-42b7-afdd-3692be1148bf`
+  - File：`7733b044-870e-4188-8356-5b21925205ae`
+  - ECO：`12a12094-7b4c-4a6e-933d-97867a9684fb`
+  - Job：`2e85bda6-85b1-460e-8c65-2e5d1f295deb`
+
+执行命令：
+
+```bash
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+bash scripts/verify_ops_s8.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+Quota monitoring: OK
+Retention endpoints: OK
+Audit prune endpoint: OK
+Summary checks: OK
+ALL CHECKS PASSED
+```
+
+## Run ALL-20260119-1554（Full Regression + S8）
+
+- 时间：`2026-01-19 15:54:34 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`（`RUN_OPS_S8=1`）
+- 日志：`/tmp/verify_all_s8.log`
+- 结果：`PASS: 35  FAIL: 0  SKIP: 9`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `RUN_OPS_S8=1`
+  - `YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+  - `YUANTUS_QUOTA_MODE=enforce`
+  - `YUANTUS_AUDIT_ENABLED=true`
+  - `YUANTUS_AUDIT_RETENTION_DAYS=1`
+  - `YUANTUS_AUDIT_RETENTION_MAX_ROWS=10`
+  - `YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1`
+
+执行命令：
+
+```bash
+RUN_OPS_S8=1 \
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+PASS: 35  FAIL: 0  SKIP: 9
+ALL TESTS PASSED
+```
+
+## Run UI-20260119-1618（Product/BOM/Docs UI）
+
+- 时间：`2026-01-19 16:18:50 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：
+  - `scripts/verify_product_detail.sh`
+  - `scripts/verify_product_ui.sh`
+  - `scripts/verify_where_used_ui.sh`
+  - `scripts/verify_bom_ui.sh`
+  - `scripts/verify_docs_approval.sh`
+  - `scripts/verify_docs_eco_ui.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `CLI=/tmp/yuantus_cli_compose.sh`
+  - `PY=/usr/bin/python3`
+
+执行命令：
+
+```bash
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_bom_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_docs_approval.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+## Run ALL-20260119-1632（Full Regression + UI Agg）
+
+- 时间：`2026-01-19 16:32:50 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`（`RUN_UI_AGG=1`）
+- 日志：`/tmp/verify_all_ui.log`
+- 结果：`PASS: 40  FAIL: 0  SKIP: 10`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `RUN_UI_AGG=1`
+  - `RUN_OPS_S8=0`
+  - `CLI=/tmp/yuantus_cli_compose.sh`
+  - `PY=/usr/bin/python3`
+
+执行命令：
+
+```bash
+RUN_UI_AGG=1 \
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_ui.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 40  FAIL: 0  SKIP: 10
 ALL TESTS PASSED
 ```
