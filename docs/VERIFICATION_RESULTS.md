@@ -12021,3 +12021,54 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 PASS: 35  FAIL: 0  SKIP: 9
 ALL TESTS PASSED
 ```
+
+## Run UI-20260119-1618（Product/BOM/Docs UI）
+
+- 时间：`2026-01-19 16:18:50 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：
+  - `scripts/verify_product_detail.sh`
+  - `scripts/verify_product_ui.sh`
+  - `scripts/verify_where_used_ui.sh`
+  - `scripts/verify_bom_ui.sh`
+  - `scripts/verify_docs_approval.sh`
+  - `scripts/verify_docs_eco_ui.sh`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `CLI=/tmp/yuantus_cli_compose.sh`
+  - `PY=/usr/bin/python3`
+
+执行命令：
+
+```bash
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_bom_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_docs_approval.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
