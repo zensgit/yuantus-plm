@@ -12235,3 +12235,56 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verif
 PASS: 40  FAIL: 0  SKIP: 10
 ALL TESTS PASSED
 ```
+
+## Run S7-OPS-20260119-1954（Ops Hardening / Multi-Tenancy Deep）
+
+- 时间：`2026-01-19 19:54:00 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_ops_hardening.sh`
+- 日志：`/tmp/verify_ops_hardening_s7.log`
+- 结果：`ALL CHECKS PASSED`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `YUANTUS_QUOTA_MODE=enforce`
+  - `YUANTUS_AUDIT_ENABLED=true`
+  - `YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+  - `YUANTUS_AUDIT_RETENTION_DAYS=1`
+  - `YUANTUS_AUDIT_RETENTION_MAX_ROWS=10`
+  - `YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1`
+  - `VERIFY_QUOTA_MONITORING=1`
+  - `VERIFY_RETENTION=1`
+  - `VERIFY_RETENTION_ENDPOINTS=1`
+  - `IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+  - `CLI=/tmp/yuantus_cli_compose.sh`
+  - `PY=/usr/bin/python3`
+
+执行命令：
+
+```bash
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+VERIFY_QUOTA_MONITORING=1 \
+VERIFY_RETENTION=1 \
+VERIFY_RETENTION_ENDPOINTS=1 \
+bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2 | tee /tmp/verify_ops_hardening_s7.log
+```
+
+输出（摘要）：
+
+```text
+Multi-Tenancy Verification Complete
+ALL CHECKS PASSED
+
+Audit Logs Verification Complete
+ALL CHECKS PASSED
+
+Ops Health Verification Complete
+ALL CHECKS PASSED
+
+Search Reindex Verification Complete
+ALL CHECKS PASSED
+
+Ops Hardening Verification Complete
+ALL CHECKS PASSED
+```

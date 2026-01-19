@@ -1,12 +1,14 @@
 # S7 多租户深度验证设计说明
 
-目标：在 `db-per-tenant-org` 模式下验证隔离、配额与审计三项能力，确保私有化交付具备最小 SaaS 运营能力。
+目标：在 `db-per-tenant-org` 模式下验证隔离、配额、审计、健康与索引回归能力，确保私有化交付具备最小 SaaS 运营能力。
 
 ## 1. 验证范围
 
 - **多租户隔离**：tenant/org 维度数据不串库、不串数据。
 - **配额（Quota）**：用户数、组织数、文件数、存储、任务并发等限制在 `enforce` 模式下可阻断。
-- **审计（Audit）**：访问记录能写入审计日志，并可通过 `/admin/audit` 查询。
+- **审计（Audit）**：访问记录能写入审计日志，并可通过 `/admin/audit` 查询与留存校验。
+- **健康检查**：`/health`、`/health/deps` 正常，并包含 identity/storage 状态。
+- **索引回归**：`/search/reindex` 可重建索引并可检索新增条目。
 
 ## 2. 环境与依赖
 
@@ -19,6 +21,9 @@
   - `YUANTUS_QUOTA_MODE=enforce`
   - `YUANTUS_AUDIT_ENABLED=true`
   - `YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+  - `YUANTUS_AUDIT_RETENTION_DAYS=1`（可选）
+  - `YUANTUS_AUDIT_RETENTION_MAX_ROWS=10`（可选）
+  - `YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1`（可选）
 
 ## 3. 设计要点
 
@@ -47,12 +52,17 @@
 - 验证策略：
   - 先触发一次 health 请求；
   - 再查询 audit 并确认有对应记录。
+  - 若开启 retention：验证 old log 清理与 retention endpoints。
+
+### 3.4 健康检查与索引回归
+
+- `/health`、`/health/deps` 应返回 ok=true 且 db/identity/storage 状态可用。
+- `/search/reindex` 可重建索引并检索新增 item_number。
 
 ## 4. 退出条件（DoD）
 
-- `verify_multitenancy.sh` 通过。
-- `verify_quotas.sh` 通过（enforce）。
-- `verify_audit_logs.sh` 通过（audit_enabled=true）。
+- `verify_ops_hardening.sh` 通过（包含 multi-tenancy、quota、audit、health、reindex）。
+- 如启用 retention/平台管理员：对应校验通过。
 
 ## 5. 输出物
 
