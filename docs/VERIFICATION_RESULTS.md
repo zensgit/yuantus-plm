@@ -12288,3 +12288,190 @@ ALL CHECKS PASSED
 Ops Hardening Verification Complete
 ALL CHECKS PASSED
 ```
+
+## Run CAD-CONNECTORS-CONFIG-20260119-2011
+
+- 时间：`2026-01-19 20:11:49 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors_config.sh`
+- 日志：`/tmp/verify_cad_connectors_config_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_cad_connectors_config.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+## Run CAD-CONNECTORS-20260119-2013（含真实样本）
+
+- 时间：`2026-01-19 20:13:45 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_connectors.sh`（`RUN_REAL=1`）
+- 日志：`/tmp/verify_cad_connectors_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+RUN_REAL=1 \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200 \
+bash scripts/verify_cad_connectors.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+## Run CAD-EXTRACTOR-EXTERNAL-20260119-2017
+
+- 时间：`2026-01-19 20:17:47 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_extractor_external.sh`
+- 日志：`/tmp/verify_cad_extractor_external_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200 \
+CAD_EXTRACTOR_SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+CAD_EXTRACTOR_ALLOW_EMPTY=1 \
+CAD_EXTRACTOR_CAD_FORMAT=HAOCHEN \
+CAD_EXTRACTOR_CONNECTOR_ID=haochencad \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_cad_extractor_external.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+## Run CAD-EXTRACTOR-SERVICE-20260119-2018
+
+- 时间：`2026-01-19 20:18:49 +0800`
+- 基地址：`http://127.0.0.1:8200`
+- 脚本：`scripts/verify_cad_extractor_service.sh`
+- 日志：`/tmp/verify_cad_extractor_service_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200 \
+START_SERVICE=0 \
+PY=/usr/bin/python3 \
+bash scripts/verify_cad_extractor_service.sh
+```
+
+## Run CAD-SYNC-TEMPLATE-20260119-2019
+
+- 时间：`2026-01-19 20:19:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_sync_template.sh`
+- 日志：`/tmp/verify_cad_sync_template_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+## Run CAD-AUTO-PART-20260119-2019
+
+- 时间：`2026-01-19 20:19:59 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_auto_part.sh`
+- 日志：`/tmp/verify_cad_auto_part_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+## Run DOCS-S2-20260119-2020
+
+- 时间：`2026-01-19 20:20:59 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_documents.sh`
+- 日志：`/tmp/verify_documents_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+## Run DOC-LIFECYCLE-20260119-2021
+
+- 时间：`2026-01-19 20:21:45 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_document_lifecycle.sh`
+- 日志：`/tmp/verify_document_lifecycle_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+## Run DOCS-APPROVAL-20260119-2022
+
+- 时间：`2026-01-19 20:22:18 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_docs_approval.sh`
+- 日志：`/tmp/verify_docs_approval_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+## Run DOCS-ECO-UI-20260119-2022
+
+- 时间：`2026-01-19 20:22:44 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_docs_eco_ui.sh`
+- 日志：`/tmp/verify_docs_eco_ui_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+## Run VERSION-FILES-20260119-2023
+
+- 时间：`2026-01-19 20:23:19 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_version_files.sh`
+- 日志：`/tmp/verify_version_files_s7.log`
+- 结果：`ALL CHECKS PASSED`
+
+## Run OPS-HARDENING-20260119-2024
+
+- 时间：`2026-01-19 20:24:11 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_ops_hardening.sh`
+- 日志：`/tmp/verify_ops_hardening_stage4.log`
+- 结果：`ALL CHECKS PASSED`
+
+## Run ALL-20260119-2037（Full Regression + S7/S8/UI）
+
+- 时间：`2026-01-19 20:37:20 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`（`RUN_OPS_S8=1`, `RUN_UI_AGG=1`）
+- 日志：`/tmp/verify_all_stage4_pass.log`
+- 结果：`PASS: 41  FAIL: 0  SKIP: 10`
+- 环境：
+  - `DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+  - `DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+  - `IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+  - `YUANTUS_STORAGE_TYPE=s3`
+  - `YUANTUS_S3_ENDPOINT_URL=http://localhost:59000`
+  - `YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000`
+  - `YUANTUS_S3_BUCKET_NAME=yuantus`
+  - `YUANTUS_S3_ACCESS_KEY_ID=minioadmin`
+  - `YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin`
+  - `YUANTUS_CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200`
+
+执行命令：
+
+```bash
+RUN_OPS_S8=1 RUN_UI_AGG=1 \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_stage4_pass.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 41  FAIL: 0  SKIP: 10
+ALL TESTS PASSED
+```
