@@ -12072,3 +12072,34 @@ CLI=/tmp/yuantus_cli_compose.sh \
 PY=/usr/bin/python3 \
 bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+## Run ALL-20260119-1632（Full Regression + UI Agg）
+
+- 时间：`2026-01-19 16:32:50 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`（`RUN_UI_AGG=1`）
+- 日志：`/tmp/verify_all_ui.log`
+- 结果：`PASS: 40  FAIL: 0  SKIP: 10`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `RUN_UI_AGG=1`
+  - `RUN_OPS_S8=0`
+  - `CLI=/tmp/yuantus_cli_compose.sh`
+  - `PY=/usr/bin/python3`
+
+执行命令：
+
+```bash
+RUN_UI_AGG=1 \
+DOCKER_HOST=unix:///Users/huazhou/.docker/run/docker.sock \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_ui.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 40  FAIL: 0  SKIP: 10
+ALL TESTS PASSED
+```
