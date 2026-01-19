@@ -107,7 +107,21 @@
 - Versions：提供初始化、历史、树；为 ECO 与 CAD 版本绑定提供基础。
 - ECO：最小闭环（创建 → new-revision → approve → apply）已具备，可作为“工程变更”主干演进。
 
----
+### 5.3 BOM Compare Schema（前端契约）
+
+- 端点：`GET /api/v1/bom/compare/schema`
+- 目的：向前端暴露 BOM 对比字段、归一化规则与 compare_mode，避免硬编码。
+- 字段分级：
+  - **major**：`quantity` / `uom` / `effectivity_from` / `effectivity_to` / `effectivities`
+  - **minor**：`find_num` / `refdes` / `substitutes`
+- compare_mode：
+  - `only_product`：仅按子件配置对比
+  - `summarized`：聚合数量后对比
+  - `num_qty`：包含 `find_num + quantity`
+  - `by_position`：按 `find_num` 对比
+  - `by_reference`：按 `refdes` 对比
+
+--- 
 
 ## 6. 文件与存储设计
 

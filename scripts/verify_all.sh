@@ -704,6 +704,17 @@ if [[ -x "$SCRIPT_DIR/verify_bom_compare.sh" ]]; then
   fi
 fi
 
+# 17.1 BOM Compare Field Contract (schema + normalized fields)
+if [[ -x "$SCRIPT_DIR/verify_bom_compare_fields.sh" ]]; then
+  if has_openapi_path "/api/v1/bom/compare/schema"; then
+    run_test "BOM Compare Field Contract" \
+      "$SCRIPT_DIR/verify_bom_compare_fields.sh" \
+      "$BASE_URL" "$TENANT" "$ORG" || true
+  else
+    skip_test "BOM Compare Field Contract" "endpoint not available"
+  fi
+fi
+
 # 18. Baseline (BOM Snapshot)
 if [[ -x "$SCRIPT_DIR/verify_baseline.sh" ]]; then
   if has_openapi_path "/api/v1/baselines"; then

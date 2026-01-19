@@ -54,6 +54,51 @@ fi
 ADMIN_AUTH=(-H "Authorization: Bearer $ADMIN_TOKEN")
 ok "Admin login"
 
+printf "\n==> Fetch BOM compare schema\n"
+SCHEMA_RESP="$(
+  $CURL "$API/bom/compare/schema" \
+    "${HEADERS[@]}" "${ADMIN_AUTH[@]}"
+)"
+SCHEMA_JSON="$SCHEMA_RESP" "$PY" - <<'PY'
+import os
+import json
+
+data = json.loads(os.environ["SCHEMA_JSON"])
+fields = {f.get("field") for f in data.get("line_fields", [])}
+expected_fields = {
+    "quantity",
+    "uom",
+    "find_num",
+    "refdes",
+    "effectivity_from",
+    "effectivity_to",
+    "effectivities",
+    "substitutes",
+}
+missing_fields = expected_fields - fields
+if missing_fields:
+    raise SystemExit(f"missing schema fields: {sorted(missing_fields)}")
+
+modes = {m.get("mode") for m in data.get("compare_modes", [])}
+expected_modes = {
+    "only_product",
+    "summarized",
+    "num_qty",
+    "by_position",
+    "by_reference",
+}
+missing_modes = expected_modes - modes
+if missing_modes:
+    raise SystemExit(f"missing schema modes: {sorted(missing_modes)}")
+
+line_keys = set(data.get("line_key_options", []))
+if "child_config" not in line_keys:
+    raise SystemExit("missing child_config in line_key_options")
+
+print("BOM compare schema: OK")
+PY
+ok "Schema verified"
+
 TS="$(date +%s)"
 LEFT_NUM="CMP-L-$TS"
 RIGHT_NUM="CMP-R-$TS"

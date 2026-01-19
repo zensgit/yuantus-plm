@@ -535,6 +535,35 @@ class BOMCompareResponse(BaseModel):
     changed: List[BOMCompareChangedEntry]
 
 
+class BOMCompareFieldSpec(BaseModel):
+    """Field metadata for BOM compare diff."""
+
+    field: str
+    severity: str
+    normalized: str
+    description: str
+
+
+class BOMCompareModeSpec(BaseModel):
+    """Compare mode specification."""
+
+    mode: str
+    line_key: Optional[str] = None
+    include_relationship_props: List[str] = Field(default_factory=list)
+    aggregate_quantities: bool = False
+    aliases: List[str] = Field(default_factory=list)
+    description: str
+
+
+class BOMCompareSchemaResponse(BaseModel):
+    """Schema metadata for BOM compare."""
+
+    line_fields: List[BOMCompareFieldSpec]
+    compare_modes: List[BOMCompareModeSpec]
+    line_key_options: List[str]
+    defaults: Dict[str, Any]
+
+
 class AddSubstituteRequest(BaseModel):
     """Request body for adding a substitute to a BOM line."""
 
@@ -656,6 +685,28 @@ async def get_where_used(
         recursive=recursive,
         max_levels=max_levels,
     )
+
+
+@bom_router.get(
+    "/compare/schema",
+    response_model=BOMCompareSchemaResponse,
+    summary="Get BOM compare schema",
+    description="Returns field-level mapping, severity, and compare mode options.",
+)
+async def get_bom_compare_schema(
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    perm = MetaPermissionService(db)
+    if not perm.check_permission(
+        "Part BOM",
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    return BOMService.compare_schema()
 
 
 @bom_router.get(

@@ -3521,10 +3521,27 @@ export YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localh
 - `before_line/after_line` 含 `quantity/uom/find_num/refdes/effectivity/substitutes`
 - `before_normalized/after_normalized` 含对应标准化字段
 - `changes` 至少包含 `quantity/find_num` 变更
+- `/api/v1/bom/compare/schema` 返回字段清单与 compare_mode
 
 ```bash
 bash scripts/verify_bom_compare_fields.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+### 59.2 BOM Compare Schema Endpoint
+
+新增 `/api/v1/bom/compare/schema` 用于前端获取字段级对照与 compare_mode：
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/bom/compare/schema \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H "Authorization: Bearer <token>"
+```
+
+期望包含：
+
+- `line_fields`：字段 + severity + normalization
+- `compare_modes`：`only_product/summarized/num_qty/by_position/by_reference`
+- `line_key_options`：所有 line_key 策略
 
 ---
 
@@ -3539,6 +3556,12 @@ bash scripts/verify_bom_compare_fields.sh http://127.0.0.1:7910 tenant-1 org-1
 
 ```bash
 bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+如果本机无法访问 `localhost`（受限沙箱/网络策略），可用本地 TestClient 方式：
+
+```bash
+LOCAL_TESTCLIENT=1 bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
 ---
@@ -3556,6 +3579,12 @@ bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
+如本机网络受限，可用：
+
+```bash
+LOCAL_TESTCLIENT=1 bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
 ---
 
 ## 62) Docs + ECO UI Summary（文档/审批聚合）
@@ -3569,6 +3598,14 @@ bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 
 ```bash
 bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+如本机网络受限，可用：
+
+```bash
+LOCAL_TESTCLIENT=1 bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
 ---

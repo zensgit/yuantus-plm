@@ -1865,6 +1865,124 @@ CLI=/tmp/yuantus_cli_compose.sh \
 ALL CHECKS PASSED
 ```
 
+## Run PROD-UI-20260114-1139（Product UI Aggregation）
+
+- 时间：`2026-01-14 11:39:50 +0800`
+- 脚本：`scripts/verify_product_ui.sh`
+- 环境：
+  - `TENANCY=db-per-tenant-org`
+  - `DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+  - `DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+  - `IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+  - `SCHEMA_MODE=migrations`
+- 关键对象：
+  - Parent: `239af8cc-b108-4cd3-a0a6-5bff00356333`
+  - Child: `32f5680d-81a6-4093-a4bb-8369ff4f3346`
+  - BOM Line: `ca49b11d-6c92-4a2d-b8e0-2eb7adb116f9`
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_SCHEMA_MODE=migrations \
+bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run WHERE-USED-UI-20260114-1139（Where-Used UI Payload）
+
+- 时间：`2026-01-14 11:39:50 +0800`
+- 脚本：`scripts/verify_where_used_ui.sh`
+- 环境：同上
+- 关键对象：
+  - Grand: `a44cb4c5-09c7-4772-8769-7c18c818ee05`
+  - Parent: `1065116b-fb98-4b75-91b5-04bbb1b1e495`
+  - Child: `751a3a7e-1de3-457c-8176-bfa9623b6f1f`
+  - parent_rel: `733e0a77-3930-4657-886f-2b7df6249564`
+  - grand_rel: `cc629724-2843-419f-9b21-02ac88e0aa70`
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_SCHEMA_MODE=migrations \
+bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run DOCS-ECO-UI-20260114-1139（Docs + ECO UI Summary）
+
+- 时间：`2026-01-14 11:39:50 +0800`
+- 脚本：`scripts/verify_docs_eco_ui.sh`
+- 环境：同上
+- 关键对象：
+  - Part: `6c7f05f4-5347-40b1-b9cb-beb4155e5ec4`
+  - Document: `746d4909-ea18-4b4a-830e-8d9c8d128602`
+  - ECO: `51d7589f-ff62-4d45-bf6c-54df76e250a7`
+  - ECO Stage: `90a1357a-f448-443a-b981-35dc33b31f39`
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_SCHEMA_MODE=migrations \
+bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run PRODUCT-UI-LOCAL-20260114-1020（Product UI Aggregation, TestClient）
+
+- 时间：`2026-01-14 10:20:38 +0800`
+- 脚本：`scripts/verify_product_ui.sh`
+- 方式：`LOCAL_TESTCLIENT=1`（本机禁用网络时的 in-process 验证）
+
+```bash
+LOCAL_TESTCLIENT=1 bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run WHERE-USED-UI-LOCAL-20260114-1020（Where-Used UI Payload, TestClient）
+
+- 时间：`2026-01-14 10:20:38 +0800`
+- 脚本：`scripts/verify_where_used_ui.sh`
+- 方式：`LOCAL_TESTCLIENT=1`（本机禁用网络时的 in-process 验证）
+
+```bash
+LOCAL_TESTCLIENT=1 bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run DOCS-ECO-UI-LOCAL-20260114-1020（Docs + ECO UI Summary, TestClient）
+
+- 时间：`2026-01-14 10:20:38 +0800`
+- 脚本：`scripts/verify_docs_eco_ui.sh`
+- 方式：`LOCAL_TESTCLIENT=1`（本机禁用网络时的 in-process 验证）
+
+```bash
+LOCAL_TESTCLIENT=1 bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-ML-PREVIEW-20260112-2208（CAD 2D 预览渲染）
 
 - 时间：`2026-01-12 22:08:26 +0800`
@@ -11896,6 +12014,20 @@ CLI=/tmp/yuantus_cli_compose.sh \
 
 ```text
 Integrations health: OK (ok=False)
+ALL CHECKS PASSED
+```
+
+## Run BOM-COMPARE-SCHEMA-20260113-2212（BOM Compare Field Contract + Schema）
+
+- 时间：`2026-01-13 22:12:55 +0800`
+- 脚本：`scripts/verify_bom_compare_fields.sh`
+- 环境：`TENANCY=db-per-tenant-org`
+
+```bash
+bash scripts/verify_bom_compare_fields.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
 ALL CHECKS PASSED
 ```
 
