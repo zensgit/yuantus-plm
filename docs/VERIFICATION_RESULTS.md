@@ -12475,3 +12475,29 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verif
 PASS: 41  FAIL: 0  SKIP: 10
 ALL TESTS PASSED
 ```
+
+## Run S7-20260120-0833（Ops Hardening / Multi-Tenancy Deep）
+
+- 时间：`2026-01-20 08:33:01 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 模式：`db-per-tenant-org`
+- 开关：`YUANTUS_QUOTA_MODE=enforce`、`YUANTUS_AUDIT_ENABLED=true`、`YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+- 结果：全部通过
+
+执行命令：
+
+```bash
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+VERIFY_QUOTA_MONITORING=1 \
+VERIFY_RETENTION=1 \
+VERIFY_RETENTION_ENDPOINTS=1 \
+  bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
