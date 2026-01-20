@@ -12476,6 +12476,38 @@ PASS: 41  FAIL: 0  SKIP: 10
 ALL TESTS PASSED
 ```
 
+## Run ALL-20260120-0902（Full Regression + Ops S8）
+
+- 时间：`2026-01-20 09:05:47 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`PASS: 35  FAIL: 0  SKIP: 16`
+
+执行命令：
+
+```bash
+RUN_OPS_S8=1 \
+CLI=/tmp/yuantus_cli_compose.sh \
+PY=/usr/bin/python3 \
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_20260120_0902.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 35  FAIL: 0  SKIP: 16
+ALL TESTS PASSED
+```
+
 ## Run S7-20260120-0833（Ops Hardening / Multi-Tenancy Deep）
 
 - 时间：`2026-01-20 08:33:01 +0800`
