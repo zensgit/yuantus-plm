@@ -15,6 +15,7 @@ Example response:
 {
   "file_id": "...",
   "stats": {
+    "available": true,
     "raw_keys": ["entities", "bounds", "triangle_count"],
     "entity_count": 120,
     "triangle_count": 24000,
@@ -22,6 +23,17 @@ Example response:
       "min": [-1.0, -1.0],
       "max": [1.0, 1.0]
     }
+  }
+}
+```
+
+If mesh metadata is not available, the endpoint returns `available=false`:
+```json
+{
+  "file_id": "...",
+  "stats": {
+    "available": false,
+    "reason": "CAD metadata not available"
   }
 }
 ```

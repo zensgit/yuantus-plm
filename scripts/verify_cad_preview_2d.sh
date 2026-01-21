@@ -323,12 +323,28 @@ MESH_CODE="$($CURL -o "$MESH_TMP" -w '%{http_code}' \
   -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" "${AUTH_HEADERS[@]}" \
   "$API/cad/files/$FILE_ID/mesh-stats" 2>/dev/null || echo "000")"
 if [[ "$MESH_CODE" == "200" ]]; then
-  MESH_KEYS=$("$PY" -c 'import json,sys;print(len(json.load(open(sys.argv[1])).get("stats",{})))' "$MESH_TMP")
-  if [[ "$MESH_KEYS" == "0" ]]; then
-    rm -f "$MESH_TMP"
-    fail "CAD mesh stats empty"
+  read -r MESH_AVAILABLE MESH_KEYS <<<"$("$PY" - "$MESH_TMP" <<'PY'
+import json
+import sys
+
+data = json.load(open(sys.argv[1]))
+stats = data.get("stats") or {}
+available = stats.get("available")
+if available is None:
+    available = True
+print(str(bool(available)).lower())
+print(len(stats))
+PY
+)"
+  if [[ "$MESH_AVAILABLE" != "true" ]]; then
+    echo "SKIP: mesh stats unavailable (available=false)"
+  else
+    if [[ "$MESH_KEYS" == "0" ]]; then
+      rm -f "$MESH_TMP"
+      fail "CAD mesh stats empty"
+    fi
+    ok "CAD mesh stats ok"
   fi
-  ok "CAD mesh stats ok"
 else
   echo "SKIP: mesh stats unavailable (HTTP $MESH_CODE)"
 fi

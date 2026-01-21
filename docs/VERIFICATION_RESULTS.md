@@ -12777,3 +12777,25 @@ PLATFORM_USER_ID=9001 \
 ```text
 ALL CHECKS PASSED
 ```
+
+## Run CAD-MESH-STATS-20260121-1339
+
+- 时间：`2026-01-21 13:39:07 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 接口：`GET /api/v1/cad/files/{file_id}/mesh-stats`
+- 报告：`docs/VERIFICATION_CAD_MESH_STATS_20260121_133907.md`
+- 结果：`HTTP 200`，`stats.available=false`（无 metadata 时不再 404）
+
+执行命令：
+
+```bash
+TOKEN=$(curl -s http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"tenant-1","org_id":"org-1","username":"admin","password":"admin"}' \
+  | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))')
+
+curl -s http://127.0.0.1:7910/api/v1/cad/files/630a312a-628f-40b7-b5cc-5f317536aa5e/mesh-stats \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' \
+  -H 'x-org-id: org-1'
+```
