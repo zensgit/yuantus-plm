@@ -1805,6 +1805,185 @@ bash scripts/verify_documents.sh http://127.0.0.1:7910 tenant-1 org-1
 ALL CHECKS PASSED
 ```
 
+## Run ALL-20260120-2341（Full Regression + Ops S8 + Tenant Provisioning）
+
+- 时间：`2026-01-20 23:43:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_all.sh`（`RUN_OPS_S8=1`, `RUN_TENANT_PROVISIONING=1`）
+- 日志：`/tmp/verify_all_20260120_234147.log`
+- 结果：`PASS: 37  FAIL: 0  SKIP: 14`
+- 环境：
+  - `DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus`
+  - `DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}`
+  - `IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+  - `YUANTUS_STORAGE_TYPE=s3`
+  - `YUANTUS_S3_ENDPOINT_URL=http://localhost:59000`
+  - `YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000`
+  - `YUANTUS_S3_BUCKET_NAME=yuantus`
+  - `YUANTUS_S3_ACCESS_KEY_ID=minioadmin`
+  - `YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin`
+  - `YUANTUS_CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200`
+
+执行命令：
+
+```bash
+RUN_OPS_S8=1 RUN_TENANT_PROVISIONING=1 \
+CLI=.venv/bin/yuantus \
+PY=.venv/bin/python \
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_20260120_234147.log
+```
+
+输出（摘要）：
+
+```text
+PASS: 37  FAIL: 0  SKIP: 14
+ALL TESTS PASSED
+```
+
+## Run S7-20260120-2226（Ops Hardening / Multi-Tenancy Deep）
+
+- 时间：`2026-01-20 22:26:40 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 模式：`db-per-tenant-org`
+- 开关：`YUANTUS_QUOTA_MODE=enforce`、`YUANTUS_AUDIT_ENABLED=true`、`YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+- 结果：全部通过
+
+执行命令：
+
+```bash
+CLI=.venv/bin/yuantus \
+PY=.venv/bin/python \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+VERIFY_QUOTA_MONITORING=1 \
+VERIFY_RETENTION=0 \
+VERIFY_RETENTION_ENDPOINTS=0 \
+  bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run S7-20260120-2258（Audit Retention + Endpoints）
+
+- 时间：`2026-01-20 22:58:30 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_audit_logs.sh`
+- 环境：
+  - `IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+  - `VERIFY_RETENTION=1`
+  - `VERIFY_RETENTION_ENDPOINTS=1`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+CLI=.venv/bin/yuantus \
+PY=.venv/bin/python \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+VERIFY_RETENTION=1 \
+VERIFY_RETENTION_ENDPOINTS=1 \
+  bash scripts/verify_audit_logs.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run S7-20260120-2259（Tenant Provisioning）
+
+- 时间：`2026-01-20 22:59:57 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 环境：
+  - `IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+CLI=.venv/bin/yuantus \
+PY=.venv/bin/python \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run S7-20260120-2317（Ops Hardening / Multi-Tenancy Deep）
+
+- 时间：`2026-01-20 23:17:38 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 模式：`db-per-tenant-org`
+- 开关：`YUANTUS_QUOTA_MODE=enforce`、`YUANTUS_AUDIT_ENABLED=true`、`YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+- 结果：全部通过
+
+执行命令：
+
+```bash
+CLI=.venv/bin/yuantus \
+PY=.venv/bin/python \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+VERIFY_QUOTA_MONITORING=1 \
+VERIFY_RETENTION=1 \
+VERIFY_RETENTION_ENDPOINTS=1 \
+  bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run S7-20260120-2317（Tenant Provisioning）
+
+- 时间：`2026-01-20 23:17:24 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 环境：
+  - `IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+CLI=.venv/bin/yuantus \
+PY=.venv/bin/python \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run S7-20260119-1355（Quota + Audit + Multi-Tenancy）
 
 - 时间：`2026-01-19 13:55:40 +0800`
@@ -12526,6 +12705,71 @@ VERIFY_QUOTA_MONITORING=1 \
 VERIFY_RETENTION=1 \
 VERIFY_RETENTION_ENDPOINTS=1 \
   bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run S7-20260121-103449（Ops Hardening / Multi-Tenancy Deep）
+
+- 时间：`2026-01-21 10:34:49 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 模式：`db-per-tenant-org`
+- 脚本：`scripts/verify_ops_hardening.sh`
+- 报告：`docs/S7_MULTITENANCY_VERIFICATION_20260121_103449.md`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+CLI=.venv/bin/yuantus \
+PY=.venv/bin/python \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+AUDIT_RETENTION_DAYS=1 \
+AUDIT_RETENTION_MAX_ROWS=10 \
+AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1 \
+VERIFY_RETENTION_ENDPOINTS=1 \
+VERIFY_QUOTA_MONITORING=1 \
+  bash scripts/verify_ops_hardening.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run S7-20260121-110044（Tenant Provisioning）
+
+- 时间：`2026-01-21 11:00:44 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 模式：`db-per-tenant-org`
+- 脚本：`scripts/verify_tenant_provisioning.sh`
+- 日志：`docs/S7_TENANT_PROVISIONING_20260121_110044.log`
+- 报告：`docs/S7_TENANT_PROVISIONING_VERIFICATION_20260121_110044.md`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+CLI=.venv/bin/yuantus \
+PY=.venv/bin/python \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+PLATFORM_TENANT=platform \
+PLATFORM_ORG=platform \
+PLATFORM_USER=platform-admin \
+PLATFORM_PASSWORD=platform-admin \
+PLATFORM_USER_ID=9001 \
+  bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
 输出（摘要）：
