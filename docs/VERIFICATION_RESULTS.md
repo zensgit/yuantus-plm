@@ -12799,3 +12799,17 @@ curl -s http://127.0.0.1:7910/api/v1/cad/files/630a312a-628f-40b7-b5cc-5f317536a
   -H 'x-tenant-id: tenant-1' \
   -H 'x-org-id: org-1'
 ```
+
+## Run CAD-PREVIEW-2D-20260121-1342
+
+- 时间：`2026-01-21 13:42:47 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_preview_2d.sh`
+- 报告：`docs/VERIFICATION_CAD_PREVIEW_2D_20260121_134247.md`
+- 结果：`SKIP`（CAD ML Vision 未启动，HTTP 000000）
+
+执行命令：
+
+```bash
+bash scripts/verify_cad_preview_2d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
