@@ -12860,3 +12860,26 @@ CAD_ML_BASE_URL=http://localhost:18002 \
 CAD_ML_HEALTH_URL=http://localhost:18002/health \
   bash scripts/verify_cad_preview_2d.sh
 ```
+
+## Run CAD-PREVIEW-2D-20260121-2055
+
+- 时间：`2026-01-21 20:55:35 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_cad_preview_2d.sh`
+- 报告：`docs/VERIFICATION_CAD_PREVIEW_2D_20260121_205535.md`
+- 结果：`ALL CHECKS PASSED`（cad-ml render fallback enabled）
+
+执行命令：
+
+```bash
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+STORAGE_TYPE=s3 \
+S3_ENDPOINT_URL='http://localhost:59000' \
+S3_PUBLIC_ENDPOINT_URL='http://localhost:59000' \
+S3_BUCKET_NAME=yuantus \
+S3_ACCESS_KEY_ID=minioadmin \
+S3_SECRET_ACCESS_KEY=minioadmin \
+CAD_ML_BASE_URL=http://localhost:8000 \
+  bash scripts/verify_cad_preview_2d.sh
+```
