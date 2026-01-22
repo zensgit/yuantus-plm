@@ -12883,3 +12883,19 @@ S3_SECRET_ACCESS_KEY=minioadmin \
 CAD_ML_BASE_URL=http://localhost:8000 \
   bash scripts/verify_cad_preview_2d.sh
 ```
+
+## Run BOM-API-STABILITY-20260122-1431
+
+- 时间：`2026-01-22 14:31:47 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：BOM Compare / Where-Used / Substitutes
+- 报告：`docs/VERIFICATION_BOM_API_STABILITY_20260122_143147.md`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
+bash scripts/verify_where_used.sh http://127.0.0.1:7910 tenant-1 org-1
+bash scripts/verify_substitutes.sh http://127.0.0.1:7910 tenant-1 org-1
+```
