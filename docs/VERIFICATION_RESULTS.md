@@ -12899,3 +12899,18 @@ bash scripts/verify_bom_compare.sh http://127.0.0.1:7910 tenant-1 org-1
 bash scripts/verify_where_used.sh http://127.0.0.1:7910 tenant-1 org-1
 bash scripts/verify_substitutes.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+## Run VERSION-FILE-APPROVAL-20260122-1457
+
+- 时间：`2026-01-22 14:57:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Version-file binding + ECO approval flow
+- 报告：`docs/VERIFICATION_VERSION_FILE_APPROVAL_20260122_145709.md`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+bash scripts/verify_version_files.sh http://127.0.0.1:7910 tenant-1 org-1
+bash scripts/verify_docs_approval.sh http://127.0.0.1:7910 tenant-1 org-1
+```
