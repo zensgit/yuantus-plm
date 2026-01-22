@@ -619,6 +619,60 @@ def seed_meta(
         session.close()
 
 
+@app.command("seed-data")
+def seed_data(
+    part_count: int = typer.Option(100, help="Number of parts to generate"),
+    doc_count: int = typer.Option(50, help="Number of documents to generate"),
+    bom_roots: int = typer.Option(10, help="Number of root assemblies (finished goods)"),
+    bom_depth: int = typer.Option(3, help="Depth of BOM structure"),
+    tenant: Optional[str] = typer.Option(
+        None, "--tenant", help="Tenant id (used when TENANCY_MODE=db-per-tenant)"
+    ),
+    org: Optional[str] = typer.Option(
+        None, "--org", help="Org id (used when TENANCY_MODE=db-per-tenant-org)"
+    )
+) -> None:
+    """
+    Generate mock data (Parts, Documents, BOMs) for development.
+    Requires 'seed-meta' to be run first.
+    """
+    from yuantus.config import get_settings
+    from yuantus.database import (
+        SessionLocal as GlobalSessionLocal,
+        engine as GlobalEngine,
+        get_engine_for_scope,
+        get_engine_for_tenant,
+        get_sessionmaker_for_scope,
+        get_sessionmaker_for_tenant,
+    )
+    from yuantus.scripts.mock_data import run_seed
+
+    settings = get_settings()
+    if settings.TENANCY_MODE == "db-per-tenant-org":
+        SessionLocal = get_sessionmaker_for_scope(tenant, org)
+    elif settings.TENANCY_MODE == "db-per-tenant":
+        SessionLocal = get_sessionmaker_for_tenant(tenant)
+    else:
+        SessionLocal = GlobalSessionLocal
+
+    session = SessionLocal()
+    try:
+        run_seed(
+            session,
+            part_count=part_count,
+            doc_count=doc_count,
+            bom_roots=bom_roots,
+            bom_depth=bom_depth
+        )
+    except Exception as e:
+        typer.echo(f"Error seeding data: {e}", err=True)
+        # Import might fail if ItemType not found
+        typer.echo("Hint: Did you run 'yuantus seed-meta' first?", err=True)
+        raise typer.Exit(1)
+    finally:
+        session.close()
+
+
 @app.command("db")
 def db_command(
     action: str = typer.Argument(
