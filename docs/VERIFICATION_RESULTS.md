@@ -13728,3 +13728,22 @@ YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:554
 YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
   .venv/bin/python scripts/migrate_relationship_items.py --tenant tenant-2 --org org-2 --dry-run
 ```
+
+## Run REL-ACTUAL-20260123-2241
+
+- 时间：`2026-01-23 22:41:49 +0800`
+- 目标：`tenant-2/org-2`（db-per-tenant-org）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_ACTUAL_20260123_2241.md`
+- 日志：`docs/RELATIONSHIP_ITEM_MIGRATION_ACTUAL_20260123_224147.log`
+- 备份：`tmp/rel-migration-backups-codex-yuantus-20260123_224120/yuantus_mt_pg__tenant-2__org-2-codex-yuantus-20260123_224120.sql`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  .venv/bin/python scripts/migrate_relationship_items.py --tenant tenant-2 --org org-2 --update-item-types
+```
