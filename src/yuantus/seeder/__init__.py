@@ -10,7 +10,9 @@ from .core import users
 # Meta (Priority 100-500)
 from .meta import lifecycles
 from .meta import schemas
+from .meta import eco_stages
 
 # Demo (Priority 500+)
 from .demo import items
 from .demo import boms
+from .demo import ecos
