@@ -13172,3 +13172,21 @@ curl -s -X POST "http://127.0.0.1:7910/api/v1/admin/relationship-writes/simulate
   -H "x-tenant-id: platform" -H "x-org-id: org-1" \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+## Run REL-MIGRATION-DRY-20260123-1424
+
+- 时间：`2026-01-23 14:24:57 +0800`
+- 范围：Relationship → Item 迁移 dry-run（db-per-tenant-org）
+- 结果：`ALL CHECKS PASSED`（所有 tenant/org 的 meta_relationships 为空）
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}"
+export YUANTUS_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus"
+
+python3 scripts/migrate_relationship_items.py --tenant tenant-1 --org org-1 --dry-run --update-item-types
+python3 scripts/migrate_relationship_items.py --tenant tenant-1 --org org-2 --dry-run --update-item-types
+python3 scripts/migrate_relationship_items.py --tenant tenant-2 --org org-1 --dry-run --update-item-types
+```

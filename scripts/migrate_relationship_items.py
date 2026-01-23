@@ -12,6 +12,7 @@ from yuantus.database import get_sessionmaker_for_scope, SessionLocal
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.relationship.models import Relationship, RelationshipType
+from yuantus.meta_engine.lifecycle import models as _lifecycle_models  # noqa: F401
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
