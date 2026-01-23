@@ -26,9 +26,11 @@ _RELATIONSHIP_WRITE_BLOCKS = deque()
 
 class RelationshipType(Base):
     """
-    关系类型定义
-    定义source_type -> related_type的关系
+    关系类型定义（Deprecated）
+    定义 source_type -> related_type 的关系。
+    Deprecated: use ItemType.is_relationship instead.
     """
+    __table_args__ = {"comment": "Deprecated: use ItemType.is_relationship instead."}
 
     __tablename__ = "meta_relationship_types"  # Use meta_ prefix for consistency
 

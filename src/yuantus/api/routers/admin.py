@@ -134,6 +134,8 @@ class RelationshipWriteBlockResponse(BaseModel):
     blocked: int
     recent: List[float]
     last_blocked_at: Optional[float] = None
+    warn_threshold: Optional[int] = None
+    warn: bool = False
 
 
 class OrganizationCreateRequest(BaseModel):
@@ -1076,11 +1078,16 @@ def prune_audit(
 def get_relationship_write_blocks(
     window_seconds: int = Query(86400, ge=60, le=604800),
     recent_limit: int = Query(20, ge=0, le=200),
+    warn_threshold: int = Query(
+        10, ge=0, le=100000, description="Warn when blocked >= threshold; 0 disables"
+    ),
     identity: Identity = Depends(require_platform_admin),
 ) -> RelationshipWriteBlockResponse:
     stats = get_relationship_write_block_stats(
         window_seconds=window_seconds, recent_limit=recent_limit
     )
+    stats["warn_threshold"] = warn_threshold
+    stats["warn"] = bool(warn_threshold and stats["blocked"] >= warn_threshold)
     return RelationshipWriteBlockResponse(**stats)
 
 
@@ -1089,6 +1096,9 @@ def simulate_relationship_write(
     operation: str = Query("insert", pattern="^(insert|update|delete)$"),
     window_seconds: int = Query(86400, ge=60, le=604800),
     recent_limit: int = Query(20, ge=0, le=200),
+    warn_threshold: int = Query(
+        10, ge=0, le=100000, description="Warn when blocked >= threshold; 0 disables"
+    ),
     identity: Identity = Depends(require_platform_admin),
 ) -> RelationshipWriteBlockResponse:
     settings = get_settings()
@@ -1101,4 +1111,6 @@ def simulate_relationship_write(
     stats = get_relationship_write_block_stats(
         window_seconds=window_seconds, recent_limit=recent_limit
     )
+    stats["warn_threshold"] = warn_threshold
+    stats["warn"] = bool(warn_threshold and stats["blocked"] >= warn_threshold)
     return RelationshipWriteBlockResponse(**stats)

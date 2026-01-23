@@ -3646,19 +3646,19 @@ bash scripts/verify_ops_s8.sh http://127.0.0.1:7910 tenant-1 org-1
 ```bash
 export YUANTUS_PLATFORM_ADMIN_ENABLED=true
 
-curl -s "http://127.0.0.1:7910/api/v1/admin/relationship-writes?window_seconds=86400&recent_limit=20" \
+curl -s "http://127.0.0.1:7910/api/v1/admin/relationship-writes?window_seconds=86400&recent_limit=20&warn_threshold=10" \
   -H "x-tenant-id: tenant-1" -H "x-org-id: org-1" \
   -H "Authorization: Bearer $PLATFORM_ADMIN_TOKEN"
 ```
 
-> 说明：该统计为进程内计数，重启服务后会清零。
+> 说明：该统计为进程内计数，重启服务后会清零。`warn_threshold=0` 表示关闭告警。
 
 （可选）仅开发环境可用的模拟触发：
 
 ```bash
 export YUANTUS_RELATIONSHIP_SIMULATE_ENABLED=true
 
-curl -s -X POST "http://127.0.0.1:7910/api/v1/admin/relationship-writes/simulate?operation=insert" \
+curl -s -X POST "http://127.0.0.1:7910/api/v1/admin/relationship-writes/simulate?operation=insert&warn_threshold=10" \
   -H "x-tenant-id: tenant-1" -H "x-org-id: org-1" \
   -H "Authorization: Bearer $PLATFORM_ADMIN_TOKEN"
 ```

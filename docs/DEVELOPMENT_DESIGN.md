@@ -41,8 +41,9 @@
 
 1) **API 层**：鉴权、租户/组织上下文注入、参数校验、路由  
 2) **领域层（Meta Engine）**：Item/Type/Property/Relationship、AML、BOM、Version、ECO、权限模型  
-   - 关系事实源为 `meta_items`（`ItemType.is_relationship=true`），`meta_relationships` 仅保留只读兼容层  
-   - 兼容层写入会被拦截并计数（`GET /api/v1/admin/relationship-writes`，进程内统计）  
+  - 关系事实源为 `meta_items`（`ItemType.is_relationship=true`），`meta_relationships` 仅保留只读兼容层  
+  - `RelationshipType` 已废弃，后续统一以 `ItemType` 表达关系  
+  - 兼容层写入会被拦截并计数（`GET /api/v1/admin/relationship-writes`，进程内统计，可设置 `warn_threshold`）  
    - 旧的关系桥接（`PartBOMBridge`）已禁用，避免 legacy 写入路径  
 3) **基础设施层**：DB/存储（local/S3）、队列（DB jobs）、外部服务客户端（HTTP）  
 4) **异步处理层**：Worker + 任务处理器（CAD pipeline tasks）
