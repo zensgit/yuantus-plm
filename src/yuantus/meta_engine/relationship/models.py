@@ -15,7 +15,6 @@ from yuantus.meta_engine.models.item import (
 )  # For type hinting the relationship. This could be a circular import if Item imports back from here. Using string forward references might be safer if that happens.
 from sqlalchemy import event
 from collections import deque
-import os
 import logging
 import time
 import uuid
@@ -138,12 +137,7 @@ class Relationship(Base):
 
 
 def _relationship_readonly_enabled() -> bool:
-    return os.getenv("YUANTUS_RELATIONSHIP_READONLY", "true").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
+    return True
 
 
 def _prune_relationship_write_blocks(

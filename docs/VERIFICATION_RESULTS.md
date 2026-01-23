@@ -13546,3 +13546,167 @@ DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tena
 IDENTITY_DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg" \
   bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+## Run S7-20260123-1953（S7 Deep Verification）
+
+- 时间：`2026-01-23 19:54:08 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：S7 深度验证（多租户 + 配额 + 审计 + 健康 + 索引 + 平台管理员）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/S7_MULTITENANCY_VERIFICATION_20260123_1953.md`
+- 日志：`docs/S7_MULTITENANCY_VERIFICATION_20260123_1953.log`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+AUDIT_RETENTION_DAYS=1 \
+AUDIT_RETENTION_MAX_ROWS=10 \
+AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS=1 \
+VERIFY_QUOTA_MONITORING=1 \
+VERIFY_RETENTION=1 \
+VERIFY_RETENTION_ENDPOINTS=1 \
+CLI=.venv/bin/yuantus \
+PY=.venv/bin/python \
+  bash scripts/verify_s7.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
+## Run REL-MIGRATION-20260123-2059
+
+- 时间：`2026-01-23 20:59:28 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Relationship -> Item 迁移（db-per-tenant-org 全组合）
+- 结果：`ALL CHECKS PASSED`（无关系数据）
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_20260123_2059.md`
+- 日志：`docs/RELATIONSHIP_ITEM_MIGRATION_20260123_205846.log`
+
+执行命令（节选）：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  .venv/bin/python scripts/migrate_relationship_items.py --tenant tenant-1 --org org-1 --update-item-types
+```
+
+输出（节选）：
+
+```text
+Relationships: total=0 existing_items=0
+Missing type=0 source=0 related=0
+Migrated relationship items: 0
+```
+
+## Run REL-MIGRATION-DATA-20260123-2139
+
+- 时间：`2026-01-23 21:39:05 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Relationship -> Item 迁移（tenant-2/org-2 带关系数据）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_DATA_20260123_2139.md`
+- 日志：`docs/RELATIONSHIP_ITEM_MIGRATION_DATA_20260123_213905.log`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  .venv/bin/python scripts/migrate_relationship_items.py --tenant tenant-2 --org org-2 --update-item-types
+```
+
+输出（节选）：
+
+```text
+Relationships: total=2 existing_items=0
+Missing type=0 source=0 related=0
+Migrated relationship items: 2
+```
+
+## Run REL-PHASE3-20260123-2155
+
+- 时间：`2026-01-23 21:55:30 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Relationship 只读兼容层写入阻断监控
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE3_20260123_2155.md`
+- 日志：`docs/RELATIONSHIP_WRITE_BLOCKS_20260123_215530.log`
+
+执行命令（节选）：
+
+```bash
+curl -s "http://127.0.0.1:7910/api/v1/admin/relationship-writes?window_seconds=86400&recent_limit=20&warn_threshold=1" \
+  -H "Authorization: Bearer <platform_token>" -H "x-tenant-id: platform"
+
+curl -s -X POST "http://127.0.0.1:7910/api/v1/admin/relationship-writes/simulate?operation=insert&warn_threshold=1" \
+  -H "Authorization: Bearer <platform_token>" -H "x-tenant-id: platform"
+```
+
+输出（节选）：
+
+```text
+{\"window_seconds\":86400,\"blocked\":0,\"recent\":[],\"last_blocked_at\":null,\"warn_threshold\":1,\"warn\":false}
+{\"window_seconds\":86400,\"blocked\":1,\"recent\":[1769176530.292545],\"last_blocked_at\":1769176530.292545,\"warn_threshold\":1,\"warn\":true}
+```
+
+## Run REL-PHASE3-CLEANUP-20260123-2203
+
+- 时间：`2026-01-23 22:03:59 +0800`
+- 范围：兼容层写入硬阻断（无环境变量开关）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE3_CLEANUP_20260123_2203.md`
+- 日志：`docs/RELATIONSHIP_ITEM_PHASE3_CLEANUP_20260123_220359.log`
+
+输出（节选）：
+
+```text
+BLOCKED: RuntimeError meta_relationships is deprecated for writes; use meta_items relationship items instead.
+```
+
+## Run REL-POST-CLEANUP-20260123-2208
+
+- 时间：`2026-01-23 22:08:46 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：BOM Tree + Where-Used + ECO Advanced（Phase 3 后最小回归）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_POST_CLEANUP_20260123_2208.md`
+- 日志：`docs/VERIFY_BOM_TREE_20260123_220846.log` / `docs/VERIFY_WHERE_USED_20260123_220846.log` / `docs/VERIFY_ECO_ADVANCED_20260123_220846.log`
+
+执行命令（节选）：
+
+```bash
+bash scripts/verify_bom_tree.sh http://127.0.0.1:7910 tenant-1 org-1
+bash scripts/verify_where_used.sh http://127.0.0.1:7910 tenant-1 org-1
+
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+## Run ALL-20260123-2217（Full Regression）
+
+- 时间：`2026-01-23 22:17:08 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`ALL TESTS PASSED`（PASS 35 / FAIL 0 / SKIP 16）
+- 报告：`docs/VERIFICATION_FULL_REGRESSION_20260123_2217.md`
+- 日志：`docs/VERIFY_ALL_20260123_221708.log`
+
+执行命令：
+
+```bash
+bash scripts/verify_all.sh
+```
