@@ -1,7 +1,8 @@
 """
-Generic Relationship Model
-关系作为一等公民Item
-Phase 3.1
+Generic Relationship Model (Deprecated for writes)
+
+关系现在以 Item 形式存储在 meta_items 中（source_id/related_id）。
+meta_relationships 仅保留为兼容层（只读）。
 """
 
 from sqlalchemy import ForeignKey, String, JSON
@@ -12,6 +13,8 @@ from yuantus.models.base import Base  # Use the unified Base
 from yuantus.meta_engine.models.item import (
     Item,
 )  # For type hinting the relationship. This could be a circular import if Item imports back from here. Using string forward references might be safer if that happens.
+from sqlalchemy import event
+import os
 
 
 class RelationshipType(Base):
@@ -66,6 +69,10 @@ class Relationship(Base):
     """
     通用关系实例
     关系本身是一个Item，可以有属性和生命周期
+
+    NOTE:
+    - meta_relationships 已标记为兼容只读层（Deprecated for writes）
+    - 新关系请写入 meta_items（ItemType.is_relationship=True）
     """
 
     __tablename__ = "meta_relationships"  # Use meta_ prefix for consistency
@@ -119,3 +126,25 @@ class Relationship(Base):
         foreign_keys=[related_id],
         backref="incoming_relationships",
     )
+
+
+def _relationship_readonly_enabled() -> bool:
+    return os.getenv("YUANTUS_RELATIONSHIP_READONLY", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _block_relationship_write(_mapper, _connection, _target) -> None:
+    if _relationship_readonly_enabled():
+        raise RuntimeError(
+            "meta_relationships is deprecated for writes; "
+            "use meta_items relationship items instead."
+        )
+
+
+event.listen(Relationship, "before_insert", _block_relationship_write)
+event.listen(Relationship, "before_update", _block_relationship_write)
+event.listen(Relationship, "before_delete", _block_relationship_write)
