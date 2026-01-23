@@ -13359,6 +13359,42 @@ Missing type=0 source=0 related=0
 Migrated relationship items: 0
 ```
 
+## Run REL-MIGRATION-ACTUAL-REMAINING-20260123-1607
+
+- 时间：`2026-01-23 16:07:09 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Relationship → Item 实际迁移（tenant-1/org-2、tenant-2/org-1、tenant-2/org-2）
+- 结果：`ALL CHECKS PASSED`
+
+备份：
+
+```bash
+tmp/rel-migration-backup-tenant-1-org-2-codex-yuantus-20260123-160652.sql
+tmp/rel-migration-backup-tenant-2-org-1-codex-yuantus-20260123-160652.sql
+tmp/rel-migration-backup-tenant-2-org-2-codex-yuantus-20260123-160652.sql
+```
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}"
+export YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg"
+
+PY=.venv/bin/python
+python scripts/migrate_relationship_items.py --tenant tenant-1 --org org-2
+python scripts/migrate_relationship_items.py --tenant tenant-2 --org org-1
+python scripts/migrate_relationship_items.py --tenant tenant-2 --org org-2
+```
+
+输出（节选）：
+
+```text
+tenant-1/org-2: Relationships=0, Migrated=0
+tenant-2/org-1: Relationships=0, Migrated=0
+tenant-2/org-2: Relationships=0, Migrated=0
+```
+
 ## Run REL-MIGRATION-DRY-SEED-20260123-1548
 
 - 时间：`2026-01-23 15:48:19 +0800`
