@@ -172,7 +172,7 @@ ATTACH_RESP="$(
   $CURL -X POST "$API/file/attach" \
     "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
     -H 'content-type: application/json' \
-    -d "{\"item_id\":\"$PRODUCT_ID\",\"file_id\":\"$FILE_ID\",\"file_role\":\"spec\"}"
+    -d "{\"item_id\":\"$PRODUCT_ID\",\"file_id\":\"$FILE_ID\",\"file_role\":\"native_cad\"}"
 )"
 ATTACH_STATUS="$(echo "$ATTACH_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status",""))')"
 if [[ -z "$ATTACH_STATUS" ]]; then
@@ -180,6 +180,49 @@ if [[ -z "$ATTACH_STATUS" ]]; then
   fail "Failed to attach file"
 fi
 ok "File attached (status=$ATTACH_STATUS)"
+
+echo ""
+echo "==> Checkout + checkin to sync version files"
+CHECKOUT_RESP="$(
+  $CURL -X POST "$API/versions/items/$PRODUCT_ID/checkout" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+    -H 'content-type: application/json' \
+    -d '{"comment":"checkout for version file binding"}'
+)"
+CHECKOUT_ID="$(echo "$CHECKOUT_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("id",""))')"
+if [[ -z "$CHECKOUT_ID" ]]; then
+  echo "Response: $CHECKOUT_RESP"
+  fail "Failed to checkout version for file binding"
+fi
+
+CHECKIN_RESP="$(
+  $CURL -X POST "$API/versions/items/$PRODUCT_ID/checkin" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+    -H 'content-type: application/json' \
+    -d '{"comment":"checkin after version file binding"}'
+)"
+CHECKIN_ID="$(echo "$CHECKIN_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("id",""))')"
+if [[ -z "$CHECKIN_ID" ]]; then
+  echo "Response: $CHECKIN_RESP"
+  fail "Failed to checkin version after file binding"
+fi
+ok "Version checked in after file binding"
+
+VERSION_FILES_RESP="$(
+  $CURL "$API/versions/$INIT_VERSION_ID/files" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}"
+)"
+VERSION_FILES_JSON="$VERSION_FILES_RESP" FILE_ID="$FILE_ID" "$PY" - <<'PY'
+import os, json
+raw = os.environ.get("VERSION_FILES_JSON", "")
+data = json.loads(raw or "[]")
+file_id = os.environ.get("FILE_ID")
+roles = [f.get("file_role") for f in data if f.get("file_id") == file_id]
+if "native_cad" not in roles:
+    raise SystemExit("Expected native_cad file in initial version")
+print("Initial version files: OK")
+PY
+ok "Version files synced"
 
 echo ""
 echo "==> Create ECO (for product)"
@@ -272,6 +315,42 @@ if [[ -z "$TARGET_CREATED_AT" ]]; then
   fail "Failed to resolve target version created_at"
 fi
 ok "Target created_at: $TARGET_CREATED_AT"
+
+echo ""
+echo "==> ECO apply + verify version files synced to item"
+$CURL -X POST "$API/eco/$ECO1_ID/apply" \
+  "${HEADERS[@]}" "${AUTH_HEADERS[@]}" >/dev/null
+ok "ECO1 applied"
+
+ITEM_FILES_RESP="$(
+  $CURL "$API/file/item/$PRODUCT_ID" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}"
+)"
+ITEM_FILES_JSON="$ITEM_FILES_RESP" FILE_ID="$FILE_ID" "$PY" - <<'PY'
+import os, json
+raw = os.environ.get("ITEM_FILES_JSON", "")
+data = json.loads(raw or "[]")
+file_id = os.environ.get("FILE_ID")
+if not any(f.get("file_id") == file_id for f in data):
+    raise SystemExit("Expected item file to include version native_cad file after ECO apply")
+print("Item files synced: OK")
+PY
+
+TARGET_FILES_RESP="$(
+  $CURL "$API/versions/$TARGET_VERSION_ID/files" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}"
+)"
+TARGET_FILES_JSON="$TARGET_FILES_RESP" FILE_ID="$FILE_ID" "$PY" - <<'PY'
+import os, json
+raw = os.environ.get("TARGET_FILES_JSON", "")
+data = json.loads(raw or "[]")
+file_id = os.environ.get("FILE_ID")
+roles = [f.get("file_role") for f in data if f.get("file_id") == file_id]
+if "native_cad" not in roles:
+    raise SystemExit("Expected target version to contain native_cad file")
+print("Target version files: OK")
+PY
+ok "ECO apply file sync validated"
 
 echo ""
 echo "==> Add new BOM line effective from target version date"

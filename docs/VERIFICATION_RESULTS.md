@@ -13217,3 +13217,21 @@ export YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@local
 CLI=.venv/bin/yuantus PY=.venv/bin/python \
   bash scripts/verify_version_files.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+## Run ECO-ADVANCED-20260123-1459
+
+- 时间：`2026-01-23 14:59:41 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：ECO apply 文件同步验证（版本文件 → ItemFile）
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}"
+export YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg"
+
+CLI=.venv/bin/yuantus PY=.venv/bin/python \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
