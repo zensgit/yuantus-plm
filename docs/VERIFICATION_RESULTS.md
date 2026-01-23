@@ -13531,3 +13531,18 @@ DELETE FROM meta_relationships WHERE id = 'd3ed5b60-dcc8-4032-9e36-2dd36527fca3'
 DELETE FROM meta_items WHERE id IN ('69b675aa-f621-4d74-98de-0ad9469c4c79','9ec011cb-f139-418d-9c2f-641b4a006c25');
 DELETE FROM meta_relationship_types WHERE id = 'Part BOM';
 ```
+
+## Run ECO-ADVANCED-20260123-1727
+
+- 时间：`2026-01-23 17:27:20 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：ECO Impact + BOM Redline + 批量审批（S4.2/S4.3 回归）
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1" \
+IDENTITY_DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg" \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
