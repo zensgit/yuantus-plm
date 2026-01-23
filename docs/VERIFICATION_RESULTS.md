@@ -13329,3 +13329,32 @@ Migrated relationship items: 0
 ==> Dry-run tenant-2 / org-2
 Skip migration: meta_relationships missing (tenant=tenant-2 org=org-2)
 ```
+
+## Run REL-MIGRATION-DRY-20260123-1541
+
+- 时间：`2026-01-23 15:41:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Relationship → Item dry-run（tenant-2/org-2 补齐 schema 后）
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-2__org-2 \
+  .venv/bin/yuantus db upgrade
+
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}"
+export YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg"
+
+PY=.venv/bin/python \
+  python scripts/migrate_relationship_items.py --tenant tenant-2 --org org-2 --dry-run
+```
+
+输出（节选）：
+
+```text
+Relationships: total=0 existing_items=0
+Missing type=0 source=0 related=0
+Migrated relationship items: 0
+```
