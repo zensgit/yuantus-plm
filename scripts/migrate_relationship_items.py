@@ -6,6 +6,8 @@ from typing import Dict, Optional
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "../src"))
 
+from sqlalchemy import inspect
+
 from yuantus.config import get_settings
 from yuantus.context import tenant_id_var, org_id_var
 from yuantus.database import get_sessionmaker_for_scope, SessionLocal
@@ -168,6 +170,15 @@ def main():
 
     session = _open_session(args.tenant, args.org)
     try:
+        bind = session.get_bind()
+        if not inspect(bind).has_table(Relationship.__tablename__):
+            logger.info(
+                "Skip migration: %s missing (tenant=%s org=%s)",
+                Relationship.__tablename__,
+                args.tenant,
+                args.org,
+            )
+            return
         rel_total = session.query(Relationship).count()
         rel_type_total = session.query(RelationshipType).count()
         existing = (

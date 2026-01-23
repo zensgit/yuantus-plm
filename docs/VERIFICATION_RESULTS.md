@@ -13294,3 +13294,38 @@ IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_ide
 RUN_TENANT_PROVISIONING=1 \
   bash scripts/verify_s7.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
 ```
+
+## Run REL-MIGRATION-DRY-20260123-1536
+
+- 时间：`2026-01-23 15:36:01 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Relationship → Item 迁移 dry-run（db-per-tenant-org）
+- 结果：`ALL CHECKS PASSED`（tenant-2/org-2 无表，已跳过）
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}"
+export YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg"
+
+PY=.venv/bin/python
+for tenant in tenant-1 tenant-2; do
+  for org in org-1 org-2; do
+    echo "==> Dry-run $tenant / $org"
+    $PY scripts/migrate_relationship_items.py --tenant "$tenant" --org "$org" --dry-run
+  done
+done
+```
+
+输出（节选）：
+
+```text
+==> Dry-run tenant-1 / org-1
+Relationships: total=0 existing_items=0
+Missing type=0 source=0 related=0
+Migrated relationship items: 0
+...
+==> Dry-run tenant-2 / org-2
+Skip migration: meta_relationships missing (tenant=tenant-2 org=org-2)
+```

@@ -84,6 +84,7 @@ WHERE id IN (SELECT id FROM meta_relationships);
 - 缺失 source/related：建议先修复数据，否则迁移会失败或跳过。
 - 关系类型缺失：需补齐 `meta_relationship_types`。
 - 若已有重复 id（`meta_items.id` 与 `meta_relationships.id` 冲突），脚本会跳过已存在的行。
+- 若 tenant/org 数据库尚未初始化（无 `meta_relationships` 表），脚本会记录并跳过；如需迁移请先初始化 schema。
 
 ## Phase 3（非破坏性清理）
 
