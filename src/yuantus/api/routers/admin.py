@@ -26,6 +26,10 @@ from yuantus.security.auth.models import (
 from yuantus.security.auth.passwords import hash_password
 from yuantus.security.auth.quota_service import QuotaService
 from yuantus.security.auth.service import AuthService
+from yuantus.meta_engine.relationship.models import (
+    get_relationship_write_block_stats,
+    simulate_relationship_write_block,
+)
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
@@ -123,6 +127,13 @@ class AuditPruneResponse(BaseModel):
     retention_days: int
     retention_max_rows: int
     deleted: int
+
+
+class RelationshipWriteBlockResponse(BaseModel):
+    window_seconds: int
+    blocked: int
+    recent: List[float]
+    last_blocked_at: Optional[float] = None
 
 
 class OrganizationCreateRequest(BaseModel):
@@ -1059,3 +1070,35 @@ def prune_audit(
         retention_max_rows=int(settings.AUDIT_RETENTION_MAX_ROWS or 0),
         deleted=int(deleted),
     )
+
+
+@router.get("/relationship-writes", response_model=RelationshipWriteBlockResponse)
+def get_relationship_write_blocks(
+    window_seconds: int = Query(86400, ge=60, le=604800),
+    recent_limit: int = Query(20, ge=0, le=200),
+    identity: Identity = Depends(require_platform_admin),
+) -> RelationshipWriteBlockResponse:
+    stats = get_relationship_write_block_stats(
+        window_seconds=window_seconds, recent_limit=recent_limit
+    )
+    return RelationshipWriteBlockResponse(**stats)
+
+
+@router.post("/relationship-writes/simulate", response_model=RelationshipWriteBlockResponse)
+def simulate_relationship_write(
+    operation: str = Query("insert", pattern="^(insert|update|delete)$"),
+    window_seconds: int = Query(86400, ge=60, le=604800),
+    recent_limit: int = Query(20, ge=0, le=200),
+    identity: Identity = Depends(require_platform_admin),
+) -> RelationshipWriteBlockResponse:
+    settings = get_settings()
+    if settings.ENVIRONMENT not in {"dev", "test"} and not settings.RELATIONSHIP_SIMULATE_ENABLED:
+        raise HTTPException(status_code=404, detail="Not Found")
+    try:
+        simulate_relationship_write_block(operation=operation)
+    except Exception:
+        pass
+    stats = get_relationship_write_block_stats(
+        window_seconds=window_seconds, recent_limit=recent_limit
+    )
+    return RelationshipWriteBlockResponse(**stats)

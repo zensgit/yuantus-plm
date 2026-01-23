@@ -14,10 +14,14 @@ from yuantus.meta_engine.models.item import (
     Item,
 )  # For type hinting the relationship. This could be a circular import if Item imports back from here. Using string forward references might be safer if that happens.
 from sqlalchemy import event
+from collections import deque
 import os
 import logging
+import time
+import uuid
 
 logger = logging.getLogger(__name__)
+_RELATIONSHIP_WRITE_BLOCKS = deque()
 
 
 class RelationshipType(Base):
@@ -140,8 +144,52 @@ def _relationship_readonly_enabled() -> bool:
     }
 
 
+def _prune_relationship_write_blocks(
+    now: float, window_seconds: float = 86400.0, max_entries: int = 1000
+) -> None:
+    cutoff = now - window_seconds
+    while _RELATIONSHIP_WRITE_BLOCKS and _RELATIONSHIP_WRITE_BLOCKS[0] < cutoff:
+        _RELATIONSHIP_WRITE_BLOCKS.popleft()
+    while len(_RELATIONSHIP_WRITE_BLOCKS) > max_entries:
+        _RELATIONSHIP_WRITE_BLOCKS.popleft()
+
+
+def _record_relationship_write_block() -> None:
+    now = time.time()
+    _RELATIONSHIP_WRITE_BLOCKS.append(now)
+    _prune_relationship_write_blocks(now)
+
+
+def get_relationship_write_block_stats(
+    window_seconds: float = 86400.0, recent_limit: int = 20
+) -> Dict[str, Any]:
+    now = time.time()
+    _prune_relationship_write_blocks(now, window_seconds=window_seconds)
+    recent_limit = max(0, recent_limit)
+    recent = list(_RELATIONSHIP_WRITE_BLOCKS)[-recent_limit:] if recent_limit else []
+    return {
+        "window_seconds": int(window_seconds),
+        "blocked": len(_RELATIONSHIP_WRITE_BLOCKS),
+        "recent": recent,
+        "last_blocked_at": _RELATIONSHIP_WRITE_BLOCKS[-1]
+        if _RELATIONSHIP_WRITE_BLOCKS
+        else None,
+    }
+
+
+def simulate_relationship_write_block(operation: str = "insert") -> None:
+    target = Relationship(
+        id=f"sim-{uuid.uuid4()}",
+        relationship_type_id="Part BOM",
+        source_id="debug-source",
+        related_id="debug-related",
+    )
+    _block_relationship_write(operation, target)
+
+
 def _block_relationship_write(operation: str, target: "Relationship") -> None:
     if _relationship_readonly_enabled():
+        _record_relationship_write_block()
         logger.error(
             "Blocked %s on meta_relationships (deprecated). "
             "relationship_id=%s source_id=%s related_id=%s",

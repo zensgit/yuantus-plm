@@ -13146,3 +13146,29 @@ bash scripts/verify_substitutes.sh http://127.0.0.1:7910 tenant-1 org-1
 bash scripts/verify_version_files.sh http://127.0.0.1:7910 tenant-1 org-1
 bash scripts/verify_docs_approval.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+## Run REL-WRITE-MON-20260123-1407
+
+- 时间：`2026-01-23 14:07:18 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Deprecated relationship write monitor
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+export YUANTUS_RELATIONSHIP_SIMULATE_ENABLED=true
+
+TOKEN=$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"platform","org_id":"org-1","username":"platform-admin","password":"admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+
+curl -s "http://127.0.0.1:7910/api/v1/admin/relationship-writes" \
+  -H "x-tenant-id: platform" -H "x-org-id: org-1" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -s -X POST "http://127.0.0.1:7910/api/v1/admin/relationship-writes/simulate?operation=insert" \
+  -H "x-tenant-id: platform" -H "x-org-id: org-1" \
+  -H "Authorization: Bearer $TOKEN"
+```

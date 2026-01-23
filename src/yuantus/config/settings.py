@@ -41,6 +41,10 @@ class Settings(BaseSettings):
         default="platform",
         description="Tenant id used for platform admin operations",
     )
+    RELATIONSHIP_SIMULATE_ENABLED: bool = Field(
+        default=False,
+        description="Allow debug endpoint to simulate deprecated relationship writes",
+    )
     QUOTA_MODE: str = Field(
         default="disabled",
         description="disabled|soft|enforce quota checks for tenant limits",
