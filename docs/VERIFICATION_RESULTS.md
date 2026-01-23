@@ -13442,6 +13442,39 @@ DELETE FROM meta_items WHERE id IN ('6a53c138-70dc-4c11-ad1b-21423bb780e4','4fe7
 DELETE FROM meta_relationship_types WHERE id = 'Part BOM';
 ```
 
+## Run REL-MIGRATION-ACTUAL-20260123-1601
+
+- 时间：`2026-01-23 16:01:35 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Relationship → Item 实际迁移（tenant-1/org-1）
+- 结果：`ALL CHECKS PASSED`
+
+备份：
+
+```bash
+BACKUP=tmp/rel-migration-backup-tenant-1-org-1-codex-yuantus-20260123-160107.sql
+docker exec yuantus-postgres-1 pg_dump -U yuantus -d yuantus_mt_pg__tenant-1__org-1 > "$BACKUP"
+```
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}"
+export YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg"
+
+PY=.venv/bin/python \
+  python scripts/migrate_relationship_items.py --tenant tenant-1 --org org-1
+```
+
+输出（节选）：
+
+```text
+Relationships: total=0 existing_items=0
+Missing type=0 source=0 related=0
+Migrated relationship items: 0
+```
+
 清理：
 
 ```sql
