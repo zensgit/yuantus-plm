@@ -13190,3 +13190,12 @@ python3 scripts/migrate_relationship_items.py --tenant tenant-1 --org org-1 --dr
 python3 scripts/migrate_relationship_items.py --tenant tenant-1 --org org-2 --dry-run --update-item-types
 python3 scripts/migrate_relationship_items.py --tenant tenant-2 --org org-1 --dry-run --update-item-types
 ```
+
+## Run REL-PHASE3-20260123-1429
+
+- 时间：`2026-01-23 14:29:06 +0800`
+- 范围：Phase 3 非破坏性清理（禁用遗留桥接写入）
+- 结果：`ALL CHECKS PASSED`
+
+说明：
+- `PartBOMBridge` 已禁用并返回明确错误，避免 legacy 写入路径。
