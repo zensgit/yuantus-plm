@@ -13235,3 +13235,44 @@ export YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@local
 CLI=.venv/bin/yuantus PY=.venv/bin/python \
   bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+## Run REL-WRITE-WARN-20260123-1519
+
+- 时间：`2026-01-23 15:19:15 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Deprecated relationship write 告警阈值（warn_threshold）
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+export YUANTUS_PLATFORM_ADMIN_ENABLED=true
+export YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg"
+
+# Seed platform admin identity
+.venv/bin/yuantus seed-identity \
+  --tenant platform --org platform \
+  --username platform-admin --password platform-admin \
+  --user-id 9001 --roles admin --superuser
+
+# Login + validate warn threshold
+PLATFORM_TOKEN="$(curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"platform","username":"platform-admin","password":"platform-admin"}' \
+  | python3 -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))')"
+
+curl -s "http://127.0.0.1:7910/api/v1/admin/relationship-writes?window_seconds=86400&recent_limit=20&warn_threshold=1" \
+  -H "x-tenant-id: platform" \
+  -H "Authorization: Bearer $PLATFORM_TOKEN"
+
+curl -s -X POST "http://127.0.0.1:7910/api/v1/admin/relationship-writes/simulate?operation=insert&warn_threshold=1" \
+  -H "x-tenant-id: platform" \
+  -H "Authorization: Bearer $PLATFORM_TOKEN"
+```
+
+输出（节选）：
+
+```json
+{"window_seconds":86400,"blocked":0,"recent":[],"last_blocked_at":null,"warn_threshold":1,"warn":false}
+{"window_seconds":86400,"blocked":1,"recent":[1769152735.3358703],"last_blocked_at":1769152735.3358703,"warn_threshold":1,"warn":true}
+```
