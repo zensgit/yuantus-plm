@@ -1,7 +1,6 @@
 import uuid
 import random
 from yuantus.meta_engine.models.item import Item
-from yuantus.meta_engine.relationship.models import Relationship
 from yuantus.seeder.base import BaseSeeder
 from yuantus.seeder.registry import SeederRegistry
 
@@ -12,7 +11,16 @@ class BOMDemoSeeder(BaseSeeder):
 
     def run(self):
         # Check if BOM data already exists
-        if self.session.query(Relationship).filter_by(relationship_type_id="PartBOM").count() > 0:
+        if (
+            self.session.query(Item)
+            .filter(
+                Item.item_type_id == "Part BOM",
+                Item.source_id.isnot(None),
+                Item.related_id.isnot(None),
+            )
+            .count()
+            > 0
+        ):
             self.log("BOM data already exists. Skipping.")
             return
 
@@ -35,16 +43,21 @@ class BOMDemoSeeder(BaseSeeder):
             children = random.sample(potential_children, k=random.randint(3, 8))
 
             for index, child in enumerate(children):
-                rel = Relationship(
+                rel = Item(
                     id=str(uuid.uuid4()),
-                    relationship_type_id="PartBOM",
+                    item_type_id="Part BOM",
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Active",
                     source_id=parent.id,
                     related_id=child.id,
-                    sort_order=index * 10,
+                    permission_id=parent.permission_id,
                     properties={
                         "quantity": random.randint(1, 10),
-                        "unit": "EA"
-                    }
+                        "uom": "EA",
+                        "sort_order": index * 10,
+                    },
                 )
                 relationships.append(rel)
 

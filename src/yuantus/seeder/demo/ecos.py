@@ -2,7 +2,6 @@ import uuid
 import random
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.eco import ECO, ECOPriority, ECOBOMChange
-from yuantus.meta_engine.relationship.models import Relationship
 from yuantus.seeder.base import BaseSeeder
 from yuantus.seeder.registry import SeederRegistry
 
@@ -20,8 +19,13 @@ class ECODemoSeeder(BaseSeeder):
         # Using a subquery-like logic in python for simplicity
         # Find Parts that are source_id in PartBOM relationships
         assembly_ids = [
-            r.source_id for r in
-            self.session.query(Relationship.source_id).filter_by(relationship_type_id="PartBOM").distinct()
+            row[0]
+            for row in self.session.query(Item.source_id)
+            .filter(
+                Item.item_type_id == "Part BOM",
+                Item.source_id.isnot(None),
+            )
+            .distinct()
         ]
 
         if not assembly_ids:
@@ -53,7 +57,15 @@ class ECODemoSeeder(BaseSeeder):
 
             # Create a BOM Change (Update Quantity)
             # Find a child relationship
-            rel = self.session.query(Relationship).filter_by(source_id=prod_id).first()
+            rel = (
+                self.session.query(Item)
+                .filter(
+                    Item.item_type_id == "Part BOM",
+                    Item.source_id == prod_id,
+                    Item.is_current.is_(True),
+                )
+                .first()
+            )
             if rel:
                 old_qty = 1.0
                 if rel.properties and 'quantity' in rel.properties:
@@ -63,9 +75,7 @@ class ECODemoSeeder(BaseSeeder):
                     id=str(uuid.uuid4()),
                     eco_id=eco_id,
                     change_type="update",
-                    # relationship_item_id=rel.id,  <-- REMOVE THIS to avoid FK violation
-                    # Current architecture: Relationship is in meta_relationships, but ECO expects meta_items
-                    relationship_item_id=None,
+                    relationship_item_id=rel.id,
                     parent_item_id=prod_id,
                     child_item_id=rel.related_id,
                     old_qty=old_qty,

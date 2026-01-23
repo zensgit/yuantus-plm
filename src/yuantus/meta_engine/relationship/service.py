@@ -7,8 +7,9 @@ Phase 3.2
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
-from yuantus.meta_engine.relationship.models import RelationshipType, Relationship
-from yuantus.meta_engine.models.item import Item  # Item model for type hinting.
+from yuantus.meta_engine.relationship.models import RelationshipType
+from yuantus.meta_engine.models.item import Item  # Item model for relationship edges.
+from yuantus.meta_engine.models.meta_schema import ItemType
 
 
 class RelationshipService:
@@ -16,6 +17,47 @@ class RelationshipService:
 
     def __init__(self, session: Session):
         self.session = session
+        self._relationship_item_type_cache: Dict[str, ItemType] = {}
+
+    def _resolve_relationship_type(self, name: str) -> tuple[RelationshipType, ItemType]:
+        rel_type = (
+            self.session.query(RelationshipType)
+            .filter((RelationshipType.name == name) | (RelationshipType.id == name))
+            .first()
+        )
+        if not rel_type:
+            raise ValueError(f"Unknown relationship type: {name}")
+
+        item_type_id = rel_type.name
+        cached = self._relationship_item_type_cache.get(item_type_id)
+        if cached is not None:
+            return rel_type, cached
+
+        item_type = (
+            self.session.query(ItemType)
+            .filter(ItemType.id == item_type_id)
+            .first()
+        )
+        if not item_type:
+            item_type = ItemType(
+                id=item_type_id,
+                label=rel_type.label or rel_type.name,
+                is_relationship=True,
+                source_item_type_id=rel_type.source_item_type,
+                related_item_type_id=rel_type.related_item_type,
+            )
+            self.session.add(item_type)
+            self.session.flush()
+        else:
+            if not item_type.is_relationship:
+                item_type.is_relationship = True
+            if not item_type.source_item_type_id:
+                item_type.source_item_type_id = rel_type.source_item_type
+            if not item_type.related_item_type_id:
+                item_type.related_item_type_id = rel_type.related_item_type
+
+        self._relationship_item_type_cache[item_type_id] = item_type
+        return rel_type, item_type
 
     def create_relationship(
         self,
@@ -24,7 +66,7 @@ class RelationshipService:
         relationship_type_name: str,  # Changed from relationship_type to relationship_type_name to avoid confusion
         properties: Optional[Dict[str, Any]] = None,
         user_id: Optional[int] = None,
-    ) -> Relationship:
+    ) -> Item:
         """
         创建关系
 
@@ -38,15 +80,7 @@ class RelationshipService:
         Returns:
             创建的关系实例
         """
-        # 获取关系类型
-        rel_type = (
-            self.session.query(RelationshipType)
-            .filter(RelationshipType.name == relationship_type_name)
-            .first()
-        )
-
-        if not rel_type:
-            raise ValueError(f"Unknown relationship type: {relationship_type_name}")
+        rel_type, rel_item_type = self._resolve_relationship_type(relationship_type_name)
 
         # 验证源和目标类型
         source = self.session.get(Item, source_id)
@@ -78,10 +112,11 @@ class RelationshipService:
         # 检查数量限制
         if rel_type.max_quantity is not None:
             existing_count = (
-                self.session.query(Relationship)
+                self.session.query(Item)
                 .filter(
-                    Relationship.source_id == source_id,
-                    Relationship.relationship_type_id == rel_type.id,
+                    Item.source_id == source_id,
+                    Item.item_type_id == rel_item_type.id,
+                    Item.is_current.is_(True),
                 )
                 .count()
             )
@@ -91,17 +126,25 @@ class RelationshipService:
                     f"Max relationship quantity ({rel_type.max_quantity}) exceeded"
                 )
 
-        # 创建关系
-        relationship = Relationship(
-            relationship_type=rel_type,  # Assign object directly if SQLAlchemy handles it
+        # 创建关系 (关系即 Item)
+        import uuid
+
+        relationship = Item(
+            id=str(uuid.uuid4()),
+            item_type_id=rel_item_type.id,
+            config_id=str(uuid.uuid4()),
+            generation=1,
+            is_current=True,
+            state="Active",
             source_id=source_id,
             related_id=related_id,
-            properties=properties,
+            properties=properties or {},
             created_by_id=user_id,
+            permission_id=source.permission_id,
         )
 
         self.session.add(relationship)
-        self.session.flush()  # Flush to get ID for newly created relationship
+        self.session.flush()  # Flush to get ID for newly created relationship (Item)
 
         return relationship
 
@@ -112,7 +155,7 @@ class RelationshipService:
         relationship_type_name: Optional[
             str
         ] = None,  # Changed to relationship_type_name
-    ) -> List[Relationship]:
+    ) -> List[Item]:
         """
         获取Item的关系
 
@@ -124,25 +167,22 @@ class RelationshipService:
         Returns:
             关系列表
         """
-        query = self.session.query(Relationship)
+        query = self.session.query(Item).filter(Item.is_current.is_(True))
 
         if direction == "outgoing":
-            query = query.filter(Relationship.source_id == item_id)
+            query = query.filter(Item.source_id == item_id)
         elif direction == "incoming":
-            query = query.filter(Relationship.related_id == item_id)
+            query = query.filter(Item.related_id == item_id)
         else:  # both
             query = query.filter(
-                (Relationship.source_id == item_id)
-                | (Relationship.related_id == item_id)
+                (Item.source_id == item_id) | (Item.related_id == item_id)
             )
 
         if relationship_type_name:
-            # Need to join with RelationshipType to filter by name
-            query = query.join(RelationshipType).filter(
-                RelationshipType.name == relationship_type_name
-            )
+            _, rel_item_type = self._resolve_relationship_type(relationship_type_name)
+            query = query.filter(Item.item_type_id == rel_item_type.id)
 
-        return query.order_by(Relationship.sort_order).all()
+        return query.order_by(Item.created_at.asc()).all()
 
     def get_bom_tree(
         self, part_id: str, max_depth: int = 10  # Item IDs are string
@@ -157,8 +197,7 @@ class RelationshipService:
         Returns:
             树形结构字典
         """
-        # "Part_BOM" is a placeholder relationship type name from the plan
-        return self._build_tree(part_id, "Part_BOM", max_depth, 0)
+        return self._build_tree(part_id, "Part BOM", max_depth, 0)
 
     def _build_tree(
         self,

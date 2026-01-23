@@ -33,6 +33,20 @@ class MetaSchemaSeeder(BaseSeeder):
             source_type="Part",
             related_type="Part"
         )
+        # 4. BOM Relationship ItemType (关系即 Item)
+        self._ensure_item_type(
+            id="Part BOM",
+            label="Part BOM",
+            is_versionable=False,
+            icon="link"
+        )
+        bom_item_type = self.session.query(ItemType).filter_by(id="Part BOM").first()
+        if bom_item_type:
+            bom_item_type.is_relationship = True
+            if not bom_item_type.source_item_type_id:
+                bom_item_type.source_item_type_id = "Part"
+            if not bom_item_type.related_item_type_id:
+                bom_item_type.related_item_type_id = "Part"
 
     def _ensure_item_type(self, id: str, label: str, is_versionable: bool = True, icon: str = None):
         it = self.session.query(ItemType).filter_by(id=id).first()

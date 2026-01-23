@@ -10,7 +10,7 @@ from sqlalchemy import String, and_, asc, cast, desc
 from yuantus.meta_engine.schemas.aml import AMLQueryRequest, AMLQueryResponse
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
-from yuantus.meta_engine.relationship.models import RelationshipType, Relationship
+from yuantus.meta_engine.relationship.models import RelationshipType
 
 
 class AMLQueryService:
@@ -351,7 +351,7 @@ class AMLQueryService:
         # 查询关系类型
         rel_type = (
             self.session.query(RelationshipType)
-            .filter(RelationshipType.name == rel_name)
+            .filter((RelationshipType.name == rel_name) | (RelationshipType.id == rel_name))
             .first()
         )
 
@@ -364,14 +364,15 @@ class AMLQueryService:
 
         # 批量查询关系
         relationships = (
-            self.session.query(Relationship)
-            .filter(Relationship.source_id.in_(item_ids))
-            .filter(Relationship.relationship_type_id == rel_type.id)
+            self.session.query(Item)
+            .filter(Item.is_current.is_(True))
+            .filter(Item.item_type_id == rel_type.name)
+            .filter(Item.source_id.in_(item_ids))
             .all()
         )
 
         # 收集目标 IDs
-        target_ids = [r.target_id for r in relationships]
+        target_ids = [r.related_id for r in relationships if r.related_id]
 
         # 批量查询目标 Items
         if target_ids:
@@ -385,10 +386,12 @@ class AMLQueryService:
         # 组织关系数据
         rel_by_source: Dict[str, List[Dict[str, Any]]] = {}
         for r in relationships:
+            if not r.source_id or not r.related_id:
+                continue
             if r.source_id not in rel_by_source:
                 rel_by_source[r.source_id] = []
-            if r.target_id in target_map:
-                rel_item = target_map[r.target_id].copy()
+            if r.related_id in target_map:
+                rel_item = target_map[r.related_id].copy()
                 rel_item["_rel_properties"] = r.properties or {}
                 rel_by_source[r.source_id].append(rel_item)
 
