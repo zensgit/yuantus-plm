@@ -13276,3 +13276,21 @@ curl -s -X POST "http://127.0.0.1:7910/api/v1/admin/relationship-writes/simulate
 {"window_seconds":86400,"blocked":0,"recent":[],"last_blocked_at":null,"warn_threshold":1,"warn":false}
 {"window_seconds":86400,"blocked":1,"recent":[1769152735.3358703],"last_blocked_at":1769152735.3358703,"warn_threshold":1,"warn":true}
 ```
+
+## Run S7-DEEP-20260123-1526
+
+- 时间：`2026-01-23 15:26:28 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：S7 深度验证（多租户 + 配额 + 审计 + 健康 + 索引 + 平台管理员）
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+CLI=.venv/bin/yuantus PY=.venv/bin/python \
+MODE=db-per-tenant-org \
+DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+RUN_TENANT_PROVISIONING=1 \
+  bash scripts/verify_s7.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```

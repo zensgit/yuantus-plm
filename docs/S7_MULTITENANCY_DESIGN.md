@@ -68,3 +68,10 @@
 
 - `docs/S7_MULTITENANCY_VERIFICATION.md`：完整验证记录与命令。
 - `docs/VERIFICATION_RESULTS.md`：追加 S7 深度验证结果。
+
+## 6. 执行入口
+
+- 统一入口脚本：`scripts/verify_s7.sh`
+- 该脚本依次执行：
+  - `verify_ops_hardening.sh`（multi-tenancy + quota + audit + health + reindex）
+  - `verify_tenant_provisioning.sh`（平台管理员租户/组织创建）
