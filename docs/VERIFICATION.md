@@ -3544,6 +3544,8 @@ curl -s http://127.0.0.1:7910/api/v1/bom/compare/schema \
 - `compare_modes`：`only_product/summarized/num_qty/by_position/by_reference`
 - `line_key_options`：所有 line_key 策略
 
+字段级对照详见：`docs/BOM_COMPARE_FIELD_MAPPING.md`。
+
 ---
 
 ## 60) Product UI Aggregation（产品详情聚合）

@@ -13395,6 +13395,19 @@ tenant-2/org-1: Relationships=0, Migrated=0
 tenant-2/org-2: Relationships=0, Migrated=0
 ```
 
+## Run BOM-COMPARE-FIELDS-20260123-1615
+
+- 时间：`2026-01-23 16:15:05 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：BOM Compare 字段级对照验收（schema + diff payload）
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+bash scripts/verify_bom_compare_fields.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
 ## Run REL-MIGRATION-DRY-SEED-20260123-1548
 
 - 时间：`2026-01-23 15:48:19 +0800`
