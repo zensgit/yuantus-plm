@@ -13358,3 +13358,46 @@ Relationships: total=0 existing_items=0
 Missing type=0 source=0 related=0
 Migrated relationship items: 0
 ```
+
+## Run REL-MIGRATION-DRY-SEED-20260123-1548
+
+- 时间：`2026-01-23 15:48:19 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Relationship → Item dry-run（插入 1 条合成关系后验证）
+- 结果：`ALL CHECKS PASSED`
+
+执行步骤（摘要）：
+
+```sql
+-- tenant-2/org-2 DB: yuantus_mt_pg__tenant-2__org-2
+INSERT meta_relationship_types (Part BOM)
+INSERT meta_items (REL-TEST-A / REL-TEST-B)
+INSERT meta_relationships (qty=2, uom=EA)
+```
+
+执行命令：
+
+```bash
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}"
+export YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg"
+
+PY=.venv/bin/python \
+  python scripts/migrate_relationship_items.py --tenant tenant-2 --org org-2 --dry-run
+```
+
+输出（节选）：
+
+```text
+Relationships: total=1 existing_items=0
+Missing type=0 source=0 related=0
+Migrated relationship items: 1
+```
+
+清理：
+
+```sql
+DELETE FROM meta_relationships WHERE id = 'd3ed5b60-dcc8-4032-9e36-2dd36527fca3';
+DELETE FROM meta_items WHERE id IN ('69b675aa-f621-4d74-98de-0ad9469c4c79','9ec011cb-f139-418d-9c2f-641b4a006c25');
+DELETE FROM meta_relationship_types WHERE id = 'Part BOM';
+```
