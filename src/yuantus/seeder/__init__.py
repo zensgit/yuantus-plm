@@ -13,3 +13,4 @@ from .meta import schemas
 
 # Demo (Priority 500+)
 from .demo import items
+from .demo import boms
