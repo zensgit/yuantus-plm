@@ -3661,3 +3661,22 @@ curl -s -X POST "http://127.0.0.1:7910/api/v1/admin/relationship-writes/simulate
   -H "x-tenant-id: tenant-1" -H "x-org-id: org-1" \
   -H "Authorization: Bearer $PLATFORM_ADMIN_TOKEN"
 ```
+
+---
+
+## 65) Relationship → Item Migration (Phase 2)
+
+脚本：`scripts/migrate_relationship_items.py`
+
+```bash
+python scripts/migrate_relationship_items.py --dry-run
+```
+
+多租户模式：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+python scripts/migrate_relationship_items.py --tenant tenant-1 --org org-1 --dry-run
+```
+
+完整说明见 `docs/MIGRATION_RELATIONSHIP_ITEMS.md`。
