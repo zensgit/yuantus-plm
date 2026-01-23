@@ -2416,6 +2416,7 @@ curl -s -X DELETE "http://127.0.0.1:7910/api/v1/bom/<BOM_LINE_ID>/substitutes/<S
 1. **Checkout 锁定**：他人无法修改 item 文件关联
 2. **Checkin 同步**：item 文件自动同步到 VersionFile
 3. **Version 文件查询**：/versions/{id}/files 返回正确角色
+4. **Version 文件编辑**：仅允许 checkout 持有者修改（attach/detach/primary/thumbnail）
 
 ```bash
 # 启动服务

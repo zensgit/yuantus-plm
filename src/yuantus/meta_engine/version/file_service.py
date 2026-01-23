@@ -359,6 +359,95 @@ class VersionFileService:
             "primary_file_id": version.primary_file_id,
         }
 
+    def sync_version_files_to_item(
+        self,
+        version_id: str,
+        item_id: str,
+        *,
+        remove_missing: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Sync VersionFile records back to ItemFile attachments.
+        Useful when switching current version (e.g. ECO apply).
+        """
+        from yuantus.meta_engine.models.file import ItemFile
+        from yuantus.meta_engine.models.item import Item
+
+        version = self.session.get(ItemVersion, version_id)
+        if not version:
+            raise VersionFileError(f"Version {version_id} not found")
+
+        item = self.session.get(Item, item_id)
+        if not item:
+            raise VersionFileError(f"Item {item_id} not found")
+
+        if version.item_id != item_id:
+            raise VersionFileError(
+                f"Version {version_id} does not belong to item {item_id}"
+            )
+
+        version_files = (
+            self.session.query(VersionFile)
+            .filter_by(version_id=version_id)
+            .order_by(VersionFile.sequence.asc())
+            .all()
+        )
+
+        desired: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        for vf in version_files:
+            desired[(vf.file_id, vf.file_role)] = {
+                "file_id": vf.file_id,
+                "file_role": vf.file_role,
+                "sequence": vf.sequence or 0,
+            }
+
+        existing = (
+            self.session.query(ItemFile).filter_by(item_id=item_id).all()
+        )
+        existing_map = {(it.file_id, it.file_role): it for it in existing}
+
+        desired_keys = set(desired.keys())
+        created = 0
+        updated = 0
+        removed = 0
+
+        for key, entry in desired.items():
+            file_id = entry["file_id"]
+            file = self.session.get(FileContainer, file_id)
+            if not file:
+                raise VersionFileError(f"File {file_id} not found")
+
+            existing_item = existing_map.get(key)
+            if existing_item:
+                existing_item.sequence = entry.get("sequence", existing_item.sequence or 0)
+                self.session.add(existing_item)
+                updated += 1
+            else:
+                item_file = ItemFile(
+                    id=str(uuid.uuid4()),
+                    item_id=item_id,
+                    file_id=file_id,
+                    file_role=entry["file_role"],
+                    sequence=entry.get("sequence", 0),
+                )
+                self.session.add(item_file)
+                created += 1
+
+        if remove_missing:
+            for key, item_file in existing_map.items():
+                if key not in desired_keys:
+                    self.session.delete(item_file)
+                    removed += 1
+
+        self.session.flush()
+        return {
+            "item_id": item_id,
+            "version_id": version_id,
+            "created": created,
+            "updated": updated,
+            "removed": removed,
+        }
+
     def copy_files_to_version(
         self,
         source_version_id: str,

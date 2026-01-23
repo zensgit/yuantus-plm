@@ -26,6 +26,7 @@ from yuantus.meta_engine.models.eco import (
 )
 from yuantus.meta_engine.services.bom_service import BOMService
 from yuantus.meta_engine.version.service import VersionService
+from yuantus.meta_engine.version.file_service import VersionFileService, VersionFileError
 from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.meta_engine.services.audit_service import AuditService
 from yuantus.meta_engine.services.notification_service import NotificationService
@@ -888,8 +889,19 @@ class ECOService:
         self.session.add(target_version)
 
         product.current_version_id = target_version.id
+        if target_version.properties is not None:
+            product.properties = dict(target_version.properties)
         product.updated_at = datetime.utcnow()
         self.session.add(product)
+
+        try:
+            VersionFileService(self.session).sync_version_files_to_item(
+                version_id=target_version.id,
+                item_id=product.id,
+                remove_missing=True,
+            )
+        except VersionFileError as exc:
+            raise ValueError(str(exc)) from exc
 
         eco.state = ECOState.DONE.value
         eco.kanban_state = "done"

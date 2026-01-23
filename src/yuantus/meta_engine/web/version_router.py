@@ -56,7 +56,22 @@ def get_file_service(db: Session = Depends(get_db)) -> VersionFileService:
     return VersionFileService(db)
 
 
-def _ensure_version_file_editable(version: ItemVersion, user_id: int) -> None:
+def _ensure_version_file_editable(
+    version: ItemVersion,
+    user_id: int,
+    *,
+    require_checkout: bool = True,
+) -> None:
+    if version.is_released:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Version {version.id} is released and locked",
+        )
+    if require_checkout and not version.checked_out_by_id:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Version {version.id} must be checked out before editing files",
+        )
     if version.checked_out_by_id and version.checked_out_by_id != user_id:
         raise HTTPException(
             status_code=409,

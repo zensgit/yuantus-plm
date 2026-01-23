@@ -112,6 +112,18 @@ if [[ -z "$FILE_ID" ]]; then
 fi
 ok "Uploaded file: $FILE_ID"
 
+printf "\n==> Attach file to version without checkout should be blocked (409)\n"
+VF_PRECHECK="$TMP_DIR/vf_precheck.json"
+HTTP_CODE="$(curl -s -o "$VF_PRECHECK" -w '%{http_code}' \
+  -X POST "$API/versions/$VERSION_ID/files" "${HEADERS[@]}" "${ADMIN_AUTH[@]}" \
+  -H 'content-type: application/json' \
+  -d "{\"file_id\":\"$FILE_ID\",\"file_role\":\"native_cad\",\"is_primary\":true,\"sequence\":0}")"
+if [[ "$HTTP_CODE" != "409" ]]; then
+  echo "Response: $(cat "$VF_PRECHECK")"
+  fail "Expected 409 when attaching version file without checkout, got $HTTP_CODE"
+fi
+ok "Attach to version blocked without checkout"
+
 printf "\n==> Attach file to item (native_cad)\n"
 ATTACH_RESP="$(
   $CURL -X POST "$API/file/attach" "${HEADERS[@]}" "${ADMIN_AUTH[@]}" \
@@ -137,6 +149,19 @@ if [[ -z "$CHECKOUT_ID" ]]; then
   fail "Checkout failed"
 fi
 ok "Checked out version"
+
+printf "\n==> Attach file to version (owner)\n"
+VF_ATTACH_RESP="$(
+  $CURL -X POST "$API/versions/$VERSION_ID/files" "${HEADERS[@]}" "${ADMIN_AUTH[@]}" \
+    -H 'content-type: application/json' \
+    -d "{\"file_id\":\"$FILE_ID\",\"file_role\":\"native_cad\",\"is_primary\":true,\"sequence\":0}"
+)"
+VF_ATTACH_ID="$(echo "$VF_ATTACH_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("id",""))')"
+if [[ -z "$VF_ATTACH_ID" ]]; then
+  echo "Response: $VF_ATTACH_RESP"
+  fail "Attach file to version failed"
+fi
+ok "Attached file to version"
 
 printf "\n==> Viewer attach should be blocked (409)\n"
 DUP_FILE="$TMP_DIR/attach_viewer.json"

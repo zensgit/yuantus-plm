@@ -639,6 +639,8 @@ class VersionService:
         )
 
         self.session.add(new_ver)
+        self.session.flush()
+        self.file_version_service.copy_files_to_version(source_ver.id, new_ver.id)
         self._log_history(
             new_ver,
             "branch",
