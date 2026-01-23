@@ -13787,3 +13787,22 @@ YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:554
 YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
   bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+## Run UI-AGG-20260123-2342
+
+- 时间：`2026-01-23 23:42:09 +0800`
+- 范围：Product Detail / Product Summary / Where-Used UI / BOM UI / Docs Approval / Docs ECO Summary
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_UI_AGG_20260123_2342.md`
+- 日志：`docs/VERIFY_UI_PRODUCT_DETAIL_20260123_234209.log`, `docs/VERIFY_UI_PRODUCT_UI_20260123_234209.log`, `docs/VERIFY_UI_WHERE_USED_20260123_234209.log`, `docs/VERIFY_UI_BOM_20260123_234209.log`, `docs/VERIFY_UI_DOCS_APPROVAL_20260123_234209.log`, `docs/VERIFY_UI_DOCS_ECO_20260123_234209.log`
+
+执行命令（节选）：
+
+```bash
+bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1
+bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+bash scripts/verify_bom_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+bash scripts/verify_docs_approval.sh http://127.0.0.1:7910 tenant-1 org-1
+bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
+```
