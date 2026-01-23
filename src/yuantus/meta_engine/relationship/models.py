@@ -15,6 +15,9 @@ from yuantus.meta_engine.models.item import (
 )  # For type hinting the relationship. This could be a circular import if Item imports back from here. Using string forward references might be safer if that happens.
 from sqlalchemy import event
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RelationshipType(Base):
@@ -137,14 +140,34 @@ def _relationship_readonly_enabled() -> bool:
     }
 
 
-def _block_relationship_write(_mapper, _connection, _target) -> None:
+def _block_relationship_write(operation: str, target: "Relationship") -> None:
     if _relationship_readonly_enabled():
+        logger.error(
+            "Blocked %s on meta_relationships (deprecated). "
+            "relationship_id=%s source_id=%s related_id=%s",
+            operation,
+            getattr(target, "id", None),
+            getattr(target, "source_id", None),
+            getattr(target, "related_id", None),
+        )
         raise RuntimeError(
             "meta_relationships is deprecated for writes; "
             "use meta_items relationship items instead."
         )
 
 
-event.listen(Relationship, "before_insert", _block_relationship_write)
-event.listen(Relationship, "before_update", _block_relationship_write)
-event.listen(Relationship, "before_delete", _block_relationship_write)
+def _block_insert(mapper, connection, target: "Relationship") -> None:  # pragma: no cover
+    _block_relationship_write("insert", target)
+
+
+def _block_update(mapper, connection, target: "Relationship") -> None:  # pragma: no cover
+    _block_relationship_write("update", target)
+
+
+def _block_delete(mapper, connection, target: "Relationship") -> None:  # pragma: no cover
+    _block_relationship_write("delete", target)
+
+
+event.listen(Relationship, "before_insert", _block_insert)
+event.listen(Relationship, "before_update", _block_update)
+event.listen(Relationship, "before_delete", _block_delete)
