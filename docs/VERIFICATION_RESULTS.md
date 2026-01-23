@@ -13710,3 +13710,21 @@ YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:554
 ```bash
 bash scripts/verify_all.sh
 ```
+
+## Run REL-DRYRUN-20260123-2231
+
+- 时间：`2026-01-23 22:31:25 +0800`
+- 目标：`tenant-2/org-2`（db-per-tenant-org）
+- 结果：`ALL CHECKS PASSED`（dry-run）
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_DRYRUN_20260123_2231.md`
+- 日志：`docs/RELATIONSHIP_ITEM_DRYRUN_20260123_223124.log`
+
+执行命令：
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  .venv/bin/python scripts/migrate_relationship_items.py --tenant tenant-2 --org org-2 --dry-run
+```
