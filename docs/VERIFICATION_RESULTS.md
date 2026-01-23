@@ -12967,6 +12967,49 @@ RUN_TENANT_PROVISIONING=1 \
 ALL CHECKS PASSED
 ```
 
+## Run REL-20260123-1307（Relationships as Items）
+
+- 时间：`2026-01-23 13:07:00 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 模式：`db-per-tenant-org`
+- 脚本：`verify_bom_tree` / `verify_bom_effectivity` / `verify_versions` / `verify_eco_advanced`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_20260123_1307.md`
+- 结果：`ALL CHECKS PASSED`
+
+执行命令：
+
+```bash
+bash scripts/verify_bom_tree.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```bash
+MODE=db-per-tenant-org \
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  bash scripts/verify_bom_effectivity.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```bash
+bash scripts/verify_versions.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```bash
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  bash scripts/verify_eco_advanced.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+输出（摘要）：
+
+```text
+ALL CHECKS PASSED
+```
+
 ## Run CAD-MESH-STATS-20260121-1339
 
 - 时间：`2026-01-21 13:39:07 +0800`

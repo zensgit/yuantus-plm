@@ -16,6 +16,10 @@ ORG="${3:-org-1}"
 
 CLI="${CLI:-.venv/bin/yuantus}"
 PY="${PY:-.venv/bin/python}"
+MODE="${MODE:-}"
+DB_URL="${DB_URL:-}"
+DB_URL_TEMPLATE="${DB_URL_TEMPLATE:-}"
+IDENTITY_DB_URL="${IDENTITY_DB_URL:-${YUANTUS_IDENTITY_DATABASE_URL:-}}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -25,6 +29,23 @@ if [[ ! -x "$PY" ]]; then
   echo "Missing Python at $PY (set PY=...)" >&2
   exit 2
 fi
+
+run_cli() {
+  local identity_url="$IDENTITY_DB_URL"
+  if [[ -z "$identity_url" && -n "$DB_URL" ]]; then
+    identity_url="$DB_URL"
+  fi
+  if [[ -n "$MODE" || -n "$DB_URL" || -n "$DB_URL_TEMPLATE" || -n "$identity_url" ]]; then
+    env \
+      ${MODE:+YUANTUS_TENANCY_MODE="$MODE"} \
+      ${DB_URL:+YUANTUS_DATABASE_URL="$DB_URL"} \
+      ${DB_URL_TEMPLATE:+YUANTUS_DATABASE_URL_TEMPLATE="$DB_URL_TEMPLATE"} \
+      ${identity_url:+YUANTUS_IDENTITY_DATABASE_URL="$identity_url"} \
+      "$CLI" "$@"
+  else
+    "$CLI" "$@"
+  fi
+}
 
 TS="$(date +%s)"
 FAILED=0
@@ -45,12 +66,12 @@ echo "Date context: TODAY=$TODAY, NEXT_WEEK=$NEXT_WEEK, LAST_WEEK=$LAST_WEEK"
 # Step 1: Seed identity (admin + viewer)
 # =============================================================================
 echo "==> Seed identity (admin + viewer)"
-"$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin --superuser >/dev/null
-"$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username viewer --password viewer --user-id 2 --roles viewer --no-superuser >/dev/null
+run_cli seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin --superuser >/dev/null
+run_cli seed-identity --tenant "$TENANT" --org "$ORG" --username viewer --password viewer --user-id 2 --roles viewer --no-superuser >/dev/null
 echo "Created users: admin (superuser), viewer (no write)"
 
 echo "==> Seed meta schema"
-"$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
+run_cli seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
 
 # =============================================================================
 # Step 2: Configure ReadOnly permission for viewer
