@@ -13394,6 +13394,54 @@ Missing type=0 source=0 related=0
 Migrated relationship items: 1
 ```
 
+## Run REL-MIGRATION-ROLLBACK-20260123-1554
+
+- 时间：`2026-01-23 15:54:36 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 范围：Relationship → Item 备份 + 迁移 + 回滚演练（tenant-2/org-2）
+- 结果：`ALL CHECKS PASSED`
+
+备份：
+
+```bash
+BACKUP=tmp/rel-migration-backup-tenant-2-org-2-codex-yuantus-20260123-155303.sql
+docker exec yuantus-postgres-1 pg_dump -U yuantus -d yuantus_mt_pg__tenant-2__org-2 > "$BACKUP"
+```
+
+迁移演练（合成关系）：
+
+```sql
+INSERT meta_relationship_types (Part BOM)
+INSERT meta_items (REL-ROLLBACK2-A / REL-ROLLBACK2-B)
+INSERT meta_relationships (qty=4, uom=EA)
+```
+
+```bash
+export YUANTUS_TENANCY_MODE=db-per-tenant-org
+export YUANTUS_DATABASE_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}"
+export YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg"
+
+PY=.venv/bin/python \
+  python scripts/migrate_relationship_items.py --tenant tenant-2 --org org-2
+```
+
+输出（节选）：
+
+```text
+Relationships: total=1 existing_items=0
+Missing type=0 source=0 related=0
+Migrated relationship items: 1
+```
+
+回滚（清理测试数据）：
+
+```sql
+DELETE FROM meta_items WHERE id = '70b25077-a929-47df-b8c7-198ed1c9f708';
+DELETE FROM meta_relationships WHERE id = '70b25077-a929-47df-b8c7-198ed1c9f708';
+DELETE FROM meta_items WHERE id IN ('6a53c138-70dc-4c11-ad1b-21423bb780e4','4fe7cbbd-f66d-4e15-ac2e-5a13adaa14e8');
+DELETE FROM meta_relationship_types WHERE id = 'Part BOM';
+```
+
 清理：
 
 ```sql
