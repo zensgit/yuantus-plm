@@ -12,6 +12,9 @@ from .meta import lifecycles
 from .meta import schemas
 from .meta import eco_stages
 
+# Prod (Priority 300)
+from .prod import standard_parts
+
 # Demo (Priority 500+)
 from .demo import items
 from .demo import boms

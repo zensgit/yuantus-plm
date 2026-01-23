@@ -1,0 +1,23 @@
+[
+  {
+    "part_number": "ISO-4014-M6-30",
+    "name": "Hexagon head bolt M6x30",
+    "description": "ISO 4014 Hexagon head bolt product grade A",
+    "material": "Steel 8.8",
+    "standard": "ISO 4014"
+  },
+  {
+    "part_number": "ISO-4032-M6",
+    "name": "Hexagon nut M6",
+    "description": "ISO 4032 Hexagon regular nuts (style 1)",
+    "material": "Steel 8",
+    "standard": "ISO 4032"
+  },
+  {
+    "part_number": "DIN-125-A-6.4",
+    "name": "Washer A 6.4",
+    "description": "DIN 125 Plane washers, Class A",
+    "material": "Steel 140HV",
+    "standard": "DIN 125"
+  }
+]
