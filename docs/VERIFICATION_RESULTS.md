@@ -13747,3 +13747,22 @@ YUANTUS_DATABASE_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:554
 YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
   .venv/bin/python scripts/migrate_relationship_items.py --tenant tenant-2 --org org-2 --update-item-types
 ```
+
+## Run REL-BATCH-20260123-2256
+
+- 时间：`2026-01-23 22:56:40 +0800`
+- 目标：`tenant-1/org-1`, `tenant-1/org-2`, `tenant-2/org-1`
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_BATCH_20260123_2256.md`
+- 备份：`tmp/rel-migration-backups-codex-yuantus-20260123_225618/`
+
+日志：
+
+```text
+docs/RELATIONSHIP_ITEM_DRYRUN_tenant-1_org-1_20260123_225638.log
+docs/RELATIONSHIP_ITEM_ACTUAL_tenant-1_org-1_20260123_225638.log
+docs/RELATIONSHIP_ITEM_DRYRUN_tenant-1_org-2_20260123_225638.log
+docs/RELATIONSHIP_ITEM_ACTUAL_tenant-1_org-2_20260123_225638.log
+docs/RELATIONSHIP_ITEM_DRYRUN_tenant-2_org-1_20260123_225638.log
+docs/RELATIONSHIP_ITEM_ACTUAL_tenant-2_org-1_20260123_225638.log
+```
