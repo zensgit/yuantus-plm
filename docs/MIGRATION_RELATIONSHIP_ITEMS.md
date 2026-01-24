@@ -91,4 +91,6 @@ WHERE id IN (SELECT id FROM meta_relationships);
 - 保留 `meta_relationships` 表，只读兼容层不删除。
 - 移除/禁用遗留写入路径（已将 `PartBOMBridge` 标记为 deprecated 并禁用）。
 - 兼容层写入阻断为硬开启（无环境变量开关）。
+- `RelationshipType` 仅作为 legacy 兼容可选种子；默认不再创建。
+  - 如需保留旧集成，设置 `YUANTUS_RELATIONSHIP_TYPE_LEGACY_SEED_ENABLED=true`
 - 生产环境不要开启任何模拟或迁移测试开关。
