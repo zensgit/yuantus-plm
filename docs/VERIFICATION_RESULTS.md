@@ -13806,3 +13806,32 @@ bash scripts/verify_bom_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 bash scripts/verify_docs_approval.sh http://127.0.0.1:7910 tenant-1 org-1
 bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+## Run REL-PHASE2-20260124-0051
+
+- 时间：`2026-01-24 00:51 +0800`
+- 范围：AML expand 关系类型回退 ItemType（无 RelationshipType）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE2_20260124_0051.md`
+- 日志：`docs/VERIFY_REL_ITEMTYPE_EXPAND_20260124_0051.log`
+
+执行命令（节选）：
+
+```bash
+scripts/verify_relationship_itemtype_expand.sh | tee docs/VERIFY_REL_ITEMTYPE_EXPAND_20260124_0051.log
+```
+
+## Run REL-PHASE2-DRYRUN-20260124-1152
+
+- 时间：`2026-01-24 11:52 +0800`
+- 范围：relationship item 迁移 dry-run（tenant-1/org-1）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE2_DRYRUN_20260124_1152.md`
+- 日志：`docs/RELATIONSHIP_ITEM_PHASE2_DRYRUN_20260124_1152.log`
+
+执行命令（节选）：
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/migrate_relationship_items.py \
+  --tenant tenant-1 --org org-1 --dry-run | tee docs/RELATIONSHIP_ITEM_PHASE2_DRYRUN_20260124_1152.log
+```
