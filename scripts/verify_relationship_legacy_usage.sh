@@ -121,8 +121,12 @@ assert entry.relationship_type_count == 1, entry.relationship_type_count
 assert entry.relationship_row_count == 1, entry.relationship_row_count
 assert entry.relationship_item_type_count == 1, entry.relationship_item_type_count
 assert entry.relationship_item_count == 1, entry.relationship_item_count
+assert entry.legacy is True
+assert entry.deprecation_note
 assert entry.types and entry.types[0].relationship_count == 1
 assert entry.types[0].relationship_item_count == 1
+assert entry.types[0].deprecated is True
+assert entry.types[0].deprecation_note
 assert "legacy_relationship_types_present" in entry.warnings
 assert "legacy_relationship_rows_present" in entry.warnings
 

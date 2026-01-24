@@ -14,6 +14,7 @@ scripts/verify_relationship_legacy_usage.sh | tee docs/VERIFY_RELATIONSHIP_LEGAC
 ## 结果摘要
 
 - `verify_relationship_legacy_usage.sh`：`ALL CHECKS PASSED`
+- 校验包含 `legacy` / `deprecated` 标记与说明字段
 
 ## 日志
 

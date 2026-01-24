@@ -12,6 +12,7 @@
   - 关系 ItemType 数量
   - 关系 Item 行数（meta_items 中 is_relationship）
   - 可选 per-RelationshipType 细分（include_details）
+  - 响应内显式标注 `deprecated` / `legacy` 字段与说明
 
 ## 行为
 

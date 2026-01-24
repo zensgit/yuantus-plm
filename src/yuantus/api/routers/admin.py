@@ -150,6 +150,14 @@ class RelationshipLegacyTypeStat(BaseModel):
     item_type_id: str
     relationship_count: int
     relationship_item_count: int
+    deprecated: bool = Field(
+        default=True,
+        description="Legacy RelationshipType (deprecated; use ItemType.is_relationship)",
+    )
+    deprecation_note: str = Field(
+        default="Legacy RelationshipType is deprecated; use ItemType.is_relationship",
+        description="Deprecation guidance",
+    )
 
 
 class RelationshipLegacyUsageEntry(BaseModel):
@@ -161,6 +169,14 @@ class RelationshipLegacyUsageEntry(BaseModel):
     relationship_item_count: int
     meta_relationships_missing: bool = False
     meta_relationship_types_missing: bool = False
+    legacy: bool = Field(
+        default=True,
+        description="Legacy usage report (deprecated RelationshipType/model)",
+    )
+    deprecation_note: str = Field(
+        default="Legacy RelationshipType/model is deprecated; use ItemType relationships",
+        description="Deprecation guidance",
+    )
     types: List[RelationshipLegacyTypeStat] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
 
