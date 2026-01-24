@@ -19,45 +19,63 @@ class RelationshipService:
         self.session = session
         self._relationship_item_type_cache: Dict[str, ItemType] = {}
 
-    def _resolve_relationship_type(self, name: str) -> tuple[RelationshipType, ItemType]:
+    def _resolve_relationship_type(
+        self, name: str
+    ) -> tuple[Optional[RelationshipType], ItemType]:
         rel_type = (
             self.session.query(RelationshipType)
             .filter((RelationshipType.name == name) | (RelationshipType.id == name))
             .first()
         )
-        if not rel_type:
-            raise ValueError(f"Unknown relationship type: {name}")
 
-        item_type_id = rel_type.name
-        cached = self._relationship_item_type_cache.get(item_type_id)
-        if cached is not None:
-            return rel_type, cached
+        if rel_type:
+            item_type_id = rel_type.name
+            cached = self._relationship_item_type_cache.get(item_type_id)
+            if cached is not None:
+                return rel_type, cached
+
+            item_type = (
+                self.session.query(ItemType)
+                .filter(ItemType.id == item_type_id)
+                .first()
+            )
+            if not item_type:
+                item_type = ItemType(
+                    id=item_type_id,
+                    label=rel_type.label or rel_type.name,
+                    is_relationship=True,
+                    source_item_type_id=rel_type.source_item_type,
+                    related_item_type_id=rel_type.related_item_type,
+                )
+                self.session.add(item_type)
+                self.session.flush()
+            else:
+                if not item_type.is_relationship:
+                    item_type.is_relationship = True
+                if not item_type.source_item_type_id:
+                    item_type.source_item_type_id = rel_type.source_item_type
+                if not item_type.related_item_type_id:
+                    item_type.related_item_type_id = rel_type.related_item_type
+
+            self._relationship_item_type_cache[item_type_id] = item_type
+            return rel_type, item_type
 
         item_type = (
             self.session.query(ItemType)
-            .filter(ItemType.id == item_type_id)
+            .filter((ItemType.id == name) | (ItemType.label == name))
             .first()
         )
         if not item_type:
-            item_type = ItemType(
-                id=item_type_id,
-                label=rel_type.label or rel_type.name,
-                is_relationship=True,
-                source_item_type_id=rel_type.source_item_type,
-                related_item_type_id=rel_type.related_item_type,
-            )
-            self.session.add(item_type)
-            self.session.flush()
-        else:
-            if not item_type.is_relationship:
-                item_type.is_relationship = True
-            if not item_type.source_item_type_id:
-                item_type.source_item_type_id = rel_type.source_item_type
-            if not item_type.related_item_type_id:
-                item_type.related_item_type_id = rel_type.related_item_type
+            raise ValueError(f"Unknown relationship type: {name}")
+        if not item_type.is_relationship:
+            raise ValueError(f"{name} is not a relationship ItemType")
 
-        self._relationship_item_type_cache[item_type_id] = item_type
-        return rel_type, item_type
+        cached = self._relationship_item_type_cache.get(item_type.id)
+        if cached is not None:
+            return None, cached
+
+        self._relationship_item_type_cache[item_type.id] = item_type
+        return None, item_type
 
     def create_relationship(
         self,
@@ -82,6 +100,19 @@ class RelationshipService:
         """
         rel_type, rel_item_type = self._resolve_relationship_type(relationship_type_name)
 
+        source_type_id = (
+            rel_type.source_item_type
+            if rel_type
+            else rel_item_type.source_item_type_id
+        )
+        related_type_id = (
+            rel_type.related_item_type
+            if rel_type
+            else rel_item_type.related_item_type_id
+        )
+        is_polymorphic = rel_type.is_polymorphic if rel_type else False
+        max_quantity = rel_type.max_quantity if rel_type else None
+
         # 验证源和目标类型
         source = self.session.get(Item, source_id)
         related = self.session.get(Item, related_id)
@@ -89,28 +120,24 @@ class RelationshipService:
         if not source or not related:
             raise ValueError("Source or related item not found")
 
-        if (
-            source.item_type_id != rel_type.source_item_type
-        ):  # Using item_type_id for Item
+        if source_type_id and source.item_type_id != source_type_id:
             raise ValueError(
-                f"Source type mismatch: expected {rel_type.source_item_type}, "
+                f"Source type mismatch: expected {source_type_id}, "
                 f"got {source.item_type_id}"
             )
 
         # Handle polymorphic relationships
-        if not rel_type.is_polymorphic:
-            if (
-                related.item_type_id != rel_type.related_item_type
-            ):  # Using item_type_id for Item
+        if not is_polymorphic and related_type_id:
+            if related.item_type_id != related_type_id:
                 raise ValueError(
-                    f"Related type mismatch: expected {rel_type.related_item_type}, "
+                    f"Related type mismatch: expected {related_type_id}, "
                     f"got {related.item_type_id}"
                 )
         # If polymorphic, we might need a more complex check here,
         # e.g., checking inheritance tree, but for now strict type or no check.
 
         # 检查数量限制
-        if rel_type.max_quantity is not None:
+        if max_quantity is not None:
             existing_count = (
                 self.session.query(Item)
                 .filter(
@@ -121,9 +148,9 @@ class RelationshipService:
                 .count()
             )
 
-            if existing_count >= rel_type.max_quantity:
+            if existing_count >= max_quantity:
                 raise ValueError(
-                    f"Max relationship quantity ({rel_type.max_quantity}) exceeded"
+                    f"Max relationship quantity ({max_quantity}) exceeded"
                 )
 
         # 创建关系 (关系即 Item)

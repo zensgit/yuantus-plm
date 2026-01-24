@@ -348,25 +348,33 @@ class AMLQueryService:
         if remaining_depth <= 0:
             return
 
-        # 查询关系类型
+        # 查询关系类型：优先 RelationshipType，其次 ItemType.is_relationship
         rel_type = (
             self.session.query(RelationshipType)
             .filter((RelationshipType.name == rel_name) | (RelationshipType.id == rel_name))
             .first()
         )
-
+        rel_item_type = None
         if not rel_type:
-            # 尝试作为内置关系名处理
-            self._expand_builtin_relation(
-                items, item_ids, rel_name, sub_expand, remaining_depth
+            rel_item_type = (
+                self.session.query(ItemType)
+                .filter((ItemType.id == rel_name) | (ItemType.label == rel_name))
+                .first()
             )
-            return
+            if not rel_item_type or not rel_item_type.is_relationship:
+                # 尝试作为内置关系名处理
+                self._expand_builtin_relation(
+                    items, item_ids, rel_name, sub_expand, remaining_depth
+                )
+                return
+
+        rel_item_type_id = rel_type.name if rel_type else rel_item_type.id
 
         # 批量查询关系
         relationships = (
             self.session.query(Item)
             .filter(Item.is_current.is_(True))
-            .filter(Item.item_type_id == rel_type.name)
+            .filter(Item.item_type_id == rel_item_type_id)
             .filter(Item.source_id.in_(item_ids))
             .all()
         )
