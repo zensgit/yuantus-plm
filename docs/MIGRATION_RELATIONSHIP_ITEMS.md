@@ -93,4 +93,5 @@ WHERE id IN (SELECT id FROM meta_relationships);
 - 兼容层写入阻断为硬开启（无环境变量开关）。
 - `RelationshipType` 仅作为 legacy 兼容可选种子；默认不再创建。
   - 如需保留旧集成，设置 `YUANTUS_RELATIONSHIP_TYPE_LEGACY_SEED_ENABLED=true`
+- 管理员报告：`GET /api/v1/admin/relationship-types/legacy-usage` 用于追踪 legacy 关系依赖。
 - 生产环境不要开启任何模拟或迁移测试开关。
