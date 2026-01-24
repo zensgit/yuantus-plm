@@ -1,3 +1,4 @@
+from yuantus.config import get_settings
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.relationship.models import RelationshipType
 from yuantus.seeder.base import BaseSeeder
@@ -9,6 +10,7 @@ class MetaSchemaSeeder(BaseSeeder):
     priority = 150  # Run before Lifecycle (200) and Demo (500)
 
     def run(self):
+        settings = get_settings()
         # 1. Standard Part Type
         self._ensure_item_type(
             id="Part",
@@ -25,14 +27,17 @@ class MetaSchemaSeeder(BaseSeeder):
             icon="file-text"
         )
 
-        # 3. BOM Relationship Type
-        self._ensure_rel_type(
-            id="PartBOM",
-            name="Part BOM",
-            label="Part BOM",
-            source_type="Part",
-            related_type="Part"
-        )
+        # 3. BOM Relationship Type (legacy optional)
+        if settings.RELATIONSHIP_TYPE_LEGACY_SEED_ENABLED:
+            self._ensure_rel_type(
+                id="PartBOM",
+                name="Part BOM",
+                label="Part BOM",
+                source_type="Part",
+                related_type="Part"
+            )
+        else:
+            self.log("Skipping RelationshipType seeding (legacy disabled)")
         # 4. BOM Relationship ItemType (关系即 Item)
         self._ensure_item_type(
             id="Part BOM",

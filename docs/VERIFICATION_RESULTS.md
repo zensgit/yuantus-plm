@@ -13835,3 +13835,17 @@ scripts/verify_relationship_itemtype_expand.sh | tee docs/VERIFY_REL_ITEMTYPE_EX
 PYTHONPATH=src .venv/bin/python scripts/migrate_relationship_items.py \
   --tenant tenant-1 --org org-1 --dry-run | tee docs/RELATIONSHIP_ITEM_PHASE2_DRYRUN_20260124_1152.log
 ```
+
+## Run REL-PHASE3-SEEDER-20260124-1429
+
+- 时间：`2026-01-24 14:29 +0800`
+- 范围：RelationshipType legacy 种子开关验证
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE3_SEEDER_20260124_1429.md`
+- 日志：`docs/VERIFY_RELATIONSHIP_TYPE_SEEDING_20260124_1429.log`
+
+执行命令（节选）：
+
+```bash
+scripts/verify_relationship_type_seeding.sh | tee docs/VERIFY_RELATIONSHIP_TYPE_SEEDING_20260124_1429.log
+```

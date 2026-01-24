@@ -45,6 +45,10 @@ class Settings(BaseSettings):
         default=False,
         description="Allow debug endpoint to simulate deprecated relationship writes",
     )
+    RELATIONSHIP_TYPE_LEGACY_SEED_ENABLED: bool = Field(
+        default=False,
+        description="Seed legacy meta_relationship_types rows for compatibility",
+    )
     QUOTA_MODE: str = Field(
         default="disabled",
         description="disabled|soft|enforce quota checks for tenant limits",
