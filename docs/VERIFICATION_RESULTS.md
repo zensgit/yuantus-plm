@@ -13849,3 +13849,17 @@ PYTHONPATH=src .venv/bin/python scripts/migrate_relationship_items.py \
 ```bash
 scripts/verify_relationship_type_seeding.sh | tee docs/VERIFY_RELATIONSHIP_TYPE_SEEDING_20260124_1429.log
 ```
+
+## Run REL-PHASE3-USAGE-20260124-1502
+
+- 时间：`2026-01-24 15:02 +0800`
+- 范围：legacy RelationshipType usage 报告验证
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE3_USAGE_20260124_1502.md`
+- 日志：`docs/VERIFY_RELATIONSHIP_LEGACY_USAGE_20260124_1502.log`
+
+执行命令（节选）：
+
+```bash
+scripts/verify_relationship_legacy_usage.sh | tee docs/VERIFY_RELATIONSHIP_LEGACY_USAGE_20260124_1502.log
+```

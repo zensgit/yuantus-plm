@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import inspect
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import Identity, get_current_identity
@@ -26,7 +27,11 @@ from yuantus.security.auth.models import (
 from yuantus.security.auth.passwords import hash_password
 from yuantus.security.auth.quota_service import QuotaService
 from yuantus.security.auth.service import AuthService
+from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.relationship.models import (
+    Relationship,
+    RelationshipType,
     get_relationship_write_block_stats,
     simulate_relationship_write_block,
 )
@@ -136,6 +141,33 @@ class RelationshipWriteBlockResponse(BaseModel):
     last_blocked_at: Optional[float] = None
     warn_threshold: Optional[int] = None
     warn: bool = False
+
+
+class RelationshipLegacyTypeStat(BaseModel):
+    id: str
+    name: Optional[str] = None
+    label: Optional[str] = None
+    item_type_id: str
+    relationship_count: int
+    relationship_item_count: int
+
+
+class RelationshipLegacyUsageEntry(BaseModel):
+    tenant_id: str
+    org_id: Optional[str] = None
+    relationship_type_count: int
+    relationship_row_count: int
+    relationship_item_type_count: int
+    relationship_item_count: int
+    meta_relationships_missing: bool = False
+    meta_relationship_types_missing: bool = False
+    types: List[RelationshipLegacyTypeStat] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+
+class RelationshipLegacyUsageResponse(BaseModel):
+    items: List[RelationshipLegacyUsageEntry]
+    total: int
 
 
 class OrganizationCreateRequest(BaseModel):
@@ -271,6 +303,102 @@ def _resolve_audit_tenant(identity: Identity, tenant_id: Optional[str]) -> str:
         require_platform_admin(identity)
         return tenant_id
     return tenant_id or identity.tenant_id
+
+
+def _build_relationship_legacy_usage(
+    session: Session,
+    *,
+    tenant_id: str,
+    org_id: Optional[str],
+    include_details: bool,
+) -> RelationshipLegacyUsageEntry:
+    bind = session.get_bind()
+    inspector = inspect(bind)
+    has_relationships = inspector.has_table(Relationship.__tablename__)
+    has_relationship_types = inspector.has_table(RelationshipType.__tablename__)
+
+    rel_types: List[RelationshipType] = []
+    if has_relationship_types:
+        rel_types = (
+            session.query(RelationshipType)
+            .order_by(RelationshipType.id.asc())
+            .all()
+        )
+
+    relationship_type_count = len(rel_types)
+    relationship_row_count = (
+        session.query(Relationship).count() if has_relationships else 0
+    )
+
+    rel_item_type_ids = [
+        row[0]
+        for row in session.query(ItemType.id)
+        .filter(ItemType.is_relationship.is_(True))
+        .all()
+    ]
+    relationship_item_type_count = len(rel_item_type_ids)
+    relationship_item_count = (
+        session.query(Item)
+        .filter(Item.item_type_id.in_(rel_item_type_ids), Item.is_current.is_(True))
+        .count()
+        if rel_item_type_ids
+        else 0
+    )
+
+    types: List[RelationshipLegacyTypeStat] = []
+    if include_details and rel_types:
+        for rel_type in rel_types:
+            item_type_id = rel_type.name or rel_type.id
+            rel_count = (
+                session.query(Relationship)
+                .filter(Relationship.relationship_type_id == rel_type.id)
+                .count()
+                if has_relationships
+                else 0
+            )
+            item_count = (
+                session.query(Item)
+                .filter(
+                    Item.item_type_id == item_type_id,
+                    Item.is_current.is_(True),
+                )
+                .count()
+            )
+            types.append(
+                RelationshipLegacyTypeStat(
+                    id=rel_type.id,
+                    name=rel_type.name,
+                    label=rel_type.label,
+                    item_type_id=item_type_id,
+                    relationship_count=int(rel_count),
+                    relationship_item_count=int(item_count),
+                )
+            )
+
+    warnings: List[str] = []
+    if relationship_type_count:
+        warnings.append("legacy_relationship_types_present")
+    if relationship_row_count:
+        warnings.append("legacy_relationship_rows_present")
+    if relationship_item_count and not relationship_type_count:
+        warnings.append("relationship_items_without_relationship_types")
+    if not has_relationships:
+        warnings.append("meta_relationships_table_missing")
+    if not has_relationship_types:
+        warnings.append("meta_relationship_types_table_missing")
+
+    return RelationshipLegacyUsageEntry(
+        tenant_id=tenant_id,
+        org_id=org_id,
+        relationship_type_count=int(relationship_type_count),
+        relationship_row_count=int(relationship_row_count),
+        relationship_item_type_count=int(relationship_item_type_count),
+        relationship_item_count=int(relationship_item_count),
+        meta_relationships_missing=not has_relationships,
+        meta_relationship_types_missing=not has_relationship_types,
+        types=types,
+        warnings=warnings,
+    )
 
 
 def _apply_quota_limits(
@@ -1072,6 +1200,43 @@ def prune_audit(
         retention_max_rows=int(settings.AUDIT_RETENTION_MAX_ROWS or 0),
         deleted=int(deleted),
     )
+
+
+@router.get("/relationship-types/legacy-usage", response_model=RelationshipLegacyUsageResponse)
+def get_relationship_legacy_usage(
+    tenant_id: Optional[str] = Query(
+        None, description="Target tenant (platform admin can target others)"
+    ),
+    org_id: Optional[str] = Query(
+        None, description="Org id (required for db-per-tenant-org)"
+    ),
+    include_details: bool = Query(
+        False, description="Include per-RelationshipType breakdown"
+    ),
+    identity: Identity = Depends(require_superuser),
+) -> RelationshipLegacyUsageResponse:
+    settings = get_settings()
+    target_tenant = _resolve_audit_tenant(identity, tenant_id)
+
+    target_org = org_id or identity.org_id
+    if settings.TENANCY_MODE == "db-per-tenant-org" and not target_org:
+        raise HTTPException(status_code=400, detail="org_id required")
+
+    session = _open_meta_session(target_tenant, target_org)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Meta DB not available for scope")
+
+    try:
+        entry = _build_relationship_legacy_usage(
+            session,
+            tenant_id=target_tenant,
+            org_id=target_org,
+            include_details=include_details,
+        )
+    finally:
+        session.close()
+
+    return RelationshipLegacyUsageResponse(items=[entry], total=1)
 
 
 @router.get("/relationship-writes", response_model=RelationshipWriteBlockResponse)
