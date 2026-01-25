@@ -21,6 +21,21 @@ validate the viewer rewrite path.
   curl -s http://127.0.0.1:9000/health
   ```
 
+## 2.1) Router Helper Scripts (local)
+- Start/stop helper scripts (auto-detect `CADGF_ROOT`):
+  ```bash
+  scripts/run_cadgf_router.sh
+  scripts/stop_cadgf_router.sh
+  ```
+- Optional overrides:
+  ```bash
+  CADGF_ROOT="/path/to/CADGameFusion" \
+  CADGF_ROUTER_PORT=9000 \
+  CADGF_PLUGIN_PATH="/path/to/libcadgf_json_importer_plugin.dylib" \
+  CADGF_CONVERT_CLI="/path/to/convert_cli" \
+  scripts/run_cadgf_router.sh
+  ```
+
 ## 3) Reverse Proxy
 - Expose router under `/cadgf/` on the PLM host:
   ```nginx

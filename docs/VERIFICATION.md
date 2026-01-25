@@ -3683,3 +3683,23 @@ python scripts/migrate_relationship_items.py --tenant tenant-1 --org org-1 --dry
 ```
 
 完整说明见 `docs/MIGRATION_RELATIONSHIP_ITEMS.md`。
+
+---
+
+## 66) Where-Used Line Schema
+
+验证 where-used 行字段 schema 输出：
+
+```bash
+bash scripts/verify_where_used_schema.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+---
+
+## 67) Local Regression (TestClient)
+
+无需绑定端口或启动 Docker 的本地回归集合：
+
+```bash
+LOCAL_TESTCLIENT=1 bash scripts/verify_all_local.sh http://127.0.0.1:7910 tenant-1 org-1
+```

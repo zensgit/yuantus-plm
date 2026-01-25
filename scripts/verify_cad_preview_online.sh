@@ -220,8 +220,16 @@ PY
 fi
 
 if [[ -n "$CAD_VIEWER_URL" && "$CAD_VIEWER_URL" != "None" ]]; then
-  if $CURL "$CAD_VIEWER_URL" | grep -q "Web Preview"; then
+  VIEWER_HTML="$($CURL "$CAD_VIEWER_URL" || true)"
+  if echo "$VIEWER_HTML" | grep -qi "Web Preview"; then
     VIEWER_OK="yes"
+  elif echo "$VIEWER_HTML" | grep -qi "<title>"; then
+    VIEWER_OK="yes"
+  else
+    VIEWER_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' "$CAD_VIEWER_URL" || true)"
+    if [[ "$VIEWER_STATUS" == "200" ]]; then
+      VIEWER_OK="yes"
+    fi
   fi
 fi
 

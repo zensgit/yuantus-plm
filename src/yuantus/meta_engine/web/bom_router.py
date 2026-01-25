@@ -456,6 +456,21 @@ class WhereUsedResponse(BaseModel):
     max_levels: int = Field(10, description="Maximum recursion depth applied")
 
 
+class WhereUsedLineFieldSpec(BaseModel):
+    """Field metadata for where-used BOM line output."""
+
+    field: str
+    severity: str
+    normalized: str
+    description: str
+
+
+class WhereUsedSchemaResponse(BaseModel):
+    """Schema metadata for where-used line fields."""
+
+    line_fields: List[WhereUsedLineFieldSpec]
+
+
 # ============================================================================
 # BOM Compare API
 # ============================================================================
@@ -685,6 +700,28 @@ async def get_where_used(
         recursive=recursive,
         max_levels=max_levels,
     )
+
+
+@bom_router.get(
+    "/where-used/schema",
+    response_model=WhereUsedSchemaResponse,
+    summary="Get where-used line schema",
+    description="Returns line field mapping and normalization metadata for where-used UI.",
+)
+async def get_where_used_schema(
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    perm = MetaPermissionService(db)
+    if not perm.check_permission(
+        "Part BOM",
+        AMLAction.get,
+        user_id=str(user.id),
+        user_roles=user.roles,
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    return WhereUsedSchemaResponse(line_fields=BOMService.line_schema())
 
 
 @bom_router.get(

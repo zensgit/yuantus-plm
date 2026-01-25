@@ -1,0 +1,46 @@
+# Full Regression Verification (2026-01-24 23:11 +0800)
+
+## 范围
+
+- scripts/verify_all.sh 全量回归（HTTP + Docker 运行环境）
+- 开启标志：
+  - RUN_UI_AGG=1
+  - RUN_OPS_S8=1
+  - RUN_TENANT_PROVISIONING=1
+  - RUN_CAD_REAL_CONNECTORS_2D=1
+  - RUN_CAD_CONNECTOR_COVERAGE_2D=1
+  - RUN_CAD_AUTO_PART=1
+  - RUN_CAD_EXTRACTOR_STUB=1
+  - RUN_CAD_EXTRACTOR_EXTERNAL=1
+  - RUN_CAD_EXTRACTOR_SERVICE=1
+  - RUN_CAD_REAL_SAMPLES=1
+
+## 执行命令
+
+```bash
+RUN_UI_AGG=1 RUN_OPS_S8=1 RUN_TENANT_PROVISIONING=1 \
+RUN_CAD_REAL_CONNECTORS_2D=1 RUN_CAD_CONNECTOR_COVERAGE_2D=1 RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_STUB=1 RUN_CAD_EXTRACTOR_EXTERNAL=1 RUN_CAD_EXTRACTOR_SERVICE=1 RUN_CAD_REAL_SAMPLES=1 \
+CAD_ML_BASE_URL=http://127.0.0.1:8000 \
+CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200 \
+CAD_CONNECTOR_COVERAGE_DIR="/Users/huazhou/Downloads/训练图纸/训练图纸" \
+CAD_CONNECTOR_COVERAGE_MAX_FILES=50 \
+CAD_EXTRACTOR_SAMPLE_FILE="/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg" \
+CAD_SAMPLE_DWG="/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg" \
+CAD_SAMPLE_STEP="/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp" \
+CAD_SAMPLE_PRT="/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt" \
+CAD_REAL_FORCE_UNIQUE=1 CAD_EXTRACTOR_ALLOW_EMPTY=1 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
+  | tee docs/VERIFY_ALL_HTTP_20260124_230935.log
+```
+
+## 结果摘要
+
+- PASS: 51
+- FAIL: 0
+- SKIP: 1
+- 备注：S5-A (CADGF Preview Online) 跳过（RUN_CADGF_PREVIEW_ONLINE=0）。
+
+## 日志
+
+- `docs/VERIFY_ALL_HTTP_20260124_230935.log`

@@ -13863,3 +13863,245 @@ scripts/verify_relationship_type_seeding.sh | tee docs/VERIFY_RELATIONSHIP_TYPE_
 ```bash
 scripts/verify_relationship_legacy_usage.sh | tee docs/VERIFY_RELATIONSHIP_LEGACY_USAGE_20260124_1502.log
 ```
+
+## Run WHERE-USED-SCHEMA-20260124-2120
+
+- 时间：`2026-01-24 21:20 +0800`
+- 范围：where-used 行字段 schema 输出验证
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_WHERE_USED_SCHEMA_20260124_2120.md`
+- 日志：`docs/VERIFY_WHERE_USED_SCHEMA_20260124_2120.log`
+
+执行命令（节选）：
+
+```bash
+LOCAL_TESTCLIENT=1 bash scripts/verify_where_used_schema.sh \
+  http://127.0.0.1:7910 tenant-1 org-1 | tee docs/VERIFY_WHERE_USED_SCHEMA_20260124_2120.log
+```
+
+## Run LOCAL-REGRESSION-20260124-2140
+
+- 时间：`2026-01-24 21:40 +0800`
+- 范围：TestClient 本地回归集合
+- 结果：`PASS=7, FAIL=0, SKIP=0`
+- 报告：`docs/VERIFICATION_LOCAL_REGRESSION_20260124_2140.md`
+- 日志：`docs/VERIFY_ALL_LOCAL_20260124_2140.log`
+
+执行命令（节选）：
+
+```bash
+LOCAL_TESTCLIENT=1 bash scripts/verify_all_local.sh \
+  http://127.0.0.1:7910 tenant-1 org-1 | tee docs/VERIFY_ALL_LOCAL_20260124_2140.log
+```
+
+## Run WHERE-USED-SCHEMA-HTTP-20260124-2236
+
+- 时间：`2026-01-24 22:36 +0800`
+- 范围：where-used 行字段 schema（HTTP）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_WHERE_USED_SCHEMA_HTTP_20260124_223656.md`
+- 日志：`docs/VERIFY_WHERE_USED_SCHEMA_HTTP_20260124_223656.log`
+
+执行命令（节选）：
+
+```bash
+bash scripts/verify_where_used_schema.sh \
+  http://127.0.0.1:7910 tenant-1 org-1 \
+  | tee docs/VERIFY_WHERE_USED_SCHEMA_HTTP_20260124_223656.log
+```
+
+## Run FULL-REGRESSION-20260124-2234
+
+- 时间：`2026-01-24 22:34 +0800`
+- 范围：全量回归（HTTP）
+- 结果：`PASS=35, FAIL=0, SKIP=17`
+- 报告：`docs/VERIFICATION_FULL_REGRESSION_20260124_223403.md`
+- 日志：`docs/VERIFY_ALL_HTTP_20260124_223403.log`
+
+执行命令（节选）：
+
+```bash
+bash scripts/verify_all.sh \
+  http://127.0.0.1:7910 tenant-1 org-1 \
+  | tee docs/VERIFY_ALL_HTTP_20260124_223403.log
+```
+
+## Run FULL-REGRESSION-20260124-2244
+
+- 时间：`2026-01-24 22:44 +0800`
+- 范围：全量回归（HTTP，含 UI + Ops + Tenant Provisioning）
+- 结果：`PASS=44, FAIL=0, SKIP=8`
+- 报告：`docs/VERIFICATION_FULL_REGRESSION_20260124_224416.md`
+- 日志：`docs/VERIFY_ALL_HTTP_20260124_224416.log`
+
+执行命令（节选）：
+
+```bash
+RUN_UI_AGG=1 RUN_OPS_S8=1 RUN_TENANT_PROVISIONING=1 \
+  bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
+  | tee docs/VERIFY_ALL_HTTP_20260124_224416.log
+```
+
+## Run FULL-REGRESSION-20260124-2255
+
+- 时间：`2026-01-24 22:55 +0800`
+- 范围：全量回归（HTTP，含 CAD 实样 + 连接器覆盖）
+- 结果：`PASS=51, FAIL=0, SKIP=1`
+- 报告：`docs/VERIFICATION_FULL_REGRESSION_20260124_225535.md`
+- 日志：`docs/VERIFY_ALL_HTTP_20260124_225535.log`
+
+执行命令（节选）：
+
+```bash
+RUN_UI_AGG=1 RUN_OPS_S8=1 RUN_TENANT_PROVISIONING=1 \
+RUN_CAD_REAL_CONNECTORS_2D=1 RUN_CAD_CONNECTOR_COVERAGE_2D=1 RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_STUB=1 RUN_CAD_EXTRACTOR_EXTERNAL=1 RUN_CAD_EXTRACTOR_SERVICE=1 RUN_CAD_REAL_SAMPLES=1 \
+CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200 \
+CAD_CONNECTOR_COVERAGE_DIR="/Users/huazhou/Downloads/训练图纸/训练图纸" \
+CAD_CONNECTOR_COVERAGE_MAX_FILES=50 \
+CAD_EXTRACTOR_SAMPLE_FILE="/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg" \
+CAD_SAMPLE_DWG="/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg" \
+CAD_SAMPLE_STEP="/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp" \
+CAD_SAMPLE_PRT="/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt" \
+CAD_REAL_FORCE_UNIQUE=1 CAD_EXTRACTOR_ALLOW_EMPTY=1 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
+  | tee docs/VERIFY_ALL_HTTP_20260124_225535.log
+```
+
+## Run CAD-PREVIEW-2D-20260124-2305
+
+- 时间：`2026-01-24 23:05 +0800`
+- 范围：CAD 2D 预览（ML 端点 8000）
+- 结果：`ALL CHECKS PASSED`（mesh stats 可选项为 skip）
+- 报告：`docs/VERIFICATION_CAD_PREVIEW_2D_20260124_230504.md`
+- 日志：`docs/VERIFY_CAD_PREVIEW_2D_20260124_230504.log`
+
+执行命令（节选）：
+
+```bash
+CAD_ML_BASE_URL=http://127.0.0.1:8000 \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus" \
+DB_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}" \
+IDENTITY_DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg" \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://127.0.0.1:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://127.0.0.1:59000 \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+bash scripts/verify_cad_preview_2d.sh http://127.0.0.1:7910 tenant-1 org-1 \
+  | tee docs/VERIFY_CAD_PREVIEW_2D_20260124_230504.log
+```
+
+## Run CAD-OCR-TITLEBLOCK-20260124-2305
+
+- 时间：`2026-01-24 23:05 +0800`
+- 范围：CAD OCR 标题栏解析（ML 端点 8000）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_CAD_OCR_TITLEBLOCK_20260124_230542.md`
+- 日志：`docs/VERIFY_CAD_OCR_TITLEBLOCK_20260124_230542.log`
+
+执行命令（节选）：
+
+```bash
+CAD_ML_BASE_URL=http://127.0.0.1:8000 \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus" \
+DB_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}" \
+IDENTITY_DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg" \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://127.0.0.1:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://127.0.0.1:59000 \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+bash scripts/verify_cad_ocr_titleblock.sh http://127.0.0.1:7910 tenant-1 org-1 \
+  | tee docs/VERIFY_CAD_OCR_TITLEBLOCK_20260124_230542.log
+```
+
+## Run FULL-REGRESSION-20260124-2311
+
+- 时间：`2026-01-24 23:11 +0800`
+- 范围：全量回归（HTTP，含 CAD ML 端点 + 实样 + 连接器覆盖）
+- 结果：`PASS=51, FAIL=0, SKIP=1`
+- 报告：`docs/VERIFICATION_FULL_REGRESSION_20260124_2311.md`
+- 日志：`docs/VERIFY_ALL_HTTP_20260124_230935.log`
+
+执行命令（节选）：
+
+```bash
+RUN_UI_AGG=1 RUN_OPS_S8=1 RUN_TENANT_PROVISIONING=1 \
+RUN_CAD_REAL_CONNECTORS_2D=1 RUN_CAD_CONNECTOR_COVERAGE_2D=1 RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_STUB=1 RUN_CAD_EXTRACTOR_EXTERNAL=1 RUN_CAD_EXTRACTOR_SERVICE=1 RUN_CAD_REAL_SAMPLES=1 \
+CAD_ML_BASE_URL=http://127.0.0.1:8000 \
+CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200 \
+CAD_CONNECTOR_COVERAGE_DIR="/Users/huazhou/Downloads/训练图纸/训练图纸" \
+CAD_CONNECTOR_COVERAGE_MAX_FILES=50 \
+CAD_EXTRACTOR_SAMPLE_FILE="/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg" \
+CAD_SAMPLE_DWG="/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg" \
+CAD_SAMPLE_STEP="/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp" \
+CAD_SAMPLE_PRT="/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt" \
+CAD_REAL_FORCE_UNIQUE=1 CAD_EXTRACTOR_ALLOW_EMPTY=1 \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
+  | tee docs/VERIFY_ALL_HTTP_20260124_230935.log
+```
+
+## Run FULL-REGRESSION-20260124-2338
+
+- 时间：`2026-01-24 23:38 +0800`
+- 范围：全量回归（HTTP，含 CADGF 在线预览 + CAD ML 端点 + 实样 + 连接器覆盖）
+- 结果：`PASS=52, FAIL=0, SKIP=0`
+- 报告：`docs/VERIFICATION_FULL_REGRESSION_20260124_2338.md`
+- 日志：`docs/VERIFY_ALL_HTTP_20260124_233804.log`
+
+执行命令（节选）：
+
+```bash
+RUN_UI_AGG=1 RUN_OPS_S8=1 RUN_TENANT_PROVISIONING=1 \
+RUN_CAD_REAL_CONNECTORS_2D=1 RUN_CAD_CONNECTOR_COVERAGE_2D=1 RUN_CAD_AUTO_PART=1 \
+RUN_CAD_EXTRACTOR_STUB=1 RUN_CAD_EXTRACTOR_EXTERNAL=1 RUN_CAD_EXTRACTOR_SERVICE=1 RUN_CAD_REAL_SAMPLES=1 \
+RUN_CADGF_PREVIEW_ONLINE=1 CADGF_SYNC_GEOMETRY=1 \
+CADGF_PREVIEW_SAMPLE_FILE="/Users/huazhou/Downloads/Github/CADGameFusion/tests/plugin_data/importer_sample.dxf" \
+CAD_ML_BASE_URL=http://127.0.0.1:8000 \
+CAD_EXTRACTOR_BASE_URL=http://127.0.0.1:8200 \
+CAD_CONNECTOR_COVERAGE_DIR="/Users/huazhou/Downloads/训练图纸/训练图纸" \
+CAD_CONNECTOR_COVERAGE_MAX_FILES=50 \
+CAD_EXTRACTOR_SAMPLE_FILE="/Users/huazhou/Downloads/训练图纸/训练图纸/J0724006-01下锥体组件v3.dwg" \
+CAD_SAMPLE_DWG="/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg" \
+CAD_SAMPLE_STEP="/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/CNC.stp" \
+CAD_SAMPLE_PRT="/Users/huazhou/Downloads/4000例CAD及三维机械零件练习图纸/机械CAD图纸/三维出二维图/model2.prt" \
+CAD_REAL_FORCE_UNIQUE=1 CAD_EXTRACTOR_ALLOW_EMPTY=1 \
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus" \
+YUANTUS_DATABASE_URL_TEMPLATE="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}" \
+YUANTUS_IDENTITY_DATABASE_URL="postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg" \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL=http://127.0.0.1:59000 \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://127.0.0.1:59000 \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_CADGF_ROOT="/Users/huazhou/Downloads/Github/CADGameFusion" \
+YUANTUS_CADGF_CONVERT_CLI="/Users/huazhou/Downloads/Github/CADGameFusion/build_vcpkg/tools/convert_cli" \
+YUANTUS_CADGF_DXF_PLUGIN_PATH="/Users/huazhou/Downloads/Github/CADGameFusion/build_vcpkg/plugins/libcadgf_dxf_importer_plugin.dylib" \
+YUANTUS_CADGF_DEFAULT_EMIT="json,gltf,meta" \
+bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
+  | tee docs/VERIFY_ALL_HTTP_20260124_233804.log
+```
+
+## Run CADGF-PREVIEW-ONLINE-20260125-1234
+
+- 时间：`2026-01-25 12:34 +0800`
+- 范围：CADGF 在线预览（router 127.0.0.1:9000）
+- 结果：`login_ok=yes, upload_ok=yes, conversion_ok=yes, viewer_load=yes`
+- 报告：`docs/VERIFICATION_CADGF_PREVIEW_ONLINE_20260125_1234.md`
+- 日志：`docs/VERIFY_CADGF_PREVIEW_ONLINE_20260125_123457.log`
+
+## Run FULL-REGRESSION-20260125-1241
+
+- 时间：`2026-01-25 12:41 +0800`
+- 范围：全量回归（HTTP，含 CADGF 在线预览 + CAD ML 端点 + 实样 + 连接器覆盖）
+- 结果：`PASS=52, FAIL=0, SKIP=0`
+- 报告：`docs/VERIFICATION_FULL_REGRESSION_20260125_1241.md`
+- 日志：`docs/VERIFY_ALL_HTTP_20260125_124121.log`

@@ -13,6 +13,12 @@ export YUANTUS_CAD_PREVIEW_PUBLIC="false"
 export YUANTUS_CAD_PREVIEW_CORS_ORIGINS=""
 ```
 
+## Local Router Helpers
+```bash
+scripts/run_cadgf_router.sh
+scripts/stop_cadgf_router.sh
+```
+
 ## Reverse Proxy (router local, viewer public)
 ```bash
 export YUANTUS_CADGF_ROUTER_BASE_URL="http://127.0.0.1:9000"

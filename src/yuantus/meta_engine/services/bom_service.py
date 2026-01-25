@@ -134,7 +134,7 @@ class BOMService:
         )
 
     @classmethod
-    def compare_schema(cls) -> Dict[str, Any]:
+    def line_schema(cls) -> List[Dict[str, Any]]:
         fields = []
         for field in cls.LINE_FIELD_KEYS:
             fields.append(
@@ -145,6 +145,11 @@ class BOMService:
                     "description": cls.FIELD_DESCRIPTIONS.get(field, ""),
                 }
             )
+        return fields
+
+    @classmethod
+    def compare_schema(cls) -> Dict[str, Any]:
+        fields = cls.line_schema()
 
         modes = []
         for mode, spec in cls.COMPARE_MODES.items():

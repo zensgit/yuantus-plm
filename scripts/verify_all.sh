@@ -715,6 +715,17 @@ if [[ -x "$SCRIPT_DIR/verify_bom_compare_fields.sh" ]]; then
   fi
 fi
 
+# 17.2 Where-Used Line Schema
+if [[ -x "$SCRIPT_DIR/verify_where_used_schema.sh" ]]; then
+  if has_openapi_path "/api/v1/bom/where-used/schema"; then
+    run_test "Where-Used Line Schema" \
+      "$SCRIPT_DIR/verify_where_used_schema.sh" \
+      "$BASE_URL" "$TENANT" "$ORG" || true
+  else
+    skip_test "Where-Used Line Schema" "endpoint not available"
+  fi
+fi
+
 # 18. Baseline (BOM Snapshot)
 if [[ -x "$SCRIPT_DIR/verify_baseline.sh" ]]; then
   if has_openapi_path "/api/v1/baselines"; then
