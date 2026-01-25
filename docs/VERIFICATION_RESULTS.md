@@ -14142,3 +14142,11 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：CADGF 在线预览（DWG sample + launchd router + host worker）
 - 结果：`login_ok=yes, upload_ok=yes, conversion_ok=yes, viewer_load=yes, manifest_rewrite=yes`
 - 报告：`docs/VERIFICATION_CADGF_PREVIEW_ONLINE_20260125_2210.md`
+
+## Run FULL-REGRESSION-20260125-2248
+
+- 时间：`2026-01-25 22:48 +0800`
+- 范围：全量回归（含 CADGF 在线预览）
+- 结果：`PASS=36, FAIL=0, SKIP=16`
+- 报告：`docs/VERIFICATION_FULL_REGRESSION_20260125_2248.md`
+- 日志：`docs/VERIFY_ALL_HTTP_20260125_2245.log`
