@@ -14113,3 +14113,17 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_ADAPTER_20260125_1310.md`
 - 日志：`docs/VERIFY_RUN_H_20260125_1310.log`
+
+## Run CADGF-PREVIEW-ONLINE-20260125-2121
+
+- 时间：`2026-01-25 21:21 +0800`
+- 范围：CADGF 在线预览（DXF sample + 本地 router）
+- 结果：`login_ok=yes, upload_ok=yes, conversion_ok=yes, viewer_load=yes, manifest_rewrite=yes`
+- 报告：`docs/VERIFICATION_CADGF_PREVIEW_ONLINE_20260125_2121.md`
+
+## Run CADGF-PREVIEW-ONLINE-20260125-2133
+
+- 时间：`2026-01-25 21:33 +0800`
+- 范围：CADGF 在线预览（DWG sample + host worker + 本地 router）
+- 结果：`login_ok=yes, upload_ok=yes, conversion_ok=yes, viewer_load=yes, manifest_rewrite=yes`
+- 报告：`docs/VERIFICATION_CADGF_PREVIEW_ONLINE_20260125_2133.md`
