@@ -1518,6 +1518,94 @@ OK: Preview endpoint works (HTTP 302)
 ==> Test geometry endpoint
 OK: Geometry endpoint works (HTTP 302)
 ==> Check storage type
+
+---
+
+## 24.2) CADGF Router 常驻（launchd）
+
+> 适用于 macOS：CADGF Router 需要宿主机运行（包含 CADGF 原生插件/convert_cli）。
+
+### 24.2.1 准备 CADGF 目录（避免 TCC/Downloads 限制）
+
+```bash
+mkdir -p /Users/huazhou/src
+rsync -a /Users/huazhou/Downloads/Github/CADGameFusion/ /Users/huazhou/src/CADGameFusion-codex-yuantus/
+```
+
+### 24.2.2 配置 launchd plist
+
+创建/更新：
+
+```
+~/Library/LaunchAgents/com.yuantus.cadgf-router.plist
+```
+
+内容（关键路径）：
+
+```
+/usr/bin/python3 /Users/huazhou/src/CADGameFusion-codex-yuantus/tools/plm_router_service.py
+--host 127.0.0.1 --port 9000
+--default-plugin /Users/huazhou/src/CADGameFusion-codex-yuantus/build_vcpkg/plugins/libcadgf_json_importer_plugin.dylib
+--default-convert-cli /Users/huazhou/src/CADGameFusion-codex-yuantus/build_vcpkg/tools/convert_cli
+```
+
+### 24.2.3 启动/重载
+
+```bash
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.yuantus.cadgf-router.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.yuantus.cadgf-router.plist
+launchctl kickstart -k gui/$(id -u)/com.yuantus.cadgf-router
+```
+
+### 24.2.4 健康检查
+
+```bash
+curl http://127.0.0.1:9000/health
+```
+
+期望：`status=ok`。
+
+---
+
+## 24.3) CADGF 在线预览（DWG/DXF）
+
+> 说明：DWG 需要 ODAFileConverter，worker 必须在宿主机运行以调用 CADGF + ODA。
+
+### 24.3.1 启动 host worker（临时）
+
+```bash
+docker compose stop worker
+
+YUANTUS_TENANCY_MODE=db-per-tenant-org \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+YUANTUS_DATABASE_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+YUANTUS_IDENTITY_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+YUANTUS_STORAGE_TYPE=s3 \
+YUANTUS_S3_ENDPOINT_URL='http://127.0.0.1:59000' \
+YUANTUS_S3_PUBLIC_ENDPOINT_URL='http://127.0.0.1:59000' \
+YUANTUS_S3_BUCKET_NAME=yuantus \
+YUANTUS_S3_ACCESS_KEY_ID=minioadmin \
+YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin \
+YUANTUS_CADGF_ROOT='/Users/huazhou/src/CADGameFusion-codex-yuantus' \
+YUANTUS_CADGF_CONVERT_CLI='/Users/huazhou/src/CADGameFusion-codex-yuantus/build_vcpkg/tools/convert_cli' \
+YUANTUS_CADGF_DXF_PLUGIN_PATH='/Users/huazhou/src/CADGameFusion-codex-yuantus/build_vcpkg/plugins/libcadgf_dxf_importer_plugin.dylib' \
+YUANTUS_DWG_CONVERTER_BIN='/Applications/ODAFileConverter.app/Contents/MacOS/ODAFileConverter' \
+.venv/bin/yuantus worker --poll-interval 2 --tenant tenant-1 --org org-1
+```
+
+### 24.3.2 执行在线预览验证
+
+```bash
+BASE_URL=http://127.0.0.1:7910 \
+SAMPLE_FILE='/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg' \
+scripts/verify_cad_preview_online.sh
+```
+
+### 24.3.3 恢复容器 worker
+
+```bash
+docker compose start worker
+```
 OK: S3 storage detected (302 redirect)
 Testing S3 presigned URL follow (no API auth headers)...
 OK: S3 presigned URL accessible (followed redirect)
