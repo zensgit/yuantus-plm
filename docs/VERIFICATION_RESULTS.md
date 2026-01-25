@@ -14135,3 +14135,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 结果：`health=ok`
 - 设计：`docs/DESIGN_CADGF_ROUTER_LAUNCHD_20260125.md`
 - 报告：`docs/VERIFICATION_CADGF_ROUTER_LAUNCHD_20260125_2150.md`
+
+## Run CADGF-PREVIEW-ONLINE-20260125-2210
+
+- 时间：`2026-01-25 22:10 +0800`
+- 范围：CADGF 在线预览（DWG sample + launchd router + host worker）
+- 结果：`login_ok=yes, upload_ok=yes, conversion_ok=yes, viewer_load=yes, manifest_rewrite=yes`
+- 报告：`docs/VERIFICATION_CADGF_PREVIEW_ONLINE_20260125_2210.md`
