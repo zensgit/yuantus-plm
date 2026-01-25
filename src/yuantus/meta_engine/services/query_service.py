@@ -10,6 +10,7 @@ from sqlalchemy import String, and_, asc, cast, desc
 from yuantus.meta_engine.schemas.aml import AMLQueryRequest, AMLQueryResponse
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
+import logging
 from yuantus.meta_engine.relationship.models import RelationshipType
 
 
@@ -348,25 +349,32 @@ class AMLQueryService:
         if remaining_depth <= 0:
             return
 
-        # 查询关系类型：优先 RelationshipType，其次 ItemType.is_relationship
-        rel_type = (
-            self.session.query(RelationshipType)
-            .filter((RelationshipType.name == rel_name) | (RelationshipType.id == rel_name))
+        # 查询关系类型：优先 ItemType.is_relationship，其次 RelationshipType (legacy)
+        rel_item_type = (
+            self.session.query(ItemType)
+            .filter((ItemType.id == rel_name) | (ItemType.label == rel_name))
             .first()
         )
-        rel_item_type = None
-        if not rel_type:
-            rel_item_type = (
-                self.session.query(ItemType)
-                .filter((ItemType.id == rel_name) | (ItemType.label == rel_name))
+        rel_type = None
+        if not rel_item_type or not rel_item_type.is_relationship:
+            rel_type = (
+                self.session.query(RelationshipType)
+                .filter(
+                    (RelationshipType.name == rel_name)
+                    | (RelationshipType.id == rel_name)
+                )
                 .first()
             )
-            if not rel_item_type or not rel_item_type.is_relationship:
+            if not rel_type:
                 # 尝试作为内置关系名处理
                 self._expand_builtin_relation(
                     items, item_ids, rel_name, sub_expand, remaining_depth
                 )
                 return
+            logger.warning(
+                "RelationshipType %s is deprecated; use ItemType.is_relationship.",
+                rel_type.name,
+            )
 
         rel_item_type_id = rel_type.name if rel_type else rel_item_type.id
 
@@ -623,3 +631,4 @@ class AMLQueryService:
         for item in items:
             item_id = item.get("id")
             item["versions"] = versions_by_item.get(item_id, [])
+logger = logging.getLogger(__name__)

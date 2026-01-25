@@ -4,12 +4,15 @@ Relationship Service
 Phase 3.2
 """
 
+import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
 from yuantus.meta_engine.relationship.models import RelationshipType
 from yuantus.meta_engine.models.item import Item  # Item model for relationship edges.
 from yuantus.meta_engine.models.meta_schema import ItemType
+
+logger = logging.getLogger(__name__)
 
 
 class RelationshipService:
@@ -22,13 +25,28 @@ class RelationshipService:
     def _resolve_relationship_type(
         self, name: str
     ) -> tuple[Optional[RelationshipType], ItemType]:
+        item_type = (
+            self.session.query(ItemType)
+            .filter((ItemType.id == name) | (ItemType.label == name))
+            .first()
+        )
+        if item_type and item_type.is_relationship:
+            cached = self._relationship_item_type_cache.get(item_type.id)
+            if cached is not None:
+                return None, cached
+            self._relationship_item_type_cache[item_type.id] = item_type
+            return None, item_type
+
         rel_type = (
             self.session.query(RelationshipType)
             .filter((RelationshipType.name == name) | (RelationshipType.id == name))
             .first()
         )
-
         if rel_type:
+            logger.warning(
+                "RelationshipType %s is deprecated; use ItemType.is_relationship.",
+                rel_type.name,
+            )
             item_type_id = rel_type.name
             cached = self._relationship_item_type_cache.get(item_type_id)
             if cached is not None:
@@ -60,22 +78,9 @@ class RelationshipService:
             self._relationship_item_type_cache[item_type_id] = item_type
             return rel_type, item_type
 
-        item_type = (
-            self.session.query(ItemType)
-            .filter((ItemType.id == name) | (ItemType.label == name))
-            .first()
-        )
-        if not item_type:
-            raise ValueError(f"Unknown relationship type: {name}")
-        if not item_type.is_relationship:
+        if item_type:
             raise ValueError(f"{name} is not a relationship ItemType")
-
-        cached = self._relationship_item_type_cache.get(item_type.id)
-        if cached is not None:
-            return None, cached
-
-        self._relationship_item_type_cache[item_type.id] = item_type
-        return None, item_type
+        raise ValueError(f"Unknown relationship type: {name}")
 
     def create_relationship(
         self,
