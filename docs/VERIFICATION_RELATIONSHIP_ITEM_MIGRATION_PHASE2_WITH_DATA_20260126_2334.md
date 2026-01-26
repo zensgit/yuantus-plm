@@ -37,8 +37,9 @@ Result:
 ## Status
 `ALL CHECKS PASSED`
 
-## Cleanup (optional)
-To remove synthetic test data, delete the three items and the two relationship types from:
-- `meta_items` (relationship items)
-- `meta_relationships`
-- `meta_relationship_types`
+## Cleanup (completed)
+Synthetic test data removed in `tenant-1/org-1`:
+- `meta_items` (relationship items): 3 -> 0
+- `meta_relationships`: 3 -> 0
+- `meta_relationship_types`: 2 -> 0
+- `meta_items` (Part with LEG-REL-*): 3 -> 0
