@@ -14150,3 +14150,12 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 结果：`PASS=36, FAIL=0, SKIP=16`
 - 报告：`docs/VERIFICATION_FULL_REGRESSION_20260125_2248.md`
 - 日志：`docs/VERIFY_ALL_HTTP_20260125_2245.log`
+
+## Run S7-DEEP-20260125-2302
+
+- 时间：`2026-01-25 23:02 +0800`
+- 范围：S7 深度验证（多租户 + 配额 + 审计 + Ops + 搜索 + 租户开通）
+- 结果：`ALL CHECKS PASSED`
+- 设计：`docs/DESIGN_S7_DEEP_VERIFICATION_20260125.md`
+- 报告：`docs/VERIFICATION_S7_DEEP_20260125_2302.md`
+- 日志：`docs/VERIFY_S7_20260125_2302.log`
