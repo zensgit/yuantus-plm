@@ -35,6 +35,22 @@ docker compose -f docker-compose.yml -f docker-compose.mt.yml up -d --build
 ```
 
 ## 可选组件
+### 0) CAD ML Vision（2D 预览 + OCR）
+```bash
+# 在 cad-ml-platform 仓库启动（建议 8001 端口）
+cd /Users/huazhou/Downloads/Github/cad-ml-platform
+CAD_ML_API_PORT=8001 docker compose -f deployments/docker/docker-compose.yml up -d cad-ml-api redis
+
+# 验证健康检查
+curl -s http://localhost:8001/api/v1/vision/health
+```
+
+在 Yuantus 侧使用：
+```bash
+export CAD_ML_BASE_URL=http://localhost:8001
+export YUANTUS_CAD_ML_BASE_URL=http://localhost:8001
+```
+
 ### 1) CAD Connector Stub
 ```bash
 # 仅需要 stub 时
