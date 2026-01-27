@@ -1974,6 +1974,7 @@ CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_all.sh
 
 > 说明：`S7 (Multi-Tenancy)` 仅在 `TENANCY_MODE=db-per-tenant` 或 `db-per-tenant-org` 时执行；单租户模式会显示 `SKIP`。
 > `S7 (Deep Verification)` 建议使用 `scripts/run_s7_deep.sh`，它会为 Docker 环境自动设置 `DB_URL/DB_URL_TEMPLATE/IDENTITY_DB_URL` 并校验 `tenancy_mode`。
+> 若需要自动判断可运行的可选模块（CAD/Extractor/UI 聚合等），使用 `scripts/run_integration_stable.sh`（见 `docs/INTEGRATION_ENV_GUIDE_20260127.md`）。
 > `S5-C (CAD Extractor Stub)` 需要设置 `RUN_CAD_EXTRACTOR_STUB=1` 才会执行。
 > `S5-C (CAD Extractor Service)` 需要设置 `RUN_CAD_EXTRACTOR_SERVICE=1` 才会执行。
 > `S5-C (CAD Auto Part)` 需要设置 `RUN_CAD_AUTO_PART=1` 才会执行。
