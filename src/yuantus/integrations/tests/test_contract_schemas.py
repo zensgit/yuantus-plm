@@ -78,3 +78,24 @@ def test_cad_extractor_extract_schema() -> None:
         "code": None,
     }
     validate(instance=sample, schema=schema)
+
+
+def test_cad_connector_convert_schema() -> None:
+    schema = _load_schema("cad_connector_convert.schema.json")
+    sample = {
+        "ok": True,
+        "job_id": None,
+        "artifacts": {
+            "geometry": {
+                "gltf_url": "https://example.com/mesh.gltf",
+                "bin_url": "https://example.com/mesh.bin",
+                "bbox": [0, 0, 0, 1, 1, 1],
+            },
+            "preview": {"png_url": "https://example.com/preview.png"},
+            "attributes": {"part_number": "P-1001", "revision": "A"},
+            "bom": {"nodes": [], "edges": []},
+        },
+        "error": None,
+        "code": None,
+    }
+    validate(instance=sample, schema=schema)

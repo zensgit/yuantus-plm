@@ -57,6 +57,12 @@ export YUANTUS_CAD_ML_BASE_URL=http://localhost:8001
  docker compose -f docker-compose.yml -f docker-compose.cad-connector.yml up -d --build
 ```
 
+在 Yuantus 侧使用：
+```bash
+export CAD_CONNECTOR_BASE_URL=http://localhost:8300
+export YUANTUS_CAD_CONNECTOR_BASE_URL=http://localhost:8300
+```
+
 ### 2) CAD Extractor Service
 ```bash
 # 启动 extractor 微服务

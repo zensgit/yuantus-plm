@@ -24,8 +24,10 @@ from yuantus.integrations.cad_connectors.base import normalize_cad_key
 from yuantus.integrations.cad_connectors.builtin import CAD_KEY_ALIASES
 from yuantus.meta_engine.services.file_service import FileService
 from yuantus.integrations.cad_extractor import CadExtractorClient
+from yuantus.integrations.cad_connector import CadConnectorClient
 from yuantus.config import get_settings
 from yuantus.meta_engine.services.job_errors import JobFatalError
+from yuantus.context import get_request_context
 
 logger = logging.getLogger(__name__)
 
@@ -341,7 +343,70 @@ class CadService:
 
         settings = get_settings()
         extractor_mode = (settings.CAD_EXTRACTOR_MODE or "optional").strip().lower()
+        connector_mode = (settings.CAD_CONNECTOR_MODE or "optional").strip().lower()
         filename_attrs = _extract_filename_attrs(file_container.filename or file_path)
+        connector_enabled = bool(settings.CAD_CONNECTOR_BASE_URL) and connector_mode != "disabled"
+        if connector_enabled and file_container.document_type == "3d":
+            temp_path: Optional[str] = None
+            try:
+                file_url = None
+                try:
+                    file_url = file_service.get_presigned_url(
+                        file_container.system_path,
+                        expiration=int(settings.CAD_CONNECTOR_TIMEOUT_SECONDS or 60),
+                        http_method="GET",
+                    )
+                except Exception:
+                    file_url = None
+
+                connector_path = file_path
+                if not file_url:
+                    if not (local_path and os.path.exists(local_path)):
+                        suffix = Path(file_container.filename or "").suffix
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                            tmp.write(content or b"")
+                            temp_path = tmp.name
+                        connector_path = temp_path
+
+                ctx = get_request_context()
+                client = CadConnectorClient(timeout_s=settings.CAD_CONNECTOR_TIMEOUT_SECONDS)
+                resp = client.convert_sync(
+                    file_path=connector_path if not file_url else None,
+                    file_url=file_url,
+                    filename=file_container.filename,
+                    cad_format=file_container.cad_format,
+                    cad_connector_id=file_container.cad_connector_id,
+                    mode="extract",
+                    tenant_id=ctx.tenant_id,
+                    org_id=ctx.org_id,
+                )
+                if isinstance(resp, dict) and resp.get("ok") is False:
+                    raise JobFatalError(resp.get("error") or "CAD connector failed")
+
+                artifacts = resp.get("artifacts") if isinstance(resp, dict) else {}
+                attrs = (
+                    (artifacts or {}).get("attributes")
+                    or resp.get("attributes")
+                    or resp.get("data")
+                    or {}
+                )
+                if attrs:
+                    if filename_attrs:
+                        attrs = _merge_missing(attrs, filename_attrs)
+                    attrs = normalize_cad_attributes(attrs)
+                    if return_source:
+                        return attrs, "connector"
+                    return attrs
+
+                if connector_mode == "required":
+                    raise JobFatalError("CAD connector returned empty attributes")
+            except Exception as exc:
+                if connector_mode == "required":
+                    raise JobFatalError(f"CAD connector failed: {exc}") from exc
+                logger.warning("CAD connector failed, fallback to extractor/local: %s", exc)
+            finally:
+                if temp_path and os.path.exists(temp_path):
+                    os.unlink(temp_path)
         if settings.CAD_EXTRACTOR_BASE_URL:
             def _resolve_attr(attrs: Dict[str, Any], *keys: str) -> Optional[str]:
                 if not attrs:

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from yuantus.config import get_settings
 from yuantus.integrations.cad_ml import CadMLClient
 from yuantus.integrations.dedup_vision import DedupVisionClient
+from yuantus.integrations.cad_connector import CadConnectorClient
 from yuantus.meta_engine.models.file import ConversionStatus, FileContainer
 from yuantus.meta_engine.services.cad_converter_service import CADConverterService
 from yuantus.meta_engine.services.cadgf_converter_service import (
@@ -25,8 +26,10 @@ from yuantus.meta_engine.services.cadgf_converter_service import (
     CadgfConversionError,
 )
 from yuantus.meta_engine.services.cad_service import CadService, normalize_cad_attributes
+from yuantus.meta_engine.services.cad_bom_import_service import CadBomImportService
 from yuantus.meta_engine.services.file_service import FileService
 from yuantus.meta_engine.services.job_errors import JobFatalError
+from yuantus.context import get_request_context
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +53,107 @@ def _build_authorization_header(token: Optional[str]) -> Optional[str]:
         return token
     return f"Bearer {token}"
 
+
+def _cad_connector_mode() -> str:
+    mode = (get_settings().CAD_CONNECTOR_MODE or "optional").strip().lower()
+    if mode not in {"disabled", "optional", "required"}:
+        return "optional"
+    return mode
+
+
+def _cad_connector_enabled() -> bool:
+    settings = get_settings()
+    return bool(settings.CAD_CONNECTOR_BASE_URL) and _cad_connector_mode() != "disabled"
+
+
+def _resolve_connector_authorization(payload: Dict[str, Any]) -> Optional[str]:
+    settings = get_settings()
+    auth = payload.get("authorization") or payload.get("connector_authorization")
+    if not auth:
+        auth = settings.CAD_CONNECTOR_SERVICE_TOKEN
+    return _build_authorization_header(auth)
+
+
+def _prepare_connector_source(
+    file_service: FileService, file_container: FileContainer
+) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Returns (file_url, file_path, temp_path). If file_url is present, file_path may be None.
+    """
+    settings = get_settings()
+    file_url = None
+    try:
+        file_url = file_service.get_presigned_url(
+            file_container.system_path,
+            expiration=max(int(settings.CAD_CONNECTOR_TIMEOUT_SECONDS or 60), 30),
+            http_method="GET",
+        )
+    except Exception:
+        file_url = None
+
+    if file_url:
+        return file_url, None, None
+
+    local_path = file_service.get_local_path(file_container.system_path)
+    if local_path and os.path.exists(local_path):
+        return None, local_path, None
+
+    suffix = Path(file_container.filename or "").suffix
+    temp_path = _download_to_temp(
+        file_service,
+        file_container.system_path,
+        suffix=suffix,
+    )
+    return None, temp_path, temp_path
+
+
+def _download_artifact(
+    url: str, file_service: FileService, storage_key: str
+) -> str:
+    import httpx
+
+    with httpx.Client(timeout=max(int(get_settings().CAD_CONNECTOR_TIMEOUT_SECONDS or 60), 10)) as client:
+        resp = client.get(url)
+        resp.raise_for_status()
+        return file_service.upload_file(io.BytesIO(resp.content), storage_key)
+
+
+def _call_cad_connector_convert(
+    *,
+    payload: Dict[str, Any],
+    file_container: FileContainer,
+    file_service: FileService,
+    mode: str,
+) -> Dict[str, Any]:
+    settings = get_settings()
+    if not settings.CAD_CONNECTOR_BASE_URL:
+        raise JobFatalError("CAD connector not configured")
+
+    file_url, file_path, temp_path = _prepare_connector_source(file_service, file_container)
+    ctx = get_request_context()
+    authorization = _resolve_connector_authorization(payload)
+    client = CadConnectorClient(timeout_s=settings.CAD_CONNECTOR_TIMEOUT_SECONDS)
+    try:
+        resp = client.convert_sync(
+            file_path=file_path,
+            file_url=file_url,
+            filename=file_container.filename,
+            cad_format=file_container.cad_format,
+            cad_connector_id=file_container.cad_connector_id,
+            mode=mode,
+            tenant_id=ctx.tenant_id,
+            org_id=ctx.org_id,
+            authorization=authorization,
+        )
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+    if isinstance(resp, dict) and resp.get("ok") is False:
+        raise JobFatalError(resp.get("error") or "CAD connector failed")
+    if not isinstance(resp, dict):
+        raise JobFatalError("CAD connector returned invalid payload")
+    return resp
 
 def _is_missing_storage_error(exc: Exception) -> bool:
     if isinstance(exc, FileNotFoundError):
@@ -339,10 +443,44 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
             "skipped": True,
         }
 
-    vault_base_path = _vault_base_path()
     file_service = FileService()
     _ensure_source_exists(file_service, file_container.system_path)
     use_s3 = _is_s3_storage()
+    vault_base_path = _vault_base_path()
+
+    if _cad_connector_enabled() and file_container.document_type == "3d":
+        try:
+            resp = _call_cad_connector_convert(
+                payload=payload,
+                file_container=file_container,
+                file_service=file_service,
+                mode="preview",
+            )
+            artifacts = resp.get("artifacts") or {}
+            preview = artifacts.get("preview") or {}
+            preview_url = (
+                preview.get("png_url")
+                or preview.get("jpg_url")
+                or preview.get("jpeg_url")
+            )
+            if preview_url:
+                preview_key = f"previews/{file_container.id[:2]}/{file_container.id}.png"
+                _download_artifact(preview_url, file_service, preview_key)
+                file_container.preview_path = preview_key
+                file_container.conversion_status = ConversionStatus.COMPLETED.value
+                session.add(file_container)
+                session.flush()
+                return {
+                    "ok": True,
+                    "file_id": file_container.id,
+                    "preview_path": file_container.preview_path,
+                    "preview_url": f"/api/v1/file/{file_container.id}/preview",
+                    "source": "connector",
+                }
+        except Exception as exc:
+            if _cad_connector_mode() == "required":
+                raise JobFatalError(f"CAD connector preview failed: {exc}") from exc
+            logger.warning("CAD connector preview failed, fallback to local: %s", exc)
 
     # For S3: download source to temp, process, upload result back
     temp_source_path: Optional[str] = None
@@ -468,6 +606,53 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
             "geometry_url": f"/api/v1/file/{file_container.id}/geometry",
             "note": "already_viewable",
         }
+
+    if _cad_connector_enabled() and file_container.document_type == "3d" and ext not in {"dwg", "dxf"}:
+        try:
+            resp = _call_cad_connector_convert(
+                payload=payload,
+                file_container=file_container,
+                file_service=file_service,
+                mode="geometry",
+            )
+            artifacts = resp.get("artifacts") or {}
+            geometry = artifacts.get("geometry") or {}
+            geometry_url = (
+                geometry.get("gltf_url")
+                or geometry.get("glb_url")
+                or geometry.get("obj_url")
+            )
+            bin_url = geometry.get("bin_url")
+            if geometry_url:
+                suffix = Path(geometry_url).suffix.lower().lstrip(".")
+                if suffix not in {"gltf", "glb", "obj", "stl"}:
+                    suffix = target_format or "gltf"
+                geometry_key = f"geometry/{file_container.id[:2]}/{file_container.id}.{suffix}"
+                file_container.geometry_path = _download_artifact(
+                    geometry_url, file_service, geometry_key
+                )
+                if bin_url:
+                    _download_artifact(
+                        bin_url,
+                        file_service,
+                        f"geometry/{file_container.id[:2]}/{file_container.id}.bin",
+                    )
+                file_container.conversion_status = ConversionStatus.COMPLETED.value
+                file_container.conversion_error = None
+                session.add(file_container)
+                session.flush()
+                return {
+                    "ok": True,
+                    "file_id": file_container.id,
+                    "geometry_path": file_container.geometry_path,
+                    "geometry_url": f"/api/v1/file/{file_container.id}/geometry",
+                    "target_format": suffix,
+                    "source": "connector",
+                }
+        except Exception as exc:
+            if _cad_connector_mode() == "required":
+                raise JobFatalError(f"CAD connector geometry failed: {exc}") from exc
+            logger.warning("CAD connector geometry failed, fallback to local: %s", exc)
 
     if ext in {"dxf", "dwg"}:
         vault_base_path = _vault_base_path()
@@ -913,4 +1098,74 @@ def cad_extract(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
         "cad_connector_id": file_container.cad_connector_id,
         "extracted_attributes": attributes,
         "source": source,
+    }
+
+
+def cad_bom(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
+    file_id = str(payload.get("file_id") or "").strip()
+    if not file_id:
+        raise JobFatalError("Missing file_id")
+
+    item_id = str(payload.get("item_id") or "").strip()
+    if not item_id:
+        raise JobFatalError("Missing item_id for BOM import")
+
+    file_container: Optional[FileContainer] = session.get(FileContainer, file_id)
+    if not file_container:
+        raise JobFatalError("File not found")
+
+    file_service = FileService()
+    _ensure_source_exists(file_service, file_container.system_path)
+
+    if not _cad_connector_enabled():
+        raise JobFatalError("CAD connector not configured")
+
+    resp = _call_cad_connector_convert(
+        payload=payload,
+        file_container=file_container,
+        file_service=file_service,
+        mode="bom",
+    )
+    artifacts = resp.get("artifacts") or {}
+    bom_payload = artifacts.get("bom") or resp.get("bom") or {}
+    if not bom_payload:
+        return {
+            "ok": True,
+            "file_id": file_container.id,
+            "skipped": True,
+            "reason": "empty_bom",
+        }
+
+    importer = CadBomImportService(session)
+    import_result = importer.import_bom(
+        root_item_id=item_id,
+        bom_payload=bom_payload,
+        user_id=payload.get("user_id"),
+        roles=payload.get("roles"),
+    )
+
+    stored_payload = {
+        "kind": "cad_bom",
+        "file_id": file_container.id,
+        "item_id": item_id,
+        "imported_at": datetime.utcnow().isoformat() + "Z",
+        "import_result": import_result,
+        "bom": bom_payload,
+    }
+    bom_key = f"cad_bom/{file_container.id[:2]}/{file_container.id}.json"
+    stored_key = file_service.upload_file(
+        file_obj=io.BytesIO(json.dumps(stored_payload, ensure_ascii=False).encode("utf-8")),
+        file_path=bom_key,
+        metadata={"content-type": "application/json"},
+    )
+    file_container.cad_bom_path = stored_key
+    session.add(file_container)
+    session.flush()
+
+    return {
+        "ok": True,
+        "file_id": file_container.id,
+        "item_id": item_id,
+        "cad_bom_path": stored_key,
+        "import_result": import_result,
     }

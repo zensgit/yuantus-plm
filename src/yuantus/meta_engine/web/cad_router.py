@@ -234,6 +234,7 @@ class CadImportResponse(BaseModel):
     cad_manifest_url: Optional[str] = None
     cad_document_url: Optional[str] = None
     cad_metadata_url: Optional[str] = None
+    cad_bom_url: Optional[str] = None
     cad_viewer_url: Optional[str] = None
     cad_document_schema_version: Optional[int] = None
     cad_format: Optional[str] = None
@@ -297,6 +298,16 @@ class CadExtractAttributesResponse(BaseModel):
     extracted_at: Optional[str] = None
     extracted_attributes: Dict[str, Any] = Field(default_factory=dict)
     source: Optional[str] = None
+
+
+class CadBomResponse(BaseModel):
+    file_id: str
+    item_id: Optional[str] = None
+    job_id: Optional[str] = None
+    job_status: Optional[str] = None
+    imported_at: Optional[str] = None
+    import_result: Dict[str, Any] = Field(default_factory=dict)
+    bom: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CadPropertiesResponse(BaseModel):
@@ -507,6 +518,7 @@ def _build_auto_part_properties(
 ) -> tuple[str, Dict[str, Any]]:
     attributes = dict(attrs or {})
     lower_attributes = {str(k).lower(): v for k, v in attributes.items()}
+    prop_defs = {prop.name: prop for prop in (item_type.properties or [])}
 
     def _get_value(*keys: str) -> Optional[Any]:
         for key in keys:
@@ -516,6 +528,16 @@ def _build_auto_part_properties(
             if lower in lower_attributes:
                 return lower_attributes[lower]
         return None
+
+    def _apply_length_limit(name: str, value: Optional[Any]) -> Optional[Any]:
+        if value is None:
+            return None
+        text = str(value)
+        prop = prop_defs.get(name)
+        max_len = getattr(prop, "length", None) if prop else None
+        if isinstance(max_len, int) and max_len > 0 and len(text) > max_len:
+            return text[:max_len]
+        return value
 
     item_number = _get_value(
         "part_number",
@@ -530,6 +552,7 @@ def _build_auto_part_properties(
         item_number = stem or f"PART-{uuid.uuid4().hex[:8]}"
 
     item_number = _normalize_text(item_number) or f"PART-{uuid.uuid4().hex[:8]}"
+    item_number = _apply_length_limit("item_number", item_number) or item_number
     prop_names = {prop.name for prop in (item_type.properties or [])}
     props: Dict[str, Any] = {}
 
@@ -538,27 +561,29 @@ def _build_auto_part_properties(
 
     description = _normalize_text(_get_value("description", "title", "name"))
     if description and "description" in prop_names:
-        props["description"] = description
+        props["description"] = _apply_length_limit("description", description) or description
 
     if "name" in prop_names:
-        props["name"] = description or item_number
+        props["name"] = _apply_length_limit("name", description or item_number) or (
+            description or item_number
+        )
 
     revision = _normalize_text(_get_value("revision", "rev"))
     if revision and "revision" in prop_names:
-        props["revision"] = revision
+        props["revision"] = _apply_length_limit("revision", revision) or revision
 
     if filename:
         parsed = _parse_filename_attrs(Path(filename).stem)
         if "description" not in props and "description" in prop_names:
             parsed_desc = _normalize_text(parsed.get("description"))
             if parsed_desc:
-                props["description"] = parsed_desc
+                props["description"] = _apply_length_limit("description", parsed_desc) or parsed_desc
                 if "name" in prop_names and not props.get("name"):
-                    props["name"] = parsed_desc
+                    props["name"] = _apply_length_limit("name", parsed_desc) or parsed_desc
         if "revision" not in props and "revision" in prop_names:
             parsed_rev = _normalize_text(parsed.get("revision"))
             if parsed_rev:
-                props["revision"] = parsed_rev
+                props["revision"] = _apply_length_limit("revision", parsed_rev) or parsed_rev
 
     for prop in item_type.properties or []:
         if prop.name in props or not prop.is_cad_synced:
@@ -889,6 +914,69 @@ def get_cad_attributes(
         extracted_at=extracted_at.isoformat() if extracted_at else None,
         extracted_attributes=extracted_attributes,
         source=result.get("source"),
+    )
+
+
+@router.get("/files/{file_id}/bom", response_model=CadBomResponse)
+def get_cad_bom(
+    file_id: str,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CadBomResponse:
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if file_container.cad_bom_path:
+        file_service = FileService()
+        output_stream = io.BytesIO()
+        try:
+            file_service.download_file(file_container.cad_bom_path, output_stream)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"CAD BOM download failed: {exc}") from exc
+        output_stream.seek(0)
+        try:
+            payload = json.load(output_stream)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail="CAD BOM invalid JSON") from exc
+        return CadBomResponse(
+            file_id=file_container.id,
+            item_id=payload.get("item_id"),
+            imported_at=payload.get("imported_at"),
+            import_result=payload.get("import_result") or {},
+            bom=payload.get("bom") or {},
+            job_status="completed",
+        )
+
+    jobs = (
+        db.query(ConversionJob)
+        .filter(ConversionJob.task_type == "cad_bom")
+        .order_by(ConversionJob.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    matched_job = None
+    for job in jobs:
+        payload = job.payload or {}
+        if str(payload.get("file_id") or "") == file_id:
+            matched_job = job
+            break
+
+    if not matched_job:
+        raise HTTPException(status_code=404, detail="No cad_bom data found")
+
+    payload = matched_job.payload or {}
+    result = payload.get("result") or {}
+    imported_at = matched_job.completed_at or matched_job.created_at
+
+    return CadBomResponse(
+        file_id=file_container.id,
+        item_id=payload.get("item_id"),
+        job_id=matched_job.id,
+        job_status=matched_job.status,
+        imported_at=imported_at.isoformat() if imported_at else None,
+        import_result=result.get("import_result") or {},
+        bom=result.get("bom") or {},
     )
 
 
@@ -1241,6 +1329,10 @@ async def import_cad(
         default=None,
         description="Extract CAD attributes for sync (default: true)",
     ),
+    create_bom_job: bool = Form(
+        default=False,
+        description="Extract BOM structure from CAD (connector)",
+    ),
     auto_create_part: bool = Form(
         default=False,
         description="Auto-create Part when item_id is not provided",
@@ -1404,6 +1496,12 @@ async def import_cad(
             if not item_id:
                 raise HTTPException(status_code=500, detail="Auto Part creation failed")
 
+    if create_bom_job and not item_id:
+        raise HTTPException(
+            status_code=400,
+            detail="create_bom_job requires item_id or auto_create_part",
+        )
+
     attachment_id: Optional[str] = None
     if item_id:
         item = db.get(Item, item_id)
@@ -1453,6 +1551,8 @@ async def import_cad(
         extract_enabled = bool(file_container.is_cad_file())
     if extract_enabled and file_container.is_cad_file():
         planned_jobs += 1
+    if create_bom_job and file_container.is_cad_file():
+        planned_jobs += 1
     if create_dedup_job and file_container.file_type in {"dwg", "dxf", "pdf", "png", "jpg", "jpeg"}:
         planned_jobs += 1
     if create_ml_job and file_container.file_type in {"pdf", "png", "jpg", "jpeg", "dwg", "dxf"}:
@@ -1475,6 +1575,8 @@ async def import_cad(
 
     jobs: List[CadImportJob] = []
     job_service = JobService(db)
+    auth_header = request.headers.get("authorization")
+    user_roles = list(user.roles or [])
 
     def _enqueue(task_type: str, payload: Dict[str, Any], priority: int) -> None:
         if item_id:
@@ -1484,6 +1586,8 @@ async def import_cad(
             "tenant_id": user.tenant_id,
             "org_id": user.org_id,
             "user_id": user.id,
+            "roles": user_roles,
+            "authorization": auth_header,
         }
         try:
             job = job_service.create_job(
@@ -1510,6 +1614,9 @@ async def import_cad(
 
     if extract_enabled and file_container.is_cad_file():
         _enqueue("cad_extract", {"file_id": file_container.id}, priority=25)
+
+    if create_bom_job and file_container.is_cad_file():
+        _enqueue("cad_bom", {"file_id": file_container.id}, priority=27)
 
     # Dedup is most relevant for 2D drawings; keep it optional.
     if create_dedup_job and file_container.file_type in {"dwg", "dxf", "pdf", "png", "jpg", "jpeg"}:
@@ -1543,6 +1650,11 @@ async def import_cad(
         if file_container.cad_metadata_path
         else None
     )
+    cad_bom_url = (
+        f"/api/v1/file/{file_container.id}/cad_bom"
+        if file_container.cad_bom_path
+        else None
+    )
     cad_viewer_url = _build_cad_viewer_url(
         request,
         file_container.id,
@@ -1562,6 +1674,7 @@ async def import_cad(
         cad_manifest_url=cad_manifest_url,
         cad_document_url=cad_document_url,
         cad_metadata_url=cad_metadata_url,
+        cad_bom_url=cad_bom_url,
         cad_viewer_url=cad_viewer_url,
         cad_document_schema_version=file_container.cad_document_schema_version,
         cad_format=file_container.cad_format,

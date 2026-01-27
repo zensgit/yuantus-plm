@@ -35,6 +35,40 @@ PREVIEW_PNG_BYTES = base64.b64decode(
 )
 
 
+def _build_bom_payload(file_name: str, attributes: Dict[str, Any]) -> Dict[str, Any]:
+    name = (file_name or "").lower()
+    is_assembly = any(
+        token in name
+        for token in (
+            ".sldasm",
+            ".asm",
+            ".iam",
+            ".catproduct",
+            "assembly",
+        )
+    )
+    if not is_assembly:
+        return {"nodes": [], "edges": []}
+
+    root_id = "root"
+    part_number = attributes.get("part_number") or Path(file_name).stem
+    child_part = f"{part_number}-01"
+    nodes = [
+        {"id": root_id, "part_number": part_number, "name": attributes.get("description")},
+        {"id": "child-1", "part_number": child_part, "name": "Generated Child"},
+    ]
+    edges = [
+        {
+            "parent": root_id,
+            "child": "child-1",
+            "quantity": 2,
+            "uom": "EA",
+            "find_num": "10",
+        }
+    ]
+    return {"root": root_id, "nodes": nodes, "edges": edges}
+
+
 def _parse_auth_token(authorization: Optional[str]) -> Optional[str]:
     if not authorization:
         return None
@@ -128,7 +162,7 @@ def _build_artifacts(base_url: str, artifact_id: str, mode: str, attributes: Dic
     if include_extract:
         artifacts["attributes"] = attributes
     if include_bom:
-        artifacts["bom"] = {"nodes": [], "edges": []}
+        artifacts["bom"] = _build_bom_payload(attributes.get("file_name") or "", attributes)
     return artifacts
 
 

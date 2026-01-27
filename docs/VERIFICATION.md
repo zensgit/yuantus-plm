@@ -1884,6 +1884,42 @@ ALL CHECKS PASSED
 
 ---
 
+## 25.3) CAD 3D Connector Pipeline（预览/几何/BOM/属性）
+
+### 25.3.1 一键验收：`scripts/verify_cad_connector_pipeline_3d.sh`
+
+该脚本验证 **3D 连接器插件** 在 PLM 侧的端到端链路：
+
+- 3D 装配文件上传
+- preview/geometry/extract/bom 作业创建与执行
+- BOM 自动导入到 Part BOM 结构
+
+```bash
+CAD_CONNECTOR_BASE_URL='http://127.0.0.1:8300' \
+DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
+DB_URL_TEMPLATE='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id}' \
+IDENTITY_DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg' \
+  bash scripts/verify_cad_connector_pipeline_3d.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+若是 db-per-tenant-org 且 tenant 数据库早于 `n1b2c3d4e6a2` 迁移，可先对 tenant DB 执行一次补齐：
+
+```bash
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1' \
+  yuantus db stamp --revision m1b2c3d4e6a1 && \
+YUANTUS_DATABASE_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1' \
+  yuantus db upgrade
+```
+
+期望输出：
+
+```text
+CAD 3D Connector Pipeline Verification Complete
+ALL CHECKS PASSED
+```
+
+---
+
 ## 26) 一键回归测试：`scripts/verify_all.sh`
 
 ### 26.1 概述
@@ -1949,6 +1985,7 @@ CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_all.sh
 | S5-B (CAD 2D Real Connectors) | `verify_cad_connectors_real_2d.sh` | 真实 DWG + 连接器覆盖验证 |
 | S5-B (CAD 2D Connector Coverage) | `verify_cad_connector_coverage_2d.sh` | 离线 DWG 覆盖率统计（Haochen/Zhongwang） |
 | S5-B (CAD 3D Connectors) | `verify_cad_connectors_3d.sh` | 3D 连接器识别（SOLIDWORKS/NX/CREO/CATIA/INVENTOR） |
+| S5-B (CAD 3D Connector Pipeline) | `verify_cad_connector_pipeline_3d.sh` | 3D 连接器端到端（preview/geometry/bom/extract） |
 | S5-C (CAD Attribute Sync) | `verify_cad_sync.sh` | x-cad-synced 属性同步 |
 | S5-B (CAD Connectors Config) | `verify_cad_connectors_config.sh` | 自定义连接器配置 reload |
 | S5-C (CAD Sync Template) | `verify_cad_sync_template.sh` | CAD 属性映射模板导入/导出 |

@@ -75,6 +75,7 @@ class FileUploadResponse(BaseModel):
     cad_manifest_url: Optional[str] = None
     cad_document_url: Optional[str] = None
     cad_metadata_url: Optional[str] = None
+    cad_bom_url: Optional[str] = None
     cad_document_schema_version: Optional[int] = None
     document_type: Optional[str] = None
     author: Optional[str] = None
@@ -105,6 +106,7 @@ class FileMetadata(BaseModel):
     cad_manifest_url: Optional[str] = None
     cad_document_url: Optional[str] = None
     cad_metadata_url: Optional[str] = None
+    cad_bom_url: Optional[str] = None
     cad_viewer_url: Optional[str] = None
     cad_document_schema_version: Optional[int] = None
     cad_review_state: Optional[str] = None
@@ -438,6 +440,11 @@ async def upload_file(
                     if existing.preview_path
                     else None
                 ),
+                cad_bom_url=(
+                    f"/api/v1/file/{existing.id}/cad_bom"
+                    if existing.cad_bom_path
+                    else None
+                ),
                 cad_document_schema_version=existing.cad_document_schema_version,
                 document_type=existing.document_type,
                 author=existing.author,
@@ -524,6 +531,9 @@ async def upload_file(
             mime_type=file_container.mime_type,
             is_cad=file_container.is_cad_file(),
             preview_url=preview_url,
+            cad_bom_url=(
+                f"/api/v1/file/{file_id}/cad_bom" if file_container.cad_bom_path else None
+            ),
             cad_document_schema_version=file_container.cad_document_schema_version,
             document_type=file_container.document_type,
             author=file_container.author,
@@ -587,6 +597,11 @@ async def get_file_metadata(file_id: str, request: Request, db: Session = Depend
         cad_metadata_url=(
             f"/api/v1/file/{file_id}/cad_metadata"
             if file_container.cad_metadata_path
+            else None
+        ),
+        cad_bom_url=(
+            f"/api/v1/file/{file_id}/cad_bom"
+            if file_container.cad_bom_path
             else None
         ),
         cad_viewer_url=_build_cad_viewer_url(
@@ -810,6 +825,21 @@ async def get_cad_metadata(file_id: str, db: Session = Depends(get_db)):
         file_container.cad_metadata_path,
         _guess_media_type(file_container.cad_metadata_path),
         error_prefix="CAD metadata",
+    )
+
+
+@file_router.get("/{file_id}/cad_bom")
+async def get_cad_bom(file_id: str, db: Session = Depends(get_db)):
+    """Get CAD BOM payload (connector-derived)."""
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+    if not file_container.cad_bom_path:
+        raise HTTPException(status_code=404, detail="CAD BOM not available")
+    return _serve_storage_path(
+        file_container.cad_bom_path,
+        _guess_media_type(file_container.cad_bom_path),
+        error_prefix="CAD BOM",
     )
 
 

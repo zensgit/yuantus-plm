@@ -119,6 +119,7 @@ def health_deps() -> dict:
         "cad_ml": settings.CAD_ML_BASE_URL,
         "dedup_vision": settings.DEDUP_VISION_BASE_URL,
         "cad_extractor": settings.CAD_EXTRACTOR_BASE_URL,
+        "cad_connector": settings.CAD_CONNECTOR_BASE_URL,
     }
     if settings.HEALTHCHECK_EXTERNAL:
         timeout_s = max(int(settings.HEALTHCHECK_EXTERNAL_TIMEOUT_SECONDS or 2), 1)

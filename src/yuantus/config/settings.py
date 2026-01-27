@@ -112,6 +112,22 @@ class Settings(BaseSettings):
         default="optional",
         description="optional|required (fail cad_extract when external service fails)",
     )
+    CAD_CONNECTOR_BASE_URL: str = Field(
+        default="",
+        description="Optional CAD connector service base URL",
+    )
+    CAD_CONNECTOR_SERVICE_TOKEN: str = Field(
+        default="",
+        description="Optional service token (JWT) for CAD connector service",
+    )
+    CAD_CONNECTOR_TIMEOUT_SECONDS: int = Field(
+        default=60,
+        description="CAD connector service timeout in seconds",
+    )
+    CAD_CONNECTOR_MODE: str = Field(
+        default="optional",
+        description="disabled|optional|required (fail when CAD connector fails)",
+    )
     CAD_CONNECTORS_CONFIG_PATH: str = Field(
         default="",
         description="Optional JSON config path for custom CAD connectors",

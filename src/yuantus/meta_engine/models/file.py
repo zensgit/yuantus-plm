@@ -142,6 +142,7 @@ class FileContainer(Base):
     cad_document_path = Column(String)  # CADGF document.json path for 2D CAD
     cad_manifest_path = Column(String)  # CADGF manifest.json path for 2D CAD
     cad_metadata_path = Column(String)  # CADGF mesh_metadata.json path for 2D CAD
+    cad_bom_path = Column(String)  # CAD connector BOM payload path
     cad_document_schema_version = Column(
         Integer
     )  # CADGF document.json schema_version

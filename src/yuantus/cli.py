@@ -77,6 +77,7 @@ def worker(
         cad_extract,
         cad_ml_vision,
         cad_preview,
+        cad_bom,
     )
     from yuantus.meta_engine.tasks.system_tasks import quota_test
 
@@ -87,6 +88,7 @@ def worker(
     w.register_handler("cad_preview", cad_preview)
     w.register_handler("cad_geometry", cad_geometry)
     w.register_handler("cad_extract", cad_extract)
+    w.register_handler("cad_bom", cad_bom)
     w.register_handler("cad_dedup_vision", cad_dedup_vision)
     w.register_handler("cad_ml_vision", cad_ml_vision)
     w.register_handler("quota_test", quota_test)
