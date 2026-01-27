@@ -539,6 +539,21 @@ def _build_auto_part_properties(
             return text[:max_len]
         return value
 
+    def _looks_like_uuid(value: Optional[str]) -> bool:
+        if not value:
+            return False
+        text = value.strip()
+        if len(text) < 24:
+            return False
+        hex_part = text.replace("-", "")
+        if len(hex_part) < 24:
+            return False
+        if not all(c in "0123456789abcdefABCDEF" for c in hex_part):
+            return False
+        if text.count("-") >= 2:
+            return True
+        return len(hex_part) in (24, 32)
+
     item_number = _get_value(
         "part_number",
         "item_number",
@@ -552,6 +567,9 @@ def _build_auto_part_properties(
         item_number = stem or f"PART-{uuid.uuid4().hex[:8]}"
 
     item_number = _normalize_text(item_number) or f"PART-{uuid.uuid4().hex[:8]}"
+    stem = Path(filename).stem if filename else ""
+    if stem and _looks_like_uuid(item_number):
+        item_number = stem
     item_number = _apply_length_limit("item_number", item_number) or item_number
     prop_names = {prop.name for prop in (item_type.properties or [])}
     props: Dict[str, Any] = {}
