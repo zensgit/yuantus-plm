@@ -1963,6 +1963,7 @@ CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_all.sh
 | Audit Logs | `verify_audit_logs.sh` | 审计日志查询（需启用 AUDIT_ENABLED） |
 | S8 (Ops Monitoring) | `verify_ops_s8.sh` | 配额监控/审计留存/报表元信息 |
 | S7 (Multi-Tenancy) | `verify_multitenancy.sh` | 租户/组织隔离（按 TENANCY_MODE） |
+| S7 (Deep Verification) | `verify_s7.sh` / `run_s7_deep.sh` | 多租户 + 配额 + 审计 + 运维 + 搜索 + 租户开通 |
 | S7 (Tenant Provisioning) | `verify_tenant_provisioning.sh` | 平台管理员创建 tenant/org |
 | Where-Used API | `verify_where_used.sh` | 反向 BOM 查询 |
 | BOM Compare | `verify_bom_compare.sh` | BOM 差异对比（如端点可用则执行） |
@@ -1972,6 +1973,7 @@ CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_all.sh
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
 
 > 说明：`S7 (Multi-Tenancy)` 仅在 `TENANCY_MODE=db-per-tenant` 或 `db-per-tenant-org` 时执行；单租户模式会显示 `SKIP`。
+> `S7 (Deep Verification)` 建议使用 `scripts/run_s7_deep.sh`，它会为 Docker 环境自动设置 `DB_URL/DB_URL_TEMPLATE/IDENTITY_DB_URL` 并校验 `tenancy_mode`。
 > `S5-C (CAD Extractor Stub)` 需要设置 `RUN_CAD_EXTRACTOR_STUB=1` 才会执行。
 > `S5-C (CAD Extractor Service)` 需要设置 `RUN_CAD_EXTRACTOR_SERVICE=1` 才会执行。
 > `S5-C (CAD Auto Part)` 需要设置 `RUN_CAD_AUTO_PART=1` 才会执行。
@@ -2686,6 +2688,13 @@ curl -s -X POST "http://127.0.0.1:7910/api/v1/eco/approvals/notify-overdue" \
 ---
 
 ## 32) S7 多租户隔离验收脚本
+
+### 32.0 一键深度验收（推荐）
+
+```bash
+# 推荐：自动设置 DB_URL / DB_URL_TEMPLATE / IDENTITY_DB_URL 并校验 tenancy_mode
+scripts/run_s7_deep.sh http://127.0.0.1:7910 tenant-1 org-1 tenant-2 org-2
+```
 
 ### 32.1 一键验收：`scripts/verify_multitenancy.sh`
 
