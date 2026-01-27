@@ -27,6 +27,8 @@ CAD_EXTRACTOR_BASE_URL="${CAD_EXTRACTOR_BASE_URL:-http://localhost:8200}"
 CAD_EXTRACTOR_SAMPLE_FILE="${CAD_EXTRACTOR_SAMPLE_FILE:-$DEFAULT_SAMPLE_DWG}"
 CAD_EXTRACTOR_EXPECT_KEY="${CAD_EXTRACTOR_EXPECT_KEY:-part_number}"
 CAD_EXTRACTOR_EXPECT_VALUE="${CAD_EXTRACTOR_EXPECT_VALUE:-J2824002-06}"
+CAD_CONNECTOR_BASE_URL="${CAD_CONNECTOR_BASE_URL:-http://localhost:8300}"
+CAD_CONNECTOR_SAMPLE_FILE="${CAD_CONNECTOR_SAMPLE_FILE:-$DEFAULT_SAMPLE_DWG}"
 
 require_dir() {
   local path="$1"
@@ -54,6 +56,7 @@ require_file "$CAD_SAMPLE_PRT" "CAD_SAMPLE_PRT" || missing=1
 require_file "$CAD_SAMPLE_HAOCHEN_DWG" "CAD_SAMPLE_HAOCHEN_DWG" || missing=1
 require_file "$CAD_SAMPLE_ZHONGWANG_DWG" "CAD_SAMPLE_ZHONGWANG_DWG" || missing=1
 require_file "$CAD_EXTRACTOR_SAMPLE_FILE" "CAD_EXTRACTOR_SAMPLE_FILE" || missing=1
+require_file "$CAD_CONNECTOR_SAMPLE_FILE" "CAD_CONNECTOR_SAMPLE_FILE" || missing=1
 
 if [[ "$missing" -ne 0 ]]; then
   echo "Set the missing paths via env vars before re-running." >&2
@@ -62,6 +65,11 @@ fi
 
 if ! curl -fsS "${CAD_EXTRACTOR_BASE_URL%/}/health" >/dev/null 2>&1; then
   echo "CAD extractor not reachable at ${CAD_EXTRACTOR_BASE_URL%/}/health" >&2
+  exit 2
+fi
+
+if ! curl -fsS "${CAD_CONNECTOR_BASE_URL%/}/health" >/dev/null 2>&1; then
+  echo "CAD connector not reachable at ${CAD_CONNECTOR_BASE_URL%/}/health" >&2
   exit 2
 fi
 
@@ -84,5 +92,7 @@ export CAD_EXTRACTOR_BASE_URL
 export CAD_EXTRACTOR_SAMPLE_FILE
 export CAD_EXTRACTOR_EXPECT_KEY
 export CAD_EXTRACTOR_EXPECT_VALUE
+export CAD_CONNECTOR_BASE_URL
+export CAD_CONNECTOR_SAMPLE_FILE
 
 "$SCRIPT_DIR/verify_all.sh" "$BASE_URL" "$TENANT" "$ORG"

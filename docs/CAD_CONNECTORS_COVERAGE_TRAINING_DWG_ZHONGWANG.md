@@ -1,7 +1,7 @@
 # CAD 2D Connector Coverage Report (Zhongwang, Offline) (训练图纸)
 
 ## Run Info
-- Time: `2026-01-25 12:42:44 +0800`
+- Time: `2026-01-27 16:21:30 +0800`
 - Base URL: `http://127.0.0.1:7910`
 - Extractor: `http://127.0.0.1:8200`
 - Tenant/Org: `tenant-1` / `org-1`
@@ -9,81 +9,141 @@
 - CAD Connector Override: `zhongwangcad`
 - Directory: `/Users/huazhou/Downloads/训练图纸/训练图纸`
 - Extensions: `dwg`
-- Files: `50`
+- Files: `110`
 
 ## Target Field Coverage
 
 | Field | Present | Coverage |
 | --- | --- | --- |
-| `part_number` | 50/50 | 100.0% |
-| `part_name` | 50/50 | 100.0% |
-| `material` | 0/50 | 0.0% |
-| `weight` | 0/50 | 0.0% |
-| `revision` | 50/50 | 100.0% |
-| `drawing_no` | 50/50 | 100.0% |
-| `author` | 0/50 | 0.0% |
-| `created_at` | 0/50 | 0.0% |
+| `part_number` | 110/110 | 100.0% |
+| `part_name` | 110/110 | 100.0% |
+| `material` | 0/110 | 0.0% |
+| `weight` | 0/110 | 0.0% |
+| `revision` | 108/110 | 98.2% |
+| `drawing_no` | 110/110 | 100.0% |
+| `author` | 0/110 | 0.0% |
+| `created_at` | 0/110 | 0.0% |
 
 ## Extracted Key Distribution (Non-empty)
 
 | Key | Files |
 | --- | --- |
-| `drawing_no` | 50 |
-| `part_name` | 50 |
-| `part_number` | 50 |
-| `revision` | 50 |
+| `drawing_no` | 110 |
+| `part_name` | 110 |
+| `part_number` | 110 |
+| `revision` | 108 |
 
 ## Per-file Summary
 
 | File | Upload Name | File ID | CAD Format | Connector | Keys |
 | --- | --- | --- | --- | --- | --- |
-| `BTJ01230901522-00汽水分离器v1.dwg` | `BTJ01230901522-00汽水分离器v1.dwg` | `67f9eeee-f933-4ad1-b3ce-93eb51efafce` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01230901522-00汽水分离器v2.dwg` | `BTJ01230901522-00汽水分离器v2.dwg` | `f60901a2-ee4f-4b93-8097-1fa75173c6f6` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231101522-00自动进料装置v1.dwg` | `BTJ01231101522-00自动进料装置v1.dwg` | `2a960e67-e44a-44cb-90fc-b89e8a9b7bd0` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231101522-00自动进料装置v2.dwg` | `BTJ01231101522-00自动进料装置v2.dwg` | `bb63cb69-5339-4ec0-8498-c49a3454dbe3` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231201522-00拖车DN1500v1.dwg` | `BTJ01231201522-00拖车DN1500v1.dwg` | `4f788dbd-bf09-43c1-84c2-bb0c97ce8ee3` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231201522-00拖车DN1500v2.dwg` | `BTJ01231201522-00拖车DN1500v2.dwg` | `920fc093-891f-49ed-8067-1eb58353587c` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231301522-00蜗轮蜗杆传动出料机构v1.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v1.dwg` | `efbb7a72-b341-47b3-bee1-9cafc23cb765` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231301522-00蜗轮蜗杆传动出料机构v2.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v2.dwg` | `8ff60cb1-255a-4517-bec0-69fa86f2e88a` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231301522-00蜗轮蜗杆传动出料机构v3.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v3.dwg` | `82510909-f9ff-49bf-96d7-4d934b98d69d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231301522-01轴向定位轴承v1.dwg` | `BTJ01231301522-01轴向定位轴承v1.dwg` | `85326f14-c47c-4589-b6f6-12fb7688057a` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231301522-01轴向定位轴承v2.dwg` | `BTJ01231301522-01轴向定位轴承v2.dwg` | `6c114ac5-a0b4-4c01-81ad-6b3433428d40` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231501522-00短轴承座(盖)v1.dwg` | `BTJ01231501522-00短轴承座(盖)v1.dwg` | `946fd2e5-6366-4771-b460-e6a28f32f340` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231501522-00短轴承座(盖)v2.dwg` | `BTJ01231501522-00短轴承座(盖)v2.dwg` | `194554b0-6cc2-427f-a8b8-ea25ff855cfd` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231501522-00短轴承座(盖)v3.dwg` | `BTJ01231501522-00短轴承座(盖)v3.dwg` | `10198f87-aa26-4299-a8e9-45134374f0fa` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01232801522-01电加热箱v1.dwg` | `BTJ01232801522-01电加热箱v1.dwg` | `b997a7a1-eabc-42d5-af90-8f854b013d63` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01232801522-01电加热箱v2.dwg` | `BTJ01232801522-01电加热箱v2.dwg` | `87a78635-44a9-4905-a8b4-4dadfa28436b` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01239601522-03扭转弹簧v1.dwg` | `BTJ01239601522-03扭转弹簧v1.dwg` | `dc06739f-83b9-48b8-afcf-93e8ee255365` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01239601522-03扭转弹簧v2.dwg` | `BTJ01239601522-03扭转弹簧v2.dwg` | `6e4f845e-36f9-4863-9b75-4cf8a436a19d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01239601522-03扭转弹簧v3.dwg` | `BTJ01239601522-03扭转弹簧v3.dwg` | `bace54ba-27a8-44f3-becc-b45eea606b7b` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01239901522-00拖轮组件v1.dwg` | `BTJ01239901522-00拖轮组件v1.dwg` | `40def118-6e9d-4f45-8667-8cee2755f530` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ01239901522-00拖轮组件v2.dwg` | `BTJ01239901522-00拖轮组件v2.dwg` | `e7ca7688-39b0-4084-bb12-af09b02902e1` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ02230101102-12手轮组件v1.dwg` | `BTJ02230101102-12手轮组件v1.dwg` | `6ebc7b7b-61dc-46e2-979d-00a5e84aea73` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ02230101102-12手轮组件v2.dwg` | `BTJ02230101102-12手轮组件v2.dwg` | `67a6f17e-9843-4d85-a6db-4d959e1ae4eb` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ02230301120-03保护罩组件v1.dwg` | `BTJ02230301120-03保护罩组件v1.dwg` | `f9ef83df-a4ee-465a-b3aa-d8775355e37c` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ02230301120-03保护罩组件v2.dwg` | `BTJ02230301120-03保护罩组件v2.dwg` | `9115ab23-0699-416c-988f-5600682f8d4e` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ14240301522-00防爆视灯组件v1.dwg` | `BTJ14240301522-00防爆视灯组件v1.dwg` | `7c63fe5d-6caf-4e4c-a672-024d5155b31f` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `BTJ14240301522-00防爆视灯组件v2.dwg` | `BTJ14240301522-00防爆视灯组件v2.dwg` | `dde156b2-accd-43ec-94d5-ba40f048015d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224014-09液压开盖组件v1.dwg` | `J0224014-09液压开盖组件v1.dwg` | `a25fb5c0-10db-4a67-8063-91eda6c7eeec` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224014-09液压开盖组件v2.dwg` | `J0224014-09液压开盖组件v2.dwg` | `28bf3bac-994c-472f-87d0-c80aef9377de` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224025-06-01-03出料凸缘v1.dwg` | `J0224025-06-01-03出料凸缘v1.dwg` | `81384cfc-80cf-4fdb-9df6-1ec8dbc68f4a` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224025-06-01-03出料凸缘v2.dwg` | `J0224025-06-01-03出料凸缘v2.dwg` | `62a95823-05f9-4447-b1b6-fc157d5a0c0b` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224036-10搅拌减速机机罩v1.dwg` | `J0224036-10搅拌减速机机罩v1.dwg` | `dc2ada0f-4d6f-4e57-a677-9c344b20fc07` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224036-10搅拌减速机机罩v2.dwg` | `J0224036-10搅拌减速机机罩v2.dwg` | `b2e150f0-317a-4fd5-80c7-3e5531015057` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224036-12真空组件v1.dwg` | `J0224036-12真空组件v1.dwg` | `56a2459f-4a4a-40eb-9c6b-b84dd57828c2` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224036-12真空组件v2.dwg` | `J0224036-12真空组件v2.dwg` | `3d5594c6-b68d-41f1-b29d-bfbdecf345a6` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224070-04-07捕集口v1.dwg` | `J0224070-04-07捕集口v1.dwg` | `acc20da3-e1f4-43c8-9df3-68c6dfabd005` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224070-04-07捕集口v2.dwg` | `J0224070-04-07捕集口v2.dwg` | `56dd7667-492a-4b24-9005-98b2a8276950` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224071-11-02过滤芯组件v1.dwg` | `J0224071-11-02过滤芯组件v1.dwg` | `05e98590-01a4-4337-8002-18eae440415b` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224071-11-02过滤芯组件v2.dwg` | `J0224071-11-02过滤芯组件v2.dwg` | `399b811a-cb0d-41fd-829e-d9934695ba76` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224071-11捕集器组件v1.dwg` | `J0224071-11捕集器组件v1.dwg` | `57a994c8-d31f-4895-b2dd-3c703803a025` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0224071-11捕集器组件v2.dwg` | `J0224071-11捕集器组件v2.dwg` | `b5c341c4-045c-4363-bd71-1b8c5410aca6` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0225001-09-04旋转组件v1.dwg` | `J0225001-09-04旋转组件v1.dwg` | `06342ab4-562d-45cb-8f34-6b7cf6e3d683` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0225001-09-04旋转组件v2.dwg` | `J0225001-09-04旋转组件v2.dwg` | `9a6c3e4b-ae63-4aae-b114-8580e8c8aa8c` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04-04轴头组件v1.dwg` | `J0225004-04-04轴头组件v1.dwg` | `155157b5-3a1f-4ad9-8cff-01bb29313698` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04-04轴头组件v2.dwg` | `J0225004-04-04轴头组件v2.dwg` | `e175c6cc-8914-443b-8fd7-2a59e6cf829a` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04-05下封板v1.dwg` | `J0225004-04-05下封板v1.dwg` | `d314bd0c-e5ff-4cbe-99e8-952e7ec875b3` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04-05下封板v2.dwg` | `J0225004-04-05下封板v2.dwg` | `9d77f304-2234-4847-aad7-5d99d6ac3dea` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04搅拌桨组件v1.dwg` | `J0225004-04搅拌桨组件v1.dwg` | `f2e4bc12-d5a6-4ed3-938b-ba2960e71c22` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04搅拌桨组件v2.dwg` | `J0225004-04搅拌桨组件v2.dwg` | `9cbd7f10-127e-43d5-b3b1-92b13437dbb0` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
-| `J0225004-08搅拌轴组件v1.dwg` | `J0225004-08搅拌轴组件v1.dwg` | `8c4b966f-b7dd-4d49-beee-8ebd979fbfc9` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01230901522-00汽水分离器v1.dwg` | `BTJ01230901522-00汽水分离器v1.dwg` | `23e8d948-383d-47ff-8e6c-17f1b311155d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01230901522-00汽水分离器v2.dwg` | `BTJ01230901522-00汽水分离器v2.dwg` | `26042d6f-7a75-4add-a22e-f76d9585cc44` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231101522-00自动进料装置v1.dwg` | `BTJ01231101522-00自动进料装置v1.dwg` | `7c3698ef-d736-4094-9c83-0001aad3fdb9` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231101522-00自动进料装置v2.dwg` | `BTJ01231101522-00自动进料装置v2.dwg` | `d4fefb6c-5143-4775-80d3-67bd1d2c7d5d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231201522-00拖车DN1500v1.dwg` | `BTJ01231201522-00拖车DN1500v1.dwg` | `1c695abd-67f0-4a5f-ab90-9ced2aa34f97` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231201522-00拖车DN1500v2.dwg` | `BTJ01231201522-00拖车DN1500v2.dwg` | `e704f6bc-698b-43f7-a3a4-36d9bc905a7d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231301522-00蜗轮蜗杆传动出料机构v1.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v1.dwg` | `f005cfa4-781a-42ae-b070-749a6395a567` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231301522-00蜗轮蜗杆传动出料机构v2.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v2.dwg` | `0f88e205-f031-4ca9-af45-97e05f4968cc` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231301522-00蜗轮蜗杆传动出料机构v3.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v3.dwg` | `89fb9121-2cbc-429b-96dc-14453b0a3c92` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231301522-01轴向定位轴承v1.dwg` | `BTJ01231301522-01轴向定位轴承v1.dwg` | `71822bcc-2c91-4c30-af9c-6c836dcaddca` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231301522-01轴向定位轴承v2.dwg` | `BTJ01231301522-01轴向定位轴承v2.dwg` | `5194b834-6c8e-462f-8881-a4e8555ba5dd` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231501522-00短轴承座(盖)v1.dwg` | `BTJ01231501522-00短轴承座(盖)v1.dwg` | `fa160c97-7d47-46d7-8185-5257169caf8f` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231501522-00短轴承座(盖)v2.dwg` | `BTJ01231501522-00短轴承座(盖)v2.dwg` | `fe0015f0-30a9-4db8-b131-4f775222db30` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231501522-00短轴承座(盖)v3.dwg` | `BTJ01231501522-00短轴承座(盖)v3.dwg` | `ba3c1353-2638-4012-b952-7694bc77d327` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01232801522-01电加热箱v1.dwg` | `BTJ01232801522-01电加热箱v1.dwg` | `d4cead21-f272-45d9-9516-ec2407a96ca2` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01232801522-01电加热箱v2.dwg` | `BTJ01232801522-01电加热箱v2.dwg` | `d55ec88f-cebc-4c5b-b6db-79e9a243a420` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01239601522-03扭转弹簧v1.dwg` | `BTJ01239601522-03扭转弹簧v1.dwg` | `b396b24f-12db-4363-9aaa-0db1cce474b5` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01239601522-03扭转弹簧v2.dwg` | `BTJ01239601522-03扭转弹簧v2.dwg` | `6b911fd6-248b-4e65-ba90-5a72465c9f36` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01239601522-03扭转弹簧v3.dwg` | `BTJ01239601522-03扭转弹簧v3.dwg` | `2bd9f979-5b9e-401c-9fad-b0d71303c7f2` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01239901522-00拖轮组件v1.dwg` | `BTJ01239901522-00拖轮组件v1.dwg` | `99cc08aa-05c8-4270-ab41-21359546abcd` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ01239901522-00拖轮组件v2.dwg` | `BTJ01239901522-00拖轮组件v2.dwg` | `17873cd1-ecf6-409d-b74a-a94e70db6ed6` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ02230101102-12手轮组件v1.dwg` | `BTJ02230101102-12手轮组件v1.dwg` | `d498bbc7-f4f9-4483-8eec-29d5af99cd1b` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ02230101102-12手轮组件v2.dwg` | `BTJ02230101102-12手轮组件v2.dwg` | `fa121ef5-911e-4835-a7ad-8a166358b034` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ02230301120-03保护罩组件v1.dwg` | `BTJ02230301120-03保护罩组件v1.dwg` | `26b1cdce-1cf6-4aba-b0fa-8a15e28833fb` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ02230301120-03保护罩组件v2.dwg` | `BTJ02230301120-03保护罩组件v2.dwg` | `cb8081db-4dad-4e54-aac7-353d37243184` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ14240301522-00防爆视灯组件v1.dwg` | `BTJ14240301522-00防爆视灯组件v1.dwg` | `b9a51868-9fe4-458d-9f64-06f354cb2876` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `BTJ14240301522-00防爆视灯组件v2.dwg` | `BTJ14240301522-00防爆视灯组件v2.dwg` | `c596d884-4b29-4b49-b45c-890be36b99af` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224014-09液压开盖组件v1.dwg` | `J0224014-09液压开盖组件v1.dwg` | `7c97fe7d-b08a-45e5-8290-2c8aacd8141e` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224014-09液压开盖组件v2.dwg` | `J0224014-09液压开盖组件v2.dwg` | `dec9bc2f-f82d-498f-84f3-6a1fe1505a5d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224025-06-01-03出料凸缘v1.dwg` | `J0224025-06-01-03出料凸缘v1.dwg` | `0ffd56d6-e611-45f3-b15f-e78fe8aa54cf` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224025-06-01-03出料凸缘v2.dwg` | `J0224025-06-01-03出料凸缘v2.dwg` | `329a1f62-c551-4ee4-a186-413afae9036b` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224036-10搅拌减速机机罩v1.dwg` | `J0224036-10搅拌减速机机罩v1.dwg` | `e5cf9af0-0bf5-4a64-864c-657abe2d9629` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224036-10搅拌减速机机罩v2.dwg` | `J0224036-10搅拌减速机机罩v2.dwg` | `6e5bfc34-0605-45c2-88c9-6e43c95b6274` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224036-12真空组件v1.dwg` | `J0224036-12真空组件v1.dwg` | `72142351-6ebe-4fda-b49d-51198c4254cc` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224036-12真空组件v2.dwg` | `J0224036-12真空组件v2.dwg` | `caa1c9b2-57a4-4da0-9746-4532c3ac95ee` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224070-04-07捕集口v1.dwg` | `J0224070-04-07捕集口v1.dwg` | `6ddf3df5-f048-4780-8b1d-55e2ee56953d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224070-04-07捕集口v2.dwg` | `J0224070-04-07捕集口v2.dwg` | `fe5d4d05-2c6a-4e97-b9a7-65bdc8c3e27c` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224071-11-02过滤芯组件v1.dwg` | `J0224071-11-02过滤芯组件v1.dwg` | `083e3826-7964-4e91-8af4-60e8786c4848` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224071-11-02过滤芯组件v2.dwg` | `J0224071-11-02过滤芯组件v2.dwg` | `f10b385b-986e-41c8-a76c-b666d013c84a` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224071-11捕集器组件v1.dwg` | `J0224071-11捕集器组件v1.dwg` | `f14c170e-1f0c-4739-82dc-80eb70bc9321` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0224071-11捕集器组件v2.dwg` | `J0224071-11捕集器组件v2.dwg` | `1e2dbab2-1f17-469e-99d0-3c7854e739d2` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225001-09-04旋转组件v1.dwg` | `J0225001-09-04旋转组件v1.dwg` | `868a9ba5-84c2-4a4b-b077-f1b1b507dbff` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225001-09-04旋转组件v2.dwg` | `J0225001-09-04旋转组件v2.dwg` | `5e41d28e-9172-4c89-8b68-446c416ccf95` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04-04轴头组件v1.dwg` | `J0225004-04-04轴头组件v1.dwg` | `520c88b5-c484-4b4f-9a84-55c2823852ae` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04-04轴头组件v2.dwg` | `J0225004-04-04轴头组件v2.dwg` | `14b7aec6-d8a0-4592-a6e6-0f80da94d348` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04-05下封板v1.dwg` | `J0225004-04-05下封板v1.dwg` | `6789d54c-d43a-4552-896d-895c0debca39` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04-05下封板v2.dwg` | `J0225004-04-05下封板v2.dwg` | `084a85bc-ff88-4365-aded-c35e7710354d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04搅拌桨组件v1.dwg` | `J0225004-04搅拌桨组件v1.dwg` | `9817973c-d49f-4b73-8193-1cd0e6500112` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04搅拌桨组件v2.dwg` | `J0225004-04搅拌桨组件v2.dwg` | `c147b51e-3e24-495c-9d0a-423cc29c38f9` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225004-08搅拌轴组件v1.dwg` | `J0225004-08搅拌轴组件v1.dwg` | `6997586a-bd60-4e84-96c0-9f0afead064a` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225004-08搅拌轴组件v2.dwg` | `J0225004-08搅拌轴组件v2.dwg` | `530e2ac9-0150-4763-ba72-6b55a629adc3` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225009-04-03阀体v1.dwg` | `J0225009-04-03阀体v1.dwg` | `69beb4ec-81f9-4e1c-8e3f-26b985519495` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225009-04-03阀体v2.dwg` | `J0225009-04-03阀体v2.dwg` | `84739e9e-9e2f-42b0-a676-fc2c2afc2f6c` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225034-05罐体部分v1.dwg` | `J0225034-05罐体部分v1.dwg` | `e8cac37a-1895-4573-8d6b-b4798e4d519e` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225034-05罐体部分v2.dwg` | `J0225034-05罐体部分v2.dwg` | `7cb7956c-cbce-452c-99ab-91c803b7ad14` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225047-04罐体部分v1.dwg` | `J0225047-04罐体部分v1.dwg` | `42a20540-0027-49fe-993b-593dae2e0e7a` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225047-04罐体部分v2.dwg` | `J0225047-04罐体部分v2.dwg` | `958261fc-00de-45f1-ac6b-b4f93cf6056a` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225047-04罐体部分v3.dwg` | `J0225047-04罐体部分v3.dwg` | `d6fa0196-8601-449e-9c39-43be51a74569` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225048-02-07侧推料组件v1.dwg` | `J0225048-02-07侧推料组件v1.dwg` | `ef236966-5005-43c1-9468-797f3820ed42` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225048-02-07侧推料组件v2.dwg` | `J0225048-02-07侧推料组件v2.dwg` | `e8303f33-5b1b-445e-b351-f45d6224fec1` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225054-15-01支承座v1.dwg` | `J0225054-15-01支承座v1.dwg` | `b4b26795-2ba9-4c1b-a975-3c90f0fa0a98` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225054-15-01支承座v2.dwg` | `J0225054-15-01支承座v2.dwg` | `7b54a374-144b-4dd9-a2bc-ac2eab670df2` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225054-15罐体支腿v1.dwg` | `J0225054-15罐体支腿v1.dwg` | `b535f48c-a555-49e1-8eee-32121ffa45ec` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0225054-15罐体支腿v2.dwg` | `J0225054-15罐体支腿v2.dwg` | `79f50de2-e32b-4556-aa3d-d455479015a9` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0525002-04-02过滤托架v1.dwg` | `J0525002-04-02过滤托架v1.dwg` | `b32d50a9-3a8a-45cf-9031-fca78e4702df` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0525002-04-02过滤托架v2.dwg` | `J0525002-04-02过滤托架v2.dwg` | `ba06d8df-c928-488b-bb3d-2b8961c49986` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0525002-04-02过滤托架v3.dwg` | `J0525002-04-02过滤托架v3.dwg` | `e254712c-c222-469e-b738-73dba71ee29f` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0525002-04-02过滤托架v4.dwg` | `J0525002-04-02过滤托架v4.dwg` | `945817f5-fd63-4896-83e6-919df8b66910` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0724006-01下锥体组件v1.dwg` | `J0724006-01下锥体组件v1.dwg` | `b46a41a0-6a7a-43aa-99e6-ec3d05a76387` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0724006-01下锥体组件v2.dwg` | `J0724006-01下锥体组件v2.dwg` | `cc6d1532-e22e-428d-8c50-6ad1a5b4a055` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0724006-01下锥体组件v3.dwg` | `J0724006-01下锥体组件v3.dwg` | `c166b868-859a-4759-8605-5cc88abd2c7a` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0724006-02搅拌器组件v1.dwg` | `J0724006-02搅拌器组件v1.dwg` | `c9ea8cd4-a6a8-4358-9502-809786f78d99` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0724006-02搅拌器组件v2.dwg` | `J0724006-02搅拌器组件v2.dwg` | `3c65a855-8d73-4690-80cd-c469b082a6dd` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0724006-05上封头组件v1.dwg` | `J0724006-05上封头组件v1.dwg` | `c7474e36-d141-412f-908d-87627da8c3fd` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0724006-05上封头组件v2.dwg` | `J0724006-05上封头组件v2.dwg` | `05978486-a0db-442b-b944-b2857b7fe94b` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J0724006-05上封头组件v3.dwg` | `J0724006-05上封头组件v3.dwg` | `8416da92-06a1-4c11-a5e0-39ca410946d0` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J1424042-00出料正压隔离器v1.dwg` | `J1424042-00出料正压隔离器v1.dwg` | `db20a40d-2746-4a67-8604-9e9ff53c4ea1` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J1424042-00出料正压隔离器v2-yuantus.dwg` | `J1424042-00出料正压隔离器v2-yuantus.dwg` | `0216933c-8c09-4f3d-b833-3a8197a36db5` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number |
+| `J1424042-51-01-08对接法兰v1.dwg` | `J1424042-51-01-08对接法兰v1.dwg` | `bb90b2af-d464-49e0-8969-cac2adc3ba32` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J1424042-51-01-08对接法兰v2.dwg` | `J1424042-51-01-08对接法兰v2.dwg` | `f2ef2735-f533-4cab-886f-5f8be9b110e6` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2824002-06上封头组件v1.dwg` | `J2824002-06上封头组件v1.dwg` | `a5cc69d1-4d70-4cec-90f1-1ca3d9c528fe` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2824002-06上封头组件v2.dwg` | `J2824002-06上封头组件v2.dwg` | `1205be43-9952-419c-9add-fdecad16a245` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2825002-06上筒体组件v1.dwg` | `J2825002-06上筒体组件v1.dwg` | `0a05a7fe-c1e8-4f44-a519-43a36c96bff9` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2825002-06上筒体组件v2.dwg` | `J2825002-06上筒体组件v2.dwg` | `aebc7cac-1812-4ded-aba3-fd6c3fa31a53` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2825002-06上筒体组件v3.dwg` | `J2825002-06上筒体组件v3.dwg` | `81efc7e4-868c-4748-a37b-abb07b013f1c` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2825002-09下轴承支架组件v1.dwg` | `J2825002-09下轴承支架组件v1.dwg` | `2a60457a-d67f-4e39-9052-c18f52bd6c08` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2825002-09下轴承支架组件v2.dwg` | `J2825002-09下轴承支架组件v2.dwg` | `cc528320-caec-4184-94b4-ba83a6d3f2cd` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2825003-05下筒体组件v1.dwg` | `J2825003-05下筒体组件v1.dwg` | `8253072d-21aa-4c02-b85b-3ef1f6217c08` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2825003-05下筒体组件v2.dwg` | `J2825003-05下筒体组件v2.dwg` | `e1fc8b78-50fe-4f98-b19e-8a318d5e2541` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925001-00再沸器v1.dwg` | `J2925001-00再沸器v1.dwg` | `c72d5338-2dcf-4a17-88f6-9117b8ca0a8b` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925001-00再沸器v2.dwg` | `J2925001-00再沸器v2.dwg` | `4a8634f1-0bf8-42db-ada9-c3e3903e3bed` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925001-00再沸器v3.dwg` | `J2925001-00再沸器v3.dwg` | `7635f2ac-5b7e-4555-bba6-29c241a2089a` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925001-01-01人孔法兰v1.dwg` | `J2925001-01-01人孔法兰v1.dwg` | `6f75cc45-4ae0-4ff4-a28f-6091199eb807` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925001-01-01人孔法兰v2.dwg` | `J2925001-01-01人孔法兰v2.dwg` | `a585f509-4843-47e9-b9f3-502668a88b86` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925001-01人孔v1.dwg` | `J2925001-01人孔v1.dwg` | `7f951036-a187-4192-a287-ccb5610512c7` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925001-01人孔v2.dwg` | `J2925001-01人孔v2.dwg` | `4f190045-4bde-458c-8da5-161d50257b6d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925001-05管束v1.dwg` | `J2925001-05管束v1.dwg` | `f167a549-e5f8-413f-9c3a-1325000266ab` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925001-05管束v2.dwg` | `J2925001-05管束v2.dwg` | `e37468a1-2686-4505-9b98-9d5bc7159068` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925004-04-01底板v1.dwg` | `J2925004-04-01底板v1.dwg` | `56172851-6582-4f73-8b53-99599158df77` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J2925004-04-01底板v2.dwg` | `J2925004-04-01底板v2.dwg` | `49370cc5-6c43-4aa5-95f6-2477dfa90357` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J3025001-12轴承座v1.dwg` | `J3025001-12轴承座v1.dwg` | `37456b72-8514-4e7a-9388-555aa1014be2` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `J3025001-12轴承座v2.dwg` | `J3025001-12轴承座v2.dwg` | `422f4077-3670-44b5-a1f8-7e981a7d285b` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `LTJ012303106-0001超声波法兰.dwg` | `LTJ012303106-0001超声波法兰.dwg` | `d9db5570-5051-47a4-9b42-52b3090a8f11` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number |
+| `LTJ012303106-0001超声波法兰v1.dwg` | `LTJ012303106-0001超声波法兰v1.dwg` | `616105d3-97ca-4f5d-9a46-ef0aa6309a0e` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `LTJ012303106-0001超声波法兰v2.dwg` | `LTJ012303106-0001超声波法兰v2.dwg` | `703edcd9-2925-4bf4-abd4-2443445595b0` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `LTJ012303106-0030连接法兰(大)v1.dwg` | `LTJ012303106-0030连接法兰(大)v1.dwg` | `faca666d-93ca-4bcb-bc2f-cd2172b0c14d` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `LTJ012303106-0030连接法兰(大)v2.dwg` | `LTJ012303106-0030连接法兰(大)v2.dwg` | `b0de95ca-6560-4af0-a9ec-a45cabc51987` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `LTJ012306102-0084调节螺栓v1.dwg` | `LTJ012306102-0084调节螺栓v1.dwg` | `bdabf194-277f-4770-80e0-f07ee0172552` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `LTJ012306102-0084调节螺栓v2.dwg` | `LTJ012306102-0084调节螺栓v2.dwg` | `7920f293-9411-4ef6-9129-8eb99f16282e` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |
+| `比较_LTJ012306102-0084调节螺栓v1 vs LTJ012306102-0084调节螺栓v2.dwg` | `比较_LTJ012306102-0084调节螺栓v1 vs LTJ012306102-0084调节螺栓v2.dwg` | `a3d79859-1198-4a37-9975-7625c4faa211` | `ZHONGWANG` | `zhongwangcad` | drawing_no, part_name, part_number, revision |

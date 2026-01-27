@@ -5,6 +5,20 @@
 # =============================================================================
 set -uo pipefail
 
+# Bash 4+ required for associative arrays on macOS.
+if [[ -z "${BASH_VERSINFO[0]:-}" || "${BASH_VERSINFO[0]}" -lt 4 ]]; then
+  if [[ "${YUANTUS_BASH_REEXEC:-0}" != "1" ]]; then
+    if [[ -x /opt/homebrew/bin/bash ]]; then
+      YUANTUS_BASH_REEXEC=1 exec /opt/homebrew/bin/bash "$0" "$@"
+    elif [[ -x /usr/local/bin/bash ]]; then
+      YUANTUS_BASH_REEXEC=1 exec /usr/local/bin/bash "$0" "$@"
+    fi
+  fi
+  echo "ERROR: scripts/verify_all.sh requires bash >= 4 for associative arrays." >&2
+  echo "Hint: /opt/homebrew/bin/bash scripts/verify_all.sh ..." >&2
+  exit 2
+fi
+
 # Configuration
 BASE_URL="${1:-http://127.0.0.1:7910}"
 TENANT="${2:-tenant-1}"

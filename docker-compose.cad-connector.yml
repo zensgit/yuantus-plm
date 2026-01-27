@@ -1,0 +1,13 @@
+services:
+  cad-connector:
+    build:
+      context: ./services/cad-connector
+    ports:
+      - "8300:8300"
+    environment:
+      CAD_CONNECTOR_AUTH_MODE: "disabled"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8300/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
