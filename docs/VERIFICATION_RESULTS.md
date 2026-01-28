@@ -14220,3 +14220,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：CAD Auto Part
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_CAD_AUTO_PART_20260128_1110.md`
+
+## Run CAD-EXTRACTOR-SERVICE-20260128-1113
+
+- 时间：`2026-01-28 11:13 +0800`
+- 范围：CAD Extractor Service
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_CAD_EXTRACTOR_SERVICE_20260128_1113.md`
