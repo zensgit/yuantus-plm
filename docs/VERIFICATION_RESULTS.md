@@ -14184,3 +14184,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：UI 聚合验证（product detail / BOM summary / where-used / docs approval / ECO summary）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_UI_AGG_20260127_2352.md`
+
+## Run FULL-REGRESSION-20260128-0821
+
+- 时间：`2026-01-28 08:23 +0800`
+- 范围：全量回归（HTTP，RUN_UI_AGG=1）
+- 结果：`PASS=42, FAIL=0, SKIP=10`
+- 日志：`docs/VERIFY_ALL_HTTP_20260128_082158.log`
