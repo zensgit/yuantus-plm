@@ -8,6 +8,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
+from yuantus.config import get_settings
 from yuantus.meta_engine.relationship.models import RelationshipType
 from yuantus.meta_engine.models.item import Item  # Item model for relationship edges.
 from yuantus.meta_engine.models.meta_schema import ItemType
@@ -25,6 +26,7 @@ class RelationshipService:
     def _resolve_relationship_type(
         self, name: str
     ) -> tuple[Optional[RelationshipType], ItemType]:
+        settings = get_settings()
         item_type = (
             self.session.query(ItemType)
             .filter((ItemType.id == name) | (ItemType.label == name))
@@ -37,6 +39,14 @@ class RelationshipService:
             self._relationship_item_type_cache[item_type.id] = item_type
             return None, item_type
 
+        if not settings.RELATIONSHIP_TYPE_LEGACY_SEED_ENABLED:
+            if item_type:
+                raise ValueError(f"{name} is not a relationship ItemType")
+            raise ValueError(
+                f"Unknown relationship type: {name}. "
+                "Legacy RelationshipType lookup is disabled."
+            )
+
         rel_type = (
             self.session.query(RelationshipType)
             .filter((RelationshipType.name == name) | (RelationshipType.id == name))
@@ -44,7 +54,8 @@ class RelationshipService:
         )
         if rel_type:
             logger.warning(
-                "RelationshipType %s is deprecated; use ItemType.is_relationship.",
+                "RelationshipType %s is deprecated; use ItemType.is_relationship "
+                "(legacy mode enabled).",
                 rel_type.name,
             )
             item_type_id = rel_type.name

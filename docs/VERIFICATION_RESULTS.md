@@ -14283,3 +14283,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Phase 4（legacy usage 文案与只读告警输出）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE4_20260128_1537.md`
+
+## Run RELATIONSHIP-ITEM-PHASE5-20260128-1545
+
+- 时间：`2026-01-28 15:45 +0800`
+- 范围：Phase 5（legacy 关系类型仅在显式开启时可用）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE5_20260128_1545.md`

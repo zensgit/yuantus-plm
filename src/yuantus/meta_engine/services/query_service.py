@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Set
 from sqlalchemy.orm import Session
 from sqlalchemy import String, and_, asc, cast, desc
 
+from yuantus.config import get_settings
 from yuantus.meta_engine.schemas.aml import AMLQueryRequest, AMLQueryResponse
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
@@ -357,6 +358,12 @@ class AMLQueryService:
         )
         rel_type = None
         if not rel_item_type or not rel_item_type.is_relationship:
+            settings = get_settings()
+            if not settings.RELATIONSHIP_TYPE_LEGACY_SEED_ENABLED:
+                self._expand_builtin_relation(
+                    items, item_ids, rel_name, sub_expand, remaining_depth
+                )
+                return
             rel_type = (
                 self.session.query(RelationshipType)
                 .filter(
@@ -372,7 +379,8 @@ class AMLQueryService:
                 )
                 return
             logger.warning(
-                "RelationshipType %s is deprecated; use ItemType.is_relationship.",
+                "RelationshipType %s is deprecated; use ItemType.is_relationship "
+                "(legacy mode enabled).",
                 rel_type.name,
             )
 
