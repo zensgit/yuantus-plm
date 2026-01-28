@@ -59,6 +59,9 @@ export YUANTUS_CADGF_ROUTER_BASE_URL="http://127.0.0.1:9000"
 export YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL="http://localhost:9000"
 ```
 
+Tip: you can copy `.env.local.example` to `.env.local` and load it in your shell
+or pass it to docker compose via `--env-file`.
+
 Router start (local):
 ```bash
 CADGF_ROOT="/Users/huazhou/Downloads/Github/CADGameFusion-codex-yuantus" \
