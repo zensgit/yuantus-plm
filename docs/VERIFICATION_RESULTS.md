@@ -14332,3 +14332,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Phase 11（文档清理：RelationshipType 标记为 legacy）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE11_20260128_1801.md`
+
+## Run FULL-REGRESSION-20260128-1809
+
+- 时间：`2026-01-28 18:09 +0800`
+- 范围：全量回归（run_full_regression.sh）
+- 结果：`ALL TESTS PASSED (PASS=44, FAIL=0, SKIP=8)`
+- 报告：`docs/VERIFICATION_FULL_REGRESSION_20260128_1809.md`
