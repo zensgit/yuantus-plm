@@ -3849,3 +3849,25 @@ bash scripts/verify_where_used_schema.sh http://127.0.0.1:7910 tenant-1 org-1
 ```bash
 LOCAL_TESTCLIENT=1 bash scripts/verify_all_local.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+---
+
+## 68) Relationship → Item Migration (Phase 8)
+
+验证 legacy 关系模型软迁移（保持 import 兼容）：
+
+```bash
+PYTHONPATH=src python3 - <<'PY'
+from yuantus.meta_engine.relationship import models as m
+from yuantus.meta_engine.relationship import legacy_models as lm
+
+print("same_class", m.Relationship is lm.Relationship, m.RelationshipType is lm.RelationshipType)
+
+try:
+    m.simulate_relationship_write_block()
+except Exception as exc:
+    print("blocked", type(exc).__name__, str(exc))
+
+print("stats", m.get_relationship_write_block_stats(window_seconds=60, recent_limit=5))
+PY
+```
