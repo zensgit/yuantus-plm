@@ -14374,3 +14374,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：全量回归（RUN_CONFIG_VARIANTS=1）
 - 结果：`ALL TESTS PASSED (PASS=37, FAIL=0, SKIP=16)`
 - 报告：`docs/VERIFICATION_RUN_ALL_S12_CONFIG_VARIANTS_20260128_2318.md`
+
+## Run H-20260128-2334（发布前快速回归）
+
+- 时间：`2026-01-28 23:34 +0800`
+- 范围：Run H 核心功能回归（Health → AML → File → BOM → ECO → Versions → Plugins）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RUN_H_20260128_2334.md`
