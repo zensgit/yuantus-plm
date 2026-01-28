@@ -14255,3 +14255,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Relationship → Item Phase 1 适配层（seeding / expand / legacy usage）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_ADAPTER_20260128_1201.md`
+
+## Run RELATIONSHIP-ITEM-MIGRATION-DRYRUN-20260128-1410
+
+- 时间：`2026-01-28 14:10 +0800`
+- 范围：Relationship → Item Phase 2 迁移（dry-run, db-per-tenant-org）
+- 结果：`ALL CHECKS PASSED (no relationships to migrate)`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_MIGRATION_DRYRUN_20260128_1410.md`
