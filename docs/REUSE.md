@@ -27,6 +27,17 @@
 
 ---
 
+## 关系模型现状（重要）
+
+- 关系事实源：`meta_items`（`ItemType.is_relationship=true`）。  
+- `meta_relationships` / `RelationshipType` 已废弃，仅保留只读兼容与统计。  
+- 新开发 **不允许** 直接写入 `meta_relationships`；统一走 ItemType 关系与 `Item` 关系行。  
+- 管理端 legacy 统计/告警见：`/api/v1/admin/relationship-writes` 与 `relationship-types/legacy-usage`。  
+
+> 备注：这意味着旧工程中基于 `RelationshipType` 的写入逻辑不应直接迁入；应改为“关系即 Item”的统一路径。
+
+---
+
 ## 1) 可直接复用（建议“拷贝 + 对齐 import + 补测试/文档”）
 
 ### 1.1 Meta Engine（核心）

@@ -29,3 +29,12 @@
 ## 关联配置
 
 - `YUANTUS_RELATIONSHIP_TYPE_LEGACY_SEED_ENABLED` 仍然控制 legacy 类型是否播种
+
+---
+
+## 迁移后使用规范（Phase 4 说明）
+
+- 新关系只允许写入 `meta_items`（`ItemType.is_relationship=true`）。  
+- `meta_relationships` 仅保留只读兼容与统计，不允许写入。  
+- 关系类型统一用 `ItemType` 表达，`RelationshipType` 仅用于 legacy 统计。  
+- 平台管理员端点需要 `PLATFORM_TENANT_ID=platform`（默认）下的超级管理员。  

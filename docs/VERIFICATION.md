@@ -3779,12 +3779,23 @@ bash scripts/verify_ops_s8.sh http://127.0.0.1:7910 tenant-1 org-1
 ## 64) Deprecated Relationship Write Monitor
 
 `meta_relationships` 已降级为只读兼容层，写入会被拦截并记录进程内统计。
+该监控端点要求 **平台管理员**（`PLATFORM_TENANT_ID=platform`，默认）访问。
 
 ```bash
 export YUANTUS_PLATFORM_ADMIN_ENABLED=true
 
+# 1) 准备 platform 管理员（仅本地/开发）
+yuantus seed-identity --tenant platform --org platform --username platform-admin --password platform-admin --user-id 9001 --roles admin --superuser
+
+# 2) 登录获取 token
+PLATFORM_ADMIN_TOKEN=$(curl -s -X POST "http://127.0.0.1:7910/api/v1/auth/login" \
+  -H 'content-type: application/json' \
+  -d '{"tenant_id":"platform","username":"platform-admin","password":"platform-admin","org_id":"platform"}' \
+  | .venv/bin/python -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))')
+
+# 3) 查询阻断计数
 curl -s "http://127.0.0.1:7910/api/v1/admin/relationship-writes?window_seconds=86400&recent_limit=20&warn_threshold=10" \
-  -H "x-tenant-id: tenant-1" -H "x-org-id: org-1" \
+  -H "x-tenant-id: platform" -H "x-org-id: platform" \
   -H "Authorization: Bearer $PLATFORM_ADMIN_TOKEN"
 ```
 
@@ -3796,7 +3807,7 @@ curl -s "http://127.0.0.1:7910/api/v1/admin/relationship-writes?window_seconds=8
 export YUANTUS_RELATIONSHIP_SIMULATE_ENABLED=true
 
 curl -s -X POST "http://127.0.0.1:7910/api/v1/admin/relationship-writes/simulate?operation=insert&warn_threshold=10" \
-  -H "x-tenant-id: tenant-1" -H "x-org-id: org-1" \
+  -H "x-tenant-id: platform" -H "x-org-id: platform" \
   -H "Authorization: Bearer $PLATFORM_ADMIN_TOKEN"
 ```
 
