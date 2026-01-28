@@ -59,7 +59,7 @@ class ProjectDemoSeeder(BaseSeeder):
 | Range | Layer | Examples |
 |-------|-------|----------|
 | 0-99 | Core | Users, Tenants, RBAC Roles |
-| 100-199 | Schema | ItemTypes (RelationshipTypes optional) |
+| 100-199 | Schema | ItemTypes (legacy RelationshipTypes optional) |
 | 200-299 | Config | Lifecycles, Workflows, Views |
 | 500+ | Demo | Items, BOMs, ECOs, Files |
 
@@ -67,4 +67,4 @@ class ProjectDemoSeeder(BaseSeeder):
 
 - **Idempotency**: All seeders should be idempotent. Use `_ensure_exists` patterns to avoid duplicates on re-runs.
 - **Foreign Keys**: Be careful with execution order. Ensure dependencies (e.g., ItemTypes) are seeded before dependents (e.g., Items).
-- **Legacy RelationshipTypes**: Seed only when needed by legacy integrations via `YUANTUS_RELATIONSHIP_TYPE_LEGACY_SEED_ENABLED=true`.
+- **Legacy RelationshipTypes**: Deprecated. Seed only when required by legacy integrations via `YUANTUS_RELATIONSHIP_TYPE_LEGACY_SEED_ENABLED=true`; new relationships must use `ItemType.is_relationship` + `Item` relations.

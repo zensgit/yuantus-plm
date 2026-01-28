@@ -3899,3 +3899,13 @@ PY
 ```bash
 scripts/check_no_legacy_relationship_imports.sh src
 ```
+
+---
+
+## 71) Relationship → Item Migration (Phase 11)
+
+验证 seeder 文档已标记 RelationshipType 为 legacy：
+
+```bash
+rg -n "legacy RelationshipTypes optional|Legacy RelationshipTypes" src/yuantus/seeder/README.md
+```

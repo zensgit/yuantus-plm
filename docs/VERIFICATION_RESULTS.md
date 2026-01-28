@@ -14325,3 +14325,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Phase 10（deprecated import 警告 + 内部引用守护）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE10_20260128_1754.md`
+
+## Run RELATIONSHIP-ITEM-PHASE11-20260128-1801
+
+- 时间：`2026-01-28 18:01 +0800`
+- 范围：Phase 11（文档清理：RelationshipType 标记为 legacy）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE11_20260128_1801.md`
