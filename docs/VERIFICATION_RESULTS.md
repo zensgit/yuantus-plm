@@ -14290,3 +14290,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Phase 5（legacy 关系类型仅在显式开启时可用）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE5_20260128_1545.md`
+
+## Run RELATIONSHIP-ITEM-PHASE6-20260128-1603
+
+- 时间：`2026-01-28 16:03 +0800`
+- 范围：Phase 6（运行时移除 legacy RelationshipType 回退）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE6_20260128_1603.md`

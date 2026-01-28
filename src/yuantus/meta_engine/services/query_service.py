@@ -7,12 +7,10 @@ from typing import Any, Dict, List, Optional, Set
 from sqlalchemy.orm import Session
 from sqlalchemy import String, and_, asc, cast, desc
 
-from yuantus.config import get_settings
 from yuantus.meta_engine.schemas.aml import AMLQueryRequest, AMLQueryResponse
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 import logging
-from yuantus.meta_engine.relationship.models import RelationshipType
 
 
 class AMLQueryService:
@@ -356,35 +354,13 @@ class AMLQueryService:
             .filter((ItemType.id == rel_name) | (ItemType.label == rel_name))
             .first()
         )
-        rel_type = None
         if not rel_item_type or not rel_item_type.is_relationship:
-            settings = get_settings()
-            if not settings.RELATIONSHIP_TYPE_LEGACY_SEED_ENABLED:
-                self._expand_builtin_relation(
-                    items, item_ids, rel_name, sub_expand, remaining_depth
-                )
-                return
-            rel_type = (
-                self.session.query(RelationshipType)
-                .filter(
-                    (RelationshipType.name == rel_name)
-                    | (RelationshipType.id == rel_name)
-                )
-                .first()
+            self._expand_builtin_relation(
+                items, item_ids, rel_name, sub_expand, remaining_depth
             )
-            if not rel_type:
-                # 尝试作为内置关系名处理
-                self._expand_builtin_relation(
-                    items, item_ids, rel_name, sub_expand, remaining_depth
-                )
-                return
-            logger.warning(
-                "RelationshipType %s is deprecated; use ItemType.is_relationship "
-                "(legacy mode enabled).",
-                rel_type.name,
-            )
+            return
 
-        rel_item_type_id = rel_type.name if rel_type else rel_item_type.id
+        rel_item_type_id = rel_item_type.id
 
         # 批量查询关系
         relationships = (
