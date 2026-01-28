@@ -14353,3 +14353,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：CADGF 在线预览（router + preview）
 - 结果：`SKIP (Missing CADGF_ROOT / router artifacts)`
 - 报告：`docs/VERIFICATION_CADGF_PREVIEW_ONLINE_20260128_2101.md`
+
+## Run CADGF-PREVIEW-ONLINE-20260128-2114
+
+- 时间：`2026-01-28 21:14 +0800`
+- 范围：CADGF 在线预览（router + preview）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_CADGF_PREVIEW_ONLINE_20260128_2114.md`
