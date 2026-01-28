@@ -30,7 +30,7 @@ from yuantus.security.auth.quota_service import QuotaService
 from yuantus.security.auth.service import AuthService
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
-from yuantus.meta_engine.relationship.models import (
+from yuantus.meta_engine.relationship.legacy_models import (
     get_relationship_write_block_stats,
     simulate_relationship_write_block,
 )

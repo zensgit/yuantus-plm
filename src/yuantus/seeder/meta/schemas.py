@@ -1,6 +1,6 @@
 from yuantus.config import get_settings
 from yuantus.meta_engine.models.meta_schema import ItemType
-from yuantus.meta_engine.relationship.models import RelationshipType
+from yuantus.meta_engine.relationship.legacy_models import RelationshipType
 from yuantus.seeder.base import BaseSeeder
 from yuantus.seeder.registry import SeederRegistry
 

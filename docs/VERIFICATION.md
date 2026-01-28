@@ -3871,3 +3871,21 @@ except Exception as exc:
 print("stats", m.get_relationship_write_block_stats(window_seconds=60, recent_limit=5))
 PY
 ```
+
+---
+
+## 69) Relationship → Item Migration (Phase 9)
+
+验证内部模块改为显式 legacy_models 引用：
+
+```bash
+PYTHONPATH=src python3 - <<'PY'
+from yuantus.seeder.meta import schemas
+from yuantus.meta_engine.relationship import legacy_models as lm
+print("seeder_rel_type_module", schemas.RelationshipType.__module__)
+print("same_class", schemas.RelationshipType is lm.RelationshipType)
+
+from yuantus.api.routers import admin
+print("admin_block_fn_module", admin.get_relationship_write_block_stats.__module__)
+PY
+```

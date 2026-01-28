@@ -14311,3 +14311,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Phase 8（legacy 关系模型软迁移，保持 import 兼容）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE8_20260128_1714.md`
+
+## Run RELATIONSHIP-ITEM-PHASE9-20260128-1747
+
+- 时间：`2026-01-28 17:47 +0800`
+- 范围：Phase 9（内部模块改为显式 legacy_models 引用）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE9_20260128_1747.md`

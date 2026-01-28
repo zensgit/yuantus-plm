@@ -348,7 +348,7 @@ class AMLQueryService:
         if remaining_depth <= 0:
             return
 
-        # 查询关系类型：优先 ItemType.is_relationship，其次 RelationshipType (legacy)
+        # 查询关系类型：仅使用 ItemType.is_relationship（legacy 已移除）
         rel_item_type = (
             self.session.query(ItemType)
             .filter((ItemType.id == rel_name) | (ItemType.label == rel_name))
