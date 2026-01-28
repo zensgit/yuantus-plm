@@ -49,6 +49,24 @@ export YUANTUS_CADGF_PYTHON_BIN="/opt/homebrew/bin/python3.12"
 export YUANTUS_DWG_CONVERTER_BIN="/path/to/dwg_converter"
 ```
 
+## Local Dev Paths (Yuantus workspace)
+On this machine the router code and build artifacts live in different roots:
+```bash
+export YUANTUS_CADGF_ROOT="/Users/huazhou/Downloads/Github/CADGameFusion-codex-yuantus"
+export YUANTUS_CADGF_CONVERT_CLI="/Users/huazhou/Downloads/Github/CADGameFusion-legacy/build_vcpkg/tools/convert_cli"
+export YUANTUS_CADGF_DXF_PLUGIN_PATH="/Users/huazhou/Downloads/Github/CADGameFusion-legacy/build_vcpkg/plugins/libcadgf_json_importer_plugin.dylib"
+export YUANTUS_CADGF_ROUTER_BASE_URL="http://127.0.0.1:9000"
+export YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL="http://localhost:9000"
+```
+
+Router start (local):
+```bash
+CADGF_ROOT="/Users/huazhou/Downloads/Github/CADGameFusion-codex-yuantus" \
+CADGF_PLUGIN_PATH="/Users/huazhou/Downloads/Github/CADGameFusion-legacy/build_vcpkg/plugins/libcadgf_json_importer_plugin.dylib" \
+CADGF_CONVERT_CLI="/Users/huazhou/Downloads/Github/CADGameFusion-legacy/build_vcpkg/tools/convert_cli" \
+scripts/run_cadgf_router.sh
+```
+
 ## CADGF Preview Online Verification (script)
 These environment variables are used by `scripts/verify_cad_preview_online.sh`.
 ```bash
