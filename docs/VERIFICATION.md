@@ -3889,3 +3889,13 @@ from yuantus.api.routers import admin
 print("admin_block_fn_module", admin.get_relationship_write_block_stats.__module__)
 PY
 ```
+
+---
+
+## 70) Relationship → Item Migration (Phase 10)
+
+验证 deprecated import 守护脚本：
+
+```bash
+scripts/check_no_legacy_relationship_imports.sh src
+```
