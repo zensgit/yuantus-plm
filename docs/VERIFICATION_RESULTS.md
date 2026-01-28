@@ -14346,3 +14346,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：UI 聚合回归（RUN_UI_AGG=1）
 - 结果：`ALL TESTS PASSED (PASS=42, FAIL=0, SKIP=10)`
 - 报告：`docs/VERIFICATION_UI_AGG_20260128_2052.md`
+
+## Run CADGF-PREVIEW-ONLINE-20260128-2101
+
+- 时间：`2026-01-28 21:01 +0800`
+- 范围：CADGF 在线预览（router + preview）
+- 结果：`SKIP (Missing CADGF_ROOT / router artifacts)`
+- 报告：`docs/VERIFICATION_CADGF_PREVIEW_ONLINE_20260128_2101.md`
