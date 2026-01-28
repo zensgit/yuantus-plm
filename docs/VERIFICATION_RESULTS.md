@@ -14339,3 +14339,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：全量回归（run_full_regression.sh）
 - 结果：`ALL TESTS PASSED (PASS=44, FAIL=0, SKIP=8)`
 - 报告：`docs/VERIFICATION_FULL_REGRESSION_20260128_1809.md`
+
+## Run UI-AGG-20260128-2052
+
+- 时间：`2026-01-28 20:52 +0800`
+- 范围：UI 聚合回归（RUN_UI_AGG=1）
+- 结果：`ALL TESTS PASSED (PASS=42, FAIL=0, SKIP=10)`
+- 报告：`docs/VERIFICATION_UI_AGG_20260128_2052.md`
