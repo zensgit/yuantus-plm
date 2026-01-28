@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -37,6 +38,7 @@ from yuantus.meta_engine.relationship.models import (
 )
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+logger = logging.getLogger(__name__)
 
 
 def require_superuser(identity: Identity = Depends(get_current_identity)) -> Identity:
@@ -392,6 +394,8 @@ def _build_relationship_legacy_usage(
             )
 
     warnings: List[str] = []
+    # Always surface deprecation guidance so callers don't miss the migration policy.
+    warnings.append("legacy_relationships_readonly")
     if relationship_type_count:
         warnings.append("legacy_relationship_types_present")
     if relationship_row_count:
@@ -402,6 +406,14 @@ def _build_relationship_legacy_usage(
         warnings.append("meta_relationships_table_missing")
     if not has_relationship_types:
         warnings.append("meta_relationship_types_table_missing")
+
+    if relationship_type_count or relationship_row_count:
+        logger.warning(
+            "Legacy relationship usage detected (types=%s rows=%s); "
+            "use ItemType relationships (meta_items) instead.",
+            relationship_type_count,
+            relationship_row_count,
+        )
 
     return RelationshipLegacyUsageEntry(
         tenant_id=tenant_id,

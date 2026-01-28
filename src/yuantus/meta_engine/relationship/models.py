@@ -83,6 +83,9 @@ class Relationship(Base):
     - 新关系请写入 meta_items（ItemType.is_relationship=True）
     """
 
+    __table_args__ = {
+        "comment": "Deprecated: read-only compatibility table; use meta_items (ItemType.is_relationship)"
+    }
     __tablename__ = "meta_relationships"  # Use meta_ prefix for consistency
 
     id: Mapped[str] = mapped_column(

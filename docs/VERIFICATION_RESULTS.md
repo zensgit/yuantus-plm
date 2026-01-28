@@ -14276,3 +14276,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Phase 3（relationship-writes 监控 / simulate / legacy usage / 强制只读）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE3_20260128_1432.md`
+
+## Run RELATIONSHIP-ITEM-PHASE4-20260128-1537
+
+- 时间：`2026-01-28 15:37 +0800`
+- 范围：Phase 4（legacy usage 文案与只读告警输出）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE4_20260128_1537.md`
