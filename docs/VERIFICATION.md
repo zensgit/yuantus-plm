@@ -3909,3 +3909,19 @@ scripts/check_no_legacy_relationship_imports.sh src
 ```bash
 rg -n "legacy RelationshipTypes optional|Legacy RelationshipTypes" src/yuantus/seeder/README.md
 ```
+
+---
+
+## 72) S12 Configuration / Variant BOM
+
+验证配置选项集 + BOM 变型条件过滤：
+
+```bash
+RUN_CONFIG_VARIANTS=1 scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+或单独执行：
+
+```bash
+bash scripts/verify_config_variants.sh http://127.0.0.1:7910 tenant-1 org-1
+```

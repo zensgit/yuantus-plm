@@ -22,6 +22,7 @@ class BOMService:
         "effectivity_to",
         "effectivities",
         "substitutes",
+        "config_condition",
     )
     MAJOR_FIELDS = {
         "quantity",
@@ -30,7 +31,7 @@ class BOMService:
         "effectivity_to",
         "effectivities",
     }
-    MINOR_FIELDS = {"find_num", "refdes", "substitutes"}
+    MINOR_FIELDS = {"find_num", "refdes", "substitutes", "config_condition"}
     FIELD_DESCRIPTIONS = {
         "quantity": "BOM quantity on the relationship line.",
         "uom": "Unit of measure for the BOM quantity.",
@@ -40,6 +41,7 @@ class BOMService:
         "effectivity_to": "Effectivity end datetime (ISO).",
         "effectivities": "Expanded effectivity records attached to the line.",
         "substitutes": "Substitute items for the BOM line.",
+        "config_condition": "Configuration condition (JSON) for variant BOM selection.",
     }
     FIELD_NORMALIZATION = {
         "quantity": "float",
@@ -50,6 +52,7 @@ class BOMService:
         "effectivity_to": "ISO datetime string",
         "effectivities": "sorted tuples (type,start,end,payload)",
         "substitutes": "sorted tuples (item_id,rank,note)",
+        "config_condition": "json expression",
     }
     COMPARE_MODES = {
         "only_product": {
@@ -178,6 +181,7 @@ class BOMService:
         effective_date: datetime = None,
         include_substitutes: bool = False,
         relationship_types: Optional[List[str]] = None,
+        config_selection: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Return hierarchical BOM structure.
@@ -194,6 +198,7 @@ class BOMService:
             effective_date=effective_date,
             include_substitutes=include_substitutes,
             relationship_types=relationship_types,
+            config_selection=config_selection,
         )
 
     def _build_tree(
@@ -204,6 +209,7 @@ class BOMService:
         effective_date: datetime = None,
         include_substitutes: bool = False,
         relationship_types: Optional[List[str]] = None,
+        config_selection: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         node = parent_item.to_dict()
         node["children"] = []
@@ -231,6 +237,13 @@ class BOMService:
             if not rel.related_id:
                 continue
 
+            rel_props = rel.properties or {}
+            if config_selection is not None:
+                if not self._match_config_condition(
+                    rel_props.get("config_condition"), config_selection
+                ):
+                    continue
+
             # Check Effectivity (on the Relationship Item)
             if effective_date:
                 # If relationship is not effective at this date, skip
@@ -243,7 +256,7 @@ class BOMService:
 
             rel_dict = rel.to_dict()
             # Explicitly include properties for downstream processing (e.g. ECOService)
-            rel_dict["properties"] = rel.properties or {}
+            rel_dict["properties"] = rel_props
 
             child_node = {
                 "relationship": rel_dict,
@@ -254,6 +267,7 @@ class BOMService:
                     effective_date,
                     include_substitutes=include_substitutes,
                     relationship_types=relationship_types,
+                    config_selection=config_selection,
                 ),
             }
 
@@ -554,6 +568,7 @@ class BOMService:
         refdes: Optional[str] = None,
         effectivity_from: Optional[datetime] = None,
         effectivity_to: Optional[datetime] = None,
+        config_condition: Optional[Any] = None,
         extra_properties: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
@@ -569,6 +584,7 @@ class BOMService:
             refdes: Reference designators (comma-separated for multiple)
             effectivity_from: Start date for effectivity
             effectivity_to: End date for effectivity
+            config_condition: Variant configuration condition (JSON or simple string)
             extra_properties: Additional properties for the BOM line
 
         Returns:
@@ -621,6 +637,8 @@ class BOMService:
             properties["effectivity_from"] = effectivity_from.isoformat()
         if effectivity_to:
             properties["effectivity_to"] = effectivity_to.isoformat()
+        if config_condition is not None:
+            properties["config_condition"] = config_condition
         if extra_properties:
             properties.update(extra_properties)
 
@@ -700,6 +718,7 @@ class BOMService:
         depth: int = 10,
         effective_date: Optional[datetime] = None,
         relationship_types: Optional[List[str]] = None,
+        config_selection: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Get BOM tree structure with specified depth.
@@ -720,6 +739,7 @@ class BOMService:
             levels=depth,
             effective_date=effective_date,
             relationship_types=relationship_types,
+            config_selection=config_selection,
         )
 
     def compare_bom_trees(
@@ -1125,7 +1145,99 @@ class BOMService:
             return self._normalize_effectivities(value)
         if key in {"effectivity_from", "effectivity_to"}:
             return self._normalize_datetime(value)
+        if key == "config_condition":
+            return self._normalize_config_condition(value) or value
         return value
+
+    def _match_config_condition(
+        self, condition: Any, selection: Dict[str, Any]
+    ) -> bool:
+        if not selection:
+            return True
+        if condition is None:
+            return True
+        normalized = self._normalize_config_condition(condition)
+        if normalized is None:
+            return False
+        return self._evaluate_config_condition(normalized, selection)
+
+    def _normalize_config_condition(self, condition: Any) -> Optional[Dict[str, Any]]:
+        if isinstance(condition, dict):
+            return condition
+        if isinstance(condition, str):
+            raw = condition.strip()
+            if not raw:
+                return None
+            try:
+                parsed = json.loads(raw)
+                return parsed if isinstance(parsed, dict) else None
+            except json.JSONDecodeError:
+                return self._parse_simple_condition(raw)
+        return None
+
+    def _parse_simple_condition(self, expr: str) -> Optional[Dict[str, Any]]:
+        parts = [p.strip() for p in re.split(r"[;,]+", expr) if p.strip()]
+        conds: List[Dict[str, Any]] = []
+        for part in parts:
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if key and value:
+                conds.append({"option": key, "value": value})
+        if not conds:
+            return None
+        if len(conds) == 1:
+            return conds[0]
+        return {"all": conds}
+
+    def _get_selection_value(self, selection: Dict[str, Any], key: str) -> Any:
+        if key in selection:
+            return selection[key]
+        lowered = {str(k).lower(): v for k, v in selection.items()}
+        return lowered.get(str(key).lower())
+
+    def _evaluate_config_condition(self, condition: Dict[str, Any], selection: Dict[str, Any]) -> bool:
+        if not condition:
+            return True
+        if "all" in condition:
+            items = condition.get("all") or []
+            return all(self._evaluate_config_condition(c, selection) for c in items)
+        if "any" in condition:
+            items = condition.get("any") or []
+            return any(self._evaluate_config_condition(c, selection) for c in items)
+        if "not" in condition:
+            return not self._evaluate_config_condition(condition.get("not") or {}, selection)
+
+        option_key = (
+            condition.get("option")
+            or condition.get("option_set")
+            or condition.get("key")
+        )
+        if not option_key:
+            return False
+
+        selected = self._get_selection_value(selection, str(option_key))
+        if selected is None:
+            return False
+        if isinstance(selected, dict):
+            selected = selected.get("key") or selected.get("value") or selected.get("id")
+
+        values = (
+            condition.get("value")
+            if "value" in condition
+            else condition.get("values") or condition.get("in")
+        )
+        if values is None:
+            return bool(selected)
+        if isinstance(values, list):
+            if isinstance(selected, list):
+                return any(v in values for v in selected)
+            return selected in values
+        if isinstance(selected, list):
+            return str(values) in [str(v) for v in selected]
+        return str(selected) == str(values)
 
     def _normalize_refdes(self, value: Any) -> List[str]:
         if value is None:

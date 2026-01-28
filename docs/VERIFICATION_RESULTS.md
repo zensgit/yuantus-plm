@@ -14360,3 +14360,17 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：CADGF 在线预览（router + preview）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_CADGF_PREVIEW_ONLINE_20260128_2114.md`
+
+## Run S12-CONFIG-VARIANTS-20260128-2303
+
+- 时间：`2026-01-28 23:03 +0800`
+- 范围：S12 Configuration/Variant BOM（选项集 + BOM config_condition 过滤）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_CONFIG_VARIANTS_20260128_2303.md`
+
+## Run ALL-20260128-2318（一键回归：verify_all.sh，含 S12 Config Variants）
+
+- 时间：`2026-01-28 23:18 +0800`
+- 范围：全量回归（RUN_CONFIG_VARIANTS=1）
+- 结果：`ALL TESTS PASSED (PASS=37, FAIL=0, SKIP=16)`
+- 报告：`docs/VERIFICATION_RUN_ALL_S12_CONFIG_VARIANTS_20260128_2318.md`
