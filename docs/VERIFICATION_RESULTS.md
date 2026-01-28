@@ -14248,3 +14248,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：CAD Extractor External
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_CAD_EXTRACTOR_EXTERNAL_20260128_1142.md`
+
+## Run RELATIONSHIP-ITEM-ADAPTER-20260128-1201
+
+- 时间：`2026-01-28 12:01 +0800`
+- 范围：Relationship → Item Phase 1 适配层（seeding / expand / legacy usage）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_ADAPTER_20260128_1201.md`
