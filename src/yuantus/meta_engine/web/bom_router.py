@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional, List
+import json
 from datetime import datetime
 from pydantic import BaseModel, Field
 from yuantus.database import get_db
@@ -23,6 +24,18 @@ bom_router = APIRouter(prefix="/bom", tags=["BOM"])
 # ============================================================================
 
 
+def _parse_config_selection(config: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not config:
+        return None
+    try:
+        payload = json.loads(config)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid config JSON") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Config must be a JSON object")
+    return payload
+
+
 class AddChildRequest(BaseModel):
     """Request body for adding a child to BOM."""
 
@@ -33,6 +46,9 @@ class AddChildRequest(BaseModel):
     refdes: Optional[str] = Field(None, description="Reference designator(s)")
     effectivity_from: Optional[datetime] = Field(None, description="Effectivity start date")
     effectivity_to: Optional[datetime] = Field(None, description="Effectivity end date")
+    config_condition: Optional[Any] = Field(
+        None, description="Configuration condition (JSON or simple 'key=value' string)"
+    )
     extra_properties: Optional[Dict[str, Any]] = Field(
         None, description="Additional properties"
     )
@@ -86,6 +102,7 @@ async def get_effective_bom(
     item_id: str,
     date: Optional[datetime] = None,
     levels: int = Query(10, description="Explosion depth"),
+    config: Optional[str] = Query(None, description="Configuration selection JSON"),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -119,8 +136,14 @@ async def get_effective_bom(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     service = BOMService(db)
+    config_selection = _parse_config_selection(config)
     try:
-        return service.get_bom_structure(item_id, levels=levels, effective_date=date)
+        return service.get_bom_structure(
+            item_id,
+            levels=levels,
+            effective_date=date,
+            config_selection=config_selection,
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -211,6 +234,7 @@ async def get_bom_tree(
     parent_id: str,
     depth: int = Query(10, description="Maximum depth to traverse (-1 for unlimited)"),
     effective_date: Optional[datetime] = Query(None, description="Effectivity filter date"),
+    config: Optional[str] = Query(None, description="Configuration selection JSON"),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -247,8 +271,14 @@ async def get_bom_tree(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     service = BOMService(db)
+    config_selection = _parse_config_selection(config)
     try:
-        return service.get_tree(parent_id, depth=depth, effective_date=effective_date)
+        return service.get_tree(
+            parent_id,
+            depth=depth,
+            effective_date=effective_date,
+            config_selection=config_selection,
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -257,6 +287,7 @@ async def get_bom_tree(
 async def get_mbom_tree(
     parent_id: str,
     depth: int = Query(10, description="Maximum depth to traverse (-1 for unlimited)"),
+    config: Optional[str] = Query(None, description="Configuration selection JSON"),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -286,11 +317,13 @@ async def get_mbom_tree(
         raise HTTPException(status_code=403, detail="Permission denied")
 
     service = BOMService(db)
+    config_selection = _parse_config_selection(config)
     try:
         return service.get_tree(
             parent_id,
             depth=depth,
             relationship_types=["Manufacturing BOM"],
+            config_selection=config_selection,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -357,6 +390,7 @@ async def add_bom_child(
             refdes=request.refdes,
             effectivity_from=request.effectivity_from,
             effectivity_to=request.effectivity_to,
+            config_condition=request.config_condition,
             extra_properties=request.extra_properties,
         )
         db.commit()
