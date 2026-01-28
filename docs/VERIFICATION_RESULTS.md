@@ -14262,3 +14262,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Relationship → Item Phase 2 迁移（dry-run, db-per-tenant-org）
 - 结果：`ALL CHECKS PASSED (no relationships to migrate)`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_MIGRATION_DRYRUN_20260128_1410.md`
+
+## Run RELATIONSHIP-ITEM-MIGRATION-APPLY-20260128-1426
+
+- 时间：`2026-01-28 14:26 +0800`
+- 范围：Relationship → Item Phase 2 迁移（apply, db-per-tenant-org）
+- 结果：`ALL CHECKS PASSED (no relationships to migrate)`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_MIGRATION_APPLY_20260128_1426.md`
