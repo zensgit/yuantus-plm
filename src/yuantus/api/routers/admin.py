@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import Identity, get_current_identity
@@ -31,8 +31,6 @@ from yuantus.security.auth.service import AuthService
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.relationship.models import (
-    Relationship,
-    RelationshipType,
     get_relationship_write_block_stats,
     simulate_relationship_write_block,
 )
@@ -332,21 +330,27 @@ def _build_relationship_legacy_usage(
 ) -> RelationshipLegacyUsageEntry:
     bind = session.get_bind()
     inspector = inspect(bind)
-    has_relationships = inspector.has_table(Relationship.__tablename__)
-    has_relationship_types = inspector.has_table(RelationshipType.__tablename__)
+    rel_table = "meta_relationships"
+    rel_type_table = "meta_relationship_types"
+    has_relationships = inspector.has_table(rel_table)
+    has_relationship_types = inspector.has_table(rel_type_table)
 
-    rel_types: List[RelationshipType] = []
+    rel_types: List[Dict[str, Any]] = []
     if has_relationship_types:
-        rel_types = (
-            session.query(RelationshipType)
-            .order_by(RelationshipType.id.asc())
-            .all()
-        )
+        rel_types = [
+            dict(row)
+            for row in session.execute(
+                text(f"SELECT id, name, label FROM {rel_type_table} ORDER BY id ASC")
+            ).mappings()
+        ]
 
     relationship_type_count = len(rel_types)
-    relationship_row_count = (
-        session.query(Relationship).count() if has_relationships else 0
-    )
+    if has_relationships:
+        relationship_row_count = int(
+            session.execute(text(f"SELECT COUNT(1) FROM {rel_table}")).scalar() or 0
+        )
+    else:
+        relationship_row_count = 0
 
     rel_item_type_ids = [
         row[0]
@@ -366,14 +370,23 @@ def _build_relationship_legacy_usage(
     types: List[RelationshipLegacyTypeStat] = []
     if include_details and rel_types:
         for rel_type in rel_types:
-            item_type_id = rel_type.name or rel_type.id
-            rel_count = (
-                session.query(Relationship)
-                .filter(Relationship.relationship_type_id == rel_type.id)
-                .count()
-                if has_relationships
-                else 0
-            )
+            rel_type_id = rel_type.get("id")
+            rel_type_name = rel_type.get("name")
+            rel_type_label = rel_type.get("label")
+            item_type_id = rel_type_name or rel_type_id
+            if has_relationships:
+                rel_count = int(
+                    session.execute(
+                        text(
+                            f"SELECT COUNT(1) FROM {rel_table} "
+                            "WHERE relationship_type_id = :rel_type_id"
+                        ),
+                        {"rel_type_id": rel_type_id},
+                    ).scalar()
+                    or 0
+                )
+            else:
+                rel_count = 0
             item_count = (
                 session.query(Item)
                 .filter(
@@ -384,9 +397,9 @@ def _build_relationship_legacy_usage(
             )
             types.append(
                 RelationshipLegacyTypeStat(
-                    id=rel_type.id,
-                    name=rel_type.name,
-                    label=rel_type.label,
+                    id=str(rel_type_id),
+                    name=rel_type_name,
+                    label=rel_type_label,
                     item_type_id=item_type_id,
                     relationship_count=int(rel_count),
                     relationship_item_count=int(item_count),

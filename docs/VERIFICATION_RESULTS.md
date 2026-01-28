@@ -14297,3 +14297,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Phase 6（运行时移除 legacy RelationshipType 回退）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE6_20260128_1603.md`
+
+## Run RELATIONSHIP-ITEM-PHASE7-20260128-1617
+
+- 时间：`2026-01-28 16:17 +0800`
+- 范围：Phase 7（admin legacy usage 改为 raw SQL，移除 runtime ORM 依赖）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_PHASE7_20260128_1617.md`
