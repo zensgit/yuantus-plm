@@ -3962,3 +3962,12 @@ bash scripts/verify_config_variants.sh http://127.0.0.1:7910 tenant-1 org-1
 
 - `docs/DELIVERY_PACKAGE_LAYOUT.md`
 
+
+---
+
+## 66) Production Readiness Quick Check
+
+轻量上线前检查清单：
+
+- `docs/PROD_READINESS_CHECK.md`
+
