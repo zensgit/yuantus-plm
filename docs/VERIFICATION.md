@@ -3971,3 +3971,12 @@ bash scripts/verify_config_variants.sh http://127.0.0.1:7910 tenant-1 org-1
 
 - `docs/PROD_READINESS_CHECK.md`
 
+
+---
+
+## 67) Delivery Documentation Index
+
+交付文档索引：
+
+- `docs/DELIVERY_DOC_INDEX.md`
+
