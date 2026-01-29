@@ -133,21 +133,33 @@ class ProductDetailService:
     def _serialize_item(self, item: Item) -> Dict[str, Any]:
         props = item.properties or {}
         item_number = props.get("item_number") or props.get("number")
+        name = props.get("name")
+        created_at = item.created_at.isoformat() if item.created_at else None
+        updated_at = item.updated_at.isoformat() if item.updated_at else None
         return {
             "id": item.id,
             "type": item.item_type_id,
+            "item_type_id": item.item_type_id,
+            "item_type": item.item_type_id,
             "item_number": item_number,
             "number": item_number,
-            "name": props.get("name"),
+            "name": name,
+            "item_name": name,
+            "title": name,
             "revision": props.get("revision"),
             "state": item.state,
+            "status": item.state,
+            "current_state": item.state,
             "config_id": item.config_id,
             "generation": item.generation,
             "is_current": item.is_current,
             "current_version_id": item.current_version_id,
+            "description": props.get("description"),
             "properties": props,
-            "created_at": item.created_at.isoformat() if item.created_at else None,
-            "updated_at": item.updated_at.isoformat() if item.updated_at else None,
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "created_on": created_at,
+            "modified_on": updated_at,
             "created_by_id": item.created_by_id,
             "modified_by_id": item.modified_by_id,
             "owner_id": item.owner_id,

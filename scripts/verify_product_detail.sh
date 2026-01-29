@@ -136,6 +136,18 @@ number = item.get("item_number") or props.get("item_number") or item.get("number
 if number != expected_number:
     raise SystemExit(f"item_number mismatch: {number} != {expected_number}")
 
+item_type = item.get("item_type_id") or item.get("item_type") or item.get("type")
+if item_type != "Part":
+    raise SystemExit(f"item_type mismatch: {item_type} != Part")
+
+if item.get("status") != item.get("state"):
+    raise SystemExit("status should mirror state")
+
+if not item.get("created_on"):
+    raise SystemExit("missing created_on")
+if not item.get("modified_on"):
+    raise SystemExit("missing modified_on")
+
 current_version = data.get("current_version") or {}
 if not current_version.get("id"):
     raise SystemExit("missing current_version")

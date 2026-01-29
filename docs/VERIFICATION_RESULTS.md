@@ -14381,3 +14381,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Run H 核心功能回归（Health → AML → File → BOM → ECO → Versions → Plugins）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_RUN_H_20260128_2334.md`
+
+## Run PROD-DETAIL-ALIASES-20260129-0918
+
+- 时间：`2026-01-29 09:18 +0800`
+- 范围：Product Detail alias fields（item_type/status/created_on）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_PRODUCT_DETAIL_ALIASES_20260129_0918.md`

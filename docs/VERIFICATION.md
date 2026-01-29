@@ -3555,6 +3555,7 @@ bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
 
 - `GET /api/v1/products/{item_id}` 返回 `item/current_version/versions/files`
 - 校验 `item_number` 映射、版本初始化、附件列表
+- 校验 UI 兼容字段：`item_type_id/item_type`、`status/current_state`、`created_on/modified_on`、`item_name/title`
 
 ```bash
 bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1
