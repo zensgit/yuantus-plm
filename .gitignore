@@ -8,6 +8,8 @@ __pycache__/
 .env
 .env.local
 docker-compose.override.yml
+YuantusPLM-Delivery/
+YuantusPLM-Delivery.zip
 data/
 dist/
 tmp/
