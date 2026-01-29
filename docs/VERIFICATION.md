@@ -1986,6 +1986,7 @@ CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_all.sh
 | S5-B (CAD 2D Connector Coverage) | `verify_cad_connector_coverage_2d.sh` | 离线 DWG 覆盖率统计（Haochen/Zhongwang） |
 | S5-B (CAD 3D Connectors) | `verify_cad_connectors_3d.sh` | 3D 连接器识别（SOLIDWORKS/NX/CREO/CATIA/INVENTOR） |
 | S5-B (CAD 3D Connector Pipeline) | `verify_cad_connector_pipeline_3d.sh` | 3D 连接器端到端（preview/geometry/bom/extract） |
+| CAD Capabilities | `verify_cad_capabilities.sh` | CAD 连接器能力聚合（/cad/capabilities） |
 | S5-C (CAD Attribute Sync) | `verify_cad_sync.sh` | x-cad-synced 属性同步 |
 | S5-B (CAD Connectors Config) | `verify_cad_connectors_config.sh` | 自定义连接器配置 reload |
 | S5-C (CAD Sync Template) | `verify_cad_sync_template.sh` | CAD 属性映射模板导入/导出 |
