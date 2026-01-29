@@ -3940,3 +3940,16 @@ bash scripts/verify_config_variants.sh http://127.0.0.1:7910 tenant-1 org-1
 
 - db-per-tenant-org 启动/迁移/备份/恢复/监控/故障排查
 
+
+---
+
+## 64) Delivery Readiness Checklist
+
+交付清单位置：
+
+- `docs/DELIVERY_READINESS_CHECKLIST.md`
+
+包含：
+
+- 必配项 / 可选项 / 风险项
+- 启动与验证命令
