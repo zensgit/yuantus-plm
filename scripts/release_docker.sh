@@ -3,7 +3,7 @@
 set -euo pipefail
 
 REGISTRY="${REGISTRY:-}"
-TAG="${TAG:-v0.1.2}"
+TAG="${TAG:-v0.1.3}"
 
 if [[ -z "$REGISTRY" ]]; then
   echo "REGISTRY is required. Example: REGISTRY=ghcr.io/your-org" >&2

@@ -14472,3 +14472,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：UI 端联调验证（产品详情/where-used/BOM/文档审批）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_UI_INTEGRATION_20260129_1329.md`
+
+## Run RELEASE-v0.1.3-20260129
+
+- 时间：`2026-01-29`
+- 范围：v0.1.3 发布验证基线（引用全量回归）
+- 结果：`PASS`
+- 报告：`docs/VERIFICATION_RELEASE_v0.1.3_20260129.md`

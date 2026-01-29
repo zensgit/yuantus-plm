@@ -25,8 +25,8 @@ YuantusPLM-Delivery/
 │   ├── PRODUCT_DETAIL_FIELD_MAPPING.md
 │   └── VERIFICATION_RESULTS.md
 ├── images/
-│   ├── yuantus-api_v0.1.2.tar
-│   └── yuantus-worker_v0.1.2.tar
+│   ├── yuantus-api_v0.1.3.tar
+│   └── yuantus-worker_v0.1.3.tar
 ├── certs/
 │   ├── tls.crt
 │   └── tls.key
