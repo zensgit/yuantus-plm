@@ -14465,3 +14465,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：全量回归 + UI 聚合 + 配置变体
 - 结果：`ALL TESTS PASSED (PASS=43, FAIL=0, SKIP=10)`
 - 报告：`docs/VERIFICATION_RUN_ALL_UI_CONFIG_20260129_1322.md`
+
+## Run UI-INTEGRATION-20260129-1329
+
+- 时间：`2026-01-29 13:29 +0800`
+- 范围：UI 端联调验证（产品详情/where-used/BOM/文档审批）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_UI_INTEGRATION_20260129_1329.md`
