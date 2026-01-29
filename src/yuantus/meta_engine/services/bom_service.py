@@ -1178,14 +1178,28 @@ class BOMService:
     def _parse_simple_condition(self, expr: str) -> Optional[Dict[str, Any]]:
         parts = [p.strip() for p in re.split(r"[;,]+", expr) if p.strip()]
         conds: List[Dict[str, Any]] = []
+        op_map = {
+            "=": "eq",
+            "!=": "ne",
+            ">": "gt",
+            "<": "lt",
+            ">=": "gte",
+            "<=": "lte",
+            "~": "regex",
+        }
         for part in parts:
-            if "=" not in part:
+            match = re.match(r"^([^=!<>~]+)(!=|>=|<=|=|>|<|~)(.+)$", part)
+            if not match:
                 continue
-            key, value = part.split("=", 1)
+            key, op, value = match.groups()
             key = key.strip()
             value = value.strip()
             if key and value:
-                conds.append({"option": key, "value": value})
+                entry: Dict[str, Any] = {"option": key, "value": value}
+                mapped = op_map.get(op)
+                if mapped and mapped != "eq":
+                    entry["op"] = mapped
+                conds.append(entry)
         if not conds:
             return None
         if len(conds) == 1:
@@ -1197,6 +1211,31 @@ class BOMService:
             return selection[key]
         lowered = {str(k).lower(): v for k, v in selection.items()}
         return lowered.get(str(key).lower())
+
+    def _normalize_selection_value(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            for field in ("value", "key", "id"):
+                if field in value:
+                    return value.get(field)
+            return value
+        if isinstance(value, list):
+            return [self._normalize_selection_value(item) for item in value]
+        return value
+
+    def _has_value(self, value: Any) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, (list, tuple, set, dict)):
+            return len(value) > 0
+        if isinstance(value, str):
+            return bool(value.strip())
+        return True
+
+    def _coerce_number(self, value: Any) -> Optional[Decimal]:
+        try:
+            return Decimal(str(value))
+        except (InvalidOperation, ValueError, TypeError):
+            return None
 
     def _evaluate_config_condition(self, condition: Dict[str, Any], selection: Dict[str, Any]) -> bool:
         if not condition:
@@ -1219,25 +1258,111 @@ class BOMService:
             return False
 
         selected = self._get_selection_value(selection, str(option_key))
-        if selected is None:
-            return False
-        if isinstance(selected, dict):
-            selected = selected.get("key") or selected.get("value") or selected.get("id")
+        selected = self._normalize_selection_value(selected)
 
-        values = (
-            condition.get("value")
-            if "value" in condition
-            else condition.get("values") or condition.get("in")
-        )
+        if "missing" in condition:
+            return not self._has_value(selected) if condition.get("missing") else self._has_value(selected)
+        if "exists" in condition:
+            return self._has_value(selected) if condition.get("exists") else not self._has_value(selected)
+
+        op = condition.get("op") or condition.get("operator") or condition.get("cmp") or "eq"
+        op = str(op).strip().lower()
+
+        values = None
+        if "value" in condition:
+            values = condition.get("value")
+        if values is None and "values" in condition:
+            values = condition.get("values")
+        if values is None and "in" in condition:
+            values = condition.get("in")
+
+        if op in {"between", "range"}:
+            values = condition.get("range") or condition.get("between")
+        min_value = condition.get("min")
+        max_value = condition.get("max")
+
+        def iter_selected(value: Any) -> List[Any]:
+            if isinstance(value, (list, tuple, set)):
+                return list(value)
+            return [value]
+
+        def match_scalar(sel: Any, target: Any) -> bool:
+            if op in {"contains", "has", "includes"}:
+                if isinstance(sel, (list, tuple, set)):
+                    return target in sel
+                return str(target) in str(sel)
+            if op in {"regex", "match"}:
+                try:
+                    return re.search(str(target), str(sel)) is not None
+                except re.error:
+                    return False
+
+            left_num = self._coerce_number(sel)
+            right_num = self._coerce_number(target)
+            if left_num is not None and right_num is not None:
+                if op in {"gt", ">"}:
+                    return left_num > right_num
+                if op in {"gte", ">="}:
+                    return left_num >= right_num
+                if op in {"lt", "<"}:
+                    return left_num < right_num
+                if op in {"lte", "<="}:
+                    return left_num <= right_num
+                if op in {"ne", "!="}:
+                    return left_num != right_num
+                return left_num == right_num
+
+            if op in {"gt", ">"}:
+                return str(sel) > str(target)
+            if op in {"gte", ">="}:
+                return str(sel) >= str(target)
+            if op in {"lt", "<"}:
+                return str(sel) < str(target)
+            if op in {"lte", "<="}:
+                return str(sel) <= str(target)
+            if op in {"ne", "!="}:
+                return str(sel) != str(target)
+            return str(sel) == str(target)
+
+        def match_values(sel: Any, target_values: Any) -> bool:
+            if op in {"in", "not_in"}:
+                target_list = target_values if isinstance(target_values, (list, tuple, set)) else [target_values]
+                in_result = sel in target_list
+                return not in_result if op == "not_in" else in_result
+            return match_scalar(sel, target_values)
+
+        if not self._has_value(selected):
+            return False
+
+        if op in {"between", "range"}:
+            range_values = values if isinstance(values, (list, tuple)) and len(values) >= 2 else None
+            if range_values is None and (min_value is not None or max_value is not None):
+                range_values = [min_value, max_value]
+            if range_values is None:
+                return False
+            low, high = range_values[0], range_values[1]
+            for sel in iter_selected(selected):
+                sel_num = self._coerce_number(sel)
+                low_num = self._coerce_number(low)
+                high_num = self._coerce_number(high)
+                if sel_num is None or low_num is None or high_num is None:
+                    if str(low) <= str(sel) <= str(high):
+                        return True
+                else:
+                    if low_num <= sel_num <= high_num:
+                        return True
+            return False
+
+        if op in {"in", "not_in"}:
+            return any(match_values(sel, values) for sel in iter_selected(selected))
+
         if values is None:
-            return bool(selected)
-        if isinstance(values, list):
-            if isinstance(selected, list):
-                return any(v in values for v in selected)
-            return selected in values
-        if isinstance(selected, list):
-            return str(values) in [str(v) for v in selected]
-        return str(selected) == str(values)
+            return self._has_value(selected)
+
+        if isinstance(values, (list, tuple, set)):
+            return any(match_values(sel, v) for sel in iter_selected(selected) for v in values)
+
+        return any(match_values(sel, values) for sel in iter_selected(selected))
 
     def _normalize_refdes(self, value: Any) -> List[str]:
         if value is None:

@@ -3928,6 +3928,15 @@ RUN_CONFIG_VARIANTS=1 scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 bash scripts/verify_config_variants.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
+覆盖的条件表达能力：
+
+- eq / ne / gt / gte / lt / lte
+- in / not_in
+- contains / regex
+- exists / missing
+- between / range (min/max 也可)
+- 支持简写表达式（示例：`Voltage>=200;Color=Red`）
+
 ---
 
 ## 63) Ops Runbook (Multi-Tenancy)
@@ -3979,4 +3988,3 @@ bash scripts/verify_config_variants.sh http://127.0.0.1:7910 tenant-1 org-1
 交付文档索引：
 
 - `docs/DELIVERY_DOC_INDEX.md`
-
