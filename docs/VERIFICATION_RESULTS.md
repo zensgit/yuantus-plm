@@ -14458,3 +14458,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：BOM UI 别名字段（where-used/compare/substitutes）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_BOM_UI_ALIAS_FIELDS_20260129_1245.md`
+
+## Run ALL-UI-CONFIG-20260129-1322（一键回归：verify_all.sh，RUN_UI_AGG=1 + RUN_CONFIG_VARIANTS=1）
+
+- 时间：`2026-01-29 13:22 +0800`
+- 范围：全量回归 + UI 聚合 + 配置变体
+- 结果：`ALL TESTS PASSED (PASS=43, FAIL=0, SKIP=10)`
+- 报告：`docs/VERIFICATION_RUN_ALL_UI_CONFIG_20260129_1322.md`
