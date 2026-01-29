@@ -14493,3 +14493,11 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：S7 深度验证（多租户隔离 + 配额 + 审计 + Ops + 搜索 + 租户开通）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_S7_DEEP_20260129_1646.md`
+
+## Run ALL-UI-CONFIG-S7-20260129-1655（全量回归 + UI + 配置变体 + S7）
+
+- 时间：`2026-01-29 16:55 +0800`
+- 范围：全量回归（RUN_UI_AGG=1 + RUN_CONFIG_VARIANTS=1 + RUN_TENANT_PROVISIONING=1）
+- 结果：`ALL TESTS PASSED (PASS=44, FAIL=0, SKIP=9)`
+- 报告：`docs/VERIFICATION_RUN_ALL_UI_CONFIG_S7_20260129_1655.md`
+- 说明：开发总结 `docs/DEVELOPMENT_REPORT_S7_FULL_REGRESSION_20260129.md`
