@@ -14402,3 +14402,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Product Detail 文件 CAD 摘要字段与预览链接
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_PRODUCT_DETAIL_CAD_SUMMARY_20260129_0936.md`
+
+## Run ALL-UI-20260129-0946（一键回归：verify_all.sh，RUN_UI_AGG=1）
+
+- 时间：`2026-01-29 09:46 +0800`
+- 范围：全量回归 + UI 聚合
+- 结果：`ALL TESTS PASSED (PASS=42, FAIL=0, SKIP=11)`
+- 报告：`docs/VERIFICATION_UI_AGG_RUN_ALL_20260129_0946.md`
