@@ -14501,3 +14501,11 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 结果：`ALL TESTS PASSED (PASS=44, FAIL=0, SKIP=9)`
 - 报告：`docs/VERIFICATION_RUN_ALL_UI_CONFIG_S7_20260129_1655.md`
 - 说明：开发总结 `docs/DEVELOPMENT_REPORT_S7_FULL_REGRESSION_20260129.md`
+
+## Run REL-ITEM-UNIFY-20260129-1733（关系即 Item 统一验证）
+
+- 时间：`2026-01-29 17:33 +0800`
+- 范围：Relationship ItemType expand + legacy RelationshipType seeding
+- 结果：`ALL CHECKS PASSED`
+- 设计：`docs/DESIGN_RELATIONSHIP_ITEM_UNIFY_20260129.md`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_UNIFY_20260129_1733.md`
