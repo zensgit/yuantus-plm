@@ -14509,3 +14509,11 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 结果：`ALL CHECKS PASSED`
 - 设计：`docs/DESIGN_RELATIONSHIP_ITEM_UNIFY_20260129.md`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_UNIFY_20260129_1733.md`
+
+## Run REL-ITEM-MIGRATION-DRYRUN-20260129-1806（关系迁移干跑）
+
+- 时间：`2026-01-29 18:06 +0800`
+- 范围：多租户库 legacy `meta_relationships` 统计（dry-run）
+- 结果：`NO MIGRATION NEEDED`（所有 tenant/org 为 0 或表缺失）
+- 设计：`docs/DESIGN_RELATIONSHIP_ITEM_MIGRATION_DRYRUN_20260129.md`
+- 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_MIGRATION_20260129_1806.md`
