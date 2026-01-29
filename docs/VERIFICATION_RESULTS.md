@@ -14409,3 +14409,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：全量回归 + UI 聚合
 - 结果：`ALL TESTS PASSED (PASS=42, FAIL=0, SKIP=11)`
 - 报告：`docs/VERIFICATION_UI_AGG_RUN_ALL_20260129_0946.md`
+
+## Run ALL-UI-CONFIG-20260129-1007（一键回归：verify_all.sh，RUN_UI_AGG=1 + RUN_CONFIG_VARIANTS=1）
+
+- 时间：`2026-01-29 10:07 +0800`
+- 范围：全量回归 + UI 聚合 + 配置变体
+- 结果：`ALL TESTS PASSED (PASS=43, FAIL=0, SKIP=10)`
+- 报告：`docs/VERIFICATION_RUN_ALL_UI_CONFIG_20260129_1007.md`
