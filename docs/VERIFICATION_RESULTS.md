@@ -14395,3 +14395,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Product Detail / BOM Summary / Where-Used / Docs + ECO Summary
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_UI_AGG_20260129_0924.md`
+
+## Run PROD-DETAIL-CAD-20260129-0936
+
+- 时间：`2026-01-29 09:36 +0800`
+- 范围：Product Detail 文件 CAD 摘要字段与预览链接
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_PRODUCT_DETAIL_CAD_SUMMARY_20260129_0936.md`

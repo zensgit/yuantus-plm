@@ -219,6 +219,24 @@ class ProductDetailService:
                     "mime_type": file_container.mime_type,
                     "file_size": file_container.file_size,
                     "document_type": file_container.document_type,
+                    "is_cad": file_container.is_cad_file(),
+                    "is_native_cad": file_container.is_native_cad,
+                    "cad_format": file_container.cad_format,
+                    "cad_connector_id": file_container.cad_connector_id,
+                    "cad_document_schema_version": file_container.cad_document_schema_version,
+                    "cad_review_state": file_container.cad_review_state,
+                    "cad_review_note": file_container.cad_review_note,
+                    "cad_review_by_id": file_container.cad_review_by_id,
+                    "cad_reviewed_at": (
+                        file_container.cad_reviewed_at.isoformat()
+                        if file_container.cad_reviewed_at
+                        else None
+                    ),
+                    "conversion_status": file_container.conversion_status,
+                    "author": file_container.author,
+                    "source_system": file_container.source_system,
+                    "source_version": file_container.source_version,
+                    "document_version": file_container.document_version,
                     "preview_url": (
                         f"/api/v1/file/{file_container.id}/preview"
                         if file_container.preview_path
@@ -229,10 +247,35 @@ class ProductDetailService:
                         if file_container.geometry_path
                         else None
                     ),
+                    "cad_manifest_url": (
+                        f"/api/v1/file/{file_container.id}/cad_manifest"
+                        if file_container.cad_manifest_path
+                        else None
+                    ),
+                    "cad_document_url": (
+                        f"/api/v1/file/{file_container.id}/cad_document"
+                        if file_container.cad_document_path
+                        else None
+                    ),
+                    "cad_metadata_url": (
+                        f"/api/v1/file/{file_container.id}/cad_metadata"
+                        if file_container.cad_metadata_path
+                        else None
+                    ),
+                    "cad_bom_url": (
+                        f"/api/v1/file/{file_container.id}/cad_bom"
+                        if file_container.cad_bom_path
+                        else None
+                    ),
                     "download_url": f"/api/v1/file/{file_container.id}/download",
                     "created_at": (
                         file_container.created_at.isoformat()
                         if file_container.created_at
+                        else None
+                    ),
+                    "updated_at": (
+                        file_container.updated_at.isoformat()
+                        if file_container.updated_at
                         else None
                     ),
                 }

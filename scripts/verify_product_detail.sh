@@ -160,6 +160,22 @@ files = data.get("files") or []
 if not any(f.get("file_id") == file_id for f in files):
     raise SystemExit(f"file {file_id} not found in files")
 
+entry = next((f for f in files if f.get("file_id") == file_id), {})
+required_keys = [
+    "preview_url",
+    "geometry_url",
+    "cad_manifest_url",
+    "cad_document_url",
+    "cad_metadata_url",
+    "cad_bom_url",
+    "is_cad",
+    "document_type",
+    "conversion_status",
+]
+missing = [k for k in required_keys if k not in entry]
+if missing:
+    raise SystemExit(f"missing file fields: {missing}")
+
 print("Product detail mapping: OK")
 PY
 
