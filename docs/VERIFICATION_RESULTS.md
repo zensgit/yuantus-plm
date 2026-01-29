@@ -14517,3 +14517,11 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 结果：`NO MIGRATION NEEDED`（所有 tenant/org 为 0 或表缺失）
 - 设计：`docs/DESIGN_RELATIONSHIP_ITEM_MIGRATION_DRYRUN_20260129.md`
 - 报告：`docs/VERIFICATION_RELATIONSHIP_ITEM_MIGRATION_20260129_1806.md`
+
+## Run OPS-S8-20260129-2037
+
+- 时间：`2026-01-29 20:37 +0800`
+- 范围：S8 Ops Monitoring（quota + audit retention + reports summary）
+- 结果：`ALL CHECKS PASSED`
+- 设计：`docs/DESIGN_OPS_S8_20260129.md`
+- 报告：`docs/VERIFICATION_OPS_S8_20260129_2037.md`
