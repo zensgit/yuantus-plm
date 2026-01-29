@@ -88,6 +88,10 @@ printf "\n==> CAD connectors list\n"
 $CURL "$API/cad/connectors" "${AUTH[@]}" "${HEADERS[@]}" \
   | "$PY" -c 'import sys,json;d=json.load(sys.stdin);assert len(d)>0;print(f"Connectors: {len(d)}")'
 
+printf "\n==> CAD capabilities\n"
+$CURL "$API/cad/capabilities" "${AUTH[@]}" "${HEADERS[@]}" \
+  | "$PY" -c 'import sys,json;d=json.load(sys.stdin);assert d.get("counts");assert d.get("features");print("Capabilities OK")'
+
 printf "\n==> Upload CAD file (create preview/extract jobs)\n"
 RESP="$($CURL -X POST "$API/cad/import" \
   "${AUTH[@]}" "${HEADERS[@]}" \

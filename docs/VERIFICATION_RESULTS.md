@@ -14557,3 +14557,11 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 结果：`ALL CHECKS PASSED`
 - 设计：`docs/DESIGN_DOCDOKU_ALIGNMENT_20260129.md`
 - 报告：`docs/VERIFICATION_DOCDOKU_ALIGNMENT_20260129_2344.md`
+
+## Run DOCDOKU-ALIGNMENT-20260130-0036
+
+- 时间：`2026-01-30 00:36 +0800`
+- 范围：DocDoku 对标（连接器列表 + capabilities + 预览/元数据/属性接口）
+- 结果：`ALL CHECKS PASSED`
+- 设计：`docs/DESIGN_DOCDOKU_ALIGNMENT_20260129.md`
+- 报告：`docs/VERIFICATION_DOCDOKU_ALIGNMENT_20260130_0036.md`

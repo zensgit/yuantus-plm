@@ -258,6 +258,21 @@ class CadConnectorInfoResponse(BaseModel):
     description: Optional[str] = None
 
 
+class CadCapabilityMode(BaseModel):
+    available: bool
+    modes: List[str] = Field(default_factory=list)
+    note: Optional[str] = None
+
+
+class CadCapabilitiesResponse(BaseModel):
+    connectors: List[CadConnectorInfoResponse]
+    counts: Dict[str, int]
+    formats: Dict[str, List[str]]
+    extensions: Dict[str, List[str]]
+    features: Dict[str, CadCapabilityMode]
+    integrations: Dict[str, Any]
+
+
 class CadConnectorReloadRequest(BaseModel):
     config_path: Optional[str] = None
     config: Optional[Any] = None
@@ -718,6 +733,124 @@ def list_cad_connectors() -> List[CadConnectorInfoResponse]:
         )
         for info in connectors
     ]
+
+
+@router.get("/capabilities", response_model=CadCapabilitiesResponse)
+def get_cad_capabilities() -> CadCapabilitiesResponse:
+    settings = get_settings()
+    connectors = sorted(cad_registry.list(), key=lambda info: info.id)
+
+    def _collect(values):
+        return sorted({v for v in values if v})
+
+    formats_2d = _collect(
+        info.cad_format for info in connectors if info.document_type == "2d"
+    )
+    formats_3d = _collect(
+        info.cad_format for info in connectors if info.document_type == "3d"
+    )
+    extensions_2d = _collect(
+        ext
+        for info in connectors
+        if info.document_type == "2d"
+        for ext in info.extensions
+    )
+    extensions_3d = _collect(
+        ext
+        for info in connectors
+        if info.document_type == "3d"
+        for ext in info.extensions
+    )
+
+    cad_connector_enabled = bool(settings.CAD_CONNECTOR_BASE_URL) and (
+        (settings.CAD_CONNECTOR_MODE or "optional").strip().lower() != "disabled"
+    )
+    cad_extractor_enabled = bool(settings.CAD_EXTRACTOR_BASE_URL)
+    cad_ml_enabled = bool(settings.CAD_ML_BASE_URL)
+    cadgf_enabled = bool(settings.CADGF_ROUTER_BASE_URL)
+
+    preview_modes = ["local"]
+    if cad_ml_enabled:
+        preview_modes.append("cad_ml")
+    if cad_connector_enabled:
+        preview_modes.append("connector")
+
+    geometry_modes = ["local"]
+    if cad_connector_enabled:
+        geometry_modes.append("connector")
+    if cadgf_enabled:
+        geometry_modes.append("cadgf")
+
+    extract_modes = ["local"]
+    if cad_extractor_enabled:
+        extract_modes.append("extractor")
+    if cad_connector_enabled:
+        extract_modes.append("connector")
+
+    features = {
+        "preview": CadCapabilityMode(available=True, modes=preview_modes),
+        "geometry": CadCapabilityMode(available=True, modes=geometry_modes),
+        "extract": CadCapabilityMode(available=True, modes=extract_modes),
+        "bom": CadCapabilityMode(
+            available=cad_connector_enabled,
+            modes=["connector"] if cad_connector_enabled else [],
+            note="Requires CAD connector service",
+        ),
+        "manifest": CadCapabilityMode(
+            available=cadgf_enabled,
+            modes=["cadgf"] if cadgf_enabled else [],
+            note="CADGF router produces manifest/document/metadata",
+        ),
+        "metadata": CadCapabilityMode(
+            available=True,
+            modes=["extract", "cadgf"] if cadgf_enabled else ["extract"],
+        ),
+    }
+
+    return CadCapabilitiesResponse(
+        connectors=[
+            CadConnectorInfoResponse(
+                id=info.id,
+                label=info.label,
+                cad_format=info.cad_format,
+                document_type=info.document_type,
+                extensions=list(info.extensions),
+                aliases=list(info.aliases),
+                priority=info.priority,
+                description=info.description,
+            )
+            for info in connectors
+        ],
+        counts={
+            "total": len(connectors),
+            "2d": len([c for c in connectors if c.document_type == "2d"]),
+            "3d": len([c for c in connectors if c.document_type == "3d"]),
+        },
+        formats={"2d": formats_2d, "3d": formats_3d},
+        extensions={"2d": extensions_2d, "3d": extensions_3d},
+        features=features,
+        integrations={
+            "cad_connector": {
+                "configured": bool(settings.CAD_CONNECTOR_BASE_URL),
+                "enabled": cad_connector_enabled,
+                "mode": settings.CAD_CONNECTOR_MODE,
+                "base_url": settings.CAD_CONNECTOR_BASE_URL or None,
+            },
+            "cad_extractor": {
+                "configured": cad_extractor_enabled,
+                "mode": settings.CAD_EXTRACTOR_MODE,
+                "base_url": settings.CAD_EXTRACTOR_BASE_URL or None,
+            },
+            "cad_ml": {
+                "configured": cad_ml_enabled,
+                "base_url": settings.CAD_ML_BASE_URL or None,
+            },
+            "cadgf_router": {
+                "configured": cadgf_enabled,
+                "base_url": settings.CADGF_ROUTER_BASE_URL or None,
+            },
+        },
+    )
 
 
 @router.post("/connectors/reload", response_model=CadConnectorReloadResponse)

@@ -18,6 +18,7 @@ Align Yuantus CAD integration and UI contract with DocDoku-style expectations ac
 | CAD metadata JSON | `GET /api/v1/file/{id}/cad_metadata` | extracted attributes |
 | CAD BOM | `GET /api/v1/cad/files/{file_id}/bom` | assembly/bom extraction |
 | Connector list | `GET /api/v1/cad/connectors` | capability matrix |
+| Capabilities | `GET /api/v1/cad/capabilities` | formats + features + integrations |
 | Convert/import | `POST /api/v1/cad/import` | job enqueue for preview/geometry/extract/bom |
 
 ## Coverage Notes

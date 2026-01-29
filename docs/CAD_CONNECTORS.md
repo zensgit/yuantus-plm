@@ -61,6 +61,15 @@ The extractor should return these keys (map via `is_cad_synced` + `ui_options.ca
   - Persists `cad_connector_id` on the file metadata for downstream sync.
 - `/api/v1/cad/connectors`
   - Lists available connectors and their capabilities.
+- `/api/v1/cad/capabilities`
+  - Aggregated capability payload (formats/extensions/features/integrations).
+  - Example:
+    ```json
+    {
+      "counts": {"total": 20, "2d": 7, "3d": 13},
+      "features": {"preview": {"available": true, "modes": ["local","cad_ml"]}}
+    }
+    ```
 - `/api/v1/cad/files/{file_id}/attributes`
   - Returns the latest `cad_extract` job result for the file.
   - Attributes are persisted on the file metadata (`meta_files.cad_attributes`).
