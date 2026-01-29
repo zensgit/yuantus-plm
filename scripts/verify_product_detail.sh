@@ -171,10 +171,31 @@ required_keys = [
     "is_cad",
     "document_type",
     "conversion_status",
+    "name",
+    "role",
+    "type",
+    "mime",
+    "size",
+    "version",
+    "created_on",
+    "updated_on",
 ]
 missing = [k for k in required_keys if k not in entry]
 if missing:
     raise SystemExit(f"missing file fields: {missing}")
+
+if entry.get("name") != entry.get("filename"):
+    raise SystemExit("file name alias mismatch")
+if entry.get("role") != entry.get("file_role"):
+    raise SystemExit("file role alias mismatch")
+if entry.get("type") != entry.get("file_type"):
+    raise SystemExit("file type alias mismatch")
+if entry.get("mime") != entry.get("mime_type"):
+    raise SystemExit("file mime alias mismatch")
+if entry.get("size") != entry.get("file_size"):
+    raise SystemExit("file size alias mismatch")
+if entry.get("version") != entry.get("document_version"):
+    raise SystemExit("file version alias mismatch")
 
 print("Product detail mapping: OK")
 PY

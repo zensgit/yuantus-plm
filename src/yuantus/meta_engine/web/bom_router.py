@@ -469,6 +469,14 @@ class WhereUsedEntry(BaseModel):
     child: Optional[Dict[str, Any]] = Field(
         None, description="Child item (the queried item)"
     )
+    parent_number: Optional[str] = Field(
+        None, description="Alias parent item_number for UI"
+    )
+    parent_name: Optional[str] = Field(None, description="Alias parent name for UI")
+    child_number: Optional[str] = Field(
+        None, description="Alias child item_number for UI"
+    )
+    child_name: Optional[str] = Field(None, description="Alias child name for UI")
     line: Dict[str, Any] = Field(
         default_factory=dict, description="Standardized BOM line fields"
     )
@@ -539,6 +547,10 @@ class BOMCompareEntry(BaseModel):
     )
     parent: Optional[Dict[str, Any]] = None
     child: Optional[Dict[str, Any]] = None
+    parent_number: Optional[str] = None
+    parent_name: Optional[str] = None
+    child_number: Optional[str] = None
+    child_name: Optional[str] = None
 
 
 class BOMCompareFieldDiff(BaseModel):
@@ -573,6 +585,10 @@ class BOMCompareChangedEntry(BaseModel):
     severity: Optional[str] = None
     parent: Optional[Dict[str, Any]] = None
     child: Optional[Dict[str, Any]] = None
+    parent_number: Optional[str] = None
+    parent_name: Optional[str] = None
+    child_number: Optional[str] = None
+    child_name: Optional[str] = None
 
 
 class BOMCompareResponse(BaseModel):
@@ -646,6 +662,8 @@ class SubstituteEntry(BaseModel):
     part: Optional[Dict[str, Any]] = None
     substitute_part: Optional[Dict[str, Any]] = None
     rank: Optional[Any] = None
+    substitute_number: Optional[str] = None
+    substitute_name: Optional[str] = None
 
 
 class SubstituteListResponse(BaseModel):
@@ -725,6 +743,10 @@ async def get_where_used(
                 relationship=p["relationship"],
                 parent=p["parent"],
                 child=p.get("child"),
+                parent_number=p.get("parent_number"),
+                parent_name=p.get("parent_name"),
+                child_number=p.get("child_number"),
+                child_name=p.get("child_name"),
                 line=p.get("line") or {},
                 line_normalized=p.get("line_normalized") or {},
                 level=p["level"],

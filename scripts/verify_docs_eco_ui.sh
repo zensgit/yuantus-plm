@@ -191,6 +191,9 @@ if doc_summary.get("authorized") is False:
     raise SystemExit("document summary unauthorized")
 if doc_summary.get("count", 0) < 1:
     raise SystemExit("expected document summary count >= 1")
+doc_items = doc_summary.get("items") or []
+if not doc_items:
+    raise SystemExit("expected document summary items")
 
 eco_count = eco_summary.get("count", 0)
 if eco_summary.get("authorized") is False or eco_count < 1:
@@ -199,6 +202,9 @@ if eco_summary.get("authorized") is False or eco_count < 1:
 pending = eco_summary.get("pending_approvals") or {}
 if pending.get("count", 0) < 1:
     raise SystemExit("expected pending approval count >= 1")
+eco_items = eco_summary.get("items") or []
+if not eco_items:
+    raise SystemExit("expected eco summary items")
 
 print("ALL CHECKS PASSED")
 PY

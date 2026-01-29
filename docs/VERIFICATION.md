@@ -3557,6 +3557,7 @@ bash scripts/verify_tenant_provisioning.sh http://127.0.0.1:7910 tenant-1 org-1
 - 校验 `item_number` 映射、版本初始化、附件列表
 - 校验 UI 兼容字段：`item_type_id/item_type`、`status/current_state`、`created_on/modified_on`、`item_name/title`
 - 校验文件条目包含 CAD 摘要字段（`preview_url/geometry_url/cad_manifest_url` 等）
+- 校验文件别名字段：`name/type/role/mime/size/version/created_on/updated_on`
 
 ```bash
 bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1
@@ -3573,6 +3574,7 @@ bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1
 - `GET /api/v1/bom/{item_id}/where-used`
 - `GET /api/v1/bom/compare`（`include_child_fields=true`）
 - `POST/GET /api/v1/bom/{bom_line_id}/substitutes`
+- UI 别名字段：`parent_number/child_number`、`substitute_number`
 
 ```bash
 bash scripts/verify_bom_ui.sh http://127.0.0.1:7910 tenant-1 org-1
@@ -3734,7 +3736,9 @@ LOCAL_TESTCLIENT=1 bash scripts/verify_where_used_ui.sh http://127.0.0.1:7910 te
 该脚本验证产品详情输出中：
 
 - `document_summary` 生命周期统计
+- `document_summary.items` 文档列表样本
 - `eco_summary` 审批与变更统计
+- `eco_summary.items` ECO 列表样本
 
 ```bash
 bash scripts/verify_docs_eco_ui.sh http://127.0.0.1:7910 tenant-1 org-1

@@ -127,6 +127,8 @@ class SubstituteService:
             part = self.session.get(Item, sub.related_id)
             if part:
                 part_data = part.to_dict()
+                part_props = part.properties or {}
+                part_number = part_props.get("item_number") or part_props.get("number")
                 sub_dict = sub.to_dict()
                 sub_props = sub.properties or {}
                 # Include properties in relationship dict for backward compatibility
@@ -139,6 +141,8 @@ class SubstituteService:
                         "rank": sub_props.get("rank"),  # For test_substitutes.py
                         "relationship": sub_dict,  # For test_substitute_management.py
                         "part": part_data,  # Keep for backwards compatibility
+                        "substitute_number": part_number,
+                        "substitute_name": part_props.get("name"),
                     }
                 )
         return result

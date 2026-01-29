@@ -97,12 +97,18 @@ from legacy PLM systems. The aliases above ensure stable mapping without extra t
 | `attachment_id` | ItemFile.id |
 | `file_id` | FileContainer.id |
 | `filename` | Original filename |
+| `name` | Alias for filename |
 | `file_role` | ItemFile.file_role |
+| `role` | Alias for file_role |
 | `description` | ItemFile.description |
 | `file_type` | Extension |
+| `type` | Alias for file_type |
 | `mime_type` | MIME |
+| `mime` | Alias for mime_type |
 | `file_size` | Bytes |
+| `size` | Alias for file_size |
 | `document_type` | 2d/3d/pr/other |
+| `version` | Alias for document_version |
 | `is_cad` | Derived by extension |
 | `is_native_cad` | Bool |
 | `cad_format` | CAD format tag |
@@ -126,6 +132,8 @@ from legacy PLM systems. The aliases above ensure stable mapping without extra t
 | `download_url` | `/api/v1/file/{id}/download` |
 | `created_at` | ISO datetime |
 | `updated_at` | ISO datetime |
+| `created_on` | Alias for created_at |
+| `updated_on` | Alias for updated_at |
 
 ## Summary Sections
 
@@ -164,6 +172,9 @@ from legacy PLM systems. The aliases above ensure stable mapping without extra t
   "state_counts": {"Released": 1, "Draft": 1},
   "sample": [
     {"id":"...","item_number":"...","name":"...","state":"...","current_version_id":"..."}
+  ],
+  "items": [
+    {"id":"...","item_number":"...","name":"...","state":"...","current_version_id":"..."}
   ]
 }
 ```
@@ -176,7 +187,10 @@ from legacy PLM systems. The aliases above ensure stable mapping without extra t
   "count": 1,
   "state_counts": {"done": 1},
   "pending_approvals": {"count": 0, "items": []},
-  "last_applied": {"eco_id":"...","name":"...","product_version_after":"...","updated_at":"..."}
+  "last_applied": {"eco_id":"...","name":"...","product_version_after":"...","updated_at":"..."},
+  "items": [
+    {"eco_id":"...","name":"...","state":"...","stage_id":"...","stage_name":"...","approval_deadline":"..."}
+  ]
 }
 ```
 

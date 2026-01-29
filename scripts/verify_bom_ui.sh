@@ -160,6 +160,8 @@ parent = parents[0].get("parent") or {}
 parent_number = parent.get("item_number") or (parent.get("properties") or {}).get("item_number")
 if parent_number != left_num:
     raise SystemExit(f"where-used parent item_number mismatch: {parent_number} != {left_num}")
+if parents[0].get("parent_number") != left_num:
+    raise SystemExit("where-used parent_number alias missing or mismatch")
 
 summary = compare.get("summary") or {}
 if summary.get("added", 0) + summary.get("removed", 0) + summary.get("changed", 0) == 0:
@@ -173,6 +175,8 @@ child = first.get("child") or {}
 child_number = child.get("item_number")
 if not child_number:
     raise SystemExit("bom compare missing child fields")
+if first.get("child_number") != child_number:
+    raise SystemExit("bom compare child_number alias mismatch")
 
 sub_list = subs.get("substitutes") or []
 if not sub_list:
@@ -182,6 +186,8 @@ sub_part = sub_entry.get("substitute_part") or sub_entry.get("part") or {}
 sub_number = sub_part.get("item_number") or (sub_part.get("properties") or {}).get("item_number")
 if sub_number != sub_num:
     raise SystemExit(f"substitute item_number mismatch: {sub_number} != {sub_num}")
+if sub_entry.get("substitute_number") != sub_number:
+    raise SystemExit("substitute_number alias mismatch")
 
 print("BOM UI endpoints: OK")
 PY

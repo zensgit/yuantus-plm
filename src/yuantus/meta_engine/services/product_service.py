@@ -213,12 +213,18 @@ class ProductDetailService:
                     "attachment_id": item_file.id,
                     "file_id": file_container.id,
                     "filename": file_container.filename,
+                    "name": file_container.filename,
                     "file_role": item_file.file_role,
+                    "role": item_file.file_role,
                     "description": item_file.description,
                     "file_type": file_container.file_type,
+                    "type": file_container.file_type,
                     "mime_type": file_container.mime_type,
+                    "mime": file_container.mime_type,
                     "file_size": file_container.file_size,
+                    "size": file_container.file_size,
                     "document_type": file_container.document_type,
+                    "version": file_container.document_version,
                     "is_cad": file_container.is_cad_file(),
                     "is_native_cad": file_container.is_native_cad,
                     "cad_format": file_container.cad_format,
@@ -273,7 +279,17 @@ class ProductDetailService:
                         if file_container.created_at
                         else None
                     ),
+                    "created_on": (
+                        file_container.created_at.isoformat()
+                        if file_container.created_at
+                        else None
+                    ),
                     "updated_at": (
+                        file_container.updated_at.isoformat()
+                        if file_container.updated_at
+                        else None
+                    ),
+                    "updated_on": (
                         file_container.updated_at.isoformat()
                         if file_container.updated_at
                         else None
@@ -447,6 +463,8 @@ class ProductDetailService:
             "count": len(docs),
             "state_counts": state_counts,
             "sample": sample,
+            "items": sample,
+            "documents": sample,
         }
 
     def _get_eco_summary(self, item_id: str) -> Dict[str, Any]:
@@ -481,6 +499,27 @@ class ProductDetailService:
         except (ValueError, TypeError):
             pending_items = []
 
+        items: List[Dict[str, Any]] = []
+        for eco in ecos[:10]:
+            items.append(
+                {
+                    "eco_id": eco.id,
+                    "name": eco.name,
+                    "state": eco.state,
+                    "stage_id": eco.stage_id,
+                    "stage_name": eco.stage.name if eco.stage else None,
+                    "approval_deadline": (
+                        eco.approval_deadline.isoformat()
+                        if eco.approval_deadline
+                        else None
+                    ),
+                    "product_version_before": eco.product_version_before,
+                    "product_version_after": eco.product_version_after,
+                    "updated_at": eco.updated_at.isoformat() if eco.updated_at else None,
+                    "created_at": eco.created_at.isoformat() if eco.created_at else None,
+                }
+            )
+
         return {
             "authorized": True,
             "count": len(ecos),
@@ -490,4 +529,5 @@ class ProductDetailService:
                 "items": pending_items,
             },
             "last_applied": last_applied,
+            "items": items,
         }

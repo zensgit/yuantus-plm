@@ -14437,3 +14437,24 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：全量回归 + 配置变体
 - 结果：`ALL TESTS PASSED (PASS=37, FAIL=0, SKIP=16)`
 - 报告：`docs/VERIFICATION_RUN_ALL_CONFIG_VARIANTS_20260129_1152.md`
+
+## Run PROD-DETAIL-FILE-ALIASES-20260129-1224
+
+- 时间：`2026-01-29 12:24 +0800`
+- 范围：产品详情文件别名字段（name/type/role/mime/size/version）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_PRODUCT_DETAIL_FILE_ALIASES_20260129_1224.md`
+
+## Run DOCS-ECO-UI-ITEMS-20260129-1229
+
+- 时间：`2026-01-29 12:29 +0800`
+- 范围：产品详情文档/ECO 摘要 items 列表
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_DOCS_ECO_UI_ITEMS_20260129_1229.md`
+
+## Run BOM-UI-ALIASES-20260129-1245
+
+- 时间：`2026-01-29 12:45 +0800`
+- 范围：BOM UI 别名字段（where-used/compare/substitutes）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_BOM_UI_ALIAS_FIELDS_20260129_1245.md`

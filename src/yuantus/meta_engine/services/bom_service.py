@@ -381,6 +381,14 @@ class BOMService:
                 rel_props = rel.properties or {}
                 norm_props = self._normalize_properties(rel_props)
                 child_item = self.session.get(Item, rel.related_id) if rel.related_id else None
+                parent_props = parent.properties or {}
+                child_props = child_item.properties if child_item else {}
+                parent_number = parent_props.get("item_number") or parent_props.get("number")
+                child_number = None
+                child_name = None
+                if child_props:
+                    child_number = child_props.get("item_number") or child_props.get("number")
+                    child_name = child_props.get("name")
                 parent_entry = {
                     "relationship": rel.to_dict(),
                     "parent": parent.to_dict(),
@@ -388,6 +396,10 @@ class BOMService:
                     "line": self._line_fields(rel_props),
                     "line_normalized": self._line_fields_normalized(norm_props),
                     "level": _current_level + 1,
+                    "parent_number": parent_number,
+                    "parent_name": parent_props.get("name"),
+                    "child_number": child_number,
+                    "child_name": child_name,
                 }
                 parents.append(parent_entry)
 
@@ -1510,10 +1522,16 @@ class BOMService:
             "line": self._line_fields(props),
             "line_normalized": self._line_fields_normalized(norm_props),
         }
-        if "parent" in entry:
-            result["parent"] = entry["parent"]
-        if "child" in entry:
-            result["child"] = entry["child"]
+        parent = entry.get("parent") or {}
+        child = entry.get("child") or {}
+        if parent:
+            result["parent"] = parent
+            result["parent_number"] = parent.get("item_number")
+            result["parent_name"] = parent.get("name")
+        if child:
+            result["child"] = child
+            result["child_number"] = child.get("item_number")
+            result["child_name"] = child.get("name")
         return result
 
     def _format_changed_entry(
@@ -1549,10 +1567,16 @@ class BOMService:
             "changes": diffs,
             "severity": severity,
         }
-        if "parent" in left_entry:
-            result["parent"] = left_entry["parent"]
-        if "child" in left_entry:
-            result["child"] = left_entry["child"]
+        parent = left_entry.get("parent") or {}
+        child = left_entry.get("child") or {}
+        if parent:
+            result["parent"] = parent
+            result["parent_number"] = parent.get("item_number")
+            result["parent_name"] = parent.get("name")
+        if child:
+            result["child"] = child
+            result["child_number"] = child.get("item_number")
+            result["child_name"] = child.get("name")
         return result
 
 
