@@ -14388,3 +14388,10 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：Product Detail alias fields（item_type/status/created_on）
 - 结果：`ALL CHECKS PASSED`
 - 报告：`docs/VERIFICATION_PRODUCT_DETAIL_ALIASES_20260129_0918.md`
+
+## Run UI-AGG-20260129-0924（产品详情/UI 聚合回归）
+
+- 时间：`2026-01-29 09:24 +0800`
+- 范围：Product Detail / BOM Summary / Where-Used / Docs + ECO Summary
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_UI_AGG_20260129_0924.md`
