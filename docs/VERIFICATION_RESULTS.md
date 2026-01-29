@@ -14479,3 +14479,17 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 范围：v0.1.3 发布验证基线（引用全量回归）
 - 结果：`PASS`
 - 报告：`docs/VERIFICATION_RELEASE_v0.1.3_20260129.md`
+
+## Run S7-DEEP-20260129-1504（多租户深度验证）
+
+- 时间：`2026-01-29 15:04 +0800`
+- 范围：S7 深度验证（多租户隔离 + 配额 + 审计 + Ops + 搜索 + 租户开通）
+- 结果：`ALL CHECKS PASSED`（Quota/Audit/Platform Admin 条件为 SKIP）
+- 报告：`docs/VERIFICATION_S7_DEEP_20260129_1504.md`
+
+## Run S7-DEEP-20260129-1646（多租户深度验证，全量）
+
+- 时间：`2026-01-29 16:46 +0800`
+- 范围：S7 深度验证（多租户隔离 + 配额 + 审计 + Ops + 搜索 + 租户开通）
+- 结果：`ALL CHECKS PASSED`
+- 报告：`docs/VERIFICATION_S7_DEEP_20260129_1646.md`
