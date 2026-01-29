@@ -3927,3 +3927,16 @@ RUN_CONFIG_VARIANTS=1 scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 ```bash
 bash scripts/verify_config_variants.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
+
+---
+
+## 63) Ops Runbook (Multi-Tenancy)
+
+运维交付手册位置：
+
+- `docs/OPS_RUNBOOK_MT.md`
+
+覆盖范围：
+
+- db-per-tenant-org 启动/迁移/备份/恢复/监控/故障排查
+
