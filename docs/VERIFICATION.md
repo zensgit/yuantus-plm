@@ -3953,3 +3953,12 @@ bash scripts/verify_config_variants.sh http://127.0.0.1:7910 tenant-1 org-1
 
 - 必配项 / 可选项 / 风险项
 - 启动与验证命令
+
+---
+
+## 65) Delivery Package Layout
+
+交付包目录建议：
+
+- `docs/DELIVERY_PACKAGE_LAYOUT.md`
+
