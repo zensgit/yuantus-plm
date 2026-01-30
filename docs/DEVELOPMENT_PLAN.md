@@ -6,7 +6,7 @@
 
 > 说明：本文是“工程开发计划 + 验收/验证计划”。架构设计见 `docs/DEVELOPMENT_DESIGN.md`；可执行验证入口见 `docs/VERIFICATION.md`。
 
-## 当前状态（截至 `2025-12-19`）
+## 当前状态（截至 `2026-01-30`）
 
 已具备“可持续迭代”的交付底座（可私有化部署 + 可验证）：
 
@@ -15,6 +15,15 @@
 - ✅ Job 并发安全（Postgres `SKIP LOCKED`）
 - ✅ docker compose 一键：API + Worker + Postgres + MinIO
 - ✅ Run H 全链路脚本：`scripts/verify_run_h.sh`
+
+补充待办（基于现状的“硬化/复核”清单，避免重复开发）：
+
+- ⏳ Identity 分库迁移支持：当 `IDENTITY_DATABASE_URL` 不为空时，支持单独跑 Alembic
+  - 建议形式：`yuantus db upgrade --identity` 或 `--db-url`
+- ⏳ 迁移覆盖性复核：确认 Meta + Identity + Jobs + File 全表均被 migrations 覆盖
+- ⏳ Job 并发事务边界：锁定 + 状态更新同事务；必要索引补齐
+- ⏳ MinIO/S3 兼容性细节（仅当实测失败才改）：path-style/region/public endpoint
+- ⏳ 私有化复测：Postgres + MinIO 模式跑通 Run H，并记录在 `docs/VERIFICATION_RESULTS.md`
 
 证据（可复现记录）：
 
@@ -82,6 +91,7 @@ Claude 每个 Sprint 结束时，请至少提供：
 - `yuantus worker --once` 可正常处理一个 demo job
 
 > 注：S0/S2 的“私有化交付底座”（Postgres+MinIO+Alembic+compose）已完成并通过复核，详见 `docs/PRIVATE_DELIVERY_REPORT.md`。
+> 但若启用 `IDENTITY_DATABASE_URL` 分库，仍需补齐“identity 迁移命令/复测”。
 
 ### S1（第 3～4 周）：元模型（Meta）与权限（RBAC）强化
 

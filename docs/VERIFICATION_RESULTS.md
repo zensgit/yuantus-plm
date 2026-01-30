@@ -14573,3 +14573,86 @@ bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 \
 - 结果：`ALL CHECKS PASSED`
 - 设计：`docs/DESIGN_CAD_CAPABILITIES_ENDPOINT_20260130.md`
 - 报告：`docs/VERIFICATION_CAD_CAPABILITIES_20260130_0048.md`
+
+## Run PRIVATE-DELIVERY-POSTGRES-MINIO-20260130-0956
+
+- 时间：`2026-01-30 09:56:18 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 运行方式：`scripts/verify_run_h.sh`（Postgres + MinIO）
+- 结果：`ALL CHECKS PASSED`
+- 说明：验证 Postgres + MinIO 私有化环境；identity DB 迁移已单独跑通（yuantus_identity）
+
+执行命令：
+
+```bash
+# 主库迁移
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+  yuantus db upgrade
+
+# identity 分库迁移
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity \
+  yuantus db upgrade --identity
+
+# Run H (Postgres + MinIO)
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+  scripts/verify_run_h.sh
+```
+
+关键结果（Run H）：
+
+| 验证项 | 结果 | 关键 ID |
+| --- | --- | --- |
+| Health | ✅ | ok=true |
+| AML add/get | ✅ | Part: `d7d058cc-0a17-477b-b4db-e496997a4ee2` |
+| Search | ✅ | total>=1 |
+| RPC Item.create | ✅ | Part: `6f6869cd-7a59-4a77-91fe-3d6f72837aef` |
+| File upload/download | ✅ | file_id: `da080c9d-158f-4ad9-84e9-5498beda9c8a` |
+| BOM effective | ✅ | children=[] |
+| Plugins | ✅ | yuantus-demo: active |
+| ECO 全流程 | ✅ | ECO: `e58dfd47-a9b4-4fb3-85cc-b3f041e34db4` |
+| Versions history/tree | ✅ | version_id: `34a3d2bd-d63e-4f4a-b2d1-5cd58d733170` |
+| Integrations | ✅ | ok=false（外部服务未启动，预期） |
+
+## Run PRIVATE-DELIVERY-IDENTITY-ENABLED-20260130-1030
+
+- 时间：`2026-01-30 10:30:58 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 运行方式：`scripts/verify_run_h.sh`（Postgres + MinIO + identity 分库）
+- 结果：`ALL CHECKS PASSED`
+- 说明：启用 `YUANTUS_IDENTITY_DATABASE_URL` + `TENANCY_MODE=db-per-tenant-org`，并确保 tenant/org 数据库已迁移到最新版本。
+
+执行命令：
+
+```bash
+# identity 分库存在但无 alembic_version 时，先打标
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+YUANTUS_IDENTITY_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  yuantus db stamp --identity
+
+# tenant/org 数据库迁移到 head
+YUANTUS_DATABASE_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1 \
+  yuantus db upgrade
+
+# Run H (db-per-tenant-org + identity DB)
+TENANCY_MODE=db-per-tenant-org \
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  scripts/verify_run_h.sh
+```
+
+关键结果（Run H）：
+
+| 验证项 | 结果 | 关键 ID |
+| --- | --- | --- |
+| Health | ✅ | ok=true |
+| AML add/get | ✅ | Part: `2d2bbafd-40c8-49a6-b732-01b08ed1a29d` |
+| Search | ✅ | total>=1 |
+| RPC Item.create | ✅ | Part: `8461f8ac-bf1d-450d-a9b3-eba54a01175f` |
+| File upload/download | ✅ | file_id: `c39cfdd1-dff4-468b-9901-cd911a015a2f` |
+| BOM effective | ✅ | children=[] |
+| Plugins | ✅ | yuantus-demo: active |
+| ECO 全流程 | ✅ | ECO: `b3a8bfcc-cf3c-46af-bda2-5396f82cfc03` |
+| Versions history/tree | ✅ | version_id: `bf3248a2-46c3-4638-915c-e8e0f8899b1c` |
+| Integrations | ✅ | ok=false（外部服务未启动，预期） |

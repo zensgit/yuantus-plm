@@ -689,6 +689,16 @@ def db_command(
     revision: Optional[str] = typer.Option(
         None, "--revision", "-r", help="Target revision (for upgrade/downgrade)"
     ),
+    db_url: Optional[str] = typer.Option(
+        None,
+        "--db-url",
+        help="Override database URL for migrations (e.g. identity DB).",
+    ),
+    identity: bool = typer.Option(
+        False,
+        "--identity/--no-identity",
+        help="Use IDENTITY_DATABASE_URL for migrations.",
+    ),
 ) -> None:
     """
     Database migrations via Alembic.
@@ -704,6 +714,10 @@ def db_command(
     import os
     import subprocess
     import sys
+
+    if db_url and identity:
+        typer.echo("Error: --db-url and --identity are mutually exclusive", err=True)
+        raise typer.Exit(1)
 
     # Find alembic.ini
     alembic_ini = os.path.join(os.getcwd(), "alembic.ini")
@@ -744,8 +758,24 @@ def db_command(
         typer.echo(f"Unknown action: {action}", err=True)
         raise typer.Exit(1)
 
+    env = os.environ.copy()
+    if identity:
+        from yuantus.config import get_settings
+
+        settings = get_settings()
+        resolved_url = settings.IDENTITY_DATABASE_URL or settings.DATABASE_URL
+        if not resolved_url:
+            typer.echo(
+                "Error: IDENTITY_DATABASE_URL is not set and DATABASE_URL is empty",
+                err=True,
+            )
+            raise typer.Exit(1)
+        env["YUANTUS_DATABASE_URL"] = resolved_url
+    elif db_url:
+        env["YUANTUS_DATABASE_URL"] = db_url
+
     typer.echo(f"Running: {' '.join(cmd)}", err=True)
-    result = subprocess.run(cmd, cwd=os.getcwd())
+    result = subprocess.run(cmd, cwd=os.getcwd(), env=env)
     raise typer.Exit(result.returncode)
 
 

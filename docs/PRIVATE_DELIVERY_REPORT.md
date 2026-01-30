@@ -69,6 +69,33 @@ yuantus db current          # 查看当前版本
 yuantus db history          # 查看迁移历史
 ```
 
+#### 2.2.1 Identity 分库（可选）
+
+支持将身份/组织/权限相关数据迁移到独立数据库（`IDENTITY_DATABASE_URL`），用于更严格的
+隔离与备份策略。
+
+**CLI 支持**：
+```bash
+# 指向 identity DB 运行迁移
+yuantus db upgrade --identity
+
+# 或者直接指定 URL
+yuantus db upgrade --db-url postgresql+psycopg://.../yuantus_identity
+```
+
+**Compose 默认值**（可覆盖）：
+```yaml
+YUANTUS_IDENTITY_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus_identity
+```
+
+> 说明：当前迁移为“全量 schema”，若未来需要 identity-only 迁移，可另建独立迁移配置。
+
+**已有表但无 alembic_version 的处理**：
+```bash
+# 当历史上通过 create_all 生成了表，但没 Alembic 版本记录时
+yuantus db stamp --identity
+```
+
 ### 2.3 Job 并发安全
 
 **位置**：`src/yuantus/meta_engine/services/job_service.py`
