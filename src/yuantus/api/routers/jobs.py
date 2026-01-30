@@ -101,6 +101,11 @@ def _build_job_diagnostics(job: ConversionJob, db: Session) -> Optional[Dict[str
             "cad_bom_path": file_container.cad_bom_path,
         }
     )
+    if system_path:
+        try:
+            diagnostics["storage_exists"] = file_service.file_exists(system_path)
+        except Exception:
+            diagnostics["storage_exists"] = None
     if payload.get("error"):
         diagnostics["error"] = payload.get("error")
     elif job.last_error:
@@ -182,6 +187,7 @@ def get_job(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
 def list_jobs(
     status: Optional[str] = Query(None),
     task_type: Optional[str] = Query(None),
+    file_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -191,6 +197,8 @@ def list_jobs(
         q = q.filter(ConversionJob.status == status)
     if task_type:
         q = q.filter(ConversionJob.task_type == task_type)
+    if file_id:
+        q = q.filter(ConversionJob.payload["file_id"].astext == str(file_id))
 
     total = q.count()
     jobs: List[ConversionJob] = (
