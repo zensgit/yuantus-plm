@@ -77,6 +77,7 @@ See `docs/VERIFICATION.md`.
 ## Runbooks
 
 - `docs/RUNBOOK_JOBS_DIAG.md` (Jobs/CAD failure diagnostics)
+- `docs/ERROR_CODES_JOBS.md` (Jobs error codes)
 
 ## Development design
 
