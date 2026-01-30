@@ -14656,3 +14656,31 @@ IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_ide
 | ECO 全流程 | ✅ | ECO: `b3a8bfcc-cf3c-46af-bda2-5396f82cfc03` |
 | Versions history/tree | ✅ | version_id: `bf3248a2-46c3-4638-915c-e8e0f8899b1c` |
 | Integrations | ✅ | ok=false（外部服务未启动，预期） |
+
+## Run CAD-PIPELINE-S3-20260130-1219
+
+- 时间：`2026-01-30 12:19:37 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 运行方式：`scripts/verify_cad_pipeline_s3.sh`（Postgres + MinIO + identity 分库）
+- 结果：`ALL CHECKS PASSED`
+- 备注：控制台提示 `cadquery not installed`（不影响 STL 预览/几何产出）；发现 1 条历史遗留 job 报 “Source file missing” 警告，本次新增的 preview/geometry job 均 completed。
+
+执行命令：
+
+```bash
+TENANCY_MODE_ENV=db-per-tenant-org \
+DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus \
+DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__{tenant_id}__{org_id} \
+IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
+  scripts/verify_cad_pipeline_s3.sh
+```
+
+关键结果：
+
+| 验证项 | 结果 | 关键 ID |
+| --- | --- | --- |
+| CAD import | ✅ | file_id: `abcecd7a-676c-4b92-a4a6-338965425ebd` |
+| Preview job | ✅ | job_id: `46069eff-cd85-4fb4-98e4-23ed4a7fa1de` |
+| Geometry job | ✅ | job_id: `a2d542e3-4cce-4bef-82b3-39cfdb140a72` |
+| Preview endpoint | ✅ | HTTP 302（presigned URL） |
+| Geometry endpoint | ✅ | HTTP 302（presigned URL） |
