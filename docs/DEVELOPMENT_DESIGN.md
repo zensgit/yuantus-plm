@@ -187,6 +187,7 @@
 
 - `GET /api/v1/file/{file_id}/preview`：返回 PNG（或 404 未生成）
 - `GET /api/v1/file/{file_id}/geometry`：返回几何文件（或 404 未生成）
+- `GET /api/v1/file/{file_id}/cad_dedup`：返回 DedupCAD Vision 相似检索 JSON（或 404 未生成）
 
 > 当前链路已通过验证：`cad/import` → `cad_preview` → `file/{id}/preview`，详见 `docs/VERIFICATION_RESULTS.md`。
 

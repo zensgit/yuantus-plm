@@ -928,7 +928,32 @@ def cad_dedup_vision(payload: Dict[str, Any], session: Session) -> Dict[str, Any
             except Exception as e:
                 indexed = {"ok": False, "error": str(e)}
 
-        return {"ok": True, "file_id": file_id, "search": search, "indexed": indexed}
+        stored_payload = {
+            "kind": "cad_dedup",
+            "file_id": file_container.id,
+            "mode": mode,
+            "searched_at": datetime.utcnow().isoformat() + "Z",
+            "search": search,
+            "indexed": indexed,
+        }
+        dedup_key = f"cad_dedup/{file_container.id[:2]}/{file_container.id}.json"
+        stored_key = file_service.upload_file(
+            file_obj=io.BytesIO(json.dumps(stored_payload, ensure_ascii=False).encode("utf-8")),
+            file_path=dedup_key,
+            metadata={"content-type": "application/json"},
+        )
+        file_container.cad_dedup_path = stored_key
+        session.add(file_container)
+        session.flush()
+
+        return {
+            "ok": True,
+            "file_id": file_id,
+            "search": search,
+            "indexed": indexed,
+            "cad_dedup_path": stored_key,
+            "cad_dedup_url": f"/api/v1/file/{file_container.id}/cad_dedup",
+        }
     finally:
         if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)

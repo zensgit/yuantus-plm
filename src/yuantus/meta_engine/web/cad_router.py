@@ -235,6 +235,7 @@ class CadImportResponse(BaseModel):
     cad_document_url: Optional[str] = None
     cad_metadata_url: Optional[str] = None
     cad_bom_url: Optional[str] = None
+    cad_dedup_url: Optional[str] = None
     cad_viewer_url: Optional[str] = None
     cad_document_schema_version: Optional[int] = None
     cad_format: Optional[str] = None
@@ -1811,6 +1812,11 @@ async def import_cad(
         if file_container.cad_bom_path
         else None
     )
+    cad_dedup_url = (
+        f"/api/v1/file/{file_container.id}/cad_dedup"
+        if file_container.cad_dedup_path
+        else None
+    )
     cad_viewer_url = _build_cad_viewer_url(
         request,
         file_container.id,
@@ -1831,6 +1837,7 @@ async def import_cad(
         cad_document_url=cad_document_url,
         cad_metadata_url=cad_metadata_url,
         cad_bom_url=cad_bom_url,
+        cad_dedup_url=cad_dedup_url,
         cad_viewer_url=cad_viewer_url,
         cad_document_schema_version=file_container.cad_document_schema_version,
         cad_format=file_container.cad_format,

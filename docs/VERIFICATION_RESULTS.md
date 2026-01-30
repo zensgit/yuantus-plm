@@ -14717,3 +14717,190 @@ psql postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-
 psql postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1 \
   -c "SELECT conversion_status, conversion_error FROM meta_files WHERE id='abcecd7a-676c-4b92-a4a6-338965425ebd';"
 ```
+
+## Run CAD-DEDUP-VISION-20260130-2231
+
+- 时间：`2026-01-30 22:31:55 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`PASS（外部 dedup 服务不可达时返回可解释失败，cad_dedup 为空，接口 404）`
+- 说明：验证 `cad_dedup_vision` 结果持久化与 `/api/v1/file/{id}/cad_dedup` 读取路径；由于 dedup 服务当前不可达，任务返回 ok=false（不触发重试风暴），`cad_dedup_path` 未写入。
+
+### 1) 迁移（db-per-tenant-org）
+
+```bash
+.venv/bin/yuantus db upgrade --db-url postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1
+```
+
+```text
+Running: /Users/huazhou/Downloads/Github/Yuantus/.venv/bin/python -m alembic -c /Users/huazhou/Downloads/Github/Yuantus/alembic.ini upgrade head
+INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade p1b2c3d4e6a4 -> q1b2c3d4e6a5, add cad_dedup_path to meta_files
+```
+
+### 2) 登录获取 Token
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"tenant_id":"tenant-1","username":"admin","password":"admin","org_id":"org-1"}'
+```
+
+### 3) 导入 2D 图纸（仅创建 dedup job）
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -F "file=@docs/samples/cadgf_preview_square.dxf" \
+  -F 'create_preview_job=false' \
+  -F 'create_geometry_job=false' \
+  -F 'create_extract_job=false' \
+  -F 'create_bom_job=false' \
+  -F 'create_dedup_job=true' \
+  -F 'create_ml_job=false'
+```
+
+```json
+{
+  "file_id": "655e481c-ae40-4dec-897c-3d37e97dd64f",
+  "filename": "cadgf_preview_square.dxf",
+  "checksum": "09ae8b2b87412b8dfa6518c40bcd8fedd32432953bde222203ae6eafb3477174",
+  "is_duplicate": true,
+  "jobs": [
+    {
+      "id": "99d08ef5-c8e8-4839-8d90-1871cee85d0a",
+      "task_type": "cad_dedup_vision",
+      "status": "pending"
+    }
+  ],
+  "cad_dedup_url": null
+}
+```
+
+### 4) 查询 job 结果（dedup 服务不可达）
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/jobs/99d08ef5-c8e8-4839-8d90-1871cee85d0a \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+```json
+{
+  "id": "99d08ef5-c8e8-4839-8d90-1871cee85d0a",
+  "task_type": "cad_dedup_vision",
+  "status": "completed",
+  "payload": {
+    "file_id": "655e481c-ae40-4dec-897c-3d37e97dd64f",
+    "result": {
+      "ok": false,
+      "error": "[Errno 101] Network is unreachable",
+      "file_id": "655e481c-ae40-4dec-897c-3d37e97dd64f"
+    }
+  }
+}
+```
+
+### 5) 读取 dedup 结果（未生成）
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/file/655e481c-ae40-4dec-897c-3d37e97dd64f/cad_dedup \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+```json
+{"detail":"CAD dedup not available"}
+```
+
+## Run CAD-DEDUP-VISION-SUCCESS-20260130-2244
+
+- 时间：`2026-01-30 22:44:06 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`PASS`（dedup job 成功，cad_dedup_path 持久化，/cad_dedup 302 到 presigned URL）
+- 说明：启动本机 DedupCAD Vision（S3/事件总线关闭），使用 PNG 样例避免 DXF 解析错误。
+
+### 1) 启动 DedupCAD Vision（本机 8100）
+
+```bash
+cd /Users/huazhou/Downloads/Github/dedupcad-vision
+S3_ENABLED=false EVENT_BUS_ENABLED=false python3 start_server.py --port 8100
+```
+
+```text
+GET http://localhost:8100/health -> 200
+```
+
+### 2) 导入 PNG（仅创建 dedup job）
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -F "file=@data/storage/2d/50/_front/front_preview.png" \
+  -F 'create_preview_job=false' \
+  -F 'create_geometry_job=false' \
+  -F 'create_extract_job=false' \
+  -F 'create_bom_job=false' \
+  -F 'create_dedup_job=true' \
+  -F 'create_ml_job=false'
+```
+
+```json
+{
+  "file_id": "2e71482a-b5eb-4a2c-8a25-14dae1895ea6",
+  "filename": "front_preview.png",
+  "checksum": "bfb43ebb24c0fed87d61ced24b6a921bbe80561332428553322728ba32dd2f38",
+  "is_duplicate": false,
+  "jobs": [
+    {
+      "id": "b416c417-278f-440d-94c5-d94f43697045",
+      "task_type": "cad_dedup_vision",
+      "status": "pending"
+    }
+  ],
+  "cad_dedup_url": null
+}
+```
+
+### 3) 查询 job 结果（ok=true + cad_dedup_path）
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/jobs/b416c417-278f-440d-94c5-d94f43697045 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+```json
+{
+  "id": "b416c417-278f-440d-94c5-d94f43697045",
+  "task_type": "cad_dedup_vision",
+  "status": "completed",
+  "payload": {
+    "file_id": "2e71482a-b5eb-4a2c-8a25-14dae1895ea6",
+    "result": {
+      "ok": true,
+      "cad_dedup_path": "cad_dedup/2e/2e71482a-b5eb-4a2c-8a25-14dae1895ea6.json",
+      "cad_dedup_url": "/api/v1/file/2e71482a-b5eb-4a2c-8a25-14dae1895ea6/cad_dedup"
+    }
+  }
+}
+```
+
+### 4) 读取 dedup 结果
+
+```bash
+curl -s -D - -o /dev/null http://127.0.0.1:7910/api/v1/file/2e71482a-b5eb-4a2c-8a25-14dae1895ea6/cad_dedup \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+```text
+HTTP/1.1 302 Found
+Location: http://localhost:59000/yuantus/cad_dedup/2e/2e71482a-b5eb-4a2c-8a25-14dae1895ea6.json?...(presigned)
+```
+
+```json
+{"kind":"cad_dedup","file_id":"2e71482a-b5eb-4a2c-8a25-14dae1895ea6","mode":"balanced","search":{"success":true,...}}
+```
