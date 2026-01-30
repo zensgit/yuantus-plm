@@ -74,6 +74,10 @@ export YUANTUS_AUTH_MODE=required
 
 See `docs/VERIFICATION.md`.
 
+## Runbooks
+
+- `docs/RUNBOOK_JOBS_DIAG.md` (Jobs/CAD failure diagnostics)
+
 ## Development design
 
 See `docs/DEVELOPMENT_DESIGN.md`.
