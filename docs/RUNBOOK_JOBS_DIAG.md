@@ -68,6 +68,8 @@ psql postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-
   - 说明：DB 数据或 job payload 不完整
   - 处理：核查 `file_id` 是否存在、job payload 是否被裁剪
 
+更多错误码说明：见 `docs/ERROR_CODES_JOBS.md`。
+
 ## 5) 快速复现（推荐）
 
 ```bash

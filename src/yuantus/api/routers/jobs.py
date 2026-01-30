@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import time
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -102,10 +103,15 @@ def _build_job_diagnostics(job: ConversionJob, db: Session) -> Optional[Dict[str
         }
     )
     if system_path:
+        start = time.perf_counter()
         try:
             diagnostics["storage_exists"] = file_service.file_exists(system_path)
         except Exception:
             diagnostics["storage_exists"] = None
+        finally:
+            diagnostics["storage_head_latency_ms"] = int(
+                (time.perf_counter() - start) * 1000
+            )
     if payload.get("error"):
         diagnostics["error"] = payload.get("error")
     elif job.last_error:
