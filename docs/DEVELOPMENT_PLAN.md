@@ -24,6 +24,7 @@
 - ⏳ Job 并发事务边界：锁定 + 状态更新同事务；必要索引补齐
 - ⏳ MinIO/S3 兼容性细节（仅当实测失败才改）：path-style/region/public endpoint
 - ⏳ 私有化复测：Postgres + MinIO 模式跑通 Run H，并记录在 `docs/VERIFICATION_RESULTS.md`
+- 🔜 身份分库“identity-only migrations”作为后续优化：当前已满足交付与验证，先做业务功能与 CAD 价值链闭环
 
 证据（可复现记录）：
 
