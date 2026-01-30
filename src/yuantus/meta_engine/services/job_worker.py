@@ -145,11 +145,69 @@ class JobWorker:
         if user_id:
             user_token = user_id_var.set(str(user_id))
 
+        def _job_context() -> dict:
+            return {
+                "job_id": job.id,
+                "task_type": job.task_type,
+                "file_id": payload.get("file_id"),
+                "item_id": payload.get("item_id"),
+                "tenant_id": payload.get("tenant_id"),
+                "org_id": payload.get("org_id"),
+                "user_id": payload.get("user_id") or job.created_by_id,
+                "cad_connector_id": payload.get("cad_connector_id"),
+                "source_path": payload.get("source_path"),
+            }
+
+        def _format_ctx(ctx: dict) -> str:
+            parts = []
+            for key in (
+                "job_id",
+                "task_type",
+                "file_id",
+                "item_id",
+                "tenant_id",
+                "org_id",
+                "user_id",
+                "cad_connector_id",
+                "source_path",
+            ):
+                value = ctx.get(key)
+                if value:
+                    parts.append(f"{key}={value}")
+            return " ".join(parts)
+
+        def _classify_error(exc: Exception, message: str) -> str:
+            text = (message or str(exc) or "").lower()
+            if "source file missing" in text:
+                return "source_missing"
+            if "missing file_id" in text:
+                return "missing_file_id"
+            if "file not found" in text:
+                return "file_not_found"
+            if "connector" in text:
+                return "connector_failed"
+            if isinstance(exc, JobFatalError):
+                return "fatal"
+            if "no handler registered" in text:
+                return "handler_missing"
+            return "job_failed"
+
         try:
+            ctx = _job_context()
+            logger.info(
+                "Worker '%s' executing job %s",
+                self.worker_id,
+                _format_ctx(ctx),
+            )
             if job.task_type not in self.task_handlers:
                 error_msg = f"No handler registered for task type: {job.task_type}"
-                logger.error(error_msg)
-                job_service.fail_job(job.id, error_msg)
+                logger.error("%s %s", error_msg, _format_ctx(ctx))
+                job_service.fail_job(
+                    job.id,
+                    error_msg,
+                    error_code="handler_missing",
+                    retry=False,
+                )
                 return
 
             try:
@@ -188,18 +246,35 @@ class JobWorker:
                             )
                             # We log but don't fail the job if sync fails, as conversion succeeded
 
+                ctx = _job_context()
                 logger.info(
-                    f"Worker '{self.worker_id}' successfully executed job {job.id}. Result: {result}"
+                    "Worker '%s' completed job %s result_keys=%s",
+                    self.worker_id,
+                    _format_ctx(ctx),
+                    sorted(result.keys()) if isinstance(result, dict) else None,
                 )
                 job_service.complete_job(job.id, result=result)
             except JobFatalError as e:
                 error_msg = f"Job {job.id} fatal error: {e}"
-                logger.error(error_msg)
-                job_service.fail_job(job.id, error_msg, retry=False)
+                ctx = _job_context()
+                error_code = _classify_error(e, error_msg)
+                logger.error("%s %s", error_msg, _format_ctx(ctx))
+                job_service.fail_job(
+                    job.id,
+                    error_msg,
+                    retry=False,
+                    error_code=error_code,
+                )
             except Exception as e:
                 error_msg = f"Job {job.id} execution failed: {e}"
-                logger.error(error_msg, exc_info=True)
-                job_service.fail_job(job.id, error_msg)
+                ctx = _job_context()
+                error_code = _classify_error(e, error_msg)
+                logger.error("%s %s", error_msg, _format_ctx(ctx), exc_info=True)
+                job_service.fail_job(
+                    job.id,
+                    error_msg,
+                    error_code=error_code,
+                )
         finally:
             if user_token is not None:
                 user_id_var.reset(user_token)

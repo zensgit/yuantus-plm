@@ -1734,6 +1734,11 @@ async def import_cad(
             payload = {**payload, "item_id": item_id}
         payload = {
             **payload,
+            "file_id": file_container.id,
+            "source_path": file_container.system_path,
+            "cad_connector_id": file_container.cad_connector_id,
+            "cad_format": file_container.cad_format,
+            "document_type": file_container.document_type,
             "tenant_id": user.tenant_id,
             "org_id": user.org_id,
             "user_id": user.id,

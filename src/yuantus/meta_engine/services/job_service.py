@@ -154,13 +154,39 @@ class JobService:
         self.session.add(job)
         self.session.commit()
 
-    def fail_job(self, job_id: str, error_message: str, *, retry: bool = True):
+    def fail_job(
+        self,
+        job_id: str,
+        error_message: str,
+        *,
+        retry: bool = True,
+        error_code: Optional[str] = None,
+        error_details: Optional[Dict[str, Any]] = None,
+    ):
         """Mark a job as failed, potentially scheduling a retry."""
         job = self.session.get(ConversionJob, job_id)
         if job:
             settings = get_settings()
             now = datetime.utcnow()
             job.last_error = str(error_message)
+            payload = dict(job.payload or {})
+            error_record = {
+                "code": error_code or "job_failed",
+                "message": str(error_message),
+                "at": now.isoformat(),
+                "attempt": job.attempt_count,
+                "max_attempts": job.max_attempts,
+                "retry": bool(retry),
+            }
+            if error_details:
+                error_record["details"] = error_details
+            history = payload.get("error_history")
+            if not isinstance(history, list):
+                history = []
+            history.append(error_record)
+            payload["error"] = error_record
+            payload["error_history"] = history
+            job.payload = payload
 
             if not retry:
                 job.status = JobStatus.FAILED.value
@@ -181,6 +207,58 @@ class JobService:
                 # Max attempts reached, permanent failure
                 job.status = JobStatus.FAILED.value
                 job.completed_at = now
+
+            if job.status == JobStatus.FAILED.value:
+                file_id = payload.get("file_id") if isinstance(payload, dict) else None
+                if file_id:
+                    try:
+                        from yuantus.meta_engine.models.cad_audit import CadChangeLog
+                        from yuantus.meta_engine.models.file import (
+                            FileContainer,
+                            ConversionStatus,
+                        )
+
+                        file_container = self.session.get(FileContainer, file_id)
+                        if (
+                            file_container
+                            and job.task_type
+                            in {
+                                "cad_preview",
+                                "cad_geometry",
+                                "cad_extract",
+                                "cad_bom",
+                                "cad_dedup_vision",
+                                "cad_ml_vision",
+                            }
+                        ):
+                            file_container.conversion_status = (
+                                ConversionStatus.FAILED.value
+                            )
+                            file_container.conversion_error = str(error_message)
+                            self.session.add(file_container)
+
+                        if str(job.task_type or "").startswith("cad_"):
+                            self.session.add(
+                                CadChangeLog(
+                                    file_id=str(file_id),
+                                    action="job_failed",
+                                    payload={
+                                        "job_id": job.id,
+                                        "task_type": job.task_type,
+                                        "error_code": error_record["code"],
+                                        "error_message": error_record["message"],
+                                        "attempt": job.attempt_count,
+                                        "max_attempts": job.max_attempts,
+                                        "retry": error_record["retry"],
+                                    },
+                                    tenant_id=payload.get("tenant_id"),
+                                    org_id=payload.get("org_id"),
+                                    user_id=payload.get("user_id") or job.created_by_id,
+                                )
+                            )
+                    except Exception:
+                        # Never fail job handling due to audit logging.
+                        pass
 
             self.session.add(job)
             self.session.commit()

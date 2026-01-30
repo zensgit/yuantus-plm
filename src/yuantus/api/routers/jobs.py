@@ -11,6 +11,10 @@ from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.context import get_request_context
 from yuantus.database import get_db
 from yuantus.meta_engine.models.job import ConversionJob
+from yuantus.meta_engine.models.file import FileContainer
+from yuantus.meta_engine.services.file_service import FileService
+from yuantus.meta_engine.storage.local_storage import LocalStorageProvider
+from yuantus.config import get_settings
 from yuantus.meta_engine.services.job_service import JobService
 from yuantus.security.auth.database import get_identity_db
 from yuantus.security.auth.quota_service import QuotaService
@@ -44,13 +48,71 @@ class JobResponse(BaseModel):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     created_by_id: Optional[int] = None
+    diagnostics: Optional[Dict[str, Any]] = None
 
 
-def _to_job_response(job: ConversionJob) -> JobResponse:
+def _sanitize_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    cleaned = dict(payload or {})
+    if "authorization" in cleaned:
+        cleaned["authorization"] = "<redacted>"
+    if "Authorization" in cleaned:
+        cleaned["Authorization"] = "<redacted>"
+    return cleaned
+
+
+def _build_job_diagnostics(job: ConversionJob, db: Session) -> Optional[Dict[str, Any]]:
+    payload = job.payload or {}
+    file_id = payload.get("file_id")
+    if not file_id:
+        return None
+
+    diagnostics: Dict[str, Any] = {"file_id": file_id}
+    file_container = db.get(FileContainer, str(file_id))
+    if not file_container:
+        diagnostics["file_missing"] = True
+        if job.last_error:
+            diagnostics["last_error"] = job.last_error
+        if payload.get("error"):
+            diagnostics["error"] = payload.get("error")
+        return diagnostics
+
+    settings = get_settings()
+    file_service = FileService()
+    system_path = file_container.system_path
+    resolved_source_path: Optional[str] = None
+    if isinstance(file_service.storage_provider, LocalStorageProvider):
+        resolved_source_path = file_service.storage_provider.get_local_path(system_path)
+    elif settings.STORAGE_TYPE == "s3" and system_path:
+        resolved_source_path = f"s3://{settings.S3_BUCKET_NAME}/{system_path}"
+
+    diagnostics.update(
+        {
+            "storage_type": settings.STORAGE_TYPE,
+            "system_path": system_path,
+            "resolved_source_path": resolved_source_path,
+            "cad_connector_id": file_container.cad_connector_id,
+            "cad_format": file_container.cad_format,
+            "document_type": file_container.document_type,
+            "preview_path": file_container.preview_path,
+            "geometry_path": file_container.geometry_path,
+            "cad_manifest_path": file_container.cad_manifest_path,
+            "cad_document_path": file_container.cad_document_path,
+            "cad_metadata_path": file_container.cad_metadata_path,
+            "cad_bom_path": file_container.cad_bom_path,
+        }
+    )
+    if payload.get("error"):
+        diagnostics["error"] = payload.get("error")
+    elif job.last_error:
+        diagnostics["last_error"] = job.last_error
+    return diagnostics
+
+
+def _to_job_response(job: ConversionJob, diagnostics: Optional[Dict[str, Any]] = None) -> JobResponse:
     return JobResponse(
         id=job.id,
         task_type=job.task_type,
-        payload=job.payload or {},
+        payload=_sanitize_payload(job.payload or {}),
         status=job.status,
         priority=job.priority,
         worker_id=job.worker_id,
@@ -63,6 +125,7 @@ def _to_job_response(job: ConversionJob) -> JobResponse:
         started_at=job.started_at,
         completed_at=job.completed_at,
         created_by_id=job.created_by_id,
+        diagnostics=diagnostics,
     )
 
 
@@ -111,7 +174,8 @@ def get_job(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
     job = service.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    return _to_job_response(job)
+    diagnostics = _build_job_diagnostics(job, db)
+    return _to_job_response(job, diagnostics=diagnostics)
 
 
 @router.get("", response_model=Dict[str, Any])
