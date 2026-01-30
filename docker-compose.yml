@@ -112,7 +112,9 @@ services:
       YUANTUS_CADGF_ROUTER_BASE_URL: ${YUANTUS_CADGF_ROUTER_BASE_URL:-}
       YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL: ${YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL:-}
       YUANTUS_CAD_CONNECTORS_CONFIG_PATH: ${YUANTUS_CAD_CONNECTORS_CONFIG_PATH:-}
+      YUANTUS_DEDUP_VISION_BASE_URL: ${YUANTUS_DEDUP_VISION_BASE_URL:-http://dedup-vision:8000}
       YUANTUS_CAD_CONNECTORS_ALLOW_PATH_OVERRIDE: ${YUANTUS_CAD_CONNECTORS_ALLOW_PATH_OVERRIDE:-false}
+      YUANTUS_DEDUP_VISION_BASE_URL: ${YUANTUS_DEDUP_VISION_BASE_URL:-http://dedup-vision:8000}
     depends_on:
       postgres:
         condition: service_healthy
@@ -205,6 +207,26 @@ services:
         condition: service_healthy
 
   # =============================================================================
+  # DedupCAD Vision (2D similarity search)
+  # =============================================================================
+  dedup-vision:
+    build:
+      context: ${DEDUP_VISION_BUILD_CONTEXT:-../dedupcad-vision}
+      dockerfile: Dockerfile
+    ports:
+      - "${DEDUP_VISION_PORT:-8100}:8000"
+    environment:
+      CADDEDUP_VISION_PORT: "8000"
+      S3_ENABLED: "false"
+      EVENT_BUS_ENABLED: "false"
+      INTEGRATION_AUTH_MODE: "disabled"
+      LOG_LEVEL: "INFO"
+    volumes:
+      - dedup_vision_data:/app/data
+      - dedup_vision_indexes:/app/indexes
+      - dedup_vision_logs:/app/logs
+
+  # =============================================================================
   # Optional CAD Extractor Microservice
   # =============================================================================
   cad-extractor:
@@ -235,3 +257,6 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  dedup_vision_data:
+  dedup_vision_indexes:
+  dedup_vision_logs:
