@@ -14995,3 +14995,89 @@ Location: http://localhost:59000/yuantus/cad_dedup/31/3134c931-dbf6-4e6e-8a8b-e6
 ```json
 {"kind":"cad_dedup","file_id":"3134c931-dbf6-4e6e-8a8b-e6ec28281e2e","mode":"balanced","search":{"success":true,...}}
 ```
+
+## Run CAD-DEDUP-VISION-COMPOSE-20260130-2349
+
+- 时间：`2026-01-30 23:49:17 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`PASS`（compose 启动 dedup-vision 正常处理，cad_dedup_path 持久化，/cad_dedup 302 到 presigned URL）
+- 说明：使用 docker compose 启动 DedupCAD Vision（8100->8000），复用 DXF 样例。
+
+### 1) 启动 DedupCAD Vision（compose）
+
+```bash
+docker compose up -d dedup-vision
+```
+
+### 2) 导入 DXF（仅创建 dedup job）
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/import \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -F "file=@data/storage/2d/c4/c43ea256-c3a5-4d0f-b809-049f7ef033a8.dxf" \
+  -F 'create_preview_job=false' \
+  -F 'create_geometry_job=false' \
+  -F 'create_extract_job=false' \
+  -F 'create_bom_job=false' \
+  -F 'create_dedup_job=true' \
+  -F 'create_ml_job=false'
+```
+
+```json
+{
+  "file_id": "3134c931-dbf6-4e6e-8a8b-e6ec28281e2e",
+  "filename": "c43ea256-c3a5-4d0f-b809-049f7ef033a8.dxf",
+  "checksum": "6a32e37c894133da2bf2e06896fcc166253bb97a4552476b27b4ae8ad527e36c",
+  "is_duplicate": true,
+  "jobs": [
+    {
+      "id": "98f31149-2410-4551-bde6-6e7395e14a6f",
+      "task_type": "cad_dedup_vision",
+      "status": "pending"
+    }
+  ],
+  "cad_dedup_url": "/api/v1/file/3134c931-dbf6-4e6e-8a8b-e6ec28281e2e/cad_dedup"
+}
+```
+
+### 3) 查询 job 结果（ok=true + cad_dedup_path）
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/jobs/98f31149-2410-4551-bde6-6e7395e14a6f \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+```json
+{
+  "id": "98f31149-2410-4551-bde6-6e7395e14a6f",
+  "task_type": "cad_dedup_vision",
+  "status": "completed",
+  "payload": {
+    "file_id": "3134c931-dbf6-4e6e-8a8b-e6ec28281e2e",
+    "result": {
+      "ok": true,
+      "cad_dedup_path": "cad_dedup/31/3134c931-dbf6-4e6e-8a8b-e6ec28281e2e.json",
+      "cad_dedup_url": "/api/v1/file/3134c931-dbf6-4e6e-8a8b-e6ec28281e2e/cad_dedup"
+    }
+  }
+}
+```
+
+### 4) 读取 dedup 结果
+
+```bash
+curl -s -D - -o /dev/null http://127.0.0.1:7910/api/v1/file/3134c931-dbf6-4e6e-8a8b-e6ec28281e2e/cad_dedup \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+```text
+HTTP/1.1 302 Found
+Location: http://localhost:59000/yuantus/cad_dedup/31/3134c931-dbf6-4e6e-8a8b-e6ec28281e2e.json?...(presigned)
+```
+
+```json
+{"kind":"cad_dedup","file_id":"3134c931-dbf6-4e6e-8a8b-e6ec28281e2e","mode":"balanced","search":{"success":true,...}}
+```
