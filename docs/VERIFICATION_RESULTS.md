@@ -14684,3 +14684,36 @@ IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_ide
 | Geometry job | ✅ | job_id: `a2d542e3-4cce-4bef-82b3-39cfdb140a72` |
 | Preview endpoint | ✅ | HTTP 302（presigned URL） |
 | Geometry endpoint | ✅ | HTTP 302（presigned URL） |
+
+## Run CAD-JOB-DIAGNOSTICS-FAILURE-20260130-2141
+
+- 时间：`2026-01-30 21:41:05 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`PASS`（失败场景诊断可见）
+- 说明：模拟“源文件缺失”导致 cad_extract 失败，验证 job 诊断、cad_change_logs 与 conversion_error 落库。
+
+关键验证：
+
+- 失败 job：`a545c9db-3c73-4a52-9503-766a457d72e6`（task=cad_extract）
+- file_id：`abcecd7a-676c-4b92-a4a6-338965425ebd`
+- /api/v1/jobs/{id} diagnostics：包含 `resolved_source_path`、`cad_format`、`preview_path` 等
+- payload.error.code：`source_missing`
+- cad_change_logs：记录 `job_failed` + error_code
+- meta_files.conversion_error：已写入错误信息
+
+检查命令：
+
+```bash
+# 1) API diagnostics
+curl -s http://127.0.0.1:7910/api/v1/jobs/a545c9db-3c73-4a52-9503-766a457d72e6 \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+
+# 2) cad_change_logs（Postgres）
+psql postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1 \
+  -c "SELECT action, payload FROM cad_change_logs WHERE file_id='abcecd7a-676c-4b92-a4a6-338965425ebd' ORDER BY created_at DESC LIMIT 1;"
+
+# 3) conversion_error（Postgres）
+psql postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_pg__tenant-1__org-1 \
+  -c "SELECT conversion_status, conversion_error FROM meta_files WHERE id='abcecd7a-676c-4b92-a4a6-338965425ebd';"
+```
