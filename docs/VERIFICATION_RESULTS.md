@@ -15097,6 +15097,60 @@ curl -s -X POST http://127.0.0.1:7910/api/v1/dedup/batches/5ee3cfb4-f7e8-4753-8e
 }
 ```
 
+## Run CAD-DEDUP-REVIEW-20260131-1213
+
+- 时间：`2026-01-31 12:13:23 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`PASS`（review 更新状态与审计字段；尝试创建关系时因文件未绑定 Part 而跳过）
+- 说明：通过手动插入 similarity 记录模拟审核流程。
+
+### 1) 插入一条待审核记录（psql）
+
+```bash
+docker exec -i yuantus-postgres-1 psql -U yuantus -d yuantus_mt_pg__tenant-1__org-1 -c \
+"insert into meta_similarity_records (id, source_file_id, target_file_id, similarity_score, similarity_type, detection_method, detection_params, status, created_at) values ('82dfafe7-dcd9-4993-8e03-78db9fd1e4a8','3134c931-dbf6-4e6e-8a8b-e6ec28281e2e','2e71482a-b5eb-4a2c-8a25-14dae1895ea6',0.92,'visual','manual','{}','pending', now());"
+```
+
+### 2) 列出相似记录
+
+```bash
+curl -s "http://127.0.0.1:7910/api/v1/dedup/records?limit=5" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+```json
+{
+  "total": 1,
+  "items": [
+    {
+      "id": "82dfafe7-dcd9-4993-8e03-78db9fd1e4a8",
+      "status": "pending"
+    }
+  ]
+}
+```
+
+### 3) 审核记录（confirmed + create_relationship）
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/dedup/records/82dfafe7-dcd9-4993-8e03-78db9fd1e4a8/review \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H 'Content-Type: application/json' \
+  -d '{"status":"confirmed","comment":"manual confirm","create_relationship":true}'
+```
+
+```json
+{
+  "id": "82dfafe7-dcd9-4993-8e03-78db9fd1e4a8",
+  "status": "confirmed",
+  "reviewed_by_id": 1,
+  "review_comment": "manual confirm",
+  "relationship_item_id": null
+}
+```
+
 ```json
 {"kind":"cad_dedup","file_id":"3134c931-dbf6-4e6e-8a8b-e6ec28281e2e","mode":"balanced","search":{"success":true,...}}
 ```

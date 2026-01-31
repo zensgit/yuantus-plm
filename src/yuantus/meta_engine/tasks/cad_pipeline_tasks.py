@@ -940,6 +940,7 @@ def cad_dedup_vision(payload: Dict[str, Any], session: Session) -> Dict[str, Any
             phash_threshold=phash_threshold,
             feature_threshold=feature_threshold,
             combined_threshold=combined_threshold,
+            rule_id=rule.id if rule else None,
             batch_id=payload.get("batch_id"),
         )
 

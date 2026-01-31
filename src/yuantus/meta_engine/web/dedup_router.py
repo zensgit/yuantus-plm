@@ -99,6 +99,7 @@ class SimilarityRecordResponse(BaseModel):
 class SimilarityReviewRequest(BaseModel):
     status: str = Field(..., description="pending|confirmed|rejected|merged|ignored")
     comment: Optional[str] = None
+    create_relationship: bool = False
 
 
 class DedupBatchCreate(BaseModel):
@@ -347,6 +348,7 @@ async def review_record(
         status=request.status,
         reviewer_id=user.id,
         comment=request.comment,
+        create_relationship=request.create_relationship,
     )
     db.commit()
     return _record_to_response(record)

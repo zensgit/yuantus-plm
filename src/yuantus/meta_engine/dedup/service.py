@@ -18,6 +18,7 @@ from yuantus.meta_engine.dedup.models import (
 from yuantus.meta_engine.models.file import FileContainer
 from yuantus.meta_engine.models.file import ItemFile
 from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.models.job import ConversionJob, JobStatus
 from yuantus.meta_engine.services.job_service import JobService
 
@@ -186,11 +187,20 @@ class DedupService:
         status: str,
         reviewer_id: Optional[int],
         comment: Optional[str] = None,
+        create_relationship: bool = False,
     ) -> SimilarityRecord:
         record.status = status
         record.review_comment = comment
         record.reviewed_by_id = reviewer_id
         record.reviewed_at = datetime.utcnow()
+
+        if status == SimilarityStatus.CONFIRMED.value:
+            rule = self._resolve_rule_for_record(record)
+            if create_relationship or (rule and rule.auto_create_relationship):
+                rel_id = self._create_equivalent_relationship(record, reviewer_id)
+                if rel_id:
+                    record.relationship_item_id = rel_id
+
         self.session.add(record)
         self.session.flush()
         return record
@@ -206,6 +216,7 @@ class DedupService:
         phash_threshold: int,
         feature_threshold: float,
         combined_threshold: float,
+        rule_id: Optional[str] = None,
         batch_id: Optional[str] = None,
     ) -> int:
         matches = list(self._iter_search_matches(search))
@@ -250,6 +261,7 @@ class DedupService:
                     "mode": mode,
                     "phash_threshold": phash_threshold,
                     "feature_threshold": feature_threshold,
+                    "rule_id": rule_id,
                     "raw": match,
                 },
                 status=SimilarityStatus.PENDING.value,
@@ -261,6 +273,94 @@ class DedupService:
         if created:
             self.session.flush()
         return created
+
+    def _resolve_rule_for_record(self, record: SimilarityRecord) -> Optional[DedupRule]:
+        params = record.detection_params or {}
+        rule_id = params.get("rule_id")
+        if not rule_id:
+            return None
+        return self.get_rule(str(rule_id))
+
+    def _resolve_item_for_file(self, file_id: str) -> Optional[Item]:
+        item_file = (
+            self.session.query(ItemFile)
+            .filter(ItemFile.file_id == file_id)
+            .order_by(ItemFile.created_at.desc())
+            .first()
+        )
+        if not item_file:
+            return None
+        return self.session.get(Item, item_file.item_id)
+
+    def _ensure_equivalent_item_type(self) -> None:
+        type_id = "Part Equivalent"
+        existing = self.session.query(ItemType).filter_by(id=type_id).first()
+        if existing:
+            return
+        new_type = ItemType(
+            id=type_id,
+            label="Part Equivalent",
+            description="Equivalent part relationship",
+            is_relationship=True,
+            is_versionable=False,
+        )
+        self.session.add(new_type)
+        self.session.flush()
+
+    def _create_equivalent_relationship(
+        self, record: SimilarityRecord, user_id: Optional[int]
+    ) -> Optional[str]:
+        if record.relationship_item_id:
+            return record.relationship_item_id
+        source_item = self._resolve_item_for_file(record.source_file_id)
+        target_item = self._resolve_item_for_file(record.target_file_id)
+        if not source_item or not target_item:
+            return None
+        if source_item.item_type_id != "Part" or target_item.item_type_id != "Part":
+            return None
+
+        self._ensure_equivalent_item_type()
+
+        existing = (
+            self.session.query(Item)
+            .filter(
+                Item.item_type_id == "Part Equivalent",
+                Item.is_current.is_(True),
+                or_(
+                    and_(
+                        Item.source_id == source_item.id,
+                        Item.related_id == target_item.id,
+                    ),
+                    and_(
+                        Item.source_id == target_item.id,
+                        Item.related_id == source_item.id,
+                    ),
+                ),
+            )
+            .first()
+        )
+        if existing:
+            return existing.id
+
+        rel = Item(
+            id=str(uuid.uuid4()),
+            item_type_id="Part Equivalent",
+            config_id=str(uuid.uuid4()),
+            generation=1,
+            is_current=True,
+            state="Active",
+            source_id=source_item.id,
+            related_id=target_item.id,
+            properties={
+                "similarity_record_id": record.id,
+                "similarity_score": record.similarity_score,
+            },
+            created_by_id=user_id,
+            created_at=datetime.utcnow(),
+        )
+        self.session.add(rel)
+        self.session.flush()
+        return rel.id
 
     # -------------------- Helpers --------------------
 
