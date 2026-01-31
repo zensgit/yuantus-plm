@@ -15397,6 +15397,208 @@ Location: http://localhost:59000/yuantus/cad_dedup/31/3134c931-dbf6-4e6e-8a8b-e6
 {"kind":"cad_dedup","file_id":"3134c931-dbf6-4e6e-8a8b-e6ec28281e2e","mode":"balanced","search":{"success":true,...}}
 ```
 
+## Run P2-CONFIG-VARIANT-RULES-20260131-1517
+
+- 时间：`2026-01-31 15:17:07 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`PASS`（VariantRule 生效，Standard 排除，Premium 保留；配置实例缓存有效 BOM）
+- 说明：使用新配置选项集 + 变型规则 + effective-bom 端点验证。
+
+### 1) 创建选项集 + 选项
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/config/option-sets \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"name":"Mode-1769843826","label":"Mode","value_type":"string"}'
+```
+
+```json
+{"id":"f4285131-c5c8-49a6-b4df-57d2b1a6404b"}
+```
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/config/option-sets/f4285131-c5c8-49a6-b4df-57d2b1a6404b/options \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"key":"Standard","value":"Standard"}'
+
+curl -s -X POST http://127.0.0.1:7910/api/v1/config/option-sets/f4285131-c5c8-49a6-b4df-57d2b1a6404b/options \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"key":"Premium","value":"Premium"}'
+```
+
+### 2) 创建父子 Part + BOM 关系
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/aml/apply \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"type":"Part","action":"add","properties":{"item_number":"CFG-P2-1769843826","name":"Config P2 Parent"}}'
+```
+
+```json
+{"id":"a204beac-25c7-4f77-b55b-a01aca09f8d5"}
+```
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/aml/apply \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"type":"Part","action":"add","properties":{"item_number":"CFG-P2-C-1769843826","name":"Config P2 Child"}}'
+```
+
+```json
+{"id":"45ca9d4f-d0a1-484e-8c76-6e3e6ead2264"}
+```
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/bom/a204beac-25c7-4f77-b55b-a01aca09f8d5/children \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"child_id":"45ca9d4f-d0a1-484e-8c76-6e3e6ead2264","quantity":1,"uom":"EA"}'
+```
+
+### 3) 创建变型规则（Standard 排除子件）
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/config/variant-rules \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"name":"P2 Exclude Standard","parent_item_id":"a204beac-25c7-4f77-b55b-a01aca09f8d5","condition":{"option":"Mode-1769843826","value":"Standard"},"action_type":"exclude","target_item_id":"45ca9d4f-d0a1-484e-8c76-6e3e6ead2264"}'
+```
+
+```json
+{"id":"9f0e54e1-23fe-41ad-a424-49d73b572511"}
+```
+
+### 4) 计算 effective BOM（Standard vs Premium）
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/config/effective-bom \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"product_item_id":"a204beac-25c7-4f77-b55b-a01aca09f8d5","selections":{"Mode-1769843826":"Standard"},"levels":2}'
+```
+
+```json
+{
+  "id": "a204beac-25c7-4f77-b55b-a01aca09f8d5",
+  "children_count": 0,
+  "children": []
+}
+```
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/config/effective-bom \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"product_item_id":"a204beac-25c7-4f77-b55b-a01aca09f8d5","selections":{"Mode-1769843826":"Premium"},"levels":2}'
+```
+
+```json
+{
+  "id": "a204beac-25c7-4f77-b55b-a01aca09f8d5",
+  "children_count": 1
+}
+```
+
+### 5) 创建产品配置实例（缓存有效 BOM）
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/config/configurations \
+  -H 'content-type: application/json' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{"product_item_id":"a204beac-25c7-4f77-b55b-a01aca09f8d5","name":"Config Premium","selections":{"Mode-1769843826":"Premium"}}'
+```
+
+```json
+{
+  "id": "f4e30b36-9c70-47fe-9eea-56a500b0bfc9",
+  "product_item_id": "a204beac-25c7-4f77-b55b-a01aca09f8d5",
+  "selections": {
+    "Mode-1769843826": "Premium"
+  },
+  "children_count": 1
+}
+```
+
+### 6) 脚本验证
+
+- 脚本：`scripts/verify_config_variant_rules.sh`
+- 结果：`PASS`
+
+## Run P1-DEDUP-REVIEW-AUTO-REL-20260131-1224
+
+- 时间：`2026-01-31 12:24:29 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`PASS`（review + create_relationship 自动创建 Part Equivalent 关系，并可双向查询）
+- 说明：使用已生成的相似记录（DXF/PNG），为两端文件各自绑定 Part 后执行 review。
+
+### 1) 审核相似记录并创建关系
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/dedup/records/82dfafe7-dcd9-4993-8e03-78db9fd1e4a8/review \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H 'Content-Type: application/json' \
+  -d '{"status":"confirmed","comment":"auto link","create_relationship":true}'
+```
+
+```json
+{
+  "id": "82dfafe7-dcd9-4993-8e03-78db9fd1e4a8",
+  "source_file_id": "3134c931-dbf6-4e6e-8a8b-e6ec28281e2e",
+  "target_file_id": "2e71482a-b5eb-4a2c-8a25-14dae1895ea6",
+  "status": "confirmed",
+  "reviewed_by_id": 1,
+  "review_comment": "auto link",
+  "relationship_item_id": "63aa12a8-2428-4dd4-bae1-076630960e17"
+}
+```
+
+### 2) 校验 Part 等效关系（双向）
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/items/a1c53987-8359-47b7-b87f-49f27d0e86f4/equivalents \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+
+curl -s http://127.0.0.1:7910/api/v1/items/e8a33067-3b1d-4cb5-9ca3-c7a58b0abb96/equivalents \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+```json
+{
+  "item_id": "a1c53987-8359-47b7-b87f-49f27d0e86f4",
+  "count": 1,
+  "equivalents": [
+    {
+      "id": "63aa12a8-2428-4dd4-bae1-076630960e17",
+      "equivalent_item_id": "e8a33067-3b1d-4cb5-9ca3-c7a58b0abb96",
+      "relationship": {
+        "id": "63aa12a8-2428-4dd4-bae1-076630960e17",
+        "item_type_id": "Part Equivalent",
+        "similarity_score": 0.92,
+        "similarity_record_id": "82dfafe7-dcd9-4993-8e03-78db9fd1e4a8"
+      }
+    }
+  ]
+}
+```
+
 ## Run P3（MBOM + Routing）
 
 - 时间：`2026-01-31 16:05:35 +0800`
