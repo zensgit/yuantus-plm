@@ -15396,3 +15396,18 @@ Location: http://localhost:59000/yuantus/cad_dedup/31/3134c931-dbf6-4e6e-8a8b-e6
 ```json
 {"kind":"cad_dedup","file_id":"3134c931-dbf6-4e6e-8a8b-e6ec28281e2e","mode":"balanced","search":{"success":true,...}}
 ```
+
+## Run P3（MBOM + Routing）
+
+- 时间：`2026-01-31 16:05:35 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 脚本：`scripts/verify_manufacturing_mbom_routing.sh`
+- 说明：覆盖 MBOM 生成、结构读取、Routing + Operations、工时/成本计算。
+
+```bash
+bash scripts/verify_manufacturing_mbom_routing.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+```text
+PASS: MBOM + routing + time/cost
+```
