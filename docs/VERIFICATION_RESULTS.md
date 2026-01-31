@@ -14992,6 +14992,111 @@ HTTP/1.1 302 Found
 Location: http://localhost:59000/yuantus/cad_dedup/31/3134c931-dbf6-4e6e-8a8b-e6ec28281e2e.json?...(presigned)
 ```
 
+## Run CAD-DEDUP-BATCH-20260131-1204
+
+- 时间：`2026-01-31 12:04:49 +0800`
+- 基地址：`http://127.0.0.1:7910`
+- 结果：`PASS`（批量 dedup job 创建/刷新成功，batch 统计可更新）
+- 说明：scope 使用 `file_list`，refresh 汇总 job_status。
+
+### 1) 创建 dedup 规则（batch 使用）
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/dedup/rules \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"dedup-batch-rule","document_type":"2d","phash_threshold":10,"feature_threshold":0.85,"combined_threshold":0.8,"detection_mode":"balanced","priority":20,"is_active":true}'
+```
+
+```json
+{
+  "id": "5716115d-91ac-40f2-bb42-1f96ed312508",
+  "name": "dedup-batch-rule",
+  "document_type": "2d",
+  "phash_threshold": 10,
+  "feature_threshold": 0.85,
+  "combined_threshold": 0.8,
+  "detection_mode": "balanced",
+  "priority": 20,
+  "is_active": true
+}
+```
+
+### 2) 创建批次（file_list scope）
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/dedup/batches \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"dedup-batch-1","scope_type":"file_list","scope_config":{"file_ids":["3134c931-dbf6-4e6e-8a8b-e6ec28281e2e"]},"rule_id":"5716115d-91ac-40f2-bb42-1f96ed312508"}'
+```
+
+```json
+{
+  "id": "5ee3cfb4-f7e8-4753-8eca-279133433503",
+  "status": "queued",
+  "total_files": 0,
+  "processed_files": 0,
+  "found_similarities": 0
+}
+```
+
+### 3) 运行批次（创建 jobs）
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/dedup/batches/5ee3cfb4-f7e8-4753-8eca-279133433503/run \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -H 'Content-Type: application/json' \
+  -d '{"mode":"balanced","dedupe":true,"priority":30}'
+```
+
+```json
+{
+  "batch": {
+    "id": "5ee3cfb4-f7e8-4753-8eca-279133433503",
+    "status": "running",
+    "total_files": 1,
+    "processed_files": 1,
+    "summary": {
+      "jobs_created": 1,
+      "mode": "balanced",
+      "rule_id": "5716115d-91ac-40f2-bb42-1f96ed312508"
+    }
+  },
+  "jobs_created": 1
+}
+```
+
+### 4) 刷新批次状态
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/dedup/batches/5ee3cfb4-f7e8-4753-8eca-279133433503/refresh \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+```json
+{
+  "id": "5ee3cfb4-f7e8-4753-8eca-279133433503",
+  "status": "completed",
+  "total_files": 1,
+  "processed_files": 1,
+  "found_similarities": 0,
+  "summary": {
+    "job_status": {
+      "pending": 0,
+      "processing": 0,
+      "completed": 1,
+      "failed": 0,
+      "cancelled": 0
+    }
+  }
+}
+```
+
 ```json
 {"kind":"cad_dedup","file_id":"3134c931-dbf6-4e6e-8a8b-e6ec28281e2e","mode":"balanced","search":{"success":true,...}}
 ```

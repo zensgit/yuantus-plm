@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 import uuid
 
-from sqlalchemy import and_, or_, desc
+from sqlalchemy import and_, or_, desc, func
 from sqlalchemy.orm import Session
 
 from yuantus.meta_engine.dedup.models import (
@@ -16,6 +16,10 @@ from yuantus.meta_engine.dedup.models import (
     SimilarityStatus,
 )
 from yuantus.meta_engine.models.file import FileContainer
+from yuantus.meta_engine.models.file import ItemFile
+from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.models.job import ConversionJob, JobStatus
+from yuantus.meta_engine.services.job_service import JobService
 
 
 class DedupService:
@@ -327,3 +331,177 @@ class DedupService:
         self.session.add(batch)
         self.session.flush()
         return batch
+
+    def resolve_batch_files(
+        self, batch: DedupBatch, *, limit: Optional[int] = None
+    ) -> List[FileContainer]:
+        scope_type = (batch.scope_type or "all").strip().lower()
+        scope = batch.scope_config or {}
+
+        query = self.session.query(FileContainer)
+
+        if scope_type in {"file_list", "files"}:
+            file_ids = scope.get("file_ids") or scope.get("files") or []
+            if not file_ids:
+                return []
+            query = query.filter(FileContainer.id.in_(list(file_ids)))
+        elif scope_type in {"document_type", "doc_type"}:
+            doc_type = scope.get("document_type") or scope.get("doc_type")
+            if not doc_type:
+                return []
+            query = query.filter(FileContainer.document_type == doc_type)
+        elif scope_type in {"file_type", "extension"}:
+            file_type = scope.get("file_type") or scope.get("extension")
+            if not file_type:
+                return []
+            query = query.filter(FileContainer.file_type == str(file_type).lower())
+        elif scope_type in {"item_type", "item_type_id"}:
+            item_type_id = scope.get("item_type_id") or scope.get("item_type")
+            if not item_type_id:
+                return []
+            query = (
+                query.join(ItemFile, ItemFile.file_id == FileContainer.id)
+                .join(Item, Item.id == ItemFile.item_id)
+                .filter(Item.item_type_id == item_type_id)
+            )
+        elif scope_type in {"folder", "path_prefix"}:
+            prefix = (
+                scope.get("path_prefix")
+                or scope.get("prefix")
+                or scope.get("folder")
+            )
+            if not prefix:
+                return []
+            prefix = str(prefix).rstrip("/")
+            query = query.filter(FileContainer.system_path.like(f"{prefix}/%"))
+        else:
+            # default: all files
+            pass
+
+        query = query.order_by(FileContainer.created_at.desc())
+        if limit:
+            query = query.limit(limit)
+        return query.all()
+
+    def run_batch(
+        self,
+        batch: DedupBatch,
+        *,
+        user_id: Optional[int],
+        user_name: str,
+        mode: Optional[str] = None,
+        limit: Optional[int] = None,
+        priority: int = 30,
+        dedupe: bool = True,
+        rule_id: Optional[str] = None,
+    ) -> Tuple[int, List[str]]:
+        effective_rule_id = rule_id or batch.rule_id
+        rule = self.get_rule(effective_rule_id) if effective_rule_id else None
+        effective_mode = mode or (rule.detection_mode if rule else "balanced")
+
+        files = self.resolve_batch_files(batch, limit=limit)
+        job_service = JobService(self.session)
+        job_ids: List[str] = []
+
+        for file in files:
+            payload = {
+                "file_id": file.id,
+                "mode": effective_mode,
+                "user_name": user_name,
+                "batch_id": batch.id,
+                "rule_id": rule.id if rule else None,
+            }
+            job = job_service.create_job(
+                "cad_dedup_vision",
+                payload,
+                user_id=user_id,
+                priority=priority,
+                dedupe=dedupe,
+            )
+            job_ids.append(job.id)
+
+        batch.status = DedupBatchStatus.RUNNING.value
+        batch.started_at = datetime.utcnow()
+        batch.total_files = len(files)
+        batch.processed_files = len(job_ids)
+        summary = dict(batch.summary or {})
+        summary.update(
+            {
+                "jobs_created": len(job_ids),
+                "mode": effective_mode,
+                "rule_id": rule.id if rule else None,
+            }
+        )
+        if limit:
+            summary["limit"] = limit
+        batch.summary = summary
+        self.session.add(batch)
+        self.session.flush()
+        return len(job_ids), job_ids
+
+    def refresh_batch(self, batch: DedupBatch) -> DedupBatch:
+        found = (
+            self.session.query(SimilarityRecord)
+            .filter(SimilarityRecord.batch_id == batch.id)
+            .count()
+        )
+        batch.found_similarities = found
+
+        jobs = self._get_jobs_for_batch(batch.id)
+        if jobs is not None:
+            total = len(jobs)
+            status_counts = {
+                JobStatus.PENDING.value: 0,
+                JobStatus.PROCESSING.value: 0,
+                JobStatus.COMPLETED.value: 0,
+                JobStatus.FAILED.value: 0,
+                JobStatus.CANCELLED.value: 0,
+            }
+            for job in jobs:
+                status_counts[job.status] = status_counts.get(job.status, 0) + 1
+
+            batch.total_files = total
+            batch.processed_files = (
+                status_counts.get(JobStatus.COMPLETED.value, 0)
+                + status_counts.get(JobStatus.FAILED.value, 0)
+                + status_counts.get(JobStatus.CANCELLED.value, 0)
+            )
+
+            if status_counts.get(JobStatus.PENDING.value, 0) or status_counts.get(
+                JobStatus.PROCESSING.value, 0
+            ):
+                batch.status = DedupBatchStatus.RUNNING.value
+            elif status_counts.get(JobStatus.FAILED.value, 0):
+                batch.status = DedupBatchStatus.FAILED.value
+                batch.completed_at = datetime.utcnow()
+            else:
+                batch.status = DedupBatchStatus.COMPLETED.value
+                batch.completed_at = datetime.utcnow()
+
+            summary = dict(batch.summary or {})
+            summary["job_status"] = status_counts
+            batch.summary = summary
+
+        self.session.add(batch)
+        self.session.flush()
+        return batch
+
+    def _get_jobs_for_batch(self, batch_id: str) -> Optional[List[ConversionJob]]:
+        if not batch_id:
+            return []
+        dialect = self.session.bind.dialect.name if self.session.bind else "unknown"
+        query = self.session.query(ConversionJob).filter(
+            ConversionJob.task_type == "cad_dedup_vision"
+        )
+        if dialect == "postgresql":
+            return (
+                query.filter(func.jsonb_extract_path_text(ConversionJob.payload, "batch_id") == batch_id)
+                .order_by(ConversionJob.created_at.desc())
+                .all()
+            )
+        jobs = query.order_by(ConversionJob.created_at.desc()).all()
+        return [
+            job
+            for job in jobs
+            if isinstance(job.payload, dict) and job.payload.get("batch_id") == batch_id
+        ]

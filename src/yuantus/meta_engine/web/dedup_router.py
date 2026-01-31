@@ -129,6 +129,19 @@ class DedupBatchResponse(BaseModel):
     created_by_id: Optional[int]
 
 
+class DedupBatchRunRequest(BaseModel):
+    mode: Optional[str] = None
+    limit: Optional[int] = Field(default=None, ge=1, le=5000)
+    priority: int = Field(default=30, ge=1, le=100)
+    dedupe: bool = True
+    rule_id: Optional[str] = None
+
+
+class DedupBatchRunResponse(BaseModel):
+    batch: DedupBatchResponse
+    jobs_created: int
+
+
 def _ensure_admin(user: CurrentUser) -> None:
     roles = set(user.roles or [])
     if "admin" in roles or "superuser" in roles or user.is_superuser:
@@ -379,4 +392,51 @@ async def get_batch(
     batch = db.get(DedupBatch, batch_id)
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
+    return _batch_to_response(batch)
+
+
+@dedup_router.post("/batches/{batch_id}/run", response_model=DedupBatchRunResponse)
+async def run_batch(
+    batch_id: str,
+    request: DedupBatchRunRequest,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _ensure_admin(user)
+    service = DedupService(db)
+    batch = db.get(DedupBatch, batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    if request.rule_id and request.rule_id != batch.rule_id:
+        batch.rule_id = request.rule_id
+    jobs_created, _ = service.run_batch(
+        batch,
+        user_id=user.id,
+        user_name=user.username,
+        mode=request.mode,
+        limit=request.limit,
+        priority=request.priority,
+        dedupe=request.dedupe,
+        rule_id=request.rule_id,
+    )
+    db.commit()
+    return DedupBatchRunResponse(
+        batch=_batch_to_response(batch),
+        jobs_created=jobs_created,
+    )
+
+
+@dedup_router.post("/batches/{batch_id}/refresh", response_model=DedupBatchResponse)
+async def refresh_batch(
+    batch_id: str,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _ensure_admin(user)
+    service = DedupService(db)
+    batch = db.get(DedupBatch, batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    batch = service.refresh_batch(batch)
+    db.commit()
     return _batch_to_response(batch)
