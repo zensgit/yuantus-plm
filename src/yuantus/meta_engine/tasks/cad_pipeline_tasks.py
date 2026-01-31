@@ -19,6 +19,7 @@ from yuantus.config import get_settings
 from yuantus.integrations.cad_ml import CadMLClient
 from yuantus.integrations.dedup_vision import DedupVisionClient
 from yuantus.integrations.cad_connector import CadConnectorClient
+from yuantus.meta_engine.dedup.service import DedupService
 from yuantus.meta_engine.models.file import ConversionStatus, FileContainer
 from yuantus.meta_engine.services.cad_converter_service import CADConverterService
 from yuantus.meta_engine.services.cadgf_converter_service import (
@@ -887,6 +888,20 @@ def cad_dedup_vision(payload: Dict[str, Any], session: Session) -> Dict[str, Any
     _ensure_source_exists(file_service, file_container.system_path)
     use_s3 = _is_s3_storage()
     temp_path: Optional[str] = None
+    dedup_service = DedupService(session)
+
+    rule = None
+    rule_id = payload.get("rule_id")
+    if rule_id:
+        rule = dedup_service.get_rule(str(rule_id))
+    if not rule:
+        rule = dedup_service.get_applicable_rule(
+            document_type=file_container.document_type
+        )
+
+    phash_threshold = rule.phash_threshold if rule else 10
+    feature_threshold = rule.feature_threshold if rule else 0.85
+    combined_threshold = rule.combined_threshold if rule else 0.80
 
     try:
         if use_s3:
@@ -910,11 +925,23 @@ def cad_dedup_vision(payload: Dict[str, Any], session: Session) -> Dict[str, Any
             search = client.search_sync(
                 file_path=local_path,
                 mode=mode,
+                phash_threshold=phash_threshold,
+                feature_threshold=feature_threshold,
                 max_results=5,
                 authorization=authorization,
             )
         except Exception as e:
             return {"ok": False, "file_id": file_id, "error": str(e)}
+
+        dedup_service.ingest_search_results(
+            source_file=file_container,
+            search=search,
+            mode=mode,
+            phash_threshold=phash_threshold,
+            feature_threshold=feature_threshold,
+            combined_threshold=combined_threshold,
+            batch_id=payload.get("batch_id"),
+        )
 
         indexed: Optional[Dict[str, Any]] = None
         if bool(payload.get("index", False)):
@@ -932,6 +959,12 @@ def cad_dedup_vision(payload: Dict[str, Any], session: Session) -> Dict[str, Any
             "kind": "cad_dedup",
             "file_id": file_container.id,
             "mode": mode,
+            "params": {
+                "phash_threshold": phash_threshold,
+                "feature_threshold": feature_threshold,
+                "combined_threshold": combined_threshold,
+                "rule_id": rule.id if rule else None,
+            },
             "searched_at": datetime.utcnow().isoformat() + "Z",
             "search": search,
             "indexed": indexed,
