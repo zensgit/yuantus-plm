@@ -10,6 +10,9 @@
 ### Verification
 - Results logged in `docs/VERIFICATION_RESULTS.md`.
 
+### Tests
+- Added pytest guardrails (testpaths + norecursedirs + DB opt-in) and stabilized DB-enabled runs.
+
 ## v0.1.3 - 2026-01-29
 
 ### Added
