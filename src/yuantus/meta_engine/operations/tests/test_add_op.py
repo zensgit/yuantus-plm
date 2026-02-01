@@ -1,10 +1,4 @@
-import sys
 from unittest.mock import MagicMock
-
-# Mock external dependencies to avoid SQLAlchemy initialization headaches
-sys.modules["psycopg2"] = MagicMock()
-sys.modules["yuantus.meta_engine.models.item"] = MagicMock()
-sys.modules["yuantus.meta_engine.models.meta_schema"] = MagicMock()
 
 import unittest
 import uuid

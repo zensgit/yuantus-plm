@@ -1,9 +1,4 @@
-import sys
 from unittest.mock import MagicMock
-sys.modules["psycopg2"] = MagicMock()
-sys.modules["yuantus.meta_engine.models.item"] = MagicMock()
-sys.modules["yuantus.meta_engine.models.meta_schema"] = MagicMock()
-sys.modules["sqlalchemy"] = MagicMock()
 
 import unittest
 from yuantus.meta_engine.operations.delete_op import DeleteOperation
@@ -21,12 +16,16 @@ class TestDeleteOperation(unittest.TestCase):
     def test_delete_success(self):
         mock_item_type = MagicMock()
         mock_item_type.id = "Part"
+        mock_item_type.lifecycle_map_id = None
         
         aml = GenericItem(id="item-1", type="Part", action=AMLAction.delete)
         
         mock_item = MagicMock()
         mock_item.id = "item-1"
         mock_item.item_type_id = "Part"
+        mock_item.current_state = None
+        mock_item.state = "Draft"
+        mock_item.created_by_id = None
         
         self.mock_session.get.return_value = mock_item
         self.mock_perm.check_permission.return_value = True

@@ -1,7 +1,10 @@
 import pytest
 from unittest.mock import MagicMock
 from datetime import datetime, timedelta
-from yuantus.meta_engine.services.effectivity_service import EffectivityService
+from yuantus.meta_engine.services.effectivity_service import (
+    EffectivityService,
+    EffectivityContext,
+)
 from yuantus.meta_engine.models.effectivity import Effectivity
 
 
@@ -22,16 +25,41 @@ class TestEffectivity:
         )
 
         # Inside
-        assert service._check_date(eff, now) is True
+        assert (
+            service._check_date(eff, EffectivityContext(reference_date=now))
+            is True
+        )
         # Before
-        assert service._check_date(eff, now - timedelta(days=2)) is False
+        assert (
+            service._check_date(
+                eff, EffectivityContext(reference_date=now - timedelta(days=2))
+            )
+            is False
+        )
         # After
-        assert service._check_date(eff, now + timedelta(days=2)) is False
+        assert (
+            service._check_date(
+                eff, EffectivityContext(reference_date=now + timedelta(days=2))
+            )
+            is False
+        )
 
         # Open ended (Start only)
         eff_start = Effectivity(start_date=now, end_date=None, effectivity_type="Date")
-        assert service._check_date(eff_start, now + timedelta(seconds=1)) is True
-        assert service._check_date(eff_start, now - timedelta(seconds=1)) is False
+        assert (
+            service._check_date(
+                eff_start,
+                EffectivityContext(reference_date=now + timedelta(seconds=1)),
+            )
+            is True
+        )
+        assert (
+            service._check_date(
+                eff_start,
+                EffectivityContext(reference_date=now - timedelta(seconds=1)),
+            )
+            is False
+        )
 
     def test_check_effectivity_query(self, mock_session):
         service = EffectivityService(mock_session)

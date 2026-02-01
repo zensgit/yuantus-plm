@@ -154,17 +154,20 @@ class TestMetaPermissionService:
         )
         mock_state.identity_permissions = [state_perm]
 
-        # Mock the specific query chain for finding state by map
-        # This is tricky with chained mocks.
-        # Simpler: Mock the execute result if possible or carefully construct mock chain.
-        # But here we used `.first()` on a long chain.
+        mock_item_type = ItemType(id="Part", lifecycle_map_id="lc-1", permission_id=None)
 
-        # Mocking the query chain:
-        # session.query(LifecycleState).join(...).join(...).filter(...).filter(...).first()
-        q = mock_session.query.return_value
-        q.join.return_value.join.return_value.filter.return_value.filter.return_value.first.return_value = (
+        item_type_query = MagicMock()
+        item_type_query.filter.return_value.first.return_value = mock_item_type
+
+        state_query = MagicMock()
+        state_query.filter.return_value.filter.return_value.first.return_value = (
             mock_state
         )
+
+        access_query = MagicMock()
+        access_query.filter.return_value.all.return_value = []
+
+        mock_session.query.side_effect = [item_type_query, state_query, access_query]
 
         # engineer can update in Draft
         allowed = service.check_permission(

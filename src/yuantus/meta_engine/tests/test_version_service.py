@@ -66,10 +66,17 @@ class TestVersionService:
         )
 
         # Mock queries
-        mock_session.query.return_value.filter_by.side_effect = [
-            MagicMock(one=lambda: item),
-            MagicMock(one=lambda: current_ver),
-        ]
+        item_query = MagicMock()
+        item_query.filter_by.return_value.one.return_value = item
+
+        ver_query = MagicMock()
+        ver_query.filter_by.return_value.one.return_value = current_ver
+
+        file_query = MagicMock()
+        file_query.filter_by.return_value = file_query
+        file_query.all.return_value = []
+
+        mock_session.query.side_effect = [item_query, ver_query, file_query]
 
         new_ver = service.revise("item-1", user_id=1)
 

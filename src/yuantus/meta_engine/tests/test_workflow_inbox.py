@@ -6,6 +6,7 @@ from yuantus.meta_engine.workflow.models import (
     WorkflowProcess,
     WorkflowActivity,
 )
+from yuantus.meta_engine.models.item import Item
 from yuantus.security.rbac.models import RBACUser, RBACRole
 import pytest
 from unittest.mock import MagicMock
@@ -26,7 +27,17 @@ class TestWorkflowInbox:
         role = RBACRole(id=10, name="Engineer")
         user.roles = [role]
 
-        session.get.return_value = user  # when getting RBACUser
+        item1 = Item(id="item1", item_type_id="Part")
+        item2 = Item(id="item2", item_type_id="Document")
+
+        def get_side_effect(model, key):
+            if model is RBACUser:
+                return user
+            if model is Item:
+                return {"item1": item1, "item2": item2}.get(key)
+            return None
+
+        session.get.side_effect = get_side_effect
 
         # Mock Query
         mock_query = session.query.return_value

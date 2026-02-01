@@ -1,9 +1,4 @@
-import sys
 from unittest.mock import MagicMock
-sys.modules["psycopg2"] = MagicMock()
-sys.modules["yuantus.meta_engine.models.item"] = MagicMock()
-sys.modules["yuantus.meta_engine.models.meta_schema"] = MagicMock()
-sys.modules["sqlalchemy"] = MagicMock()
 
 import unittest
 from yuantus.meta_engine.operations.promote_op import PromoteOperation

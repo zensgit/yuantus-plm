@@ -1,13 +1,9 @@
-import sys
 from unittest.mock import MagicMock
-sys.modules["psycopg2"] = MagicMock()
-sys.modules["yuantus.meta_engine.models.item"] = MagicMock()
-sys.modules["yuantus.meta_engine.models.meta_schema"] = MagicMock()
-sys.modules["sqlalchemy"] = MagicMock()
 
 import unittest
 from yuantus.meta_engine.operations.update_op import UpdateOperation
 from yuantus.meta_engine.schemas.aml import AMLAction, GenericItem
+from yuantus.meta_engine.models.item import Item
 
 class TestUpdateOperation(unittest.TestCase):
     def setUp(self):
@@ -26,6 +22,7 @@ class TestUpdateOperation(unittest.TestCase):
         mock_item_type = MagicMock()
         mock_item_type.id = "Part"
         mock_item_type.on_after_update_method_id = None
+        mock_item_type.lifecycle_map_id = None
         
         aml = GenericItem(
             id="item-1",
@@ -39,6 +36,9 @@ class TestUpdateOperation(unittest.TestCase):
         mock_item.id = "item-1"
         mock_item.item_type_id = "Part"
         mock_item.properties = {"name": "Old Name", "number": "P-100"}
+        mock_item.current_state = None
+        mock_item.state = "Draft"
+        mock_item.created_by_id = None
         
         self.mock_session.get.return_value = mock_item
         self.mock_perm.check_permission.return_value = True
@@ -53,7 +53,7 @@ class TestUpdateOperation(unittest.TestCase):
         
         # Assert
         # Verify db retrieval
-        self.mock_session.get.assert_called_with(sys.modules["yuantus.meta_engine.models.item"].Item, "item-1")
+        self.mock_session.get.assert_called_with(Item, "item-1")
         
         # Verify validation called with MERGED properties
         expected_merged = {"name": "Updated Name", "number": "P-100"}

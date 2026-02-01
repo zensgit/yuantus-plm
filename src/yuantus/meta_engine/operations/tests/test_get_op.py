@@ -1,11 +1,4 @@
-import sys
 from unittest.mock import MagicMock
-
-# Mock external dependencies
-sys.modules["psycopg2"] = MagicMock()
-sys.modules["yuantus.meta_engine.models.item"] = MagicMock()
-sys.modules["yuantus.meta_engine.models.meta_schema"] = MagicMock()
-sys.modules["sqlalchemy"] = MagicMock() # Mock sqlalchemy entirely
 
 import unittest
 from yuantus.meta_engine.operations.get_op import GetOperation
