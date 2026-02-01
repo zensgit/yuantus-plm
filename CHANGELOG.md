@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.3 (Update) - 2026-02-01
+
+### Added
+- Config variants: option validation, variant rules, effective BOM, configuration instances.
+- Manufacturing MBOM + routing: EBOM -> MBOM, MBOM lines, routing/operations, time & cost estimates.
+- Verification: scripts for config variants and MBOM/routing, plus new unit tests.
+
+### Verification
+- Results logged in `docs/VERIFICATION_RESULTS.md`.
+
 ## v0.1.3 - 2026-01-29
 
 ### Added
