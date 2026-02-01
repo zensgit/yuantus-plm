@@ -1,0 +1,55 @@
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import pytest
+
+
+_ALLOWLIST_NO_DB = {
+    "src/yuantus/meta_engine/tests/test_config_variants.py",
+    "src/yuantus/meta_engine/tests/test_manufacturing_mbom_routing.py",
+    "src/yuantus/meta_engine/tests/test_ir_rule_adapter.py",
+}
+
+_DB_DEPENDENT_PATHS = (
+    "src/yuantus/meta_engine/operations/tests",
+    "src/yuantus/meta_engine/workflow",
+    "src/yuantus/meta_engine/web/test_client.py",
+)
+
+
+def _db_enabled() -> bool:
+    flag = os.getenv("YUANTUS_PYTEST_DB") or os.getenv("YUANTUS_TEST_DB") or os.getenv("PYTEST_DB")
+    if flag:
+        return flag.strip().lower() in {"1", "true", "yes", "on"}
+    return False
+
+
+def _is_allowlisted(path_str: str) -> bool:
+    return any(path_str.endswith(allowed) for allowed in _ALLOWLIST_NO_DB)
+
+
+def pytest_ignore_collect(collection_path: Path, config: pytest.Config) -> bool:  # type: ignore[override]
+    if _db_enabled():
+        return False
+
+    path_str = collection_path.as_posix()
+    if _is_allowlisted(path_str):
+        return False
+
+    # Allow traversal into the tests directory so allowlisted files can be collected.
+    if path_str.endswith("src/yuantus/meta_engine/tests"):
+        return False
+
+    if "src/yuantus/meta_engine/tests" in path_str and path_str.endswith(".py"):
+        return True
+
+    return any(marker in path_str for marker in _DB_DEPENDENT_PATHS)
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "requires_db: marks tests that need a configured database (enable with YUANTUS_PYTEST_DB=1)",
+    )
