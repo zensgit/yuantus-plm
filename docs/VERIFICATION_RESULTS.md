@@ -15155,6 +15155,19 @@ curl -s -X POST http://127.0.0.1:7910/api/v1/dedup/records/82dfafe7-dcd9-4993-8e
 {"kind":"cad_dedup","file_id":"3134c931-dbf6-4e6e-8a8b-e6ec28281e2e","mode":"balanced","search":{"success":true,...}}
 ```
 
+## Run PYTEST-NON-DB-20260201-1858
+
+- 时间：`2026-02-01 18:58:44 +0800`
+- 命令：`.venv/bin/pytest -q`
+- 结果：`PASS`（11 passed）
+- 说明：启用 pytest guardrails（testpaths + norecursedirs + conftest skip DB tests）。
+
+## Run PYTEST-DB-20260201-1846
+
+- 时间：`2026-02-01 18:46:15 +0800`
+- 命令：`YUANTUS_PYTEST_DB=1 .venv/bin/pytest -q`（配合 `.env`）
+- 结果：`PASS`（84 passed）
+
 ## Run CAD-DEDUP-RULES-RECORDS-20260131-1147
 
 - 时间：`2026-01-31 11:47:53 +0800`
