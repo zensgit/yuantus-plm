@@ -22,6 +22,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Changelog: `docs/DELIVERY_CHANGELOG_20260202.md`
 - Delivery Dependencies: `docs/DELIVERY_DEPENDENCIES_20260202.md`
 - Post-Deployment Verification: `docs/DELIVERY_POST_DEPLOY_CHECKLIST_20260202.md`
+- Delivery Upgrade Guide: `docs/DELIVERY_UPGRADE_GUIDE_20260202.md`
 
 ## Ops & Deployment
 
