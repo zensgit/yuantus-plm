@@ -31,6 +31,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Release Summary: `docs/DELIVERY_RELEASE_SUMMARY_20260202.md`
 - Delivery Version Docs Map: `docs/DELIVERY_VERSION_DOCS_MAP_20260202.md`
 - Delivery Delta Summary: `docs/DELIVERY_DELTA_SUMMARY_20260202.md`
+- Delivery Docs List: `docs/DELIVERY_DOCS_LIST_20260202.md`
+- Delivery Scripts Index: `docs/DELIVERY_SCRIPTS_INDEX_20260202.md`
 
 ## Ops & Deployment
 

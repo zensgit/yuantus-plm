@@ -1,0 +1,18 @@
+# Delivery Scripts Index (2026-02-02)
+
+- backup.sh
+- backup_private.sh
+- backup_rotate.sh
+- backup_scheduled.sh
+- cleanup_private_restore.sh
+- mt_migrate.sh
+- restore.sh
+- restore_private.sh
+- verify_backup_restore.sh
+- verify_backup_rotation.sh
+- verify_cleanup_restore.sh
+- verify_extract_start.sh
+- verify_package.sh
+- verify_permissions.sh
+- verify_product_detail.sh
+- verify_run_h.sh
