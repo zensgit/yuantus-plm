@@ -15687,3 +15687,17 @@ PASS: MBOM + routing + time/cost
 - 命令：`rm -f /tmp/yuantus_migrate_verify.db && YUANTUS_DATABASE_URL=sqlite:////tmp/yuantus_migrate_verify.db python3 -m alembic -c alembic.ini upgrade head && YUANTUS_DATABASE_URL=sqlite:////tmp/yuantus_migrate_verify.db python3 -m alembic -c alembic.ini downgrade -1`
 - 结果：`PASS`
 - 说明：SQLite 下验证新增迁移可回滚（从 v1b2c3d4e7a0 回退到 u1b2c3d4e6a9）。
+
+## Run MIGRATIONS-SQLITE-DOWNGRADE-20260202-0830
+
+- 时间：`2026-02-02 08:30:37 +0800`
+- 命令：`rm -f /tmp/yuantus_migrate_verify.db && YUANTUS_DATABASE_URL=sqlite:////tmp/yuantus_migrate_verify.db python3 -m alembic -c alembic.ini upgrade head && YUANTUS_DATABASE_URL=sqlite:////tmp/yuantus_migrate_verify.db python3 -m alembic -c alembic.ini downgrade -1`
+- 结果：`PASS`
+- 说明：SQLite 下验证新增迁移可回滚（从 v1b2c3d4e7a0 回退到 u1b2c3d4e6a9）。
+
+## Run PLAYWRIGHT-ESIGN-20260202-0830
+
+- 时间：`2026-02-02 08:30:37 +0800`
+- 命令：`npx playwright test`
+- 结果：`PASS`（1 passed）
+- 说明：Playwright CLI 使用临时 DB `/tmp/yuantus_playwright.db`（TENANCY_MODE=single），自动 seed identity/meta，并覆盖签名原因、清单、签名、验证、撤销流程。

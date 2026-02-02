@@ -19,6 +19,6 @@
 
 ## Verification
 
-- Playwright: `Run PLAYWRIGHT-ESIGN-20260202-0813`
-- SQLite migration downgrade smoke: `Run MIGRATIONS-SQLITE-DOWNGRADE-20260202-0818`
+- Playwright: `Run PLAYWRIGHT-ESIGN-20260202-0830`
+- SQLite migration downgrade smoke: `Run MIGRATIONS-SQLITE-DOWNGRADE-20260202-0830`
 - Full verification logs: `docs/VERIFICATION_RESULTS.md`
