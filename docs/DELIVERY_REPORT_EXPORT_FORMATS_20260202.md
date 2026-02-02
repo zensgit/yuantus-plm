@@ -18,5 +18,5 @@
 
 ## Notes
 
-- Use `page` and `page_size` to control export size.
+- Use `page` and `page_size` to control export size (export endpoint default `page_size=1000`, max 5000).
 - Large exports should be paginated and stitched externally if needed.

@@ -10,8 +10,13 @@
 ## Key Endpoints Added
 
 - `POST /api/v1/reports/definitions/{report_id}/export`
+- `GET /api/v1/reports/executions`
+- `GET /api/v1/reports/executions/{execution_id}`
 - `GET /api/v1/baselines/comparisons/{comparison_id}/details`
+- `GET /api/v1/baselines/comparisons/{comparison_id}/export`
 - `GET /api/v1/esign/audit-logs`
+- `GET /api/v1/esign/audit-summary`
+- `GET /api/v1/esign/audit-logs/export`
 
 ## Verification Summary
 

@@ -15739,3 +15739,22 @@ PASS: MBOM + routing + time/cost
 - 命令：`npx playwright test`
 - 结果：`PASS`（1 passed）
 - 说明：Playwright CLI 使用临时 DB `/tmp/yuantus_playwright.db`（TENANCY_MODE=single），自动 seed identity/meta，并覆盖签名原因、清单、签名、验证、撤销流程。
+
+## Run PYTEST-NON-DB-20260202-2323
+
+- 时间：`2026-02-02 23:23:01 +0800`
+- 命令：`.venv/bin/pytest -q`
+- 结果：`PASS`（11 passed）
+
+## Run PYTEST-DB-20260202-2323
+
+- 时间：`2026-02-02 23:23:01 +0800`
+- 命令：`YUANTUS_PYTEST_DB=1 .venv/bin/pytest -q`
+- 结果：`PASS`（91 passed, 14 warnings）
+
+## Run PLAYWRIGHT-ESIGN-20260202-2323
+
+- 时间：`2026-02-02 23:23:01 +0800`
+- 命令：`npx playwright test`
+- 结果：`PASS`（1 passed）
+- 说明：Playwright CLI 使用临时 DB `/tmp/yuantus_playwright.db`（TENANCY_MODE=single），自动 seed identity/meta，并覆盖签名原因、清单、签名、验证、撤销流程。

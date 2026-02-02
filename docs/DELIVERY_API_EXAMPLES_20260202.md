@@ -22,7 +22,21 @@ curl -s -X POST \
   -o report.json
 ```
 
-## 2) Baseline Comparison Details
+## 2) Report Executions
+
+```bash
+# List executions for a report
+curl -s \
+  "http://127.0.0.1:7910/api/v1/reports/executions?report_id={report_id}&limit=100&offset=0" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Get execution by id
+curl -s \
+  "http://127.0.0.1:7910/api/v1/reports/executions/{execution_id}" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## 3) Baseline Comparison Details
 
 ```bash
 # All changes (paginated)
@@ -34,9 +48,15 @@ curl -s \
 curl -s \
   "http://127.0.0.1:7910/api/v1/baselines/comparisons/{comparison_id}/details?change_type=changed&limit=200&offset=0" \
   -H "Authorization: Bearer $TOKEN"
+
+# Export comparison details
+curl -s \
+  "http://127.0.0.1:7910/api/v1/baselines/comparisons/{comparison_id}/export?change_type=changed&export_format=csv" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o comparison.csv
 ```
 
-## 3) E-sign Audit Logs
+## 4) E-sign Audit Logs
 
 ```bash
 # Logs for an item
@@ -48,4 +68,15 @@ curl -s \
 curl -s \
   "http://127.0.0.1:7910/api/v1/esign/audit-logs?signature_id={signature_id}" \
   -H "Authorization: Bearer $TOKEN"
+
+# Audit summary
+curl -s \
+  "http://127.0.0.1:7910/api/v1/esign/audit-summary?item_id={item_id}" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Export audit logs
+curl -s \
+  "http://127.0.0.1:7910/api/v1/esign/audit-logs/export?export_format=csv&item_id={item_id}" \
+  -H "Authorization: Bearer $TOKEN" \
+  -o audit.csv
 ```

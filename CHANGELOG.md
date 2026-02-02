@@ -8,6 +8,9 @@
 - Baseline enhancements: members/comparisons, validation/release workflow, and extended baseline metadata.
 - Advanced search & reporting: saved searches, report definitions/executions, dashboards.
 - Electronic signatures: signing reasons, signature records, manifests, and audit logs.
+- Report exports: CSV/JSON export and execution history endpoints.
+- Baseline comparison export + details pagination.
+- E-sign audit summary + audit export endpoints.
 - Verification: scripts for config variants and MBOM/routing, plus new unit tests.
 
 ### Verification
