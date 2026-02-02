@@ -14,7 +14,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Package Note: `docs/DELIVERY_PACKAGE_NOTE_20260202.md`
 - Delivery Acceptance Guide: `docs/DELIVERY_ACCEPTANCE_GUIDE_20260202.md`
 - Delivery Acceptance Checklist: `docs/DELIVERY_ACCEPTANCE_CHECKLIST_20260202.md`
-- Delivery Contents Overview: `YuantusPLM-Delivery/docs/DELIVERY_CONTENTS_OVERVIEW_20260202.md`
+- Delivery Contents Overview: `docs/DELIVERY_CONTENTS_OVERVIEW_20260202.md`
 
 ## Ops & Deployment
 
