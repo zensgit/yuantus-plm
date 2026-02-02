@@ -27,6 +27,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery API Examples: `docs/DELIVERY_API_EXAMPLES_20260202.md`
 - Delivery Report Export Formats: `docs/DELIVERY_REPORT_EXPORT_FORMATS_20260202.md`
 - Delivery Rollback Guide: `docs/DELIVERY_ROLLBACK_GUIDE_20260202.md`
+- Delivery Package Tree: `docs/DELIVERY_TREE_20260202.md`
+- Delivery Release Summary: `docs/DELIVERY_RELEASE_SUMMARY_20260202.md`
 
 ## Ops & Deployment
 
