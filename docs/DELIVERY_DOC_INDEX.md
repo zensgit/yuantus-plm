@@ -9,6 +9,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Verification Summary: `docs/VERIFICATION_RESULTS.md`
 - Delivery Summary: `docs/DELIVERY_SUMMARY_20260202.md`
 - Delivery Checklist: `docs/DELIVERY_CHECKLIST_20260202.md`
+- Delivery Package Manifest: `docs/DELIVERY_PACKAGE_MANIFEST_20260202.txt`
 
 ## Ops & Deployment
 
