@@ -15626,3 +15626,64 @@ bash scripts/verify_manufacturing_mbom_routing.sh http://127.0.0.1:7910 tenant-1
 ```text
 PASS: MBOM + routing + time/cost
 ```
+
+## Run PYTEST-NON-DB-20260201-2315
+
+- 时间：`2026-02-01 23:15:20 +0800`
+- 命令：`.venv/bin/pytest -q`
+- 结果：`PASS`（11 passed）
+
+## Run PYTEST-DB-20260201-2316
+
+- 时间：`2026-02-01 23:16:10 +0800`
+- 命令：`YUANTUS_PYTEST_DB=1 .venv/bin/pytest -q`（配合 `.env`）
+- 结果：`PASS`（87 passed）
+
+## Run PLAYWRIGHT-ESIGN-20260201-2344
+
+- 时间：`2026-02-01 23:44:39 +0800`
+- 命令：`npx playwright test`
+- 结果：`PASS`（1 passed）
+- 说明：Playwright CLI 使用临时 DB `/tmp/yuantus_playwright.db`（TENANCY_MODE=single），自动 seed identity/meta，并覆盖签名原因、清单、签名、验证、撤销流程。
+
+## Run PLAYWRIGHT-ESIGN-20260201-2359
+
+- 时间：`2026-02-01 23:59:11 +0800`
+- 命令：`npx playwright test`
+- 结果：`PASS`（1 passed）
+- 说明：Playwright CLI 使用临时 DB `/tmp/yuantus_playwright.db`（TENANCY_MODE=single），自动 seed identity/meta，并覆盖签名原因、清单、签名、验证、撤销流程。
+
+## Run MIGRATIONS-SQLITE-20260202-0016
+
+- 时间：`2026-02-02 00:16:09 +0800`
+- 命令：`rm -f /tmp/yuantus_migrate_verify.db && YUANTUS_DATABASE_URL=sqlite:////tmp/yuantus_migrate_verify.db python3 -m alembic -c alembic.ini upgrade head`
+- 结果：`PASS`
+- 说明：SQLite 下 baseline/report 迁移使用 batch_alter_table + 命名外键约束。
+
+## Run MIGRATIONS-SQLITE-DOWNGRADE-20260202-0021
+
+- 时间：`2026-02-02 00:21:39 +0800`
+- 命令：`rm -f /tmp/yuantus_migrate_verify.db && YUANTUS_DATABASE_URL=sqlite:////tmp/yuantus_migrate_verify.db python3 -m alembic -c alembic.ini upgrade head && YUANTUS_DATABASE_URL=sqlite:////tmp/yuantus_migrate_verify.db python3 -m alembic -c alembic.ini downgrade -1`
+- 结果：`PASS`
+- 说明：SQLite 下验证新增迁移可回滚（从 v1b2c3d4e7a0 回退到 u1b2c3d4e6a9）。
+
+## Run PLAYWRIGHT-ESIGN-20260202-0021
+
+- 时间：`2026-02-02 00:21:39 +0800`
+- 命令：`npx playwright test`
+- 结果：`PASS`（1 passed）
+- 说明：Playwright CLI 使用临时 DB `/tmp/yuantus_playwright.db`（TENANCY_MODE=single），自动 seed identity/meta，并覆盖签名原因、清单、签名、验证、撤销流程。
+
+## Run PLAYWRIGHT-ESIGN-20260202-0813
+
+- 时间：`2026-02-02 08:13:58 +0800`
+- 命令：`npx playwright test`
+- 结果：`PASS`（1 passed）
+- 说明：Playwright CLI 使用临时 DB `/tmp/yuantus_playwright.db`（TENANCY_MODE=single），自动 seed identity/meta，并覆盖签名原因、清单、签名、验证、撤销流程。
+
+## Run MIGRATIONS-SQLITE-DOWNGRADE-20260202-0818
+
+- 时间：`2026-02-02 08:18:04 +0800`
+- 命令：`rm -f /tmp/yuantus_migrate_verify.db && YUANTUS_DATABASE_URL=sqlite:////tmp/yuantus_migrate_verify.db python3 -m alembic -c alembic.ini upgrade head && YUANTUS_DATABASE_URL=sqlite:////tmp/yuantus_migrate_verify.db python3 -m alembic -c alembic.ini downgrade -1`
+- 结果：`PASS`
+- 说明：SQLite 下验证新增迁移可回滚（从 v1b2c3d4e7a0 回退到 u1b2c3d4e6a9）。

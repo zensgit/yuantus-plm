@@ -5,6 +5,9 @@
 ### Added
 - Config variants: option validation, variant rules, effective BOM, configuration instances.
 - Manufacturing MBOM + routing: EBOM -> MBOM, MBOM lines, routing/operations, time & cost estimates.
+- Baseline enhancements: members/comparisons, validation/release workflow, and extended baseline metadata.
+- Advanced search & reporting: saved searches, report definitions/executions, dashboards.
+- Electronic signatures: signing reasons, signature records, manifests, and audit logs.
 - Verification: scripts for config variants and MBOM/routing, plus new unit tests.
 
 ### Verification

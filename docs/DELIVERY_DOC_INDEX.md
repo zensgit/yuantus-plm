@@ -7,6 +7,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Release Notes: `docs/RELEASE_NOTES_v0.1.3_update_20260201.md` (latest), `docs/RELEASE_NOTES_v0.1.3.md`
 - Changelog: `CHANGELOG.md`
 - Verification Summary: `docs/VERIFICATION_RESULTS.md`
+- Delivery Summary: `docs/DELIVERY_SUMMARY_20260202.md`
+- Delivery Checklist: `docs/DELIVERY_CHECKLIST_20260202.md`
 
 ## Ops & Deployment
 
@@ -24,6 +26,13 @@ This index aggregates all delivery‑related documents for private deployments.
 - UI + Config Variants Full Regression: `docs/VERIFICATION_RUN_ALL_UI_CONFIG_20260129_1322.md`
 - UI Aggregation Regression: `docs/VERIFICATION_UI_AGG_RUN_ALL_20260129_0946.md`
 - Product Detail CAD Summary: `docs/VERIFICATION_PRODUCT_DETAIL_CAD_SUMMARY_20260129_0936.md`
+
+## Development & Verification
+
+- Phase 4/5 Baseline + Reports: `docs/DEV_AND_VERIFICATION_P4_P5_20260201.md`
+- Phase 6 E-Signatures: `docs/DEV_AND_VERIFICATION_P6_ESIGN_20260201.md`
+- Playwright CI Integration: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_CI_20260201.md`
+- Plan Execution (2026-02-02): `docs/DEV_AND_VERIFICATION_PLAN_20260202.md`
 
 ## Optional
 
