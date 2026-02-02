@@ -33,6 +33,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Delta Summary: `docs/DELIVERY_DELTA_SUMMARY_20260202.md`
 - Delivery Docs List: `docs/DELIVERY_DOCS_LIST_20260202.md`
 - Delivery Scripts Index: `docs/DELIVERY_SCRIPTS_INDEX_20260202.md`
+- Delivery One Pager: `docs/DELIVERY_ONE_PAGER_20260202.md`
+- Delivery Quality Report: `docs/DELIVERY_QUALITY_REPORT_20260202.md`
 
 ## Ops & Deployment
 
