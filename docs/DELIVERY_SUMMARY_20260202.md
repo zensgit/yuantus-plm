@@ -22,6 +22,11 @@
 - Playwright E2E runs recorded in `docs/VERIFICATION_RESULTS.md`.
 - SQLite migration upgrade and downgrade smoke runs recorded in `docs/VERIFICATION_RESULTS.md`.
 
+## Latest Evidence (2026-02-02)
+
+- Playwright: `Run PLAYWRIGHT-ESIGN-20260202-0813`
+- SQLite downgrade smoke: `Run MIGRATIONS-SQLITE-DOWNGRADE-20260202-0818`
+
 ## Detailed Dev Notes
 
 - Phase 4/5: `docs/DEV_AND_VERIFICATION_P4_P5_20260201.md`
