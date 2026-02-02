@@ -15,6 +15,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Acceptance Guide: `docs/DELIVERY_ACCEPTANCE_GUIDE_20260202.md`
 - Delivery Acceptance Checklist: `docs/DELIVERY_ACCEPTANCE_CHECKLIST_20260202.md`
 - Delivery Contents Overview: `docs/DELIVERY_CONTENTS_OVERVIEW_20260202.md`
+- Delivery Startup Example: `docs/DELIVERY_STARTUP_EXAMPLE_20260202.md`
+- Delivery FAQ: `docs/DELIVERY_FAQ_20260202.md`
 
 ## Ops & Deployment
 
