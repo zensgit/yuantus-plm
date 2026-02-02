@@ -12,6 +12,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Package Manifest: `docs/DELIVERY_PACKAGE_MANIFEST_20260202.txt`
 - Delivery Package Scripts: `docs/DELIVERY_PACKAGE_SCRIPTS_20260202.md`
 - Delivery Package Note: `docs/DELIVERY_PACKAGE_NOTE_20260202.md`
+- Delivery Acceptance Guide: `docs/DELIVERY_ACCEPTANCE_GUIDE_20260202.md`
 
 ## Ops & Deployment
 
