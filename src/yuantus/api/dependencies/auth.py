@@ -111,10 +111,27 @@ def get_current_identity(
 def _ensure_local_user(db: Session, identity: Identity) -> None:
     existing = db.get(LocalUser, identity.user_id)
     if not existing:
+        fallback_username = identity.username or f"user-{identity.user_id}"
+        existing_by_username = (
+            db.query(LocalUser).filter(LocalUser.username == fallback_username).first()
+        )
+        if existing_by_username:
+            changed = False
+            if identity.email is not None and existing_by_username.email != identity.email:
+                existing_by_username.email = identity.email
+                changed = True
+            if not existing_by_username.is_active:
+                existing_by_username.is_active = True
+                changed = True
+            if changed:
+                db.add(existing_by_username)
+                db.flush()
+            return
+
         db.add(
             LocalUser(
                 id=identity.user_id,
-                username=identity.username or f"user-{identity.user_id}",
+                username=fallback_username,
                 email=identity.email,
                 is_active=True,
             )
@@ -137,11 +154,31 @@ def _ensure_local_user(db: Session, identity: Identity) -> None:
 def _ensure_rbac_user(db: Session, identity: Identity) -> None:
     existing = db.get(RBACUser, identity.user_id)
     if not existing:
+        fallback_username = identity.username or f"user-{identity.user_id}"
+        existing_by_username = (
+            db.query(RBACUser).filter(RBACUser.username == fallback_username).first()
+        )
+        if existing_by_username:
+            changed = False
+            if identity.email is not None and existing_by_username.email != identity.email:
+                existing_by_username.email = identity.email
+                changed = True
+            if bool(existing_by_username.is_superuser) != bool(identity.is_superuser):
+                existing_by_username.is_superuser = identity.is_superuser
+                changed = True
+            if not existing_by_username.is_active:
+                existing_by_username.is_active = True
+                changed = True
+            if changed:
+                db.add(existing_by_username)
+                db.flush()
+            return
+
         db.add(
             RBACUser(
                 id=identity.user_id,
                 user_id=identity.user_id,
-                username=identity.username or f"user-{identity.user_id}",
+                username=fallback_username,
                 email=identity.email,
                 is_active=True,
                 is_superuser=identity.is_superuser,
@@ -207,7 +244,10 @@ def get_current_user_optional(
 
     # Ensure RBAC role records exist (org DB) and assign to RBACUser.
     rbac_user = db.get(RBACUser, identity.user_id)
-    assert rbac_user is not None
+    if rbac_user is None and identity.username:
+        rbac_user = db.query(RBACUser).filter_by(username=identity.username).first()
+    if rbac_user is None:
+        raise HTTPException(status_code=401, detail="RBAC user not found")
     existing_role_names = {r.name for r in (rbac_user.roles or [])}
     for role_name in roles:
         role_name = str(role_name)

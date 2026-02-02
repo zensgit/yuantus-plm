@@ -209,6 +209,10 @@ class Settings(BaseSettings):
         default="yuantus-dev-secret-change-me",
         description="HS256 secret for dev; override in production",
     )
+    ESIGN_SECRET_KEY: str = Field(
+        default="",
+        description="Optional HMAC secret for electronic signatures (defaults to JWT_SECRET_KEY)",
+    )
     JWT_ACCESS_TOKEN_TTL_SECONDS: int = Field(
         default=3600, description="Access token TTL seconds"
     )

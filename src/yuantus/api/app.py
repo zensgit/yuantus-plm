@@ -24,6 +24,7 @@ from yuantus.meta_engine.web.dedup_router import dedup_router
 from yuantus.meta_engine.web.eco_router import eco_router
 from yuantus.meta_engine.web.equivalent_router import equivalent_router
 from yuantus.meta_engine.web.file_router import file_router
+from yuantus.meta_engine.web.esign_router import esign_router
 from yuantus.meta_engine.web.permission_router import permission_router
 from yuantus.meta_engine.web.product_router import product_router
 from yuantus.meta_engine.web.report_router import report_router
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(schema_router, prefix="/api/v1")
     app.include_router(ui_router, prefix="/api/v1")
     app.include_router(file_router, prefix="/api/v1")
+    app.include_router(esign_router, prefix="/api/v1")
     app.include_router(version_router, prefix="/api/v1")
     app.include_router(mbom_router, prefix="/api/v1")
     app.include_router(routing_router, prefix="/api/v1")
