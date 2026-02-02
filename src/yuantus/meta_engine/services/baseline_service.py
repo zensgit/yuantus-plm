@@ -7,7 +7,12 @@ import uuid
 from sqlalchemy.orm import Session
 
 from yuantus.exceptions.handlers import PermissionError
-from yuantus.meta_engine.models.baseline import Baseline
+from yuantus.meta_engine.models.baseline import (
+    Baseline,
+    BaselineComparison,
+    BaselineMember,
+    BaselineScope,
+)
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.schemas.aml import AMLAction
 from yuantus.meta_engine.services.bom_service import BOMService
@@ -90,6 +95,148 @@ class BaselineService:
                 child["relationship"] = rel
             self._attach_effectivities(child.get("child") or {})
 
+    def _add_item_member(
+        self,
+        baseline: Baseline,
+        item: Item,
+        *,
+        level: int,
+        path: str,
+        quantity: Optional[str] = None,
+        member_type: str = "item",
+    ) -> BaselineMember:
+        member = BaselineMember(
+            id=str(uuid.uuid4()),
+            baseline_id=baseline.id,
+            item_id=item.id,
+            item_number=item.config_id,
+            item_revision=item.properties.get("revision") if item.properties else None,
+            item_generation=item.generation,
+            item_type=item.item_type_id,
+            level=level,
+            path=path,
+            quantity=quantity,
+            member_type=member_type,
+            item_state=item.state,
+        )
+        self.session.add(member)
+        return member
+
+    def _add_relationship_member(
+        self,
+        baseline: Baseline,
+        relationship_id: str,
+        *,
+        level: int,
+        path: str,
+    ) -> BaselineMember:
+        member = BaselineMember(
+            id=str(uuid.uuid4()),
+            baseline_id=baseline.id,
+            relationship_id=relationship_id,
+            item_number=relationship_id,
+            level=level,
+            path=path,
+            member_type="relationship",
+        )
+        self.session.add(member)
+        return member
+
+    def _add_bom_members(
+        self,
+        baseline: Baseline,
+        bom: Dict[str, Any],
+        *,
+        level: int,
+        path: str,
+    ) -> None:
+        children = bom.get("children") or []
+        for child_entry in children:
+            rel = child_entry.get("relationship") or {}
+            child_data = child_entry.get("child") or {}
+            child_id = child_data.get("id")
+
+            if not child_id:
+                continue
+
+            child_item = self.session.get(Item, child_id)
+            if not child_item:
+                continue
+
+            rel_props = rel.get("properties") or {}
+            quantity = rel_props.get("quantity", rel_props.get("qty", 1))
+            quantity = str(quantity)
+
+            child_path = f"{path}/{child_item.config_id or child_id}"
+
+            self._add_item_member(
+                baseline,
+                child_item,
+                level=level,
+                path=child_path,
+                quantity=quantity,
+            )
+
+            if baseline.include_relationships and rel.get("id"):
+                self._add_relationship_member(
+                    baseline,
+                    rel.get("id"),
+                    level=level,
+                    path=child_path,
+                )
+
+            if child_data.get("children"):
+                self._add_bom_members(
+                    baseline,
+                    child_data,
+                    level=level + 1,
+                    path=child_path,
+                )
+
+    def _add_document_members(self, baseline: Baseline, item_id: str) -> None:
+        from yuantus.meta_engine.models.file import FileContainer
+
+        docs = (
+            self.session.query(FileContainer)
+            .filter(FileContainer.item_id == item_id)
+            .all()
+        )
+
+        for doc in docs:
+            member = BaselineMember(
+                id=str(uuid.uuid4()),
+                baseline_id=baseline.id,
+                document_id=doc.id,
+                item_number=doc.filename,
+                item_revision=doc.document_version,
+                item_type=doc.document_type,
+                level=0,
+                path="documents",
+                member_type="document",
+            )
+            self.session.add(member)
+
+    def _populate_members(self, baseline: Baseline, snapshot: Dict[str, Any]) -> None:
+        if not baseline.root_item_id:
+            return
+        root_item = self.session.get(Item, baseline.root_item_id)
+        if not root_item:
+            return
+
+        root_path = root_item.config_id or "root"
+        self._add_item_member(baseline, root_item, level=0, path="")
+
+        if baseline.include_bom:
+            self._add_bom_members(
+                baseline,
+                snapshot,
+                level=1,
+                path=root_path,
+            )
+
+        if baseline.include_documents:
+            self._add_document_members(baseline, baseline.root_item_id)
+
     def create_baseline(
         self,
         *,
@@ -104,19 +251,43 @@ class BaselineService:
         line_key: str,
         created_by_id: Optional[int],
         roles: List[str],
+        baseline_type: Optional[str] = None,
+        scope: Optional[str] = None,
+        baseline_number: Optional[str] = None,
+        effective_date: Optional[datetime] = None,
+        include_bom: Optional[bool] = None,
+        include_documents: Optional[bool] = None,
+        include_relationships: Optional[bool] = None,
+        bom_levels: Optional[int] = None,
+        eco_id: Optional[str] = None,
+        auto_populate: bool = True,
+        state: Optional[str] = None,
     ) -> Baseline:
         item, resolved_version_id = self._resolve_root(root_item_id, root_version_id)
         self._ensure_can_read(item, str(created_by_id or "guest"), roles)
 
-        effective_at = self._normalize_effective_at(effective_at)
+        baseline_type = baseline_type or "bom"
+        scope = scope or BaselineScope.PRODUCT.value
+        if baseline_number is None:
+            baseline_number = f"BL-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+
+        effective_at = self._normalize_effective_at(effective_date or effective_at)
+        levels = bom_levels if bom_levels is not None else max_levels
+        include_bom = True if include_bom is None else include_bom
+        if include_documents is None:
+            include_documents = baseline_type != "bom"
+        if include_relationships is None:
+            include_relationships = baseline_type != "bom"
+
+        snapshot_levels = levels if include_bom else 0
         if resolved_version_id:
             snapshot = self.bom_service.get_bom_for_version(
-                resolved_version_id, levels=max_levels, include_substitutes=include_substitutes
+                resolved_version_id, levels=snapshot_levels, include_substitutes=include_substitutes
             )
         else:
             snapshot = self.bom_service.get_bom_structure(
                 item.id,
-                levels=max_levels,
+                levels=snapshot_levels,
                 effective_date=effective_at,
                 include_substitutes=include_substitutes,
             )
@@ -130,21 +301,31 @@ class BaselineService:
             id=str(uuid.uuid4()),
             name=name,
             description=description,
-            baseline_type="bom",
+            baseline_type=baseline_type,
+            baseline_number=baseline_number,
+            scope=scope,
             root_item_id=item.id,
             root_version_id=resolved_version_id,
             root_config_id=item.config_id,
+            eco_id=eco_id,
             snapshot=snapshot,
-            max_levels=max_levels,
+            max_levels=levels,
             effective_at=effective_at,
+            include_bom=include_bom,
             include_substitutes=include_substitutes,
             include_effectivity=include_effectivity,
+            include_documents=include_documents,
+            include_relationships=include_relationships,
             line_key=line_key or "child_config",
             item_count=item_count,
             relationship_count=rel_count,
+            state=state or "draft",
             created_by_id=created_by_id,
         )
         self.session.add(baseline)
+        self.session.flush()
+        if auto_populate:
+            self._populate_members(baseline, snapshot)
         self.session.commit()
         return baseline
 
@@ -173,6 +354,260 @@ class BaselineService:
 
     def get_baseline(self, baseline_id: str) -> Optional[Baseline]:
         return self.session.get(Baseline, baseline_id)
+
+    def validate_baseline(self, baseline_id: str, user_id: Optional[int] = None) -> Dict[str, Any]:
+        baseline = self.session.get(Baseline, baseline_id)
+        if not baseline:
+            raise ValueError(f"Baseline not found: {baseline_id}")
+
+        errors: List[Dict[str, Any]] = []
+        warnings: List[Dict[str, Any]] = []
+
+        members = (
+            self.session.query(BaselineMember)
+            .filter(BaselineMember.baseline_id == baseline_id)
+            .all()
+        )
+
+        for member in members:
+            if member.member_type == "item":
+                item = self.session.get(Item, member.item_id) if member.item_id else None
+                if not item:
+                    errors.append(
+                        {
+                            "type": "missing_item",
+                            "member_id": member.id,
+                            "item_id": member.item_id,
+                            "message": f"Item not found: {member.item_number}",
+                        }
+                    )
+                    continue
+
+                if item.state not in ("released", "approved"):
+                    warnings.append(
+                        {
+                            "type": "unreleased_item",
+                            "member_id": member.id,
+                            "item_id": member.item_id,
+                            "item_state": item.state,
+                            "message": f"Item {member.item_number} is not released (state: {item.state})",
+                        }
+                    )
+
+                if member.item_generation is not None and item.generation != member.item_generation:
+                    warnings.append(
+                        {
+                            "type": "version_mismatch",
+                            "member_id": member.id,
+                            "expected_generation": member.item_generation,
+                            "current_generation": item.generation,
+                            "message": f"Item {member.item_number} version changed",
+                        }
+                    )
+
+            elif member.member_type == "document":
+                from yuantus.meta_engine.models.file import FileContainer
+
+                doc = (
+                    self.session.get(FileContainer, member.document_id)
+                    if member.document_id
+                    else None
+                )
+                if not doc:
+                    errors.append(
+                        {
+                            "type": "missing_document",
+                            "member_id": member.id,
+                            "document_id": member.document_id,
+                            "message": f"Document not found: {member.item_number}",
+                        }
+                    )
+
+        is_valid = len(errors) == 0
+        baseline.is_validated = is_valid
+        baseline.validation_errors = {"errors": errors, "warnings": warnings}
+        baseline.validated_at = datetime.utcnow()
+        baseline.validated_by_id = user_id
+        self.session.add(baseline)
+        self.session.commit()
+
+        return {
+            "is_valid": is_valid,
+            "errors": errors,
+            "warnings": warnings,
+            "validated_at": baseline.validated_at.isoformat() if baseline.validated_at else None,
+        }
+
+    def compare_baselines(
+        self,
+        *,
+        baseline_a_id: str,
+        baseline_b_id: str,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        baseline_a = self.session.get(Baseline, baseline_a_id)
+        baseline_b = self.session.get(Baseline, baseline_b_id)
+
+        if not baseline_a or not baseline_b:
+            raise ValueError("Baseline not found")
+
+        members_a = (
+            self.session.query(BaselineMember)
+            .filter(BaselineMember.baseline_id == baseline_a_id)
+            .all()
+        )
+        members_b = (
+            self.session.query(BaselineMember)
+            .filter(BaselineMember.baseline_id == baseline_b_id)
+            .all()
+        )
+
+        def _key(member: BaselineMember) -> Tuple[str, Optional[str]]:
+            if member.member_type == "document":
+                return ("document", member.document_id or member.item_id)
+            if member.member_type == "relationship":
+                return ("relationship", member.relationship_id)
+            return ("item", member.item_id)
+
+        map_a = {_key(m): m for m in members_a}
+        map_b = { _key(m): m for m in members_b }
+
+        keys_a = set(map_a.keys())
+        keys_b = set(map_b.keys())
+
+        added: List[Dict[str, Any]] = []
+        removed: List[Dict[str, Any]] = []
+        changed: List[Dict[str, Any]] = []
+        unchanged: List[Dict[str, Any]] = []
+
+        for key in keys_b - keys_a:
+            m = map_b[key]
+            added.append(
+                {
+                    "member_type": m.member_type,
+                    "reference_id": m.item_id or m.document_id or m.relationship_id,
+                    "item_number": m.item_number,
+                    "revision": m.item_revision,
+                }
+            )
+
+        for key in keys_a - keys_b:
+            m = map_a[key]
+            removed.append(
+                {
+                    "member_type": m.member_type,
+                    "reference_id": m.item_id or m.document_id or m.relationship_id,
+                    "item_number": m.item_number,
+                    "revision": m.item_revision,
+                }
+            )
+
+        for key in keys_a & keys_b:
+            ma = map_a[key]
+            mb = map_b[key]
+            if ma.item_generation != mb.item_generation or ma.item_revision != mb.item_revision:
+                changed.append(
+                    {
+                        "member_type": ma.member_type,
+                        "reference_id": ma.item_id or ma.document_id or ma.relationship_id,
+                        "item_number": ma.item_number,
+                        "baseline_a": {
+                            "revision": ma.item_revision,
+                            "generation": ma.item_generation,
+                        },
+                        "baseline_b": {
+                            "revision": mb.item_revision,
+                            "generation": mb.item_generation,
+                        },
+                    }
+                )
+            else:
+                unchanged.append(
+                    {
+                        "member_type": ma.member_type,
+                        "reference_id": ma.item_id or ma.document_id or ma.relationship_id,
+                        "item_number": ma.item_number,
+                    }
+                )
+
+        comparison = BaselineComparison(
+            id=str(uuid.uuid4()),
+            baseline_a_id=baseline_a_id,
+            baseline_b_id=baseline_b_id,
+            added_count=len(added),
+            removed_count=len(removed),
+            changed_count=len(changed),
+            unchanged_count=len(unchanged),
+            differences={
+                "added": added,
+                "removed": removed,
+                "changed": changed,
+            },
+            compared_by_id=user_id,
+        )
+        self.session.add(comparison)
+        self.session.commit()
+
+        return {
+            "comparison_id": comparison.id,
+            "baseline_a": {"id": baseline_a.id, "name": baseline_a.name},
+            "baseline_b": {"id": baseline_b.id, "name": baseline_b.name},
+            "summary": {
+                "added": len(added),
+                "removed": len(removed),
+                "changed": len(changed),
+                "unchanged": len(unchanged),
+            },
+            "details": {
+                "added": added,
+                "removed": removed,
+                "changed": changed,
+            },
+        }
+
+    def release_baseline(
+        self,
+        baseline_id: str,
+        user_id: Optional[int] = None,
+        *,
+        force: bool = False,
+    ) -> Baseline:
+        baseline = self.session.get(Baseline, baseline_id)
+        if not baseline:
+            raise ValueError(f"Baseline not found: {baseline_id}")
+
+        if baseline.state == "released":
+            raise ValueError("Baseline is already released")
+
+        if not force and not baseline.is_validated:
+            validation = self.validate_baseline(baseline_id, user_id)
+            if not validation["is_valid"]:
+                raise ValueError(f"Baseline validation failed: {validation['errors']}")
+
+        baseline.state = "released"
+        baseline.is_locked = True
+        baseline.locked_at = datetime.utcnow()
+        baseline.released_at = datetime.utcnow()
+        baseline.released_by_id = user_id
+        self.session.add(baseline)
+        self.session.commit()
+        return baseline
+
+    def get_baseline_at_date(
+        self,
+        *,
+        root_item_id: str,
+        target_date: datetime,
+        baseline_type: Optional[str] = None,
+    ) -> Optional[Baseline]:
+        query = self.session.query(Baseline).filter(
+            Baseline.root_item_id == root_item_id,
+            Baseline.state == "released",
+            Baseline.effective_at <= target_date,
+        )
+        if baseline_type:
+            query = query.filter(Baseline.baseline_type == baseline_type)
+        return query.order_by(Baseline.effective_at.desc()).first()
 
     def compare_baseline(
         self,

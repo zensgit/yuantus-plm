@@ -24,6 +24,7 @@ def import_all_models() -> None:
     from yuantus.meta_engine.models import plugin_config as _plugin_config  # noqa: F401
     from yuantus.meta_engine.dedup import models as _dedup  # noqa: F401
     from yuantus.meta_engine.manufacturing import models as _manufacturing  # noqa: F401
+    from yuantus.meta_engine.reports import models as _reports  # noqa: F401
     from yuantus.security.auth import models as _auth_models  # noqa: F401
 
     # Subsystems
