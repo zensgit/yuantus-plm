@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -272,6 +272,37 @@ def get_comparison_details(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@baseline_router.get("/comparisons/{comparison_id}/export")
+def export_comparison_details(
+    comparison_id: str,
+    export_format: str = Query("csv"),
+    change_type: Optional[str] = Query(None, description="added|removed|changed"),
+    limit: int = Query(2000, ge=1, le=10000),
+    offset: int = Query(0, ge=0),
+    _user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    service = BaselineService(db)
+    try:
+        result = service.export_comparison_details(
+            comparison_id=comparison_id,
+            change_type=change_type,
+            export_format=export_format,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    filename = f"baseline_comparison_{comparison_id}.{result['extension']}"
+    headers = {"Content-Disposition": f"attachment; filename=\"{filename}\""}
+    return Response(
+        content=result["content"],
+        media_type=result["media_type"],
+        headers=headers,
+    )
 
 
 @baseline_router.get("/{baseline_id}", response_model=BaselineResponse)

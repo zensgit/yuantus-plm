@@ -151,6 +151,7 @@ class ReportDefinitionService:
             parameters_used=parameters,
             status="running",
             executed_by_id=user_id,
+            executed_at=datetime.utcnow(),
         )
         self.session.add(execution)
         self.session.flush()
@@ -203,6 +204,7 @@ class ReportDefinitionService:
             executed_by_id=user_id,
             export_format=normalized_format,
             export_path="inline",
+            executed_at=datetime.utcnow(),
         )
         self.session.add(execution)
         self.session.flush()
@@ -277,6 +279,32 @@ class ReportDefinitionService:
             )
 
         raise ValueError(f"Unsupported data source type: {source_type}")
+
+    def list_executions(
+        self,
+        *,
+        report_id: Optional[str] = None,
+        executed_by_id: Optional[int] = None,
+        status: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[ReportExecution]:
+        query = self.session.query(ReportExecution)
+        if report_id:
+            query = query.filter(ReportExecution.report_id == report_id)
+        if executed_by_id is not None:
+            query = query.filter(ReportExecution.executed_by_id == executed_by_id)
+        if status:
+            query = query.filter(ReportExecution.status == status)
+        return (
+            query.order_by(ReportExecution.executed_at.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )
+
+    def get_execution(self, execution_id: str) -> Optional[ReportExecution]:
+        return self.session.get(ReportExecution, execution_id)
 
     @staticmethod
     def _normalize_export_format(export_format: str) -> str:

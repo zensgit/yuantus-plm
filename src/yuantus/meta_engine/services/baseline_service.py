@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+import csv
+import io
+import json
 import uuid
 
 from sqlalchemy.orm import Session
@@ -606,6 +609,53 @@ class BaselineService:
             "offset": offset,
             "items": sliced,
         }
+
+    def export_comparison_details(
+        self,
+        *,
+        comparison_id: str,
+        change_type: Optional[str],
+        export_format: str,
+        limit: int = 2000,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        details = self.get_comparison_details(
+            comparison_id=comparison_id,
+            change_type=change_type,
+            limit=limit,
+            offset=offset,
+        )
+
+        normalized_format = export_format.lower().strip()
+        if normalized_format not in {"csv", "json"}:
+            raise ValueError("Unsupported export format")
+
+        if normalized_format == "json":
+            payload = json.dumps(details, ensure_ascii=False, default=str).encode("utf-8")
+            return {"content": payload, "media_type": "application/json", "extension": "json"}
+
+        items = details.get("items") or []
+        columns: List[str] = []
+        for item in items:
+            for key in (item or {}).keys():
+                if key not in columns:
+                    columns.append(key)
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(columns)
+        for item in items:
+            row = []
+            for col in columns:
+                value = (item or {}).get(col)
+                if isinstance(value, (dict, list)):
+                    row.append(json.dumps(value, ensure_ascii=False))
+                elif value is None:
+                    row.append("")
+                else:
+                    row.append(str(value))
+            writer.writerow(row)
+        content = buffer.getvalue().encode("utf-8-sig")
+        return {"content": content, "media_type": "text/csv", "extension": "csv"}
 
     def release_baseline(
         self,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -352,6 +352,8 @@ def list_audit_logs(
     actor_id: Optional[int] = Query(None),
     action: Optional[str] = Query(None),
     success: Optional[bool] = Query(None),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     _user: CurrentUser = Depends(get_current_user),
@@ -365,6 +367,8 @@ def list_audit_logs(
         actor_id=actor_id,
         action=action,
         success=success,
+        date_from=date_from,
+        date_to=date_to,
         limit=limit,
         offset=offset,
     )
@@ -386,3 +390,70 @@ def list_audit_logs(
             for log in logs
         ]
     }
+
+
+@esign_router.get("/audit-summary", response_model=Dict[str, Any])
+def get_audit_summary(
+    item_id: Optional[str] = Query(None),
+    signature_id: Optional[str] = Query(None),
+    actor_id: Optional[int] = Query(None),
+    action: Optional[str] = Query(None),
+    success: Optional[bool] = Query(None),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    _user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    identity_db: Session = Depends(get_identity_db),
+) -> Dict[str, Any]:
+    service = _service(db, identity_db)
+    return service.get_audit_summary(
+        item_id=item_id,
+        signature_id=signature_id,
+        actor_id=actor_id,
+        action=action,
+        success=success,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+@esign_router.get("/audit-logs/export")
+def export_audit_logs(
+    export_format: str = Query("csv"),
+    item_id: Optional[str] = Query(None),
+    signature_id: Optional[str] = Query(None),
+    actor_id: Optional[int] = Query(None),
+    action: Optional[str] = Query(None),
+    success: Optional[bool] = Query(None),
+    date_from: Optional[datetime] = Query(None),
+    date_to: Optional[datetime] = Query(None),
+    limit: int = Query(2000, ge=1, le=10000),
+    offset: int = Query(0, ge=0),
+    _user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    identity_db: Session = Depends(get_identity_db),
+) -> Response:
+    service = _service(db, identity_db)
+    try:
+        result = service.export_audit_logs(
+            export_format=export_format,
+            item_id=item_id,
+            signature_id=signature_id,
+            actor_id=actor_id,
+            action=action,
+            success=success,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    filename = f"esign_audit_logs.{result['extension']}"
+    headers = {"Content-Disposition": f"attachment; filename=\"{filename}\""}
+    return Response(
+        content=result["content"],
+        media_type=result["media_type"],
+        headers=headers,
+    )

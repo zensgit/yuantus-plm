@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+import csv
 import hashlib
 import hmac
+import io
 import json
 import uuid
 
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from yuantus.meta_engine.esign.models import (
@@ -498,6 +500,8 @@ class ElectronicSignatureService:
         actor_id: Optional[int] = None,
         action: Optional[str] = None,
         success: Optional[bool] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
         limit: int = 200,
         offset: int = 0,
     ) -> List[SignatureAuditLog]:
@@ -512,9 +516,141 @@ class ElectronicSignatureService:
             query = query.filter(SignatureAuditLog.action == action)
         if success is not None:
             query = query.filter(SignatureAuditLog.success.is_(success))
+        if date_from:
+            query = query.filter(SignatureAuditLog.timestamp >= date_from)
+        if date_to:
+            query = query.filter(SignatureAuditLog.timestamp <= date_to)
         return (
             query.order_by(SignatureAuditLog.timestamp.desc())
             .offset(offset)
             .limit(limit)
             .all()
         )
+
+    def get_audit_summary(
+        self,
+        *,
+        item_id: Optional[str] = None,
+        signature_id: Optional[str] = None,
+        actor_id: Optional[int] = None,
+        action: Optional[str] = None,
+        success: Optional[bool] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        filters = []
+        if item_id:
+            filters.append(SignatureAuditLog.item_id == item_id)
+        if signature_id:
+            filters.append(SignatureAuditLog.signature_id == signature_id)
+        if actor_id is not None:
+            filters.append(SignatureAuditLog.actor_id == actor_id)
+        if action:
+            filters.append(SignatureAuditLog.action == action)
+        if success is not None:
+            filters.append(SignatureAuditLog.success.is_(success))
+        if date_from:
+            filters.append(SignatureAuditLog.timestamp >= date_from)
+        if date_to:
+            filters.append(SignatureAuditLog.timestamp <= date_to)
+
+        total = self.session.query(func.count(SignatureAuditLog.id)).filter(*filters).scalar()
+
+        by_action = (
+            self.session.query(SignatureAuditLog.action, func.count(SignatureAuditLog.id))
+            .filter(*filters)
+            .group_by(SignatureAuditLog.action)
+            .all()
+        )
+        by_success = (
+            self.session.query(SignatureAuditLog.success, func.count(SignatureAuditLog.id))
+            .filter(*filters)
+            .group_by(SignatureAuditLog.success)
+            .all()
+        )
+
+        return {
+            "total": int(total or 0),
+            "by_action": {row[0]: int(row[1]) for row in by_action},
+            "by_success": {str(row[0]).lower(): int(row[1]) for row in by_success},
+        }
+
+    def export_audit_logs(
+        self,
+        *,
+        export_format: str,
+        item_id: Optional[str] = None,
+        signature_id: Optional[str] = None,
+        actor_id: Optional[int] = None,
+        action: Optional[str] = None,
+        success: Optional[bool] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+        limit: int = 2000,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        logs = self.list_audit_logs(
+            item_id=item_id,
+            signature_id=signature_id,
+            actor_id=actor_id,
+            action=action,
+            success=success,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+            offset=offset,
+        )
+        normalized = export_format.lower().strip()
+        rows = [
+            {
+                "id": log.id,
+                "action": log.action,
+                "signature_id": log.signature_id,
+                "item_id": log.item_id,
+                "actor_id": log.actor_id,
+                "actor_username": log.actor_username,
+                "details": log.details,
+                "success": log.success,
+                "error_message": log.error_message,
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
+                "client_ip": log.client_ip,
+            }
+            for log in logs
+        ]
+
+        if normalized == "json":
+            payload = json.dumps({"items": rows}, ensure_ascii=False, default=str).encode(
+                "utf-8"
+            )
+            return {"content": payload, "media_type": "application/json", "extension": "json"}
+
+        if normalized != "csv":
+            raise ValueError("Unsupported export format")
+
+        columns = [
+            "id",
+            "action",
+            "signature_id",
+            "item_id",
+            "actor_id",
+            "actor_username",
+            "details",
+            "success",
+            "error_message",
+            "timestamp",
+            "client_ip",
+        ]
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(columns)
+        for row in rows:
+            writer.writerow(
+                [
+                    json.dumps(row.get(col), ensure_ascii=False)
+                    if isinstance(row.get(col), (dict, list))
+                    else ("" if row.get(col) is None else str(row.get(col)))
+                    for col in columns
+                ]
+            )
+        content = buffer.getvalue().encode("utf-8-sig")
+        return {"content": content, "media_type": "text/csv", "extension": "csv"}
