@@ -24,6 +24,9 @@ This index aggregates all delivery‑related documents for private deployments.
 - Post-Deployment Verification: `docs/DELIVERY_POST_DEPLOY_CHECKLIST_20260202.md`
 - Delivery Upgrade Guide: `docs/DELIVERY_UPGRADE_GUIDE_20260202.md`
 - Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`
+- Delivery API Examples: `docs/DELIVERY_API_EXAMPLES_20260202.md`
+- Delivery Report Export Formats: `docs/DELIVERY_REPORT_EXPORT_FORMATS_20260202.md`
+- Delivery Rollback Guide: `docs/DELIVERY_ROLLBACK_GUIDE_20260202.md`
 
 ## Ops & Deployment
 
