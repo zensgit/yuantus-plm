@@ -11,3 +11,13 @@
 sha256sum -c YuantusPLM-Delivery_20260202.tar.gz.sha256
 sha256sum -c YuantusPLM-Delivery_20260202.zip.sha256
 ```
+
+## Package Verification Script
+
+If you are using the delivery bundle directory, run:
+
+```bash
+cd YuantusPLM-Delivery
+scripts/verify_package.sh
+```
+
