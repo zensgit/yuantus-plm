@@ -475,7 +475,7 @@ class ElectronicSignatureService:
         success: bool = True,
         error_message: Optional[str] = None,
         client_ip: Optional[str] = None,
-    ) -> None:
+        ) -> None:
         log = SignatureAuditLog(
             id=str(uuid.uuid4()),
             action=action,
@@ -489,3 +489,32 @@ class ElectronicSignatureService:
             client_ip=client_ip,
         )
         self.session.add(log)
+
+    def list_audit_logs(
+        self,
+        *,
+        item_id: Optional[str] = None,
+        signature_id: Optional[str] = None,
+        actor_id: Optional[int] = None,
+        action: Optional[str] = None,
+        success: Optional[bool] = None,
+        limit: int = 200,
+        offset: int = 0,
+    ) -> List[SignatureAuditLog]:
+        query = self.session.query(SignatureAuditLog)
+        if item_id:
+            query = query.filter(SignatureAuditLog.item_id == item_id)
+        if signature_id:
+            query = query.filter(SignatureAuditLog.signature_id == signature_id)
+        if actor_id is not None:
+            query = query.filter(SignatureAuditLog.actor_id == actor_id)
+        if action:
+            query = query.filter(SignatureAuditLog.action == action)
+        if success is not None:
+            query = query.filter(SignatureAuditLog.success.is_(success))
+        return (
+            query.order_by(SignatureAuditLog.timestamp.desc())
+            .offset(offset)
+            .limit(limit)
+            .all()
+        )

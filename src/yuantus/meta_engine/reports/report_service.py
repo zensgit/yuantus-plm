@@ -1,6 +1,9 @@
 """Report definition execution services."""
 from __future__ import annotations
 
+import csv
+import io
+import json
 import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -177,6 +180,64 @@ class ReportDefinitionService:
             self.session.commit()
             raise
 
+    def export_definition(
+        self,
+        report_id: str,
+        *,
+        export_format: str,
+        parameters: Optional[Dict[str, Any]] = None,
+        user_id: Optional[int] = None,
+        page: int = 1,
+        page_size: int = 1000,
+    ) -> Dict[str, Any]:
+        report = self.get_definition(report_id)
+        if not report:
+            raise ValueError("Report definition not found")
+
+        normalized_format = self._normalize_export_format(export_format)
+
+        execution = ReportExecution(
+            report_id=report.id,
+            parameters_used=parameters,
+            status="running",
+            executed_by_id=user_id,
+            export_format=normalized_format,
+            export_path="inline",
+        )
+        self.session.add(execution)
+        self.session.flush()
+
+        start = time.perf_counter()
+        try:
+            data = self._execute_data_source(report, parameters, page, page_size)
+            content, media_type, extension = self._build_export_payload(
+                data, normalized_format
+            )
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            items = data.get("items") if isinstance(data, dict) else None
+            execution.status = "completed"
+            execution.row_count = len(items or [])
+            execution.execution_time_ms = elapsed_ms
+            execution.completed_at = datetime.utcnow()
+            self.session.add(execution)
+            self.session.commit()
+            return {
+                "execution_id": execution.id,
+                "status": execution.status,
+                "row_count": execution.row_count,
+                "execution_time_ms": execution.execution_time_ms,
+                "content": content,
+                "media_type": media_type,
+                "extension": extension,
+            }
+        except Exception as exc:  # pragma: no cover - observability
+            execution.status = "failed"
+            execution.error_message = str(exc)
+            execution.completed_at = datetime.utcnow()
+            self.session.add(execution)
+            self.session.commit()
+            raise
+
     def _execute_data_source(
         self,
         report: ReportDefinition,
@@ -216,6 +277,59 @@ class ReportDefinitionService:
             )
 
         raise ValueError(f"Unsupported data source type: {source_type}")
+
+    @staticmethod
+    def _normalize_export_format(export_format: str) -> str:
+        fmt = (export_format or "csv").lower().strip()
+        if fmt in {"csv", "text/csv"}:
+            return "csv"
+        if fmt in {"json", "application/json"}:
+            return "json"
+        raise ValueError("Unsupported export format")
+
+    @staticmethod
+    def _build_export_payload(
+        data: Any, export_format: str
+    ) -> tuple[bytes, str, str]:
+        if export_format == "json":
+            payload = json.dumps(data, ensure_ascii=False, default=str)
+            return payload.encode("utf-8"), "application/json", "json"
+
+        if export_format != "csv":
+            raise ValueError("Unsupported export format")
+
+        items: List[Dict[str, Any]] = []
+        columns: List[str] = []
+        if isinstance(data, dict):
+            items = list(data.get("items") or [])
+            if data.get("columns"):
+                columns = list(data.get("columns") or [])
+        elif isinstance(data, list):
+            items = data
+
+        if not columns:
+            for item in items:
+                for key in (item or {}).keys():
+                    if key not in columns:
+                        columns.append(key)
+
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(columns)
+        for item in items:
+            row = []
+            for col in columns:
+                value = (item or {}).get(col)
+                if isinstance(value, (dict, list)):
+                    row.append(json.dumps(value, ensure_ascii=False))
+                elif value is None:
+                    row.append("")
+                else:
+                    row.append(str(value))
+            writer.writerow(row)
+
+        content = buffer.getvalue().encode("utf-8-sig")
+        return content, "text/csv", "csv"
 
 
 class DashboardService:

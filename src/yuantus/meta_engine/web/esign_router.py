@@ -83,6 +83,20 @@ class RevokeRequest(BaseModel):
     reason: str = Field(..., min_length=1, max_length=500)
 
 
+class SignatureAuditLogResponse(BaseModel):
+    id: str
+    action: str
+    signature_id: Optional[str]
+    item_id: Optional[str]
+    actor_id: int
+    actor_username: str
+    details: Optional[Dict[str, Any]]
+    success: bool
+    error_message: Optional[str]
+    timestamp: Optional[datetime]
+    client_ip: Optional[str]
+
+
 class ManifestCreateRequest(BaseModel):
     item_id: str = Field(..., min_length=1)
     generation: int = Field(..., ge=1)
@@ -329,3 +343,46 @@ def get_manifest_status(
     if not status:
         raise HTTPException(status_code=404, detail="Manifest not found")
     return status
+
+
+@esign_router.get("/audit-logs", response_model=Dict[str, Any])
+def list_audit_logs(
+    item_id: Optional[str] = Query(None),
+    signature_id: Optional[str] = Query(None),
+    actor_id: Optional[int] = Query(None),
+    action: Optional[str] = Query(None),
+    success: Optional[bool] = Query(None),
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    _user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    identity_db: Session = Depends(get_identity_db),
+) -> Dict[str, Any]:
+    service = _service(db, identity_db)
+    logs = service.list_audit_logs(
+        item_id=item_id,
+        signature_id=signature_id,
+        actor_id=actor_id,
+        action=action,
+        success=success,
+        limit=limit,
+        offset=offset,
+    )
+    return {
+        "items": [
+            SignatureAuditLogResponse(
+                id=log.id,
+                action=log.action,
+                signature_id=log.signature_id,
+                item_id=log.item_id,
+                actor_id=log.actor_id,
+                actor_username=log.actor_username,
+                details=log.details,
+                success=bool(log.success),
+                error_message=log.error_message,
+                timestamp=log.timestamp,
+                client_ip=log.client_ip,
+            ).model_dump()
+            for log in logs
+        ]
+    }

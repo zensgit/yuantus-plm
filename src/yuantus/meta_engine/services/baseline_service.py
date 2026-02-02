@@ -565,6 +565,48 @@ class BaselineService:
             },
         }
 
+    def get_comparison_details(
+        self,
+        *,
+        comparison_id: str,
+        change_type: Optional[str] = None,
+        limit: int = 200,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        comparison = self.session.get(BaselineComparison, comparison_id)
+        if not comparison:
+            raise ValueError("Baseline comparison not found")
+
+        diff = comparison.differences or {}
+        categories = {
+            "added": diff.get("added") or [],
+            "removed": diff.get("removed") or [],
+            "changed": diff.get("changed") or [],
+        }
+
+        items: List[Dict[str, Any]] = []
+        if change_type:
+            if change_type not in categories:
+                raise ValueError("Unsupported change_type")
+            items = categories[change_type]
+        else:
+            for key in ("added", "removed", "changed"):
+                items.extend(categories[key])
+
+        total = len(items)
+        sliced = items[offset : offset + limit]
+
+        return {
+            "comparison_id": comparison.id,
+            "baseline_a_id": comparison.baseline_a_id,
+            "baseline_b_id": comparison.baseline_b_id,
+            "change_type": change_type,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "items": sliced,
+        }
+
     def release_baseline(
         self,
         baseline_id: str,

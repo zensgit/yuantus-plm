@@ -144,3 +144,25 @@ def test_compare_baselines_detects_changes():
     assert result["summary"]["added"] == 1
     assert result["summary"]["removed"] == 1
     assert result["summary"]["changed"] == 1
+
+
+def test_get_comparison_details_paginates():
+    session = MagicMock()
+    service = BaselineService(session)
+    comparison = MagicMock()
+    comparison.id = "cmp-1"
+    comparison.baseline_a_id = "a"
+    comparison.baseline_b_id = "b"
+    comparison.differences = {
+        "added": [{"id": 1}, {"id": 2}],
+        "removed": [{"id": 3}],
+        "changed": [{"id": 4}, {"id": 5}, {"id": 6}],
+    }
+
+    session.get.return_value = comparison
+
+    result = service.get_comparison_details(comparison_id="cmp-1", limit=2, offset=1)
+
+    assert result["total"] == 6
+    assert len(result["items"]) == 2
+    assert result["items"][0]["id"] == 2

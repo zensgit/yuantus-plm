@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 
 from yuantus.meta_engine.reports.models import SavedSearch
+from yuantus.meta_engine.reports.report_service import ReportDefinitionService
 from yuantus.meta_engine.reports.search_service import SavedSearchService
 
 
@@ -26,3 +27,28 @@ def test_run_saved_search_updates_usage():
     assert saved.last_used_at is not None
     session.add.assert_called_with(saved)
     session.commit.assert_called()
+
+
+def test_report_export_csv_payload_infers_columns():
+    service = ReportDefinitionService(MagicMock())
+    data = {"items": [{"a": 1, "b": "x"}, {"a": 2, "b": "y"}]}
+
+    content, media_type, extension = service._build_export_payload(data, "csv")
+
+    text = content.decode("utf-8-sig")
+    assert "a,b" in text
+    assert "1,x" in text
+    assert media_type == "text/csv"
+    assert extension == "csv"
+
+
+def test_report_export_json_payload_preserves_structure():
+    service = ReportDefinitionService(MagicMock())
+    data = {"items": [{"a": 1, "b": "x"}], "total": 1}
+
+    content, media_type, extension = service._build_export_payload(data, "json")
+
+    payload = content.decode("utf-8")
+    assert '"items"' in payload
+    assert media_type == "application/json"
+    assert extension == "json"

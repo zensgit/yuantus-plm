@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -116,6 +116,13 @@ class ReportExecuteRequest(BaseModel):
     parameters: Optional[Dict[str, Any]] = None
     page: int = 1
     page_size: int = 200
+
+
+class ReportExportRequest(BaseModel):
+    parameters: Optional[Dict[str, Any]] = None
+    page: int = 1
+    page_size: int = 1000
+    export_format: str = Field(default="csv", max_length=20)
 
 
 class DashboardCreateRequest(BaseModel):
@@ -564,6 +571,41 @@ def execute_report_definition(
         user_id=user.id,
         page=req.page,
         page_size=req.page_size,
+    )
+
+
+@report_router.post("/definitions/{report_id}/export")
+def export_report_definition(
+    report_id: str,
+    req: ReportExportRequest,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    service = ReportDefinitionService(db)
+    report = service.get_definition(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report definition not found")
+    if not _is_admin(user) and not report.is_public and report.owner_id != user.id:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    try:
+        result = service.export_definition(
+            report_id,
+            export_format=req.export_format,
+            parameters=req.parameters,
+            user_id=user.id,
+            page=req.page,
+            page_size=req.page_size,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    filename = f"report_{report_id}.{result['extension']}"
+    headers = {"Content-Disposition": f"attachment; filename=\"{filename}\""}
+    return Response(
+        content=result["content"],
+        media_type=result["media_type"],
+        headers=headers,
     )
 
 

@@ -253,6 +253,27 @@ def compare_baselines(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@baseline_router.get("/comparisons/{comparison_id}/details", response_model=Dict[str, Any])
+def get_comparison_details(
+    comparison_id: str,
+    change_type: Optional[str] = Query(None, description="added|removed|changed"),
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    _user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    service = BaselineService(db)
+    try:
+        return service.get_comparison_details(
+            comparison_id=comparison_id,
+            change_type=change_type,
+            limit=limit,
+            offset=offset,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @baseline_router.get("/{baseline_id}", response_model=BaselineResponse)
 def get_baseline(
     baseline_id: str,
