@@ -17,6 +17,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Contents Overview: `docs/DELIVERY_CONTENTS_OVERVIEW_20260202.md`
 - Delivery Startup Example: `docs/DELIVERY_STARTUP_EXAMPLE_20260202.md`
 - Delivery FAQ: `docs/DELIVERY_FAQ_20260202.md`
+- Delivery Quick Acceptance: `docs/DELIVERY_QUICK_ACCEPTANCE_20260202.md`
 
 ## Ops & Deployment
 
