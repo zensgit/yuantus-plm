@@ -29,6 +29,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Rollback Guide: `docs/DELIVERY_ROLLBACK_GUIDE_20260202.md`
 - Delivery Package Tree: `docs/DELIVERY_TREE_20260202.md`
 - Delivery Release Summary: `docs/DELIVERY_RELEASE_SUMMARY_20260202.md`
+- Delivery Version Docs Map: `docs/DELIVERY_VERSION_DOCS_MAP_20260202.md`
+- Delivery Delta Summary: `docs/DELIVERY_DELTA_SUMMARY_20260202.md`
 
 ## Ops & Deployment
 
