@@ -29,3 +29,30 @@ jobs:
         run: |
           pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \
             src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
+
+  playwright-esign:
+    runs-on: ubuntu-latest
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      BASE_URL: "http://127.0.0.1:7910"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python dependencies
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Playwright e-sign smoke
+        run: npx playwright test

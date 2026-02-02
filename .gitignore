@@ -22,3 +22,6 @@ references/
 *.egg-info/
 vendor/wheels/*
 !vendor/wheels/.gitkeep
+node_modules/
+test-results/
+playwright-report/
