@@ -15796,3 +15796,10 @@ PASS: MBOM + routing + time/cost
 - 命令：`npx playwright test`
 - 结果：`PASS`（1 passed）
 - 说明：包含 cadquery/Elasticsearch library 未安装提示，但测试通过。
+
+## Run RUN-H-20260203-1450
+
+- 时间：`2026-02-03 14:50:35 +0800`
+- 命令：`MIGRATE_TENANT_DB=1 ./scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`
+- 说明：启用自动租户库迁移（`scripts/migrate_tenant_db.sh`），TENANCY_MODE=db-per-tenant-org，SQLite 派生库。
