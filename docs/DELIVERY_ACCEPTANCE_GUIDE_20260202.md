@@ -52,6 +52,7 @@ cd /tmp/yuantus_delivery/YuantusPLM-Delivery/compose
 
 - Confirm services are up (`docker ps`).
 - Use scripts in `scripts/` for migrations and verification when needed.
+- If `TENANCY_MODE=db-per-tenant` / `db-per-tenant-org`, run tenant migrations before smoke verification: `scripts/migrate_tenant_db.sh tenant-1 org-1` (or `MIGRATE_TENANT_DB=1 bash scripts/verify_run_h.sh`).
 
 ## References
 

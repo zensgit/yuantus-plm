@@ -15797,6 +15797,21 @@ PASS: MBOM + routing + time/cost
 - 结果：`PASS`（1 passed）
 - 说明：包含 cadquery/Elasticsearch library 未安装提示，但测试通过。
 
+## Run VERIFY-ALL-20260203-1513
+
+- 时间：`2026-02-03 15:13:44 +0800`
+- 命令：`MIGRATE_TENANT_DB=1 ./scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_20260203_1458.log`
+- 结果：`FAIL`（PASS: 28 / FAIL: 7 / SKIP: 18）
+- 失败项：
+  - `Run H (Core APIs)`：迁移时触发 Alembic `u1b2c3d4e6a9`（Postgres）`add_column()` 参数错误
+  - `S4 (ECO Advanced)`：viewer 登录失败（无 access_token）
+  - `S5-A (CAD 2D Preview)`：`JobFatalError: File not found`
+  - `S5-C (CAD Attribute Sync)`：job 直跑后 `Job not found`
+  - `S5-C (CAD OCR Title Block)`：`JobFatalError: File not found`
+  - `S7 (Multi-Tenancy)`：多租户登录失败
+  - `MBOM Convert`：MBOM root 未落库（DB 校验失败）
+- 日志：`/tmp/verify_all_20260203_1458.log`
+
 ## Run RUN-H-20260203-1450
 
 - 时间：`2026-02-03 14:50:35 +0800`
