@@ -39,6 +39,26 @@ class CurrentUser:
     is_superuser: bool = False
 
 
+def _is_username_available(db: Session, model, username: str, current_id: int) -> bool:
+    if not username:
+        return False
+    existing = db.query(model).filter(model.username == username).first()
+    return existing is None or getattr(existing, "id", None) == current_id
+
+
+def _pick_unique_username(db: Session, model, base: str, user_id: int) -> str:
+    candidate = base
+    if _is_username_available(db, model, candidate, user_id):
+        return candidate
+    suffix = f"{base}-{user_id}"
+    candidate = suffix
+    counter = 1
+    while not _is_username_available(db, model, candidate, user_id):
+        counter += 1
+        candidate = f"{suffix}-{counter}"
+    return candidate
+
+
 def _get_bearer_token(request: Request) -> Optional[str]:
     auth = request.headers.get("authorization") or request.headers.get("Authorization")
     if not auth:
@@ -112,26 +132,11 @@ def _ensure_local_user(db: Session, identity: Identity) -> None:
     existing = db.get(LocalUser, identity.user_id)
     if not existing:
         fallback_username = identity.username or f"user-{identity.user_id}"
-        existing_by_username = (
-            db.query(LocalUser).filter(LocalUser.username == fallback_username).first()
-        )
-        if existing_by_username:
-            changed = False
-            if identity.email is not None and existing_by_username.email != identity.email:
-                existing_by_username.email = identity.email
-                changed = True
-            if not existing_by_username.is_active:
-                existing_by_username.is_active = True
-                changed = True
-            if changed:
-                db.add(existing_by_username)
-                db.flush()
-            return
-
+        username = _pick_unique_username(db, LocalUser, fallback_username, identity.user_id)
         db.add(
             LocalUser(
                 id=identity.user_id,
-                username=fallback_username,
+                username=username,
                 email=identity.email,
                 is_active=True,
             )
@@ -141,8 +146,13 @@ def _ensure_local_user(db: Session, identity: Identity) -> None:
 
     changed = False
     if identity.username and existing.username != identity.username:
-        existing.username = identity.username
-        changed = True
+        if not _is_username_available(db, LocalUser, identity.username, existing.id):
+            identity_username = None
+        else:
+            identity_username = identity.username
+        if identity_username:
+            existing.username = identity_username
+            changed = True
     if identity.email is not None and existing.email != identity.email:
         existing.email = identity.email
         changed = True
@@ -155,30 +165,12 @@ def _ensure_rbac_user(db: Session, identity: Identity) -> None:
     existing = db.get(RBACUser, identity.user_id)
     if not existing:
         fallback_username = identity.username or f"user-{identity.user_id}"
-        existing_by_username = (
-            db.query(RBACUser).filter(RBACUser.username == fallback_username).first()
-        )
-        if existing_by_username:
-            changed = False
-            if identity.email is not None and existing_by_username.email != identity.email:
-                existing_by_username.email = identity.email
-                changed = True
-            if bool(existing_by_username.is_superuser) != bool(identity.is_superuser):
-                existing_by_username.is_superuser = identity.is_superuser
-                changed = True
-            if not existing_by_username.is_active:
-                existing_by_username.is_active = True
-                changed = True
-            if changed:
-                db.add(existing_by_username)
-                db.flush()
-            return
-
+        username = _pick_unique_username(db, RBACUser, fallback_username, identity.user_id)
         db.add(
             RBACUser(
                 id=identity.user_id,
                 user_id=identity.user_id,
-                username=fallback_username,
+                username=username,
                 email=identity.email,
                 is_active=True,
                 is_superuser=identity.is_superuser,
@@ -189,8 +181,13 @@ def _ensure_rbac_user(db: Session, identity: Identity) -> None:
 
     changed = False
     if identity.username and existing.username != identity.username:
-        existing.username = identity.username
-        changed = True
+        if not _is_username_available(db, RBACUser, identity.username, existing.id):
+            identity_username = None
+        else:
+            identity_username = identity.username
+        if identity_username:
+            existing.username = identity_username
+            changed = True
     if identity.email is not None and existing.email != identity.email:
         existing.email = identity.email
         changed = True
