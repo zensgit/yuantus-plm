@@ -28,6 +28,10 @@ Date: 2026-02-03
 ```bash
 ./scripts/migrate_tenant_db.sh tenant-1 org-1
 ./scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1
+
+# or (auto-migrate)
+MIGRATE_TENANT_DB=1 \
+  ./scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
 ### Result

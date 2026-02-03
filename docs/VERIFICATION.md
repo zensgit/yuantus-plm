@@ -2021,6 +2021,7 @@ CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_all.sh
 > `S5-B (CAD 2D Connector Coverage)` 需要设置 `RUN_CAD_CONNECTOR_COVERAGE_2D=1` 且 `CAD_CONNECTOR_COVERAGE_DIR=/path/to/dwg`。
 > `S7 (Tenant Provisioning)` 需要设置 `RUN_TENANT_PROVISIONING=1` 且 `YUANTUS_PLATFORM_ADMIN_ENABLED=true`。
 > `S8 (Ops Monitoring)` 需要设置 `RUN_OPS_S8=1` 且启用 `YUANTUS_PLATFORM_ADMIN_ENABLED=true`、`YUANTUS_AUDIT_ENABLED=true`、`YUANTUS_QUOTA_MODE=enforce`。
+> `Run H (Core APIs)` 如需自动应用租户库迁移，可设置 `MIGRATE_TENANT_DB=1`（会调用 `scripts/migrate_tenant_db.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
 ### 26.4 输出格式

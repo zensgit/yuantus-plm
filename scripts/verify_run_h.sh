@@ -7,11 +7,13 @@ ORG="${3:-org-1}"
 
 CLI="${CLI:-.venv/bin/yuantus}"
 PY="${PY:-.venv/bin/python}"
+ALEMBIC="${ALEMBIC:-.venv/bin/alembic}"
 ATHENA_AUTH_TOKEN="${ATHENA_AUTH_TOKEN:-${ATHENA_TOKEN:-}}"
 DB_URL="${DB_URL:-${YUANTUS_DATABASE_URL:-}}"
 IDENTITY_DB_URL="${IDENTITY_DB_URL:-${YUANTUS_IDENTITY_DATABASE_URL:-}}"
 TENANCY_MODE="${TENANCY_MODE:-${YUANTUS_TENANCY_MODE:-}}"
 DB_URL_TEMPLATE="${DB_URL_TEMPLATE:-${YUANTUS_DATABASE_URL_TEMPLATE:-}}"
+MIGRATE_TENANT_DB="${MIGRATE_TENANT_DB:-0}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -20,6 +22,12 @@ fi
 if [[ ! -x "$PY" ]]; then
   echo "Missing Python at $PY (set PY=...)" >&2
   exit 2
+fi
+if [[ "$MIGRATE_TENANT_DB" == "1" || "$MIGRATE_TENANT_DB" == "true" ]]; then
+  if [[ ! -x "$ALEMBIC" ]]; then
+    echo "Missing Alembic at $ALEMBIC (set ALEMBIC=...)" >&2
+    exit 2
+  fi
 fi
 
 CLI_ENV=()
@@ -43,6 +51,26 @@ run_cli() {
     "$CLI" "$@"
   fi
 }
+
+run_migrations() {
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local migrate_script="$script_dir/migrate_tenant_db.sh"
+  if [[ ! -x "$migrate_script" ]]; then
+    echo "Missing migration helper at $migrate_script" >&2
+    exit 2
+  fi
+  if [[ ${#CLI_ENV[@]} -gt 0 ]]; then
+    env "${CLI_ENV[@]}" PY="$PY" ALEMBIC="$ALEMBIC" "$migrate_script" "$TENANT" "$ORG"
+  else
+    PY="$PY" ALEMBIC="$ALEMBIC" "$migrate_script" "$TENANT" "$ORG"
+  fi
+}
+
+if [[ "$MIGRATE_TENANT_DB" == "1" || "$MIGRATE_TENANT_DB" == "true" ]]; then
+  echo "==> Migrate tenant DB"
+  run_migrations
+fi
 
 echo "==> Seed identity/meta"
 run_cli seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin >/dev/null
