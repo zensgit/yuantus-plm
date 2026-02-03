@@ -3,6 +3,7 @@
 ## Highlights
 
 - Baseline effective-date lookup endpoint for released baselines.
+- Baseline list API now supports filtering by type/scope/state/effective date.
 - E-sign signing reason update/deactivate support and meaning filter.
 - Advanced search filter operators: startswith, endswith, not_contains.
 - Delivery API examples refreshed to cover new endpoints and filters.

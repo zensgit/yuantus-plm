@@ -65,6 +65,15 @@ curl -s \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+## 4.1) Baseline List Filters
+
+```bash
+# Filter baselines by type/scope/state and effective date range
+curl -s \
+  "http://127.0.0.1:7910/api/v1/baselines?baseline_type=design&scope=product&state=released&effective_from=2025-01-01T00:00:00Z&effective_to=2025-12-31T23:59:59Z&limit=50&offset=0" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ## 5) E-sign Audit Logs
 
 ```bash

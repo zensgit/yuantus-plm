@@ -38,9 +38,14 @@ Behavior:
 ## Verification
 - Command: `./.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_baseline_enhanced.py`
 - Result: PASS (5 passed, 2 warnings)
+- Command: `./scripts/verify_baseline_filters.sh http://127.0.0.1:7910 tenant-1 org-1`
+- Result: PASS
 
 ## Files Changed
 - `src/yuantus/meta_engine/services/baseline_service.py`
 - `src/yuantus/meta_engine/web/baseline_router.py`
 - `src/yuantus/meta_engine/tests/test_baseline_enhanced.py`
 - `docs/VERIFICATION_RESULTS.md`
+- `docs/DELIVERY_API_EXAMPLES_20260202.md`
+- `docs/RELEASE_NOTES_v0.1.3_update_20260203.md`
+- `scripts/verify_baseline_filters.sh`

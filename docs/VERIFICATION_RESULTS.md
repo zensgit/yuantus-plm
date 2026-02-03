@@ -15870,3 +15870,10 @@ PASS: MBOM + routing + time/cost
 - 时间：`2026-02-03 23:21:40 +0800`
 - 命令：`./.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_baseline_enhanced.py`
 - 结果：`PASS`（5 passed, 2 warnings）
+
+## Run BASELINE-FILTERS-SCRIPT-20260203-2352
+
+- 时间：`2026-02-03 23:52:01 +0800`
+- 命令：`./scripts/verify_baseline_filters.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`
+- 说明：基线列表过滤（类型/范围/状态/生效日期）脚本验证。
