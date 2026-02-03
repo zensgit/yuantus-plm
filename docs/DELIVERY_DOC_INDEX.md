@@ -4,7 +4,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Core
 
-- Release Notes: `docs/RELEASE_NOTES_v0.1.3_update_20260202.md` (latest), `docs/RELEASE_NOTES_v0.1.3_update_20260201.md`, `docs/RELEASE_NOTES_v0.1.3.md`
+- Release Notes: `docs/RELEASE_NOTES_v0.1.3_update_20260203.md` (latest), `docs/RELEASE_NOTES_v0.1.3_update_20260202.md`, `docs/RELEASE_NOTES_v0.1.3_update_20260201.md`, `docs/RELEASE_NOTES_v0.1.3.md`
 - Changelog: `CHANGELOG.md`
 - Verification Summary: `docs/VERIFICATION_RESULTS.md`
 - Delivery Summary: `docs/DELIVERY_SUMMARY_20260202.md`
