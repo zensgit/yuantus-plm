@@ -15848,3 +15848,19 @@ PASS: MBOM + routing + time/cost
 - 命令：`npx playwright test`
 - 结果：`PASS`（1 passed）
 - 说明：Playwright CLI 启动临时单租户服务并执行 e-sign 端到端流程。
+
+## Run VERIFY-ALL-20260203-155637
+
+- 时间：`2026-02-03 15:57:46 +0800`
+- 命令：`RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 ./scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_20260203_155637.log`
+- 结果：`PASS`（PASS: 43 / FAIL: 0 / SKIP: 10）
+- 说明：启用审计（`YUANTUS_AUDIT_ENABLED=true`），UI 聚合与 Ops S8 全量通过。
+- 日志：`/tmp/verify_all_20260203_155637.log`（归档：`docs/verification-logs/20260203/verify_all_20260203_155637.log`）
+
+## Run FULL-REGRESSION-20260203-155800
+
+- 时间：`2026-02-03 15:59:38 +0800`
+- 命令：`RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 scripts/run_full_regression.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full_20260203_155800.log`
+- 结果：`PASS`（PASS: 51 / FAIL: 0 / SKIP: 2）
+- 说明：包含真实 2D 连接器、覆盖率、Auto Part、Extractor（external/service）、Real Samples 与 Tenant Provisioning。
+- 日志：`/tmp/verify_all_full_20260203_155800.log`（归档：`docs/verification-logs/20260203/verify_all_full_20260203_155800.log`）

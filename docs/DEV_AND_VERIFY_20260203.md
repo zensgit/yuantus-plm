@@ -30,5 +30,19 @@
 - Command: `npx playwright test`
 - Result: PASS (1 passed)
 
+5) UI + Ops S8 with audit enabled (latest)
+- Command: `RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 ./scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_20260203_155637.log`
+- Result: PASS (PASS: 43 / FAIL: 0 / SKIP: 10)
+- Note: Audit enabled (`YUANTUS_AUDIT_ENABLED=true`) and UI aggregation enabled in the same run.
+
+6) Full regression (all optional CAD/extractor/provisioning)
+- Command: `RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 scripts/run_full_regression.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full_20260203_155800.log`
+- Result: PASS (PASS: 51 / FAIL: 0 / SKIP: 2)
+- Note: CAD connector + extractor services available; real sample DWG/STEP/PRT verified.
+
+## Log Archive
+- `docs/verification-logs/20260203/verify_all_20260203_155637.log`
+- `docs/verification-logs/20260203/verify_all_full_20260203_155800.log`
+
 ## Notes
 - Warnings about missing `cadquery` and Elasticsearch library are expected in this environment; all tests still passed.
