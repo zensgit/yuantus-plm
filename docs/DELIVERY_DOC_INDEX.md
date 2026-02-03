@@ -67,4 +67,4 @@ This index aggregates all delivery‑related documents for private deployments.
 ## Optional
 
 - Docker Release Template: `docs/RELEASE_DOCKER_TEMPLATE.md`
-- Release Announcement: `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260202.md` (latest), `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260201.md`, `docs/RELEASE_ANNOUNCEMENT_v0.1.3.md`
+- Release Announcement: `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260203.md` (latest), `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260202.md`, `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260201.md`, `docs/RELEASE_ANNOUNCEMENT_v0.1.3.md`
