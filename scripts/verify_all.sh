@@ -24,6 +24,7 @@ BASE_URL="${1:-http://127.0.0.1:7910}"
 TENANT="${2:-tenant-1}"
 ORG="${3:-org-1}"
 DB_URL="${DB_URL:-}"
+MIGRATE_TENANT_DB="${MIGRATE_TENANT_DB:-0}"
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -59,6 +60,7 @@ load_server_env
 
 # Export for child scripts
 export CLI PY
+export MIGRATE_TENANT_DB
 
 # Colors (if terminal supports)
 if [[ -t 1 ]]; then

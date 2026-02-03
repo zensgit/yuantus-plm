@@ -44,7 +44,8 @@ shasum -a 256 -c docs/DELIVERY_PACKAGE_MANIFEST_20260203.txt
 
 ```bash
 cd /tmp/yuantus_delivery/YuantusPLM-Delivery
-bash scripts/verify_run_h.sh
+# If TENANCY_MODE=db-per-tenant / db-per-tenant-org, run tenant migrations first
+MIGRATE_TENANT_DB=1 bash scripts/verify_run_h.sh
 ```
 
 If any checksum or manifest verification fails, stop and request a fresh package copy.

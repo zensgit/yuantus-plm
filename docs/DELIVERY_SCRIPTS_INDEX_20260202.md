@@ -5,6 +5,7 @@
 - backup_rotate.sh
 - backup_scheduled.sh
 - cleanup_private_restore.sh
+- migrate_tenant_db.sh
 - mt_migrate.sh
 - restore.sh
 - restore_private.sh
