@@ -188,3 +188,40 @@ def test_get_baseline_at_date_returns_latest():
 
     assert result == baseline
     query.first.assert_called()
+
+
+def test_list_baselines_applies_filters():
+    session = MagicMock()
+    service = BaselineService(session)
+
+    query = MagicMock()
+    query.filter.return_value = query
+    query.order_by.return_value = query
+    query.offset.return_value = query
+    query.limit.return_value = query
+    query.count.return_value = 0
+    query.all.return_value = []
+    session.query.return_value = query
+
+    service.list_baselines(
+        root_item_id="root",
+        root_version_id="ver",
+        created_by_id=1,
+        baseline_type="design",
+        scope="product",
+        state="released",
+        effective_from=datetime(2025, 1, 1),
+        effective_to=datetime(2025, 2, 1),
+        limit=10,
+        offset=0,
+    )
+
+    expressions = [str(call.args[0]) for call in query.filter.call_args_list]
+    assert any("meta_baselines.root_item_id" in expr for expr in expressions)
+    assert any("meta_baselines.root_version_id" in expr for expr in expressions)
+    assert any("meta_baselines.created_by_id" in expr for expr in expressions)
+    assert any("meta_baselines.baseline_type" in expr for expr in expressions)
+    assert any("meta_baselines.scope" in expr for expr in expressions)
+    assert any("meta_baselines.state" in expr for expr in expressions)
+    assert any("meta_baselines.effective_at" in expr and ">=" in expr for expr in expressions)
+    assert any("meta_baselines.effective_at" in expr and "<=" in expr for expr in expressions)

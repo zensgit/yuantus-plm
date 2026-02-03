@@ -15864,3 +15864,9 @@ PASS: MBOM + routing + time/cost
 - 结果：`PASS`（PASS: 51 / FAIL: 0 / SKIP: 2）
 - 说明：包含真实 2D 连接器、覆盖率、Auto Part、Extractor（external/service）、Real Samples 与 Tenant Provisioning。
 - 日志：`/tmp/verify_all_full_20260203_155800.log`（归档：`docs/verification-logs/20260203/verify_all_full_20260203_155800.log`）
+
+## Run PYTEST-BASELINE-FILTERS-20260203-2321
+
+- 时间：`2026-02-03 23:21:40 +0800`
+- 命令：`./.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_baseline_enhanced.py`
+- 结果：`PASS`（5 passed, 2 warnings）

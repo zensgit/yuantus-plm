@@ -338,6 +338,11 @@ class BaselineService:
         root_item_id: Optional[str],
         root_version_id: Optional[str],
         created_by_id: Optional[int],
+        baseline_type: Optional[str] = None,
+        scope: Optional[str] = None,
+        state: Optional[str] = None,
+        effective_from: Optional[datetime] = None,
+        effective_to: Optional[datetime] = None,
         limit: int,
         offset: int,
     ) -> Tuple[List[Baseline], int]:
@@ -348,6 +353,16 @@ class BaselineService:
             q = q.filter(Baseline.root_version_id == root_version_id)
         if created_by_id is not None:
             q = q.filter(Baseline.created_by_id == created_by_id)
+        if baseline_type:
+            q = q.filter(Baseline.baseline_type == baseline_type)
+        if scope:
+            q = q.filter(Baseline.scope == scope)
+        if state:
+            q = q.filter(Baseline.state == state)
+        if effective_from:
+            q = q.filter(Baseline.effective_at >= self._normalize_effective_at(effective_from))
+        if effective_to:
+            q = q.filter(Baseline.effective_at <= self._normalize_effective_at(effective_to))
 
         total = q.count()
         items = (
