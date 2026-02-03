@@ -1,7 +1,7 @@
 # CAD 2D Connector Coverage Report (Haochen, Offline) (训练图纸)
 
 ## Run Info
-- Time: `2026-01-28 18:08:02 +0800`
+- Time: `2026-02-03 15:59:02 +0800`
 - Base URL: `http://127.0.0.1:7910`
 - Extractor: `http://localhost:8200`
 - Tenant/Org: `tenant-1` / `org-1`
@@ -9,27 +9,27 @@
 - CAD Connector Override: `haochencad`
 - Directory: `/Users/huazhou/Downloads/训练图纸/训练图纸`
 - Extensions: `dwg`
-- Files: `110`
+- Files: `113`
 
 ## Target Field Coverage
 
 | Field | Present | Coverage |
 | --- | --- | --- |
-| `part_number` | 110/110 | 100.0% |
-| `part_name` | 110/110 | 100.0% |
-| `material` | 0/110 | 0.0% |
-| `weight` | 0/110 | 0.0% |
-| `revision` | 108/110 | 98.2% |
-| `drawing_no` | 110/110 | 100.0% |
-| `author` | 0/110 | 0.0% |
-| `created_at` | 0/110 | 0.0% |
+| `part_number` | 110/113 | 97.3% |
+| `part_name` | 113/113 | 100.0% |
+| `material` | 0/113 | 0.0% |
+| `weight` | 0/113 | 0.0% |
+| `revision` | 108/113 | 95.6% |
+| `drawing_no` | 110/113 | 97.3% |
+| `author` | 0/113 | 0.0% |
+| `created_at` | 0/113 | 0.0% |
 
 ## Extracted Key Distribution (Non-empty)
 
 | Key | Files |
 | --- | --- |
+| `part_name` | 113 |
 | `drawing_no` | 110 |
-| `part_name` | 110 |
 | `part_number` | 110 |
 | `revision` | 108 |
 
@@ -37,113 +37,116 @@
 
 | File | Upload Name | File ID | CAD Format | Connector | Keys |
 | --- | --- | --- | --- | --- | --- |
-| `BTJ01230901522-00汽水分离器v1.dwg` | `BTJ01230901522-00汽水分离器v1.dwg` | `e82878c1-513a-469b-9900-6f2c6fc6c0b1` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01230901522-00汽水分离器v2.dwg` | `BTJ01230901522-00汽水分离器v2.dwg` | `0d3b783e-b523-4154-a76d-4c5c5bb42921` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231101522-00自动进料装置v1.dwg` | `BTJ01231101522-00自动进料装置v1.dwg` | `78748b7a-6da1-48e3-8aa9-948eed92c5db` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231101522-00自动进料装置v2.dwg` | `BTJ01231101522-00自动进料装置v2.dwg` | `237531f4-a79d-4e63-8ff5-6394fff3c19e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231201522-00拖车DN1500v1.dwg` | `BTJ01231201522-00拖车DN1500v1.dwg` | `9b4eb45b-0c96-4d7a-8021-4ff7465e2902` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231201522-00拖车DN1500v2.dwg` | `BTJ01231201522-00拖车DN1500v2.dwg` | `aa056c46-a79b-48f4-8446-fa788d2d12ed` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231301522-00蜗轮蜗杆传动出料机构v1.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v1.dwg` | `80407a4b-97a6-4896-9fdb-7c11dd06556a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231301522-00蜗轮蜗杆传动出料机构v2.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v2.dwg` | `8b033e2f-b6c7-4b25-8569-c976f34dc25c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231301522-00蜗轮蜗杆传动出料机构v3.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v3.dwg` | `7403a837-eaad-4f9f-b3be-e2ec1d45e33e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231301522-01轴向定位轴承v1.dwg` | `BTJ01231301522-01轴向定位轴承v1.dwg` | `f6c4ba20-0876-470a-8caf-e61793851b40` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231301522-01轴向定位轴承v2.dwg` | `BTJ01231301522-01轴向定位轴承v2.dwg` | `97d6345f-9307-42f1-ad9f-dfc1a9c43a5f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231501522-00短轴承座(盖)v1.dwg` | `BTJ01231501522-00短轴承座(盖)v1.dwg` | `4426c6be-7740-4b40-a1b6-6787da9505d7` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231501522-00短轴承座(盖)v2.dwg` | `BTJ01231501522-00短轴承座(盖)v2.dwg` | `22855dd0-e317-41b7-8c6e-8cd3ade1d6e1` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01231501522-00短轴承座(盖)v3.dwg` | `BTJ01231501522-00短轴承座(盖)v3.dwg` | `d7d7d2a8-6309-4e2f-b1a5-2a0a2cdf42da` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01232801522-01电加热箱v1.dwg` | `BTJ01232801522-01电加热箱v1.dwg` | `d5b4828c-4a2d-4cdb-be2d-875d5e37109c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01232801522-01电加热箱v2.dwg` | `BTJ01232801522-01电加热箱v2.dwg` | `a0e6c80e-d73b-4665-8ce1-0a8435da4685` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01239601522-03扭转弹簧v1.dwg` | `BTJ01239601522-03扭转弹簧v1.dwg` | `e167379d-3845-4dbc-b9b0-1a540e88e408` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01239601522-03扭转弹簧v2.dwg` | `BTJ01239601522-03扭转弹簧v2.dwg` | `c7a91bfc-ad67-49a9-9278-f86a320ab72e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01239601522-03扭转弹簧v3.dwg` | `BTJ01239601522-03扭转弹簧v3.dwg` | `4245e64f-79fa-4b51-8374-e7e1471322d8` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01239901522-00拖轮组件v1.dwg` | `BTJ01239901522-00拖轮组件v1.dwg` | `ab02bf8d-5d0c-4869-91c5-78fa8ff5ec33` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ01239901522-00拖轮组件v2.dwg` | `BTJ01239901522-00拖轮组件v2.dwg` | `00fa6962-c441-4120-be02-8b930a5882e2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ02230101102-12手轮组件v1.dwg` | `BTJ02230101102-12手轮组件v1.dwg` | `993372fe-4a7f-49ce-984a-51a263747ae6` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ02230101102-12手轮组件v2.dwg` | `BTJ02230101102-12手轮组件v2.dwg` | `1e0c663e-5ce7-4808-8887-3af87ed57a62` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ02230301120-03保护罩组件v1.dwg` | `BTJ02230301120-03保护罩组件v1.dwg` | `6d845791-16c3-4187-b195-3b186c6cbd99` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ02230301120-03保护罩组件v2.dwg` | `BTJ02230301120-03保护罩组件v2.dwg` | `08192ee3-cbda-4536-b604-6d01b6da5a6a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ14240301522-00防爆视灯组件v1.dwg` | `BTJ14240301522-00防爆视灯组件v1.dwg` | `81c546f6-6f2a-40f3-9366-f6fa00b5a101` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `BTJ14240301522-00防爆视灯组件v2.dwg` | `BTJ14240301522-00防爆视灯组件v2.dwg` | `8178156c-3b1a-4b7b-8f94-8e36f57faa2d` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224014-09液压开盖组件v1.dwg` | `J0224014-09液压开盖组件v1.dwg` | `797a0e29-7b38-475a-a1cb-1e6c6fe068e3` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224014-09液压开盖组件v2.dwg` | `J0224014-09液压开盖组件v2.dwg` | `5b46a5e1-330b-4f1f-a68b-1350ffcf7b2c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224025-06-01-03出料凸缘v1.dwg` | `J0224025-06-01-03出料凸缘v1.dwg` | `cae196d4-ffa6-4675-a205-4e997146959a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224025-06-01-03出料凸缘v2.dwg` | `J0224025-06-01-03出料凸缘v2.dwg` | `a82d7f4e-a74e-43b9-a3c5-5d314926c443` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224036-10搅拌减速机机罩v1.dwg` | `J0224036-10搅拌减速机机罩v1.dwg` | `305689e1-99fc-4d5d-ab68-10353ef9bd2e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224036-10搅拌减速机机罩v2.dwg` | `J0224036-10搅拌减速机机罩v2.dwg` | `c223cd08-6f04-42b8-9844-d649deaa6ec9` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224036-12真空组件v1.dwg` | `J0224036-12真空组件v1.dwg` | `c4f30642-0828-40d0-8025-36f48fce68d6` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224036-12真空组件v2.dwg` | `J0224036-12真空组件v2.dwg` | `acc9e060-4fe5-49cf-ada2-2019fc5ad34a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224070-04-07捕集口v1.dwg` | `J0224070-04-07捕集口v1.dwg` | `e2119ff8-0aaf-4f8c-bf8f-83359aa7c5f5` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224070-04-07捕集口v2.dwg` | `J0224070-04-07捕集口v2.dwg` | `8be715d3-ca00-4386-b1ad-c7c6b9503bd8` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224071-11-02过滤芯组件v1.dwg` | `J0224071-11-02过滤芯组件v1.dwg` | `3c5f0d2a-4399-4980-af83-b2e2684dc3b4` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224071-11-02过滤芯组件v2.dwg` | `J0224071-11-02过滤芯组件v2.dwg` | `9c36bb61-b078-4d95-b7e2-76a3a3f3f88b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224071-11捕集器组件v1.dwg` | `J0224071-11捕集器组件v1.dwg` | `a4b81a4a-86bf-4713-b639-387cd1704f4f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0224071-11捕集器组件v2.dwg` | `J0224071-11捕集器组件v2.dwg` | `97fee5d0-5be2-4b6a-8267-21772436cbb1` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225001-09-04旋转组件v1.dwg` | `J0225001-09-04旋转组件v1.dwg` | `44e55606-07da-4844-8edd-163e69c0d1b8` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225001-09-04旋转组件v2.dwg` | `J0225001-09-04旋转组件v2.dwg` | `41d4dbad-0810-498b-a1b8-3f00402c8a8c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04-04轴头组件v1.dwg` | `J0225004-04-04轴头组件v1.dwg` | `8b5a41d4-085f-41f0-b83b-a4f32f106f83` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04-04轴头组件v2.dwg` | `J0225004-04-04轴头组件v2.dwg` | `cc32590a-b837-4337-9b17-65dd81e2aa52` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04-05下封板v1.dwg` | `J0225004-04-05下封板v1.dwg` | `1cb62456-41fe-4e47-8b97-a742207c161b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04-05下封板v2.dwg` | `J0225004-04-05下封板v2.dwg` | `51f458fa-df63-475b-8188-3ba5c1e9d028` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04搅拌桨组件v1.dwg` | `J0225004-04搅拌桨组件v1.dwg` | `f48aa344-dfca-4d65-85f1-2b7c93637739` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225004-04搅拌桨组件v2.dwg` | `J0225004-04搅拌桨组件v2.dwg` | `22e8e1a6-a303-4048-baa7-83980c4471e1` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225004-08搅拌轴组件v1.dwg` | `J0225004-08搅拌轴组件v1.dwg` | `eed7c62a-0591-404a-961f-40e2f16f12e9` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225004-08搅拌轴组件v2.dwg` | `J0225004-08搅拌轴组件v2.dwg` | `014ec6db-8be8-41a4-9bd4-dca158c94332` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225009-04-03阀体v1.dwg` | `J0225009-04-03阀体v1.dwg` | `902b5b28-7ad5-4ed6-8d49-b0f4752efc5d` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225009-04-03阀体v2.dwg` | `J0225009-04-03阀体v2.dwg` | `be074825-55e2-4920-92dd-e47c5e92cc68` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225034-05罐体部分v1.dwg` | `J0225034-05罐体部分v1.dwg` | `e4613dfb-60c4-4dde-a29e-b5efb835c6a1` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225034-05罐体部分v2.dwg` | `J0225034-05罐体部分v2.dwg` | `5fbb56d2-54be-40c6-9e60-727118f80c34` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225047-04罐体部分v1.dwg` | `J0225047-04罐体部分v1.dwg` | `7a69d58d-ebb9-4158-95cf-b2df583fcf0b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225047-04罐体部分v2.dwg` | `J0225047-04罐体部分v2.dwg` | `0239ca95-bbcc-4c8b-9707-b0cdc1c2836f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225047-04罐体部分v3.dwg` | `J0225047-04罐体部分v3.dwg` | `b09028d5-b029-410e-8067-801a2879655f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225048-02-07侧推料组件v1.dwg` | `J0225048-02-07侧推料组件v1.dwg` | `693346f8-8823-40cf-8b46-017fee32182a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225048-02-07侧推料组件v2.dwg` | `J0225048-02-07侧推料组件v2.dwg` | `1b055bbe-818a-4671-b288-8a5abc7b59f2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225054-15-01支承座v1.dwg` | `J0225054-15-01支承座v1.dwg` | `3dd99b71-6981-4171-ae2b-75ef278b9cff` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225054-15-01支承座v2.dwg` | `J0225054-15-01支承座v2.dwg` | `cdc4d1f6-0895-49c0-b299-2aa7220a281f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225054-15罐体支腿v1.dwg` | `J0225054-15罐体支腿v1.dwg` | `7e20b079-001a-4ba7-990f-856acbc6d910` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0225054-15罐体支腿v2.dwg` | `J0225054-15罐体支腿v2.dwg` | `bfb7f329-8685-47ad-b273-a73f76724070` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0525002-04-02过滤托架v1.dwg` | `J0525002-04-02过滤托架v1.dwg` | `15e7907d-83fc-4f6b-8d02-9003b0fd14e1` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0525002-04-02过滤托架v2.dwg` | `J0525002-04-02过滤托架v2.dwg` | `2eea0f15-1465-4333-8b07-def372ad576b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0525002-04-02过滤托架v3.dwg` | `J0525002-04-02过滤托架v3.dwg` | `5659a042-82de-4443-aca9-2dbf3b24adf4` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0525002-04-02过滤托架v4.dwg` | `J0525002-04-02过滤托架v4.dwg` | `15efd142-c881-44da-9f7d-a6362d9e4ed4` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0724006-01下锥体组件v1.dwg` | `J0724006-01下锥体组件v1.dwg` | `ce5d9aab-36c3-4e8e-afba-d7edcbfbaff2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0724006-01下锥体组件v2.dwg` | `J0724006-01下锥体组件v2.dwg` | `836bed9c-5aaa-41e7-98db-79ed81de0b88` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0724006-01下锥体组件v3.dwg` | `J0724006-01下锥体组件v3.dwg` | `2aa70593-81ba-4b82-9e21-b7e0060334fd` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0724006-02搅拌器组件v1.dwg` | `J0724006-02搅拌器组件v1.dwg` | `e280db15-29a2-47a4-befb-c4df3e5783f2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0724006-02搅拌器组件v2.dwg` | `J0724006-02搅拌器组件v2.dwg` | `de15c215-7562-4ab0-b446-b15e159a65dd` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0724006-05上封头组件v1.dwg` | `J0724006-05上封头组件v1.dwg` | `bde73803-01b0-4e3e-9c28-ac3a58cfee29` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0724006-05上封头组件v2.dwg` | `J0724006-05上封头组件v2.dwg` | `60bbf8f1-80b0-4057-9b33-1aa0872fe6e1` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J0724006-05上封头组件v3.dwg` | `J0724006-05上封头组件v3.dwg` | `e95edc92-200f-4325-bdb7-005142445996` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J1424042-00出料正压隔离器v1.dwg` | `J1424042-00出料正压隔离器v1.dwg` | `a1ceaf54-585f-4e31-9894-477240c75bf9` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J1424042-00出料正压隔离器v2-yuantus.dwg` | `J1424042-00出料正压隔离器v2-yuantus.dwg` | `af3775e4-a1df-4d9a-ae89-6f21be1988ee` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number |
-| `J1424042-51-01-08对接法兰v1.dwg` | `J1424042-51-01-08对接法兰v1.dwg` | `95c41995-bbdc-4b6b-98e1-5c33f02ebdf8` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J1424042-51-01-08对接法兰v2.dwg` | `J1424042-51-01-08对接法兰v2.dwg` | `eedae19c-bfa8-4b55-bea0-600956dd0f3b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2824002-06上封头组件v1.dwg` | `J2824002-06上封头组件v1.dwg` | `15378fc2-bcec-4d0a-a234-1d252569a51e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2824002-06上封头组件v2.dwg` | `J2824002-06上封头组件v2.dwg` | `79463516-3f08-491f-ab24-7afacf941ee2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2825002-06上筒体组件v1.dwg` | `J2825002-06上筒体组件v1.dwg` | `8f291059-5fca-49fa-96df-6891614b3169` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2825002-06上筒体组件v2.dwg` | `J2825002-06上筒体组件v2.dwg` | `9bb301c6-9159-455b-9763-d5ed3dadb9fd` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2825002-06上筒体组件v3.dwg` | `J2825002-06上筒体组件v3.dwg` | `2d765faf-79c7-4a2d-976d-426317e24a6e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2825002-09下轴承支架组件v1.dwg` | `J2825002-09下轴承支架组件v1.dwg` | `8d718040-c511-4659-84e2-838b8a41f0df` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2825002-09下轴承支架组件v2.dwg` | `J2825002-09下轴承支架组件v2.dwg` | `9bc8eb0f-b6e3-4608-a1ae-9c20ab6c1800` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2825003-05下筒体组件v1.dwg` | `J2825003-05下筒体组件v1.dwg` | `3199759a-4841-4ff8-bf57-66b14e4f60c3` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2825003-05下筒体组件v2.dwg` | `J2825003-05下筒体组件v2.dwg` | `ae7d6a5d-7a8b-41a4-93a1-fcb93c219e77` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925001-00再沸器v1.dwg` | `J2925001-00再沸器v1.dwg` | `ace75db2-3289-4135-b123-184ede1340e7` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925001-00再沸器v2.dwg` | `J2925001-00再沸器v2.dwg` | `0594b9fd-bf8f-4301-80f8-86ba8a4ace8e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925001-00再沸器v3.dwg` | `J2925001-00再沸器v3.dwg` | `5e15ec51-ec11-44d9-9d2b-a03f820d7434` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925001-01-01人孔法兰v1.dwg` | `J2925001-01-01人孔法兰v1.dwg` | `36f794c6-73e7-4612-8a90-88f3bee9b797` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925001-01-01人孔法兰v2.dwg` | `J2925001-01-01人孔法兰v2.dwg` | `d4266e10-8cda-49d9-90cf-2bf31fc49a3d` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925001-01人孔v1.dwg` | `J2925001-01人孔v1.dwg` | `fe7852f4-06d9-4438-bf44-24ab6d9e898c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925001-01人孔v2.dwg` | `J2925001-01人孔v2.dwg` | `2463972a-e22f-4f37-8b9b-1bebdf2e9c3e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925001-05管束v1.dwg` | `J2925001-05管束v1.dwg` | `d68395e8-b2d5-40e0-acbe-91f45e20160a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925001-05管束v2.dwg` | `J2925001-05管束v2.dwg` | `ea13f02c-035f-4acc-9965-c8b162b685e3` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925004-04-01底板v1.dwg` | `J2925004-04-01底板v1.dwg` | `2174f842-3ea8-4d9c-8cb1-75028dc9a17f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J2925004-04-01底板v2.dwg` | `J2925004-04-01底板v2.dwg` | `4086d4cf-9ec5-4074-a93d-87f12d73cc8e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J3025001-12轴承座v1.dwg` | `J3025001-12轴承座v1.dwg` | `fece771f-5f1f-4a17-8e25-244b4480d0c1` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `J3025001-12轴承座v2.dwg` | `J3025001-12轴承座v2.dwg` | `b2f1dd63-eb31-42e6-9993-d63a2fa49b56` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `LTJ012303106-0001超声波法兰.dwg` | `LTJ012303106-0001超声波法兰.dwg` | `6972e1f5-441e-44da-9a2e-359256cf16de` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number |
-| `LTJ012303106-0001超声波法兰v1.dwg` | `LTJ012303106-0001超声波法兰v1.dwg` | `eebf6690-f4c0-4bac-8501-6d74990d627d` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `LTJ012303106-0001超声波法兰v2.dwg` | `LTJ012303106-0001超声波法兰v2.dwg` | `baac8935-bb63-4569-b122-dfb9a5d4457d` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `LTJ012303106-0030连接法兰(大)v1.dwg` | `LTJ012303106-0030连接法兰(大)v1.dwg` | `2d569b4a-a80d-430a-a7bc-f5e2a76bbc3e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `LTJ012303106-0030连接法兰(大)v2.dwg` | `LTJ012303106-0030连接法兰(大)v2.dwg` | `7e66af60-2b68-4ae9-8860-f1bac3edc407` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `LTJ012306102-0084调节螺栓v1.dwg` | `LTJ012306102-0084调节螺栓v1.dwg` | `d973b557-6bad-4b16-bee3-a764f1646ea8` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `LTJ012306102-0084调节螺栓v2.dwg` | `LTJ012306102-0084调节螺栓v2.dwg` | `6758abfc-f732-4bfe-ab41-2e65a072a0ad` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
-| `比较_LTJ012306102-0084调节螺栓v1 vs LTJ012306102-0084调节螺栓v2.dwg` | `比较_LTJ012306102-0084调节螺栓v1 vs LTJ012306102-0084调节螺栓v2.dwg` | `4f413e2d-be6d-4b27-8444-2f534416395c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `ACAD-布局空白 DXF.dwg` | `ACAD-布局空白 DXF.dwg` | `af36f5a6-40a6-4055-ab27-414d160093a2` | `HAOCHEN` | `haochencad` | part_name |
+| `ACAD-布局空白_布局1.dwg` | `ACAD-布局空白_布局1.dwg` | `0454a6bc-3359-439c-ac35-378ef48abaa5` | `HAOCHEN` | `haochencad` | part_name |
+| `BTJ01230901522-00汽水分离器v1.dwg` | `BTJ01230901522-00汽水分离器v1.dwg` | `4057226c-c47c-41cd-b929-67f512bd5aa9` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01230901522-00汽水分离器v2.dwg` | `BTJ01230901522-00汽水分离器v2.dwg` | `a3bfce7b-47a1-4d52-849d-9f88cd5b0d1a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231101522-00自动进料装置v1.dwg` | `BTJ01231101522-00自动进料装置v1.dwg` | `c9c22de6-3ddf-472a-9ade-a12020de394d` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231101522-00自动进料装置v2.dwg` | `BTJ01231101522-00自动进料装置v2.dwg` | `89f5e72f-da91-4018-b0f0-ce518ff1f284` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231201522-00拖车DN1500v1.dwg` | `BTJ01231201522-00拖车DN1500v1.dwg` | `e082672c-fffa-4922-a0ed-1d633055f3d0` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231201522-00拖车DN1500v2.dwg` | `BTJ01231201522-00拖车DN1500v2.dwg` | `df6bf792-fc1d-4ffd-87b3-8470f25112d9` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231301522-00蜗轮蜗杆传动出料机构v1.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v1.dwg` | `95891f0a-7b9d-43e8-b2d1-5e492aa2375f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231301522-00蜗轮蜗杆传动出料机构v2.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v2.dwg` | `649df2fb-57c9-4000-b355-1404a546f9e9` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231301522-00蜗轮蜗杆传动出料机构v3.dwg` | `BTJ01231301522-00蜗轮蜗杆传动出料机构v3.dwg` | `af6442bb-edbf-421c-8741-a906d60e4c75` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231301522-01轴向定位轴承v1.dwg` | `BTJ01231301522-01轴向定位轴承v1.dwg` | `8bd192fc-f9f9-4084-a660-8bec624cc9d0` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231301522-01轴向定位轴承v2.dwg` | `BTJ01231301522-01轴向定位轴承v2.dwg` | `a0ca6007-2425-40a9-9769-18ad57f633bc` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231501522-00短轴承座(盖)v1.dwg` | `BTJ01231501522-00短轴承座(盖)v1.dwg` | `bc2a4640-7e2c-4189-97ff-364d53274a4f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231501522-00短轴承座(盖)v2.dwg` | `BTJ01231501522-00短轴承座(盖)v2.dwg` | `a3d917e8-67fd-45d8-bacf-7b1db8ae0b1c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01231501522-00短轴承座(盖)v3.dwg` | `BTJ01231501522-00短轴承座(盖)v3.dwg` | `86d34613-3212-4ce1-988c-614b4c90fea4` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01232801522-01电加热箱v1.dwg` | `BTJ01232801522-01电加热箱v1.dwg` | `ba7379aa-a559-4024-b955-ad20e988bf96` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01232801522-01电加热箱v2.dwg` | `BTJ01232801522-01电加热箱v2.dwg` | `af01639d-4b8b-42c9-9dc7-a19040a2a0d8` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01239601522-03扭转弹簧v1.dwg` | `BTJ01239601522-03扭转弹簧v1.dwg` | `037e1cab-cd9b-4e88-860a-6a5449ab9be2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01239601522-03扭转弹簧v2.dwg` | `BTJ01239601522-03扭转弹簧v2.dwg` | `e3ebbe43-edf9-4f10-9df8-bffaf384d1b2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01239601522-03扭转弹簧v3.dwg` | `BTJ01239601522-03扭转弹簧v3.dwg` | `3675f334-2d6f-4b72-bedd-c3bba3218838` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01239901522-00拖轮组件v1.dwg` | `BTJ01239901522-00拖轮组件v1.dwg` | `30537022-f180-49ed-ad3a-187eb12808fb` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ01239901522-00拖轮组件v2.dwg` | `BTJ01239901522-00拖轮组件v2.dwg` | `fab06a73-4c48-49ec-8ad5-3032282cdf6a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ02230101102-12手轮组件v1.dwg` | `BTJ02230101102-12手轮组件v1.dwg` | `35352696-ab03-4375-8d77-acc71e4462d2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ02230101102-12手轮组件v2.dwg` | `BTJ02230101102-12手轮组件v2.dwg` | `208c7b2f-f675-400c-88d6-62d5cebdfd4f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ02230301120-03保护罩组件v1.dwg` | `BTJ02230301120-03保护罩组件v1.dwg` | `78630898-5987-4367-bc4c-34a104ca378b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ02230301120-03保护罩组件v2.dwg` | `BTJ02230301120-03保护罩组件v2.dwg` | `c953c09a-681d-41f9-acf9-1d21a954d26d` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ14240301522-00防爆视灯组件v1.dwg` | `BTJ14240301522-00防爆视灯组件v1.dwg` | `ca23b39b-7dba-406f-bf04-041aa1b4e5ce` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `BTJ14240301522-00防爆视灯组件v2.dwg` | `BTJ14240301522-00防爆视灯组件v2.dwg` | `1a8a8d47-57b2-4765-adce-553f9818c338` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224014-09液压开盖组件v1.dwg` | `J0224014-09液压开盖组件v1.dwg` | `ef074ed2-c52b-41ea-b4dd-f526ed86fbf4` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224014-09液压开盖组件v2.dwg` | `J0224014-09液压开盖组件v2.dwg` | `cfedc0ad-3e45-426e-b795-f247a97dc045` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224025-06-01-03出料凸缘v1.dwg` | `J0224025-06-01-03出料凸缘v1.dwg` | `fcb649bc-3a48-4d13-85c4-26dd97dc902f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224025-06-01-03出料凸缘v2.dwg` | `J0224025-06-01-03出料凸缘v2.dwg` | `3ce21c0a-e267-4c47-9148-292eadaa800e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224036-10搅拌减速机机罩v1.dwg` | `J0224036-10搅拌减速机机罩v1.dwg` | `e8ee1f06-b074-4d05-b936-85df8cf7e22a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224036-10搅拌减速机机罩v2.dwg` | `J0224036-10搅拌减速机机罩v2.dwg` | `0102798c-6477-4aeb-a0ad-b25dc2872dc0` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224036-12真空组件v1.dwg` | `J0224036-12真空组件v1.dwg` | `5d8fc5d9-0e21-419b-b4e2-46ad2c4f0b05` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224036-12真空组件v2.dwg` | `J0224036-12真空组件v2.dwg` | `ca977262-cd5d-4169-a508-fe14c49ca2b2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224070-04-07捕集口v1.dwg` | `J0224070-04-07捕集口v1.dwg` | `8bb81604-41bd-4dd6-9ffe-826a563e179b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224070-04-07捕集口v2.dwg` | `J0224070-04-07捕集口v2.dwg` | `4bf0e514-2e75-4ce9-9255-70079b0c4c58` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224071-11-02过滤芯组件v1.dwg` | `J0224071-11-02过滤芯组件v1.dwg` | `c57d2244-0ee0-4b09-b712-96d99a88afde` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224071-11-02过滤芯组件v2.dwg` | `J0224071-11-02过滤芯组件v2.dwg` | `f4a0af80-3a31-4f90-a4f9-17afdd69db74` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224071-11捕集器组件v1.dwg` | `J0224071-11捕集器组件v1.dwg` | `f5d21f18-07ce-40d7-9f62-beb8e90a250b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0224071-11捕集器组件v2.dwg` | `J0224071-11捕集器组件v2.dwg` | `df866fe2-b783-4288-ab0a-1f6c090fdcb1` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225001-09-04旋转组件v1.dwg` | `J0225001-09-04旋转组件v1.dwg` | `ff6483fa-f6eb-41ed-83cd-3f6ed56d950c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225001-09-04旋转组件v2.dwg` | `J0225001-09-04旋转组件v2.dwg` | `2fb21ba1-2ef7-4349-ba59-b2592272b961` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04-04轴头组件v1.dwg` | `J0225004-04-04轴头组件v1.dwg` | `a8ea9da1-fd86-40a6-b37f-a0c39bbc9f10` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04-04轴头组件v2.dwg` | `J0225004-04-04轴头组件v2.dwg` | `b9b2ce05-fa90-4bdb-9c4b-931d7dc522cb` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04-05下封板v1.dwg` | `J0225004-04-05下封板v1.dwg` | `32e364e4-b92c-40c1-a968-f293eb88d134` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04-05下封板v2.dwg` | `J0225004-04-05下封板v2.dwg` | `0925ba6b-526f-49ef-bc81-ba932e940688` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04搅拌桨组件v1.dwg` | `J0225004-04搅拌桨组件v1.dwg` | `f06fb97c-bf55-4b91-8bcf-39ca7f5e7d6c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225004-04搅拌桨组件v2.dwg` | `J0225004-04搅拌桨组件v2.dwg` | `c4ab1a19-c659-42c5-9f9b-4146830200e8` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225004-08搅拌轴组件v1.dwg` | `J0225004-08搅拌轴组件v1.dwg` | `4a66c21f-9684-4de8-a822-488b079f6240` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225004-08搅拌轴组件v2.dwg` | `J0225004-08搅拌轴组件v2.dwg` | `acf6ae21-5a8e-4cc9-ab77-89a82cd131c3` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225009-04-03阀体v1.dwg` | `J0225009-04-03阀体v1.dwg` | `b34222fa-bb32-4f1b-b82c-0e0d86a7f965` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225009-04-03阀体v2.dwg` | `J0225009-04-03阀体v2.dwg` | `55ce4dd8-563f-4769-8182-1cd4a35527a5` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225034-05罐体部分v1.dwg` | `J0225034-05罐体部分v1.dwg` | `0b44ceab-3c48-49c4-9353-73dc7428e8ff` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225034-05罐体部分v2.dwg` | `J0225034-05罐体部分v2.dwg` | `1f2737d1-cddd-4986-9887-0040a742b111` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225047-04罐体部分v1.dwg` | `J0225047-04罐体部分v1.dwg` | `ca31588e-7598-48b3-be06-2d378af6268a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225047-04罐体部分v2.dwg` | `J0225047-04罐体部分v2.dwg` | `92787f0a-3910-403b-adb7-72e133d218ae` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225047-04罐体部分v3.dwg` | `J0225047-04罐体部分v3.dwg` | `dfcadefd-79c3-4ac3-97b9-5e80006acf18` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225048-02-07侧推料组件v1.dwg` | `J0225048-02-07侧推料组件v1.dwg` | `2fb55d48-aacd-4566-9534-d12168927d51` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225048-02-07侧推料组件v2.dwg` | `J0225048-02-07侧推料组件v2.dwg` | `6347edfd-149f-43c4-ba0a-5516c70a2765` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225054-15-01支承座v1.dwg` | `J0225054-15-01支承座v1.dwg` | `cdad58f1-1b8c-4636-9ee7-3069b477e10b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225054-15-01支承座v2.dwg` | `J0225054-15-01支承座v2.dwg` | `f6810506-6b95-4fb5-b1c3-0e5b59cce9c7` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225054-15罐体支腿v1.dwg` | `J0225054-15罐体支腿v1.dwg` | `93983b66-1751-4018-96f0-aef1065de753` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0225054-15罐体支腿v2.dwg` | `J0225054-15罐体支腿v2.dwg` | `35a678fa-9df7-42b7-b75b-7c1e2c414312` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0525002-04-02过滤托架v1.dwg` | `J0525002-04-02过滤托架v1.dwg` | `fc4d851f-8c63-4481-9d5f-4cfe6a7a9f03` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0525002-04-02过滤托架v2.dwg` | `J0525002-04-02过滤托架v2.dwg` | `0ea4ce9b-b785-4930-adfd-14c9ccdeb291` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0525002-04-02过滤托架v3.dwg` | `J0525002-04-02过滤托架v3.dwg` | `a5cdb34d-fa70-423f-bcad-6acedcdd4295` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0525002-04-02过滤托架v4.dwg` | `J0525002-04-02过滤托架v4.dwg` | `40adf60a-aaf1-459a-a043-c94545d30052` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0724006-01下锥体组件v1.dwg` | `J0724006-01下锥体组件v1.dwg` | `dbfa2bd2-8959-4811-b864-73fe8134c88a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0724006-01下锥体组件v2.dwg` | `J0724006-01下锥体组件v2.dwg` | `1c292d76-cded-4623-a0f1-659afcb05190` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0724006-01下锥体组件v3.dwg` | `J0724006-01下锥体组件v3.dwg` | `1a858797-f864-43fe-bb16-500103686ff1` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0724006-02搅拌器组件v1.dwg` | `J0724006-02搅拌器组件v1.dwg` | `63eda80d-68a5-40fa-a454-62cccfd4e881` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0724006-02搅拌器组件v2.dwg` | `J0724006-02搅拌器组件v2.dwg` | `2b3776a0-21b4-4b80-a172-e61da0e98761` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0724006-05上封头组件v1.dwg` | `J0724006-05上封头组件v1.dwg` | `2b641379-ae52-444b-8ba1-40e9ec9208a0` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0724006-05上封头组件v2.dwg` | `J0724006-05上封头组件v2.dwg` | `a6bc03c1-5e52-47c2-af27-017cbea8ffd4` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J0724006-05上封头组件v3.dwg` | `J0724006-05上封头组件v3.dwg` | `98544c0c-ec02-4e28-ae8d-4c78dad2bbd8` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J1424042-00出料正压隔离器v1.dwg` | `J1424042-00出料正压隔离器v1.dwg` | `4074c4ec-9ebe-4452-85d5-8879f2f9497a` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J1424042-00出料正压隔离器v2-yuantus.dwg` | `J1424042-00出料正压隔离器v2-yuantus.dwg` | `b843c1e4-a761-425f-9fa6-e46b00c83804` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number |
+| `J1424042-51-01-08对接法兰v1.dwg` | `J1424042-51-01-08对接法兰v1.dwg` | `0312daf4-3994-43e2-9652-07dcd1116020` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J1424042-51-01-08对接法兰v2.dwg` | `J1424042-51-01-08对接法兰v2.dwg` | `02402bbc-1670-4a7c-874e-a393712200a8` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2824002-06上封头组件v1.dwg` | `J2824002-06上封头组件v1.dwg` | `e8607099-bb18-42f4-9b6e-8b1cbf5434a2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2824002-06上封头组件v2.dwg` | `J2824002-06上封头组件v2.dwg` | `56305a0d-4336-43ef-b249-201965de64e7` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2825002-06上筒体组件v1.dwg` | `J2825002-06上筒体组件v1.dwg` | `0da76435-45c3-47d3-be72-ce383206b3d2` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2825002-06上筒体组件v2.dwg` | `J2825002-06上筒体组件v2.dwg` | `98aa7104-4ac2-4642-9a81-e79fa1437440` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2825002-06上筒体组件v3.dwg` | `J2825002-06上筒体组件v3.dwg` | `d67c2062-ab06-4139-8a5f-75b85b445a70` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2825002-09下轴承支架组件v1.dwg` | `J2825002-09下轴承支架组件v1.dwg` | `d483719c-1da1-4f0e-9b7f-ca18ba748be0` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2825002-09下轴承支架组件v2.dwg` | `J2825002-09下轴承支架组件v2.dwg` | `8397c060-fb92-49cb-81c6-286d4b8a2767` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2825003-05下筒体组件v1.dwg` | `J2825003-05下筒体组件v1.dwg` | `1e045cd7-49a0-4c25-9ec4-b69abae30cb8` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2825003-05下筒体组件v2.dwg` | `J2825003-05下筒体组件v2.dwg` | `f800293b-bef2-4f2b-89d2-45547e5afc5d` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925001-00再沸器v1.dwg` | `J2925001-00再沸器v1.dwg` | `721e2902-1203-4b24-93d7-43cd4c6e2c8f` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925001-00再沸器v2.dwg` | `J2925001-00再沸器v2.dwg` | `05c23939-b8b8-402f-aa49-f399114b33be` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925001-00再沸器v3.dwg` | `J2925001-00再沸器v3.dwg` | `7b21c206-5a77-4b11-885f-9cbf435741c0` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925001-01-01人孔法兰v1.dwg` | `J2925001-01-01人孔法兰v1.dwg` | `470d7ce1-21fc-492e-8bd9-716700ccf1e4` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925001-01-01人孔法兰v2.dwg` | `J2925001-01-01人孔法兰v2.dwg` | `d901a8b9-c322-4218-8c1c-16918ccad28b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925001-01人孔v1.dwg` | `J2925001-01人孔v1.dwg` | `417f46c7-ef76-4899-9f4d-5a791b9ed87e` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925001-01人孔v2.dwg` | `J2925001-01人孔v2.dwg` | `d8284473-6a9b-41e3-9a44-d0ae1a38a49c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925001-05管束v1.dwg` | `J2925001-05管束v1.dwg` | `95229c2a-7261-4ee9-b399-a619007cbcf3` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925001-05管束v2.dwg` | `J2925001-05管束v2.dwg` | `a519d5f6-45cc-45f6-9ddb-22801fb3fdfc` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925004-04-01底板v1.dwg` | `J2925004-04-01底板v1.dwg` | `4274153e-da7e-4843-b7c7-3545d6461339` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J2925004-04-01底板v2.dwg` | `J2925004-04-01底板v2.dwg` | `a93339d3-0ba7-472f-86e7-1c98cf8a3470` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J3025001-12轴承座v1.dwg` | `J3025001-12轴承座v1.dwg` | `24c32a01-f508-4204-9e41-9ead3b1ecf35` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `J3025001-12轴承座v2.dwg` | `J3025001-12轴承座v2.dwg` | `9c4e1b21-a1be-4b9a-95c9-d9817ac3a294` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `LTJ012303106-0001超声波法兰.dwg` | `LTJ012303106-0001超声波法兰.dwg` | `35ce0d61-9303-4ce7-80cf-022330fc5d34` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number |
+| `LTJ012303106-0001超声波法兰v1.dwg` | `LTJ012303106-0001超声波法兰v1.dwg` | `ed4efd80-9e28-4b64-b2ac-a1aa52e7f1f0` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `LTJ012303106-0001超声波法兰v2.dwg` | `LTJ012303106-0001超声波法兰v2.dwg` | `6fc37be3-2e33-4fac-89a4-cc7559638c3d` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `LTJ012303106-0030连接法兰(大)v1.dwg` | `LTJ012303106-0030连接法兰(大)v1.dwg` | `357d4c55-5e12-4c33-9830-3885263c3c3d` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `LTJ012303106-0030连接法兰(大)v2.dwg` | `LTJ012303106-0030连接法兰(大)v2.dwg` | `c8dfd67b-f5fe-4c57-9836-55ea7f5f1e4c` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `LTJ012306102-0084调节螺栓v1.dwg` | `LTJ012306102-0084调节螺栓v1.dwg` | `3d6c1445-fcbc-482f-9d0d-65913f697a7b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `LTJ012306102-0084调节螺栓v2.dwg` | `LTJ012306102-0084调节螺栓v2.dwg` | `e4a8d9cd-76a6-4198-a8b1-da714bf96f1b` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
+| `布局空白 DXF.dwg` | `布局空白 DXF.dwg` | `91eea55e-6d8e-4ed8-a9e7-b1c54b592793` | `HAOCHEN` | `haochencad` | part_name |
+| `比较_LTJ012306102-0084调节螺栓v1 vs LTJ012306102-0084调节螺栓v2.dwg` | `比较_LTJ012306102-0084调节螺栓v1 vs LTJ012306102-0084调节螺栓v2.dwg` | `daf1f077-d9cd-447f-8207-2b2e15652b12` | `HAOCHEN` | `haochencad` | drawing_no, part_name, part_number, revision |
