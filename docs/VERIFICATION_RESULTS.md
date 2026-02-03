@@ -15818,3 +15818,18 @@ PASS: MBOM + routing + time/cost
 - 命令：`MIGRATE_TENANT_DB=1 ./scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1`
 - 结果：`PASS`
 - 说明：启用自动租户库迁移（`scripts/migrate_tenant_db.sh`），TENANCY_MODE=db-per-tenant-org，SQLite 派生库。
+
+## Run VERIFY-ALL-20260203-1545
+
+- 时间：`2026-02-03 15:29:40 +0800`
+- 命令：`MIGRATE_TENANT_DB=1 ./scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_20260203_1545.log`
+- 结果：`PASS`（PASS: 35 / FAIL: 0 / SKIP: 18）
+- 日志：`/tmp/verify_all_20260203_1545.log`
+
+## Run VERIFY-ALL-20260203-154533
+
+- 时间：`2026-02-03 15:46:52 +0800`
+- 命令：`RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 ./scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_20260203_154533.log`
+- 结果：`PASS`（PASS: 41 / FAIL: 0 / SKIP: 12）
+- 说明：启用 UI 聚合校验；Ops S8 因 audit 未启用而跳过。
+- 日志：`/tmp/verify_all_20260203_154533.log`

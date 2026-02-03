@@ -26,20 +26,22 @@ def upgrade() -> None:
     if "meta_baselines" in existing_tables:
         columns = {col["name"] for col in inspector.get_columns("meta_baselines")}
 
-        def _add_columns(op_target, use_batch: bool = False):
+        def _add_columns(op_target, table_name: str, use_batch: bool = False):
+            def _add_column(column: sa.Column) -> None:
+                if use_batch:
+                    op_target.add_column(column)
+                else:
+                    op_target.add_column(table_name, column)
+
             if "baseline_number" not in columns:
-                op_target.add_column(
-                    sa.Column("baseline_number", sa.String(length=60), nullable=True)
-                )
+                _add_column(sa.Column("baseline_number", sa.String(length=60), nullable=True))
             if "scope" not in columns:
-                op_target.add_column(
-                    sa.Column(
-                        "scope", sa.String(length=50), nullable=True, server_default="product"
-                    )
+                _add_column(
+                    sa.Column("scope", sa.String(length=50), nullable=True, server_default="product")
                 )
             if "eco_id" not in columns:
                 if use_batch:
-                    op_target.add_column(sa.Column("eco_id", sa.String(), nullable=True))
+                    _add_column(sa.Column("eco_id", sa.String(), nullable=True))
                     op_target.create_foreign_key(
                         "fk_meta_baselines_eco_id_meta_items",
                         "meta_items",
@@ -48,7 +50,7 @@ def upgrade() -> None:
                         ondelete="SET NULL",
                     )
                 else:
-                    op_target.add_column(
+                    _add_column(
                         sa.Column(
                             "eco_id",
                             sa.String(),
@@ -57,7 +59,7 @@ def upgrade() -> None:
                         )
                     )
             if "include_bom" not in columns:
-                op_target.add_column(
+                _add_column(
                     sa.Column(
                         "include_bom",
                         sa.Boolean(),
@@ -66,7 +68,7 @@ def upgrade() -> None:
                     )
                 )
             if "include_documents" not in columns:
-                op_target.add_column(
+                _add_column(
                     sa.Column(
                         "include_documents",
                         sa.Boolean(),
@@ -75,7 +77,7 @@ def upgrade() -> None:
                     )
                 )
             if "include_relationships" not in columns:
-                op_target.add_column(
+                _add_column(
                     sa.Column(
                         "include_relationships",
                         sa.Boolean(),
@@ -84,13 +86,13 @@ def upgrade() -> None:
                     )
                 )
             if "state" not in columns:
-                op_target.add_column(
+                _add_column(
                     sa.Column(
                         "state", sa.String(length=50), nullable=True, server_default="draft"
                     )
                 )
             if "is_validated" not in columns:
-                op_target.add_column(
+                _add_column(
                     sa.Column(
                         "is_validated",
                         sa.Boolean(),
@@ -99,7 +101,7 @@ def upgrade() -> None:
                     )
                 )
             if "validation_errors" not in columns:
-                op_target.add_column(
+                _add_column(
                     sa.Column(
                         "validation_errors",
                         sa.JSON().with_variant(postgresql.JSONB, "postgresql"),
@@ -107,12 +109,10 @@ def upgrade() -> None:
                     )
                 )
             if "validated_at" not in columns:
-                op_target.add_column(sa.Column("validated_at", sa.DateTime(), nullable=True))
+                _add_column(sa.Column("validated_at", sa.DateTime(), nullable=True))
             if "validated_by_id" not in columns:
                 if use_batch:
-                    op_target.add_column(
-                        sa.Column("validated_by_id", sa.Integer(), nullable=True)
-                    )
+                    _add_column(sa.Column("validated_by_id", sa.Integer(), nullable=True))
                     op_target.create_foreign_key(
                         "fk_meta_baselines_validated_by_id_rbac_users",
                         "rbac_users",
@@ -121,7 +121,7 @@ def upgrade() -> None:
                         ondelete="SET NULL",
                     )
                 else:
-                    op_target.add_column(
+                    _add_column(
                         sa.Column(
                             "validated_by_id",
                             sa.Integer(),
@@ -130,7 +130,7 @@ def upgrade() -> None:
                         )
                     )
             if "is_locked" not in columns:
-                op_target.add_column(
+                _add_column(
                     sa.Column(
                         "is_locked",
                         sa.Boolean(),
@@ -139,14 +139,12 @@ def upgrade() -> None:
                     )
                 )
             if "locked_at" not in columns:
-                op_target.add_column(sa.Column("locked_at", sa.DateTime(), nullable=True))
+                _add_column(sa.Column("locked_at", sa.DateTime(), nullable=True))
             if "released_at" not in columns:
-                op_target.add_column(sa.Column("released_at", sa.DateTime(), nullable=True))
+                _add_column(sa.Column("released_at", sa.DateTime(), nullable=True))
             if "released_by_id" not in columns:
                 if use_batch:
-                    op_target.add_column(
-                        sa.Column("released_by_id", sa.Integer(), nullable=True)
-                    )
+                    _add_column(sa.Column("released_by_id", sa.Integer(), nullable=True))
                     op_target.create_foreign_key(
                         "fk_meta_baselines_released_by_id_rbac_users",
                         "rbac_users",
@@ -155,7 +153,7 @@ def upgrade() -> None:
                         ondelete="SET NULL",
                     )
                 else:
-                    op_target.add_column(
+                    _add_column(
                         sa.Column(
                             "released_by_id",
                             sa.Integer(),
@@ -166,9 +164,9 @@ def upgrade() -> None:
 
         if dialect == "sqlite":
             with op.batch_alter_table("meta_baselines") as batch_op:
-                _add_columns(batch_op, use_batch=True)
+                _add_columns(batch_op, "meta_baselines", use_batch=True)
         else:
-            _add_columns(op)
+            _add_columns(op, "meta_baselines")
 
         indexes = {idx.get("name") for idx in inspector.get_indexes("meta_baselines")}
         if "ix_meta_baselines_baseline_number" not in indexes:

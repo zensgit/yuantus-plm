@@ -26,12 +26,37 @@ if [[ ! -x "$PY" ]]; then
   exit 2
 fi
 
-if [[ "$TENANCY_MODE" == "db-per-tenant-org" && -n "$DB_URL_TEMPLATE" ]]; then
-  DB_URL="${DB_URL_TEMPLATE//\{tenant_id\}/$TENANT}"
-  DB_URL="${DB_URL//\{org_id\}/$ORG}"
-elif [[ "$TENANCY_MODE" == "db-per-tenant" && -n "$DB_URL_TEMPLATE" ]]; then
-  DB_URL="${DB_URL_TEMPLATE//\{tenant_id\}/$TENANT}"
-  DB_URL="${DB_URL//\{org_id\}/default}"
+if [[ "$TENANCY_MODE" == "db-per-tenant-org" ]]; then
+  if [[ -n "$DB_URL_TEMPLATE" ]]; then
+    DB_URL="${DB_URL_TEMPLATE//\{tenant_id\}/$TENANT}"
+    DB_URL="${DB_URL//\{org_id\}/$ORG}"
+  else
+    DB_URL="$(
+      TENANT="$TENANT" ORG="$ORG" "$PY" - <<'PY'
+import os
+from yuantus.database import resolve_database_url
+
+tenant = os.environ.get("TENANT")
+org = os.environ.get("ORG")
+print(resolve_database_url(tenant_id=tenant, org_id=org) or "")
+PY
+    )"
+  fi
+elif [[ "$TENANCY_MODE" == "db-per-tenant" ]]; then
+  if [[ -n "$DB_URL_TEMPLATE" ]]; then
+    DB_URL="${DB_URL_TEMPLATE//\{tenant_id\}/$TENANT}"
+    DB_URL="${DB_URL//\{org_id\}/default}"
+  else
+    DB_URL="$(
+      TENANT="$TENANT" "$PY" - <<'PY'
+import os
+from yuantus.database import resolve_database_url
+
+tenant = os.environ.get("TENANT")
+print(resolve_database_url(tenant_id=tenant, org_id=None) or "")
+PY
+    )"
+  fi
 fi
 
 if [[ -z "$DB_URL" ]]; then

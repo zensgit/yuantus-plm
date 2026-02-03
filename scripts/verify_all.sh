@@ -58,6 +58,42 @@ load_server_env() {
 
 load_server_env
 
+load_dotenv() {
+  local dotenv="${REPO_ROOT}/.env"
+  if [[ ! -f "$dotenv" ]]; then
+    return 0
+  fi
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    if [[ "$line" == export\ * ]]; then
+      line="${line#export }"
+    fi
+    if [[ "$line" != *=* ]]; then
+      continue
+    fi
+    local key="${line%%=*}"
+    local value="${line#*=}"
+    key="${key#"${key%%[![:space:]]*}"}"
+    key="${key%"${key##*[![:space:]]}"}"
+    if [[ "$key" != YUANTUS_* ]]; then
+      continue
+    fi
+    if [[ -n "${!key:-}" ]]; then
+      continue
+    fi
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+      value="${value:1:${#value}-2}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+      value="${value:1:${#value}-2}"
+    fi
+    export "${key}=${value}"
+  done < "$dotenv"
+}
+
+load_dotenv
+
 # Export for child scripts
 export CLI PY
 export MIGRATE_TENANT_DB
@@ -158,6 +194,72 @@ health_field() {
       "$field" 2>/dev/null || echo ""
 }
 
+load_storage_from_health() {
+  if [[ -n "${YUANTUS_STORAGE_TYPE:-}" ]]; then
+    return 0
+  fi
+  local storage_json
+  storage_json="$(
+    curl -s "$BASE_URL/api/v1/health/deps" \
+      | "$PY" -c 'import sys,json; data=json.load(sys.stdin); storage=data.get("deps",{}).get("storage",{}); print(json.dumps(storage))' \
+        2>/dev/null || echo "{}"
+  )"
+  local storage_type
+  storage_type="$(
+    STORAGE_JSON="$storage_json" "$PY" - <<'PY'
+import json, os
+data = json.loads(os.environ.get("STORAGE_JSON") or "{}")
+print(data.get("type",""))
+PY
+  )"
+  if [[ -n "$storage_type" ]]; then
+    export YUANTUS_STORAGE_TYPE="$storage_type"
+  fi
+  if [[ "$storage_type" == "local" ]]; then
+    local storage_path
+    storage_path="$(
+      STORAGE_JSON="$storage_json" "$PY" - <<'PY'
+import json, os
+data = json.loads(os.environ.get("STORAGE_JSON") or "{}")
+print(data.get("path",""))
+PY
+    )"
+    if [[ -n "$storage_path" && -z "${YUANTUS_LOCAL_STORAGE_PATH:-}" ]]; then
+      export YUANTUS_LOCAL_STORAGE_PATH="$storage_path"
+    fi
+    return 0
+  fi
+  if [[ "$storage_type" == "s3" ]]; then
+    local endpoint_url
+    local bucket_name
+    endpoint_url="$(
+      STORAGE_JSON="$storage_json" "$PY" - <<'PY'
+import json, os
+data = json.loads(os.environ.get("STORAGE_JSON") or "{}")
+print(data.get("endpoint_url",""))
+PY
+    )"
+    bucket_name="$(
+      STORAGE_JSON="$storage_json" "$PY" - <<'PY'
+import json, os
+data = json.loads(os.environ.get("STORAGE_JSON") or "{}")
+print(data.get("bucket",""))
+PY
+    )"
+    if [[ -n "$endpoint_url" ]]; then
+      if [[ -z "${YUANTUS_S3_ENDPOINT_URL:-}" ]]; then
+        export YUANTUS_S3_ENDPOINT_URL="$endpoint_url"
+      fi
+      if [[ -z "${YUANTUS_S3_PUBLIC_ENDPOINT_URL:-}" ]]; then
+        export YUANTUS_S3_PUBLIC_ENDPOINT_URL="$endpoint_url"
+      fi
+    fi
+    if [[ -n "$bucket_name" && -z "${YUANTUS_S3_BUCKET_NAME:-}" ]]; then
+      export YUANTUS_S3_BUCKET_NAME="$bucket_name"
+    fi
+  fi
+}
+
 # -----------------------------------------------------------------------------
 # Pre-flight checks
 # -----------------------------------------------------------------------------
@@ -185,26 +287,6 @@ if [[ -n "$DB_URL" ]]; then
   : "${YUANTUS_DATABASE_URL:=$DB_URL}"
   export YUANTUS_DATABASE_URL
   export DB_URL
-fi
-
-# If MinIO is available via docker compose, default to S3 storage for worker scripts.
-if [[ -z "${YUANTUS_STORAGE_TYPE:-}" ]]; then
-  if command -v docker >/dev/null 2>&1; then
-    MINIO_PORT_LINE="$(docker compose -p yuantusplm port minio 9000 2>/dev/null | head -n 1)"
-    if [[ -z "$MINIO_PORT_LINE" ]]; then
-      MINIO_PORT_LINE="$(docker compose port minio 9000 2>/dev/null | head -n 1)"
-    fi
-    if [[ -n "$MINIO_PORT_LINE" ]]; then
-      MINIO_HOST_PORT="${MINIO_PORT_LINE##*:}"
-      export YUANTUS_STORAGE_TYPE="s3"
-      export YUANTUS_S3_ENDPOINT_URL="http://localhost:${MINIO_HOST_PORT}"
-      export YUANTUS_S3_PUBLIC_ENDPOINT_URL="http://localhost:${MINIO_HOST_PORT}"
-      : "${YUANTUS_S3_ACCESS_KEY_ID:=minioadmin}"
-      : "${YUANTUS_S3_SECRET_ACCESS_KEY:=minioadmin}"
-      export YUANTUS_S3_ACCESS_KEY_ID
-      export YUANTUS_S3_SECRET_ACCESS_KEY
-    fi
-  fi
 fi
 
 # Check CLI
@@ -237,6 +319,7 @@ if [[ "$HTTP_CODE" != "200" ]]; then
   exit 2
 fi
 echo "API Health: OK (HTTP $HTTP_CODE)"
+load_storage_from_health
 
 echo ""
 echo "Pre-flight checks passed. Starting tests..."
