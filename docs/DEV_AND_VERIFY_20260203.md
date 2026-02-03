@@ -21,5 +21,14 @@
 - Result: PASS (PASS: 41 / FAIL: 0 / SKIP: 12)
 - Note: Ops S8 skipped because audit is disabled.
 
+3) Ops S8 with audit enabled
+- Command: `RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 ./scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_20260203_155031.log`
+- Result: PASS (PASS: 37 / FAIL: 0 / SKIP: 16)
+- Note: Started server with `YUANTUS_AUDIT_ENABLED=true` to enable audit logs.
+
+4) Playwright UI e2e
+- Command: `npx playwright test`
+- Result: PASS (1 passed)
+
 ## Notes
 - Warnings about missing `cadquery` and Elasticsearch library are expected in this environment; all tests still passed.

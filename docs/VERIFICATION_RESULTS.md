@@ -15833,3 +15833,18 @@ PASS: MBOM + routing + time/cost
 - 结果：`PASS`（PASS: 41 / FAIL: 0 / SKIP: 12）
 - 说明：启用 UI 聚合校验；Ops S8 因 audit 未启用而跳过。
 - 日志：`/tmp/verify_all_20260203_154533.log`
+
+## Run VERIFY-ALL-20260203-155031
+
+- 时间：`2026-02-03 15:51:30 +0800`
+- 命令：`RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 ./scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_20260203_155031.log`
+- 结果：`PASS`（PASS: 37 / FAIL: 0 / SKIP: 16）
+- 说明：启用审计（`YUANTUS_AUDIT_ENABLED=true`），S8 Ops Monitoring 通过。
+- 日志：`/tmp/verify_all_20260203_155031.log`
+
+## Run PLAYWRIGHT-ESIGN-20260203-1552
+
+- 时间：`2026-02-03 15:52:14 +0800`
+- 命令：`npx playwright test`
+- 结果：`PASS`（1 passed）
+- 说明：Playwright CLI 启动临时单租户服务并执行 e-sign 端到端流程。
