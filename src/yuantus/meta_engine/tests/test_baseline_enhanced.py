@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import MagicMock
 
 from yuantus.meta_engine.models.baseline import Baseline, BaselineMember
@@ -166,3 +167,24 @@ def test_get_comparison_details_paginates():
     assert result["total"] == 6
     assert len(result["items"]) == 2
     assert result["items"][0]["id"] == 2
+
+
+def test_get_baseline_at_date_returns_latest():
+    session = MagicMock()
+    service = BaselineService(session)
+    baseline = Baseline(id="bl-1")
+
+    query = MagicMock()
+    query.filter.return_value = query
+    query.order_by.return_value = query
+    query.first.return_value = baseline
+    session.query.return_value = query
+
+    result = service.get_baseline_at_date(
+        root_item_id="root",
+        target_date=datetime(2025, 1, 1),
+        baseline_type="design",
+    )
+
+    assert result == baseline
+    query.first.assert_called()

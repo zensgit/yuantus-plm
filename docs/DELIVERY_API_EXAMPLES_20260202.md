@@ -56,7 +56,16 @@ curl -s \
   -o comparison.csv
 ```
 
-## 4) E-sign Audit Logs
+## 4) Baseline Effective Date
+
+```bash
+# Resolve the released baseline that was effective at a specific date
+curl -s \
+  "http://127.0.0.1:7910/api/v1/baselines/effective?root_item_id={root_item_id}&target_date=2025-12-31T00:00:00Z&baseline_type=design" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+## 5) E-sign Audit Logs
 
 ```bash
 # Logs for an item
@@ -79,4 +88,33 @@ curl -s \
   "http://127.0.0.1:7910/api/v1/esign/audit-logs/export?export_format=csv&item_id={item_id}" \
   -H "Authorization: Bearer $TOKEN" \
   -o audit.csv
+```
+
+## 6) E-sign Reason Update
+
+```bash
+curl -s -X PATCH \
+  "http://127.0.0.1:7910/api/v1/esign/reasons/{reason_id}" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Approved (Final)","is_active":false}'
+```
+
+## 7) Advanced Search Filter Ops
+
+```bash
+# startswith / endswith / not_contains
+curl -s -X POST \
+  http://127.0.0.1:7910/api/v1/reports/search \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "filters": [
+      {"field": "config_id", "op": "startswith", "value": "ASSY"},
+      {"field": "config_id", "op": "endswith", "value": "-A"},
+      {"field": "config_id", "op": "not_contains", "value": "TMP"}
+    ],
+    "page": 1,
+    "page_size": 50
+  }'
 ```

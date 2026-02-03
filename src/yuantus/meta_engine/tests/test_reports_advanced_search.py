@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from yuantus.meta_engine.reports.models import SavedSearch
 from yuantus.meta_engine.reports.report_service import ReportDefinitionService
-from yuantus.meta_engine.reports.search_service import SavedSearchService
+from yuantus.meta_engine.reports.search_service import AdvancedSearchService, SavedSearchService
 
 
 def test_run_saved_search_updates_usage():
@@ -52,3 +52,26 @@ def test_report_export_json_payload_preserves_structure():
     assert '"items"' in payload
     assert media_type == "application/json"
     assert extension == "json"
+
+
+def test_advanced_search_supports_prefix_suffix_filters():
+    class DummyQuery:
+        def __init__(self):
+            self.expressions = []
+
+        def filter(self, *expr):
+            self.expressions.extend(expr)
+            return self
+
+    service = AdvancedSearchService(MagicMock())
+    query = DummyQuery()
+
+    service._apply_filter(
+        query, {"field": "config_id", "op": "startswith", "value": "ABC"}
+    )
+    service._apply_filter(query, {"field": "config_id", "op": "endswith", "value": "XYZ"})
+    service._apply_filter(
+        query, {"field": "config_id", "op": "not_contains", "value": "123"}
+    )
+
+    assert len(query.expressions) == 3

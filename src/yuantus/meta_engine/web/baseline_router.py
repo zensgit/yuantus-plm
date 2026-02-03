@@ -236,6 +236,35 @@ def list_baselines(
     }
 
 
+@baseline_router.get("/effective", response_model=BaselineResponse)
+def get_effective_baseline(
+    root_item_id: str = Query(..., min_length=1),
+    target_date: datetime = Query(...),
+    baseline_type: Optional[str] = Query(None),
+    include_snapshot: bool = Query(False),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    service = BaselineService(db)
+    baseline = service.get_baseline_at_date(
+        root_item_id=root_item_id,
+        target_date=target_date,
+        baseline_type=baseline_type,
+    )
+    if not baseline:
+        raise HTTPException(status_code=404, detail="Baseline not found")
+    if not _is_admin(user) and baseline.created_by_id != user.id:
+        if baseline.root_item_id:
+            item = db.get(Item, baseline.root_item_id)
+            if item:
+                try:
+                    service._ensure_can_read(item, str(user.id), user.roles or [])
+                except PermissionError as exc:
+                    raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+    return _baseline_to_response(baseline, include_snapshot=include_snapshot)
+
+
 @baseline_router.post("/compare-baselines", response_model=Dict[str, Any])
 def compare_baselines(
     req: BaselineCompareBaselinesRequest,

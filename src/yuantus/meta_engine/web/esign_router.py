@@ -48,6 +48,20 @@ class SigningReasonResponse(BaseModel):
     created_at: Optional[datetime]
 
 
+class SigningReasonUpdateRequest(BaseModel):
+    code: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    meaning: Optional[str] = Field(default=None, max_length=50)
+    description: Optional[str] = Field(default=None, max_length=2000)
+    regulatory_reference: Optional[str] = Field(default=None, max_length=200)
+    requires_password: Optional[bool] = None
+    requires_comment: Optional[bool] = None
+    item_type_id: Optional[str] = None
+    from_state: Optional[str] = None
+    to_state: Optional[str] = None
+    sequence: Optional[int] = None
+    is_active: Optional[bool] = None
+
 class SignRequest(BaseModel):
     item_id: str = Field(..., min_length=1)
     meaning: str = Field(..., min_length=1, max_length=50)
@@ -164,6 +178,7 @@ def list_signing_reasons(
     item_type_id: Optional[str] = Query(None),
     from_state: Optional[str] = Query(None),
     to_state: Optional[str] = Query(None),
+    meaning: Optional[str] = Query(None),
     include_inactive: bool = Query(False),
     _user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -174,6 +189,7 @@ def list_signing_reasons(
         item_type_id=item_type_id,
         from_state=from_state,
         to_state=to_state,
+        meaning=meaning,
         include_inactive=include_inactive,
     )
     return {
@@ -197,6 +213,53 @@ def list_signing_reasons(
             for r in reasons
         ]
     }
+
+
+@esign_router.patch("/reasons/{reason_id}", response_model=SigningReasonResponse)
+def update_signing_reason(
+    reason_id: str,
+    req: SigningReasonUpdateRequest,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    identity_db: Session = Depends(get_identity_db),
+) -> SigningReasonResponse:
+    _ensure_admin(user)
+    service = _service(db, identity_db)
+    try:
+        reason = service.update_signing_reason(
+            reason_id,
+            code=req.code,
+            name=req.name,
+            meaning=req.meaning,
+            description=req.description,
+            regulatory_reference=req.regulatory_reference,
+            requires_password=req.requires_password,
+            requires_comment=req.requires_comment,
+            item_type_id=req.item_type_id,
+            from_state=req.from_state,
+            to_state=req.to_state,
+            sequence=req.sequence,
+            is_active=req.is_active,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return SigningReasonResponse(
+        id=reason.id,
+        code=reason.code,
+        name=reason.name,
+        meaning=reason.meaning,
+        description=reason.description,
+        regulatory_reference=reason.regulatory_reference,
+        requires_password=bool(reason.requires_password),
+        requires_comment=bool(reason.requires_comment),
+        item_type_id=reason.item_type_id,
+        from_state=reason.from_state,
+        to_state=reason.to_state,
+        sequence=reason.sequence or 0,
+        is_active=bool(reason.is_active),
+        created_at=reason.created_at,
+    )
 
 
 @esign_router.post("/sign", response_model=SignatureResponse)

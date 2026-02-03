@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.1.4 (Update) - 2026-02-03
+
+### Added
+- Baseline effective-date lookup endpoint for released baselines.
+- E-sign signing reason update/deactivate support and meaning filter.
+- Advanced search filter operators: startswith, endswith, not_contains.
+- API examples updated for baseline effective date, e-sign reason update, and new search ops.
+- Unit tests for baseline effective lookup, signing reason updates, and search filters.
+
+### Verification
+- Results logged in `docs/VERIFICATION_RESULTS.md`.
+
 ## v0.1.3 (Update) - 2026-02-01
 
 ### Added

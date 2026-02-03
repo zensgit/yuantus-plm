@@ -36,6 +36,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery One Pager: `docs/DELIVERY_ONE_PAGER_20260202.md`
 - Delivery Quality Report: `docs/DELIVERY_QUALITY_REPORT_20260202.md`
 - Week Plan & Verification (Enhancements): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202_FEATURES2.md`
+- Week Plan & Verification (Enhancements 2026-02-03): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260203_ENHANCEMENTS.md`
 - Delivery Endpoint Changelog: `docs/DELIVERY_ENDPOINT_CHANGELOG_20260202.md`
 
 ## Ops & Deployment

@@ -148,6 +148,12 @@ class AdvancedSearchService:
             return query.filter(self._cast_numeric(column) <= self._coerce_number(value))
         if op == "contains":
             return query.filter(column.ilike(f"%{value}%"))
+        if op in {"not_contains", "not_like"}:
+            return query.filter(~column.ilike(f"%{value}%"))
+        if op in {"startswith", "prefix"}:
+            return query.filter(column.ilike(f"{value}%"))
+        if op in {"endswith", "suffix"}:
+            return query.filter(column.ilike(f"%{value}"))
         if op == "in":
             values = value if isinstance(value, list) else self._split_list(value)
             return query.filter(column.in_(values))

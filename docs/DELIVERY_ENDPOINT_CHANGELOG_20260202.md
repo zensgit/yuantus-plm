@@ -15,6 +15,10 @@
   - Get report execution details.
 
 ### Baselines
+- `GET /api/v1/baselines/effective`
+  - Resolve released baseline effective at a target date.
+  - Query: `root_item_id`, `target_date`, `baseline_type`, `include_snapshot`
+
 - `GET /api/v1/baselines/comparisons/{comparison_id}/details`
   - Paginated comparison details.
   - Query: `change_type=added|removed|changed`, `limit`, `offset`
@@ -24,6 +28,10 @@
   - Query: `change_type`, `export_format`, `limit`, `offset`
 
 ### Electronic Signatures
+- `PATCH /api/v1/esign/reasons/{reason_id}`
+  - Update signing reasons (including activate/deactivate).
+  - Body: `{ code, name, meaning, description, regulatory_reference, requires_password, requires_comment, item_type_id, from_state, to_state, sequence, is_active }`
+
 - `GET /api/v1/esign/audit-logs`
   - Query audit logs.
   - Query: `item_id`, `signature_id`, `actor_id`, `action`, `success`, `date_from`, `date_to`, `limit`, `offset`
@@ -40,3 +48,4 @@
 
 - Report definition access now enforces `allowed_roles` for public reports.
 - Export endpoints default to `csv` if not specified.
+- Advanced search filters now include `startswith`, `endswith`, and `not_contains`.

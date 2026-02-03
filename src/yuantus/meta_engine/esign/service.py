@@ -299,6 +299,7 @@ class ElectronicSignatureService:
         item_type_id: Optional[str] = None,
         from_state: Optional[str] = None,
         to_state: Optional[str] = None,
+        meaning: Optional[str] = None,
         include_inactive: bool = False,
     ) -> List[SigningReason]:
         query = self.session.query(SigningReason)
@@ -318,8 +319,60 @@ class ElectronicSignatureService:
             query = query.filter(
                 or_(SigningReason.to_state.is_(None), SigningReason.to_state == to_state)
             )
+        if meaning:
+            query = query.filter(SigningReason.meaning == meaning)
 
         return query.order_by(SigningReason.sequence).all()
+
+    def update_signing_reason(
+        self,
+        reason_id: str,
+        *,
+        code: Optional[str] = None,
+        name: Optional[str] = None,
+        meaning: Optional[str] = None,
+        description: Optional[str] = None,
+        regulatory_reference: Optional[str] = None,
+        requires_password: Optional[bool] = None,
+        requires_comment: Optional[bool] = None,
+        item_type_id: Optional[str] = None,
+        from_state: Optional[str] = None,
+        to_state: Optional[str] = None,
+        sequence: Optional[int] = None,
+        is_active: Optional[bool] = None,
+    ) -> SigningReason:
+        reason = self.session.get(SigningReason, reason_id)
+        if not reason:
+            raise ValueError("Signing reason not found")
+
+        if code is not None:
+            reason.code = code
+        if name is not None:
+            reason.name = name
+        if meaning is not None:
+            reason.meaning = meaning
+        if description is not None:
+            reason.description = description
+        if regulatory_reference is not None:
+            reason.regulatory_reference = regulatory_reference
+        if requires_password is not None:
+            reason.requires_password = requires_password
+        if requires_comment is not None:
+            reason.requires_comment = requires_comment
+        if item_type_id is not None:
+            reason.item_type_id = item_type_id
+        if from_state is not None:
+            reason.from_state = from_state
+        if to_state is not None:
+            reason.to_state = to_state
+        if sequence is not None:
+            reason.sequence = sequence
+        if is_active is not None:
+            reason.is_active = is_active
+
+        self.session.add(reason)
+        self.session.commit()
+        return reason
 
     def create_manifest(
         self,
