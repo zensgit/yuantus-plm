@@ -11,3 +11,4 @@ compare package manifests or git tags as needed.
 ## Reference
 - `docs/DELIVERY_PACKAGE_NOTE_20260203.md`
 - `docs/DELIVERY_PACKAGE_MANIFEST_20260203.txt`
+- `docs/DELIVERY_PACKAGE_HASHES_20260203.md`

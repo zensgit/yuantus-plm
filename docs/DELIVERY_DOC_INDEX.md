@@ -10,6 +10,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Summary: `docs/DELIVERY_SUMMARY_20260202.md`
 - Delivery Checklist: `docs/DELIVERY_CHECKLIST_20260202.md`
 - Delivery Package Manifest: `docs/DELIVERY_PACKAGE_MANIFEST_20260203.txt`
+- Delivery Package Hashes: `docs/DELIVERY_PACKAGE_HASHES_20260203.md`
 - Delivery Package Scripts: `docs/DELIVERY_PACKAGE_SCRIPTS_20260202.md`
 - Delivery Package Note: `docs/DELIVERY_PACKAGE_NOTE_20260203.md`
 - External Verification Guide: `docs/DELIVERY_EXTERNAL_VERIFICATION_GUIDE_20260203.md`
