@@ -4,14 +4,14 @@
 
 ```bash
 cd /Users/huazhou/Downloads/Github/Yuantus/YuantusPLM-Delivery
-sha256sum -c YuantusPLM-Delivery_20260202.tar.gz.sha256
+sha256sum -c YuantusPLM-Delivery_20260203.tar.gz.sha256
 ```
 
 ## 2) Extract and inspect
 
 ```bash
 mkdir -p /tmp/yuantus_delivery
- tar -xzf YuantusPLM-Delivery_20260202.tar.gz -C /tmp/yuantus_delivery
+ tar -xzf YuantusPLM-Delivery_20260203.tar.gz -C /tmp/yuantus_delivery
 ls -la /tmp/yuantus_delivery/YuantusPLM-Delivery
 ```
 

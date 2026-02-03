@@ -2,8 +2,8 @@
 
 ## Package Integrity
 
-- [ ] `YuantusPLM-Delivery_20260202.tar.gz` checksum verified
-- [ ] `YuantusPLM-Delivery_20260202.zip` checksum verified
+- [ ] `YuantusPLM-Delivery_20260203.tar.gz` checksum verified
+- [ ] `YuantusPLM-Delivery_20260203.zip` checksum verified
 
 ## Content Presence
 

@@ -25,6 +25,6 @@
 
 ## Delivery Artifacts
 
-- Package: `YuantusPLM-Delivery_20260202.tar.gz` / `.zip`
+- Package: `YuantusPLM-Delivery_20260203.tar.gz` / `.zip`
 - Checksums: `.sha256`
 - Docs index: `docs/DELIVERY_DOC_INDEX.md`

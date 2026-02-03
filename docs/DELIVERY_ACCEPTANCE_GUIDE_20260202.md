@@ -4,8 +4,8 @@
 
 ```bash
 cd /Users/huazhou/Downloads/Github/Yuantus/YuantusPLM-Delivery
-sha256sum -c YuantusPLM-Delivery_20260202.tar.gz.sha256
-sha256sum -c YuantusPLM-Delivery_20260202.zip.sha256
+sha256sum -c YuantusPLM-Delivery_20260203.tar.gz.sha256
+sha256sum -c YuantusPLM-Delivery_20260203.zip.sha256
 ```
 
 ## 2) Extract
@@ -13,10 +13,10 @@ sha256sum -c YuantusPLM-Delivery_20260202.zip.sha256
 ```bash
 # tar.gz
 mkdir -p /tmp/yuantus_delivery
- tar -xzf YuantusPLM-Delivery_20260202.tar.gz -C /tmp/yuantus_delivery
+ tar -xzf YuantusPLM-Delivery_20260203.tar.gz -C /tmp/yuantus_delivery
 
 # zip
-unzip -q YuantusPLM-Delivery_20260202.zip -d /tmp/yuantus_delivery
+unzip -q YuantusPLM-Delivery_20260203.zip -d /tmp/yuantus_delivery
 ```
 
 ## 3) Review Contents

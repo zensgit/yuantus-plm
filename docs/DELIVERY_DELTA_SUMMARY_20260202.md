@@ -9,5 +9,5 @@ compare package manifests or git tags as needed.
 - Added baseline comparison details endpoint and e-sign audit log query.
 
 ## Reference
-- `docs/DELIVERY_PACKAGE_NOTE_20260202.md`
-- `docs/DELIVERY_PACKAGE_MANIFEST_20260202.txt`
+- `docs/DELIVERY_PACKAGE_NOTE_20260203.md`
+- `docs/DELIVERY_PACKAGE_MANIFEST_20260203.txt`

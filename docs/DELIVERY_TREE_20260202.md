@@ -3,10 +3,10 @@
 ```text
 YuantusPLM-Delivery/
 ├── README.md
-├── YuantusPLM-Delivery_20260202.tar.gz
-├── YuantusPLM-Delivery_20260202.tar.gz.sha256
-├── YuantusPLM-Delivery_20260202.zip
-├── YuantusPLM-Delivery_20260202.zip.sha256
+├── YuantusPLM-Delivery_20260203.tar.gz
+├── YuantusPLM-Delivery_20260203.tar.gz.sha256
+├── YuantusPLM-Delivery_20260203.zip
+├── YuantusPLM-Delivery_20260203.zip.sha256
 ├── certs/
 │   └── README.md
 ├── compose/
@@ -25,7 +25,9 @@ YuantusPLM-Delivery/
 │   ├── DELIVERY_FAQ_20260202.md
 │   ├── DELIVERY_OPS_CHECKLIST_20260202.md
 │   ├── DELIVERY_PACKAGE_LAYOUT.md
-│   ├── DELIVERY_PACKAGE_NOTE_20260202.md
+│   ├── DELIVERY_PACKAGE_NOTE_20260203.md
+│   ├── DELIVERY_PACKAGE_MANIFEST_20260203.txt
+│   ├── DELIVERY_EXTERNAL_VERIFICATION_GUIDE_20260203.md
 │   ├── DELIVERY_POST_DEPLOY_CHECKLIST_20260202.md
 │   ├── DELIVERY_QUICK_ACCEPTANCE_20260202.md
 │   ├── DELIVERY_READINESS_CHECKLIST.md

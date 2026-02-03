@@ -9,7 +9,7 @@
 | Images | `images/` | optional offline docker image tarballs |
 | Certs | `certs/` | TLS cert/key placeholders |
 | Licenses | `licenses/` | license file |
-| Packages | `YuantusPLM-Delivery_20260202.*` | tar.gz/zip + sha256 |
+| Packages | `YuantusPLM-Delivery_20260203.*` | tar.gz/zip + sha256 |
 
 ## Key Docs
 

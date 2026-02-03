@@ -31,5 +31,5 @@ sha256sum -c ${PKG_NAME}.zip.sha256
 
 ```bash
 # Compare manifest hashes with current checkout
-sha256sum -c docs/DELIVERY_PACKAGE_MANIFEST_20260202.txt
+sha256sum -c docs/DELIVERY_PACKAGE_MANIFEST_20260203.txt
 ```
