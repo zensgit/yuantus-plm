@@ -10,7 +10,6 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Summary: `docs/DELIVERY_SUMMARY_20260202.md`
 - Delivery Checklist: `docs/DELIVERY_CHECKLIST_20260202.md`
 - Delivery Package Manifest: `docs/DELIVERY_PACKAGE_MANIFEST_20260203.txt`
-- Delivery Package Hashes: `docs/DELIVERY_PACKAGE_HASHES_20260203.md`
 - Delivery Package Scripts: `docs/DELIVERY_PACKAGE_SCRIPTS_20260202.md`
 - Delivery Package Note: `docs/DELIVERY_PACKAGE_NOTE_20260203.md`
 - External Verification Guide: `docs/DELIVERY_EXTERNAL_VERIFICATION_GUIDE_20260203.md`
@@ -70,3 +69,9 @@ This index aggregates all delivery‑related documents for private deployments.
 
 - Docker Release Template: `docs/RELEASE_DOCKER_TEMPLATE.md`
 - Release Announcement: `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260203.md` (latest), `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260202.md`, `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260201.md`, `docs/RELEASE_ANNOUNCEMENT_v0.1.3.md`
+
+## External (Not Included in Package)
+
+- External Handoff Guide: `docs/DELIVERY_EXTERNAL_HANDOFF_GUIDE_20260203.md`
+- External Verify Commands: `docs/DELIVERY_EXTERNAL_VERIFY_COMMANDS_20260203.md`
+- External Package Hashes: `docs/DELIVERY_PACKAGE_HASHES_20260203.md`
