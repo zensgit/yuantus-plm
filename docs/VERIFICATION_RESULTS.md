@@ -15884,4 +15884,4 @@ PASS: MBOM + routing + time/cost
 - 命令：`RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 scripts/run_full_regression.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full_20260204_0813.log`
 - 结果：`PASS`（PASS: 50 / FAIL: 0 / SKIP: 4）
 - 说明：跳过 Config Variants（`RUN_CONFIG_VARIANTS=0`），Audit Logs / Ops Monitoring 因 `audit_enabled=false` 跳过。
-- 日志：`/tmp/verify_all_full_20260204_0813.log`
+- 日志：`/tmp/verify_all_full_20260204_0813.log`（归档：`docs/verification-logs/20260204/verify_all_full_20260204_0813.log`）
