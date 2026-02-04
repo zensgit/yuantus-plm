@@ -97,6 +97,47 @@ curl -s \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+## 4.3) BOM Obsolete Scan + Resolve
+
+```bash
+# Scan obsolete lines under a root item (direct + recursive)
+curl -s \
+  "http://127.0.0.1:7910/api/v1/bom/{parent_id}/obsolete?recursive=true&levels=10" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Resolve in-place (update child to replacement_id)
+curl -s -X POST \
+  "http://127.0.0.1:7910/api/v1/bom/{parent_id}/obsolete/resolve" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"update"}'
+
+# Resolve by cloning a new BOM set
+curl -s -X POST \
+  "http://127.0.0.1:7910/api/v1/bom/{parent_id}/obsolete/resolve" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"new_bom","recursive":true,"levels":10}'
+```
+
+## 4.4) BOM Weight Rollup
+
+```bash
+# Compute rollup only
+curl -s -X POST \
+  "http://127.0.0.1:7910/api/v1/bom/{parent_id}/rollup/weight" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"levels":3}'
+
+# Compute and write back to properties.weight_rollup (missing only)
+curl -s -X POST \
+  "http://127.0.0.1:7910/api/v1/bom/{parent_id}/rollup/weight" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"levels":3,"write_back":true,"write_back_field":"weight_rollup","write_back_mode":"missing","rounding":3}'
+```
+
 ## 5) E-sign Audit Logs
 
 ```bash

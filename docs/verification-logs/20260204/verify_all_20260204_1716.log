@@ -1,0 +1,1941 @@
+==============================================
+YuantusPLM End-to-End Regression Suite
+==============================================
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+CLI: .venv/bin/yuantus
+==============================================
+
+==> Pre-flight checks
+CLI: OK
+Python: OK
+Checking API health...
+API Health: OK (HTTP 200)
+
+Pre-flight checks passed. Starting tests...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Ops Health
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_ops_health.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Ops Health Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> /health
+Health: OK
+OK: /health ok
+
+==> /health/deps
+Health deps: OK
+OK: /health/deps ok
+
+==============================================
+Ops Health Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Ops Health
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Run H (Core APIs)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_run_h.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==> Migrate tenant DB
+Using DB URL: sqlite:///yuantus_mt_skip.db
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade r1b2c3d4e6a6 -> s1b2c3d4e6a7, add variant rules and product configurations
+INFO  [alembic.runtime.migration] Running upgrade s1b2c3d4e6a7 -> t1b2c3d4e6a8, add manufacturing tables
+INFO  [alembic.runtime.migration] Running upgrade t1b2c3d4e6a8 -> u1b2c3d4e6a9, add baseline enhancements and reporting tables
+INFO  [alembic.runtime.migration] Running upgrade u1b2c3d4e6a9 -> v1b2c3d4e7a0, add electronic signature tables
+==> Seed identity/meta
+==> Login
+==> Health
+Health: OK
+==> Meta metadata (Part)
+Meta metadata: OK
+==> AML add/get
+AML add: OK (part_id=99f1a600-23ce-4523-aaa4-0c06a24beecf)
+AML get: OK
+==> Search
+Search: OK
+==> RPC Item.create
+RPC Item.create: OK (part_id=81ff7f5c-380a-445a-bffd-452afdef8e93)
+==> File upload/download
+File upload: OK (file_id=30b4e1cf-4c2c-4725-a0fd-fda51c0d3ec1)
+File metadata: OK
+File download: OK (http=200)
+==> BOM effective
+BOM effective: OK
+==> Plugins
+Plugins list: OK
+Plugins ping: OK
+==> ECO full flow
+ECO stage: OK (stage_id=a4b2f018-78db-47a9-a089-bff56a29a237)
+ECO create: OK (eco_id=cbe24838-38ff-4f1c-9db1-3dc417b92f4f)
+ECO new-revision: OK (version_id=fadcc757-8b3b-4f65-887e-4d5c08b4f418)
+ECO approve: OK
+ECO apply: OK
+==> Versions history/tree
+Versions history: OK
+Versions tree: OK
+==> Integrations health (should be 200 even if services down)
+Integrations health: OK (ok=False)
+
+ALL CHECKS PASSED
+PASS: Run H (Core APIs)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S2 (Documents & Files)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_documents.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Documents & Files Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Part
+OK: Created Part: ed5cb703-c671-4204-acbe-d20edd1cf85a
+
+==> Upload file with metadata
+OK: Uploaded file: bbb0c3ec-8494-4b72-b8d8-51ade20afb32
+
+==> Verify file metadata
+OK: Metadata verified
+
+==> Upload duplicate file (checksum dedupe)
+OK: Dedupe returned same file id
+
+==> Attach file to item
+OK: Attachment created
+
+==> Verify item attachment list
+OK: Attachment list verified
+
+==> Cleanup
+OK: Cleaned up temp file
+
+==============================================
+Documents & Files Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: S2 (Documents & Files)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Document Lifecycle
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_document_lifecycle.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Document Lifecycle Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Document
+OK: Created Document: 81a4fd80-f732-4b77-ab83-a7b39799116e
+
+==> Initialize version
+OK: Initial version 1.A
+
+==> Verify initial state is Draft
+OK: State Draft
+
+==> Update Document in Draft
+OK: Draft update
+
+==> Promote to Review
+OK: State Review
+
+==> Promote to Released
+OK: State Released
+
+==> Update after Release should be blocked
+OK: Update blocked (409)
+
+==> Attach file after Release should be blocked
+OK: Attach blocked (409)
+
+==> Cleanup
+
+==============================================
+Document Lifecycle Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Document Lifecycle
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Part Lifecycle
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_part_lifecycle.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Part Lifecycle Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Parts
+OK: Created parent=5a5b1968-7792-468f-be88-d822b3551690 child=83376bcd-971d-421e-85be-4dcd6762ebab child2=f78a4638-8635-47ee-ada9-aed1a6a8ef98
+
+==> Add BOM child in Draft
+OK: BOM relationship 2436220d-6115-47b5-8193-0c809619279f
+
+==> Promote to Review
+OK: State Review
+
+==> Promote to Released
+OK: State Released
+
+==> Update after Release should be blocked
+OK: Update blocked (409)
+
+==> BOM add after Release should be blocked
+OK: BOM add blocked (409)
+
+==> BOM remove after Release should be blocked
+OK: BOM delete blocked (409)
+
+==> Attach file after Release should be blocked
+OK: Attach blocked (409)
+
+==> Cleanup
+
+==============================================
+Part Lifecycle Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Part Lifecycle
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Lifecycle Suspended
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_lifecycle_suspended.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Lifecycle Suspended Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Part
+OK: Created Part 19e66954-d71f-4d63-8620-829719cd93ca
+
+==> Promote to Review
+OK: State Review
+
+==> Promote to Released
+OK: State Released
+
+==> Promote to Suspended
+OK: State Suspended
+
+==> Update in Suspended should be blocked
+OK: Update blocked (409)
+
+==> Resume to Released
+OK: State Released
+==============================================
+Lifecycle Suspended Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Lifecycle Suspended
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S1 (Meta + RBAC)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_permissions.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==> Seed identity (admin + viewer)
+Created user: admin (superuser)
+==> Seed meta schema
+==> Login as admin
+Admin login: OK
+==> Ensure viewer identity (server) is non-superuser
+Viewer identity: OK (id=2085654043)
+==> Configure PermissionSets
+Created PermissionSet: ReadOnly-1770196755
+ACE viewer (read-only): OK
+ACE admin (full): OK
+==> Assign PermissionSet to ItemTypes
+Assigned permission to Part: OK
+Assigned permission to Part BOM: OK
+==> Admin creates Part (should succeed)
+Admin AML add Part: OK (part_id=d58551b6-c25d-4d32-b08e-3a3f3d1a2f8e)
+Admin created child Part: OK (child_id=3129e0a0-c8b7-4899-bbd7-10d60540f4ac)
+==> Login as viewer
+Viewer login: OK
+==> Viewer READ operations (should succeed)
+Viewer AML get Part: OK (200)
+Viewer search: OK (200)
+Viewer BOM effective: OK (200)
+==> Viewer WRITE operations (should fail with 403)
+Viewer AML add Part: BLOCKED (403) - EXPECTED
+Viewer BOM add child: BLOCKED (403) - EXPECTED
+Viewer AML update Part: BLOCKED (403) - EXPECTED
+==> Admin WRITE operations (should succeed)
+Admin BOM add child: OK
+Admin AML update Part: OK
+==> Viewer can read updated BOM tree
+Viewer BOM tree with children: OK (200)
+
+ALL CHECKS PASSED
+PASS: S1 (Meta + RBAC)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S7 (Quotas)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_quotas.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==> Seed identity + meta
+==> Login as admin
+==> Read current quota usage
+SKIP: quota mode is 'disabled' (expected enforce)
+PASS: S7 (Quotas)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S3.1 (BOM Tree)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_bom_tree.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==> Seed identity
+Created admin user
+==> Seed meta schema
+==> Login as admin
+Admin login: OK
+==> Create test parts for BOM tree
+Created Part A: 565309ee-c291-4e84-951c-eaad6c48aea2
+Created Part B: 4bf9fe87-596a-4d19-8e9d-c26f9d5d61df
+Created Part C: f8f3e285-6cc1-424d-9a85-bade05246b86
+Created Part D: 7636a9c7-44ed-46ce-8afe-28795f77f217
+==> Build BOM structure: A -> B -> C, B -> D
+Adding B as child of A...
+A -> B relationship created: f1bb931a-b646-42ea-ab02-9b8fa2461ba8
+Adding C as child of B...
+B -> C relationship created: 359c45f1-0148-44e7-8397-cf10d552df1f
+Adding D as child of B...
+B -> D relationship created: ef23d405-30b2-4816-a4c5-c03392fd65ed
+BOM structure created: OK
+==> Test BOM tree query with depth
+Full tree (depth=10): Level 1 has 1 child (B): OK
+Full tree (depth=10): Level 2 has 2 children (C, D): OK
+Limited tree (depth=1): Only shows B with no grandchildren: OK
+==> Test cycle detection (C -> A should be 409)
+Cycle detection: C -> A returned 409: OK
+Cycle error type: CYCLE_DETECTED: OK
+Cycle path returned: ['f8f3e285-6cc1-424d-9a85-bade05246b86', '565309ee-c291-4e84-951c-eaad6c48aea2', '4bf9fe87-596a-4d19-8e9d-c26f9d5d61df', 'f8f3e285-6cc1-424d-9a85-bade05246b86']: OK
+==> Test self-reference cycle (A -> A should be 409)
+Self-reference cycle: A -> A returned 409: OK
+==> Test duplicate add (A -> B again should fail)
+Duplicate add: A -> B again returned 400: OK
+==> Test remove child (B -> D)
+Remove child: B -> D deleted: OK
+After delete: Level 2 has 1 child (C only): OK
+==> Test remove non-existent relationship
+Remove non-existent: A -> D (never existed) returned 404: OK
+
+ALL CHECKS PASSED
+PASS: S3.1 (BOM Tree)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S3.2 (BOM Effectivity)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_bom_effectivity.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Date context: TODAY=2026-02-04T09:19:19Z, NEXT_WEEK=2026-02-11T09:19:19Z, LAST_WEEK=2026-01-28T09:19:19Z
+==> Seed identity (admin + viewer)
+Created users: admin (superuser), viewer (no write)
+==> Seed meta schema
+==> Login as admin
+Admin login: OK
+==> Configure PermissionSets
+Permissions configured: OK
+==> Create test parts
+Created Part A (parent): 75895bde-7ef0-4708-9b06-8c37a07c0666
+Created Part B (future child): 986cc2f5-87b8-49d2-a3a5-b02d27aff403
+Created Part C (current child): 85ee01ff-4ef4-4133-b3e1-ec0b84a80a25
+Created Part D (expired child): fb350864-27b6-4d43-aa97-3038b2b533b9
+==> Build BOM with effectivity dates
+Adding B to A (effective from next week)...
+A -> B relationship: b987dc32-88d7-450c-af3c-ed09c196c400, effectivity_id: 38c65e34-166a-447d-959e-a46685ee4d25
+Adding C to A (effective from last week, always visible now)...
+A -> C relationship: 01bf05ce-89fd-4710-bc9a-e8b6eb3d77ce
+Adding D to A (expired - ended last week)...
+A -> D relationship: ea266596-2b2a-47f6-a3a9-6989dc2aca93
+BOM with effectivity created: OK
+==> Query effective BOM at TODAY (should only see C)
+Effective BOM at TODAY: 1 child (C only): OK
+==> Query effective BOM at NEXT_WEEK (should see B and C)
+Effective BOM at NEXT_WEEK: 2 children (B and C): OK
+==> Query effective BOM at LAST_WEEK (should see C and D)
+Effective BOM at LAST_WEEK: 2 children (C and D): OK
+==> RBAC: Viewer cannot add BOM children (should be 403)
+Viewer login: OK
+Viewer add BOM child: BLOCKED (403) - EXPECTED
+==> RBAC: Viewer can read effective BOM (should be 200)
+Viewer read effective BOM: OK (200)
+==> Delete BOM line (A -> B) and verify Effectivity CASCADE
+Delete A -> B relationship: OK
+After delete: NEXT_WEEK shows 1 child (C only): OK
+
+ALL CHECKS PASSED
+PASS: S3.2 (BOM Effectivity)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Effectivity Extended
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_effectivity_extended.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Effectivity Extended Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Parts
+OK: Created Parts
+
+==> Add BOM relationships
+OK: BOM relationships created
+
+==> Create Lot effectivity
+OK: Lot effectivity created
+
+==> Create Serial effectivity
+OK: Serial effectivity created
+
+==> Query effective BOM with matching lot/serial
+OK: Both children visible
+
+==> Query effective BOM with non-matching lot/serial
+OK: Children filtered out
+==============================================
+Effectivity Extended Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Effectivity Extended
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: BOM Obsolete
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_bom_obsolete.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASS: BOM obsolete scan + resolve
+PASS: BOM Obsolete
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: BOM Weight Rollup
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_bom_weight_rollup.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PASS: BOM weight rollup
+PASS: BOM Weight Rollup
+SKIP: S12 (Config Variants) (RUN_CONFIG_VARIANTS=0)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S3.3 (Versions)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_versions.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==> Seed identity
+Created admin user
+==> Seed meta schema
+==> Login as admin
+Admin login: OK
+==> Create versionable Part
+Created Part: d9110ea6-29b9-4a5a-92a4-95cb4e461a75
+==> Initialize version (expecting 1.A)
+Initial version: 1.A (generation=1, revision=A): OK
+==> Revise version (1.A -> 1.B)
+Revised version: 1.B: OK
+==> Revise version again (1.B -> 1.C)
+Revised version: 1.C: OK
+==> Get version tree
+Version tree has 3 versions (1.A, 1.B, 1.C): OK
+Version tree labels: 1.A,1.B,1.C: OK
+==> Get version history
+Version history has 3 entries: OK
+==> Test revision calculation
+Letter scheme: A -> B: OK
+Letter scheme: Z -> AA: OK
+Number scheme: 1 -> 2: OK
+==> Test revision comparison
+Revision compare: A < C: OK
+==> Test iteration within version
+Created iteration: 1.C.1: OK
+Created iteration: 1.C.2: OK
+Latest iteration is 1.C.2: OK
+==> Test version comparison
+Version comparison (1.A vs 1.B): OK
+==> Create revision scheme
+Created revision scheme (number, starts at 1): OK
+Revision schemes list: 1 scheme(s): OK
+==> Test checkout/checkin flow
+Checkout: locked by user 1057719384: OK
+Checkin: unlocked: OK
+
+==============================================
+VERSION SEMANTICS SUMMARY
+==============================================
+Version Label Format: {generation}.{revision}
+  - Generation: 1, 2, 3, ...
+  - Revision: A, B, C, ..., Z, AA, AB, ...
+  - Example: 1.A, 1.B, 2.A, 2.AA
+
+Iteration Format: {version_label}.{iteration}
+  - Example: 1.A.1, 1.A.2, 1.B.1
+
+Revision Schemes:
+  - letter (default): A -> B -> ... -> Z -> AA
+  - number: 1 -> 2 -> 3 -> ...
+  - hybrid: A1 -> A2 -> ... -> A99 -> B1
+==============================================
+
+ALL CHECKS PASSED
+PASS: S3.3 (Versions)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S4 (ECO Advanced)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_eco_advanced.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+ECO Advanced Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login (admin + viewer)
+OK: Login succeeded
+
+==> Create ECO stage (approval_roles=admin)
+OK: Stage created: 15c5fd1f-4626-4071-bfb7-f891d3fa23dc
+
+==> Create product + assembly
+OK: Created product: 2748ddcb-870b-401f-b530-c0ab2838b692
+OK: Created assembly: d7673db3-6901-40bd-bc80-514bfb2f71ab
+
+==> Init product version
+OK: Initial version: 173ba5d1-410a-4f39-9bf8-7fb350634e73
+
+==> Build where-used link (assembly -> product)
+OK: Where-used link created
+
+==> Upload file + attach to product
+OK: File attached (status=created)
+
+==> Checkout + checkin to sync version files
+OK: Version checked in after file binding
+Initial version files: OK
+OK: Version files synced
+
+==> Create ECO (for product)
+OK: ECO1 created: 9f40253b-f20a-4d32-a630-c2dcbfb3cf4b
+
+==> Move ECO1 to approval stage
+OK: ECO1 moved to stage
+
+==> SLA overdue check + notify
+Overdue list: OK
+OK: Overdue list validated
+Overdue notifications: OK
+OK: Overdue notifications sent
+
+==> Create ECO target version
+OK: Target version: 08cf1cb9-4f32-4801-909b-75cb12522f44
+
+==> Resolve target version timestamp
+OK: Target created_at: 2026-02-04T09:19:28.160597
+
+==> ECO apply + verify version files synced to item
+OK: ECO1 applied
+Item files synced: OK
+Target version files: OK
+OK: ECO apply file sync validated
+
+==> Add new BOM line effective from target version date
+OK: Effective BOM line added
+
+==> ECO BOM diff (expect added child)
+BOM diff: OK
+OK: BOM diff validated
+
+==> ECO BOM diff (compare_mode=only_product)
+BOM diff only_product: OK
+OK: BOM diff compare_mode validated
+
+==> ECO impact analysis (include files + bom diff + version diff)
+Impact analysis: OK
+OK: Impact analysis validated
+
+==> ECO impact export (csv/xlsx/pdf)
+Impact export files: OK
+OK: Impact export validated
+
+==> Create ECO2 for batch approvals
+OK: ECO2 created/moved: fdf114e9-167a-450f-b462-551c801c70aa
+
+==> Batch approve as admin
+Batch approvals (admin): OK
+OK: Admin batch approvals validated
+
+==> Verify ECO states are approved
+OK: ECO states approved
+
+==> Batch approve as viewer (expect denied)
+Batch approvals (viewer denied): OK
+OK: Viewer batch approvals denied
+
+==============================================
+ECO Advanced Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: S4 (ECO Advanced)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S5-A (CAD Pipeline S3)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_cad_pipeline_s3.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+S3 CAD Pipeline Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity (admin user)
+OK: Identity seeded
+
+==> Seed meta schema
+OK: Meta schema seeded
+
+==> Login as admin
+OK: Admin login
+
+==> Create test STL file
+OK: Created test file: /tmp/yuantus_cad_s3_test.stl
+
+==> Upload STL via /cad/import
+OK: File uploaded: 9f4064c0-073d-4bd0-8d62-511404331d57
+Preview job ID: 48b9564d-0d7e-4e7b-9b31-362825046bbc
+Geometry job ID: 38239033-bfb3-4984-b47a-45f02c17db70
+
+==> Run worker to process jobs
+cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh.
+cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh.
+OK: Worker executed
+
+==> Check job statuses
+Preview job status: completed
+Geometry job status: completed
+
+==> Check file metadata
+Preview URL: /api/v1/file/9f4064c0-073d-4bd0-8d62-511404331d57/preview
+Geometry URL: /api/v1/file/9f4064c0-073d-4bd0-8d62-511404331d57/geometry
+Conversion status: completed
+OK: Preview path set
+OK: Geometry path set
+
+==> Test preview endpoint
+OK: Preview endpoint works (HTTP 200)
+
+==> Test geometry endpoint
+OK: Geometry endpoint works (HTTP 200)
+
+==> Check storage type
+Local storage detected (direct file response)
+
+==> Cleanup
+OK: Cleaned up test file
+
+==============================================
+CAD Pipeline S3 Verification Complete
+==============================================
+
+Summary:
+  - File upload: OK
+  - Job processing: completed / completed
+  - Preview endpoint: 200
+  - Geometry endpoint: 200
+
+ALL CHECKS PASSED
+PASS: S5-A (CAD Pipeline S3)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S5-A (CAD 2D Preview)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_cad_preview_2d.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SKIP: CAD ML Vision not available at http://localhost:8001/api/v1/vision/health (HTTP 000000)
+PASS: S5-A (CAD 2D Preview)
+SKIP: S5-A (CADGF Preview Online) (RUN_CADGF_PREVIEW_ONLINE=0)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S5-B (CAD 2D Connectors)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_cad_connectors_2d.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+CAD 2D Connectors Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create dummy DWG/DXF files
+OK: Created files: /tmp/yuantus_gstarcad_1770196780.dwg, /tmp/yuantus_zwcad_1770196780.dxf, /tmp/yuantus_haochencad_1770196780.dwg, /tmp/yuantus_zhongwang_1770196780.dxf, /tmp/yuantus_cad_auto_1770196780.dwg, /tmp/yuantus_cad_auto_zw_1770196780.dwg
+
+==> Upload gstarcad_1770196780.dwg (GSTARCAD)
+OK: Uploaded file: d854cb4e-6178-49e4-a8ba-4e5c70400948
+Metadata OK
+OK: Metadata verified (GSTARCAD)
+
+==> Upload zwcad_1770196780.dxf (ZWCAD)
+OK: Uploaded file: 2b07a007-ef07-437c-82d5-4f2915ac10f1
+Metadata OK
+OK: Metadata verified (ZWCAD)
+
+==> Upload haochencad_1770196780.dwg (HAOCHEN)
+OK: Uploaded file: 65dad956-a1c7-4801-a94f-aa0a8182c53f
+Metadata OK
+OK: Metadata verified (HAOCHEN)
+
+==> Upload zhongwangcad_1770196780.dxf (ZHONGWANG)
+OK: Uploaded file: 2fbee00e-5e6b-423e-b6bf-b08185be53ab
+Metadata OK
+OK: Metadata verified (ZHONGWANG)
+
+==> Upload cad_auto_1770196780.dwg (auto-detect)
+OK: Uploaded file: fdb231b1-3ec6-47cd-b0ab-fa8b02d59c33
+Metadata OK
+OK: Metadata verified (HAOCHEN)
+
+==> Upload cad_auto_zw_1770196780.dwg (auto-detect)
+OK: Uploaded file: 5b146d68-83ca-4676-b4c5-1aeae66ae77e
+Metadata OK
+OK: Metadata verified (ZWCAD)
+
+==> Cleanup
+OK: Cleaned up temp files
+
+==============================================
+CAD 2D Connectors Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: S5-B (CAD 2D Connectors)
+SKIP: S5-B (CAD 2D Real Connectors) (RUN_CAD_REAL_CONNECTORS_2D=0)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S5-B (CAD 3D Connectors)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_cad_connectors_3d.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+CAD 3D Connectors Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create dummy 3D files
+OK: Created files
+
+==> Upload solidworks_part_1770196781.sldprt
+OK: Uploaded file: 52734cfa-a0a8-44b2-8ed9-f5d4ddd297ce
+Metadata OK
+OK: Metadata verified (SOLIDWORKS)
+
+==> Upload solidworks_asm_1770196781.sldasm
+OK: Uploaded file: 9d4933c2-f0a2-4df5-b9e9-3eb4d28d5494
+Metadata OK
+OK: Metadata verified (SOLIDWORKS)
+
+==> Upload nx_1770196781.prt
+OK: Uploaded file: 171742d2-2b80-4818-bbcb-7b8d661b7762
+Metadata OK
+OK: Metadata verified (NX)
+
+==> Upload creo_1770196781.prt
+OK: Uploaded file: ba3ac49f-4508-4686-baf7-4b6ea171371e
+Metadata OK
+OK: Metadata verified (CREO)
+
+==> Upload catia_1770196781.catpart
+OK: Uploaded file: 44460c7a-a391-4930-9522-182fe8a7a96a
+Metadata OK
+OK: Metadata verified (CATIA)
+
+==> Upload inventor_1770196781.ipt
+OK: Uploaded file: b5749575-8a6f-44fa-b48d-ca302bebf606
+Metadata OK
+OK: Metadata verified (INVENTOR)
+
+==> Upload auto_1770196781.prt
+OK: Uploaded file: 06337987-01d0-46dc-bcbc-e1105b171d63
+Metadata OK
+OK: Metadata verified (NX)
+
+==> Cleanup
+OK: Cleaned up temp files
+
+==============================================
+CAD 3D Connectors Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: S5-B (CAD 3D Connectors)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S5-C (CAD Attribute Sync)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_cad_sync.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+CAD Attribute Sync Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Fetch Part ItemType properties
+OK: Resolved property IDs
+
+==> Configure CAD sync mapping
+OK: CAD sync mapping configured
+
+==> Create Part item
+OK: Created Part: e928cda1-e55f-4805-9a60-a807469ec1b4
+
+==> Upload CAD file and enqueue extract job
+OK: Uploaded file: 56eb1f00-f013-43f7-bebf-2ef03ff4de2b
+OK: Created job: b0e9b8c9-5f8b-4072-90b2-21fcd2644c91
+
+==> Run worker and wait for job completion
+cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh.
+cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh.
+cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh.
+cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh.
+cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh.
+Worker did not complete job (status=pending). Running direct processor...
+cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh.
+OK: Job completed (direct processor)
+
+==> Verify CAD-synced properties
+CAD sync mapping verified
+OK: CAD sync mapping verified
+
+==> Verify cad_extract attributes endpoint
+cad_extract attributes verified
+OK: cad_extract attributes verified
+
+==> Cleanup
+OK: Cleaned up temp file
+
+==============================================
+CAD Attribute Sync Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: S5-C (CAD Attribute Sync)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S5-C (CAD OCR Title Block)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_cad_ocr_titleblock.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SKIP: CAD ML Vision not available at http://localhost:8001/api/v1/vision/health (HTTP 000000)
+PASS: S5-C (CAD OCR Title Block)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S5-C (CAD Filename Parsing)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_cad_filename_parse.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+CAD Filename Parsing Verification
+DB: /tmp/yuantus_cad_filename_parse.db
+Storage: /tmp/yuantus_cad_filename_storage
+==============================================
+ALL CHECKS PASSED
+==============================================
+CAD Filename Parsing Verification Complete
+==============================================
+PASS: S5-C (CAD Filename Parsing)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S5-C (CAD Attribute Normalization)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_cad_attribute_normalization.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+CAD Attribute Normalization Verification
+DB: /tmp/yuantus_cad_attr_norm.db
+Storage: /tmp/yuantus_cad_attr_norm_storage
+==============================================
+cadquery not installed. STEP/IGES conversion will rely on FreeCAD/Trimesh.
+ALL CHECKS PASSED
+==============================================
+CAD Attribute Normalization Verification Complete
+==============================================
+PASS: S5-C (CAD Attribute Normalization)
+SKIP: S5-B (CAD 2D Connector Coverage) (RUN_CAD_CONNECTOR_COVERAGE_2D=0)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S5-B (CAD Connectors Config)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_cad_connectors_config.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+CAD Connectors Config Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Reload connectors from config
+OK: Reloaded connectors (custom_loaded=1)
+
+==> Verify connector listing
+OK: Connector list includes demo-cad
+
+==> Import DEMO CAD file
+OK: cad_format/connector_id resolved via config
+OK: Imported file: 380899c2-a676-4bfa-870c-f80e4b31d81b
+
+==============================================
+CAD Connectors Config Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: S5-B (CAD Connectors Config)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: S5-C (CAD Sync Template)
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_cad_sync_template.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+CAD Sync Template Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Download CAD sync template
+OK: Template downloaded
+
+==> Build update template
+OK: Template updated
+
+==> Apply template
+OK: Template applied
+
+==> Verify Part ItemType properties
+OK: Property mapping verified
+
+==============================================
+CAD Sync Template Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: S5-C (CAD Sync Template)
+SKIP: S5-C (CAD Auto Part) (RUN_CAD_AUTO_PART=0)
+SKIP: S5-C (CAD Extractor Stub) (RUN_CAD_EXTRACTOR_STUB=0)
+SKIP: S5-C (CAD Extractor External) (RUN_CAD_EXTRACTOR_EXTERNAL=0)
+SKIP: S5-C (CAD Extractor Service) (RUN_CAD_EXTRACTOR_SERVICE=0)
+SKIP: CAD Real Samples (RUN_CAD_REAL_SAMPLES=0)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Search Index
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_search_index.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Search Index Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Part item
+OK: Created Part: 493a881d-9e5b-4ee8-bfb4-8365dbf57a41
+
+==> Search by item_number
+OK: Search found item by item_number
+
+==> Update item name and re-search
+OK: Search found item after update
+
+==> Delete item and verify search removal
+OK: Search removal validated
+
+==============================================
+Search Index Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Search Index
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Search Reindex
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_search_reindex.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Search Reindex Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Part item
+OK: Created Part: 79d8dfc4-68e7-42ad-b1be-09bbde15cfa2
+
+==> Search status
+OK: Search engine: db
+
+==> Reindex
+OK: Reindex completed (indexed=75)
+
+==> Search by item_number
+OK: Search found item after reindex
+
+==> Cleanup
+OK: Deleted item
+
+==============================================
+Search Reindex Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Search Reindex
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Search ECO
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_search_eco.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Search ECO Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Search ECO index status
+OK: Search ECO engine: db
+
+==> Create ECO product
+OK: Created ECO product: 532b6be3-2d48-427f-9142-0635f2797a08
+
+==> Create ECO
+OK: Created ECO: 34e657e1-23e4-4b7c-9301-0a41178365cf
+
+==> Search ECO by name
+OK: Search by name
+
+==> Search ECO by state
+OK: Search by state
+
+==============================================
+Search ECO Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Search ECO
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Reports Summary
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_reports_summary.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Reports Summary Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Part item
+OK: Created Part: cfda5108-b5ee-4164-869e-2cd99f89f9b5
+
+==> Upload file
+OK: Uploaded file: 49483fb7-db8d-40ec-9c62-11e4d740e11e
+
+==> Create ECO stage + ECO
+OK: Created ECO: 13e25817-a2d1-444b-b9dd-efc5a29be3f3
+
+==> Create job
+OK: Created job: 3bb373ba-7b95-40c9-b947-b847ed48d3b1
+
+==> Fetch reports summary
+Summary checks: OK
+OK: Summary checks passed
+
+==============================================
+Reports Summary Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Reports Summary
+SKIP: Audit Logs (audit_enabled=False)
+SKIP: S8 (Ops Monitoring) (audit_enabled=False)
+SKIP: S7 (Multi-Tenancy) (tenancy_mode=single)
+SKIP: S7 (Tenant Provisioning) (RUN_TENANT_PROVISIONING=0)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Where-Used API
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_where_used.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Where-Used API Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity (admin user)
+OK: Identity seeded
+
+==> Seed meta schema
+OK: Meta schema seeded
+
+==> Login as admin
+OK: Admin login
+
+==> Create test items for BOM hierarchy
+OK: Created assembly: 97f2d195-dbd7-41a3-aa3a-d38668222e07
+OK: Created sub-assembly: 60709468-cbe5-4981-bfbd-fca0f1b252ac
+OK: Created component: 97607bce-c8fd-417c-b249-1253c7dbfb5b
+OK: Created second assembly: 24c7bf87-2a5e-4b54-bfec-af3efa4547e5
+
+==> Build BOM hierarchy
+OK: Added sub-assembly to assembly
+OK: Added component to sub-assembly
+OK: Added component to second assembly
+
+BOM Structure:
+  ASSEMBLY (97f2d195-dbd7-41a3-aa3a-d38668222e07)
+    └── SUB-ASSEMBLY (60709468-cbe5-4981-bfbd-fca0f1b252ac)
+          └── COMPONENT (97607bce-c8fd-417c-b249-1253c7dbfb5b)
+  ASSEMBLY2 (24c7bf87-2a5e-4b54-bfec-af3efa4547e5)
+    └── COMPONENT (97607bce-c8fd-417c-b249-1253c7dbfb5b)
+
+==> Test Where-Used (non-recursive)
+Where-used response:
+  item_id: 97607bce-c8fd-417c-b249-1253c7dbfb5b
+  count: 2
+OK: Non-recursive where-used: found 2 direct parents
+Parent IDs found:
+  - 60709468-cbe5-4981-bfbd-fca0f1b252ac
+  - 24c7bf87-2a5e-4b54-bfec-af3efa4547e5
+
+==> Test Where-Used (recursive)
+Recursive where-used response:
+  count: 3
+OK: Recursive where-used: found 3 parents
+Parents by level:
+  Level 1: Sub-Assembly for Where-Used Test 1770196801
+  Level 2: Assembly for Where-Used Test 1770196801
+  Level 1: Second Assembly for Where-Used Test 1770196801
+
+==> Test Where-Used on top-level item (no parents)
+OK: Top-level item has no parents (count=0)
+
+==> Test Where-Used on non-existent item
+OK: Non-existent item returns 404 (HTTP 404)
+
+==============================================
+Where-Used API Verification Complete
+==============================================
+
+Summary:
+  - BOM hierarchy creation: OK
+  - Non-recursive where-used: OK (found 2 direct parents)
+  - Recursive where-used: OK (found 3 total parents)
+  - Top-level item (no parents): OK
+  - Non-existent item handling: OK (404)
+
+ALL CHECKS PASSED
+PASS: Where-Used API
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: UI Product Detail
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_product_detail.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Product Detail Mapping Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Part item
+OK: Created Part: 6e4c143f-37ed-4c60-a080-6b302074419f
+
+==> Init version
+OK: Init version: 70559ba6-909d-44f2-b671-254f05958ff6
+
+==> Upload file
+OK: Uploaded file: 77ecb432-3c21-420b-959b-530d4171a297
+
+==> Attach file to item
+OK: File attached to item
+
+==> Fetch product detail
+Product detail mapping: OK
+
+==============================================
+Product Detail Mapping Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: UI Product Detail
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: UI Product Summary
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_product_ui.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Product UI Aggregation Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Parts
+OK: Created Parts: parent=0bfcbee3-cad8-47a0-907b-b5ad0abc3967 child=32fbf766-d2c5-40f2-a1a6-3321d73f078a
+
+==> Add BOM child
+OK: Added BOM line: 354f300b-4279-4145-9ab3-32c43e1a6b8d
+
+==> Fetch parent product detail with BOM summary
+
+==> Fetch child product detail with where-used summary
+Product UI aggregation: OK
+
+==============================================
+Product UI Aggregation Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: UI Product Summary
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: UI Where-Used
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_where_used_ui.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Where-Used UI Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Parts
+OK: Created Parts: grand=45d74156-c933-4660-90d4-8b23b1ccef87 parent=bb108dad-9a5f-4976-a208-30f95b9f5dd2 child=57f8273e-c00c-463e-9392-4b9a44c17a02
+
+==> Add BOM lines
+OK: Added BOM lines: parent_rel=4412231b-cb20-4c9f-8485-74deeb0f1fe8 grand_rel=f11b9876-ce93-48c8-bf7d-5436987de909
+
+==> Where-used (recursive)
+Where-used UI payload: OK
+
+==============================================
+Where-Used UI Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: UI Where-Used
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: UI BOM
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_bom_ui.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+BOM UI Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Parts
+OK: Created Parts
+
+==> Add children to BOM
+OK: Added BOM children
+
+==> Add substitute to BOM line
+OK: Added substitute: 598e9cad-4263-4968-9d8d-8f0a944c027f
+
+==> Where-used
+
+==> BOM compare (include child fields)
+
+==> Substitutes list
+BOM UI endpoints: OK
+
+==============================================
+BOM UI Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: UI BOM
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: UI Docs Approval
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_docs_approval.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Docs + Approval Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Documents & Files
+==============================================
+Documents & Files Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Part
+OK: Created Part: ce016476-63dc-40e1-b62f-3d2827861261
+
+==> Upload file with metadata
+OK: Uploaded file: 233f3a9e-9717-4a86-812a-8b3e04c43537
+
+==> Verify file metadata
+OK: Metadata verified
+
+==> Upload duplicate file (checksum dedupe)
+OK: Dedupe returned same file id
+
+==> Attach file to item
+OK: Attachment created
+
+==> Verify item attachment list
+OK: Attachment list verified
+
+==> Cleanup
+OK: Cleaned up temp file
+
+==============================================
+Documents & Files Verification Complete
+==============================================
+ALL CHECKS PASSED
+OK: Documents & files verified
+
+==> Document lifecycle
+==============================================
+Document Lifecycle Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create Document
+OK: Created Document: f4574ffd-a96e-4aeb-9b70-afebe10a2937
+
+==> Initialize version
+OK: Initial version 1.A
+
+==> Verify initial state is Draft
+OK: State Draft
+
+==> Update Document in Draft
+OK: Draft update
+
+==> Promote to Review
+OK: State Review
+
+==> Promote to Released
+OK: State Released
+
+==> Update after Release should be blocked
+OK: Update blocked (409)
+
+==> Attach file after Release should be blocked
+OK: Attach blocked (409)
+
+==> Cleanup
+
+==============================================
+Document Lifecycle Verification Complete
+==============================================
+ALL CHECKS PASSED
+OK: Document lifecycle verified
+
+==> Login as admin
+OK: Admin login
+
+==> Create approval stage
+OK: Created stage: 09cd0858-80e7-40bd-8b02-5415d6b2164e
+
+==> Create ECO product
+OK: Created product: 86c00f3e-13cd-4a00-9b5d-af90b621cbb9
+
+==> Create ECO
+OK: Created ECO: e2b71c31-e44d-4c01-a675-b719c55838bc
+
+==> Move ECO to approval stage
+OK: Moved ECO to stage
+
+==> Approve ECO
+OK: Approved ECO: 649ca70b-95fe-4267-a98e-5d3804a493f4
+
+==> Verify ECO state and approvals
+Approval flow: OK
+
+==============================================
+Docs + Approval Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: UI Docs Approval
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: UI Docs ECO Summary
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_docs_eco_ui.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Docs + ECO UI Summary Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Ensure Document ItemTypes
+OK: Document ItemTypes ensured
+
+==> Create Part and Document
+OK: Created Part=e563753c-83e7-4753-8b1c-3338a23a50e0 Document=f31f6d53-b426-4b24-aefa-6976551d42a1
+
+==> Link Document to Part
+OK: Created Document relation
+
+==> Create ECO stage and ECO
+OK: Created ECO=3291647e-7415-4e86-881e-a5da7fca39a7 stage=a377f028-ae7e-4655-a9d8-c779691f6be7
+
+==> Fetch product detail with document + ECO summary
+Docs + ECO UI summary: OK
+
+==============================================
+Docs + ECO UI Summary Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: UI Docs ECO Summary
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: BOM Compare
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_bom_compare.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+BOM Compare Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create parent items
+OK: Created parents: A=acf013e4-2d2a-4e7a-8c25-591963a2957b, B=98e0b841-ed93-40ae-b8f4-947a84419f50
+
+==> Create child items
+OK: Created children: X=1cb49b78-aca0-4f15-abfd-9db671289433, Y=e6adced7-585b-4cda-b3fe-fd9716905c29, Z=b888cd57-aef1-4498-8a39-9b9603cf1e78
+
+==> Build BOM A (baseline)
+OK: BOM A created
+
+==> Build BOM B (changed + added)
+OK: BOM B created
+
+==> Create substitute for CHILD_X in BOM B
+OK: Substitute added: 8cc692c6-4cf6-4963-9b83-9e207d9b6d9c
+
+==> Compare BOM
+BOM Compare: OK
+
+==> Compare BOM (compare_mode=only_product)
+BOM Compare only_product: OK
+
+==> Compare BOM (compare_mode=num_qty)
+BOM Compare num_qty: OK
+
+==> Compare BOM (compare_mode=summarized)
+BOM Compare summarized: OK
+
+==============================================
+BOM Compare Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: BOM Compare
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: BOM Compare Field Contract
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_bom_compare_fields.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+BOM Compare Field Contract Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Fetch BOM compare schema
+BOM compare schema: OK
+OK: Schema verified
+
+==> Create Parts
+OK: Created Parts: left=b15619b8-14ce-4ed5-a32b-deb7bad8e6c2 right=0c0df3d9-d455-4b17-8256-606b7a706a83 child=02db3ed3-c22e-4875-aa10-5e8ea0a0bcc7 sub=2d45acd7-b0e0-4705-9a2b-791a75d2005c
+
+==> Add BOM lines
+OK: Added BOM lines: left_rel=16b86731-7002-45af-a011-aa288204bc26 right_rel=9a9d936a-2f66-4892-b1a2-ae3d5e5cc565
+
+==> Add substitute to left BOM line
+OK: Added substitute: 160a3dc1-98e8-4dbf-86d7-82b9d3607093
+
+==> Compare BOMs
+BOM compare field contract: OK
+
+==============================================
+BOM Compare Field Contract Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: BOM Compare Field Contract
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Where-Used Line Schema
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_where_used_schema.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Where-Used Line Schema Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Fetch where-used line schema
+Where-used schema: OK
+OK: Schema verified
+ALL CHECKS PASSED
+PASS: Where-Used Line Schema
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Baseline
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_baseline.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Baseline Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create parent + children
+OK: Created parent=6beac5d5-0595-4695-9d53-47980cd4fd40 children=347bee6d-3236-4cfa-afdf-a27fe52543db,e24d619b-f766-4744-9c73-07ce9df73bff
+
+==> Build BOM (A -> B, C)
+OK: BOM created
+
+==> Create baseline
+Baseline snapshot validated
+OK: Baseline created: 6c14ba16-0218-411e-a4b9-8a17d5903697
+
+==> Compare baseline vs current (expect no diffs)
+No diff as expected
+OK: Baseline compare (no diff)
+
+==> Modify BOM (change qty + add new child)
+OK: BOM updated
+
+==> Compare baseline vs current (expect added + changed)
+Diff validated
+OK: Baseline compare (diff)
+
+==> Create new baseline and compare baseline-to-baseline
+Baseline-to-baseline diff validated
+OK: Baseline2 compare
+
+==============================================
+Baseline Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Baseline
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Baseline Filters
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_baseline_filters.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Baseline Filters Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+OK: Seeded identity + meta
+OK: Admin login
+OK: Created Part
+OK: Created baseline
+OK: Type/scope/state filters
+OK: Effective date range filters
+==============================================
+Baseline Filters Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Baseline Filters
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: BOM Substitutes
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_substitutes.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+BOM Substitutes Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create parent/child/substitute items
+OK: Created parent=2a8a787c-db60-40b2-b70c-9d62573e5046 child=4d9b236e-f296-4a1a-98e5-358b7bc61f8d substitutes=e6cb07c8-d5cf-4ca7-a674-7a1905c0a0e1,fa622ff5-c3c4-4aab-b1f6-6da22effbfbc
+
+==> Create BOM line (parent -> child)
+OK: Created BOM line: 9ba4c61c-2cf0-4be5-a6fd-809f999fad35
+
+==> Add substitute 1
+OK: Added substitute 1: ca9e0209-e090-4a35-93e8-e305d1bf4bd4
+
+==> List substitutes (expect 1)
+OK: List count=1
+
+==> Add substitute 2
+OK: Added substitute 2: 19de0210-24e4-4052-bc76-b11c02ac580e
+
+==> Duplicate add (should 400)
+OK: Duplicate add blocked (400)
+
+==> Remove substitute 1
+OK: Removed substitute 1
+
+==> List substitutes (expect 1 remaining)
+OK: List count=1 after delete
+
+==============================================
+BOM Substitutes Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: BOM Substitutes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: MBOM Convert
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_mbom_convert.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+MBOM Conversion Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create EBOM parts
+OK: Created EBOM root=3b4f8a1b-82f7-4612-830c-fc1876c38e8c child=907e208c-b503-47e5-8127-7cdaa2de32a1 substitute=13537cbf-ef5b-4c37-9ecd-3a382555e9a6
+
+==> Create EBOM BOM line
+OK: EBOM BOM line: 15b26329-11b3-4a77-afd7-6ac834d9f3ac
+
+==> Add substitute to EBOM BOM line
+OK: EBOM substitute relation: fc8e37b3-6fea-4119-9be9-bb9e13304223
+
+==> Convert EBOM -> MBOM
+OK: MBOM root: 6c28ee28-ca19-48dc-81ca-a9d9a7c11584
+
+==> Validate MBOM root via AML
+OK: MBOM root AML verified
+
+==> Validate MBOM tree endpoint
+OK: MBOM tree endpoint verified
+
+==> Validate MBOM structure in DB
+MBOM structure: OK
+OK: MBOM structure verified
+
+==============================================
+MBOM Conversion Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: MBOM Convert
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Item Equivalents
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_equivalents.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Equivalent Parts Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Create test parts
+OK: Created parts A=81979525-d75b-4b86-859c-34dfaa157b58 B=df74a1e4-757f-41c3-89ec-ef36740110da C=6b7758c6-dc56-41a5-bef9-84b21132c603
+
+==> Add equivalent A <-> B
+OK: Added equivalent A-B: 44e2d82b-dccf-4af0-b472-96cb275890c6
+
+==> Add equivalent A <-> C
+OK: Added equivalent A-C: 2b036304-322e-483d-993f-9a8559fc37cb
+
+==> List equivalents for A (expect 2)
+OK: List A count=2 with B,C
+
+==> List equivalents for B (expect 1: A)
+OK: List B count=1 with A
+
+==> Duplicate add (B -> A, expect 400)
+OK: Duplicate add blocked (400)
+
+==> Self add (A -> A, expect 400)
+OK: Self-equivalence blocked (400)
+
+==> Remove equivalent A-B
+OK: Removed equivalent A-B
+
+==> List equivalents for B (expect 0)
+OK: List B count=0
+
+==> List equivalents for A (expect 1)
+OK: List A count=1
+
+==============================================
+Equivalent Parts Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Item Equivalents
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Running: Version-File Binding
+Script: /Users/huazhou/Downloads/Github/Yuantus/scripts/verify_version_files.sh
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+==============================================
+Version-File Binding Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity/meta
+OK: Seeded identity/meta
+
+==> Login as admin
+OK: Admin login
+
+==> Login as viewer
+OK: Viewer login
+
+==> Create Part item
+OK: Created Part: 99c5bc62-d36c-42d5-a6af-0888f47c90e5
+
+==> Init version
+OK: Init version: 0924ba84-e193-4691-b406-86f88b30a364
+
+==> Upload file
+OK: Uploaded file: 5f3a30e0-ded2-419f-9f66-6ad58722e160
+
+==> Attach file to version without checkout should be blocked (409)
+OK: Attach to version blocked without checkout
+
+==> Attach file to item (native_cad)
+OK: File attached to item
+
+==> Checkout version (lock files)
+OK: Checked out version
+
+==> Attach file to version (owner)
+OK: Attached file to version
+
+==> Viewer attach should be blocked (409)
+OK: Attach blocked for non-owner
+
+==> Checkin version (sync files)
+OK: Checked in version
+
+==> Verify version files
+Version files synced: OK
+
+==============================================
+Version-File Binding Verification Complete
+==============================================
+ALL CHECKS PASSED
+PASS: Version-File Binding
+
+==============================================
+REGRESSION TEST SUMMARY
+==============================================
+
+Test Suite                Result
+------------------------- ------
+Ops Health                PASS
+Run H (Core APIs)         PASS
+S2 (Documents & Files)    PASS
+Document Lifecycle        PASS
+Part Lifecycle            PASS
+Lifecycle Suspended       PASS
+S1 (Meta + RBAC)          PASS
+S7 (Quotas)               PASS
+S3.1 (BOM Tree)           PASS
+S3.2 (BOM Effectivity)    PASS
+Effectivity Extended      PASS
+BOM Obsolete              PASS
+BOM Weight Rollup         PASS
+S12 (Config Variants)     SKIP
+S3.3 (Versions)           PASS
+S4 (ECO Advanced)         PASS
+S5-A (CAD Pipeline S3)    PASS
+S5-B (CAD 2D Connectors)  PASS
+S5-B (CAD 2D Real Connectors) SKIP
+S5-B (CAD 2D Connector Coverage) SKIP
+S5-C (CAD Attribute Sync) PASS
+S5-B (CAD Connectors Config) PASS
+S5-C (CAD Sync Template)  PASS
+S5-C (CAD Auto Part)      SKIP
+S5-C (CAD Extractor Stub) SKIP
+S5-C (CAD Extractor External) SKIP
+S5-C (CAD Extractor Service) SKIP
+CAD Real Samples          SKIP
+Search Index              PASS
+Search Reindex            PASS
+Search ECO                PASS
+Reports Summary           PASS
+Audit Logs                SKIP
+S8 (Ops Monitoring)       SKIP
+S7 (Multi-Tenancy)        SKIP
+S7 (Tenant Provisioning)  SKIP
+Where-Used API            PASS
+UI Product Detail         PASS
+UI Product Summary        PASS
+UI Where-Used             PASS
+UI BOM                    PASS
+UI Docs Approval          PASS
+UI Docs ECO Summary       PASS
+BOM Compare               PASS
+Baseline                  PASS
+Baseline Filters          PASS
+BOM Substitutes           PASS
+MBOM Convert              PASS
+Item Equivalents          PASS
+Version-File Binding      PASS
+
+----------------------------------------------
+PASS: 45  FAIL: 0  SKIP: 13
+----------------------------------------------
+
+ALL TESTS PASSED

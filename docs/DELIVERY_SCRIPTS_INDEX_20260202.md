@@ -20,3 +20,5 @@
 - verify_run_h.sh
 - verify_effectivity_extended.sh
 - verify_lifecycle_suspended.sh
+- verify_bom_obsolete.sh
+- verify_bom_weight_rollup.sh

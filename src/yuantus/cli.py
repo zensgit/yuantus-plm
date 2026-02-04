@@ -373,6 +373,7 @@ def seed_meta(
             ),
             Property(name="cost", label="Cost", data_type="float"),
             Property(name="weight", label="Weight", data_type="float"),
+            Property(name="weight_rollup", label="Weight Rollup", data_type="float"),
         ]
         existing_prop_names = {p.name for p in (part.properties or [])}
         for prop in props:
