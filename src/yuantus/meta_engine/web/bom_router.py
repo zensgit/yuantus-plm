@@ -102,6 +102,9 @@ async def get_effective_bom(
     item_id: str,
     date: Optional[datetime] = None,
     levels: int = Query(10, description="Explosion depth"),
+    lot_number: Optional[str] = Query(None, description="Lot number for effectivity"),
+    serial_number: Optional[str] = Query(None, description="Serial number for effectivity"),
+    unit_position: Optional[str] = Query(None, description="Unit position for effectivity"),
     config: Optional[str] = Query(None, description="Configuration selection JSON"),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -143,6 +146,9 @@ async def get_effective_bom(
             levels=levels,
             effective_date=date,
             config_selection=config_selection,
+            lot_number=lot_number,
+            serial_number=serial_number,
+            unit_position=unit_position,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -234,6 +240,9 @@ async def get_bom_tree(
     parent_id: str,
     depth: int = Query(10, description="Maximum depth to traverse (-1 for unlimited)"),
     effective_date: Optional[datetime] = Query(None, description="Effectivity filter date"),
+    lot_number: Optional[str] = Query(None, description="Lot number for effectivity"),
+    serial_number: Optional[str] = Query(None, description="Serial number for effectivity"),
+    unit_position: Optional[str] = Query(None, description="Unit position for effectivity"),
     config: Optional[str] = Query(None, description="Configuration selection JSON"),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -278,6 +287,9 @@ async def get_bom_tree(
             depth=depth,
             effective_date=effective_date,
             config_selection=config_selection,
+            lot_number=lot_number,
+            serial_number=serial_number,
+            unit_position=unit_position,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

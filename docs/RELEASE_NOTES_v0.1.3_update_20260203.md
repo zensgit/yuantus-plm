@@ -4,6 +4,8 @@
 
 - Baseline effective-date lookup endpoint for released baselines.
 - Baseline list API now supports filtering by type/scope/state/effective date.
+- Added Effectivity API for Lot/Serial and BOM effective filtering by lot/serial.
+- Added Suspended lifecycle state with suspend/resume transitions for Part/Document.
 - E-sign signing reason update/deactivate support and meaning filter.
 - Advanced search filter operators: startswith, endswith, not_contains.
 - Delivery API examples refreshed to cover new endpoints and filters.

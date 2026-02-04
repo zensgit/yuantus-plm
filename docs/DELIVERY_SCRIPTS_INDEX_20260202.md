@@ -18,3 +18,5 @@
 - verify_permissions.sh
 - verify_product_detail.sh
 - verify_run_h.sh
+- verify_effectivity_extended.sh
+- verify_lifecycle_suspended.sh

@@ -74,6 +74,29 @@ curl -s \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+## 4.2) Effectivity (Lot/Serial)
+
+```bash
+# Create lot-based effectivity for a BOM relationship item
+curl -s -X POST \
+  "http://127.0.0.1:7910/api/v1/effectivities" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"item_id":"{relationship_id}","effectivity_type":"Lot","payload":{"lot_start":"L010","lot_end":"L020"}}'
+
+# Create serial-based effectivity
+curl -s -X POST \
+  "http://127.0.0.1:7910/api/v1/effectivities" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"item_id":"{relationship_id}","effectivity_type":"Serial","payload":{"serials":["SN-1","SN-2"]}}'
+
+# Query BOM with lot/serial filtering
+curl -s \
+  "http://127.0.0.1:7910/api/v1/bom/{parent_id}/effective?lot_number=L015&serial_number=SN-1&levels=1" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ## 5) E-sign Audit Logs
 
 ```bash

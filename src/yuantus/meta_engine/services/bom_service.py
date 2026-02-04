@@ -5,7 +5,7 @@ import re
 from decimal import Decimal, InvalidOperation
 from sqlalchemy.orm import Session
 from yuantus.meta_engine.models.item import Item
-from .effectivity_service import EffectivityService
+from .effectivity_service import EffectivityService, EffectivityContext
 
 
 class BOMService:
@@ -182,6 +182,9 @@ class BOMService:
         include_substitutes: bool = False,
         relationship_types: Optional[List[str]] = None,
         config_selection: Optional[Dict[str, Any]] = None,
+        lot_number: Optional[str] = None,
+        serial_number: Optional[str] = None,
+        unit_position: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Return hierarchical BOM structure.
@@ -199,6 +202,30 @@ class BOMService:
             include_substitutes=include_substitutes,
             relationship_types=relationship_types,
             config_selection=config_selection,
+            lot_number=lot_number,
+            serial_number=serial_number,
+            unit_position=unit_position,
+        )
+
+    @staticmethod
+    def _build_effectivity_context(
+        effective_date: Optional[datetime],
+        lot_number: Optional[str],
+        serial_number: Optional[str],
+        unit_position: Optional[str],
+    ) -> Optional[EffectivityContext]:
+        if (
+            effective_date is None
+            and lot_number is None
+            and serial_number is None
+            and unit_position is None
+        ):
+            return None
+        return EffectivityContext(
+            reference_date=effective_date,
+            lot_number=lot_number,
+            serial_number=serial_number,
+            unit_position=unit_position,
         )
 
     def _build_tree(
@@ -210,6 +237,9 @@ class BOMService:
         include_substitutes: bool = False,
         relationship_types: Optional[List[str]] = None,
         config_selection: Optional[Dict[str, Any]] = None,
+        lot_number: Optional[str] = None,
+        serial_number: Optional[str] = None,
+        unit_position: Optional[str] = None,
     ) -> Dict[str, Any]:
         node = parent_item.to_dict()
         node["children"] = []
@@ -244,10 +274,11 @@ class BOMService:
                 ):
                     continue
 
-            # Check Effectivity (on the Relationship Item)
-            if effective_date:
-                # If relationship is not effective at this date, skip
-                if not self.eff_service.check_date_effectivity(rel.id, effective_date):
+            eff_ctx = self._build_effectivity_context(
+                effective_date, lot_number, serial_number, unit_position
+            )
+            if eff_ctx:
+                if not self.eff_service.check_effectivity(rel.id, eff_ctx):
                     continue
 
             child_item = self.session.get(Item, rel.related_id)
@@ -268,6 +299,9 @@ class BOMService:
                     include_substitutes=include_substitutes,
                     relationship_types=relationship_types,
                     config_selection=config_selection,
+                    lot_number=lot_number,
+                    serial_number=serial_number,
+                    unit_position=unit_position,
                 ),
             }
 
@@ -731,6 +765,9 @@ class BOMService:
         effective_date: Optional[datetime] = None,
         relationship_types: Optional[List[str]] = None,
         config_selection: Optional[Dict[str, Any]] = None,
+        lot_number: Optional[str] = None,
+        serial_number: Optional[str] = None,
+        unit_position: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Get BOM tree structure with specified depth.
@@ -752,6 +789,9 @@ class BOMService:
             effective_date=effective_date,
             relationship_types=relationship_types,
             config_selection=config_selection,
+            lot_number=lot_number,
+            serial_number=serial_number,
+            unit_position=unit_position,
         )
 
     def compare_bom_trees(

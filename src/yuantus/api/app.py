@@ -23,6 +23,7 @@ from yuantus.meta_engine.web.cad_router import router as cad_router
 from yuantus.meta_engine.web.dedup_router import dedup_router
 from yuantus.meta_engine.web.eco_router import eco_router
 from yuantus.meta_engine.web.equivalent_router import equivalent_router
+from yuantus.meta_engine.web.effectivity_router import effectivity_router
 from yuantus.meta_engine.web.file_router import file_router
 from yuantus.meta_engine.web.esign_router import esign_router
 from yuantus.meta_engine.web.permission_router import permission_router
@@ -70,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(search_router, prefix="/api/v1")
     app.include_router(bom_router, prefix="/api/v1")
     app.include_router(equivalent_router, prefix="/api/v1")
+    app.include_router(effectivity_router, prefix="/api/v1")
     app.include_router(baseline_router, prefix="/api/v1")
     app.include_router(config_router, prefix="/api/v1")
     app.include_router(dedup_router, prefix="/api/v1")

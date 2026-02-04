@@ -525,6 +525,12 @@ def seed_meta(
             is_released=True,
             version_lock=True,
         )
+        doc_suspended_state = ensure_state(
+            document_lifecycle,
+            "Suspended",
+            35,
+            version_lock=True,
+        )
         doc_obsolete_state = ensure_state(
             document_lifecycle,
             "Obsolete",
@@ -560,6 +566,27 @@ def seed_meta(
             "obsolete",
             admin_role_id,
         )
+        ensure_transition(
+            document_lifecycle,
+            doc_released_state,
+            doc_suspended_state,
+            "suspend",
+            admin_role_id,
+        )
+        ensure_transition(
+            document_lifecycle,
+            doc_suspended_state,
+            doc_released_state,
+            "resume",
+            admin_role_id,
+        )
+        ensure_transition(
+            document_lifecycle,
+            doc_suspended_state,
+            doc_obsolete_state,
+            "obsolete",
+            admin_role_id,
+        )
 
         if not document.lifecycle_map_id:
             document.lifecycle_map_id = document_lifecycle.id
@@ -574,6 +601,12 @@ def seed_meta(
             "Released",
             30,
             is_released=True,
+            version_lock=True,
+        )
+        part_suspended_state = ensure_state(
+            part_lifecycle,
+            "Suspended",
+            35,
             version_lock=True,
         )
         part_obsolete_state = ensure_state(
@@ -607,6 +640,27 @@ def seed_meta(
         ensure_transition(
             part_lifecycle,
             part_released_state,
+            part_obsolete_state,
+            "obsolete",
+            admin_role_id,
+        )
+        ensure_transition(
+            part_lifecycle,
+            part_released_state,
+            part_suspended_state,
+            "suspend",
+            admin_role_id,
+        )
+        ensure_transition(
+            part_lifecycle,
+            part_suspended_state,
+            part_released_state,
+            "resume",
+            admin_role_id,
+        )
+        ensure_transition(
+            part_lifecycle,
+            part_suspended_state,
             part_obsolete_state,
             "obsolete",
             admin_role_id,

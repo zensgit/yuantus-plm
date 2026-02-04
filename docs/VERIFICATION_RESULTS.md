@@ -15885,3 +15885,21 @@ PASS: MBOM + routing + time/cost
 - 结果：`PASS`（PASS: 50 / FAIL: 0 / SKIP: 4）
 - 说明：跳过 Config Variants（`RUN_CONFIG_VARIANTS=0`），Audit Logs / Ops Monitoring 因 `audit_enabled=false` 跳过。
 - 日志：`/tmp/verify_all_full_20260204_0813.log`（归档：`docs/verification-logs/20260204/verify_all_full_20260204_0813.log`）
+
+## Run PYTEST-EFFECTIVITY-20260204-1554
+
+- 时间：`2026-02-04 15:54:11 +0800`
+- 命令：`./.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_effectivity.py`
+- 结果：`PASS`（5 passed）
+
+## Run EFFECTIVITY-EXTENDED-20260204-1554
+
+- 时间：`2026-02-04 15:54:11 +0800`
+- 命令：`bash scripts/verify_effectivity_extended.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`
+
+## Run LIFECYCLE-SUSPENDED-20260204-1554
+
+- 时间：`2026-02-04 15:54:11 +0800`
+- 命令：`bash scripts/verify_lifecycle_suspended.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`

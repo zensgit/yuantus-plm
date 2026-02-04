@@ -452,6 +452,13 @@ run_test "Part Lifecycle" \
   "$SCRIPT_DIR/verify_part_lifecycle.sh" \
   "$BASE_URL" "$TENANT" "$ORG" || true
 
+# 2.7 Lifecycle Suspended
+if [[ -x "$SCRIPT_DIR/verify_lifecycle_suspended.sh" ]]; then
+  run_test "Lifecycle Suspended" \
+    "$SCRIPT_DIR/verify_lifecycle_suspended.sh" \
+    "$BASE_URL" "$TENANT" "$ORG" || true
+fi
+
 # 3. S1 - Meta Schema + RBAC
 run_test "S1 (Meta + RBAC)" \
   "$SCRIPT_DIR/verify_permissions.sh" \
@@ -471,6 +478,13 @@ run_test "S3.1 (BOM Tree)" \
 run_test "S3.2 (BOM Effectivity)" \
   "$SCRIPT_DIR/verify_bom_effectivity.sh" \
   "$BASE_URL" "$TENANT" "$ORG" || true
+
+# 6.0 Effectivity Extended (Lot/Serial)
+if [[ -x "$SCRIPT_DIR/verify_effectivity_extended.sh" ]]; then
+  run_test "Effectivity Extended" \
+    "$SCRIPT_DIR/verify_effectivity_extended.sh" \
+    "$BASE_URL" "$TENANT" "$ORG" || true
+fi
 
 # 6.1 S12 - Configuration/Variant BOM (optional)
 if [[ -x "$SCRIPT_DIR/verify_config_variants.sh" ]]; then
@@ -915,7 +929,7 @@ echo ""
 printf "%-25s %s\n" "Test Suite" "Result"
 printf "%-25s %s\n" "-------------------------" "------"
 
-for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "S12 (Config Variants)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "UI Product Detail" "UI Product Summary" "UI Where-Used" "UI BOM" "UI Docs Approval" "UI Docs ECO Summary" "BOM Compare" "Baseline" "Baseline Filters" "BOM Substitutes" "MBOM Convert" "Item Equivalents" "Version-File Binding"; do
+for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "Lifecycle Suspended" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "Effectivity Extended" "S12 (Config Variants)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "UI Product Detail" "UI Product Summary" "UI Where-Used" "UI BOM" "UI Docs Approval" "UI Docs ECO Summary" "BOM Compare" "Baseline" "Baseline Filters" "BOM Substitutes" "MBOM Convert" "Item Equivalents" "Version-File Binding"; do
   result="${RESULTS[$name]:-N/A}"
   case "$result" in
     PASS) printf "%-25s ${GREEN}%s${NC}\n" "$name" "$result" ;;

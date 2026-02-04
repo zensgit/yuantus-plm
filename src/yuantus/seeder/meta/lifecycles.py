@@ -12,7 +12,7 @@ class LifecycleSeeder(BaseSeeder):
         lc_map = self._ensure_lifecycle(
             id="lc_part_std",
             name="Standard Part Lifecycle",
-            description="Default lifecycle for parts: Draft -> Review -> Released -> Obsolete"
+            description="Default lifecycle for parts: Draft -> Review -> Released -> Suspended -> Obsolete"
         )
 
         # 2. States
@@ -20,11 +20,15 @@ class LifecycleSeeder(BaseSeeder):
         s_draft = self._ensure_state(lc_map, "draft", "Draft", is_start=True, seq=10)
         s_review = self._ensure_state(lc_map, "review", "In Review", lock=True, seq=20)
         s_released = self._ensure_state(lc_map, "released", "Released", is_released=True, lock=True, seq=30)
+        s_suspended = self._ensure_state(lc_map, "suspended", "Suspended", lock=True, seq=35)
         s_obsolete = self._ensure_state(lc_map, "obsolete", "Obsolete", is_end=True, lock=True, seq=40)
 
         # 3. Transitions
         self._ensure_transition(lc_map, s_draft, s_review, "submit")
         self._ensure_transition(lc_map, s_review, s_released, "approve")
+        self._ensure_transition(lc_map, s_released, s_suspended, "suspend")
+        self._ensure_transition(lc_map, s_suspended, s_released, "resume")
+        self._ensure_transition(lc_map, s_suspended, s_obsolete, "obsolete")
         self._ensure_transition(lc_map, s_released, s_obsolete, "obsolete")
 
     def _ensure_lifecycle(self, id: str, name: str, description: str):
