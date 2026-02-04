@@ -7,6 +7,7 @@
 - Added product detail optional summaries for BOM obsolete and weight rollup.
 - Added verification scripts and Playwright API tests for BOM obsolete + weight rollup.
 - Added unit/API negative tests for BOM obsolete + weight rollup paths.
+- Extended product UI aggregation verification and added Playwright coverage for summary fields.
 
 ## Verification
 
