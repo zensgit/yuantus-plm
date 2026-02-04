@@ -69,6 +69,11 @@ CAD_ML_API_PORT=18000 CAD_ML_API_METRICS_PORT=19090 CAD_ML_REDIS_PORT=16379 \
   scripts/run_cad_ml_docker.sh
 ```
 
+### 健康检查
+```bash
+scripts/check_cad_ml_docker.sh
+```
+
 ### 停止
 ```bash
 scripts/stop_cad_ml_docker.sh
