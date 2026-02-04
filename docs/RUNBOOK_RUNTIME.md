@@ -106,3 +106,9 @@ Notes:
 ```bash
 docker compose -p yuantusplm down
 ```
+
+## Repo cache cleanup (optional)
+
+```bash
+bash scripts/cleanup_repo_caches.sh
+```
