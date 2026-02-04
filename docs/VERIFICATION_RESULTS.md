@@ -15877,3 +15877,11 @@ PASS: MBOM + routing + time/cost
 - 命令：`./scripts/verify_baseline_filters.sh http://127.0.0.1:7910 tenant-1 org-1`
 - 结果：`PASS`
 - 说明：基线列表过滤（类型/范围/状态/生效日期）脚本验证。
+
+## Run FULL-REGRESSION-20260204-0813
+
+- 时间：`2026-02-04 08:15:22 +0800`
+- 命令：`RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 scripts/run_full_regression.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_full_20260204_0813.log`
+- 结果：`PASS`（PASS: 50 / FAIL: 0 / SKIP: 4）
+- 说明：跳过 Config Variants（`RUN_CONFIG_VARIANTS=0`），Audit Logs / Ops Monitoring 因 `audit_enabled=false` 跳过。
+- 日志：`/tmp/verify_all_full_20260204_0813.log`
