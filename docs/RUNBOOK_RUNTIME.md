@@ -112,3 +112,32 @@ docker compose -p yuantusplm down
 ```bash
 bash scripts/cleanup_repo_caches.sh
 ```
+
+## Ops FAQ
+
+### Q: cad-ml 端口冲突怎么办？
+默认脚本使用 `18000/19090/16379`。可在启动前覆盖端口：
+
+```bash
+CAD_ML_API_PORT=18010 CAD_ML_API_METRICS_PORT=19091 CAD_ML_REDIS_PORT=16380 \
+  scripts/run_cad_ml_docker.sh
+```
+
+排查占用：
+
+```bash
+lsof -nP -iTCP:18000 -sTCP:LISTEN
+```
+
+### Q: docker compose 提示 “Found orphan containers”？
+这是旧 compose 项目遗留容器。可在停止时清理：
+
+```bash
+CAD_ML_REMOVE_ORPHANS=1 scripts/stop_cad_ml_docker.sh
+```
+
+或手动执行：
+
+```bash
+docker compose -f /path/to/compose.yml down --remove-orphans
+```

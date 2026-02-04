@@ -2,6 +2,11 @@ name: regression
 
 on:
   workflow_dispatch:
+    inputs:
+      run_cad_ml:
+        description: "Start cad-ml docker for regression"
+        required: false
+        default: "false"
   schedule:
     - cron: "0 2 * * *"
   push:
@@ -70,6 +75,24 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
+
+      - name: Configure cad-ml docker (optional)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_cad_ml == 'true'
+        run: |
+          {
+            echo "RUN_CAD_ML_DOCKER=1"
+            echo "CAD_ML_REPO=${{ github.workspace }}/cad-ml-platform"
+            echo "CAD_ML_API_PORT=18000"
+            echo "CAD_ML_API_METRICS_PORT=19090"
+            echo "CAD_ML_REDIS_PORT=16379"
+          } >> "$GITHUB_ENV"
+
+      - name: Checkout cad-ml-platform (optional)
+        if: env.RUN_CAD_ML_DOCKER == '1'
+        uses: actions/checkout@v4
+        with:
+          repository: zensgit/cad-ml-platform
+          path: cad-ml-platform
 
       - name: Install CLI
         run: |

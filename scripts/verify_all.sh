@@ -94,6 +94,31 @@ load_dotenv() {
 
 load_dotenv
 
+# Optional: start cad-ml Docker for verification runs.
+CAD_ML_DOCKER_STARTED=0
+cleanup_cad_ml_docker() {
+  if [[ "${CAD_ML_DOCKER_STARTED:-0}" == "1" ]]; then
+    echo ""
+    echo "==> Stop cad-ml docker"
+    scripts/stop_cad_ml_docker.sh || true
+  fi
+}
+trap cleanup_cad_ml_docker EXIT
+
+if [[ "${RUN_CAD_ML_DOCKER:-0}" == "1" ]]; then
+  if [[ ! -x scripts/run_cad_ml_docker.sh || ! -x scripts/check_cad_ml_docker.sh ]]; then
+    echo "ERROR: cad-ml docker helpers not found (scripts/run_cad_ml_docker.sh)" >&2
+    exit 2
+  fi
+  export CAD_ML_API_PORT="${CAD_ML_API_PORT:-18000}"
+  export CAD_ML_BASE_URL="${CAD_ML_BASE_URL:-http://127.0.0.1:${CAD_ML_API_PORT}}"
+  export YUANTUS_CAD_ML_BASE_URL="${YUANTUS_CAD_ML_BASE_URL:-${CAD_ML_BASE_URL}}"
+  echo "==> Start cad-ml docker (RUN_CAD_ML_DOCKER=1)"
+  scripts/run_cad_ml_docker.sh
+  scripts/check_cad_ml_docker.sh
+  CAD_ML_DOCKER_STARTED=1
+fi
+
 # Export for child scripts
 export CLI PY
 export MIGRATE_TENANT_DB
