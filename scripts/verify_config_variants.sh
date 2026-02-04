@@ -21,6 +21,8 @@ if [[ ! -x "$PY" ]]; then
 fi
 
 TS="$(date +%s)"
+COLOR_NAME="Color-${TS}"
+VOLT_NAME="Voltage-${TS}"
 
 fail() {
   echo "FAIL: $1" >&2
@@ -45,7 +47,7 @@ COLOR_SET_ID="$(
     -H 'content-type: application/json' \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
-    -d '{"name":"Color","label":"Color"}' \
+    -d '{"name":"'"$COLOR_NAME"'","label":"'"$COLOR_NAME"'"}' \
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["id"])'
 )"
 VOLT_SET_ID="$(
@@ -53,7 +55,7 @@ VOLT_SET_ID="$(
     -H 'content-type: application/json' \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
-    -d '{"name":"Voltage","label":"Voltage"}' \
+    -d '{"name":"'"$VOLT_NAME"'","label":"'"$VOLT_NAME"'"}' \
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["id"])'
 )"
 
@@ -150,14 +152,14 @@ curl -s -X POST "$BASE/api/v1/bom/$PARENT_ID/children" \
   -H 'content-type: application/json' \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
-  -d '{"child_id":"'$CHILD1_ID'","quantity":1,"uom":"EA","config_condition":{"option":"Color","value":"Red"}}' \
+  -d '{"child_id":"'$CHILD1_ID'","quantity":1,"uom":"EA","config_condition":{"option":"'"$COLOR_NAME"'","value":"Red"}}' \
   >/dev/null
 
 curl -s -X POST "$BASE/api/v1/bom/$PARENT_ID/children" \
   -H 'content-type: application/json' \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
-  -d '{"child_id":"'$CHILD2_ID'","quantity":1,"uom":"EA","config_condition":{"option":"Voltage","op":"gte","value":200}}' \
+  -d '{"child_id":"'$CHILD2_ID'","quantity":1,"uom":"EA","config_condition":{"option":"'"$VOLT_NAME"'","op":"gte","value":200}}' \
   >/dev/null
 
 curl -s -X POST "$BASE/api/v1/bom/$PARENT_ID/children" \
@@ -171,7 +173,7 @@ curl -s -X POST "$BASE/api/v1/bom/$PARENT_ID/children" \
   -H 'content-type: application/json' \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
-  -d '{"child_id":"'$CHILD4_ID'","quantity":1,"uom":"EA","config_condition":{"option":"Color","op":"ne","value":"Blue"}}' \
+  -d '{"child_id":"'$CHILD4_ID'","quantity":1,"uom":"EA","config_condition":{"option":"'"$COLOR_NAME"'","op":"ne","value":"Blue"}}' \
   >/dev/null
 
 curl -s -X POST "$BASE/api/v1/bom/$PARENT_ID/children" \
@@ -192,27 +194,40 @@ curl -s -X POST "$BASE/api/v1/bom/$PARENT_ID/children" \
   -H 'content-type: application/json' \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" \
-  -d '{"child_id":"'$CHILD7_ID'","quantity":1,"uom":"EA","config_condition":"Voltage>=200;Color=Red"}' \
+  -d '{"child_id":"'$CHILD7_ID'","quantity":1,"uom":"EA","config_condition":"'"$VOLT_NAME"'>=200;'"$COLOR_NAME"'=Red"}' \
   >/dev/null
 
-CONFIG_OK="$($PY - <<'PY'
+CONFIG_OK="$(
+  COLOR_NAME="$COLOR_NAME" VOLT_NAME="$VOLT_NAME" "$PY" - <<'PY'
 import json,urllib.parse
-print(urllib.parse.quote(json.dumps({"Color":"Red","Voltage":"220","Features":["Cooling","Fast"]})))
+import os
+color = os.environ["COLOR_NAME"]
+volt = os.environ["VOLT_NAME"]
+print(urllib.parse.quote(json.dumps({color:"Red", volt:"220", "Features":["Cooling","Fast"]})))
 PY
 )"
-CONFIG_BAD="$($PY - <<'PY'
+CONFIG_BAD="$(
+  COLOR_NAME="$COLOR_NAME" VOLT_NAME="$VOLT_NAME" "$PY" - <<'PY'
 import json,urllib.parse
-print(urllib.parse.quote(json.dumps({"Color":"Blue","Voltage":"110","Features":["Fast"],"Region":"US"})))
+import os
+color = os.environ["COLOR_NAME"]
+volt = os.environ["VOLT_NAME"]
+print(urllib.parse.quote(json.dumps({color:"Blue", volt:"110", "Features":["Fast"], "Region":"US"})))
 PY
 )"
-CONFIG_REGION="$($PY - <<'PY'
+CONFIG_REGION="$(
+  "$PY" - <<'PY'
 import json,urllib.parse
 print(urllib.parse.quote(json.dumps({"Region":"US"})))
 PY
 )"
-CONFIG_BLUE="$($PY - <<'PY'
+CONFIG_BLUE="$(
+  COLOR_NAME="$COLOR_NAME" VOLT_NAME="$VOLT_NAME" "$PY" - <<'PY'
 import json,urllib.parse
-print(urllib.parse.quote(json.dumps({"Color":"Blue","Voltage":"110","Features":["Fast"]})))
+import os
+color = os.environ["COLOR_NAME"]
+volt = os.environ["VOLT_NAME"]
+print(urllib.parse.quote(json.dumps({color:"Blue", volt:"110", "Features":["Fast"]})))
 PY
 )"
 
