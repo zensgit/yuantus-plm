@@ -50,6 +50,17 @@ CAD_ML_API_PORT=18000 CAD_ML_API_METRICS_PORT=19090 \
 curl -sS http://127.0.0.1:18000/api/v1/health
 ```
 
+### 一键启动验证 (2026-02-05)
+
+```bash
+CAD_ML_API_PORT=18000 CAD_ML_API_METRICS_PORT=19090 CAD_ML_REDIS_PORT=16379 \
+  scripts/run_cad_ml_docker.sh
+
+curl -sS http://127.0.0.1:18000/api/v1/health
+```
+
+结果：`HTTP 200`（status=healthy，redis/ml/api=up）
+
 ## 一键脚本（cad-ml Docker）
 
 ### 启动
