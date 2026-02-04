@@ -15991,3 +15991,11 @@ PASS: MBOM + routing + time/cost
 - 命令：`RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1`
 - 结果：`PASS`（PASS: 46 / FAIL: 0 / SKIP: 13）
 - 说明：本地 `yuantus start` 启动服务执行回归；`RUN_CONFIG_VARIANTS=0`，`audit_enabled=false`；CAD ML/real connectors 等未开启项按脚本跳过。
+
+## Run VERIFY-ALL-20260204-2306
+
+- 时间：`2026-02-04 23:06:49 +0800`
+- 命令：`RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 RUN_CONFIG_VARIANTS=1 CAD_ML_BASE_URL=http://127.0.0.1:8001 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`（PASS: 49 / FAIL: 0 / SKIP: 10）
+- 说明：本地启用 `YUANTUS_AUDIT_ENABLED=true`；配置项 `RUN_CONFIG_VARIANTS=1` 生效；CAD ML 通过本地 `cad-ml` stub（`http://127.0.0.1:8001`）提供 health/vision/render/ocr 接口以完成 2D 预览与 OCR 验证。
+- 日志：`/tmp/verify_all_20260204-230504.log`（归档：`docs/verification-logs/20260204/verify_all_20260204_2305.log`）
