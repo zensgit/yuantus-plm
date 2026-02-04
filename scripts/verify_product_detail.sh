@@ -73,6 +73,49 @@ if [[ -z "$ITEM_ID" ]]; then
 fi
 ok "Created Part: $ITEM_ID"
 
+printf "\n==> Create BOM children (obsolete + weight)\n"
+CHILD_OBS_ID="$(
+  $CURL -X POST "$API/aml/apply" "${HEADERS[@]}" "${ADMIN_AUTH[@]}" \
+    -H 'content-type: application/json' \
+    -d "{\"type\":\"Part\",\"action\":\"add\",\"properties\":{\"item_number\":\"PD-OBS-$TS\",\"name\":\"Obsolete Child $TS\",\"weight\":\"1.5\",\"obsolete\":true}}" \
+    | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("id",""))'
+)"
+if [[ -z "$CHILD_OBS_ID" ]]; then
+  fail "Failed to create obsolete child"
+fi
+CHILD_OK_ID="$(
+  $CURL -X POST "$API/aml/apply" "${HEADERS[@]}" "${ADMIN_AUTH[@]}" \
+    -H 'content-type: application/json' \
+    -d "{\"type\":\"Part\",\"action\":\"add\",\"properties\":{\"item_number\":\"PD-OK-$TS\",\"name\":\"Active Child $TS\",\"weight\":\"2.0\"}}" \
+    | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("id",""))'
+)"
+if [[ -z "$CHILD_OK_ID" ]]; then
+  fail "Failed to create active child"
+fi
+
+REL_OBS_RESP="$(
+  $CURL -X POST "$API/bom/$ITEM_ID/children" "${HEADERS[@]}" "${ADMIN_AUTH[@]}" \
+    -H 'content-type: application/json' \
+    -d "{\"child_id\":\"$CHILD_OBS_ID\",\"quantity\":2,\"uom\":\"EA\"}"
+)"
+REL_OBS_ID="$(echo "$REL_OBS_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("relationship_id",""))')"
+if [[ -z "$REL_OBS_ID" ]]; then
+  echo "Response: $REL_OBS_RESP"
+  fail "Failed to add obsolete child to BOM"
+fi
+
+REL_OK_RESP="$(
+  $CURL -X POST "$API/bom/$ITEM_ID/children" "${HEADERS[@]}" "${ADMIN_AUTH[@]}" \
+    -H 'content-type: application/json' \
+    -d "{\"child_id\":\"$CHILD_OK_ID\",\"quantity\":3,\"uom\":\"EA\"}"
+)"
+REL_OK_ID="$(echo "$REL_OK_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("relationship_id",""))')"
+if [[ -z "$REL_OK_ID" ]]; then
+  echo "Response: $REL_OK_RESP"
+  fail "Failed to add active child to BOM"
+fi
+ok "BOM children created"
+
 printf "\n==> Init version\n"
 VER_RESP="$(
   $CURL -X POST "$API/versions/items/$ITEM_ID/init" "${HEADERS[@]}" "${ADMIN_AUTH[@]}"
@@ -198,6 +241,43 @@ if entry.get("version") != entry.get("document_version"):
     raise SystemExit("file version alias mismatch")
 
 print("Product detail mapping: OK")
+PY
+
+printf "\n==> Fetch product detail (obsolete + rollup summaries)\n"
+EXT_DETAIL_RESP="$(
+  $CURL "$API/products/$ITEM_ID?include_bom_obsolete_summary=true&include_bom_weight_rollup=true&bom_weight_levels=1" \
+    "${HEADERS[@]}" "${ADMIN_AUTH[@]}"
+)"
+
+EXT_DETAIL_JSON="$EXT_DETAIL_RESP" CHILD_OBS_ID="$CHILD_OBS_ID" "$PY" - <<'PY'
+import json
+import math
+import os
+
+data = json.loads(os.environ["EXT_DETAIL_JSON"])
+obs = data.get("bom_obsolete_summary") or {}
+rollup = data.get("bom_weight_rollup_summary") or {}
+
+if obs.get("authorized") is not True:
+    raise SystemExit("bom_obsolete_summary not authorized")
+if obs.get("count") != 1:
+    raise SystemExit(f"expected obsolete count 1, got {obs.get('count')}")
+sample = obs.get("sample") or []
+if not sample:
+    raise SystemExit("missing obsolete sample")
+child_id = os.environ["CHILD_OBS_ID"]
+if not any(entry.get("child_id") == child_id for entry in sample):
+    raise SystemExit("obsolete child id not found in sample")
+
+if rollup.get("authorized") is not True:
+    raise SystemExit("bom_weight_rollup_summary not authorized")
+total_weight = rollup.get("total_weight")
+if total_weight is None or not math.isclose(float(total_weight), 9.0, rel_tol=1e-6):
+    raise SystemExit(f"unexpected total_weight: {total_weight}")
+if rollup.get("missing_count") not in (0, None) and rollup.get("missing_count") != 0:
+    raise SystemExit(f"unexpected missing_count: {rollup.get('missing_count')}")
+
+print("Product detail summaries: OK")
 PY
 
 printf "\n==============================================\n"

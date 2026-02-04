@@ -15944,3 +15944,10 @@ PASS: MBOM + routing + time/cost
 - 时间：`2026-02-04 17:38:33 +0800`
 - 命令：`./.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_bom_obsolete_service.py src/yuantus/meta_engine/tests/test_bom_rollup_service.py src/yuantus/meta_engine/tests/test_bom_obsolete_rollup_router.py`
 - 结果：`PASS`（8 passed, 18 warnings）
+
+## Run PRODUCT-DETAIL-EXT-20260204-1940
+
+- 时间：`2026-02-04 19:40:14 +0800`
+- 命令：`bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`
+- 说明：新增 BOM obsolete + weight rollup summaries 校验。
