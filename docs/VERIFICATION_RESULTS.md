@@ -15984,3 +15984,10 @@ PASS: MBOM + routing + time/cost
 - 命令：`bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1`
 - 结果：`PASS`
 - 说明：本地 `yuantus start` 启动服务后完成产品详情（含 BOM obsolete + weight rollup summaries）校验。
+
+## Run VERIFY-ALL-20260204-2220
+
+- 时间：`2026-02-04 22:20:53 +0800`
+- 命令：`RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`（PASS: 46 / FAIL: 0 / SKIP: 13）
+- 说明：本地 `yuantus start` 启动服务执行回归；`RUN_CONFIG_VARIANTS=0`，`audit_enabled=false`；CAD ML/real connectors 等未开启项按脚本跳过。
