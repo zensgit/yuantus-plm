@@ -4,7 +4,9 @@
 
 - Added obsolete BOM scan + resolve (update/new_bom) endpoints.
 - Added BOM weight rollup with optional write-back to `properties.weight_rollup`.
+- Added product detail optional summaries for BOM obsolete and weight rollup.
 - Added verification scripts and Playwright API tests for BOM obsolete + weight rollup.
+- Added unit/API negative tests for BOM obsolete + weight rollup paths.
 
 ## Verification
 

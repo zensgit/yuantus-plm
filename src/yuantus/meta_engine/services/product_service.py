@@ -12,6 +12,8 @@ from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.schemas.aml import AMLAction
 from yuantus.meta_engine.services.eco_service import ECOApprovalService
+from yuantus.meta_engine.services.bom_obsolete_service import BOMObsoleteService
+from yuantus.meta_engine.services.bom_rollup_service import BOMRollupService
 from yuantus.meta_engine.services.bom_service import BOMService
 from yuantus.meta_engine.services.meta_permission_service import MetaPermissionService
 from yuantus.meta_engine.version.models import ItemVersion
@@ -37,8 +39,15 @@ class ProductDetailService:
         include_files: bool = True,
         include_version_files: bool = False,
         include_bom_summary: bool = False,
+        include_bom_obsolete_summary: bool = False,
+        bom_obsolete_recursive: bool = True,
+        bom_obsolete_levels: int = 10,
         bom_summary_depth: int = 1,
         bom_effective_at: Optional[str] = None,
+        include_bom_weight_rollup: bool = False,
+        bom_weight_levels: int = 3,
+        bom_weight_effective_at: Optional[str] = None,
+        bom_weight_rounding: Optional[int] = 3,
         include_where_used_summary: bool = False,
         where_used_recursive: bool = False,
         where_used_max_levels: int = 5,
@@ -78,7 +87,12 @@ class ProductDetailService:
         if include_version_files and current_version:
             payload["version_files"] = self._get_version_files(current_version)
 
-        if include_bom_summary or include_where_used_summary:
+        if (
+            include_bom_summary
+            or include_where_used_summary
+            or include_bom_obsolete_summary
+            or include_bom_weight_rollup
+        ):
             bom_allowed = self.permission_service.check_permission(
                 "Part BOM",
                 AMLAction.get,
@@ -94,6 +108,15 @@ class ProductDetailService:
                     )
                 else:
                     payload["bom_summary"] = {"authorized": False}
+            if include_bom_obsolete_summary:
+                if bom_allowed:
+                    payload["bom_obsolete_summary"] = self._get_bom_obsolete_summary(
+                        item.id,
+                        recursive=bom_obsolete_recursive,
+                        max_levels=bom_obsolete_levels,
+                    )
+                else:
+                    payload["bom_obsolete_summary"] = {"authorized": False}
             if include_where_used_summary:
                 if bom_allowed:
                     payload["where_used_summary"] = self._get_where_used_summary(
@@ -103,6 +126,18 @@ class ProductDetailService:
                     )
                 else:
                     payload["where_used_summary"] = {"authorized": False}
+            if include_bom_weight_rollup:
+                if bom_allowed:
+                    payload["bom_weight_rollup_summary"] = (
+                        self._get_bom_weight_rollup_summary(
+                            item.id,
+                            levels=bom_weight_levels,
+                            effective_at=bom_weight_effective_at,
+                            rounding=bom_weight_rounding,
+                        )
+                    )
+                else:
+                    payload["bom_weight_rollup_summary"] = {"authorized": False}
 
         if include_document_summary:
             doc_allowed = self.permission_service.check_permission(
@@ -398,6 +433,69 @@ class ProductDetailService:
             "max_levels": max_levels,
             "sample": sample,
         }
+
+    def _get_bom_obsolete_summary(
+        self,
+        item_id: str,
+        *,
+        recursive: bool,
+        max_levels: int,
+    ) -> Dict[str, Any]:
+        service = BOMObsoleteService(self.session)
+        scan = service.scan(
+            item_id,
+            recursive=recursive,
+            max_levels=max_levels,
+            relationship_types=None,
+        )
+        entries = scan.get("entries") or []
+        sample: List[Dict[str, Any]] = []
+        for entry in entries[:5]:
+            sample.append(
+                {
+                    "relationship_id": entry.get("relationship_id"),
+                    "parent_id": entry.get("parent_id"),
+                    "child_id": entry.get("child_id"),
+                    "replacement_id": entry.get("replacement_id"),
+                    "reasons": entry.get("reasons") or [],
+                }
+            )
+        return {
+            "authorized": True,
+            "count": scan.get("count", len(entries)),
+            "recursive": recursive,
+            "max_levels": max_levels,
+            "sample": sample,
+        }
+
+    def _get_bom_weight_rollup_summary(
+        self,
+        item_id: str,
+        *,
+        levels: int,
+        effective_at: Optional[str],
+        rounding: Optional[int],
+    ) -> Dict[str, Any]:
+        service = BOMRollupService(self.session)
+        effective_date = None
+        if effective_at:
+            try:
+                from datetime import datetime
+
+                effective_date = datetime.fromisoformat(effective_at)
+            except ValueError:
+                effective_date = None
+        result = service.compute_weight_rollup(
+            item_id,
+            levels=levels,
+            effective_date=effective_date,
+            rounding=rounding,
+        )
+        summary = dict(result.get("summary") or {})
+        summary["authorized"] = True
+        summary["levels"] = levels
+        summary["effective_at"] = effective_at
+        return summary
 
     def _get_document_summary(self, item_id: str) -> Dict[str, Any]:
         rel_types = (

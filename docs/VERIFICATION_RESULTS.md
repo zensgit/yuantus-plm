@@ -15930,3 +15930,17 @@ PASS: MBOM + routing + time/cost
 - 结果：`PASS`（PASS: 45 / FAIL: 0 / SKIP: 13）
 - 说明：`RUN_CONFIG_VARIANTS=0`，`audit_enabled=false`；`tenancy_mode=single`，`RUN_TENANT_PROVISIONING=0`；CAD Extractor/Real Samples/Connector Coverage 未启用。
 - 日志：`/tmp/verify_all_20260204_1716.log`（归档：`docs/verification-logs/20260204/verify_all_20260204_1716.log`）
+
+## Run VERIFY-ALL-20260204-1727
+
+- 时间：`2026-02-04 17:28:39 +0800`
+- 命令：`RUN_UI_AGG=1 RUN_OPS_S8=1 MIGRATE_TENANT_DB=1 RUN_CONFIG_VARIANTS=1 ./scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1 | tee /tmp/verify_all_20260204_1727.log`
+- 结果：`PASS`（PASS: 48 / FAIL: 0 / SKIP: 10）
+- 说明：`RUN_CONFIG_VARIANTS=1`，`audit_enabled=true`；`tenancy_mode=single`，`RUN_TENANT_PROVISIONING=0`；CAD Extractor/Real Samples/Connector Coverage 未启用。
+- 日志：`/tmp/verify_all_20260204_1727.log`（归档：`docs/verification-logs/20260204/verify_all_20260204_1727.log`）
+
+## Run PYTEST-BOM-OBSOLETE-WEIGHT-20260204-1738
+
+- 时间：`2026-02-04 17:38:33 +0800`
+- 命令：`./.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_bom_obsolete_service.py src/yuantus/meta_engine/tests/test_bom_rollup_service.py src/yuantus/meta_engine/tests/test_bom_obsolete_rollup_router.py`
+- 结果：`PASS`（8 passed, 18 warnings）

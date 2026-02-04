@@ -14,6 +14,7 @@
 - verify_backup_rotation.sh
 - verify_cleanup_restore.sh
 - verify_extract_start.sh
+- verify_all.sh
 - verify_package.sh
 - verify_permissions.sh
 - verify_product_detail.sh
@@ -22,3 +23,8 @@
 - verify_lifecycle_suspended.sh
 - verify_bom_obsolete.sh
 - verify_bom_weight_rollup.sh
+
+## Notes
+
+- `verify_all.sh` supports `RUN_CONFIG_VARIANTS=1`, `RUN_OPS_S8=1`, and `MIGRATE_TENANT_DB=1`.
+- Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.

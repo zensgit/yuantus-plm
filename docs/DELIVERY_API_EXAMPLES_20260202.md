@@ -120,6 +120,11 @@ curl -s -X POST \
   -d '{"mode":"new_bom","recursive":true,"levels":10}'
 ```
 
+Notes:
+- Add `"dry_run": true` to preview the plan without applying changes.
+- Use `relationship_types` to limit scan/resolve to `Part BOM` or `Manufacturing BOM`.
+- `new_bom` creates new BOM lines and marks old lines `is_current=false` so you can revert by reactivating old lines if needed.
+
 ## 4.4) BOM Weight Rollup
 
 ```bash
@@ -136,6 +141,20 @@ curl -s -X POST \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"levels":3,"write_back":true,"write_back_field":"weight_rollup","write_back_mode":"missing","rounding":3}'
+```
+
+Notes:
+- `write_back_mode=missing` only writes when `weight` is missing; use `overwrite` to always write.
+- `write_back_field` defaults to `weight_rollup`.
+- Locked lifecycle states are skipped and reported as `skipped_locked` in the updates list.
+
+## 4.5) Product Detail BOM Summary Extensions
+
+```bash
+# Fetch product detail with obsolete + rollup summaries
+curl -s \
+  "http://127.0.0.1:7910/api/v1/products/{item_id}?include_bom_obsolete_summary=true&include_bom_weight_rollup=true&bom_weight_levels=3" \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 ## 5) E-sign Audit Logs
