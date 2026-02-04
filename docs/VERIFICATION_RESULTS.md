@@ -15977,3 +15977,10 @@ PASS: MBOM + routing + time/cost
 - 命令：`./.venv/bin/python -m pytest -q src/yuantus/meta_engine/tests/test_product_detail_service.py`
 - 结果：`PASS`（2 passed）
 - 说明：覆盖 `/products/{id}` 的 BOM obsolete + weight rollup summaries 聚合分支与权限拒绝分支。
+
+## Run PRODUCT-DETAIL-EXT-20260204-2215
+
+- 时间：`2026-02-04 22:15:34 +0800`
+- 命令：`bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`
+- 说明：本地 `yuantus start` 启动服务后完成产品详情（含 BOM obsolete + weight rollup summaries）校验。
