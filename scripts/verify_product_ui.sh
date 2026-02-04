@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # Product UI Aggregation Verification
-# Verifies BOM summary + where-used summary on product detail endpoint.
+# Verifies BOM summary + where-used + obsolete + weight rollup summaries on product detail endpoint.
 # =============================================================================
 set -euo pipefail
 
@@ -66,14 +66,14 @@ if not token:
 
 auth_headers = {**headers, "Authorization": f"Bearer {token}"}
 
-def create_part(item_number: str, name: str) -> str:
+def create_part(item_number: str, name: str, extra: dict | None = None) -> str:
     resp = client.post(
         "/api/v1/aml/apply",
         headers=auth_headers,
         json={
             "type": "Part",
             "action": "add",
-            "properties": {"item_number": item_number, "name": name},
+            "properties": {"item_number": item_number, "name": name, **(extra or {})},
         },
     )
     resp.raise_for_status()
@@ -83,7 +83,14 @@ def create_part(item_number: str, name: str) -> str:
     return item_id
 
 parent_id = create_part(f"PROD-UI-P-{ts}", f"Product UI Parent {ts}")
-child_id = create_part(f"PROD-UI-C-{ts}", f"Product UI Child {ts}")
+child_id = create_part(
+    f"PROD-UI-C-{ts}", f"Product UI Child {ts}", {"weight": "2.0"}
+)
+obs_child_id = create_part(
+    f"PROD-UI-OBS-{ts}",
+    f"Product UI Obsolete {ts}",
+    {"weight": "1.5", "obsolete": True},
+)
 
 resp = client.post(
     f"/api/v1/bom/{parent_id}/children",
@@ -95,6 +102,13 @@ rel_id = resp.json().get("relationship_id")
 if not rel_id:
     raise SystemExit("Failed to add BOM child")
 
+resp = client.post(
+    f"/api/v1/bom/{parent_id}/children",
+    headers=auth_headers,
+    json={"child_id": obs_child_id, "quantity": 2, "uom": "EA"},
+)
+resp.raise_for_status()
+
 parent_detail = client.get(
     f"/api/v1/products/{parent_id}",
     headers=auth_headers,
@@ -104,6 +118,9 @@ parent_detail = client.get(
         "include_bom_summary": "true",
         "bom_summary_depth": "2",
         "include_where_used_summary": "true",
+        "include_bom_obsolete_summary": "true",
+        "include_bom_weight_rollup": "true",
+        "bom_weight_levels": "1",
     },
 )
 parent_detail.raise_for_status()
@@ -147,6 +164,24 @@ if not sample:
 sample_parent = sample[0]
 if sample_parent.get("id") != parent_id:
     raise SystemExit("where-used sample parent mismatch")
+
+obs_summary = parent.get("bom_obsolete_summary") or {}
+if obs_summary.get("authorized") is False:
+    raise SystemExit("missing bom_obsolete_summary")
+if obs_summary.get("count", 0) < 1:
+    raise SystemExit("expected obsolete count >= 1")
+obs_sample = obs_summary.get("sample") or []
+if not obs_sample:
+    raise SystemExit("missing obsolete sample")
+if not any(entry.get("child_id") == obs_child_id for entry in obs_sample):
+    raise SystemExit("obsolete sample missing child id")
+
+rollup = parent.get("bom_weight_rollup_summary") or {}
+if rollup.get("authorized") is False:
+    raise SystemExit("missing bom_weight_rollup_summary")
+total_weight = rollup.get("total_weight")
+if total_weight is None or abs(float(total_weight) - 5.0) > 1e-6:
+    raise SystemExit(f"unexpected total_weight: {total_weight}")
 
 print("ALL CHECKS PASSED")
 PY
@@ -192,19 +227,25 @@ CHILD_NUM="PROD-UI-C-$TS"
 create_part() {
   local num="$1"
   local name="$2"
+  local extra_props="${3:-}"
+  local props="\"item_number\":\"$num\",\"name\":\"$name\""
+  if [[ -n "$extra_props" ]]; then
+    props="$props,$extra_props"
+  fi
   $CURL -X POST "$API/aml/apply" "${HEADERS[@]}" "${ADMIN_AUTH[@]}" \
     -H 'content-type: application/json' \
-    -d "{\"type\":\"Part\",\"action\":\"add\",\"properties\":{\"item_number\":\"$num\",\"name\":\"$name\"}}" \
+    -d "{\"type\":\"Part\",\"action\":\"add\",\"properties\":{$props}}" \
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("id",""))'
 }
 
 printf "\n==> Create Parts\n"
 PARENT_ID="$(create_part "$PARENT_NUM" "Product UI Parent $TS")"
-CHILD_ID="$(create_part "$CHILD_NUM" "Product UI Child $TS")"
-if [[ -z "$PARENT_ID" || -z "$CHILD_ID" ]]; then
+CHILD_ID="$(create_part "$CHILD_NUM" "Product UI Child $TS" "\"weight\":\"2.0\"")"
+OBS_CHILD_ID="$(create_part "PROD-UI-OBS-$TS" "Product UI Obsolete $TS" "\"weight\":\"1.5\",\"obsolete\":true")"
+if [[ -z "$PARENT_ID" || -z "$CHILD_ID" || -z "$OBS_CHILD_ID" ]]; then
   fail "Failed to create parts"
 fi
-ok "Created Parts: parent=$PARENT_ID child=$CHILD_ID"
+ok "Created Parts: parent=$PARENT_ID child=$CHILD_ID obsolete_child=$OBS_CHILD_ID"
 
 printf "\n==> Add BOM child\n"
 REL_RESP="$(
@@ -219,9 +260,22 @@ if [[ -z "$REL_ID" ]]; then
 fi
 ok "Added BOM line: $REL_ID"
 
+printf "\n==> Add BOM obsolete child\n"
+REL_OBS_RESP="$(
+  $CURL -X POST "$API/bom/$PARENT_ID/children" "${HEADERS[@]}" "${ADMIN_AUTH[@]}" \
+    -H 'content-type: application/json' \
+    -d "{\"child_id\":\"$OBS_CHILD_ID\",\"quantity\":2,\"uom\":\"EA\"}"
+)"
+REL_OBS_ID="$(echo "$REL_OBS_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("relationship_id",""))')"
+if [[ -z "$REL_OBS_ID" ]]; then
+  echo "Response: $REL_OBS_RESP"
+  fail "Failed to add obsolete BOM child"
+fi
+ok "Added obsolete BOM line: $REL_OBS_ID"
+
 printf "\n==> Fetch parent product detail with BOM summary\n"
 PARENT_DETAIL="$(
-  $CURL "$API/products/$PARENT_ID?include_versions=false&include_files=false&include_bom_summary=true&bom_summary_depth=2&include_where_used_summary=true" \
+  $CURL "$API/products/$PARENT_ID?include_versions=false&include_files=false&include_bom_summary=true&bom_summary_depth=2&include_where_used_summary=true&include_bom_obsolete_summary=true&include_bom_weight_rollup=true&bom_weight_levels=1" \
     "${HEADERS[@]}" "${ADMIN_AUTH[@]}"
 )"
 
@@ -231,13 +285,15 @@ CHILD_DETAIL="$(
     "${HEADERS[@]}" "${ADMIN_AUTH[@]}"
 )"
 
-PARENT_JSON="$PARENT_DETAIL" CHILD_JSON="$CHILD_DETAIL" PARENT_ID="$PARENT_ID" "$PY" - <<'PY'
+PARENT_JSON="$PARENT_DETAIL" CHILD_JSON="$CHILD_DETAIL" PARENT_ID="$PARENT_ID" OBS_CHILD_ID="$OBS_CHILD_ID" "$PY" - <<'PY'
 import os
 import json
+import math
 
 parent = json.loads(os.environ["PARENT_JSON"])
 child = json.loads(os.environ["CHILD_JSON"])
 parent_id = os.environ["PARENT_ID"]
+obs_child_id = os.environ["OBS_CHILD_ID"]
 
 bom_summary = parent.get("bom_summary") or {}
 if not bom_summary or bom_summary.get("authorized") is False:
@@ -261,6 +317,24 @@ if not sample:
 sample_parent = sample[0]
 if sample_parent.get("id") != parent_id:
     raise SystemExit("where-used sample parent mismatch")
+
+obs_summary = parent.get("bom_obsolete_summary") or {}
+if obs_summary.get("authorized") is False:
+    raise SystemExit("missing bom_obsolete_summary")
+if obs_summary.get("count", 0) < 1:
+    raise SystemExit("expected obsolete count >= 1")
+obs_sample = obs_summary.get("sample") or []
+if not obs_sample:
+    raise SystemExit("missing obsolete sample")
+if not any(entry.get("child_id") == obs_child_id for entry in obs_sample):
+    raise SystemExit("obsolete sample missing child id")
+
+rollup = parent.get("bom_weight_rollup_summary") or {}
+if rollup.get("authorized") is False:
+    raise SystemExit("missing bom_weight_rollup_summary")
+total_weight = rollup.get("total_weight")
+if total_weight is None or not math.isclose(float(total_weight), 5.0, rel_tol=1e-6):
+    raise SystemExit(f"unexpected total_weight: {total_weight}")
 
 print("Product UI aggregation: OK")
 PY

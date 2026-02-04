@@ -15951,3 +15951,16 @@ PASS: MBOM + routing + time/cost
 - 命令：`bash scripts/verify_product_detail.sh http://127.0.0.1:7910 tenant-1 org-1`
 - 结果：`PASS`
 - 说明：新增 BOM obsolete + weight rollup summaries 校验。
+
+## Run PRODUCT-UI-EXT-20260204-2008
+
+- 时间：`2026-02-04 20:08:17 +0800`
+- 命令：`bash scripts/verify_product_ui.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`
+- 说明：产品 UI 聚合包含 BOM obsolete + weight rollup summaries 校验。
+
+## Run PLAYWRIGHT-PRODUCT-UI-SUMMARIES-20260204-2008
+
+- 时间：`2026-02-04 20:08:17 +0800`
+- 命令：`npx playwright test playwright/tests/product_ui_summaries.spec.js`
+- 结果：`PASS`（1 passed）
