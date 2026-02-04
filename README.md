@@ -41,6 +41,19 @@ Run API + Worker + Postgres + MinIO via docker compose:
 docker compose up --build
 ```
 
+## CAD ML Docker helpers
+
+Use the one-click scripts to start/stop cad-ml-platform (default ports 18000/19090/16379):
+
+```bash
+CAD_ML_API_PORT=18000 CAD_ML_API_METRICS_PORT=19090 CAD_ML_REDIS_PORT=16379 \
+  scripts/run_cad_ml_docker.sh
+
+scripts/check_cad_ml_docker.sh
+
+scripts/stop_cad_ml_docker.sh
+```
+
 ## Auth (dev)
 
 Default is `YUANTUS_AUTH_MODE=optional` (backward compatible).
