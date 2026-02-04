@@ -157,6 +157,40 @@ curl -s \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+Optional query params:
+- `bom_obsolete_recursive=true|false`
+- `bom_obsolete_levels=10` (use `-1` for unlimited)
+- `bom_weight_effective_at=2026-01-01T00:00:00`
+- `bom_weight_rounding=3` (set to `null` to skip rounding)
+
+Sample response fields:
+```json
+{
+  "bom_obsolete_summary": {
+    "authorized": true,
+    "count": 2,
+    "recursive": true,
+    "max_levels": 10,
+    "sample": [
+      {
+        "relationship_id": "...",
+        "parent_id": "...",
+        "child_id": "...",
+        "replacement_id": "...",
+        "reasons": ["obsolete"]
+      }
+    ]
+  },
+  "bom_weight_rollup_summary": {
+    "authorized": true,
+    "levels": 3,
+    "effective_at": "",
+    "total_weight": 12.5,
+    "unit": "kg"
+  }
+}
+```
+
 ## 5) E-sign Audit Logs
 
 ```bash

@@ -17,6 +17,13 @@ GET /api/v1/products/{item_id}
 - `include_bom_summary` (default: false)
 - `bom_summary_depth` (default: 1)
 - `bom_effective_at` (ISO datetime, optional)
+- `include_bom_obsolete_summary` (default: false)
+- `bom_obsolete_recursive` (default: true)
+- `bom_obsolete_levels` (default: 10, -1 for unlimited)
+- `include_bom_weight_rollup` (default: false)
+- `bom_weight_levels` (default: 3)
+- `bom_weight_effective_at` (ISO datetime, optional)
+- `bom_weight_rounding` (default: 3, set to null to skip rounding)
 - `include_where_used_summary` (default: false)
 - `where_used_recursive` (default: false)
 - `where_used_max_levels` (default: 5)
@@ -33,6 +40,8 @@ GET /api/v1/products/{item_id}
   "files": [ ... ],
   "version_files": [ ... ],
   "bom_summary": { ... },
+  "bom_obsolete_summary": { ... },
+  "bom_weight_rollup_summary": { ... },
   "where_used_summary": { ... },
   "document_summary": { ... },
   "eco_summary": { ... }
@@ -160,6 +169,44 @@ from legacy PLM systems. The aliases above ensure stable mapping without extra t
   "sample": [
     {"id":"...","item_number":"...","name":"...","level":1}
   ]
+}
+```
+
+### `bom_obsolete_summary`
+
+```json
+{
+  "authorized": true,
+  "count": 2,
+  "recursive": true,
+  "max_levels": 10,
+  "sample": [
+    {
+      "relationship_id": "...",
+      "parent_id": "...",
+      "child_id": "...",
+      "replacement_id": "...",
+      "reasons": ["obsolete", "revision_conflict"]
+    }
+  ]
+}
+```
+
+### `bom_weight_rollup_summary`
+
+```json
+{
+  "authorized": true,
+  "levels": 3,
+  "effective_at": "",
+  "total_weight": 12.5,
+  "unit": "kg",
+  "root": {
+    "id": "...",
+    "name": "...",
+    "weight": 12.5,
+    "children": []
+  }
 }
 ```
 

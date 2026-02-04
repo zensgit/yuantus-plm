@@ -15970,3 +15970,10 @@ PASS: MBOM + routing + time/cost
 - 时间：`2026-02-04 20:21:39 +0800`
 - 命令：`bash scripts/verify_playwright_product_ui_summaries.sh http://127.0.0.1:7910`
 - 结果：`PASS`（1 passed）
+
+## Run PYTEST-PRODUCT-DETAIL-SUMMARIES-20260204-2045
+
+- 时间：`2026-02-04 20:45:50 +0800`
+- 命令：`./.venv/bin/python -m pytest -q src/yuantus/meta_engine/tests/test_product_detail_service.py`
+- 结果：`PASS`（2 passed）
+- 说明：覆盖 `/products/{id}` 的 BOM obsolete + weight rollup summaries 聚合分支与权限拒绝分支。

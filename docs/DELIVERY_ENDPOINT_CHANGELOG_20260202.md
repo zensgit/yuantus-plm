@@ -27,6 +27,25 @@
   - Export comparison details in `csv` or `json`.
   - Query: `change_type`, `export_format`, `limit`, `offset`
 
+### BOM
+- `GET /api/v1/bom/{item_id}/obsolete`
+  - Scan BOM for obsolete relationships and replacements.
+  - Query: `recursive`, `max_levels`
+
+- `POST /api/v1/bom/{item_id}/obsolete/resolve`
+  - Resolve BOM obsolete replacements (preview or apply).
+  - Body: `{ apply, mode, relationship_types, candidates, replacement_properties, copy_properties }`
+
+- `POST /api/v1/bom/{item_id}/rollup/weight`
+  - Compute BOM weight rollup (optionally write back).
+  - Body: `{ levels, effective_at, rounding, write_back, write_back_field, dry_run }`
+
+### Product Detail
+- `GET /api/v1/products/{item_id}`
+  - Extended summary query options for BOM obsolete and weight rollup.
+  - Query: `include_bom_obsolete_summary`, `bom_obsolete_recursive`, `bom_obsolete_levels`,
+    `include_bom_weight_rollup`, `bom_weight_levels`, `bom_weight_effective_at`, `bom_weight_rounding`
+
 ### Electronic Signatures
 - `PATCH /api/v1/esign/reasons/{reason_id}`
   - Update signing reasons (including activate/deactivate).
