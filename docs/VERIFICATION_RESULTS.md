@@ -15964,3 +15964,9 @@ PASS: MBOM + routing + time/cost
 - 时间：`2026-02-04 20:08:17 +0800`
 - 命令：`npx playwright test playwright/tests/product_ui_summaries.spec.js`
 - 结果：`PASS`（1 passed）
+
+## Run PLAYWRIGHT-PRODUCT-UI-SUMMARIES-20260204-2021
+
+- 时间：`2026-02-04 20:21:39 +0800`
+- 命令：`bash scripts/verify_playwright_product_ui_summaries.sh http://127.0.0.1:7910`
+- 结果：`PASS`（1 passed）

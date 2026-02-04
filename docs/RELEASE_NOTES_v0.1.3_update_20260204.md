@@ -8,6 +8,7 @@
 - Added verification scripts and Playwright API tests for BOM obsolete + weight rollup.
 - Added unit/API negative tests for BOM obsolete + weight rollup paths.
 - Extended product UI aggregation verification and added Playwright coverage for summary fields.
+- Added optional UI Playwright summaries run to verify_all regression workflow.
 
 ## Verification
 

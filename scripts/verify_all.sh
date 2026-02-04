@@ -822,6 +822,18 @@ if [[ "${RUN_UI_AGG:-0}" == "1" ]]; then
       "$SCRIPT_DIR/verify_docs_eco_ui.sh" \
       "$BASE_URL" "$TENANT" "$ORG" || true
   fi
+
+  if [[ "${RUN_UI_PLAYWRIGHT:-0}" == "1" ]]; then
+    if command -v npx >/dev/null 2>&1 && [[ -x "$REPO_ROOT/node_modules/.bin/playwright" ]]; then
+      run_test "UI Playwright Summaries" \
+        "$SCRIPT_DIR/verify_playwright_product_ui_summaries.sh" \
+        "$BASE_URL" || true
+    else
+      skip_test "UI Playwright Summaries" "playwright not installed"
+    fi
+  else
+    skip_test "UI Playwright Summaries" "RUN_UI_PLAYWRIGHT=0"
+  fi
 else
   skip_test "UI Product Detail" "RUN_UI_AGG=0"
   skip_test "UI Product Summary" "RUN_UI_AGG=0"
@@ -829,6 +841,7 @@ else
   skip_test "UI BOM" "RUN_UI_AGG=0"
   skip_test "UI Docs Approval" "RUN_UI_AGG=0"
   skip_test "UI Docs ECO Summary" "RUN_UI_AGG=0"
+  skip_test "UI Playwright Summaries" "RUN_UI_AGG=0"
 fi
 
 # 17. BOM Compare (skip if endpoint not available)
