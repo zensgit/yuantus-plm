@@ -151,6 +151,19 @@ echo "CLI: $CLI"
 if [[ -n "$DB_URL" ]]; then
   echo "DB_URL: $DB_URL"
 fi
+if [[ -n "${RUN_CAD_ML_DOCKER:-}" || -n "${CAD_ML_BASE_URL:-}" || -n "${YUANTUS_CAD_ML_BASE_URL:-}" || -n "${CAD_PREVIEW_SAMPLE_FILE:-}" ]]; then
+  echo "CAD-ML:"
+  echo "  RUN_CAD_ML_DOCKER: ${RUN_CAD_ML_DOCKER:-0}"
+  if [[ -n "${CAD_ML_BASE_URL:-}" || -n "${YUANTUS_CAD_ML_BASE_URL:-}" ]]; then
+    echo "  CAD_ML_BASE_URL: ${CAD_ML_BASE_URL:-${YUANTUS_CAD_ML_BASE_URL:-}}"
+    echo "  YUANTUS_CAD_ML_BASE_URL: ${YUANTUS_CAD_ML_BASE_URL:-}"
+  fi
+  if [[ -n "${CAD_PREVIEW_SAMPLE_FILE:-}" ]]; then
+    echo "  CAD_PREVIEW_SAMPLE_FILE: ${CAD_PREVIEW_SAMPLE_FILE}"
+  fi
+  echo "  CAD_ML_HEALTH_RETRIES: ${CAD_ML_HEALTH_RETRIES:-10}"
+  echo "  CAD_ML_HEALTH_SLEEP_SECONDS: ${CAD_ML_HEALTH_SLEEP_SECONDS:-2}"
+fi
 echo "=============================================="
 echo ""
 

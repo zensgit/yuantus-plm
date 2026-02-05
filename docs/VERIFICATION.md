@@ -100,6 +100,7 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - ✅ `GET /api/v1/bom/{item_id}/where-used` + `GET /api/v1/bom/compare` + `POST /api/v1/bom/{bom_line_id}/substitutes`：BOM UI 关键接口
 - ✅ `scripts/verify_docs_approval.sh`：文档流程 + ECO 审批基础闭环
 - ✅ `scripts/verify_cad_connectors.sh`：GStarCAD/ZWCAD 等 2D 连接器验证
+- ✅ `scripts/verify_cad_ml_quick.sh`：CAD-ML quick regression (2D preview + OCR)
 - ✅ `scripts/verify_ops_hardening.sh`：多租户/配额/审计/健康/索引回归
 - ✅ 文档生命周期：Draft → Review → Released（Released 状态强制锁定更新与附件）
 - ✅ Part 生命周期：Draft → Review → Released（Released 状态锁定 BOM/更新/附件）
@@ -118,6 +119,24 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - ⚠️ `GET /api/v1/integrations/health`：聚合外部服务健康（外部服务未启动/缺少鉴权会显示失败，但接口本身稳定返回）
 
 ---
+
+## CAD-ML (optional)
+
+- `RUN_CAD_ML_DOCKER=1`: auto-start cad-ml docker (used by `scripts/verify_all.sh` and `scripts/verify_cad_ml_quick.sh`).
+- `CAD_ML_API_PORT`: default `18000`.
+- `CAD_ML_BASE_URL`: default `http://127.0.0.1:${CAD_ML_API_PORT}`.
+- `YUANTUS_CAD_ML_BASE_URL`: base URL propagated to app/worker.
+- `CAD_ML_HEALTH_RETRIES` / `CAD_ML_HEALTH_SLEEP_SECONDS`: health probe retries (see `scripts/check_cad_ml_docker.sh`).
+- `CAD_PREVIEW_SAMPLE_FILE`: DWG/DXF path required for 2D preview checks.
+
+### CAD-ML quick regression (2D preview + OCR)
+
+```bash
+export CAD_PREVIEW_SAMPLE_FILE=/path/to/sample.dwg
+RUN_CAD_ML_DOCKER=1 scripts/verify_cad_ml_quick.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+If cad-ml is already running externally, set `RUN_CAD_ML_DOCKER=0`.
 
 ## 1) Health
 
