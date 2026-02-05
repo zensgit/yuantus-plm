@@ -25,6 +25,11 @@
 - verify_lifecycle_suspended.sh
 - verify_bom_obsolete.sh
 - verify_bom_weight_rollup.sh
+- verify_cad_ml_quick.sh
+- verify_cad_ml_metrics.sh
+- verify_cad_ml_queue_smoke.sh
+- verify_playwright_cad_preview_ui.sh
+- collect_cad_ml_debug.sh
 
 ## Notes
 

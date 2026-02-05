@@ -136,6 +136,7 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - `CAD_ML_QUEUE_REPEAT`: number of preview jobs in queue smoke test (default `5`).
 - `CAD_ML_QUEUE_WORKER_RUNS`: worker runs during queue smoke test (default `6`).
 - `CAD_ML_QUEUE_REQUIRE_COMPLETE`: require all jobs to finish (default `1`).
+- `CAD_ML_QUEUE_MUTATE`: mutate sample file for unique jobs (auto|1|0; default `auto`).
 - `RUN_PLAYWRIGHT_CAD_PREVIEW`: enable Playwright browser preview test (default `0`).
 
 ### CAD-ML quick regression (2D preview + OCR)

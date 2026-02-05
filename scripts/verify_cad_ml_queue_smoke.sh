@@ -25,10 +25,13 @@ CAD_ML_BASE_URL="${CAD_ML_BASE_URL:-http://127.0.0.1:${CAD_ML_API_PORT}}"
 export CAD_ML_BASE_URL
 export YUANTUS_CAD_ML_BASE_URL="${YUANTUS_CAD_ML_BASE_URL:-${CAD_ML_BASE_URL}}"
 
+declare -a TMP_FILES=()
+
 CAD_ML_QUEUE_REPEAT="${CAD_ML_QUEUE_REPEAT:-5}"
 CAD_ML_QUEUE_WORKER_RUNS="${CAD_ML_QUEUE_WORKER_RUNS:-6}"
 CAD_ML_QUEUE_SLEEP_SECONDS="${CAD_ML_QUEUE_SLEEP_SECONDS:-2}"
 CAD_ML_QUEUE_REQUIRE_COMPLETE="${CAD_ML_QUEUE_REQUIRE_COMPLETE:-1}"
+CAD_ML_QUEUE_MUTATE="${CAD_ML_QUEUE_MUTATE:-auto}"
 
 DEFAULT_SAMPLE_FILE="${REPO_ROOT}/docs/samples/cad_ml_preview_sample.dxf"
 SAMPLE_FILE="${CAD_PREVIEW_SAMPLE_FILE:-$DEFAULT_SAMPLE_FILE}"
@@ -55,6 +58,11 @@ cleanup_cad_ml_docker() {
     echo ""
     echo "==> Stop cad-ml docker"
     "${REPO_ROOT}/scripts/stop_cad_ml_docker.sh" || true
+  fi
+  if [[ "${#TMP_FILES[@]}" -gt 0 ]]; then
+    for tmp_file in "${TMP_FILES[@]}"; do
+      rm -f "$tmp_file" || true
+    done
   fi
 }
 trap cleanup_cad_ml_docker EXIT
@@ -119,25 +127,43 @@ HEADERS=(-H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" -H "Authorization: Bearer
 echo ""
 echo "==> Enqueue cad_preview jobs"
 declare -a JOB_IDS=()
-declare -a TMP_FILES=()
+ext="${SAMPLE_FILE##*.}"
+ext="${ext,,}"
+can_mutate=0
+if [[ "$CAD_ML_QUEUE_MUTATE" == "1" ]]; then
+  can_mutate=1
+elif [[ "$CAD_ML_QUEUE_MUTATE" == "0" ]]; then
+  can_mutate=0
+else
+  if [[ "$ext" == "dxf" ]]; then
+    can_mutate=1
+  fi
+fi
+if [[ "$can_mutate" != "1" ]]; then
+  echo "WARN: Sample mutation disabled for .$ext; uploads may dedupe."
+fi
 for i in $(seq 1 "$CAD_ML_QUEUE_REPEAT"); do
-  tmp_file="$(mktemp -t yuantus_cad_ml_queue_XXXXXX.dxf)"
+  tmp_file="$(mktemp -t "yuantus_cad_ml_queue_XXXXXX.${ext:-dxf}")"
   TMP_FILES+=("$tmp_file")
-  awk -v tag="$i" '{
-    if ($0 == "EOF" && !done) {
-      print "999"
-      print "queue-smoke-" tag
-      done=1
-    }
-    print $0
-  } END {
-    if (!done) {
-      print "999"
-      print "queue-smoke-" tag
-      print "0"
-      print "EOF"
-    }
-  }' "$SAMPLE_FILE" > "$tmp_file"
+  if [[ "$can_mutate" == "1" ]]; then
+    awk -v tag="$i" '{
+      if ($0 == "EOF" && !done) {
+        print "999"
+        print "queue-smoke-" tag
+        done=1
+      }
+      print $0
+    } END {
+      if (!done) {
+        print "999"
+        print "queue-smoke-" tag
+        print "0"
+        print "EOF"
+      }
+    }' "$SAMPLE_FILE" > "$tmp_file"
+  else
+    cp "$SAMPLE_FILE" "$tmp_file"
+  fi
   IMPORT_RESP="$(
     $CURL -X POST "$API/cad/import" \
       "${HEADERS[@]}" \
@@ -230,7 +256,3 @@ if [[ "$CAD_ML_QUEUE_REQUIRE_COMPLETE" == "1" && ( "$pending" -gt 0 || "$process
 fi
 
 ok "Queue smoke passed"
-
-for tmp_file in "${TMP_FILES[@]}"; do
-  rm -f "$tmp_file" || true
-done
