@@ -39,6 +39,9 @@ CAD_ML_QUEUE_PREVIEW_MIN_WIDTH="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH:-1}"
 CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT:-1}"
 CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG:-}"
 CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG:-}"
+CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF:-}"
+CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF:-}"
+CAD_ML_QUEUE_STATS_CSV="${CAD_ML_QUEUE_STATS_CSV:-}"
 
 DEFAULT_SAMPLE_FILE="${REPO_ROOT}/docs/samples/cad_ml_preview_sample.dxf"
 SAMPLE_FILE="${CAD_PREVIEW_SAMPLE_FILE:-$DEFAULT_SAMPLE_FILE}"
@@ -78,6 +81,13 @@ fi
 if [[ "${#SAMPLE_FILES[@]}" -eq 0 ]]; then
   SAMPLE_FILES=("$SAMPLE_FILE")
 fi
+SAMPLE_LIST_STRING=""
+for sample in "${SAMPLE_FILES[@]}"; do
+  if [[ -n "$SAMPLE_LIST_STRING" ]]; then
+    SAMPLE_LIST_STRING+=","
+  fi
+  SAMPLE_LIST_STRING+="$sample"
+done
 
 CAD_ML_DOCKER_STARTED=0
 cleanup_cad_ml_docker() {
@@ -374,6 +384,117 @@ else:
     print("  avg_job_duration_seconds: n/a")
 PY
 
+if [[ -n "$CAD_ML_QUEUE_STATS_CSV" ]]; then
+  "$PY" - "$CAD_ML_QUEUE_STATS_CSV" "$JOB_JSON_TMP" "$QUEUE_START_TS" "$QUEUE_END_TS" \
+    "$QUEUE_ELAPSED" "$completed" "$failed" "$cancelled" "$pending" "$processing" \
+    "$CAD_ML_QUEUE_REPEAT" "$CAD_ML_QUEUE_WORKER_RUNS" "$CAD_ML_QUEUE_MUTATE" \
+    "$CAD_ML_QUEUE_CHECK_PREVIEW" "$CAD_ML_QUEUE_PREVIEW_MIN_BYTES" \
+    "$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH" "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT" \
+    "$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG" "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG" \
+    "$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF" "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF" \
+    "$SAMPLE_LIST_STRING" <<'PY'
+import csv
+import json
+import os
+import sys
+from datetime import datetime
+
+csv_path = sys.argv[1]
+job_json_path = sys.argv[2]
+queue_start_ts = int(sys.argv[3])
+queue_end_ts = int(sys.argv[4])
+elapsed = int(sys.argv[5])
+completed = int(sys.argv[6])
+failed = int(sys.argv[7])
+cancelled = int(sys.argv[8])
+pending = int(sys.argv[9])
+processing = int(sys.argv[10])
+repeat = int(sys.argv[11])
+worker_runs = int(sys.argv[12])
+mutate = sys.argv[13]
+check_preview = sys.argv[14]
+min_bytes = int(sys.argv[15])
+min_w = int(sys.argv[16])
+min_h = int(sys.argv[17])
+min_w_dwg = sys.argv[18]
+min_h_dwg = sys.argv[19]
+min_w_dxf = sys.argv[20]
+min_h_dxf = sys.argv[21]
+sample_list = sys.argv[22]
+
+durations = []
+try:
+    with open(job_json_path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            job = json.loads(line)
+            created_at = job.get("created_at")
+            completed_at = job.get("completed_at")
+            if not created_at or not completed_at:
+                continue
+            try:
+                created_dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                completed_dt = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+            except Exception:
+                continue
+            durations.append((completed_dt - created_dt).total_seconds())
+except FileNotFoundError:
+    pass
+
+avg_job_duration = sum(durations) / len(durations) if durations else ""
+min_job_duration = min(durations) if durations else ""
+max_job_duration = max(durations) if durations else ""
+
+avg_seconds_per_job = elapsed / completed if completed else ""
+throughput_jobs_per_min = (completed / (elapsed / 60)) if completed and elapsed else ""
+
+row = {
+    "timestamp_utc": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+    "queue_start_ts": queue_start_ts,
+    "queue_end_ts": queue_end_ts,
+    "elapsed_seconds": elapsed,
+    "completed": completed,
+    "failed": failed,
+    "cancelled": cancelled,
+    "pending": pending,
+    "processing": processing,
+    "avg_seconds_per_job": avg_seconds_per_job,
+    "throughput_jobs_per_min": throughput_jobs_per_min,
+    "avg_job_duration_seconds": avg_job_duration,
+    "min_job_duration_seconds": min_job_duration,
+    "max_job_duration_seconds": max_job_duration,
+    "repeat": repeat,
+    "worker_runs": worker_runs,
+    "mutate": mutate,
+    "check_preview": check_preview,
+    "preview_min_bytes": min_bytes,
+    "preview_min_width": min_w,
+    "preview_min_height": min_h,
+    "preview_min_width_dwg": min_w_dwg,
+    "preview_min_height_dwg": min_h_dwg,
+    "preview_min_width_dxf": min_w_dxf,
+    "preview_min_height_dxf": min_h_dxf,
+    "samples_count": len(sample_list.split(",")) if sample_list else 0,
+    "sample_list": sample_list,
+}
+
+fieldnames = list(row.keys())
+
+dir_name = os.path.dirname(csv_path)
+if dir_name:
+    os.makedirs(dir_name, exist_ok=True)
+
+write_header = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0
+with open(csv_path, "a", newline="", encoding="utf-8") as fh:
+    writer = csv.DictWriter(fh, fieldnames=fieldnames)
+    if write_header:
+        writer.writeheader()
+    writer.writerow(row)
+PY
+fi
+
 if [[ "$CAD_ML_QUEUE_CHECK_PREVIEW" == "1" ]]; then
   echo ""
   echo "==> Preview output checks"
@@ -388,6 +509,13 @@ if [[ "$CAD_ML_QUEUE_CHECK_PREVIEW" == "1" ]]; then
       fi
       if [[ -n "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG" ]]; then
         min_h="$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG"
+      fi
+    elif [[ "$ext" == "dxf" ]]; then
+      if [[ -n "$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF" ]]; then
+        min_w="$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF"
+      fi
+      if [[ -n "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF" ]]; then
+        min_h="$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF"
       fi
     fi
     job_json="$(
