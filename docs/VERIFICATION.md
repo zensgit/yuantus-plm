@@ -128,13 +128,18 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - `YUANTUS_CAD_ML_BASE_URL`: base URL propagated to app/worker.
 - `CAD_ML_HEALTH_RETRIES` / `CAD_ML_HEALTH_SLEEP_SECONDS`: health probe retries (see `scripts/check_cad_ml_docker.sh`).
 - `CAD_ML_VISION_HEALTH_REQUIRED`: require `/api/v1/vision/health` to pass (default `1`).
+- `RUN_CAD_ML_METRICS`: run metrics smoke check in quick regression (default `0`).
+- `CAD_ML_METRICS_URL`: metrics endpoint (default `http://127.0.0.1:${CAD_ML_API_METRICS_PORT}/metrics`).
+- `CAD_ML_METRICS_REQUIRED_KEYS`: optional comma-separated keys expected in metrics response.
+- `CAD_ML_METRICS_MIN_LINES`: minimum lines expected in metrics response (default `5`).
 - `CAD_PREVIEW_SAMPLE_FILE`: DWG/DXF path required for 2D preview checks (defaults to `docs/samples/cad_ml_preview_sample.dxf` when unset).
 
 ### CAD-ML quick regression (2D preview + OCR)
 
 ```bash
 export CAD_PREVIEW_SAMPLE_FILE=/path/to/sample.dwg
-RUN_CAD_ML_DOCKER=1 scripts/verify_cad_ml_quick.sh http://127.0.0.1:7910 tenant-1 org-1
+RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
+  scripts/verify_cad_ml_quick.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
 If cad-ml is already running externally, set `RUN_CAD_ML_DOCKER=0`.

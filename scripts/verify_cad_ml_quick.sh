@@ -54,4 +54,10 @@ fi
 echo "==> CAD-ML quick regression (2D preview + OCR)"
 "${REPO_ROOT}/scripts/verify_cad_preview_2d.sh" "$BASE_URL" "$TENANT" "$ORG"
 "${REPO_ROOT}/scripts/verify_cad_ocr_titleblock.sh" "$BASE_URL" "$TENANT" "$ORG"
+if [[ "${RUN_CAD_ML_METRICS:-0}" == "1" ]]; then
+  echo "==> CAD-ML metrics smoke check"
+  "${REPO_ROOT}/scripts/verify_cad_ml_metrics.sh"
+else
+  echo "SKIP: CAD-ML metrics (RUN_CAD_ML_METRICS=0)"
+fi
 echo "==> CAD-ML quick regression complete"

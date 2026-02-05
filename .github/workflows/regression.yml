@@ -194,6 +194,7 @@ jobs:
     env:
       CAD_PREVIEW_SAMPLE_FILE: docs/samples/cad_ml_preview_sample.dxf
       RUN_CAD_ML_DOCKER: "1"
+      RUN_CAD_ML_METRICS: "1"
       CAD_ML_API_PORT: "18000"
       CAD_ML_API_METRICS_PORT: "19090"
       CAD_ML_REDIS_PORT: "16379"
