@@ -37,11 +37,12 @@ CAD_ML_QUEUE_CHECK_PREVIEW="${CAD_ML_QUEUE_CHECK_PREVIEW:-0}"
 CAD_ML_QUEUE_PREVIEW_MIN_BYTES="${CAD_ML_QUEUE_PREVIEW_MIN_BYTES:-1}"
 CAD_ML_QUEUE_PREVIEW_MIN_WIDTH="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH:-1}"
 CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT:-1}"
-CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG:-200}"
-CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG:-200}"
-CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF:-200}"
-CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF:-200}"
+CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG:-256}"
+CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG:-256}"
+CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF:-256}"
+CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF:-256}"
 CAD_ML_QUEUE_STATS_CSV="${CAD_ML_QUEUE_STATS_CSV:-${REPO_ROOT}/tmp/cad_ml_queue_stats.csv}"
+CAD_ML_QUEUE_STATS_CSV_ROTATE_DAYS="${CAD_ML_QUEUE_STATS_CSV_ROTATE_DAYS:-30}"
 
 DEFAULT_SAMPLE_FILE="${REPO_ROOT}/docs/samples/cad_ml_preview_sample.dxf"
 SAMPLE_FILE="${CAD_PREVIEW_SAMPLE_FILE:-$DEFAULT_SAMPLE_FILE}"
@@ -392,12 +393,12 @@ if [[ -n "$CAD_ML_QUEUE_STATS_CSV" ]]; then
     "$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH" "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT" \
     "$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG" "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG" \
     "$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF" "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF" \
-    "$SAMPLE_LIST_STRING" <<'PY'
+    "$CAD_ML_QUEUE_STATS_CSV_ROTATE_DAYS" "$SAMPLE_LIST_STRING" <<'PY'
 import csv
 import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 csv_path = sys.argv[1]
 job_json_path = sys.argv[2]
@@ -420,7 +421,8 @@ min_w_dwg = sys.argv[18]
 min_h_dwg = sys.argv[19]
 min_w_dxf = sys.argv[20]
 min_h_dxf = sys.argv[21]
-sample_list = sys.argv[22]
+rotate_days = int(sys.argv[22]) if sys.argv[22] else 0
+sample_list = sys.argv[23]
 
 durations = []
 try:
@@ -486,12 +488,38 @@ dir_name = os.path.dirname(csv_path)
 if dir_name:
     os.makedirs(dir_name, exist_ok=True)
 
-write_header = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0
-with open(csv_path, "a", newline="", encoding="utf-8") as fh:
-    writer = csv.DictWriter(fh, fieldnames=fieldnames)
-    if write_header:
+if rotate_days > 0 and os.path.exists(csv_path):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=rotate_days)
+    filtered_rows = []
+    with open(csv_path, "r", newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        for existing in reader:
+            ts = existing.get("timestamp_utc")
+            if not ts:
+                filtered_rows.append(existing)
+                continue
+            try:
+                ts_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                if ts_dt.tzinfo is None:
+                    ts_dt = ts_dt.replace(tzinfo=timezone.utc)
+            except Exception:
+                filtered_rows.append(existing)
+                continue
+            if ts_dt >= cutoff:
+                filtered_rows.append(existing)
+    with open(csv_path, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()
-    writer.writerow(row)
+        if filtered_rows:
+            writer.writerows(filtered_rows)
+        writer.writerow(row)
+else:
+    write_header = not os.path.exists(csv_path) or os.path.getsize(csv_path) == 0
+    with open(csv_path, "a", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames)
+        if write_header:
+            writer.writeheader()
+        writer.writerow(row)
 PY
 fi
 
