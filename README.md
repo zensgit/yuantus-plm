@@ -87,6 +87,12 @@ export YUANTUS_AUTH_MODE=required
 
 See `docs/VERIFICATION.md`.
 
+Quick CAD-ML regression:
+```bash
+RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
+  scripts/verify_cad_ml_quick.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
 ## Runbooks
 
 - `docs/RUNBOOK_JOBS_DIAG.md` (Jobs/CAD failure diagnostics)

@@ -153,6 +153,22 @@ metrics, and docker logs:
 scripts/collect_cad_ml_debug.sh http://127.0.0.1:7910
 ```
 
+### Troubleshooting CAD-ML
+
+- Health probe fails with HTTP 000/5xx:
+  - Ensure cad-ml docker is up: `scripts/run_cad_ml_docker.sh`
+  - Confirm ports `18000/19090/16379` are free or override via `CAD_ML_API_PORT`, `CAD_ML_API_METRICS_PORT`, `CAD_ML_REDIS_PORT`
+  - Capture bundle: `scripts/collect_cad_ml_debug.sh`
+- Vision health fails but core health is OK:
+  - Set `CAD_ML_VISION_HEALTH_REQUIRED=0` to allow non-vision runs temporarily
+  - Check cad-ml logs for model download/errors
+- Metrics missing:
+  - Verify `/metrics` is enabled in cad-ml runtime
+  - Set `RUN_CAD_ML_METRICS=0` to skip if metrics are intentionally off
+- Preview/OCR tests skip:
+  - Check `CAD_PREVIEW_SAMPLE_FILE` path and permissions
+  - Confirm `CAD_ML_BASE_URL`/`YUANTUS_CAD_ML_BASE_URL` targets the cad-ml API
+
 ## 1) Health
 
 ```bash
