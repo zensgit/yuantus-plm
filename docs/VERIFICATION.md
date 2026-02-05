@@ -142,6 +142,8 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - `CAD_ML_QUEUE_PREVIEW_MIN_BYTES`: minimum preview size when checking (default `1`).
 - `CAD_ML_QUEUE_PREVIEW_MIN_WIDTH`: minimum preview PNG width (default `1`).
 - `CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT`: minimum preview PNG height (default `1`).
+- `CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG`: override min width for DWG previews.
+- `CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG`: override min height for DWG previews.
 - `RUN_PLAYWRIGHT_CAD_PREVIEW`: enable Playwright browser preview test (default `0`).
 
 ### CAD-ML quick regression (2D preview + OCR)

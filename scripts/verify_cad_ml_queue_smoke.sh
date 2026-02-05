@@ -37,6 +37,8 @@ CAD_ML_QUEUE_CHECK_PREVIEW="${CAD_ML_QUEUE_CHECK_PREVIEW:-0}"
 CAD_ML_QUEUE_PREVIEW_MIN_BYTES="${CAD_ML_QUEUE_PREVIEW_MIN_BYTES:-1}"
 CAD_ML_QUEUE_PREVIEW_MIN_WIDTH="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH:-1}"
 CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT:-1}"
+CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG:-}"
+CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG:-}"
 
 DEFAULT_SAMPLE_FILE="${REPO_ROOT}/docs/samples/cad_ml_preview_sample.dxf"
 SAMPLE_FILE="${CAD_PREVIEW_SAMPLE_FILE:-$DEFAULT_SAMPLE_FILE}"
@@ -153,6 +155,9 @@ HEADERS=(-H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" -H "Authorization: Bearer
 echo ""
 echo "==> Enqueue cad_preview jobs"
 declare -a JOB_IDS=()
+declare -a JOB_SAMPLE_EXTS=()
+declare -a JOB_SAMPLE_FILES=()
+QUEUE_START_TS="$(date +%s)"
 for i in $(seq 1 "$CAD_ML_QUEUE_REPEAT"); do
   sample_index=$(( (i - 1) % ${#SAMPLE_FILES[@]} ))
   current_sample="${SAMPLE_FILES[$sample_index]}"
@@ -222,6 +227,8 @@ for j in jobs:
     fail "Missing cad_preview job id"
   fi
   JOB_IDS+=("$JOB_ID")
+  JOB_SAMPLE_EXTS+=("$ext")
+  JOB_SAMPLE_FILES+=("$current_sample")
   echo "Queued job $i/$CAD_ML_QUEUE_REPEAT: $JOB_ID"
 done
 
@@ -287,10 +294,102 @@ if [[ "$CAD_ML_QUEUE_REQUIRE_COMPLETE" == "1" && ( "$pending" -gt 0 || "$process
   fail "Queue smoke incomplete (pending=$pending, processing=$processing)"
 fi
 
+QUEUE_END_TS="$(date +%s)"
+QUEUE_ELAPSED=$((QUEUE_END_TS - QUEUE_START_TS))
+if [[ "$QUEUE_ELAPSED" -le 0 ]]; then
+  QUEUE_ELAPSED=1
+fi
+
+echo ""
+echo "Timing:"
+echo "  elapsed_seconds: $QUEUE_ELAPSED"
+avg_per_job="$( "$PY" - "$completed" "$QUEUE_ELAPSED" <<'PY'
+import sys
+completed = int(sys.argv[1])
+elapsed = int(sys.argv[2])
+if completed <= 0:
+    print("0.0")
+else:
+    print(f"{elapsed / completed:.2f}")
+PY
+)"
+throughput="$( "$PY" - "$completed" "$QUEUE_ELAPSED" <<'PY'
+import sys
+completed = int(sys.argv[1])
+elapsed = int(sys.argv[2])
+if completed <= 0:
+    print("0.0")
+else:
+    print(f"{completed / (elapsed / 60):.2f}")
+PY
+)"
+echo "  avg_seconds_per_job: $avg_per_job"
+echo "  throughput_jobs_per_min: $throughput"
+
+echo ""
+echo "==> Job duration stats"
+JOB_JSON_TMP="$(mktemp -t yuantus_jobs_XXXXXX.jsonl)"
+TMP_FILES+=("$JOB_JSON_TMP")
+for job_id in "${JOB_IDS[@]}"; do
+  $CURL "$API/jobs/$job_id" "${HEADERS[@]}" \
+    | "$PY" -c 'import sys,json;print(json.dumps(json.load(sys.stdin)))' \
+    >> "$JOB_JSON_TMP"
+done
+"$PY" - "$JOB_JSON_TMP" <<'PY'
+import json
+import sys
+from datetime import datetime
+
+path = sys.argv[1]
+
+def parse_dt(value):
+    if not value:
+        return None
+    if isinstance(value, str):
+        value = value.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(value)
+    except Exception:
+        return None
+
+durations = []
+for line in open(path, "r", encoding="utf-8"):
+    line = line.strip()
+    if not line:
+        continue
+    job = json.loads(line)
+    created_at = parse_dt(job.get("created_at"))
+    completed_at = parse_dt(job.get("completed_at"))
+    if created_at and completed_at:
+        durations.append((completed_at - created_at).total_seconds())
+
+if durations:
+    avg = sum(durations) / len(durations)
+    min_d = min(durations)
+    max_d = max(durations)
+    print(f"  avg_job_duration_seconds: {avg:.2f}")
+    print(f"  min_job_duration_seconds: {min_d:.2f}")
+    print(f"  max_job_duration_seconds: {max_d:.2f}")
+else:
+    print("  avg_job_duration_seconds: n/a")
+PY
+
 if [[ "$CAD_ML_QUEUE_CHECK_PREVIEW" == "1" ]]; then
   echo ""
   echo "==> Preview output checks"
-  for job_id in "${JOB_IDS[@]}"; do
+  for idx in "${!JOB_IDS[@]}"; do
+    job_id="${JOB_IDS[$idx]}"
+    ext="${JOB_SAMPLE_EXTS[$idx]}"
+    min_w="$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH"
+    min_h="$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT"
+    if [[ "$ext" == "dwg" ]]; then
+      if [[ -n "$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG" ]]; then
+        min_w="$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG"
+      fi
+      if [[ -n "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG" ]]; then
+        min_h="$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG"
+      fi
+    fi
     job_json="$(
       $CURL "$API/jobs/$job_id" "${HEADERS[@]}"
     )"
@@ -313,7 +412,7 @@ if [[ "$CAD_ML_QUEUE_CHECK_PREVIEW" == "1" ]]; then
       fail "Preview too small for job $job_id (file $file_id): ${size} bytes"
     fi
     dims="$(
-      "$PY" - "$preview_tmp" "$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH" "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT" <<'PY'
+      "$PY" - "$preview_tmp" "$min_w" "$min_h" <<'PY'
 import struct
 import sys
 
