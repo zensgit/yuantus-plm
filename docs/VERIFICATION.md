@@ -159,15 +159,20 @@ scripts/collect_cad_ml_debug.sh http://127.0.0.1:7910
   - Ensure cad-ml docker is up: `scripts/run_cad_ml_docker.sh`
   - Confirm ports `18000/19090/16379` are free or override via `CAD_ML_API_PORT`, `CAD_ML_API_METRICS_PORT`, `CAD_ML_REDIS_PORT`
   - Capture bundle: `scripts/collect_cad_ml_debug.sh`
+- Connection reset by peer during startup:
+  - Increase retries: `CAD_ML_HEALTH_RETRIES=20 CAD_ML_HEALTH_SLEEP_SECONDS=3`
+  - Re-run `scripts/check_cad_ml_docker.sh` after containers are healthy
 - Vision health fails but core health is OK:
   - Set `CAD_ML_VISION_HEALTH_REQUIRED=0` to allow non-vision runs temporarily
   - Check cad-ml logs for model download/errors
 - Metrics missing:
   - Verify `/metrics` is enabled in cad-ml runtime
   - Set `RUN_CAD_ML_METRICS=0` to skip if metrics are intentionally off
-- Preview/OCR tests skip:
+- Preview/OCR tests skip or fail:
   - Check `CAD_PREVIEW_SAMPLE_FILE` path and permissions
   - Confirm `CAD_ML_BASE_URL`/`YUANTUS_CAD_ML_BASE_URL` targets the cad-ml API
+  - Allow preview fallback when vision health is down: `CAD_PREVIEW_ALLOW_FALLBACK=1`
+  - Allow OCR empty attributes temporarily: `CAD_OCR_ALLOW_EMPTY=1`
 
 ## 1) Health
 
