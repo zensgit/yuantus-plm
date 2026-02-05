@@ -35,6 +35,8 @@ CAD_ML_QUEUE_MUTATE="${CAD_ML_QUEUE_MUTATE:-auto}"
 CAD_ML_QUEUE_SAMPLE_LIST="${CAD_ML_QUEUE_SAMPLE_LIST:-}"
 CAD_ML_QUEUE_CHECK_PREVIEW="${CAD_ML_QUEUE_CHECK_PREVIEW:-0}"
 CAD_ML_QUEUE_PREVIEW_MIN_BYTES="${CAD_ML_QUEUE_PREVIEW_MIN_BYTES:-1}"
+CAD_ML_QUEUE_PREVIEW_MIN_WIDTH="${CAD_ML_QUEUE_PREVIEW_MIN_WIDTH:-1}"
+CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT="${CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT:-1}"
 
 DEFAULT_SAMPLE_FILE="${REPO_ROOT}/docs/samples/cad_ml_preview_sample.dxf"
 SAMPLE_FILE="${CAD_PREVIEW_SAMPLE_FILE:-$DEFAULT_SAMPLE_FILE}"
@@ -310,7 +312,40 @@ if [[ "$CAD_ML_QUEUE_CHECK_PREVIEW" == "1" ]]; then
     if [[ "$size" -lt "$CAD_ML_QUEUE_PREVIEW_MIN_BYTES" ]]; then
       fail "Preview too small for job $job_id (file $file_id): ${size} bytes"
     fi
-    echo "Preview OK: job=$job_id file=$file_id bytes=$size"
+    dims="$(
+      "$PY" - "$preview_tmp" "$CAD_ML_QUEUE_PREVIEW_MIN_WIDTH" "$CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT" <<'PY'
+import struct
+import sys
+
+path = sys.argv[1]
+min_w = int(sys.argv[2])
+min_h = int(sys.argv[3])
+with open(path, "rb") as f:
+    sig = f.read(8)
+    if sig != b"\x89PNG\r\n\x1a\n":
+        print("bad_png_signature")
+        sys.exit(1)
+    length = f.read(4)
+    if len(length) < 4:
+        print("missing_length")
+        sys.exit(1)
+    (chunk_len,) = struct.unpack(">I", length)
+    chunk_type = f.read(4)
+    if chunk_type != b"IHDR":
+        print("missing_IHDR")
+        sys.exit(1)
+    data = f.read(chunk_len)
+    if len(data) < 8:
+        print("short_IHDR")
+        sys.exit(1)
+    width, height = struct.unpack(">II", data[:8])
+    if width < min_w or height < min_h:
+        print(f"too_small:{width}x{height}")
+        sys.exit(1)
+    print(f"{width}x{height}")
+PY
+    )" || fail "Preview format check failed for job $job_id (file $file_id)"
+    echo "Preview OK: job=$job_id file=$file_id bytes=$size dims=$dims"
   done
 fi
 
