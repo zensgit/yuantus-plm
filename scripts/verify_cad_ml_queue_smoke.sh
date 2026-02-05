@@ -32,6 +32,9 @@ CAD_ML_QUEUE_WORKER_RUNS="${CAD_ML_QUEUE_WORKER_RUNS:-6}"
 CAD_ML_QUEUE_SLEEP_SECONDS="${CAD_ML_QUEUE_SLEEP_SECONDS:-2}"
 CAD_ML_QUEUE_REQUIRE_COMPLETE="${CAD_ML_QUEUE_REQUIRE_COMPLETE:-1}"
 CAD_ML_QUEUE_MUTATE="${CAD_ML_QUEUE_MUTATE:-auto}"
+CAD_ML_QUEUE_SAMPLE_LIST="${CAD_ML_QUEUE_SAMPLE_LIST:-}"
+CAD_ML_QUEUE_CHECK_PREVIEW="${CAD_ML_QUEUE_CHECK_PREVIEW:-0}"
+CAD_ML_QUEUE_PREVIEW_MIN_BYTES="${CAD_ML_QUEUE_PREVIEW_MIN_BYTES:-1}"
 
 DEFAULT_SAMPLE_FILE="${REPO_ROOT}/docs/samples/cad_ml_preview_sample.dxf"
 SAMPLE_FILE="${CAD_PREVIEW_SAMPLE_FILE:-$DEFAULT_SAMPLE_FILE}"
@@ -50,6 +53,26 @@ fi
 if [[ ! -f "$SAMPLE_FILE" ]]; then
   echo "SKIP: Sample file not found: $SAMPLE_FILE" >&2
   exit 0
+fi
+declare -a SAMPLE_FILES=()
+if [[ -n "$CAD_ML_QUEUE_SAMPLE_LIST" ]]; then
+  IFS=',' read -r -a SAMPLE_FILES <<< "$CAD_ML_QUEUE_SAMPLE_LIST"
+  for i in "${!SAMPLE_FILES[@]}"; do
+    sample="${SAMPLE_FILES[$i]}"
+    sample="${sample#"${sample%%[![:space:]]*}"}"
+    sample="${sample%"${sample##*[![:space:]]}"}"
+    if [[ -z "$sample" ]]; then
+      unset 'SAMPLE_FILES[i]'
+      continue
+    fi
+    if [[ ! -f "$sample" ]]; then
+      fail "Sample file not found: $sample"
+    fi
+    SAMPLE_FILES[$i]="$sample"
+  done
+fi
+if [[ "${#SAMPLE_FILES[@]}" -eq 0 ]]; then
+  SAMPLE_FILES=("$SAMPLE_FILE")
 fi
 
 CAD_ML_DOCKER_STARTED=0
@@ -101,6 +124,7 @@ echo "BASE_URL: $BASE_URL"
 echo "TENANT: $TENANT, ORG: $ORG"
 echo "CAD_ML_BASE_URL: $CAD_ML_BASE_URL"
 echo "REPEAT: $CAD_ML_QUEUE_REPEAT"
+echo "SAMPLES: ${#SAMPLE_FILES[@]}"
 echo "=============================================="
 
 echo ""
@@ -127,22 +151,28 @@ HEADERS=(-H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" -H "Authorization: Bearer
 echo ""
 echo "==> Enqueue cad_preview jobs"
 declare -a JOB_IDS=()
-ext="${SAMPLE_FILE##*.}"
-ext="${ext,,}"
-can_mutate=0
-if [[ "$CAD_ML_QUEUE_MUTATE" == "1" ]]; then
-  can_mutate=1
-elif [[ "$CAD_ML_QUEUE_MUTATE" == "0" ]]; then
-  can_mutate=0
-else
-  if [[ "$ext" == "dxf" ]]; then
-    can_mutate=1
-  fi
-fi
-if [[ "$can_mutate" != "1" ]]; then
-  echo "WARN: Sample mutation disabled for .$ext; uploads may dedupe."
-fi
 for i in $(seq 1 "$CAD_ML_QUEUE_REPEAT"); do
+  sample_index=$(( (i - 1) % ${#SAMPLE_FILES[@]} ))
+  current_sample="${SAMPLE_FILES[$sample_index]}"
+  ext="${current_sample##*.}"
+  ext="${ext,,}"
+  can_mutate=0
+  if [[ "$CAD_ML_QUEUE_MUTATE" == "1" ]]; then
+    if [[ "$ext" == "dxf" ]]; then
+      can_mutate=1
+    else
+      echo "WARN: CAD_ML_QUEUE_MUTATE=1 ignored for .$ext (binary), using copy."
+    fi
+  elif [[ "$CAD_ML_QUEUE_MUTATE" == "0" ]]; then
+    can_mutate=0
+  else
+    if [[ "$ext" == "dxf" ]]; then
+      can_mutate=1
+    fi
+  fi
+  if [[ "$can_mutate" != "1" ]]; then
+    echo "WARN: Sample mutation disabled for .$ext; uploads may dedupe."
+  fi
   tmp_file="$(mktemp -t "yuantus_cad_ml_queue_XXXXXX.${ext:-dxf}")"
   TMP_FILES+=("$tmp_file")
   if [[ "$can_mutate" == "1" ]]; then
@@ -160,14 +190,14 @@ for i in $(seq 1 "$CAD_ML_QUEUE_REPEAT"); do
         print "0"
         print "EOF"
       }
-    }' "$SAMPLE_FILE" > "$tmp_file"
+    }' "$current_sample" > "$tmp_file"
   else
-    cp "$SAMPLE_FILE" "$tmp_file"
+    cp "$current_sample" "$tmp_file"
   fi
   IMPORT_RESP="$(
     $CURL -X POST "$API/cad/import" \
       "${HEADERS[@]}" \
-      -F "file=@$tmp_file;filename=$(basename "$SAMPLE_FILE")" \
+      -F "file=@$tmp_file;filename=$(basename "$current_sample")" \
       -F 'create_preview_job=true' \
       -F 'create_geometry_job=false' \
       -F 'create_dedup_job=false' \
@@ -253,6 +283,35 @@ fi
 
 if [[ "$CAD_ML_QUEUE_REQUIRE_COMPLETE" == "1" && ( "$pending" -gt 0 || "$processing" -gt 0 ) ]]; then
   fail "Queue smoke incomplete (pending=$pending, processing=$processing)"
+fi
+
+if [[ "$CAD_ML_QUEUE_CHECK_PREVIEW" == "1" ]]; then
+  echo ""
+  echo "==> Preview output checks"
+  for job_id in "${JOB_IDS[@]}"; do
+    job_json="$(
+      $CURL "$API/jobs/$job_id" "${HEADERS[@]}"
+    )"
+    file_id="$(
+      echo "$job_json" | "$PY" -c 'import sys,json;d=json.load(sys.stdin);print((d.get("diagnostics") or {}).get("file_id",""))'
+    )"
+    if [[ -z "$file_id" ]]; then
+      fail "Missing file_id for job $job_id"
+    fi
+    preview_tmp="$(mktemp -t "yuantus_preview_${job_id}_XXXXXX.png")"
+    TMP_FILES+=("$preview_tmp")
+    code="$(
+      $CURL -o "$preview_tmp" -w "%{http_code}" "$API/file/$file_id/preview" "${HEADERS[@]}" || true
+    )"
+    size="$(wc -c < "$preview_tmp" | tr -d ' ')"
+    if [[ "$code" != "200" ]]; then
+      fail "Preview check failed for job $job_id (file $file_id): HTTP $code"
+    fi
+    if [[ "$size" -lt "$CAD_ML_QUEUE_PREVIEW_MIN_BYTES" ]]; then
+      fail "Preview too small for job $job_id (file $file_id): ${size} bytes"
+    fi
+    echo "Preview OK: job=$job_id file=$file_id bytes=$size"
+  done
 fi
 
 ok "Queue smoke passed"
