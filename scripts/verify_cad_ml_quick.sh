@@ -7,10 +7,11 @@ set -euo pipefail
 BASE_URL="${1:-http://127.0.0.1:7910}"
 TENANT="${2:-tenant-1}"
 ORG="${3:-org-1}"
-SAMPLE_FILE="${4:-${CAD_PREVIEW_SAMPLE_FILE:-}}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+DEFAULT_SAMPLE_FILE="${REPO_ROOT}/docs/samples/cad_ml_preview_sample.dxf"
+SAMPLE_FILE="${4:-${CAD_PREVIEW_SAMPLE_FILE:-$DEFAULT_SAMPLE_FILE}}"
 
 if [[ -z "$SAMPLE_FILE" ]]; then
   echo "ERROR: CAD_PREVIEW_SAMPLE_FILE is required (DWG/DXF)." >&2

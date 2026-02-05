@@ -9,6 +9,9 @@ BASE_URL="${1:-http://127.0.0.1:7910}"
 TENANT="${2:-tenant-1}"
 ORG="${3:-org-1}"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 CLI="${CLI:-.venv/bin/yuantus}"
 PY="${PY:-.venv/bin/python}"
 CURL="${CURL:-curl -sS}"
@@ -30,7 +33,8 @@ CAD_ML_HEALTH_URL="${CAD_ML_HEALTH_URL:-${CAD_ML_BASE_URL}/api/v1/vision/health}
 CAD_ML_TOKEN="${CAD_ML_SERVICE_TOKEN:-${YUANTUS_CAD_ML_SERVICE_TOKEN:-}}"
 CAD_PREVIEW_ALLOW_FALLBACK="${CAD_PREVIEW_ALLOW_FALLBACK:-0}"
 
-SAMPLE_FILE="${CAD_PREVIEW_SAMPLE_FILE:-/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg}"
+DEFAULT_SAMPLE_FILE="${REPO_ROOT}/docs/samples/cad_ml_preview_sample.dxf"
+SAMPLE_FILE="${CAD_PREVIEW_SAMPLE_FILE:-$DEFAULT_SAMPLE_FILE}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2

@@ -127,7 +127,8 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - `CAD_ML_BASE_URL`: default `http://127.0.0.1:${CAD_ML_API_PORT}`.
 - `YUANTUS_CAD_ML_BASE_URL`: base URL propagated to app/worker.
 - `CAD_ML_HEALTH_RETRIES` / `CAD_ML_HEALTH_SLEEP_SECONDS`: health probe retries (see `scripts/check_cad_ml_docker.sh`).
-- `CAD_PREVIEW_SAMPLE_FILE`: DWG/DXF path required for 2D preview checks.
+- `CAD_ML_VISION_HEALTH_REQUIRED`: require `/api/v1/vision/health` to pass (default `1`).
+- `CAD_PREVIEW_SAMPLE_FILE`: DWG/DXF path required for 2D preview checks (defaults to `docs/samples/cad_ml_preview_sample.dxf` when unset).
 
 ### CAD-ML quick regression (2D preview + OCR)
 
@@ -2560,7 +2561,7 @@ curl -s -X DELETE "http://127.0.0.1:7910/api/v1/bom/<BOM_LINE_ID>/substitutes/<S
 
 ### 30.1 一键验收：`scripts/verify_version_files.sh`
 
-此脚本验证版本‑文件绑定与锁定逻辑：
+此脚本验证版本-文件绑定与锁定逻辑：
 
 1. **Checkout 锁定**：他人无法修改 item 文件关联
 2. **Checkin 同步**：item 文件自动同步到 VersionFile
