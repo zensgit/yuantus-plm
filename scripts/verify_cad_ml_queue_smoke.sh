@@ -119,11 +119,29 @@ HEADERS=(-H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" -H "Authorization: Bearer
 echo ""
 echo "==> Enqueue cad_preview jobs"
 declare -a JOB_IDS=()
+declare -a TMP_FILES=()
 for i in $(seq 1 "$CAD_ML_QUEUE_REPEAT"); do
+  tmp_file="$(mktemp -t yuantus_cad_ml_queue_XXXXXX.dxf)"
+  TMP_FILES+=("$tmp_file")
+  awk -v tag="$i" '{
+    if ($0 == "EOF" && !done) {
+      print "999"
+      print "queue-smoke-" tag
+      done=1
+    }
+    print $0
+  } END {
+    if (!done) {
+      print "999"
+      print "queue-smoke-" tag
+      print "0"
+      print "EOF"
+    }
+  }' "$SAMPLE_FILE" > "$tmp_file"
   IMPORT_RESP="$(
     $CURL -X POST "$API/cad/import" \
       "${HEADERS[@]}" \
-      -F "file=@$SAMPLE_FILE;filename=$(basename "$SAMPLE_FILE")" \
+      -F "file=@$tmp_file;filename=$(basename "$SAMPLE_FILE")" \
       -F 'create_preview_job=true' \
       -F 'create_geometry_job=false' \
       -F 'create_dedup_job=false' \
@@ -212,3 +230,7 @@ if [[ "$CAD_ML_QUEUE_REQUIRE_COMPLETE" == "1" && ( "$pending" -gt 0 || "$process
 fi
 
 ok "Queue smoke passed"
+
+for tmp_file in "${TMP_FILES[@]}"; do
+  rm -f "$tmp_file" || true
+done

@@ -43,8 +43,11 @@ function ensurePreview(fileId) {
     FILE_ID: fileId,
     TENANT: 'tenant-1',
     ORG: 'org-1',
+    YUANTUS_TENANCY_MODE: 'single',
+    YUANTUS_SCHEMA_MODE: 'create_all',
     YUANTUS_DATABASE_URL: dbUrl,
     YUANTUS_IDENTITY_DATABASE_URL: dbUrl,
+    YUANTUS_DATABASE_URL_TEMPLATE: '',
   };
   execFileSync(python, [scriptPath], { env, stdio: 'inherit' });
 }
