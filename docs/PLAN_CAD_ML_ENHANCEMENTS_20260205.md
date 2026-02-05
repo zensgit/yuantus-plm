@@ -11,6 +11,9 @@ Increase reliability, reproducibility, and CI coverage for CAD-ML verification i
 - Day 5 completed: added cad-ml debug bundle collector.
 - Day 6 completed: added CAD-ML troubleshooting notes and README quick command.
 - Day 7 completed: expanded CAD-ML troubleshooting with common failures and toggles.
+- Day 8 completed: added Playwright CAD preview browser test (opt-in).
+- Day 9 completed: added CAD-ML queue smoke test script.
+- Day 10 completed: updated verification docs with queue + Playwright coverage.
 
 ## 7-10 Day Plan
 

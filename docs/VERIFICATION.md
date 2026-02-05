@@ -133,6 +133,10 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - `CAD_ML_METRICS_REQUIRED_KEYS`: optional comma-separated keys expected in metrics response.
 - `CAD_ML_METRICS_MIN_LINES`: minimum lines expected in metrics response (default `5`).
 - `CAD_PREVIEW_SAMPLE_FILE`: DWG/DXF path required for 2D preview checks (defaults to `docs/samples/cad_ml_preview_sample.dxf` when unset).
+- `CAD_ML_QUEUE_REPEAT`: number of preview jobs in queue smoke test (default `5`).
+- `CAD_ML_QUEUE_WORKER_RUNS`: worker runs during queue smoke test (default `6`).
+- `CAD_ML_QUEUE_REQUIRE_COMPLETE`: require all jobs to finish (default `1`).
+- `RUN_PLAYWRIGHT_CAD_PREVIEW`: enable Playwright browser preview test (default `0`).
 
 ### CAD-ML quick regression (2D preview + OCR)
 
@@ -151,6 +155,24 @@ metrics, and docker logs:
 
 ```bash
 scripts/collect_cad_ml_debug.sh http://127.0.0.1:7910
+```
+
+### CAD-ML queue smoke
+
+Enqueue multiple cad_preview jobs and drain with the dev worker:
+
+```bash
+RUN_CAD_ML_DOCKER=1 CAD_ML_QUEUE_REPEAT=5 \
+  scripts/verify_cad_ml_queue_smoke.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+### Playwright CAD preview (browser)
+
+Requires Playwright browsers installed (not run in CI by default):
+
+```bash
+RUN_PLAYWRIGHT_CAD_PREVIEW=1 \
+  scripts/verify_playwright_cad_preview_ui.sh http://127.0.0.1:7910
 ```
 
 ### Troubleshooting CAD-ML
