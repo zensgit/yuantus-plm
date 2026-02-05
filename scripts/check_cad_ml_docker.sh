@@ -7,6 +7,8 @@ set -euo pipefail
 CAD_ML_API_PORT="${CAD_ML_API_PORT:-18000}"
 CAD_ML_BASE_URL="${CAD_ML_BASE_URL:-http://127.0.0.1:${CAD_ML_API_PORT}}"
 CAD_ML_HEALTH_URL="${CAD_ML_HEALTH_URL:-${CAD_ML_BASE_URL}/api/v1/health}"
+CAD_ML_HEALTH_RETRIES="${CAD_ML_HEALTH_RETRIES:-10}"
+CAD_ML_HEALTH_SLEEP_SECONDS="${CAD_ML_HEALTH_SLEEP_SECONDS:-2}"
 
 TMP="$(mktemp -t cadml_health_XXXXXX)"
 cleanup() {
@@ -14,7 +16,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
-HTTP_CODE="$(curl -sS -o "$TMP" -w '%{http_code}' "$CAD_ML_HEALTH_URL" || true)"
+HTTP_CODE="000"
+for i in $(seq 1 "$CAD_ML_HEALTH_RETRIES"); do
+  HTTP_CODE="$(curl -sS -o "$TMP" -w '%{http_code}' "$CAD_ML_HEALTH_URL" || true)"
+  if [[ "$HTTP_CODE" == "200" ]]; then
+    break
+  fi
+  if [[ "$i" -lt "$CAD_ML_HEALTH_RETRIES" ]]; then
+    sleep "$CAD_ML_HEALTH_SLEEP_SECONDS"
+  fi
+done
 if [[ "$HTTP_CODE" != "200" ]]; then
   echo "cad-ml health check failed (HTTP ${HTTP_CODE})" >&2
   head -c 400 "$TMP" >&2 || true
