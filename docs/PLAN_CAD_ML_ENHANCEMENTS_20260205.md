@@ -8,6 +8,7 @@ Increase reliability, reproducibility, and CI coverage for CAD-ML verification i
 - Day 2 completed: expanded cad-ml health checks to include vision + log capture.
 - Day 3 completed: added CI job to run CAD-ML quick regression.
 - Day 4 completed: added metrics smoke check and wired into quick regression.
+- Day 5 completed: added cad-ml debug bundle collector.
 
 ## 7-10 Day Plan
 

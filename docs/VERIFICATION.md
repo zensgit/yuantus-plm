@@ -144,6 +144,15 @@ RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
 
 If cad-ml is already running externally, set `RUN_CAD_ML_DOCKER=0`.
 
+### CAD-ML debug bundle
+
+Collect a debug bundle under `/tmp/cad_ml_debug_<timestamp>` with health responses,
+metrics, and docker logs:
+
+```bash
+scripts/collect_cad_ml_debug.sh http://127.0.0.1:7910
+```
+
 ## 1) Health
 
 ```bash
