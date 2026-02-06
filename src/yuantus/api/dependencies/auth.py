@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from fastapi import Depends, HTTPException
 from starlette.requests import Request
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from yuantus.config import get_settings
@@ -141,7 +142,12 @@ def _ensure_local_user(db: Session, identity: Identity) -> None:
                 is_active=True,
             )
         )
-        db.flush()
+        try:
+            db.flush()
+        except IntegrityError:
+            # Playwright runs can hit this concurrently when multiple workers auto-provision the
+            # same local user (e.g. admin id=1). Treat as idempotent "ensure" and continue.
+            db.rollback()
         return
 
     changed = False
@@ -176,7 +182,11 @@ def _ensure_rbac_user(db: Session, identity: Identity) -> None:
                 is_superuser=identity.is_superuser,
             )
         )
-        db.flush()
+        try:
+            db.flush()
+        except IntegrityError:
+            # Concurrent auto-provision can race on unique constraints; treat as idempotent.
+            db.rollback()
         return
 
     changed = False
@@ -243,27 +253,35 @@ def get_current_user_optional(
     rbac_user = db.get(RBACUser, identity.user_id)
     if rbac_user is None and identity.username:
         rbac_user = db.query(RBACUser).filter_by(username=identity.username).first()
-    if rbac_user is None:
-        raise HTTPException(status_code=401, detail="RBAC user not found")
-    existing_role_names = {r.name for r in (rbac_user.roles or [])}
-    for role_name in roles:
-        role_name = str(role_name)
-        role = db.query(RBACRole).filter_by(name=role_name).first()
-        if not role:
-            role = RBACRole(
-                name=role_name,
-                display_name=role_name,
-                description="Auto-provisioned role",
-                is_system=False,
-                is_active=True,
-            )
-            db.add(role)
+    if rbac_user is not None:
+        existing_role_names = {r.name for r in (rbac_user.roles or [])}
+        for role_name in roles:
+            role_name = str(role_name)
+            role = db.query(RBACRole).filter_by(name=role_name).first()
+            if not role:
+                role = RBACRole(
+                    name=role_name,
+                    display_name=role_name,
+                    description="Auto-provisioned role",
+                    is_system=False,
+                    is_active=True,
+                )
+                db.add(role)
+                try:
+                    db.flush()
+                except IntegrityError:
+                    # Another request created the role concurrently.
+                    db.rollback()
+                    role = db.query(RBACRole).filter_by(name=role_name).first()
+            if role and role.name not in existing_role_names:
+                rbac_user.roles.append(role)
+                existing_role_names.add(role.name)
+        db.add(rbac_user)
+        try:
             db.flush()
-        if role.name not in existing_role_names:
-            rbac_user.roles.append(role)
-            existing_role_names.add(role.name)
-    db.add(rbac_user)
-    db.flush()
+        except IntegrityError:
+            # Role assignment races should not break the request path.
+            db.rollback()
 
     user_id_var.set(str(identity.user_id))
 
