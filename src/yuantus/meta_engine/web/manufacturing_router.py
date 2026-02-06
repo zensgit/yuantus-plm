@@ -173,6 +173,15 @@ class WorkCenterResponse(BaseModel):
     created_at: Optional[datetime] = None
 
 
+def _ensure_admin(user: CurrentUser) -> None:
+    roles = {str(role).lower() for role in (getattr(user, "roles", []) or [])}
+    if bool(getattr(user, "is_superuser", False)):
+        return
+    if "admin" in roles or "superuser" in roles:
+        return
+    raise HTTPException(status_code=403, detail="Admin role required")
+
+
 def _mbom_to_response(mbom: ManufacturingBOM, *, include_structure: bool) -> MBOMResponse:
     return MBOMResponse(
         id=mbom.id,
@@ -438,6 +447,7 @@ async def create_workcenter(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    _ensure_admin(user)
     service = WorkCenterService(db)
     try:
         workcenter = service.create_workcenter(request.model_dump())
@@ -483,6 +493,7 @@ async def update_workcenter(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    _ensure_admin(user)
     service = WorkCenterService(db)
     item = service.get_workcenter(workcenter_id)
     if not item:

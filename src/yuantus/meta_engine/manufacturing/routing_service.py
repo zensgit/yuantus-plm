@@ -8,12 +8,29 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from yuantus.meta_engine.manufacturing.models import Operation, Routing
+from yuantus.meta_engine.manufacturing.models import Operation, Routing, WorkCenter
 
 
 class RoutingService:
     def __init__(self, session: Session):
         self.session = session
+
+    def _validate_workcenter_code(self, workcenter_code: Optional[str]) -> Optional[str]:
+        if workcenter_code is None:
+            return None
+        code = workcenter_code.strip()
+        if not code:
+            return None
+        workcenter = (
+            self.session.query(WorkCenter)
+            .filter(WorkCenter.code == code)
+            .first()
+        )
+        if not workcenter:
+            raise ValueError(f"WorkCenter not found: {code}")
+        if not bool(workcenter.is_active):
+            raise ValueError(f"WorkCenter is inactive: {code}")
+        return code
 
     def create_routing(
         self,
@@ -66,6 +83,7 @@ class RoutingService:
         routing = self.session.get(Routing, routing_id)
         if not routing:
             raise ValueError(f"Routing not found: {routing_id}")
+        validated_workcenter_code = self._validate_workcenter_code(workcenter_code)
 
         if sequence is None:
             existing = (
@@ -82,7 +100,7 @@ class RoutingService:
             name=name,
             operation_type=operation_type,
             sequence=sequence,
-            workcenter_code=workcenter_code,
+            workcenter_code=validated_workcenter_code,
             setup_time=setup_time,
             run_time=run_time,
             labor_setup_time=labor_setup_time if labor_setup_time is not None else setup_time,
