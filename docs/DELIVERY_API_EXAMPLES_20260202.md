@@ -244,3 +244,49 @@ curl -s -X POST \
     "page_size": 50
   }'
 ```
+
+## 8) Manufacturing Routing/MBOM Lifecycle
+
+```bash
+# List operations under a routing
+curl -s \
+  "http://127.0.0.1:7910/api/v1/routings/{routing_id}/operations" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Update one operation
+curl -s -X PATCH \
+  "http://127.0.0.1:7910/api/v1/routings/{routing_id}/operations/{operation_id}" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Weld Updated","run_time":4.5,"workcenter_code":"WC-100"}'
+
+# Resequence operations
+curl -s -X POST \
+  "http://127.0.0.1:7910/api/v1/routings/{routing_id}/operations/resequence" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"ordered_operation_ids":["op3","op1","op2"],"step":10}'
+
+# Delete one operation
+curl -s -X DELETE \
+  "http://127.0.0.1:7910/api/v1/routings/{routing_id}/operations/{operation_id}" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Release/reopen routing
+curl -s -X PUT \
+  "http://127.0.0.1:7910/api/v1/routings/{routing_id}/release" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -s -X PUT \
+  "http://127.0.0.1:7910/api/v1/routings/{routing_id}/reopen" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Release/reopen MBOM
+curl -s -X PUT \
+  "http://127.0.0.1:7910/api/v1/mboms/{mbom_id}/release" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -s -X PUT \
+  "http://127.0.0.1:7910/api/v1/mboms/{mbom_id}/reopen" \
+  -H "Authorization: Bearer $TOKEN"
+```

@@ -10,6 +10,7 @@
 - Manufacturing guardrails: operation workcenter validation + admin-only WorkCenter writes.
 - Manufacturing routing operations now support strong `workcenter_id` association with backward-compatible `workcenter_code` validation and id/code consistency enforcement.
 - Manufacturing routing now supports scoped primary control (`PUT /routings/{id}/primary`) and filtered routing listing (`GET /routings?item_id|mbom_id`).
+- Manufacturing lifecycle closure: operation update/delete/resequence APIs, routing/MBOM release-reopen flow, write-permission consolidation, and plant/line consistency checks.
 - API examples updated for baseline effective date, e-sign reason update, and new search ops.
 - Unit tests for baseline effective lookup, signing reason updates, and search filters.
 

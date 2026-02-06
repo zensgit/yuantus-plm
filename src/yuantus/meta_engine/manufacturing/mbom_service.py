@@ -9,7 +9,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from yuantus.meta_engine.manufacturing.models import BOMType, MBOMLine, ManufacturingBOM
+from yuantus.meta_engine.manufacturing.models import BOMType, MBOMLine, ManufacturingBOM, Routing
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.bom_service import BOMService
 
@@ -353,3 +353,53 @@ class MBOMService:
             self._flatten_structure(child, result)
 
         return result
+
+    def _has_non_empty_structure(self, mbom: ManufacturingBOM) -> bool:
+        structure = mbom.structure
+        if not structure:
+            return False
+        if not isinstance(structure, dict):
+            return bool(structure)
+        if structure.get("item"):
+            return True
+        if structure.get("roots"):
+            return bool(structure.get("roots"))
+        if structure.get("children"):
+            return True
+        return False
+
+    def release_mbom(self, mbom_id: str) -> ManufacturingBOM:
+        mbom = self.session.get(ManufacturingBOM, mbom_id)
+        if not mbom:
+            raise ValueError(f"MBOM not found: {mbom_id}")
+        if (mbom.state or "").lower() == "released":
+            raise ValueError("MBOM is already released")
+        if not self._has_non_empty_structure(mbom):
+            raise ValueError(f"MBOM structure is empty: {mbom_id}")
+
+        released_routing_count = (
+            self.session.query(Routing)
+            .filter(
+                Routing.mbom_id == mbom_id,
+                Routing.state == "released",
+            )
+            .count()
+        )
+        if released_routing_count < 1:
+            raise ValueError("MBOM requires at least one released routing before release")
+
+        mbom.state = "released"
+        self.session.add(mbom)
+        self.session.flush()
+        return mbom
+
+    def reopen_mbom(self, mbom_id: str) -> ManufacturingBOM:
+        mbom = self.session.get(ManufacturingBOM, mbom_id)
+        if not mbom:
+            raise ValueError(f"MBOM not found: {mbom_id}")
+        if (mbom.state or "").lower() != "released":
+            raise ValueError("Only released MBOM can be reopened")
+        mbom.state = "draft"
+        self.session.add(mbom)
+        self.session.flush()
+        return mbom

@@ -3,7 +3,7 @@ Routing service (operations + time/cost calculations).
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 import uuid
 
 from sqlalchemy.orm import Session
@@ -44,11 +44,35 @@ class RoutingService:
             routing.is_primary = False
             self.session.add(routing)
 
+    def _validate_routing_workcenter_scope(
+        self,
+        *,
+        routing: Optional[Routing],
+        workcenter: Optional[WorkCenter],
+    ) -> None:
+        if not routing or not workcenter:
+            return
+        routing_plant = (routing.plant_code or "").strip()
+        workcenter_plant = (workcenter.plant_code or "").strip()
+        if routing_plant and workcenter_plant and routing_plant != workcenter_plant:
+            raise ValueError(
+                f"WorkCenter plant mismatch: routing={routing_plant}, workcenter={workcenter_plant}"
+            )
+
+        # WorkCenter does not expose line_code directly. Use department_code as line proxy.
+        routing_line = (routing.line_code or "").strip()
+        workcenter_line = (workcenter.department_code or "").strip()
+        if routing_line and workcenter_line and routing_line != workcenter_line:
+            raise ValueError(
+                f"WorkCenter line mismatch: routing={routing_line}, workcenter={workcenter_line}"
+            )
+
     def _resolve_workcenter(
         self,
         *,
         workcenter_id: Optional[str] = None,
         workcenter_code: Optional[str] = None,
+        routing: Optional[Routing] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
         normalized_id = (workcenter_id or "").strip() or None
         normalized_code = (workcenter_code or "").strip() or None
@@ -73,6 +97,8 @@ class RoutingService:
             if not workcenter:
                 raise ValueError(f"WorkCenter not found: {normalized_code}")
 
+        self._validate_routing_workcenter_scope(routing=routing, workcenter=workcenter)
+
         if not bool(workcenter.is_active):
             raise ValueError(f"WorkCenter is inactive: {workcenter.code}")
 
@@ -88,6 +114,7 @@ class RoutingService:
         version: str = "1.0",
         is_primary: bool = True,
         plant_code: Optional[str] = None,
+        line_code: Optional[str] = None,
         user_id: Optional[int] = None,
     ) -> Routing:
         if not mbom_id and not item_id:
@@ -102,6 +129,7 @@ class RoutingService:
             version=version,
             is_primary=is_primary,
             plant_code=plant_code,
+            line_code=line_code,
             created_by_id=user_id,
         )
         self.session.add(routing)
@@ -152,6 +180,7 @@ class RoutingService:
         resolved_workcenter_id, resolved_workcenter_code = self._resolve_workcenter(
             workcenter_id=workcenter_id,
             workcenter_code=workcenter_code,
+            routing=routing,
         )
 
         if sequence is None:
@@ -185,6 +214,163 @@ class RoutingService:
 
         self._update_routing_totals(routing_id)
         return operation
+
+    def list_operations(self, routing_id: str) -> List[Operation]:
+        routing = self.session.get(Routing, routing_id)
+        if not routing:
+            raise ValueError(f"Routing not found: {routing_id}")
+        return (
+            self.session.query(Operation)
+            .filter(Operation.routing_id == routing_id)
+            .order_by(Operation.sequence, Operation.operation_number, Operation.id)
+            .all()
+        )
+
+    def update_operation(
+        self,
+        routing_id: str,
+        operation_id: str,
+        updates: Dict[str, Any],
+    ) -> Operation:
+        routing = self.session.get(Routing, routing_id)
+        if not routing:
+            raise ValueError(f"Routing not found: {routing_id}")
+
+        operation = (
+            self.session.query(Operation)
+            .filter(Operation.routing_id == routing_id, Operation.id == operation_id)
+            .first()
+        )
+        if not operation:
+            raise ValueError(f"Operation not found: {operation_id}")
+
+        payload = dict(updates or {})
+        if "workcenter_id" in payload or "workcenter_code" in payload:
+            next_workcenter_id = (
+                payload.get("workcenter_id")
+                if "workcenter_id" in payload
+                else operation.workcenter_id
+            )
+            next_workcenter_code = (
+                payload.get("workcenter_code")
+                if "workcenter_code" in payload
+                else operation.workcenter_code
+            )
+            resolved_id, resolved_code = self._resolve_workcenter(
+                workcenter_id=next_workcenter_id,
+                workcenter_code=next_workcenter_code,
+                routing=routing,
+            )
+            operation.workcenter_id = resolved_id
+            operation.workcenter_code = resolved_code
+
+        mutable_fields = [
+            "operation_number",
+            "name",
+            "description",
+            "operation_type",
+            "sequence",
+            "setup_time",
+            "run_time",
+            "queue_time",
+            "move_time",
+            "wait_time",
+            "labor_setup_time",
+            "labor_run_time",
+            "crew_size",
+            "machines_required",
+            "is_subcontracted",
+            "inspection_required",
+            "work_instructions",
+            "tooling_requirements",
+            "document_ids",
+            "labor_cost_rate",
+            "overhead_rate",
+            "properties",
+        ]
+        for field in mutable_fields:
+            if field in payload:
+                setattr(operation, field, payload[field])
+
+        if operation.sequence is not None and int(operation.sequence) < 1:
+            raise ValueError("Operation sequence must be >= 1")
+
+        self.session.add(operation)
+        self.session.flush()
+        self._update_routing_totals(routing_id)
+        return operation
+
+    def _resequence_existing_operations(self, routing_id: str, *, step: int = 10) -> List[Operation]:
+        operations = (
+            self.session.query(Operation)
+            .filter(Operation.routing_id == routing_id)
+            .order_by(Operation.sequence, Operation.operation_number, Operation.id)
+            .all()
+        )
+        for idx, operation in enumerate(operations, start=1):
+            operation.sequence = idx * step
+            self.session.add(operation)
+        self.session.flush()
+        return operations
+
+    def delete_operation(self, routing_id: str, operation_id: str) -> None:
+        routing = self.session.get(Routing, routing_id)
+        if not routing:
+            raise ValueError(f"Routing not found: {routing_id}")
+        operation = (
+            self.session.query(Operation)
+            .filter(Operation.routing_id == routing_id, Operation.id == operation_id)
+            .first()
+        )
+        if not operation:
+            raise ValueError(f"Operation not found: {operation_id}")
+
+        self.session.delete(operation)
+        self.session.flush()
+        self._resequence_existing_operations(routing_id, step=10)
+        self._update_routing_totals(routing_id)
+
+    def resequence_operations(
+        self,
+        routing_id: str,
+        ordered_operation_ids: Sequence[str],
+        *,
+        step: int = 10,
+    ) -> List[Operation]:
+        routing = self.session.get(Routing, routing_id)
+        if not routing:
+            raise ValueError(f"Routing not found: {routing_id}")
+        if step < 1:
+            raise ValueError("Resequence step must be >= 1")
+
+        clean_ids = [str(operation_id).strip() for operation_id in ordered_operation_ids if str(operation_id).strip()]
+        if not clean_ids:
+            raise ValueError("ordered_operation_ids is required")
+        if len(set(clean_ids)) != len(clean_ids):
+            raise ValueError("ordered_operation_ids contains duplicates")
+
+        operations = (
+            self.session.query(Operation)
+            .filter(Operation.routing_id == routing_id)
+            .order_by(Operation.sequence, Operation.operation_number, Operation.id)
+            .all()
+        )
+        operation_map = {operation.id: operation for operation in operations}
+
+        missing = [operation_id for operation_id in clean_ids if operation_id not in operation_map]
+        if missing:
+            raise ValueError(f"Operation ids not in routing: {', '.join(missing)}")
+
+        omitted = [operation.id for operation in operations if operation.id not in set(clean_ids)]
+        if omitted:
+            raise ValueError(f"Operation ids missing from request: {', '.join(omitted)}")
+
+        for idx, operation_id in enumerate(clean_ids, start=1):
+            operation = operation_map[operation_id]
+            operation.sequence = idx * step
+            self.session.add(operation)
+        self.session.flush()
+        return [operation_map[operation_id] for operation_id in clean_ids]
 
     def _update_routing_totals(self, routing_id: str) -> None:
         routing = self.session.get(Routing, routing_id)
@@ -390,6 +576,53 @@ class RoutingService:
             exclude_routing_id=routing.id,
         )
         routing.is_primary = True
+        self.session.add(routing)
+        self.session.flush()
+        return routing
+
+    def release_routing(self, routing_id: str) -> Routing:
+        routing = self.session.get(Routing, routing_id)
+        if not routing:
+            raise ValueError(f"Routing not found: {routing_id}")
+        if (routing.state or "").lower() == "released":
+            raise ValueError("Routing is already released")
+
+        operations = self.list_operations(routing_id)
+        if not operations:
+            raise ValueError("Routing must contain at least one operation before release")
+
+        scope = self._scope_filters(mbom_id=routing.mbom_id, item_id=routing.item_id)
+        if not scope:
+            raise ValueError("Routing is missing scope (mbom_id/item_id); cannot release")
+        primary_count = (
+            self.session.query(Routing)
+            .filter(*scope, Routing.is_primary.is_(True))
+            .count()
+        )
+        if primary_count != 1:
+            raise ValueError("Routing scope must have exactly one primary routing before release")
+
+        for operation in operations:
+            if not operation.workcenter_id and not operation.workcenter_code:
+                continue
+            self._resolve_workcenter(
+                workcenter_id=operation.workcenter_id,
+                workcenter_code=operation.workcenter_code,
+                routing=routing,
+            )
+
+        routing.state = "released"
+        self.session.add(routing)
+        self.session.flush()
+        return routing
+
+    def reopen_routing(self, routing_id: str) -> Routing:
+        routing = self.session.get(Routing, routing_id)
+        if not routing:
+            raise ValueError(f"Routing not found: {routing_id}")
+        if (routing.state or "").lower() != "released":
+            raise ValueError("Only released routing can be reopened")
+        routing.state = "draft"
         self.session.add(routing)
         self.session.flush()
         return routing
