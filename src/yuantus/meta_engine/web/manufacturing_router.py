@@ -77,6 +77,7 @@ class OperationCreateRequest(BaseModel):
     operation_number: str
     name: str
     operation_type: str = "fabrication"
+    workcenter_id: Optional[str] = None
     workcenter_code: Optional[str] = None
     setup_time: float = 0.0
     run_time: float = 0.0
@@ -96,6 +97,8 @@ class OperationResponse(BaseModel):
     name: str
     operation_type: str
     sequence: int
+    workcenter_id: Optional[str] = None
+    workcenter_code: Optional[str] = None
     setup_time: float
     run_time: float
     labor_setup_time: float
@@ -353,6 +356,7 @@ async def add_operation(
             request.operation_number,
             request.name,
             operation_type=request.operation_type,
+            workcenter_id=request.workcenter_id,
             workcenter_code=request.workcenter_code,
             setup_time=request.setup_time,
             run_time=request.run_time,
@@ -375,6 +379,8 @@ async def add_operation(
         name=op.name,
         operation_type=op.operation_type,
         sequence=op.sequence,
+        workcenter_id=op.workcenter_id,
+        workcenter_code=op.workcenter_code,
         setup_time=op.setup_time or 0.0,
         run_time=op.run_time or 0.0,
         labor_setup_time=op.labor_setup_time or 0.0,

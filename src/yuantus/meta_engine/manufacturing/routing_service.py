@@ -3,7 +3,7 @@ Routing service (operations + time/cost calculations).
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 import uuid
 
 from sqlalchemy.orm import Session
@@ -15,22 +15,39 @@ class RoutingService:
     def __init__(self, session: Session):
         self.session = session
 
-    def _validate_workcenter_code(self, workcenter_code: Optional[str]) -> Optional[str]:
-        if workcenter_code is None:
-            return None
-        code = workcenter_code.strip()
-        if not code:
-            return None
-        workcenter = (
-            self.session.query(WorkCenter)
-            .filter(WorkCenter.code == code)
-            .first()
-        )
-        if not workcenter:
-            raise ValueError(f"WorkCenter not found: {code}")
+    def _resolve_workcenter(
+        self,
+        *,
+        workcenter_id: Optional[str] = None,
+        workcenter_code: Optional[str] = None,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        normalized_id = (workcenter_id or "").strip() or None
+        normalized_code = (workcenter_code or "").strip() or None
+        if not normalized_id and not normalized_code:
+            return None, None
+
+        workcenter = None
+        if normalized_id:
+            workcenter = self.session.get(WorkCenter, normalized_id)
+            if not workcenter:
+                raise ValueError(f"WorkCenter not found: {normalized_id}")
+            if normalized_code and (workcenter.code or "") != normalized_code:
+                raise ValueError(
+                    f"WorkCenter id/code mismatch: id={normalized_id}, code={normalized_code}"
+                )
+        elif normalized_code:
+            workcenter = (
+                self.session.query(WorkCenter)
+                .filter(WorkCenter.code == normalized_code)
+                .first()
+            )
+            if not workcenter:
+                raise ValueError(f"WorkCenter not found: {normalized_code}")
+
         if not bool(workcenter.is_active):
-            raise ValueError(f"WorkCenter is inactive: {code}")
-        return code
+            raise ValueError(f"WorkCenter is inactive: {workcenter.code}")
+
+        return workcenter.id, workcenter.code
 
     def create_routing(
         self,
@@ -69,6 +86,7 @@ class RoutingService:
         name: str,
         *,
         operation_type: str = "fabrication",
+        workcenter_id: Optional[str] = None,
         workcenter_code: Optional[str] = None,
         setup_time: float = 0.0,
         run_time: float = 0.0,
@@ -83,7 +101,10 @@ class RoutingService:
         routing = self.session.get(Routing, routing_id)
         if not routing:
             raise ValueError(f"Routing not found: {routing_id}")
-        validated_workcenter_code = self._validate_workcenter_code(workcenter_code)
+        resolved_workcenter_id, resolved_workcenter_code = self._resolve_workcenter(
+            workcenter_id=workcenter_id,
+            workcenter_code=workcenter_code,
+        )
 
         if sequence is None:
             existing = (
@@ -100,7 +121,8 @@ class RoutingService:
             name=name,
             operation_type=operation_type,
             sequence=sequence,
-            workcenter_code=validated_workcenter_code,
+            workcenter_id=resolved_workcenter_id,
+            workcenter_code=resolved_workcenter_code,
             setup_time=setup_time,
             run_time=run_time,
             labor_setup_time=labor_setup_time if labor_setup_time is not None else setup_time,
@@ -282,6 +304,7 @@ class RoutingService:
                 name=op.name,
                 operation_type=op.operation_type,
                 sequence=op.sequence,
+                workcenter_id=op.workcenter_id,
                 workcenter_code=op.workcenter_code,
                 setup_time=op.setup_time,
                 run_time=op.run_time,
