@@ -59,6 +59,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
 - Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
 - Phase 4/5 Baseline + Reports: `docs/DEV_AND_VERIFICATION_P4_P5_20260201.md`
