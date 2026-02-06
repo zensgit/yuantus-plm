@@ -521,3 +521,78 @@ class ConfigService:
         config.effective_bom_cache = effective_bom
         config.cache_updated_at = datetime.utcnow()
         self.session.add(config)
+
+    def compare_configurations(
+        self,
+        config_id_a: str,
+        config_id_b: str,
+        *,
+        levels: int = 10,
+        effective_date: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """Compare two saved product configurations.
+
+        Returns a selection diff and a BOM diff based on each configuration's
+        effective BOM (cached when available).
+        """
+
+        config_a = self.session.get(ProductConfiguration, config_id_a)
+        config_b = self.session.get(ProductConfiguration, config_id_b)
+        if not config_a or not config_b:
+            raise ValueError("Configuration not found")
+
+        selections_a = config_a.selections or {}
+        selections_b = config_b.selections or {}
+
+        selection_diffs: List[Dict[str, Any]] = []
+        all_keys = set(selections_a.keys()) | set(selections_b.keys())
+        for key in sorted(all_keys):
+            val_a = selections_a.get(key)
+            val_b = selections_b.get(key)
+            if val_a != val_b:
+                selection_diffs.append(
+                    {
+                        "option": key,
+                        "config_a": val_a,
+                        "config_b": val_b,
+                    }
+                )
+
+        bom_a = config_a.effective_bom_cache
+        if bom_a is None:
+            bom_a = self.get_effective_bom(
+                config_a.product_item_id,
+                selections_a,
+                levels=levels,
+                effective_date=effective_date,
+            )
+
+        bom_b = config_b.effective_bom_cache
+        if bom_b is None:
+            bom_b = self.get_effective_bom(
+                config_b.product_item_id,
+                selections_b,
+                levels=levels,
+                effective_date=effective_date,
+            )
+
+        bom_diff = self.bom_service.compare_bom_trees(bom_a, bom_b)
+
+        return {
+            "config_a": {
+                "id": config_a.id,
+                "name": config_a.name,
+                "product_item_id": config_a.product_item_id,
+                "state": config_a.state,
+                "version": config_a.version,
+            },
+            "config_b": {
+                "id": config_b.id,
+                "name": config_b.name,
+                "product_item_id": config_b.product_item_id,
+                "state": config_b.state,
+                "version": config_b.version,
+            },
+            "selection_differences": selection_diffs,
+            "bom_differences": bom_diff,
+        }
