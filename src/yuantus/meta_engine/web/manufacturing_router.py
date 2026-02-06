@@ -11,10 +11,12 @@ from yuantus.api.dependencies.auth import CurrentUser, get_current_user
 from yuantus.database import get_db
 from yuantus.meta_engine.manufacturing.mbom_service import MBOMService
 from yuantus.meta_engine.manufacturing.routing_service import RoutingService
-from yuantus.meta_engine.manufacturing.models import ManufacturingBOM, Routing
+from yuantus.meta_engine.manufacturing.workcenter_service import WorkCenterService
+from yuantus.meta_engine.manufacturing.models import ManufacturingBOM, Routing, WorkCenter
 
 mbom_router = APIRouter(prefix="/mboms", tags=["MBOM"])
 routing_router = APIRouter(prefix="/routings", tags=["Routing"])
+workcenter_router = APIRouter(prefix="/workcenters", tags=["WorkCenter"])
 
 
 class MBOMCreateRequest(BaseModel):
@@ -112,6 +114,65 @@ class CostCalcRequest(BaseModel):
     overhead_rate: Optional[float] = None
 
 
+class WorkCenterCreateRequest(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+    plant_code: Optional[str] = None
+    department_code: Optional[str] = None
+    capacity_per_day: float = 8.0
+    efficiency: float = 1.0
+    utilization: float = 0.9
+    machine_count: int = 1
+    worker_count: int = 1
+    cost_center: Optional[str] = None
+    labor_rate: Optional[float] = None
+    overhead_rate: Optional[float] = None
+    scheduling_type: str = "finite"
+    queue_time_default: float = 0.0
+    is_active: bool = True
+
+
+class WorkCenterUpdateRequest(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    plant_code: Optional[str] = None
+    department_code: Optional[str] = None
+    capacity_per_day: Optional[float] = None
+    efficiency: Optional[float] = None
+    utilization: Optional[float] = None
+    machine_count: Optional[int] = None
+    worker_count: Optional[int] = None
+    cost_center: Optional[str] = None
+    labor_rate: Optional[float] = None
+    overhead_rate: Optional[float] = None
+    scheduling_type: Optional[str] = None
+    queue_time_default: Optional[float] = None
+    is_active: Optional[bool] = None
+
+
+class WorkCenterResponse(BaseModel):
+    id: str
+    code: str
+    name: str
+    description: Optional[str] = None
+    plant_code: Optional[str] = None
+    department_code: Optional[str] = None
+    capacity_per_day: float = 8.0
+    efficiency: float = 1.0
+    utilization: float = 0.9
+    machine_count: int = 1
+    worker_count: int = 1
+    cost_center: Optional[str] = None
+    labor_rate: Optional[float] = None
+    overhead_rate: Optional[float] = None
+    scheduling_type: str = "finite"
+    queue_time_default: float = 0.0
+    is_active: bool = True
+    created_at: Optional[datetime] = None
+
+
 def _mbom_to_response(mbom: ManufacturingBOM, *, include_structure: bool) -> MBOMResponse:
     return MBOMResponse(
         id=mbom.id,
@@ -143,6 +204,29 @@ def _routing_to_response(routing: Routing) -> RoutingResponse:
         total_labor_time=routing.total_labor_time or 0.0,
         created_by_id=routing.created_by_id,
         created_at=routing.created_at,
+    )
+
+
+def _workcenter_to_response(workcenter: WorkCenter) -> WorkCenterResponse:
+    return WorkCenterResponse(
+        id=workcenter.id,
+        code=workcenter.code,
+        name=workcenter.name,
+        description=workcenter.description,
+        plant_code=workcenter.plant_code,
+        department_code=workcenter.department_code,
+        capacity_per_day=workcenter.capacity_per_day or 8.0,
+        efficiency=workcenter.efficiency or 1.0,
+        utilization=workcenter.utilization or 0.9,
+        machine_count=workcenter.machine_count or 1,
+        worker_count=workcenter.worker_count or 1,
+        cost_center=workcenter.cost_center,
+        labor_rate=workcenter.labor_rate,
+        overhead_rate=workcenter.overhead_rate,
+        scheduling_type=workcenter.scheduling_type or "finite",
+        queue_time_default=workcenter.queue_time_default or 0.0,
+        is_active=bool(workcenter.is_active),
+        created_at=workcenter.created_at,
     )
 
 
@@ -346,3 +430,67 @@ async def copy_routing(
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _routing_to_response(routing)
+
+
+@workcenter_router.post("", response_model=WorkCenterResponse)
+async def create_workcenter(
+    request: WorkCenterCreateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = WorkCenterService(db)
+    try:
+        workcenter = service.create_workcenter(request.model_dump())
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _workcenter_to_response(workcenter)
+
+
+@workcenter_router.get("", response_model=List[WorkCenterResponse])
+async def list_workcenters(
+    plant_code: Optional[str] = Query(None),
+    include_inactive: bool = Query(False),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = WorkCenterService(db)
+    items = service.list_workcenters(
+        plant_code=plant_code,
+        include_inactive=include_inactive,
+    )
+    return [_workcenter_to_response(item) for item in items]
+
+
+@workcenter_router.get("/{workcenter_id}", response_model=WorkCenterResponse)
+async def get_workcenter(
+    workcenter_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = WorkCenterService(db)
+    item = service.get_workcenter(workcenter_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="WorkCenter not found")
+    return _workcenter_to_response(item)
+
+
+@workcenter_router.patch("/{workcenter_id}", response_model=WorkCenterResponse)
+async def update_workcenter(
+    workcenter_id: str,
+    request: WorkCenterUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = WorkCenterService(db)
+    item = service.get_workcenter(workcenter_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="WorkCenter not found")
+    try:
+        item = service.update_workcenter(item, request.model_dump(exclude_unset=True))
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return _workcenter_to_response(item)
