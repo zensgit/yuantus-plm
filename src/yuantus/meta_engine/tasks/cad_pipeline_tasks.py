@@ -55,6 +55,116 @@ def _build_authorization_header(token: Optional[str]) -> Optional[str]:
     return f"Bearer {token}"
 
 
+def _parse_png_size(data: bytes) -> tuple[Optional[int], Optional[int]]:
+    if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
+        return None, None
+    if data[12:16] != b"IHDR":
+        return None, None
+    width = int.from_bytes(data[16:20], "big")
+    height = int.from_bytes(data[20:24], "big")
+    return width, height
+
+
+def _create_minimal_png_bytes(width: int, height: int) -> bytes:
+    import struct
+    import zlib
+
+    width = max(1, int(width))
+    height = max(1, int(height))
+    row = b"\x00" + (b"\x80\x80\x80" * width)
+    raw = row * height
+    compressed = zlib.compress(raw)
+
+    def _chunk(tag: bytes, payload: bytes) -> bytes:
+        length = struct.pack(">I", len(payload))
+        crc = struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
+        return length + tag + payload + crc
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return b"".join(
+        [
+            b"\x89PNG\r\n\x1a\n",
+            _chunk(b"IHDR", ihdr),
+            _chunk(b"IDAT", compressed),
+            _chunk(b"IEND", b""),
+        ]
+    )
+
+
+def _ensure_preview_min_size(
+    preview_bytes: bytes, *, min_size: int, label: str = "preview"
+) -> bytes:
+    if not preview_bytes or min_size <= 0:
+        return preview_bytes
+
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(preview_bytes)) as img:
+            width, height = img.size
+            if width >= min_size and height >= min_size:
+                return preview_bytes
+            scale = max(min_size / width, min_size / height)
+            new_size = (
+                max(min_size, int(round(width * scale))),
+                max(min_size, int(round(height * scale))),
+            )
+            resized = img.convert("RGB").resize(new_size, resample=Image.BICUBIC)
+            out = io.BytesIO()
+            resized.save(out, format="PNG")
+            return out.getvalue()
+    except Exception as exc:
+        logger.warning("Failed to resize %s preview: %s", label, exc)
+
+    width, height = _parse_png_size(preview_bytes)
+    if width and height and (width < min_size or height < min_size):
+        return _create_minimal_png_bytes(min_size, min_size)
+    return preview_bytes
+
+
+def _preview_meets_min_size(preview_bytes: Optional[bytes], *, min_size: int) -> bool:
+    if not preview_bytes or min_size <= 0:
+        return False
+    try:
+        from PIL import Image
+
+        with Image.open(io.BytesIO(preview_bytes)) as img:
+            width, height = img.size
+            return width >= min_size and height >= min_size
+    except Exception:
+        width, height = _parse_png_size(preview_bytes)
+        if width and height:
+            return width >= min_size and height >= min_size
+    return False
+
+
+def _load_preview_bytes(
+    file_container: FileContainer, file_service: FileService
+) -> Optional[bytes]:
+    if file_container.preview_data:
+        try:
+            return base64.b64decode(file_container.preview_data)
+        except Exception:
+            return None
+
+    preview_path = file_container.preview_path
+    if not preview_path:
+        return None
+    try:
+        local_path = file_service.get_local_path(preview_path)
+        if local_path and os.path.exists(local_path):
+            with open(local_path, "rb") as handle:
+                return handle.read()
+    except Exception:
+        pass
+    try:
+        buf = io.BytesIO()
+        file_service.download_file(preview_path, buf)
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
 def _cad_connector_mode() -> str:
     mode = (get_settings().CAD_CONNECTOR_MODE or "optional").strip().lower()
     if mode not in {"disabled", "optional", "required"}:
@@ -435,16 +545,31 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
     if not file_container:
         raise JobFatalError("File not found")
 
-    if file_container.preview_path:
-        return {
-            "ok": True,
-            "file_id": file_container.id,
-            "preview_path": file_container.preview_path,
-            "preview_url": f"/api/v1/file/{file_container.id}/preview",
-            "skipped": True,
-        }
-
     file_service = FileService()
+    ext = (file_container.get_extension() or "").lower()
+    if file_container.preview_path or file_container.preview_data:
+        if ext != "dxf":
+            return {
+                "ok": True,
+                "file_id": file_container.id,
+                "preview_path": file_container.preview_path,
+                "preview_url": f"/api/v1/file/{file_container.id}/preview",
+                "skipped": True,
+            }
+        preview_bytes = _load_preview_bytes(file_container, file_service)
+        if _preview_meets_min_size(preview_bytes, min_size=512):
+            return {
+                "ok": True,
+                "file_id": file_container.id,
+                "preview_path": file_container.preview_path,
+                "preview_url": f"/api/v1/file/{file_container.id}/preview",
+                "skipped": True,
+            }
+        file_container.preview_path = None
+        file_container.preview_data = None
+        session.add(file_container)
+        session.flush()
+
     _ensure_source_exists(file_service, file_container.system_path)
     use_s3 = _is_s3_storage()
     vault_base_path = _vault_base_path()
@@ -500,7 +625,6 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
             source_path = converter._get_file_path(file_container)
 
         preview_bytes: Optional[bytes] = None
-        ext = (file_container.get_extension() or "").lower()
         settings = get_settings()
         authorization = _build_authorization_header(
             payload.get("authorization") or settings.CAD_ML_SERVICE_TOKEN
@@ -513,6 +637,10 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                     filename=file_container.filename,
                     authorization=authorization,
                 )
+                if ext == "dxf":
+                    preview_bytes = _ensure_preview_min_size(
+                        preview_bytes, min_size=512, label="CAD ML DXF"
+                    )
             except Exception as exc:
                 logger.warning("CAD ML render preview failed: %s", exc)
                 preview_bytes = None
@@ -531,6 +659,7 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                     handle.write(preview_bytes)
                 rel = os.path.relpath(preview_abs, vault_base_path)
                 file_container.preview_path = preview_abs if rel.startswith("..") else rel
+            file_container.preview_data = None
             temp_preview_path = None
         else:
             # Generate preview (works on local file)
@@ -547,6 +676,7 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                 # Local storage: store relative path
                 rel = os.path.relpath(preview_abs, vault_base_path)
                 file_container.preview_path = preview_abs if rel.startswith("..") else rel
+            file_container.preview_data = None
 
         if file_container.conversion_status:
             file_container.conversion_status = ConversionStatus.COMPLETED.value

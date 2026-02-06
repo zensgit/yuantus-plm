@@ -636,12 +636,18 @@ except Exception as e:
         try:
             from PIL import Image, ImageDraw
 
+            size = 256
+            if source_file:
+                ext = source_file.get_extension().lower()
+                if ext == "dxf":
+                    size = 512
+
             # Create simple placeholder image
-            img = Image.new("RGB", (256, 256), color=(240, 240, 240))
+            img = Image.new("RGB", (size, size), color=(240, 240, 240))
             draw = ImageDraw.Draw(img)
 
             # Draw border
-            draw.rectangle([0, 0, 255, 255], outline=(200, 200, 200), width=2)
+            draw.rectangle([0, 0, size - 1, size - 1], outline=(200, 200, 200), width=2)
 
             # Add text
             text = "CAD Preview"
@@ -651,95 +657,49 @@ except Exception as e:
                 text = f"{text}\n{info}"
 
             # Center text
-            draw.text((128, 128), text, fill=(100, 100, 100), anchor="mm")
+            draw.text((size / 2, size / 2), text, fill=(100, 100, 100), anchor="mm")
 
             img.save(output_path, "PNG")
 
         except ImportError:
             # No PIL, create minimal PNG
-            self._create_minimal_png(output_path)
+            size = 256
+            if source_file and source_file.get_extension().lower() == "dxf":
+                size = 512
+            self._create_minimal_png(output_path, width=size, height=size)
 
         return output_path
 
-    def _create_minimal_png(self, output_path: str):
+    def _create_minimal_png(self, output_path: str, width: int = 1, height: int = 1):
         """Create minimal valid PNG file without PIL."""
-        # Minimal 1x1 gray PNG
-        png_data = bytes(
+        import struct
+        import zlib
+
+        width = max(1, int(width))
+        height = max(1, int(height))
+
+        # Build raw RGB data (gray) with filter byte per row
+        row = b"\x00" + (b"\x80\x80\x80" * width)
+        raw = row * height
+        compressed = zlib.compress(raw)
+
+        def _chunk(tag: bytes, data: bytes) -> bytes:
+            length = struct.pack(">I", len(data))
+            crc = struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+            return length + tag + data + crc
+
+        ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+        png_data = b"".join(
             [
-                0x89,
-                0x50,
-                0x4E,
-                0x47,
-                0x0D,
-                0x0A,
-                0x1A,
-                0x0A,  # PNG signature
-                0x00,
-                0x00,
-                0x00,
-                0x0D,
-                0x49,
-                0x48,
-                0x44,
-                0x52,  # IHDR chunk
-                0x00,
-                0x00,
-                0x00,
-                0x01,
-                0x00,
-                0x00,
-                0x00,
-                0x01,
-                0x08,
-                0x02,
-                0x00,
-                0x00,
-                0x00,
-                0x90,
-                0x77,
-                0x53,
-                0xDE,
-                0x00,
-                0x00,
-                0x00,
-                0x0C,
-                0x49,
-                0x44,
-                0x41,  # IDAT chunk
-                0x54,
-                0x08,
-                0xD7,
-                0x63,
-                0xF8,
-                0xCF,
-                0xC0,
-                0x00,
-                0x00,
-                0x01,
-                0x03,
-                0x01,
-                0x00,
-                0xC3,
-                0x3E,
-                0x61,
-                0x7E,
-                0x00,
-                0x00,
-                0x00,
-                0x00,
-                0x49,
-                0x45,
-                0x4E,  # IEND chunk
-                0x44,
-                0xAE,
-                0x42,
-                0x60,
-                0x82,
+                b"\x89PNG\r\n\x1a\n",
+                _chunk(b"IHDR", ihdr),
+                _chunk(b"IDAT", compressed),
+                _chunk(b"IEND", b""),
             ]
         )
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, "wb") as f:
-            f.write(png_data)
+
+        with open(output_path, "wb") as handle:
+            handle.write(png_data)
 
     def _get_generated_dir(self, source_file: FileContainer) -> str:
         """
