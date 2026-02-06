@@ -8,6 +8,7 @@
 - Advanced search filter operators: startswith, endswith, not_contains.
 - Manufacturing WorkCenter API skeleton (list/get/create/update) with service layer and automated tests.
 - Manufacturing guardrails: operation workcenter validation + admin-only WorkCenter writes.
+- Manufacturing routing operations now support strong `workcenter_id` association with backward-compatible `workcenter_code` validation and id/code consistency enforcement.
 - API examples updated for baseline effective date, e-sign reason update, and new search ops.
 - Unit tests for baseline effective lookup, signing reason updates, and search filters.
 
