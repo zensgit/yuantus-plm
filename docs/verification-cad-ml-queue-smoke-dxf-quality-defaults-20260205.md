@@ -10,7 +10,7 @@ RUN_CAD_ML_DOCKER=0 CAD_PREVIEW_SAMPLE_FILE="docs/samples/cad_ml_preview_sample.
 - Completed: 5
 - Failed: 0
 - Cancelled: 0
-- Preview checks: 5/5 OK (PNG signature, dims >= default DXF threshold 256x256)
+- Preview checks: 5/5 OK (PNG signature, dims >= default DXF threshold 512x512)
 - CSV stats appended: /Users/huazhou/Downloads/Github/Yuantus/tmp/cad_ml_queue_stats.csv
 
 ## Timing
@@ -18,14 +18,15 @@ RUN_CAD_ML_DOCKER=0 CAD_PREVIEW_SAMPLE_FILE="docs/samples/cad_ml_preview_sample.
 - avg_seconds_per_job: 2.80
 - throughput_jobs_per_min: 21.43
 - avg_job_duration_seconds: 6.22
-- min_job_duration_seconds: 0.79
-- max_job_duration_seconds: 11.66
+- min_job_duration_seconds: 0.73
+- max_job_duration_seconds: 11.68
 
 ## Latest CSV row
 ```
-2026-02-05T13:40:58Z,1770298844,1770298858,14,5,0,0,0,0,2.8,21.428571428571427,6.216836,0.793415,11.661026,5,6,1,1,1,1,1,256,256,256,256,1,/Users/huazhou/Downloads/Github/Yuantus/docs/samples/cad_ml_preview_sample.dxf
+2026-02-05T14:19:24Z,1770301150,1770301164,14,5,0,0,0,0,2.8,21.428571428571427,6.2185554000000005,0.734868,11.683612,5,6,1,1,1,1,1,256,256,512,512,1,docs/samples/cad_ml_preview_sample.dxf
 ```
 
 ## Notes
-- cad-ml docker was not started (RUN_CAD_ML_DOCKER=0); preview fallback handled output.
-- Full log: /tmp/verify_cad_ml_queue_smoke_dxf_quality_defaults_20260205-214042.log
+- cad-ml docker was not started (RUN_CAD_ML_DOCKER=0); CAD ML base URL not responding, so local preview fallback handled output.
+- Full log: /tmp/verify_cad_ml_queue_smoke_dxf_quality_defaults_20260205-221909.log
+- Attempted RUN_CAD_ML_DOCKER=1 but Docker daemon was not running. Log: /tmp/verify_cad_ml_queue_smoke_dxf_quality_defaults_docker_20260205-222607.log

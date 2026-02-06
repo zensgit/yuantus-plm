@@ -16,6 +16,7 @@ services:
       - "55432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./deployments/docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U yuantus"]
       interval: 5s
@@ -136,14 +137,14 @@ services:
       sh -c "
         echo 'Waiting for database...' &&
         sleep 2 &&
-        echo 'Running migrations...' &&
-        yuantus db upgrade &&
-        if [ -n \"$$YUANTUS_IDENTITY_DATABASE_URL\" ]; then
-          echo 'Running identity migrations...' &&
-          yuantus db upgrade --identity
-        else
-          echo 'Skipping identity migrations (empty IDENTITY_DATABASE_URL)'
-        fi &&
+          echo 'Running migrations...' &&
+          yuantus db upgrade &&
+          if [ -n \"$$YUANTUS_IDENTITY_DATABASE_URL\" ]; then
+            echo 'Running identity migrations...' &&
+            yuantus db upgrade --identity
+          else
+            echo 'Skipping identity migrations (empty IDENTITY_DATABASE_URL)'
+          fi &&
         echo 'Initializing storage...' &&
         yuantus init-storage &&
         echo 'Starting API server...' &&
@@ -209,6 +210,9 @@ services:
   # DedupCAD Vision (2D similarity search)
   # =============================================================================
   dedup-vision:
+    # This service is built from an external repo by default. Keep it opt-in so
+    # CI and basic local compose runs don't fail when the build context isn't present.
+    profiles: ["dedup"]
     build:
       context: ${DEDUP_VISION_BUILD_CONTEXT:-../dedupcad-vision}
       dockerfile: Dockerfile

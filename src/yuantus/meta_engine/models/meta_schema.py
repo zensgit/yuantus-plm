@@ -5,6 +5,11 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from yuantus.models.base import Base
 
+# Ensure LifecycleMap is registered for ItemType.lifecycle_map relationship.
+# Some unit tests instantiate mapped models without going through init_db(),
+# so we need the class to be importable at mapper configuration time.
+from yuantus.meta_engine.lifecycle.models import LifecycleMap  # noqa: F401
+
 
 class ItemType(Base):
     """

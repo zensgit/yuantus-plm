@@ -144,8 +144,8 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - `CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT`: minimum preview PNG height (default `1`).
 - `CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DWG`: min width for DWG previews (default `256`).
 - `CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DWG`: min height for DWG previews (default `256`).
-- `CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF`: min width for DXF previews (default `256`).
-- `CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF`: min height for DXF previews (default `256`).
+- `CAD_ML_QUEUE_PREVIEW_MIN_WIDTH_DXF`: min width for DXF previews (default `512`).
+- `CAD_ML_QUEUE_PREVIEW_MIN_HEIGHT_DXF`: min height for DXF previews (default `512`).
 - `CAD_ML_QUEUE_STATS_CSV`: append queue stats to CSV at this path (default `tmp/cad_ml_queue_stats.csv`).
 - `CAD_ML_QUEUE_STATS_CSV_ROTATE_DAYS`: keep CSV rows within N days (default `30`, set `0` to disable).
 - `RUN_PLAYWRIGHT_CAD_PREVIEW`: enable Playwright browser preview test (default `0`).
