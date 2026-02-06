@@ -209,6 +209,9 @@ services:
   # DedupCAD Vision (2D similarity search)
   # =============================================================================
   dedup-vision:
+    # This service is built from an external repo by default. Keep it opt-in so
+    # CI and basic local compose runs don't fail when the build context isn't present.
+    profiles: ["dedup"]
     build:
       context: ${DEDUP_VISION_BUILD_CONTEXT:-../dedupcad-vision}
       dockerfile: Dockerfile
