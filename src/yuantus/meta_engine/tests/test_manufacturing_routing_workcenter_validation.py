@@ -238,3 +238,57 @@ def test_copy_routing_preserves_workcenter_id_and_code():
     assert len(new_ops) == 1
     assert new_ops[0].workcenter_id == "wc-1"
     assert new_ops[0].workcenter_code == "WC-1"
+
+
+def test_add_operation_rejects_plant_mismatch_between_routing_and_workcenter():
+    session = MagicMock()
+    routing = Routing(id="routing-1", name="R1", plant_code="PLANT-A")
+    wc = WorkCenter(id="wc-1", code="WC-1", name="Cell", plant_code="PLANT-B", is_active=True)
+
+    def _get(model, item_id):
+        if model == Routing:
+            return routing
+        if model == WorkCenter and item_id == "wc-1":
+            return wc
+        return None
+
+    session.get.side_effect = _get
+    session.query.side_effect = lambda model: _build_operation_query(0)
+
+    service = RoutingService(session)
+    service._update_routing_totals = MagicMock()
+
+    with pytest.raises(ValueError, match="plant mismatch"):
+        service.add_operation(
+            "routing-1",
+            "10",
+            "Cut",
+            workcenter_id="wc-1",
+        )
+
+
+def test_add_operation_rejects_line_mismatch_between_routing_and_workcenter_department():
+    session = MagicMock()
+    routing = Routing(id="routing-1", name="R1", line_code="LINE-1")
+    wc = WorkCenter(id="wc-1", code="WC-1", name="Cell", department_code="LINE-2", is_active=True)
+
+    def _get(model, item_id):
+        if model == Routing:
+            return routing
+        if model == WorkCenter and item_id == "wc-1":
+            return wc
+        return None
+
+    session.get.side_effect = _get
+    session.query.side_effect = lambda model: _build_operation_query(0)
+
+    service = RoutingService(session)
+    service._update_routing_totals = MagicMock()
+
+    with pytest.raises(ValueError, match="line mismatch"):
+        service.add_operation(
+            "routing-1",
+            "10",
+            "Cut",
+            workcenter_id="wc-1",
+        )

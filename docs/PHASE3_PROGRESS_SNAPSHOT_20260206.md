@@ -3,59 +3,58 @@
 ## 1. Scope
 
 This snapshot records current implementation status for roadmap section
-`Phase 3: MBOM and Routing`, based on code in `main` and merged PRs up to
-`2026-02-06`.
+`Phase 3: MBOM and Routing`, based on code in `main` up to 2026-02-06.
 
 ## 2. Completed
 
-### 2.1 MBOM and routing baseline capability
+### 2.1 MBOM / Routing baseline
 
-- MBOM creation from EBOM, structure query, and EBOM/MBOM compare exist.
-- Routing baseline capability exists: create routing, add operations, time/cost
-  estimate, and copy routing.
+- MBOM creation from EBOM.
+- MBOM structure query and EBOM/MBOM compare.
+- Routing creation, copy, time/cost calculation.
+- WorkCenter CRUD foundation.
 
-### 2.2 Day 1-3 delivered increments
+### 2.2 Day 1-4 delivered
 
-- Day 1: WorkCenter service + API skeleton (CRUD list/get/create/update).
-- Day 2: WorkCenter guardrails:
-  - operation-to-workcenter validation,
-  - admin-only write for WorkCenter APIs.
-- Day 3: Strong operation association:
-  - `workcenter_id` + backward-compatible `workcenter_code`,
-  - id/code consistency checks,
-  - operation API request/response aligned.
+- Day 1: WorkCenter API skeleton and service.
+- Day 2: WorkCenter guardrails (operation validation + admin-only WorkCenter writes).
+- Day 3: strong operation-workcenter association (`workcenter_id` + `workcenter_code`).
+- Day 4: primary routing control and scoped routing listing.
 
-Reference reports:
+Reference:
 - `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
 - `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
 - `docs/DEV_AND_VERIFICATION_P3_DAY3_WORKCENTER_ASSOC_20260206.md`
+- `docs/DEV_AND_VERIFICATION_P3_DAY4_ROUTING_PRIMARY_20260206.md`
 
-## 3. Pending (Day 4+ focus)
+### 2.3 M1 closure delivered (operation lifecycle + release flow)
 
-- Primary routing lifecycle:
-  - keep single primary routing per scope (`item_id` or `mbom_id`),
-  - explicit API to switch primary routing.
-- Routing query ergonomics:
-  - list routings by `item_id` / `mbom_id` for client-side selection.
-- Follow-up candidate slices:
-  - operation edit/resequence/delete lifecycle,
-  - release/status flow for routing and MBOM.
+- Operation lifecycle APIs:
+  - list/update/delete/resequence
+- Routing lifecycle APIs:
+  - release/reopen
+- MBOM lifecycle APIs:
+  - release/reopen
+- Consistency and guardrails:
+  - workcenter id/code consistency
+  - active-state validation
+  - routing-workcenter plant/line consistency checks
+  - manufacturing write operations admin/superuser protected
+
+Reference:
+- `docs/DEV_AND_VERIFICATION_P3_M1_LIFECYCLE_RELEASE_20260206.md`
+
+## 3. Remaining for P3
+
+- Optional hardening and UX slices:
+  - richer operation batch edit UX-oriented APIs
+  - more explicit release diagnostics payload shaping
+  - larger-scale performance profiling for MBOM/routing paths
 
 ## 4. Risks
 
-- Multiple primary routings can cause ambiguous routing selection in MBOM
-  operation attachment and downstream manufacturing calculations.
-- Missing routing list/primary APIs increases client-side workarounds and
-  potential data inconsistency.
-- Permission boundary for routing write actions should stay explicit to avoid
-  accidental widening.
-
-## 5. Current branch objective
-
-Branch `codex/phase3-day4-routing-primary-20260206` implements Day 4 as:
-
-- single-primary guarantee in routing scope,
-- primary-switch API,
-- routing list API,
-- automated verification (pytest + Playwright),
-- development and verification report.
+- Additional strict write permissions may impact existing non-admin integration callers.
+- Plant/line consistency relies on current model mapping (`line_code` vs `department_code`);
+  future schema alignment may be needed for full semantic precision.
+- Release prechecks increase data quality but can expose legacy inconsistent records that
+  need cleanup.

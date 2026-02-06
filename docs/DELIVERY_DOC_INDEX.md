@@ -22,6 +22,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Ops Checklist: `docs/DELIVERY_OPS_CHECKLIST_20260202.md`
 - Delivery Changelog: `docs/DELIVERY_CHANGELOG_20260202.md`
 - Delivery Dependencies: `docs/DELIVERY_DEPENDENCIES_20260202.md`
+- Aras Parity Scorecard: `docs/ARAS_PARITY_SCORECARD.md`
 - Post-Deployment Verification: `docs/DELIVERY_POST_DEPLOY_CHECKLIST_20260202.md`
 - Delivery Upgrade Guide: `docs/DELIVERY_UPGRADE_GUIDE_20260202.md`
 - Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`
@@ -60,6 +61,7 @@ This index aggregates all delivery‑related documents for private deployments.
 ## Development & Verification
 
 - Phase 3 Progress Snapshot: `docs/PHASE3_PROGRESS_SNAPSHOT_20260206.md`
+- Phase 3 M1 Lifecycle Closure: `docs/DEV_AND_VERIFICATION_P3_M1_LIFECYCLE_RELEASE_20260206.md`
 - Phase 3 Day 4 Routing Primary Control: `docs/DEV_AND_VERIFICATION_P3_DAY4_ROUTING_PRIMARY_20260206.md`
 - Phase 3 Day 3 WorkCenter Strong Association: `docs/DEV_AND_VERIFICATION_P3_DAY3_WORKCENTER_ASSOC_20260206.md`
 - Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`

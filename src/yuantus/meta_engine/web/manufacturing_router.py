@@ -55,6 +55,7 @@ class RoutingCreateRequest(BaseModel):
     version: str = "1.0"
     is_primary: bool = True
     plant_code: Optional[str] = None
+    line_code: Optional[str] = None
 
 
 class RoutingResponse(BaseModel):
@@ -66,6 +67,8 @@ class RoutingResponse(BaseModel):
     version: str
     is_primary: bool
     state: Optional[str] = None
+    plant_code: Optional[str] = None
+    line_code: Optional[str] = None
     total_setup_time: float = 0.0
     total_run_time: float = 0.0
     total_labor_time: float = 0.0
@@ -101,8 +104,47 @@ class OperationResponse(BaseModel):
     workcenter_code: Optional[str] = None
     setup_time: float
     run_time: float
+    queue_time: float = 0.0
+    move_time: float = 0.0
+    wait_time: float = 0.0
     labor_setup_time: float
     labor_run_time: float
+    crew_size: int = 1
+    machines_required: int = 1
+    is_subcontracted: bool = False
+    inspection_required: bool = False
+
+
+class OperationUpdateRequest(BaseModel):
+    operation_number: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    operation_type: Optional[str] = None
+    sequence: Optional[int] = Field(None, ge=1)
+    workcenter_id: Optional[str] = None
+    workcenter_code: Optional[str] = None
+    setup_time: Optional[float] = None
+    run_time: Optional[float] = None
+    queue_time: Optional[float] = None
+    move_time: Optional[float] = None
+    wait_time: Optional[float] = None
+    labor_setup_time: Optional[float] = None
+    labor_run_time: Optional[float] = None
+    crew_size: Optional[int] = None
+    machines_required: Optional[int] = None
+    is_subcontracted: Optional[bool] = None
+    inspection_required: Optional[bool] = None
+    work_instructions: Optional[str] = None
+    tooling_requirements: Optional[Dict[str, Any]] = None
+    document_ids: Optional[List[str]] = None
+    labor_cost_rate: Optional[float] = None
+    overhead_rate: Optional[float] = None
+    properties: Optional[Dict[str, Any]] = None
+
+
+class OperationResequenceRequest(BaseModel):
+    ordered_operation_ids: List[str]
+    step: int = Field(10, ge=1)
 
 
 class TimeCalcRequest(BaseModel):
@@ -211,12 +253,51 @@ def _routing_to_response(routing: Routing) -> RoutingResponse:
         version=routing.version or "1.0",
         is_primary=bool(routing.is_primary),
         state=routing.state,
+        plant_code=routing.plant_code,
+        line_code=routing.line_code,
         total_setup_time=routing.total_setup_time or 0.0,
         total_run_time=routing.total_run_time or 0.0,
         total_labor_time=routing.total_labor_time or 0.0,
         created_by_id=routing.created_by_id,
         created_at=routing.created_at,
     )
+
+
+def _operation_to_response(operation) -> OperationResponse:
+    return OperationResponse(
+        id=getattr(operation, "id"),
+        routing_id=getattr(operation, "routing_id"),
+        operation_number=getattr(operation, "operation_number"),
+        name=getattr(operation, "name"),
+        operation_type=getattr(operation, "operation_type"),
+        sequence=getattr(operation, "sequence"),
+        workcenter_id=getattr(operation, "workcenter_id", None),
+        workcenter_code=getattr(operation, "workcenter_code", None),
+        setup_time=getattr(operation, "setup_time", 0.0) or 0.0,
+        run_time=getattr(operation, "run_time", 0.0) or 0.0,
+        queue_time=getattr(operation, "queue_time", 0.0) or 0.0,
+        move_time=getattr(operation, "move_time", 0.0) or 0.0,
+        wait_time=getattr(operation, "wait_time", 0.0) or 0.0,
+        labor_setup_time=getattr(operation, "labor_setup_time", 0.0) or 0.0,
+        labor_run_time=getattr(operation, "labor_run_time", 0.0) or 0.0,
+        crew_size=getattr(operation, "crew_size", 1) or 1,
+        machines_required=getattr(operation, "machines_required", 1) or 1,
+        is_subcontracted=bool(getattr(operation, "is_subcontracted", False)),
+        inspection_required=bool(getattr(operation, "inspection_required", False)),
+    )
+
+
+def _raise_http_for_value_error(exc: ValueError):
+    message = str(exc)
+    not_found_prefixes = (
+        "Routing not found:",
+        "Operation not found:",
+        "WorkCenter not found:",
+        "MBOM not found:",
+    )
+    if message.startswith(not_found_prefixes):
+        raise HTTPException(status_code=404, detail=message) from exc
+    raise HTTPException(status_code=400, detail=message) from exc
 
 
 def _workcenter_to_response(workcenter: WorkCenter) -> WorkCenterResponse:
@@ -248,6 +329,7 @@ async def create_mbom_from_ebom(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    _ensure_admin(user)
     service = MBOMService(db)
     try:
         mbom = service.create_mbom_from_ebom(
@@ -262,7 +344,7 @@ async def create_mbom_from_ebom(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_http_for_value_error(exc)
     return _mbom_to_response(mbom, include_structure=True)
 
 
@@ -295,6 +377,40 @@ async def get_mbom(
     return structure
 
 
+@mbom_router.put("/{mbom_id}/release", response_model=MBOMResponse)
+async def release_mbom(
+    mbom_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    service = MBOMService(db)
+    try:
+        mbom = service.release_mbom(mbom_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_http_for_value_error(exc)
+    return _mbom_to_response(mbom, include_structure=False)
+
+
+@mbom_router.put("/{mbom_id}/reopen", response_model=MBOMResponse)
+async def reopen_mbom(
+    mbom_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    service = MBOMService(db)
+    try:
+        mbom = service.reopen_mbom(mbom_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_http_for_value_error(exc)
+    return _mbom_to_response(mbom, include_structure=False)
+
+
 @mbom_router.post("/compare", response_model=Dict[str, Any])
 async def compare_ebom_mbom(
     request: MBOMCompareRequest,
@@ -311,6 +427,7 @@ async def create_routing(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    _ensure_admin(user)
     service = RoutingService(db)
     try:
         routing = service.create_routing(
@@ -321,12 +438,13 @@ async def create_routing(
             version=request.version,
             is_primary=request.is_primary,
             plant_code=request.plant_code,
+            line_code=request.line_code,
             user_id=int(user.id),
         )
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_http_for_value_error(exc)
     return _routing_to_response(routing)
 
 
@@ -367,11 +485,22 @@ async def set_primary_routing(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        message = str(exc)
-        if message.startswith("Routing not found:"):
-            raise HTTPException(status_code=404, detail=message) from exc
-        raise HTTPException(status_code=400, detail=message) from exc
+        _raise_http_for_value_error(exc)
     return _routing_to_response(routing)
+
+
+@routing_router.get("/{routing_id}/operations", response_model=List[OperationResponse])
+async def list_operations(
+    routing_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = RoutingService(db)
+    try:
+        operations = service.list_operations(routing_id)
+    except ValueError as exc:
+        _raise_http_for_value_error(exc)
+    return [_operation_to_response(operation) for operation in operations]
 
 
 @routing_router.post("/{routing_id}/operations", response_model=OperationResponse)
@@ -381,6 +510,7 @@ async def add_operation(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    _ensure_admin(user)
     service = RoutingService(db)
     try:
         op = service.add_operation(
@@ -403,21 +533,71 @@ async def add_operation(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return OperationResponse(
-        id=op.id,
-        routing_id=op.routing_id,
-        operation_number=op.operation_number,
-        name=op.name,
-        operation_type=op.operation_type,
-        sequence=op.sequence,
-        workcenter_id=op.workcenter_id,
-        workcenter_code=op.workcenter_code,
-        setup_time=op.setup_time or 0.0,
-        run_time=op.run_time or 0.0,
-        labor_setup_time=op.labor_setup_time or 0.0,
-        labor_run_time=op.labor_run_time or 0.0,
-    )
+        _raise_http_for_value_error(exc)
+    return _operation_to_response(op)
+
+
+@routing_router.patch("/{routing_id}/operations/{operation_id}", response_model=OperationResponse)
+async def update_operation(
+    routing_id: str,
+    operation_id: str,
+    request: OperationUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    service = RoutingService(db)
+    try:
+        operation = service.update_operation(
+            routing_id,
+            operation_id,
+            request.model_dump(exclude_unset=True),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_http_for_value_error(exc)
+    return _operation_to_response(operation)
+
+
+@routing_router.delete("/{routing_id}/operations/{operation_id}", response_model=Dict[str, Any])
+async def delete_operation(
+    routing_id: str,
+    operation_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    service = RoutingService(db)
+    try:
+        service.delete_operation(routing_id, operation_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_http_for_value_error(exc)
+    return {"deleted": True, "operation_id": operation_id}
+
+
+@routing_router.post("/{routing_id}/operations/resequence", response_model=List[OperationResponse])
+async def resequence_operations(
+    routing_id: str,
+    request: OperationResequenceRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    service = RoutingService(db)
+    try:
+        operations = service.resequence_operations(
+            routing_id,
+            request.ordered_operation_ids,
+            step=request.step,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_http_for_value_error(exc)
+    return [_operation_to_response(operation) for operation in operations]
 
 
 @routing_router.post("/{routing_id}/calculate-time", response_model=Dict[str, Any])
@@ -434,6 +614,40 @@ async def calculate_time(
         include_queue=request.include_queue,
         include_move=request.include_move,
     )
+
+
+@routing_router.put("/{routing_id}/release", response_model=RoutingResponse)
+async def release_routing(
+    routing_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    service = RoutingService(db)
+    try:
+        routing = service.release_routing(routing_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_http_for_value_error(exc)
+    return _routing_to_response(routing)
+
+
+@routing_router.put("/{routing_id}/reopen", response_model=RoutingResponse)
+async def reopen_routing(
+    routing_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    service = RoutingService(db)
+    try:
+        routing = service.reopen_routing(routing_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_http_for_value_error(exc)
+    return _routing_to_response(routing)
 
 
 @routing_router.post("/{routing_id}/calculate-cost", response_model=Dict[str, Any])
@@ -462,6 +676,7 @@ async def copy_routing(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
+    _ensure_admin(user)
     service = RoutingService(db)
     try:
         routing = service.copy_routing(
@@ -475,7 +690,7 @@ async def copy_routing(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_http_for_value_error(exc)
     return _routing_to_response(routing)
 
 

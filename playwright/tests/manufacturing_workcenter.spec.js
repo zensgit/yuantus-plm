@@ -225,3 +225,123 @@ test('Routing primary switching keeps only one primary', async ({ request }) => 
   const primaryIds = routings.filter((x) => x.is_primary).map((x) => x.id);
   expect(primaryIds).toEqual([routingB.id]);
 });
+
+test('Routing operation lifecycle and release flow', async ({ request }) => {
+  const { headers } = await login(request);
+  const ts = Date.now();
+  const wcCode = `WC-LIFE-${ts}`;
+
+  const wcResp = await request.post('/api/v1/workcenters', {
+    headers,
+    data: {
+      code: wcCode,
+      name: 'Lifecycle Cell',
+      plant_code: 'PLANT-1',
+      department_code: 'LINE-1',
+      is_active: true,
+    },
+  });
+  expect(wcResp.ok()).toBeTruthy();
+  const workcenter = await wcResp.json();
+
+  const partId = await createPart(request, headers, `RTG-LIFE-${ts}`, 'Routing Lifecycle Part');
+  const routingResp = await request.post('/api/v1/routings', {
+    headers,
+    data: {
+      name: `Routing-Life-${ts}`,
+      item_id: partId,
+      plant_code: 'PLANT-1',
+      line_code: 'LINE-1',
+      is_primary: true,
+    },
+  });
+  expect(routingResp.ok()).toBeTruthy();
+  const routing = await routingResp.json();
+
+  const op1Resp = await request.post(`/api/v1/routings/${routing.id}/operations`, {
+    headers,
+    data: {
+      operation_number: '10',
+      name: 'Cut',
+      workcenter_id: workcenter.id,
+      run_time: 1.0,
+    },
+  });
+  expect(op1Resp.ok()).toBeTruthy();
+  const op1 = await op1Resp.json();
+
+  const op2Resp = await request.post(`/api/v1/routings/${routing.id}/operations`, {
+    headers,
+    data: {
+      operation_number: '20',
+      name: 'Weld',
+      workcenter_id: workcenter.id,
+      run_time: 2.0,
+    },
+  });
+  expect(op2Resp.ok()).toBeTruthy();
+  const op2 = await op2Resp.json();
+
+  const op3Resp = await request.post(`/api/v1/routings/${routing.id}/operations`, {
+    headers,
+    data: {
+      operation_number: '30',
+      name: 'Inspect',
+      workcenter_id: workcenter.id,
+      run_time: 3.0,
+    },
+  });
+  expect(op3Resp.ok()).toBeTruthy();
+  const op3 = await op3Resp.json();
+
+  const listBeforeResp = await request.get(`/api/v1/routings/${routing.id}/operations`, { headers });
+  expect(listBeforeResp.ok()).toBeTruthy();
+  const listBefore = await listBeforeResp.json();
+  expect(listBefore.map((x) => x.operation_number)).toEqual(['10', '20', '30']);
+
+  const updateResp = await request.patch(`/api/v1/routings/${routing.id}/operations/${op2.id}`, {
+    headers,
+    data: {
+      name: 'Weld Updated',
+      run_time: 4.5,
+      workcenter_code: wcCode,
+    },
+  });
+  expect(updateResp.ok()).toBeTruthy();
+  const updated = await updateResp.json();
+  expect(updated.name).toBe('Weld Updated');
+  expect(updated.run_time).toBe(4.5);
+
+  const reseqResp = await request.post(`/api/v1/routings/${routing.id}/operations/resequence`, {
+    headers,
+    data: {
+      ordered_operation_ids: [op3.id, op1.id, op2.id],
+      step: 5,
+    },
+  });
+  expect(reseqResp.ok()).toBeTruthy();
+  const resequenced = await reseqResp.json();
+  expect(resequenced.map((x) => x.id)).toEqual([op3.id, op1.id, op2.id]);
+  expect(resequenced.map((x) => x.sequence)).toEqual([5, 10, 15]);
+
+  const deleteResp = await request.delete(`/api/v1/routings/${routing.id}/operations/${op1.id}`, {
+    headers,
+  });
+  expect(deleteResp.ok()).toBeTruthy();
+
+  const listAfterDeleteResp = await request.get(`/api/v1/routings/${routing.id}/operations`, { headers });
+  expect(listAfterDeleteResp.ok()).toBeTruthy();
+  const listAfterDelete = await listAfterDeleteResp.json();
+  expect(listAfterDelete.length).toBe(2);
+  expect(listAfterDelete.map((x) => x.sequence)).toEqual([10, 20]);
+
+  const releaseResp = await request.put(`/api/v1/routings/${routing.id}/release`, { headers });
+  expect(releaseResp.ok()).toBeTruthy();
+  const released = await releaseResp.json();
+  expect(released.state).toBe('released');
+
+  const reopenResp = await request.put(`/api/v1/routings/${routing.id}/reopen`, { headers });
+  expect(reopenResp.ok()).toBeTruthy();
+  const reopened = await reopenResp.json();
+  expect(reopened.state).toBe('draft');
+});
