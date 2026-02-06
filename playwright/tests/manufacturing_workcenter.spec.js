@@ -169,3 +169,59 @@ test('Routing operations validate workcenter association', async ({ request }) =
   const inactiveBody = await inactiveOpResp.json();
   expect((inactiveBody.detail || '').includes('inactive')).toBeTruthy();
 });
+
+test('Routing primary switching keeps only one primary', async ({ request }) => {
+  const { headers } = await login(request);
+  const ts = Date.now();
+  const partId = await createPart(request, headers, `RTG-P2-${ts}`, 'Routing Part 2');
+
+  const routingAResp = await request.post('/api/v1/routings', {
+    headers,
+    data: {
+      name: `Routing-A-${ts}`,
+      item_id: partId,
+      is_primary: true,
+    },
+  });
+  expect(routingAResp.ok()).toBeTruthy();
+  const routingA = await routingAResp.json();
+  expect(routingA.is_primary).toBeTruthy();
+
+  const routingBResp = await request.post('/api/v1/routings', {
+    headers,
+    data: {
+      name: `Routing-B-${ts}`,
+      item_id: partId,
+      is_primary: false,
+    },
+  });
+  expect(routingBResp.ok()).toBeTruthy();
+  const routingB = await routingBResp.json();
+  expect(routingB.is_primary).toBeFalsy();
+
+  const setPrimaryResp = await request.put(`/api/v1/routings/${routingB.id}/primary`, {
+    headers,
+  });
+  expect(setPrimaryResp.ok()).toBeTruthy();
+  const updatedPrimary = await setPrimaryResp.json();
+  expect(updatedPrimary.id).toBe(routingB.id);
+  expect(updatedPrimary.is_primary).toBeTruthy();
+
+  const getAResp = await request.get(`/api/v1/routings/${routingA.id}`, { headers });
+  expect(getAResp.ok()).toBeTruthy();
+  const getA = await getAResp.json();
+  expect(getA.is_primary).toBeFalsy();
+
+  const getBResp = await request.get(`/api/v1/routings/${routingB.id}`, { headers });
+  expect(getBResp.ok()).toBeTruthy();
+  const getB = await getBResp.json();
+  expect(getB.is_primary).toBeTruthy();
+
+  const listResp = await request.get(`/api/v1/routings?item_id=${encodeURIComponent(partId)}`, {
+    headers,
+  });
+  expect(listResp.ok()).toBeTruthy();
+  const routings = await listResp.json();
+  const primaryIds = routings.filter((x) => x.is_primary).map((x) => x.id);
+  expect(primaryIds).toEqual([routingB.id]);
+});
