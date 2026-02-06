@@ -15,6 +15,35 @@ class RoutingService:
     def __init__(self, session: Session):
         self.session = session
 
+    def _scope_filters(
+        self,
+        *,
+        mbom_id: Optional[str] = None,
+        item_id: Optional[str] = None,
+    ):
+        if mbom_id:
+            return (Routing.mbom_id == mbom_id,)
+        if item_id:
+            return (Routing.item_id == item_id,)
+        return ()
+
+    def _clear_primary_in_scope(
+        self,
+        *,
+        mbom_id: Optional[str] = None,
+        item_id: Optional[str] = None,
+        exclude_routing_id: Optional[str] = None,
+    ) -> None:
+        scope = self._scope_filters(mbom_id=mbom_id, item_id=item_id)
+        if not scope:
+            return
+        query = self.session.query(Routing).filter(*scope)
+        if exclude_routing_id:
+            query = query.filter(Routing.id != exclude_routing_id)
+        for routing in query.all():
+            routing.is_primary = False
+            self.session.add(routing)
+
     def _resolve_workcenter(
         self,
         *,
@@ -77,7 +106,26 @@ class RoutingService:
         )
         self.session.add(routing)
         self.session.flush()
+        if bool(is_primary):
+            self._clear_primary_in_scope(
+                mbom_id=mbom_id,
+                item_id=item_id,
+                exclude_routing_id=routing.id,
+            )
         return routing
+
+    def list_routings(
+        self,
+        *,
+        mbom_id: Optional[str] = None,
+        item_id: Optional[str] = None,
+    ):
+        query = self.session.query(Routing)
+        if mbom_id:
+            query = query.filter(Routing.mbom_id == mbom_id)
+        if item_id:
+            query = query.filter(Routing.item_id == item_id)
+        return query.order_by(Routing.created_at.desc()).all()
 
     def add_operation(
         self,
@@ -324,3 +372,24 @@ class RoutingService:
         self.session.flush()
         self._update_routing_totals(new_routing.id)
         return new_routing
+
+    def set_primary_routing(self, routing_id: str) -> Routing:
+        routing = self.session.get(Routing, routing_id)
+        if not routing:
+            raise ValueError(f"Routing not found: {routing_id}")
+
+        scope = self._scope_filters(mbom_id=routing.mbom_id, item_id=routing.item_id)
+        if not scope:
+            raise ValueError(
+                "Routing is missing scope (mbom_id/item_id); cannot set primary"
+            )
+
+        self._clear_primary_in_scope(
+            mbom_id=routing.mbom_id,
+            item_id=routing.item_id,
+            exclude_routing_id=routing.id,
+        )
+        routing.is_primary = True
+        self.session.add(routing)
+        self.session.flush()
+        return routing

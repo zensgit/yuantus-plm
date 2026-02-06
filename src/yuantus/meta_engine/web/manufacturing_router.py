@@ -330,6 +330,18 @@ async def create_routing(
     return _routing_to_response(routing)
 
 
+@routing_router.get("", response_model=List[RoutingResponse])
+async def list_routings(
+    mbom_id: Optional[str] = Query(None),
+    item_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = RoutingService(db)
+    items = service.list_routings(mbom_id=mbom_id, item_id=item_id)
+    return [_routing_to_response(item) for item in items]
+
+
 @routing_router.get("/{routing_id}", response_model=RoutingResponse)
 async def get_routing(
     routing_id: str,
@@ -339,6 +351,26 @@ async def get_routing(
     routing = db.get(Routing, routing_id)
     if not routing:
         raise HTTPException(status_code=404, detail="Routing not found")
+    return _routing_to_response(routing)
+
+
+@routing_router.put("/{routing_id}/primary", response_model=RoutingResponse)
+async def set_primary_routing(
+    routing_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    service = RoutingService(db)
+    try:
+        routing = service.set_primary_routing(routing_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        message = str(exc)
+        if message.startswith("Routing not found:"):
+            raise HTTPException(status_code=404, detail=message) from exc
+        raise HTTPException(status_code=400, detail=message) from exc
     return _routing_to_response(routing)
 
 

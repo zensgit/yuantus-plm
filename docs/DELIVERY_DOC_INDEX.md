@@ -59,6 +59,8 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- Phase 3 Progress Snapshot: `docs/PHASE3_PROGRESS_SNAPSHOT_20260206.md`
+- Phase 3 Day 4 Routing Primary Control: `docs/DEV_AND_VERIFICATION_P3_DAY4_ROUTING_PRIMARY_20260206.md`
 - Phase 3 Day 3 WorkCenter Strong Association: `docs/DEV_AND_VERIFICATION_P3_DAY3_WORKCENTER_ASSOC_20260206.md`
 - Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
 - Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
