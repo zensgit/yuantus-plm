@@ -59,6 +59,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
 - Phase 4/5 Baseline + Reports: `docs/DEV_AND_VERIFICATION_P4_P5_20260201.md`
 - Phase 6 E-Signatures: `docs/DEV_AND_VERIFICATION_P6_ESIGN_20260201.md`
 - Playwright CI Integration: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_CI_20260201.md`

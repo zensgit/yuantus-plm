@@ -196,6 +196,13 @@ class EffectiveBomRequest(BaseModel):
     effective_date: Optional[datetime] = None
 
 
+class ConfigurationCompareRequest(BaseModel):
+    config_id_a: str
+    config_id_b: str
+    levels: int = 10
+    effective_date: Optional[datetime] = None
+
+
 class ValidateSelectionsRequest(BaseModel):
     product_item_id: str
     selections: Dict[str, Any]
@@ -287,12 +294,19 @@ def _config_to_response(config: ProductConfiguration) -> ProductConfigurationRes
 
 @config_router.get("/option-sets", response_model=List[OptionSetResponse])
 async def list_option_sets(
+    item_type_id: Optional[str] = Query(None, description="Filter option sets by ItemType"),
+    include_global: bool = Query(True, description="Include global option sets when filtering by ItemType"),
+    include_inactive: bool = Query(True, description="Include inactive option sets"),
     include_options: bool = Query(False, description="Include options in each option set"),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
     service = ConfigService(db)
-    option_sets = service.list_option_sets()
+    option_sets = service.list_option_sets(
+        item_type_id,
+        include_global=include_global,
+        include_inactive=include_inactive,
+    )
     return [_option_set_to_response(o, include_options) for o in option_sets]
 
 
@@ -609,6 +623,24 @@ async def refresh_product_configuration(
     config = service.refresh_product_configuration(config)
     db.commit()
     return _config_to_response(config)
+
+
+@config_router.post("/configurations/compare", response_model=Dict[str, Any])
+async def compare_configurations(
+    request: ConfigurationCompareRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ConfigService(db)
+    try:
+        return service.compare_configurations(
+            request.config_id_a,
+            request.config_id_b,
+            levels=request.levels,
+            effective_date=request.effective_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @config_router.post("/validate", response_model=Dict[str, Any])
