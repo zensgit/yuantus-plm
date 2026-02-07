@@ -16057,3 +16057,10 @@ PASS: MBOM + routing + time/cost
 - 时间：`2026-02-07 09:30:21 +0800`
 - 命令：`npx playwright test`
 - 结果：`PASS`（9 passed, 1 skipped）
+
+## Run STRICT-GATE-20260207-140604
+
+- 时间：`2026-02-07 14:06:04 +0800`
+- 命令：`TARGETED_PYTEST_ARGS=src/yuantus/meta_engine/tests/test_manufacturing_release_diagnostics.py bash scripts/strict_gate_report.sh`
+- 结果：`PASS`
+- 证据：`docs/DAILY_REPORTS/STRICT_GATE_20260207-140604.md`

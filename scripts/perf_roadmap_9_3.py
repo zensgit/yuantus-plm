@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import math
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+import socket
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -71,6 +72,121 @@ def _percentile(values: List[float], p: float) -> float:
 
 def _ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
+
+
+def _pick_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return int(s.getsockname()[1])
+
+
+def _http_get_status(url: str, *, timeout_s: float = 2.0) -> Optional[int]:
+    import urllib.request
+
+    try:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            return int(getattr(resp, "status", 200))
+    except Exception:
+        return None
+
+
+def _wait_http_200(url: str, *, timeout_s: float = 30.0) -> bool:
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        status = _http_get_status(url, timeout_s=2.0)
+        if status == 200:
+            return True
+        time.sleep(0.5)
+    return False
+
+
+def _find_dedup_vision_root() -> Optional[Path]:
+    candidates = [
+        REPO_ROOT / ".." / "dedupcad-vision",
+        Path("/Users/huazhou/Downloads/Github/dedupcad-vision"),
+    ]
+    for candidate in candidates:
+        start = candidate / "start_server.py"
+        if start.is_file():
+            return candidate.resolve()
+    return None
+
+
+def _start_dedup_vision_server(*, port: int, log_path: Path) -> Optional[subprocess.Popen]:
+    """
+    Start DedupCAD Vision as a sidecar process for the perf harness.
+
+    We intentionally keep this dependency opt-in: if the repo isn't available,
+    we return None and allow the scenario to SKIP.
+    """
+    root = _find_dedup_vision_root()
+    if root is None:
+        return None
+
+    cmd = [
+        "python3",
+        str(root / "start_server.py"),
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+    ]
+
+    env = dict(os.environ)
+    # Disable optional integrations to keep the perf harness self-contained.
+    env.setdefault("S3_ENABLED", "false")
+    env.setdefault("EVENT_BUS_ENABLED", "false")
+    env.setdefault("INTEGRATION_AUTH_MODE", "disabled")
+
+    _ensure_dir(log_path.parent)
+    log_f = open(log_path, "ab", buffering=0)
+    return subprocess.Popen(  # noqa: S603,S607
+        cmd,
+        env=env,
+        stdout=log_f,
+        stderr=subprocess.STDOUT,
+    )
+
+
+def _stop_process(proc: Optional[subprocess.Popen]) -> None:
+    if not proc:
+        return
+    try:
+        proc.terminate()
+        proc.wait(timeout=10)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+def _create_minimal_png_bytes(width: int, height: int) -> bytes:
+    import struct
+    import zlib
+
+    width = max(1, int(width))
+    height = max(1, int(height))
+    row = b"\x00" + (b"\x80\x80\x80" * width)
+    raw = row * height
+    compressed = zlib.compress(raw)
+
+    def _chunk(tag: bytes, payload: bytes) -> bytes:
+        length = struct.pack(">I", len(payload))
+        crc = struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
+        return length + tag + payload + crc
+
+    # PNG signature + IHDR + IDAT + IEND
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return b"".join(
+        [
+            b"\x89PNG\r\n\x1a\n",
+            _chunk(b"IHDR", ihdr),
+            _chunk(b"IDAT", compressed),
+            _chunk(b"IEND", b""),
+        ]
+    )
 
 
 def _ensure_item_types(session) -> None:
@@ -380,26 +496,72 @@ def _scenario_esign_verify(session) -> ScenarioResult:
 def _scenario_dedup_batch_enqueue_1000(session) -> ScenarioResult:
     """
     Roadmap 9.3 defines "dedup batch processing 1000 files < 10 minutes".
-    In this repo, processing depends on an async worker + external vision service.
 
-    We still measure *scheduling/enqueue* throughput (creating 1000 jobs) and mark
-    this scenario as SKIP for processing until worker+vision are wired into the benchmark.
+    This scenario measures end-to-end job execution:
+    - create 1000 FileContainer rows + local files
+    - enqueue 1000 `cad_dedup_vision` jobs via DedupService.run_batch()
+    - process all jobs synchronously in-process using cad_dedup_vision() handler
     """
 
     from yuantus.meta_engine.dedup.service import DedupService
     from yuantus.meta_engine.models.file import FileContainer
+    from yuantus.meta_engine.services.job_service import JobService
+    from yuantus.meta_engine.tasks.cad_pipeline_tasks import cad_dedup_vision
+
+    base_url = os.environ.get("YUANTUS_DEDUP_VISION_BASE_URL", "").strip()
+    if not base_url:
+        # Keep this in sync with Settings default.
+        base_url = "http://127.0.0.1:8100"
+
+    if _http_get_status(f"{base_url}/health", timeout_s=1.0) != 200:
+        return ScenarioResult(
+            name="Dedup batch (1000 files) processing",
+            target="< 10m",
+            threshold_s=600.0,
+            measured_s=None,
+            status="SKIP",
+            notes=f"Dedup Vision not healthy at {base_url} (expected /health=200)",
+        )
+
+    storage_path_raw = (os.environ.get("YUANTUS_LOCAL_STORAGE_PATH") or "").strip()
+    if not storage_path_raw:
+        return ScenarioResult(
+            name="Dedup batch (1000 files) processing",
+            target="< 10m",
+            threshold_s=600.0,
+            measured_s=None,
+            status="SKIP",
+            notes="YUANTUS_LOCAL_STORAGE_PATH not set (perf harness requires isolated local storage)",
+        )
+
+    storage_base = Path(storage_path_raw).resolve()
+    if not storage_base.exists():
+        return ScenarioResult(
+            name="Dedup batch (1000 files) processing",
+            target="< 10m",
+            threshold_s=600.0,
+            measured_s=None,
+            status="SKIP",
+            notes=f"Local storage path missing: {storage_base}",
+        )
+
+    png_bytes = _create_minimal_png_bytes(128, 128)
 
     files: List[FileContainer] = []
     for i in range(1000):
+        rel_path = f"perf/dedup/{i:04d}.png"
+        full_path = storage_base / rel_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_bytes(png_bytes)
         files.append(
             FileContainer(
                 id=str(uuid.uuid4()),
-                filename=f"perf_{i:04d}.dxf",
-                file_type="dxf",
-                mime_type="application/dxf",
-                file_size=0,
+                filename=f"perf_{i:04d}.png",
+                file_type="png",
+                mime_type="image/png",
+                file_size=len(png_bytes),
                 checksum=str(uuid.uuid4()).replace("-", ""),
-                system_path=f"/perf/{i:04d}.dxf",
+                system_path=f"/{rel_path}",
                 document_type="2d",
             )
         )
@@ -409,25 +571,54 @@ def _scenario_dedup_batch_enqueue_1000(session) -> ScenarioResult:
     svc = DedupService(session)
     batch = svc.create_batch({"name": "perf-dedup", "scope_type": "all"}, user_id=1)
 
-    measured_s, (job_count, _job_ids) = _measure(
+    enqueue_s, (job_count, _job_ids) = _measure(
         lambda: svc.run_batch(
             batch,
             user_id=1,
             user_name="admin",
-            mode="balanced",
+            mode="fast",
             limit=1000,
             priority=30,
             dedupe=True,
         )
     )
 
+    job_service = JobService(session)
+    processed = 0
+    start = time.perf_counter()
+    deadline = start + 600.0
+    last_error: Optional[str] = None
+
+    while True:
+        if time.perf_counter() > deadline:
+            break
+        job = job_service.poll_next_job("perf-worker")
+        if not job:
+            break
+        try:
+            result = cad_dedup_vision(job.payload, session)
+            job_service.complete_job(job.id, result=result)
+        except Exception as exc:
+            last_error = str(exc)
+            job_service.fail_job(job.id, str(exc), retry=False)
+        processed += 1
+
+    measured_s = time.perf_counter() - start
+    status = "PASS" if processed == job_count and measured_s < 600.0 and not last_error else "FAIL"
+    notes = (
+        f"base_url={base_url}, mode=fast, files=1000, jobs={job_count}, "
+        f"processed={processed}, enqueue_time={_fmt_duration_s(enqueue_s)}"
+    )
+    if last_error:
+        notes += f", last_error={last_error}"
+
     return ScenarioResult(
         name="Dedup batch (1000 files) processing",
         target="< 10m",
         threshold_s=600.0,
-        measured_s=None,
-        status="SKIP",
-        notes=f"enqueue_only: created_jobs={job_count}, enqueue_time={_fmt_duration_s(measured_s)}; processing requires worker+vision",
+        measured_s=measured_s if processed == job_count else None,
+        status=status,
+        notes=notes,
     )
 
 
@@ -437,6 +628,9 @@ def _write_report(path: Path, *, results: List[ScenarioResult], db_url: str) -> 
     host = platform.node()
     py = sys.version.split()[0]
     os_name = f"{platform.system()} {platform.release()}"
+    storage_root = (os.environ.get("YUANTUS_LOCAL_STORAGE_PATH") or "").strip()
+    dedup_base_url = (os.environ.get("YUANTUS_DEDUP_VISION_BASE_URL") or "").strip()
+    dedup_log = (os.environ.get("PERF_DEDUP_VISION_LOG_PATH") or "").strip()
 
     pass_count = sum(1 for r in results if r.status == "PASS")
     fail_count = sum(1 for r in results if r.status == "FAIL")
@@ -451,7 +645,13 @@ def _write_report(path: Path, *, results: List[ScenarioResult], db_url: str) -> 
     lines.append(f"- OS: `{os_name}`")
     lines.append(f"- Python: `{py}`")
     lines.append(f"- DB: `{db_url}`")
-    lines.append("- Method: In-process SQLAlchemy service calls (no HTTP/uvicorn)")
+    if storage_root:
+        lines.append(f"- Local storage: `{storage_root}`")
+    if dedup_base_url:
+        lines.append(f"- Dedup Vision: `{dedup_base_url}`")
+    if dedup_log:
+        lines.append(f"- Dedup Vision log: `{dedup_log}`")
+    lines.append("- Method: In-process SQLAlchemy service calls; dedup scenario uses HTTP to Dedup Vision when available.")
     lines.append("")
     lines.append("## Results")
     lines.append("")
@@ -506,6 +706,37 @@ def main() -> int:
     os.environ.setdefault("YUANTUS_DATABASE_URL", db_url)
     os.environ.setdefault("YUANTUS_IDENTITY_DATABASE_URL", db_url)
     os.environ.setdefault("YUANTUS_ENVIRONMENT", "dev")
+    os.environ.setdefault("YUANTUS_SCHEMA_MODE", "create_all")
+
+    storage_dir = REPO_ROOT / "tmp" / "perf" / f"storage_{timestamp}"
+    _ensure_dir(storage_dir)
+    # Force an isolated local storage root so the benchmark doesn't pollute dev data.
+    os.environ["YUANTUS_STORAGE_TYPE"] = "local"
+    os.environ["YUANTUS_LOCAL_STORAGE_PATH"] = str(storage_dir)
+    os.environ.setdefault("YUANTUS_LOCAL_STORAGE_PUBLIC_URL_PREFIX", "")
+
+    # Best-effort sidecar: start Dedup Vision if the base URL is local and not already healthy.
+    dedup_proc: Optional[subprocess.Popen] = None
+    dedup_log_path = REPO_ROOT / "tmp" / "perf" / f"dedup_vision_{timestamp}.log"
+    dedup_base_url = (os.environ.get("YUANTUS_DEDUP_VISION_BASE_URL") or "").strip()
+    if not dedup_base_url:
+        dedup_port = _pick_free_port()
+        dedup_base_url = f"http://127.0.0.1:{dedup_port}"
+        os.environ["YUANTUS_DEDUP_VISION_BASE_URL"] = dedup_base_url
+    dedup_base_url = dedup_base_url.rstrip("/")
+
+    if _http_get_status(f"{dedup_base_url}/health", timeout_s=1.0) != 200:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(dedup_base_url)
+        host = (parsed.hostname or "").strip().lower()
+        port = int(parsed.port or (443 if parsed.scheme == "https" else 80))
+        if host in {"127.0.0.1", "localhost"}:
+            dedup_proc = _start_dedup_vision_server(port=port, log_path=dedup_log_path)
+            if dedup_proc and not _wait_http_200(f"{dedup_base_url}/health", timeout_s=30.0):
+                _stop_process(dedup_proc)
+                dedup_proc = None
+        os.environ.setdefault("PERF_DEDUP_VISION_LOG_PATH", str(dedup_log_path))
 
     # Import after env is set (some modules initialize engines at import time).
     from sqlalchemy.orm import sessionmaker
@@ -513,25 +744,28 @@ def main() -> int:
     from yuantus.database import create_db_engine, init_db
     from yuantus.meta_engine.bootstrap import import_all_models
 
-    import_all_models()
-    engine = create_db_engine(db_url)
-    init_db(create_tables=True, bind_engine=engine)
+    try:
+        import_all_models()
+        engine = create_db_engine(db_url)
+        init_db(create_tables=True, bind_engine=engine)
 
-    SessionLocal = sessionmaker(
-        autocommit=False, autoflush=False, expire_on_commit=False, bind=engine
-    )
+        SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, expire_on_commit=False, bind=engine
+        )
 
-    with SessionLocal() as session:
-        _ensure_item_types(session)
-        _ensure_rbac_user(session, user_id=1, username="admin")
+        with SessionLocal() as session:
+            _ensure_item_types(session)
+            _ensure_rbac_user(session, user_id=1, username="admin")
 
-        results: List[ScenarioResult] = []
-        results.append(_scenario_dedup_batch_enqueue_1000(session))
-        results.append(_scenario_config_bom_500_levels(session))
-        results.append(_scenario_mbom_convert_1000_lines(session))
-        results.append(_scenario_baseline_create_2000_members(session))
-        results.append(_scenario_search_response(session))
-        results.append(_scenario_esign_verify(session))
+            results: List[ScenarioResult] = []
+            results.append(_scenario_dedup_batch_enqueue_1000(session))
+            results.append(_scenario_config_bom_500_levels(session))
+            results.append(_scenario_mbom_convert_1000_lines(session))
+            results.append(_scenario_baseline_create_2000_members(session))
+            results.append(_scenario_search_response(session))
+            results.append(_scenario_esign_verify(session))
+    finally:
+        _stop_process(dedup_proc)
 
     _write_report(out_path, results=results, db_url=db_url)
     print(f"Report: {out_path}")
