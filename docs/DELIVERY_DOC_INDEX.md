@@ -64,6 +64,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
 - Export Bundles (Impact + Release Readiness): `docs/DEV_AND_VERIFICATION_EXPORT_BUNDLES_IMPACT_READINESS_20260207.md`
 - Item Cockpit + Export Bundle: `docs/DEV_AND_VERIFICATION_ITEM_COCKPIT_EXPORT_20260207.md`
+- Playwright API-Only Export Bundle Regression: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_EXPORT_BUNDLES_API_20260207.md`
 - Product Detail Cockpit Flags: `docs/DEV_AND_VERIFICATION_PRODUCT_DETAIL_COCKPIT_FLAGS_20260207.md`
 - Demo PLM Closed Loop Script: `docs/DEV_AND_VERIFICATION_DEMO_PLM_CLOSED_LOOP_20260207.md`
 - Strategy-Based Release Validation: `docs/DEV_AND_VERIFICATION_STRATEGY_RELEASE_VALIDATION_20260207.md`
