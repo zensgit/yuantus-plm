@@ -64,6 +64,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
 - Strategy-Based Release Validation: `docs/DEV_AND_VERIFICATION_STRATEGY_RELEASE_VALIDATION_20260207.md`
 - P4 Baseline Release Diagnostics: `docs/DEV_AND_VERIFICATION_P4_BASELINE_RELEASE_DIAGNOSTICS_20260207.md`
+- Release Readiness + ECO Apply Diagnostics + Ruleset Directory: `docs/DEV_AND_VERIFICATION_RELEASE_READINESS_ECO_APPLY_DIAGNOSTICS_20260207.md`
 - Roadmap 9.3 Performance Benchmarks: `docs/DEV_AND_VERIFICATION_ROADMAP_9_3_PERFORMANCE_20260207.md`
 - Roadmap 9.3 Performance Report (2026-02-07): `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`
 - Phase 4/5/6 Hardening: `docs/DEV_AND_VERIFICATION_P4_P5_P6_HARDENING_20260207.md`

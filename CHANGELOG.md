@@ -10,6 +10,9 @@
   - `GET /api/v1/mboms/{mbom_id}/release-diagnostics`
 - Strategy-based release validation (baselines): structured diagnostics for baseline release.
   - `GET /api/v1/baselines/{baseline_id}/release-diagnostics`
+- Release validation directory: `GET /api/v1/release-validation/rulesets` (list kinds/rulesets/rules; built-in + configured).
+- ECO apply diagnostics: `GET /api/v1/eco/{eco_id}/apply-diagnostics` (strategy-based precheck, side-effect free).
+- Release readiness summary: `GET /api/v1/release-readiness/items/{item_id}` (aggregates MBOM/Routing/Baseline diagnostics + E-sign manifest status).
 - Roadmap 9.3 performance benchmark harness: `scripts/perf_roadmap_9_3.py` + reports in `docs/PERFORMANCE_REPORTS/`.
 
 ### Changed
@@ -19,6 +22,8 @@
 - Search: add unit coverage for DB fallback behavior when Elasticsearch is unavailable.
 - Manufacturing: routing/MBOM release endpoints accept optional `ruleset_id` query param (default behavior unchanged).
 - Baselines: release endpoint accepts optional `ruleset_id` query param and blocks release on diagnostics errors unless `force=true`.
+- Release validation: add built-in `readiness` ruleset for `routing_release`/`mbom_release`/`baseline_release` (excludes `*.not_already_released`).
+- ECO: apply endpoint accepts `ruleset_id`, `force`, `ignore_conflicts` and blocks apply on diagnostics errors unless forced.
 
 ### Verification
 - Results logged in `docs/VERIFICATION_RESULTS.md`.
