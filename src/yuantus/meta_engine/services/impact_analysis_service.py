@@ -105,6 +105,7 @@ class ImpactAnalysisService:
             self.session.query(Baseline)
             .join(BaselineMember, BaselineMember.baseline_id == Baseline.id)
             .filter(BaselineMember.item_id == item_id)
+            .distinct()
             .order_by(Baseline.created_at.desc())
             .limit(candidate_limit)
         )
