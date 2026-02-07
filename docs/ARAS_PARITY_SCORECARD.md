@@ -28,3 +28,4 @@ This scorecard tracks parity-to-surpass progress against roadmap scope.
 - Product detail now supports cockpit flags to surface cross-domain links/summaries in one call (UI integration without extra round-trips).
 - Closed-loop demo script produces a reproducible evidence bundle (baseline + manufacturing + readiness + exports) for demos and regression.
 - Playwright API-only coverage now locks export bundle endpoints and baseline release-diagnostics via attachment + ZIP signature assertions.
+- CI strict gate workflow produces daily evidence artifacts (report + logs) via GitHub Actions schedule/dispatch.
