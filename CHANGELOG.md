@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.4 (Update) - 2026-02-07
+
+### Changed
+- Baselines: enforce permission checks for compare/validate/release and comparison details/export; stabilize baseline member pagination order.
+- E-sign: accept rotated HMAC secrets for verification (via `YUANTUS_ESIGN_VERIFY_SECRET_KEYS`), log verifier identity in audit, and restrict audit endpoints to admin.
+- Search: add unit coverage for DB fallback behavior when Elasticsearch is unavailable.
+
+### Verification
+- Results logged in `docs/VERIFICATION_RESULTS.md`.
+
 ## v0.1.4 (Update) - 2026-02-03
 
 ### Added
