@@ -63,6 +63,21 @@ def get_product_detail(
     include_eco_summary: bool = Query(
         False, description="Include ECO summary for this product"
     ),
+    include_impact_summary: bool = Query(
+        False, description="Include cross-domain impact summary (where-used + baselines + e-sign)"
+    ),
+    include_release_readiness_summary: bool = Query(
+        False, description="Include release readiness summary (admin-only; non-admin returns authorized=false)"
+    ),
+    release_readiness_ruleset_id: str = Query(
+        "readiness", description="Ruleset id for release readiness diagnostics aggregation"
+    ),
+    include_open_eco_hits: bool = Query(
+        False, description="Include open ECO hits for this product (excludes done/canceled)"
+    ),
+    cockpit_links_only: bool = Query(
+        True, description="When true, include only links (skip expensive cockpit aggregation)"
+    ),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -88,6 +103,11 @@ def get_product_detail(
             where_used_max_levels=where_used_max_levels,
             include_document_summary=include_document_summary,
             include_eco_summary=include_eco_summary,
+            include_impact_summary=include_impact_summary,
+            include_release_readiness_summary=include_release_readiness_summary,
+            release_readiness_ruleset_id=release_readiness_ruleset_id,
+            include_open_eco_hits=include_open_eco_hits,
+            cockpit_links_only=cockpit_links_only,
         )
     except PLMException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.to_dict())

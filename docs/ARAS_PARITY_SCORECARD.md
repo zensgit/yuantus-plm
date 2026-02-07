@@ -25,3 +25,4 @@ This scorecard tracks parity-to-surpass progress against roadmap scope.
 - Capability coverage is phase-level and intentionally conservative.
 - Performance metrics must be updated after weekly benchmark run against roadmap section 9.3.
 - Leading capability count requires scenario evidence and reproducible verification records.
+- Product detail now supports cockpit flags to surface cross-domain links/summaries in one call (UI integration without extra round-trips).

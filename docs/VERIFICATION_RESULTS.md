@@ -2,6 +2,11 @@
 
 > 完整复现步骤与更多验证项：见 `docs/VERIFICATION.md`。
 
+## 2026-02-07 Strict Gate (PASS) - Product Detail Cockpit Flags
+
+- Report: `docs/DAILY_REPORTS/STRICT_GATE_20260207-222534.md`
+- Scope: product detail cockpit flags (impact/readiness/open ECO links-only integration) + Playwright regression extension
+
 ## 2026-02-07 Strict Gate (PASS) - Item Cockpit
 
 - Report: `docs/DAILY_REPORTS/STRICT_GATE_20260207-220207.md`

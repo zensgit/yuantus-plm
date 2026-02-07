@@ -8,6 +8,7 @@
 - Impact summary export bundle: `GET /api/v1/impact/items/{item_id}/summary/export?export_format=zip|json` (zip includes JSON + CSV tables).
 - Item cockpit API: `GET /api/v1/items/{item_id}/cockpit` (aggregates impact summary + release readiness + open ECO hits + export links).
 - Item cockpit export bundle: `GET /api/v1/items/{item_id}/cockpit/export?export_format=zip|json` (zip includes JSON + CSV tables).
+- Product detail cockpit flags: `GET /api/v1/products/{item_id}` supports optional cockpit expansions (`include_impact_summary`, `include_release_readiness_summary`, `include_open_eco_hits`) and returns `cockpit_links` + `{authorized:...}` summaries (links-only by default via `cockpit_links_only=true`).
 - Strategy-based release validation (manufacturing): structured diagnostics APIs and configurable rulesets via `YUANTUS_RELEASE_VALIDATION_RULESETS_JSON`.
   - `GET /api/v1/routings/{routing_id}/release-diagnostics`
   - `GET /api/v1/mboms/{mbom_id}/release-diagnostics`
