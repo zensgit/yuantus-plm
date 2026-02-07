@@ -2,6 +2,9 @@
 
 ## v0.1.4 (Update) - 2026-02-07
 
+### Added
+- Strict gate scripts: `scripts/strict_gate.sh` (runner) and `scripts/strict_gate_report.sh` (report + logs) for unattended regression evidence.
+
 ### Changed
 - Baselines: enforce permission checks for compare/validate/release and comparison details/export; stabilize baseline member pagination order.
 - E-sign: accept rotated HMAC secrets for verification (via `YUANTUS_ESIGN_VERIFY_SECRET_KEYS`), log verifier identity in audit, and restrict audit endpoints to admin.
