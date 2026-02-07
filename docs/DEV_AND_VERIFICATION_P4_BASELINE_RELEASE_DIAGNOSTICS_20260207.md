@@ -61,5 +61,4 @@ Supported kinds now include:
 ## Verification
 
 - Strict gate report (PASS):
-  - `docs/DAILY_REPORTS/STRICT_GATE_20260207-150747.md`
-
+  - `docs/DAILY_REPORTS/STRICT_GATE_20260207-151114.md`
