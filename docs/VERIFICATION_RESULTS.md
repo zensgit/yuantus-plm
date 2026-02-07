@@ -16007,3 +16007,53 @@ PASS: MBOM + routing + time/cost
 - 结果：`PASS`（PASS: 49 / FAIL: 0 / SKIP: 10）
 - 说明：使用本地 `cad-ml-platform`（非 Docker，`VISION_PROVIDER=stub`）完成 CAD 预览与 OCR；`verify_config_variants.sh` 改为时间戳命名的 OptionSet，避免重复运行时的 name 冲突。
 - 日志：`/tmp/verify_all_cadml_20260204-232928.log`（归档：`docs/verification-logs/20260204/verify_all_cadml_20260204_2329.log`）
+
+## Run PYTEST-TARGETED-P4P5P6-20260207-0921
+
+- 时间：`2026-02-07 09:21:45 +0800`
+- 命令：`.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_baseline_router_permissions.py src/yuantus/meta_engine/tests/test_esign_router_permissions.py src/yuantus/meta_engine/tests/test_esign_key_rotation.py src/yuantus/meta_engine/tests/test_search_service_fallback.py src/yuantus/meta_engine/tests/test_report_router_permissions.py`
+- 结果：`PASS`（12 passed）
+- 说明：覆盖 baseline 权限收口、e-sign 审计权限与密钥轮换、search db-fallback、report allowed_roles。
+
+## Run PYTEST-NON-DB-20260207-0921
+
+- 时间：`2026-02-07 09:21:45 +0800`
+- 命令：`.venv/bin/pytest -q`
+- 结果：`PASS`（16 passed）
+
+## Run PYTEST-DB-20260207-0921
+
+- 时间：`2026-02-07 09:21:45 +0800`
+- 命令：`YUANTUS_PYTEST_DB=1 .venv/bin/pytest -q`
+- 结果：`PASS`（175 passed, 142 warnings）
+
+## Run PLAYWRIGHT-E2E-20260207-0921
+
+- 时间：`2026-02-07 09:21:45 +0800`
+- 命令：`npx playwright test`
+- 结果：`PASS`（9 passed, 1 skipped）
+
+## Run PYTEST-TARGETED-P4P5P6-20260207-0930
+
+- 时间：`2026-02-07 09:30:21 +0800`
+- 命令：`.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_baseline_router_permissions.py src/yuantus/meta_engine/tests/test_baseline_enhanced.py src/yuantus/meta_engine/tests/test_esign_router_permissions.py src/yuantus/meta_engine/tests/test_esign_key_rotation.py src/yuantus/meta_engine/tests/test_esign_audit_logs.py src/yuantus/meta_engine/tests/test_search_service_fallback.py src/yuantus/meta_engine/tests/test_report_router_permissions.py`
+- 结果：`PASS`（23 passed）
+- 说明：补齐 baseline compare/export 与 e-sign audit summary/export 的单测覆盖。
+
+## Run PYTEST-NON-DB-20260207-0930
+
+- 时间：`2026-02-07 09:30:21 +0800`
+- 命令：`.venv/bin/pytest -q`
+- 结果：`PASS`（16 passed）
+
+## Run PYTEST-DB-20260207-0930
+
+- 时间：`2026-02-07 09:30:21 +0800`
+- 命令：`YUANTUS_PYTEST_DB=1 .venv/bin/pytest -q`
+- 结果：`PASS`（179 passed, 142 warnings）
+
+## Run PLAYWRIGHT-E2E-20260207-0930
+
+- 时间：`2026-02-07 09:30:21 +0800`
+- 命令：`npx playwright test`
+- 结果：`PASS`（9 passed, 1 skipped）

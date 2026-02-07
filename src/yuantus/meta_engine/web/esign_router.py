@@ -125,10 +125,18 @@ def _ensure_admin(user: CurrentUser) -> None:
 
 def _service(db: Session, identity_db: Session) -> ElectronicSignatureService:
     settings = get_settings()
-    secret = getattr(settings, "ESIGN_SECRET_KEY", None) or settings.JWT_SECRET_KEY
+    secret = (getattr(settings, "ESIGN_SECRET_KEY", None) or settings.JWT_SECRET_KEY).strip()
+    verify_keys = [secret]
+    extra = (getattr(settings, "ESIGN_VERIFY_SECRET_KEYS", "") or "").strip()
+    if extra:
+        for key in extra.split(","):
+            k = key.strip()
+            if k and k not in verify_keys:
+                verify_keys.append(k)
     return ElectronicSignatureService(
         db,
         secret_key=secret,
+        verify_secret_keys=verify_keys,
         auth_service=AuthService(identity_db),
     )
 
@@ -309,13 +317,13 @@ def sign_item(
 @esign_router.post("/verify/{signature_id}", response_model=VerifyResponse)
 def verify_signature(
     signature_id: str,
-    _user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> VerifyResponse:
     service = _service(db, identity_db)
     try:
-        result = service.verify(signature_id)
+        result = service.verify(signature_id, actor_id=user.id, actor_username=user.username)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return VerifyResponse(**result)
@@ -419,10 +427,11 @@ def list_audit_logs(
     date_to: Optional[datetime] = Query(None),
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    _user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> Dict[str, Any]:
+    _ensure_admin(user)
     service = _service(db, identity_db)
     logs = service.list_audit_logs(
         item_id=item_id,
@@ -464,10 +473,11 @@ def get_audit_summary(
     success: Optional[bool] = Query(None),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
-    _user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> Dict[str, Any]:
+    _ensure_admin(user)
     service = _service(db, identity_db)
     return service.get_audit_summary(
         item_id=item_id,
@@ -492,10 +502,11 @@ def export_audit_logs(
     date_to: Optional[datetime] = Query(None),
     limit: int = Query(2000, ge=1, le=10000),
     offset: int = Query(0, ge=0),
-    _user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> Response:
+    _ensure_admin(user)
     service = _service(db, identity_db)
     try:
         result = service.export_audit_logs(

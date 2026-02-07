@@ -225,3 +225,66 @@ def test_list_baselines_applies_filters():
     assert any("meta_baselines.state" in expr for expr in expressions)
     assert any("meta_baselines.effective_at" in expr and ">=" in expr for expr in expressions)
     assert any("meta_baselines.effective_at" in expr and "<=" in expr for expr in expressions)
+
+
+def test_export_comparison_details_supports_json_and_csv():
+    session = MagicMock()
+    service = BaselineService(session)
+
+    comparison = MagicMock()
+    comparison.id = "cmp-1"
+    comparison.baseline_a_id = "a"
+    comparison.baseline_b_id = "b"
+    comparison.differences = {
+        "added": [{"id": 1}],
+        "removed": [{"id": 2}],
+        "changed": [{"id": 3}],
+    }
+    session.get.return_value = comparison
+
+    json_result = service.export_comparison_details(
+        comparison_id="cmp-1",
+        change_type=None,
+        export_format="json",
+        limit=10,
+        offset=0,
+    )
+    assert json_result["extension"] == "json"
+    assert json_result["media_type"] == "application/json"
+    assert b"comparison_id" in json_result["content"]
+
+    csv_result = service.export_comparison_details(
+        comparison_id="cmp-1",
+        change_type=None,
+        export_format="csv",
+        limit=10,
+        offset=0,
+    )
+    assert csv_result["extension"] == "csv"
+    assert csv_result["media_type"] == "text/csv"
+    text = csv_result["content"].decode("utf-8-sig")
+    assert "id" in text
+    assert "1" in text
+
+
+def test_export_comparison_details_rejects_unknown_format():
+    session = MagicMock()
+    service = BaselineService(session)
+    comparison = MagicMock()
+    comparison.id = "cmp-1"
+    comparison.baseline_a_id = "a"
+    comparison.baseline_b_id = "b"
+    comparison.differences = {"added": [], "removed": [], "changed": []}
+    session.get.return_value = comparison
+
+    try:
+        service.export_comparison_details(
+            comparison_id="cmp-1",
+            change_type=None,
+            export_format="xlsx",
+            limit=10,
+            offset=0,
+        )
+        assert False, "Expected ValueError"
+    except ValueError as exc:
+        assert "Unsupported export format" in str(exc)
