@@ -16032,3 +16032,28 @@ PASS: MBOM + routing + time/cost
 - 时间：`2026-02-07 09:21:45 +0800`
 - 命令：`npx playwright test`
 - 结果：`PASS`（9 passed, 1 skipped）
+
+## Run PYTEST-TARGETED-P4P5P6-20260207-0930
+
+- 时间：`2026-02-07 09:30:21 +0800`
+- 命令：`.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_baseline_router_permissions.py src/yuantus/meta_engine/tests/test_baseline_enhanced.py src/yuantus/meta_engine/tests/test_esign_router_permissions.py src/yuantus/meta_engine/tests/test_esign_key_rotation.py src/yuantus/meta_engine/tests/test_esign_audit_logs.py src/yuantus/meta_engine/tests/test_search_service_fallback.py src/yuantus/meta_engine/tests/test_report_router_permissions.py`
+- 结果：`PASS`（23 passed）
+- 说明：补齐 baseline compare/export 与 e-sign audit summary/export 的单测覆盖。
+
+## Run PYTEST-NON-DB-20260207-0930
+
+- 时间：`2026-02-07 09:30:21 +0800`
+- 命令：`.venv/bin/pytest -q`
+- 结果：`PASS`（16 passed）
+
+## Run PYTEST-DB-20260207-0930
+
+- 时间：`2026-02-07 09:30:21 +0800`
+- 命令：`YUANTUS_PYTEST_DB=1 .venv/bin/pytest -q`
+- 结果：`PASS`（179 passed, 142 warnings）
+
+## Run PLAYWRIGHT-E2E-20260207-0930
+
+- 时间：`2026-02-07 09:30:21 +0800`
+- 命令：`npx playwright test`
+- 结果：`PASS`（9 passed, 1 skipped）
