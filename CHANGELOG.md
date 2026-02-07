@@ -4,6 +4,7 @@
 
 ### Added
 - Strict gate scripts: `scripts/strict_gate.sh` (runner) and `scripts/strict_gate_report.sh` (report + logs) for unattended regression evidence.
+- Demo closed-loop script: `scripts/demo_plm_closed_loop.sh` (EBOM -> Baseline -> MBOM -> Routing -> release/readiness/cockpit exports) and optional strict gate integration via `DEMO_SCRIPT=1`.
 - Impact summary API: `GET /api/v1/impact/items/{item_id}/summary` (BOM where-used + baselines + e-sign summary).
 - Impact summary export bundle: `GET /api/v1/impact/items/{item_id}/summary/export?export_format=zip|json` (zip includes JSON + CSV tables).
 - Item cockpit API: `GET /api/v1/items/{item_id}/cockpit` (aggregates impact summary + release readiness + open ECO hits + export links).
