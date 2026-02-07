@@ -1,0 +1,72 @@
+name: strict-gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_demo:
+        description: "Run demo_plm_closed_loop step (DEMO_SCRIPT=1)"
+        required: false
+        default: "false"
+  schedule:
+    # Daily 03:00 UTC
+    - cron: "0 3 * * *"
+
+jobs:
+  strict_gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BASE_URL: "http://127.0.0.1:7910"
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python deps (venv)
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Install Node deps
+        run: npm ci
+
+      - name: Run strict gate report
+        env:
+          RUN_ID: STRICT_GATE_CI_${{ github.run_id }}
+          OUT_DIR: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}
+          REPORT_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.run_demo }}" == "true" ]]; then
+            export DEMO_SCRIPT=1
+          fi
+          bash scripts/strict_gate_report.sh
+
+      - name: Upload strict gate report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strict-gate-report
+          path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md
+
+      - name: Upload strict gate logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strict-gate-logs
+          path: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}
+
