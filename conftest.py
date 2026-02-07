@@ -15,6 +15,8 @@ _ALLOWLIST_NO_DB = {
     "src/yuantus/meta_engine/tests/test_release_validation_directory.py",
     "src/yuantus/meta_engine/tests/test_eco_apply_diagnostics.py",
     "src/yuantus/meta_engine/tests/test_release_readiness_router.py",
+    "src/yuantus/meta_engine/tests/test_impact_export_bundles.py",
+    "src/yuantus/meta_engine/tests/test_release_readiness_export_bundles.py",
 }
 
 _DB_DEPENDENT_PATHS = (

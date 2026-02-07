@@ -62,6 +62,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 - Regression Evidence Autopack: `docs/DEV_AND_VERIFICATION_REGRESSION_EVIDENCE_AUTOPACK_20260207.md`
 - Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
+- Export Bundles (Impact + Release Readiness): `docs/DEV_AND_VERIFICATION_EXPORT_BUNDLES_IMPACT_READINESS_20260207.md`
 - Strategy-Based Release Validation: `docs/DEV_AND_VERIFICATION_STRATEGY_RELEASE_VALIDATION_20260207.md`
 - P4 Baseline Release Diagnostics: `docs/DEV_AND_VERIFICATION_P4_BASELINE_RELEASE_DIAGNOSTICS_20260207.md`
 - Release Readiness + ECO Apply Diagnostics + Ruleset Directory: `docs/DEV_AND_VERIFICATION_RELEASE_READINESS_ECO_APPLY_DIAGNOSTICS_20260207.md`
