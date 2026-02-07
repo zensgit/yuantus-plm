@@ -37,10 +37,16 @@ BASE_URL="${DEMO_BASE_URL:-http://127.0.0.1:${PORT}}"
 
 DB_PATH="${DEMO_DB_PATH:-/tmp/yuantus_demo_plm_${timestamp}.db}"
 
+PY_BIN="${PY_BIN:-${REPO_ROOT}/.venv/bin/python}"
+if [[ ! -x "$PY_BIN" ]]; then
+  PY_BIN="python3"
+fi
+
 export PYTHONPATH="${PYTHONPATH:-src}"
 export YUANTUS_TENANCY_MODE="${YUANTUS_TENANCY_MODE:-single}"
-export YUANTUS_DATABASE_URL="${YUANTUS_DATABASE_URL:-sqlite:////${DB_PATH}}"
-export YUANTUS_IDENTITY_DATABASE_URL="${YUANTUS_IDENTITY_DATABASE_URL:-sqlite:////${DB_PATH}}"
+db_path_norm="${DB_PATH#/}"
+export YUANTUS_DATABASE_URL="${YUANTUS_DATABASE_URL:-sqlite:////${db_path_norm}}"
+export YUANTUS_IDENTITY_DATABASE_URL="${YUANTUS_IDENTITY_DATABASE_URL:-sqlite:////${db_path_norm}}"
 
 rm -f "${DB_PATH}" "${DB_PATH}-shm" "${DB_PATH}-wal" 2>/dev/null || true
 
@@ -92,7 +98,7 @@ curl -sS -X POST "${BASE_URL}/api/v1/auth/login" \
   -d "{\"tenant_id\":\"${TENANT_ID}\",\"org_id\":\"${ORG_ID}\",\"username\":\"${USERNAME}\",\"password\":\"${PASSWORD}\"}" \
   >"$login_json"
 
-TOKEN="$(python3 - <<PY
+TOKEN="$("$PY_BIN" - <<PY
 import json
 with open("$login_json", "r", encoding="utf-8") as f:
   print(json.load(f)["access_token"])
@@ -123,7 +129,7 @@ request_json() {
 }
 
 json_id() {
-  python3 - "$1" <<'PY'
+  "$PY_BIN" - "$1" <<'PY'
 import json
 import sys
 
@@ -131,6 +137,36 @@ with open(sys.argv[1], "r", encoding="utf-8") as f:
   data = json.load(f)
 print(data.get("id") or "")
 PY
+}
+
+json_get() {
+  "$PY_BIN" - "$1" "$2" <<'PY'
+import json
+import sys
+
+path = sys.argv[2].split(".")
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+  cur = json.load(f)
+for key in path:
+  if isinstance(cur, dict):
+    cur = cur.get(key)
+  else:
+    cur = None
+    break
+print("" if cur is None else str(cur))
+PY
+}
+
+download_file() {
+  local path="$1"
+  local out_path="$2"
+  local url="${BASE_URL}${path}"
+  local code
+  code="$(curl -sS -o "$out_path" -w "%{http_code}" "$url" "${auth_header[@]}")"
+  if [[ "$code" != "200" ]]; then
+    echo "ERROR: download ${path} -> HTTP ${code} (out: ${out_path})" >&2
+    return 1
+  fi
 }
 
 ts="$(date +%s)"
@@ -170,8 +206,13 @@ fi
 
 request_json GET "/api/v1/baselines/${baseline_id}/release-diagnostics?ruleset_id=default" \
   "${OUT_DIR}/baseline_release_diagnostics.json"
+baseline_ok="$(json_get "${OUT_DIR}/baseline_release_diagnostics.json" ok)"
+baseline_force="false"
+if [[ "${baseline_ok}" != "True" && "${baseline_ok}" != "true" ]]; then
+  baseline_force="true"
+fi
 request_json POST "/api/v1/baselines/${baseline_id}/release?ruleset_id=default" \
-  "${OUT_DIR}/baseline_release.json" "{\"force\":false}"
+  "${OUT_DIR}/baseline_release.json" "{\"force\":${baseline_force}}"
 
 workcenter_code="WC-${ts}"
 workcenter_json="${OUT_DIR}/workcenter_create.json"
@@ -210,6 +251,11 @@ request_json GET "/api/v1/routings/${routing_id}/release-diagnostics?ruleset_id=
 request_json PUT "/api/v1/routings/${routing_id}/release?ruleset_id=default" \
   "${OUT_DIR}/routing_release.json"
 
+request_json POST "/api/v1/routings/${routing_id}/calculate-time" \
+  "${OUT_DIR}/routing_time.json" "{\"quantity\":5,\"include_queue\":true,\"include_move\":true}"
+request_json POST "/api/v1/routings/${routing_id}/calculate-cost" \
+  "${OUT_DIR}/routing_cost.json" "{\"quantity\":5}"
+
 request_json GET "/api/v1/mboms/${mbom_id}/release-diagnostics?ruleset_id=default" \
   "${OUT_DIR}/mbom_release_diagnostics.json"
 request_json PUT "/api/v1/mboms/${mbom_id}/release?ruleset_id=default" \
@@ -222,15 +268,12 @@ request_json GET "/api/v1/impact/items/${parent_id}/summary" \
 request_json GET "/api/v1/items/${parent_id}/cockpit?ruleset_id=readiness" \
   "${OUT_DIR}/item_cockpit.json"
 
-curl -sS -o "${OUT_DIR}/impact-summary-${parent_id}.zip" \
-  "${BASE_URL}/api/v1/impact/items/${parent_id}/summary/export?export_format=zip" \
-  "${auth_header[@]}"
-curl -sS -o "${OUT_DIR}/release-readiness-${parent_id}.zip" \
-  "${BASE_URL}/api/v1/release-readiness/items/${parent_id}/export?export_format=zip&ruleset_id=readiness" \
-  "${auth_header[@]}"
-curl -sS -o "${OUT_DIR}/item-cockpit-${parent_id}.zip" \
-  "${BASE_URL}/api/v1/items/${parent_id}/cockpit/export?export_format=zip&ruleset_id=readiness" \
-  "${auth_header[@]}"
+download_file "/api/v1/impact/items/${parent_id}/summary/export?export_format=zip" \
+  "${OUT_DIR}/impact-summary-${parent_id}.zip"
+download_file "/api/v1/release-readiness/items/${parent_id}/export?export_format=zip&ruleset_id=readiness" \
+  "${OUT_DIR}/release-readiness-${parent_id}.zip"
+download_file "/api/v1/items/${parent_id}/cockpit/export?export_format=zip&ruleset_id=readiness" \
+  "${OUT_DIR}/item-cockpit-${parent_id}.zip"
 
 cat >"$REPORT_PATH" <<EOF
 # Demo PLM Closed Loop
@@ -256,6 +299,7 @@ cat >"$REPORT_PATH" <<EOF
   - \`health.json\`
   - \`baseline_release_diagnostics.json\`, \`baseline_release.json\`
   - \`routing_release_diagnostics.json\`, \`routing_release.json\`
+  - \`routing_time.json\`, \`routing_cost.json\`
   - \`mbom_release_diagnostics.json\`, \`mbom_release.json\`
   - \`release_readiness.json\`
   - \`impact_summary.json\`

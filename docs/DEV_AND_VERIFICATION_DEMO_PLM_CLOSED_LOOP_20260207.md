@@ -17,6 +17,13 @@ The demo script writes:
 
 When run under strict gate (`DEMO_SCRIPT=1`), the strict gate report will include `DEMO_REPORT_PATH`.
 
+## Verification
+
+- Strict gate report (PASS, includes demo step):
+  - `docs/DAILY_REPORTS/STRICT_GATE_20260207-224401.md`
+- Demo report (PASS):
+  - `docs/DAILY_REPORTS/DEMO_PLM_CLOSED_LOOP_20260207-224427.md`
+
 ## Implementation
 
 - New script:
