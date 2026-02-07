@@ -8,6 +8,8 @@
 - Strategy-based release validation (manufacturing): structured diagnostics APIs and configurable rulesets via `YUANTUS_RELEASE_VALIDATION_RULESETS_JSON`.
   - `GET /api/v1/routings/{routing_id}/release-diagnostics`
   - `GET /api/v1/mboms/{mbom_id}/release-diagnostics`
+- Strategy-based release validation (baselines): structured diagnostics for baseline release.
+  - `GET /api/v1/baselines/{baseline_id}/release-diagnostics`
 - Roadmap 9.3 performance benchmark harness: `scripts/perf_roadmap_9_3.py` + reports in `docs/PERFORMANCE_REPORTS/`.
 
 ### Changed
@@ -16,6 +18,7 @@
 - E-sign: accept rotated HMAC secrets for verification (via `YUANTUS_ESIGN_VERIFY_SECRET_KEYS`), log verifier identity in audit, and restrict audit endpoints to admin.
 - Search: add unit coverage for DB fallback behavior when Elasticsearch is unavailable.
 - Manufacturing: routing/MBOM release endpoints accept optional `ruleset_id` query param (default behavior unchanged).
+- Baselines: release endpoint accepts optional `ruleset_id` query param and blocks release on diagnostics errors unless `force=true`.
 
 ### Verification
 - Results logged in `docs/VERIFICATION_RESULTS.md`.

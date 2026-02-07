@@ -31,15 +31,30 @@ MBOM_RELEASE_RULES_DEFAULT: List[str] = [
     "mbom.has_released_routing",
 ]
 
+BASELINE_RELEASE_RULES_DEFAULT: List[str] = [
+    "baseline.exists",
+    "baseline.not_already_released",
+    "baseline.members_references_exist",
+    "baseline.warnings_for_unreleased_or_changed_members",
+]
+
 
 _BUILTIN_RULESETS: Mapping[str, Mapping[str, List[str]]] = {
     "routing_release": {"default": list(ROUTING_RELEASE_RULES_DEFAULT)},
     "mbom_release": {"default": list(MBOM_RELEASE_RULES_DEFAULT)},
+    "baseline_release": {"default": list(BASELINE_RELEASE_RULES_DEFAULT)},
 }
 
 _ALLOWED_RULE_IDS: Mapping[str, set[str]] = {
     "routing_release": set(ROUTING_RELEASE_RULES_DEFAULT),
     "mbom_release": set(MBOM_RELEASE_RULES_DEFAULT),
+    "baseline_release": set(BASELINE_RELEASE_RULES_DEFAULT),
+}
+
+_EXISTENCE_RULES: Mapping[str, str] = {
+    "routing_release": "routing.exists",
+    "mbom_release": "mbom.exists",
+    "baseline_release": "baseline.exists",
 }
 
 
@@ -124,11 +139,11 @@ def get_release_ruleset(kind: str, ruleset_id: str) -> List[str]:
         raise ValueError(f"Unknown release ruleset: kind={kind}, ruleset_id={ruleset_id}, known={known}")
 
     # Always enforce existence checks first (cannot be bypassed by configuration).
-    existence_rule = "routing.exists" if kind == "routing_release" else "mbom.exists"
-    if existence_rule not in rules:
-        rules = [existence_rule] + list(rules)
-    else:
-        rules = [existence_rule] + [r for r in rules if r != existence_rule]
+    existence_rule = _EXISTENCE_RULES.get(kind)
+    if existence_rule:
+        if existence_rule not in rules:
+            rules = [existence_rule] + list(rules)
+        else:
+            rules = [existence_rule] + [r for r in rules if r != existence_rule]
 
     return rules
-

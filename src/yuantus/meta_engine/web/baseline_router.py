@@ -14,6 +14,10 @@ from yuantus.exceptions.handlers import PermissionError
 from yuantus.meta_engine.models.baseline import Baseline, BaselineComparison, BaselineMember
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.baseline_service import BaselineService
+from yuantus.meta_engine.web.release_diagnostics_models import (
+    ReleaseDiagnosticsResponse,
+    issue_to_response,
+)
 
 baseline_router = APIRouter(prefix="/baselines", tags=["Baselines"])
 
@@ -497,10 +501,42 @@ def validate_baseline(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@baseline_router.get(
+    "/{baseline_id}/release-diagnostics",
+    response_model=ReleaseDiagnosticsResponse,
+)
+def get_baseline_release_diagnostics(
+    baseline_id: str,
+    ruleset_id: str = Query("default"),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ReleaseDiagnosticsResponse:
+    service = BaselineService(db)
+    baseline = service.get_baseline(baseline_id)
+    if baseline:
+        _ensure_can_access_baseline(service, baseline, user=user, db=db)
+    try:
+        diagnostics = service.get_release_diagnostics(baseline_id, ruleset_id=ruleset_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    errors = [issue_to_response(issue) for issue in (diagnostics.get("errors") or [])]
+    warnings = [issue_to_response(issue) for issue in (diagnostics.get("warnings") or [])]
+    return ReleaseDiagnosticsResponse(
+        ok=len(errors) == 0,
+        resource_type="baseline",
+        resource_id=baseline_id,
+        ruleset_id=str(diagnostics.get("ruleset_id") or ruleset_id),
+        errors=errors,
+        warnings=warnings,
+    )
+
+
 @baseline_router.post("/{baseline_id}/release", response_model=BaselineResponse)
 def release_baseline(
     baseline_id: str,
     req: BaselineReleaseRequest,
+    ruleset_id: str = Query("default"),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> BaselineResponse:
@@ -509,6 +545,23 @@ def release_baseline(
     if not baseline:
         raise HTTPException(status_code=404, detail="Baseline not found")
     _ensure_can_access_baseline(service, baseline, user=user, db=db)
+
+    if not req.force:
+        try:
+            diagnostics = service.get_release_diagnostics(baseline_id, ruleset_id=ruleset_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        err_count = len(diagnostics.get("errors") or [])
+        warn_count = len(diagnostics.get("warnings") or [])
+        if err_count:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Baseline release blocked: errors={err_count}, warnings={warn_count}. "
+                    f"Run /api/v1/baselines/{baseline_id}/release-diagnostics?ruleset_id={ruleset_id} for details."
+                ),
+            )
+
     try:
         baseline = service.release_baseline(
             baseline_id,

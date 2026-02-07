@@ -11,6 +11,7 @@ _ALLOWLIST_NO_DB = {
     "src/yuantus/meta_engine/tests/test_cad_preview_min_size.py",
     "src/yuantus/meta_engine/tests/test_manufacturing_mbom_routing.py",
     "src/yuantus/meta_engine/tests/test_ir_rule_adapter.py",
+    "src/yuantus/meta_engine/tests/test_baseline_release_diagnostics.py",
 }
 
 _DB_DEPENDENT_PATHS = (
