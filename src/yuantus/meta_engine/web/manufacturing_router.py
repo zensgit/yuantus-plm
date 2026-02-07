@@ -13,6 +13,10 @@ from yuantus.meta_engine.manufacturing.mbom_service import MBOMService
 from yuantus.meta_engine.manufacturing.routing_service import RoutingService
 from yuantus.meta_engine.manufacturing.workcenter_service import WorkCenterService
 from yuantus.meta_engine.manufacturing.models import ManufacturingBOM, Routing, WorkCenter
+from yuantus.meta_engine.web.release_diagnostics_models import (
+    ReleaseDiagnosticsResponse,
+    issue_to_response,
+)
 
 mbom_router = APIRouter(prefix="/mboms", tags=["MBOM"])
 routing_router = APIRouter(prefix="/routings", tags=["Routing"])
@@ -159,22 +163,6 @@ class CostCalcRequest(BaseModel):
     overhead_rate: Optional[float] = None
 
 
-class ReleaseDiagnosticIssue(BaseModel):
-    code: str
-    message: str
-    rule_id: str
-    details: Optional[Dict[str, Any]] = None
-
-
-class ReleaseDiagnosticsResponse(BaseModel):
-    ok: bool
-    resource_type: str
-    resource_id: str
-    ruleset_id: str
-    errors: List[ReleaseDiagnosticIssue] = Field(default_factory=list)
-    warnings: List[ReleaseDiagnosticIssue] = Field(default_factory=list)
-
-
 class WorkCenterCreateRequest(BaseModel):
     code: str
     name: str
@@ -303,22 +291,6 @@ def _operation_to_response(operation) -> OperationResponse:
     )
 
 
-def _issue_to_response(issue: Any) -> ReleaseDiagnosticIssue:
-    if isinstance(issue, dict):
-        return ReleaseDiagnosticIssue(
-            code=str(issue.get("code") or ""),
-            message=str(issue.get("message") or ""),
-            rule_id=str(issue.get("rule_id") or ""),
-            details=issue.get("details"),
-        )
-    return ReleaseDiagnosticIssue(
-        code=str(getattr(issue, "code", "") or ""),
-        message=str(getattr(issue, "message", "") or ""),
-        rule_id=str(getattr(issue, "rule_id", "") or ""),
-        details=getattr(issue, "details", None),
-    )
-
-
 def _raise_http_for_value_error(exc: ValueError):
     message = str(exc)
     not_found_prefixes = (
@@ -441,8 +413,8 @@ async def get_mbom_release_diagnostics(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    errors = [_issue_to_response(issue) for issue in (diagnostics.get("errors") or [])]
-    warnings = [_issue_to_response(issue) for issue in (diagnostics.get("warnings") or [])]
+    errors = [issue_to_response(issue) for issue in (diagnostics.get("errors") or [])]
+    warnings = [issue_to_response(issue) for issue in (diagnostics.get("warnings") or [])]
     return ReleaseDiagnosticsResponse(
         ok=len(errors) == 0,
         resource_type="mbom",
@@ -707,8 +679,8 @@ async def get_routing_release_diagnostics(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    errors = [_issue_to_response(issue) for issue in (diagnostics.get("errors") or [])]
-    warnings = [_issue_to_response(issue) for issue in (diagnostics.get("warnings") or [])]
+    errors = [issue_to_response(issue) for issue in (diagnostics.get("errors") or [])]
+    warnings = [issue_to_response(issue) for issue in (diagnostics.get("warnings") or [])]
     return ReleaseDiagnosticsResponse(
         ok=len(errors) == 0,
         resource_type="routing",

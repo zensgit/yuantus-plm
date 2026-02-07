@@ -21,6 +21,10 @@ from yuantus.meta_engine.schemas.aml import AMLAction
 from yuantus.meta_engine.services.bom_service import BOMService
 from yuantus.meta_engine.services.effectivity_service import EffectivityService
 from yuantus.meta_engine.services.meta_permission_service import MetaPermissionService
+from yuantus.meta_engine.services.release_validation import (
+    ValidationIssue,
+    get_release_ruleset,
+)
 
 
 class BaselineService:
@@ -372,6 +376,133 @@ class BaselineService:
 
     def get_baseline(self, baseline_id: str) -> Optional[Baseline]:
         return self.session.get(Baseline, baseline_id)
+
+    def get_release_diagnostics(
+        self,
+        baseline_id: str,
+        *,
+        ruleset_id: str = "default",
+    ) -> Dict[str, Any]:
+        rules = get_release_ruleset("baseline_release", ruleset_id)
+        errors: List[ValidationIssue] = []
+        warnings: List[ValidationIssue] = []
+
+        baseline = self.session.get(Baseline, baseline_id)
+        if not baseline:
+            errors.append(
+                ValidationIssue(
+                    code="baseline_not_found",
+                    message=f"Baseline not found: {baseline_id}",
+                    rule_id="baseline.exists",
+                    details={"baseline_id": baseline_id},
+                )
+            )
+            return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
+
+        for rule in rules:
+            if rule == "baseline.exists":
+                continue
+
+            if rule == "baseline.not_already_released":
+                if (baseline.state or "").lower() == "released":
+                    errors.append(
+                        ValidationIssue(
+                            code="baseline_already_released",
+                            message="Baseline is already released",
+                            rule_id=rule,
+                            details={"baseline_id": baseline_id},
+                        )
+                    )
+
+            elif rule in {
+                "baseline.members_references_exist",
+                "baseline.warnings_for_unreleased_or_changed_members",
+            }:
+                members = (
+                    self.session.query(BaselineMember)
+                    .filter(BaselineMember.baseline_id == baseline_id)
+                    .all()
+                )
+
+                for member in members:
+                    if member.member_type == "item":
+                        item = self.session.get(Item, member.item_id) if member.item_id else None
+
+                        if rule == "baseline.members_references_exist":
+                            if not item:
+                                errors.append(
+                                    ValidationIssue(
+                                        code="baseline_member_missing_item",
+                                        message=f"Item not found: {member.item_number}",
+                                        rule_id=rule,
+                                        details={
+                                            "baseline_id": baseline_id,
+                                            "member_id": member.id,
+                                            "item_id": member.item_id,
+                                            "item_number": member.item_number,
+                                        },
+                                    )
+                                )
+                                continue
+
+                        if not item:
+                            continue
+
+                        if rule == "baseline.warnings_for_unreleased_or_changed_members":
+                            if item.state not in ("released", "approved"):
+                                warnings.append(
+                                    ValidationIssue(
+                                        code="baseline_item_not_released",
+                                        message=f"Item {member.item_number} is not released (state: {item.state})",
+                                        rule_id=rule,
+                                        details={
+                                            "baseline_id": baseline_id,
+                                            "member_id": member.id,
+                                            "item_id": member.item_id,
+                                            "item_number": member.item_number,
+                                            "item_state": item.state,
+                                        },
+                                    )
+                                )
+
+                            if member.item_generation is not None and item.generation != member.item_generation:
+                                warnings.append(
+                                    ValidationIssue(
+                                        code="baseline_item_generation_mismatch",
+                                        message=f"Item {member.item_number} version changed",
+                                        rule_id=rule,
+                                        details={
+                                            "baseline_id": baseline_id,
+                                            "member_id": member.id,
+                                            "item_id": member.item_id,
+                                            "item_number": member.item_number,
+                                            "expected_generation": member.item_generation,
+                                            "current_generation": item.generation,
+                                        },
+                                    )
+                                )
+
+                    elif member.member_type == "document":
+                        from yuantus.meta_engine.models.file import FileContainer
+
+                        doc = self.session.get(FileContainer, member.document_id) if member.document_id else None
+                        if rule == "baseline.members_references_exist":
+                            if not doc:
+                                errors.append(
+                                    ValidationIssue(
+                                        code="baseline_member_missing_document",
+                                        message=f"Document not found: {member.item_number}",
+                                        rule_id=rule,
+                                        details={
+                                            "baseline_id": baseline_id,
+                                            "member_id": member.id,
+                                            "document_id": member.document_id,
+                                            "document_name": member.item_number,
+                                        },
+                                    )
+                                )
+
+        return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
 
     def validate_baseline(self, baseline_id: str, user_id: Optional[int] = None) -> Dict[str, Any]:
         baseline = self.session.get(Baseline, baseline_id)
