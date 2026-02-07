@@ -2,6 +2,11 @@
 
 > 完整复现步骤与更多验证项：见 `docs/VERIFICATION.md`。
 
+## 2026-02-07 Strict Gate (PASS) - Item Cockpit
+
+- Report: `docs/DAILY_REPORTS/STRICT_GATE_20260207-220207.md`
+- Scope: item cockpit + export bundle + Playwright API-only coverage
+
 ## 2026-02-07 Strict Gate (PASS)
 
 - Report: `docs/DAILY_REPORTS/STRICT_GATE_20260207-164556.md`
