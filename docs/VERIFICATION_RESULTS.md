@@ -2,6 +2,11 @@
 
 > 完整复现步骤与更多验证项：见 `docs/VERIFICATION.md`。
 
+## 2026-02-07 Strict Gate (PASS)
+
+- Report: `docs/DAILY_REPORTS/STRICT_GATE_20260207-164556.md`
+- Scope: release readiness + ECO apply diagnostics + ruleset directory
+
 ## Run H（全功能验证：Health → AML → File → BOM → ECO → Versions → Plugins）
 
 - 时间：`2025-12-18 22:12:36 +0800`

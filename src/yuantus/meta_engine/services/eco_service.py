@@ -36,6 +36,7 @@ from yuantus.meta_engine.events.domain_events import (
     EcoDeletedEvent,
 )
 from yuantus.meta_engine.events.transactional import enqueue_event
+from yuantus.meta_engine.services.release_validation import ValidationIssue, get_release_ruleset
 from yuantus.security.rbac.permissions import (
     PermissionManager as MetaPermissionService,
 )
@@ -838,6 +839,129 @@ class ECOService:
             flattened[key] = {**properties}
 
         return flattened
+
+    def get_apply_diagnostics(
+        self,
+        eco_id: str,
+        user_id: int,
+        *,
+        ruleset_id: str = "default",
+        ignore_conflicts: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Side-effect-free ECO apply diagnostics.
+
+        Mirrors `action_apply` preconditions but returns structured errors/warnings.
+        """
+        rules = get_release_ruleset("eco_apply", ruleset_id)
+        errors: List[ValidationIssue] = []
+        warnings: List[ValidationIssue] = []
+
+        eco = self.get_eco(eco_id)
+        if not eco:
+            errors.append(
+                ValidationIssue(
+                    code="eco_not_found",
+                    message=f"ECO not found: {eco_id}",
+                    rule_id="eco.exists",
+                    details={"eco_id": eco_id},
+                )
+            )
+            return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
+
+        # Keep parity with get_release_diagnostics patterns: evaluate configured rule ids.
+        for rule in rules:
+            if rule == "eco.exists":
+                continue
+
+            if rule == "eco.state_approved":
+                if eco.state != ECOState.APPROVED.value:
+                    errors.append(
+                        ValidationIssue(
+                            code="eco_not_approved",
+                            message=(
+                                f"ECO must be in '{ECOState.APPROVED.value}' state before applying "
+                                f"(current: {eco.state})"
+                            ),
+                            rule_id=rule,
+                            details={"eco_id": eco_id, "state": eco.state},
+                        )
+                    )
+
+            elif rule == "eco.required_fields_present":
+                missing: List[str] = []
+                if not eco.product_id:
+                    missing.append("product_id")
+                if not eco.target_version_id:
+                    missing.append("target_version_id")
+                if missing:
+                    errors.append(
+                        ValidationIssue(
+                            code="eco_missing_required_fields",
+                            message=f"ECO is missing required fields: {', '.join(missing)}",
+                            rule_id=rule,
+                            details={"eco_id": eco_id, "missing": missing},
+                        )
+                    )
+
+            elif rule == "eco.product_exists":
+                if eco.product_id:
+                    product = self.session.get(Item, eco.product_id)
+                    if not product:
+                        errors.append(
+                            ValidationIssue(
+                                code="eco_product_not_found",
+                                message=f"Product not found: {eco.product_id}",
+                                rule_id=rule,
+                                details={"eco_id": eco_id, "product_id": eco.product_id},
+                            )
+                        )
+
+            elif rule == "eco.target_version_exists":
+                if eco.target_version_id:
+                    try:
+                        self.version_service.get_version(eco.target_version_id)
+                    except Exception:
+                        errors.append(
+                            ValidationIssue(
+                                code="eco_target_version_not_found",
+                                message=f"Target version not found: {eco.target_version_id}",
+                                rule_id=rule,
+                                details={
+                                    "eco_id": eco_id,
+                                    "target_version_id": eco.target_version_id,
+                                },
+                            )
+                        )
+
+            elif rule == "eco.rebase_conflicts_absent":
+                if ignore_conflicts:
+                    continue
+                try:
+                    has_conflicts = bool(
+                        self.check_rebase_needed(eco_id) and self.detect_rebase_conflicts(eco_id)
+                    )
+                except Exception as exc:  # pragma: no cover - defensive
+                    warnings.append(
+                        ValidationIssue(
+                            code="eco_rebase_check_failed",
+                            message=f"Rebase conflict check failed: {exc}",
+                            rule_id=rule,
+                            details={"eco_id": eco_id},
+                        )
+                    )
+                    continue
+                if has_conflicts:
+                    errors.append(
+                        ValidationIssue(
+                            code="eco_rebase_conflicts",
+                            message="Rebase conflicts detected. Resolve conflicts before applying ECO.",
+                            rule_id=rule,
+                            details={"eco_id": eco_id},
+                        )
+                    )
+
+        return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
 
     def action_apply(self, eco_id: str, user_id: int, *, ignore_conflicts: bool = False) -> bool:
         # Permission check
