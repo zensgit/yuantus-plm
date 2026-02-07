@@ -5,6 +5,7 @@
 ### Added
 - Strict gate scripts: `scripts/strict_gate.sh` (runner) and `scripts/strict_gate_report.sh` (report + logs) for unattended regression evidence.
 - Impact summary API: `GET /api/v1/impact/items/{item_id}/summary` (BOM where-used + baselines + e-sign summary).
+- Impact summary export bundle: `GET /api/v1/impact/items/{item_id}/summary/export?export_format=zip|json` (zip includes JSON + CSV tables).
 - Strategy-based release validation (manufacturing): structured diagnostics APIs and configurable rulesets via `YUANTUS_RELEASE_VALIDATION_RULESETS_JSON`.
   - `GET /api/v1/routings/{routing_id}/release-diagnostics`
   - `GET /api/v1/mboms/{mbom_id}/release-diagnostics`
@@ -13,6 +14,7 @@
 - Release validation directory: `GET /api/v1/release-validation/rulesets` (list kinds/rulesets/rules; built-in + configured).
 - ECO apply diagnostics: `GET /api/v1/eco/{eco_id}/apply-diagnostics` (strategy-based precheck, side-effect free).
 - Release readiness summary: `GET /api/v1/release-readiness/items/{item_id}` (aggregates MBOM/Routing/Baseline diagnostics + E-sign manifest status).
+- Release readiness export bundle: `GET /api/v1/release-readiness/items/{item_id}/export?export_format=zip|json` (zip includes JSON + CSV tables).
 - Roadmap 9.3 performance benchmark harness: `scripts/perf_roadmap_9_3.py` + reports in `docs/PERFORMANCE_REPORTS/`.
 
 ### Changed

@@ -16083,3 +16083,10 @@ PASS: MBOM + routing + time/cost
 - 命令：`TARGETED_PYTEST_ARGS=src/yuantus/meta_engine/tests/test_baseline_release_diagnostics.py bash scripts/strict_gate_report.sh`
 - 结果：`PASS`
 - 证据：`docs/DAILY_REPORTS/STRICT_GATE_20260207-151114.md`
+
+## Run STRICT-GATE-20260207-205929
+
+- 时间：`2026-02-07 20:59:29 +0800`
+- 命令：`TARGETED_PYTEST_ARGS='src/yuantus/meta_engine/tests/test_impact_export_bundles.py src/yuantus/meta_engine/tests/test_release_readiness_export_bundles.py' bash scripts/strict_gate_report.sh`
+- 结果：`PASS`
+- 证据：`docs/DAILY_REPORTS/STRICT_GATE_20260207-205929.md`

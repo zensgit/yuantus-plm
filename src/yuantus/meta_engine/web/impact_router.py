@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+import csv
 from datetime import datetime
+import io
+import json
 from typing import Any, Dict, List, Optional
+import zipfile
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -87,6 +92,33 @@ class ImpactSummaryResponse(BaseModel):
     esign: ESignSummary
 
 
+def _csv_bytes(*, rows: List[Dict[str, Any]], columns: List[str]) -> bytes:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(list(columns))
+    for row in rows:
+        out_row: List[str] = []
+        for col in columns:
+            value = (row or {}).get(col)
+            if isinstance(value, (dict, list)):
+                out_row.append(json.dumps(value, ensure_ascii=False, default=str))
+            elif value is None:
+                out_row.append("")
+            else:
+                out_row.append(str(value))
+        writer.writerow(out_row)
+    # Excel-friendly with BOM.
+    return buffer.getvalue().encode("utf-8-sig")
+
+
+def _zip_bytes(*, files: Dict[str, bytes]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for name, content in files.items():
+            zf.writestr(name, content or b"")
+    return buffer.getvalue()
+
+
 @impact_router.get("/items/{item_id}/summary", response_model=ImpactSummaryResponse)
 def get_item_impact_summary(
     item_id: str,
@@ -146,3 +178,102 @@ def get_item_impact_summary(
         esign=ESignSummary(**esign),
     )
 
+
+@impact_router.get("/items/{item_id}/summary/export")
+def export_item_impact_summary(
+    item_id: str,
+    export_format: str = Query("zip", description="zip|json"),
+    where_used_recursive: bool = Query(False, description="Include ancestors recursively"),
+    where_used_max_levels: int = Query(10, ge=1, le=50),
+    where_used_limit: int = Query(20, ge=0, le=200),
+    baseline_limit: int = Query(20, ge=0, le=200),
+    signature_limit: int = Query(20, ge=0, le=200),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    summary = get_item_impact_summary(
+        item_id=item_id,
+        where_used_recursive=where_used_recursive,
+        where_used_max_levels=where_used_max_levels,
+        where_used_limit=where_used_limit,
+        baseline_limit=baseline_limit,
+        signature_limit=signature_limit,
+        user=user,
+        db=db,
+    )
+
+    fmt = (export_format or "").strip().lower()
+    payload = summary.model_dump(mode="json")
+
+    if fmt in {"json", "application/json"}:
+        content = json.dumps(payload, ensure_ascii=False, default=str, indent=2).encode("utf-8")
+        headers = {"Content-Disposition": f'attachment; filename="impact-summary-{item_id}.json"'}
+        return Response(content=content, media_type="application/json", headers=headers)
+
+    if fmt != "zip":
+        raise HTTPException(status_code=400, detail="Unsupported export format")
+
+    where_used_rows = [hit.model_dump(mode="json") for hit in (summary.where_used.hits or [])]
+    baselines_rows = [hit.model_dump(mode="json") for hit in (summary.baselines.hits or [])]
+    signatures_rows = [
+        hit.model_dump(mode="json") for hit in (summary.esign.latest_signatures or [])
+    ]
+
+    bundle = _zip_bytes(
+        files={
+            "summary.json": json.dumps(payload, ensure_ascii=False, default=str, indent=2).encode(
+                "utf-8"
+            ),
+            "where_used.csv": _csv_bytes(
+                rows=where_used_rows,
+                columns=[
+                    "parent_id",
+                    "parent_number",
+                    "parent_name",
+                    "relationship_id",
+                    "level",
+                    "line",
+                ],
+            ),
+            "baselines.csv": _csv_bytes(
+                rows=baselines_rows,
+                columns=[
+                    "baseline_id",
+                    "name",
+                    "baseline_number",
+                    "baseline_type",
+                    "scope",
+                    "state",
+                    "root_item_id",
+                    "created_at",
+                    "released_at",
+                ],
+            ),
+            "esign_signatures.csv": _csv_bytes(
+                rows=signatures_rows,
+                columns=[
+                    "id",
+                    "meaning",
+                    "status",
+                    "signed_at",
+                    "signer_username",
+                ],
+            ),
+            "esign_manifest.json": json.dumps(
+                summary.esign.latest_manifest.model_dump(mode="json")
+                if summary.esign.latest_manifest
+                else None,
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "README.txt": (
+                "YuantusPLM impact summary export bundle\n"
+                f"item_id={item_id}\n"
+                f"generated_at={summary.generated_at.isoformat()}\n"
+            ).encode("utf-8"),
+        }
+    )
+
+    headers = {"Content-Disposition": f'attachment; filename="impact-summary-{item_id}.zip"'}
+    return StreamingResponse(io.BytesIO(bundle), media_type="application/zip", headers=headers)
