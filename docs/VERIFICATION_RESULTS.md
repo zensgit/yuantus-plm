@@ -7,6 +7,12 @@
 - Report: `docs/DAILY_REPORTS/STRICT_GATE_20260207-222534.md`
 - Scope: product detail cockpit flags (impact/readiness/open ECO links-only integration) + Playwright regression extension
 
+## 2026-02-07 Strict Gate (PASS) - Demo PLM Closed Loop
+
+- Report: `docs/DAILY_REPORTS/STRICT_GATE_20260207-224401.md`
+- Demo report: `docs/DAILY_REPORTS/DEMO_PLM_CLOSED_LOOP_20260207-224427.md`
+- Scope: closed-loop demo script + strict gate optional demo step (`DEMO_SCRIPT=1`)
+
 ## 2026-02-07 Strict Gate (PASS) - Item Cockpit
 
 - Report: `docs/DAILY_REPORTS/STRICT_GATE_20260207-220207.md`
