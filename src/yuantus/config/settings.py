@@ -213,6 +213,10 @@ class Settings(BaseSettings):
         default="",
         description="Optional HMAC secret for electronic signatures (defaults to JWT_SECRET_KEY)",
     )
+    ESIGN_VERIFY_SECRET_KEYS: str = Field(
+        default="",
+        description="Optional comma-separated HMAC secrets accepted for verifying existing e-signatures (key rotation).",
+    )
     JWT_ACCESS_TOKEN_TTL_SECONDS: int = Field(
         default=3600, description="Access token TTL seconds"
     )

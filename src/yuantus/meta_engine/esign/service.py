@@ -31,11 +31,33 @@ class ElectronicSignatureService:
         session: Session,
         *,
         secret_key: str,
+        verify_secret_keys: Optional[List[str]] = None,
         auth_service: Optional[AuthService] = None,
     ) -> None:
         self.session = session
-        self.secret_key = secret_key
+        self.signing_secret_key = (secret_key or "").strip()
+        keys = verify_secret_keys or []
+        normalized: List[str] = []
+        for key in keys:
+            k = (key or "").strip()
+            if k and k not in normalized:
+                normalized.append(k)
+        if self.signing_secret_key and self.signing_secret_key not in normalized:
+            normalized.insert(0, self.signing_secret_key)
+        self.verify_secret_keys = normalized or ([self.signing_secret_key] if self.signing_secret_key else [])
         self.auth_service = auth_service
+
+    @staticmethod
+    def _build_signature_message(
+        *,
+        item_id: str,
+        item_generation: int,
+        user_id: int,
+        meaning: str,
+        content_hash: str,
+        timestamp: datetime,
+    ) -> str:
+        return f"{item_id}:{item_generation}:{user_id}:{meaning}:{content_hash}:{timestamp.isoformat()}"
 
     def sign(
         self,
@@ -137,7 +159,13 @@ class ElectronicSignatureService:
         self.session.commit()
         return signature
 
-    def verify(self, signature_id: str) -> Dict[str, Any]:
+    def verify(
+        self,
+        signature_id: str,
+        *,
+        actor_id: Optional[int] = None,
+        actor_username: Optional[str] = None,
+    ) -> Dict[str, Any]:
         signature = self.session.get(ElectronicSignature, signature_id)
         if not signature:
             raise ValueError("Signature not found")
@@ -157,7 +185,7 @@ class ElectronicSignatureService:
                 is_valid = False
                 issues.append("Content has been modified since signing")
 
-        expected_hash = self._calculate_signature_hash(
+        expected_message = self._build_signature_message(
             item_id=signature.item_id,
             item_generation=signature.item_generation,
             user_id=signature.signer_id,
@@ -165,16 +193,24 @@ class ElectronicSignatureService:
             content_hash=signature.content_hash,
             timestamp=signature.signed_at,
         )
-        if expected_hash != signature.signature_hash:
+        if not any(
+            hmac.new(key.encode(), expected_message.encode(), hashlib.sha256).hexdigest()
+            == signature.signature_hash
+            for key in (self.verify_secret_keys or [])
+        ):
             is_valid = False
             issues.append("Signature hash mismatch")
 
+        effective_actor_id = actor_id if actor_id is not None else signature.signer_id
+        effective_actor_username = (
+            (actor_username or "").strip() or signature.signer_username or "unknown"
+        )
         self._log_audit(
             "verify",
             signature_id=signature_id,
             item_id=signature.item_id,
-            actor_id=signature.signer_id,
-            actor_username=signature.signer_username,
+            actor_id=effective_actor_id,
+            actor_username=effective_actor_username,
             details={"is_valid": is_valid, "issues": issues},
         )
         self.session.commit()
@@ -478,8 +514,19 @@ class ElectronicSignatureService:
         content_hash: str,
         timestamp: datetime,
     ) -> str:
-        message = f"{item_id}:{item_generation}:{user_id}:{meaning}:{content_hash}:{timestamp.isoformat()}"
-        return hmac.new(self.secret_key.encode(), message.encode(), hashlib.sha256).hexdigest()
+        message = self._build_signature_message(
+            item_id=item_id,
+            item_generation=item_generation,
+            user_id=user_id,
+            meaning=meaning,
+            content_hash=content_hash,
+            timestamp=timestamp,
+        )
+        return hmac.new(
+            (self.signing_secret_key or "").encode(),
+            message.encode(),
+            hashlib.sha256,
+        ).hexdigest()
 
     def _update_manifest(self, item_id: str, generation: int) -> None:
         manifest = (

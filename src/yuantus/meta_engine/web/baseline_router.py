@@ -5,12 +5,13 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import CurrentUser, get_current_user
 from yuantus.database import get_db
 from yuantus.exceptions.handlers import PermissionError
-from yuantus.meta_engine.models.baseline import Baseline, BaselineMember
+from yuantus.meta_engine.models.baseline import Baseline, BaselineComparison, BaselineMember
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.baseline_service import BaselineService
 
@@ -118,6 +119,31 @@ class BaselineCompareBaselinesRequest(BaseModel):
 def _is_admin(user: CurrentUser) -> bool:
     roles = set(user.roles or [])
     return "admin" in roles or "superuser" in roles
+
+
+def _ensure_can_access_baseline(
+    service: BaselineService,
+    baseline: Baseline,
+    *,
+    user: CurrentUser,
+    db: Session,
+) -> None:
+    """Enforce baseline read access consistent with get_baseline/list_members."""
+    if _is_admin(user):
+        return
+    if baseline.created_by_id == user.id:
+        return
+
+    if baseline.root_item_id:
+        item = db.get(Item, baseline.root_item_id)
+        if item:
+            try:
+                service._ensure_can_read(item, str(user.id), list(user.roles or []))
+                return
+            except PermissionError as exc:
+                raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
+
+    raise HTTPException(status_code=403, detail="Permission denied")
 
 
 def _baseline_to_response(
@@ -282,14 +308,19 @@ def compare_baselines(
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     service = BaselineService(db)
-    try:
-        return service.compare_baselines(
-            baseline_a_id=req.baseline_a_id,
-            baseline_b_id=req.baseline_b_id,
-            user_id=user.id,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    baseline_a = service.get_baseline(req.baseline_a_id)
+    baseline_b = service.get_baseline(req.baseline_b_id)
+    if not baseline_a or not baseline_b:
+        raise HTTPException(status_code=404, detail="Baseline not found")
+
+    _ensure_can_access_baseline(service, baseline_a, user=user, db=db)
+    _ensure_can_access_baseline(service, baseline_b, user=user, db=db)
+
+    return service.compare_baselines(
+        baseline_a_id=req.baseline_a_id,
+        baseline_b_id=req.baseline_b_id,
+        user_id=user.id,
+    )
 
 
 @baseline_router.get("/comparisons/{comparison_id}/details", response_model=Dict[str, Any])
@@ -298,10 +329,22 @@ def get_comparison_details(
     change_type: Optional[str] = Query(None, description="added|removed|changed"),
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    _user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     service = BaselineService(db)
+    comparison = db.get(BaselineComparison, comparison_id)
+    if not comparison:
+        raise HTTPException(status_code=404, detail="Baseline comparison not found")
+
+    baseline_a = service.get_baseline(comparison.baseline_a_id)
+    baseline_b = service.get_baseline(comparison.baseline_b_id)
+    if not baseline_a or not baseline_b:
+        raise HTTPException(status_code=404, detail="Baseline not found")
+
+    _ensure_can_access_baseline(service, baseline_a, user=user, db=db)
+    _ensure_can_access_baseline(service, baseline_b, user=user, db=db)
+
     try:
         return service.get_comparison_details(
             comparison_id=comparison_id,
@@ -320,10 +363,22 @@ def export_comparison_details(
     change_type: Optional[str] = Query(None, description="added|removed|changed"),
     limit: int = Query(2000, ge=1, le=10000),
     offset: int = Query(0, ge=0),
-    _user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
     service = BaselineService(db)
+    comparison = db.get(BaselineComparison, comparison_id)
+    if not comparison:
+        raise HTTPException(status_code=404, detail="Baseline comparison not found")
+
+    baseline_a = service.get_baseline(comparison.baseline_a_id)
+    baseline_b = service.get_baseline(comparison.baseline_b_id)
+    if not baseline_a or not baseline_b:
+        raise HTTPException(status_code=404, detail="Baseline not found")
+
+    _ensure_can_access_baseline(service, baseline_a, user=user, db=db)
+    _ensure_can_access_baseline(service, baseline_b, user=user, db=db)
+
     try:
         result = service.export_comparison_details(
             comparison_id=comparison_id,
@@ -385,22 +440,21 @@ def list_baseline_members(
     if not baseline:
         raise HTTPException(status_code=404, detail="Baseline not found")
 
-    if not _is_admin(user) and baseline.created_by_id != user.id:
-        if baseline.root_item_id:
-            item = db.get(Item, baseline.root_item_id)
-            if item:
-                try:
-                    service._ensure_can_read(item, str(user.id), list(user.roles or []))
-                except PermissionError as exc:
-                    raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
-            else:
-                raise HTTPException(status_code=403, detail="Permission denied")
-        else:
-            raise HTTPException(status_code=403, detail="Permission denied")
+    _ensure_can_access_baseline(service, baseline, user=user, db=db)
 
     q = db.query(BaselineMember).filter(BaselineMember.baseline_id == baseline_id)
     total = q.count()
-    members = q.order_by(BaselineMember.level.asc()).offset(offset).limit(limit).all()
+    # Stable pagination: order by level then path/id.
+    members = (
+        q.order_by(
+            BaselineMember.level.asc(),
+            func.coalesce(BaselineMember.path, "").asc(),
+            BaselineMember.id.asc(),
+        )
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
 
     return {
         "total": total,
@@ -433,6 +487,10 @@ def validate_baseline(
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     service = BaselineService(db)
+    baseline = service.get_baseline(baseline_id)
+    if not baseline:
+        raise HTTPException(status_code=404, detail="Baseline not found")
+    _ensure_can_access_baseline(service, baseline, user=user, db=db)
     try:
         return service.validate_baseline(baseline_id, user_id=user.id)
     except ValueError as exc:
@@ -447,6 +505,10 @@ def release_baseline(
     db: Session = Depends(get_db),
 ) -> BaselineResponse:
     service = BaselineService(db)
+    baseline = service.get_baseline(baseline_id)
+    if not baseline:
+        raise HTTPException(status_code=404, detail="Baseline not found")
+    _ensure_can_access_baseline(service, baseline, user=user, db=db)
     try:
         baseline = service.release_baseline(
             baseline_id,
@@ -470,6 +532,7 @@ def compare_baseline(
     baseline = service.get_baseline(baseline_id)
     if not baseline:
         raise HTTPException(status_code=404, detail="Baseline not found")
+    _ensure_can_access_baseline(service, baseline, user=user, db=db)
 
     # Permission guard for target items
     if req.target_type == "item":
@@ -492,6 +555,11 @@ def compare_baseline(
                 service._ensure_can_read(target, str(user.id), list(user.roles or []))
             except PermissionError as exc:
                 raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
+    elif req.target_type == "baseline":
+        target_baseline = service.get_baseline(req.target_id)
+        if not target_baseline:
+            raise HTTPException(status_code=404, detail="Target baseline not found")
+        _ensure_can_access_baseline(service, target_baseline, user=user, db=db)
 
     try:
         result = service.compare_baseline(
