@@ -16,9 +16,9 @@ This scorecard tracks parity-to-surpass progress against roadmap scope.
 | Metric | Current |
 |---|---|
 | Capability coverage rate | 6 / 6 phases with implemented core capability (`100%`) |
-| Quality pass rate | `100%` (latest strict gate report PASS: `docs/DAILY_REPORTS/STRICT_GATE_20260207-164556.md`; CI green on merged PRs) |
+| Quality pass rate | `100%` (latest strict gate report PASS: `docs/DAILY_REPORTS/STRICT_GATE_20260207-220207.md`; CI green on merged PRs) |
 | Performance attainment rate | 6 / 6 targets met (see `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`) |
-| Leading capability count | 3 (strict regression evidence autopack, cross-domain impact + release readiness summary APIs + export bundles, strategy-based validation rulesets + diagnostics for manufacturing + baselines + ECO apply + ruleset directory) |
+| Leading capability count | 4 (strict regression evidence autopack, cross-domain impact + release readiness summary APIs + export bundles, strategy-based validation rulesets + diagnostics for manufacturing + baselines + ECO apply + ruleset directory, item cockpit cross-domain cockpit API + export bundle) |
 
 ## 3. Notes
 

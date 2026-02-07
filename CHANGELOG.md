@@ -6,6 +6,8 @@
 - Strict gate scripts: `scripts/strict_gate.sh` (runner) and `scripts/strict_gate_report.sh` (report + logs) for unattended regression evidence.
 - Impact summary API: `GET /api/v1/impact/items/{item_id}/summary` (BOM where-used + baselines + e-sign summary).
 - Impact summary export bundle: `GET /api/v1/impact/items/{item_id}/summary/export?export_format=zip|json` (zip includes JSON + CSV tables).
+- Item cockpit API: `GET /api/v1/items/{item_id}/cockpit` (aggregates impact summary + release readiness + open ECO hits + export links).
+- Item cockpit export bundle: `GET /api/v1/items/{item_id}/cockpit/export?export_format=zip|json` (zip includes JSON + CSV tables).
 - Strategy-based release validation (manufacturing): structured diagnostics APIs and configurable rulesets via `YUANTUS_RELEASE_VALIDATION_RULESETS_JSON`.
   - `GET /api/v1/routings/{routing_id}/release-diagnostics`
   - `GET /api/v1/mboms/{mbom_id}/release-diagnostics`
