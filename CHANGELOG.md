@@ -8,6 +8,7 @@
 - Strategy-based release validation (manufacturing): structured diagnostics APIs and configurable rulesets via `YUANTUS_RELEASE_VALIDATION_RULESETS_JSON`.
   - `GET /api/v1/routings/{routing_id}/release-diagnostics`
   - `GET /api/v1/mboms/{mbom_id}/release-diagnostics`
+- Roadmap 9.3 performance benchmark harness: `scripts/perf_roadmap_9_3.py` + reports in `docs/PERFORMANCE_REPORTS/`.
 
 ### Changed
 - Baselines: enforce permission checks for compare/validate/release and comparison details/export; stabilize baseline member pagination order.
