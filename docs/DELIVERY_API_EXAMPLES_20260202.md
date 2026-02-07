@@ -120,6 +120,14 @@ curl -s -X POST \
   -d '{"mode":"new_bom","recursive":true,"levels":10}'
 ```
 
+## 9) Impact Summary (BOM + Baselines + E-sign)
+
+```bash
+curl -s \
+  "http://127.0.0.1:7910/api/v1/impact/items/{item_id}/summary?where_used_recursive=false&where_used_limit=20&baseline_limit=20&signature_limit=20" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 Notes:
 - Add `"dry_run": true` to preview the plan without applying changes.
 - Use `relationship_types` to limit scan/resolve to `Part BOM` or `Manufacturing BOM`.

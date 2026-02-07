@@ -33,6 +33,7 @@ from yuantus.meta_engine.web.rpc_router import rpc_router
 from yuantus.meta_engine.web.router import meta_router
 from yuantus.meta_engine.web.schema_router import schema_router
 from yuantus.meta_engine.web.search_router import search_router
+from yuantus.meta_engine.web.impact_router import impact_router
 from yuantus.meta_engine.web.ui_router import ui_router
 from yuantus.meta_engine.web.version_router import version_router
 from yuantus.meta_engine.web.manufacturing_router import (
@@ -83,6 +84,7 @@ def create_app() -> FastAPI:
     app.include_router(product_router, prefix="/api/v1")
     app.include_router(permission_router, prefix="/api/v1")
     app.include_router(schema_router, prefix="/api/v1")
+    app.include_router(impact_router, prefix="/api/v1")
     app.include_router(ui_router, prefix="/api/v1")
     app.include_router(file_router, prefix="/api/v1")
     app.include_router(esign_router, prefix="/api/v1")

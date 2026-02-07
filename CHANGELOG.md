@@ -4,6 +4,7 @@
 
 ### Added
 - Strict gate scripts: `scripts/strict_gate.sh` (runner) and `scripts/strict_gate_report.sh` (report + logs) for unattended regression evidence.
+- Impact summary API: `GET /api/v1/impact/items/{item_id}/summary` (BOM where-used + baselines + e-sign summary).
 
 ### Changed
 - Baselines: enforce permission checks for compare/validate/release and comparison details/export; stabilize baseline member pagination order.
