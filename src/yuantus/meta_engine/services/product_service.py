@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import or_
@@ -11,11 +12,16 @@ from yuantus.meta_engine.models.file import FileContainer, ItemFile
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.schemas.aml import AMLAction
-from yuantus.meta_engine.services.eco_service import ECOApprovalService
+from yuantus.meta_engine.services.eco_service import ECOApprovalService, ECOService
 from yuantus.meta_engine.services.bom_obsolete_service import BOMObsoleteService
 from yuantus.meta_engine.services.bom_rollup_service import BOMRollupService
 from yuantus.meta_engine.services.bom_service import BOMService
+from yuantus.meta_engine.services.impact_analysis_service import (
+    CurrentUserView,
+    ImpactAnalysisService,
+)
 from yuantus.meta_engine.services.meta_permission_service import MetaPermissionService
+from yuantus.meta_engine.services.release_readiness_service import ReleaseReadinessService
 from yuantus.meta_engine.version.models import ItemVersion
 
 
@@ -30,6 +36,28 @@ class ProductDetailService:
         self.user_id = user_id or "guest"
         self.roles = roles or []
         self.permission_service = MetaPermissionService(session)
+
+    def _is_admin(self) -> bool:
+        roles = {str(r).lower() for r in (self.roles or [])}
+        return ("admin" in roles) or ("superuser" in roles)
+
+    def _build_cockpit_links(self, *, item_id: str, ruleset_id: str) -> Dict[str, str]:
+        ruleset = (ruleset_id or "readiness").strip() or "readiness"
+        return {
+            "cockpit": f"/api/v1/items/{item_id}/cockpit?ruleset_id={ruleset}",
+            "cockpit_export": (
+                f"/api/v1/items/{item_id}/cockpit/export?export_format=zip&ruleset_id={ruleset}"
+            ),
+            "impact_summary": f"/api/v1/impact/items/{item_id}/summary",
+            "impact_export": f"/api/v1/impact/items/{item_id}/summary/export?export_format=zip",
+            "release_readiness": (
+                f"/api/v1/release-readiness/items/{item_id}?ruleset_id={ruleset}"
+            ),
+            "release_readiness_export": (
+                f"/api/v1/release-readiness/items/{item_id}/export?export_format=zip&ruleset_id={ruleset}"
+            ),
+            "eco_list": f"/api/v1/eco?product_id={item_id}&limit=20&offset=0",
+        }
 
     def get_detail(
         self,
@@ -53,6 +81,11 @@ class ProductDetailService:
         where_used_max_levels: int = 5,
         include_document_summary: bool = False,
         include_eco_summary: bool = False,
+        include_impact_summary: bool = False,
+        include_release_readiness_summary: bool = False,
+        release_readiness_ruleset_id: str = "readiness",
+        include_open_eco_hits: bool = False,
+        cockpit_links_only: bool = True,
     ) -> Dict[str, Any]:
         item = self.session.get(Item, item_id)
         if not item:
@@ -71,6 +104,16 @@ class ProductDetailService:
             raise PermissionError(action=AMLAction.get.value, resource=item.item_type_id)
 
         payload: Dict[str, Any] = {"item": self._serialize_item(item)}
+        wants_cockpit = (
+            include_impact_summary
+            or include_release_readiness_summary
+            or include_open_eco_hits
+        )
+        if wants_cockpit:
+            payload["cockpit_links"] = self._build_cockpit_links(
+                item_id=str(item.id),
+                ruleset_id=release_readiness_ruleset_id,
+            )
 
         current_version = None
         if item.current_version_id:
@@ -87,11 +130,13 @@ class ProductDetailService:
         if include_version_files and current_version:
             payload["version_files"] = self._get_version_files(current_version)
 
+        bom_allowed = False
         if (
             include_bom_summary
             or include_where_used_summary
             or include_bom_obsolete_summary
             or include_bom_weight_rollup
+            or include_impact_summary
         ):
             bom_allowed = self.permission_service.check_permission(
                 "Part BOM",
@@ -139,6 +184,50 @@ class ProductDetailService:
                 else:
                     payload["bom_weight_rollup_summary"] = {"authorized": False}
 
+            if include_impact_summary:
+                if not bom_allowed:
+                    payload["impact_summary"] = {"authorized": False}
+                else:
+                    links = {
+                        "summary": f"/api/v1/impact/items/{item.id}/summary",
+                        "export": f"/api/v1/impact/items/{item.id}/summary/export?export_format=zip",
+                    }
+                    if cockpit_links_only:
+                        payload["impact_summary"] = {"authorized": True, "links": links}
+                    else:
+                        svc = ImpactAnalysisService(self.session)
+                        try:
+                            user_id_int = int(self.user_id)
+                        except (TypeError, ValueError):
+                            user_id_int = 0
+                        roles = list(self.roles or [])
+                        user_view = CurrentUserView(
+                            id=user_id_int,
+                            roles=roles,
+                            is_superuser="superuser" in {str(r).lower() for r in roles},
+                        )
+                        where_used = svc.where_used_summary(
+                            item_id=str(item.id),
+                            recursive=bool(where_used_recursive),
+                            max_levels=int(where_used_max_levels),
+                            limit=20,
+                        )
+                        baselines = svc.baselines_summary(
+                            item_id=str(item.id),
+                            user=user_view,
+                            limit=20,
+                        )
+                        esign = svc.esign_summary(item_id=str(item.id), limit=20)
+                        payload["impact_summary"] = {
+                            "authorized": True,
+                            "item_id": str(item.id),
+                            "generated_at": datetime.utcnow(),
+                            "where_used": where_used,
+                            "baselines": baselines,
+                            "esign": esign,
+                            "links": links,
+                        }
+
         if include_document_summary:
             doc_allowed = self.permission_service.check_permission(
                 "Document",
@@ -151,17 +240,95 @@ class ProductDetailService:
             else:
                 payload["document_summary"] = {"authorized": False}
 
-        if include_eco_summary:
+        eco_allowed = False
+        if include_eco_summary or include_open_eco_hits:
             eco_allowed = self.permission_service.check_permission(
                 "ECO",
                 AMLAction.get,
                 user_id=str(self.user_id),
                 user_roles=self.roles,
             )
-            if eco_allowed:
-                payload["eco_summary"] = self._get_eco_summary(item.id)
+            if include_eco_summary:
+                if eco_allowed:
+                    payload["eco_summary"] = self._get_eco_summary(item.id)
+                else:
+                    payload["eco_summary"] = {"authorized": False}
+
+            if include_open_eco_hits:
+                eco_list_link = f"/api/v1/eco?product_id={item.id}&limit=20&offset=0"
+                if not eco_allowed:
+                    payload["open_ecos"] = {"authorized": False}
+                elif cockpit_links_only:
+                    payload["open_ecos"] = {
+                        "authorized": True,
+                        "links": {"list": eco_list_link},
+                    }
+                else:
+                    eco_svc = ECOService(self.session)
+                    ecos = eco_svc.list_ecos(product_id=str(item.id), limit=20, offset=0)
+                    hits: List[Dict[str, Any]] = []
+                    for eco in ecos or []:
+                        state = (getattr(eco, "state", None) or "").strip()
+                        if state.lower() in {"done", "canceled"}:
+                            continue
+                        hits.append(
+                            {
+                                "id": str(getattr(eco, "id", "")),
+                                "name": str(getattr(eco, "name", "")),
+                                "state": state or None,
+                                "stage_id": getattr(eco, "stage_id", None),
+                                "priority": getattr(eco, "priority", None),
+                                "updated_at": (
+                                    eco.updated_at.isoformat()
+                                    if getattr(eco, "updated_at", None)
+                                    else None
+                                ),
+                                "created_at": (
+                                    eco.created_at.isoformat()
+                                    if getattr(eco, "created_at", None)
+                                    else None
+                                ),
+                            }
+                        )
+                    payload["open_ecos"] = {
+                        "authorized": True,
+                        "total": len(hits),
+                        "hits": hits,
+                        "links": {"list": eco_list_link},
+                    }
+
+        if include_release_readiness_summary:
+            ruleset = (release_readiness_ruleset_id or "readiness").strip() or "readiness"
+            links = {
+                "summary": f"/api/v1/release-readiness/items/{item.id}?ruleset_id={ruleset}",
+                "export": (
+                    f"/api/v1/release-readiness/items/{item.id}/export?export_format=zip&ruleset_id={ruleset}"
+                ),
+            }
+            if not self._is_admin():
+                payload["release_readiness_summary"] = {"authorized": False}
+            elif cockpit_links_only:
+                payload["release_readiness_summary"] = {
+                    "authorized": True,
+                    "ruleset_id": ruleset,
+                    "links": links,
+                }
             else:
-                payload["eco_summary"] = {"authorized": False}
+                svc = ReleaseReadinessService(self.session)
+                readiness = svc.get_item_release_readiness(
+                    item_id=str(item.id),
+                    ruleset_id=ruleset,
+                    mbom_limit=20,
+                    routing_limit=20,
+                    baseline_limit=20,
+                )
+                payload["release_readiness_summary"] = {
+                    "authorized": True,
+                    "ruleset_id": ruleset,
+                    "generated_at": readiness.get("generated_at"),
+                    "summary": readiness.get("summary") or {},
+                    "links": links,
+                }
 
         return payload
 

@@ -92,4 +92,19 @@ test('Product UI summaries include obsolete + weight rollup', async ({ request }
   expect(rollup.authorized).toBeTruthy();
   const totalWeight = Number(rollup.total_weight);
   expect(totalWeight).toBeCloseTo(5.0, 6);
+
+  const cockpitResp = await request.get(
+    `/api/v1/products/${parent}` +
+      '?include_versions=false&include_files=false' +
+      '&include_release_readiness_summary=true' +
+      '&release_readiness_ruleset_id=readiness',
+    { headers }
+  );
+  expect(cockpitResp.ok()).toBeTruthy();
+  const cockpit = await cockpitResp.json();
+  const readiness = cockpit.release_readiness_summary || {};
+  expect(readiness.authorized).toBeTruthy();
+  expect(readiness.links && readiness.links.export).toContain(
+    `/api/v1/release-readiness/items/${parent}/export`
+  );
 });
