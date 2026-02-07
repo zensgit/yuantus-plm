@@ -5,11 +5,15 @@
 ### Added
 - Strict gate scripts: `scripts/strict_gate.sh` (runner) and `scripts/strict_gate_report.sh` (report + logs) for unattended regression evidence.
 - Impact summary API: `GET /api/v1/impact/items/{item_id}/summary` (BOM where-used + baselines + e-sign summary).
+- Strategy-based release validation (manufacturing): structured diagnostics APIs and configurable rulesets via `YUANTUS_RELEASE_VALIDATION_RULESETS_JSON`.
+  - `GET /api/v1/routings/{routing_id}/release-diagnostics`
+  - `GET /api/v1/mboms/{mbom_id}/release-diagnostics`
 
 ### Changed
 - Baselines: enforce permission checks for compare/validate/release and comparison details/export; stabilize baseline member pagination order.
 - E-sign: accept rotated HMAC secrets for verification (via `YUANTUS_ESIGN_VERIFY_SECRET_KEYS`), log verifier identity in audit, and restrict audit endpoints to admin.
 - Search: add unit coverage for DB fallback behavior when Elasticsearch is unavailable.
+- Manufacturing: routing/MBOM release endpoints accept optional `ruleset_id` query param (default behavior unchanged).
 
 ### Verification
 - Results logged in `docs/VERIFICATION_RESULTS.md`.

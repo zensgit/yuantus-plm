@@ -18,7 +18,7 @@ This scorecard tracks parity-to-surpass progress against roadmap scope.
 | Capability coverage rate | 6 / 6 phases with implemented core capability (`100%`) |
 | Quality pass rate | `100%` (latest strict gate report PASS + CI green on merged PRs) |
 | Performance attainment rate | Pending weekly benchmark execution |
-| Leading capability count | 2 (strict regression evidence autopack, cross-domain impact summary API) |
+| Leading capability count | 3 (strict regression evidence autopack, cross-domain impact summary API, strategy-based release validation rulesets + diagnostics) |
 
 ## 3. Notes
 

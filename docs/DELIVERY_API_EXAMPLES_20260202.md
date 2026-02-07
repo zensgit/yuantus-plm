@@ -128,6 +128,41 @@ curl -s \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+## 10) Manufacturing Release Diagnostics (Routing/MBOM)
+
+```bash
+# Routing release diagnostics (collect all precheck failures)
+curl -s \
+  "http://127.0.0.1:7910/api/v1/routings/{routing_id}/release-diagnostics?ruleset_id=default" \
+  -H "Authorization: Bearer $TOKEN"
+
+# MBOM release diagnostics
+curl -s \
+  "http://127.0.0.1:7910/api/v1/mboms/{mbom_id}/release-diagnostics?ruleset_id=default" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### Custom rulesets (strategy-based validation)
+
+```bash
+export YUANTUS_RELEASE_VALIDATION_RULESETS_JSON='{
+  "routing_release": {
+    "no_primary": [
+      "routing.exists",
+      "routing.not_already_released",
+      "routing.has_operations",
+      "routing.has_scope",
+      "routing.operation_workcenters_valid"
+    ]
+  }
+}'
+
+# Release routing using a configured ruleset
+curl -s -X PUT \
+  "http://127.0.0.1:7910/api/v1/routings/{routing_id}/release?ruleset_id=no_primary" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 Notes:
 - Add `"dry_run": true` to preview the plan without applying changes.
 - Use `relationship_types` to limit scan/resolve to `Part BOM` or `Manufacturing BOM`.

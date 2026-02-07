@@ -159,6 +159,22 @@ class CostCalcRequest(BaseModel):
     overhead_rate: Optional[float] = None
 
 
+class ReleaseDiagnosticIssue(BaseModel):
+    code: str
+    message: str
+    rule_id: str
+    details: Optional[Dict[str, Any]] = None
+
+
+class ReleaseDiagnosticsResponse(BaseModel):
+    ok: bool
+    resource_type: str
+    resource_id: str
+    ruleset_id: str
+    errors: List[ReleaseDiagnosticIssue] = Field(default_factory=list)
+    warnings: List[ReleaseDiagnosticIssue] = Field(default_factory=list)
+
+
 class WorkCenterCreateRequest(BaseModel):
     code: str
     name: str
@@ -287,6 +303,22 @@ def _operation_to_response(operation) -> OperationResponse:
     )
 
 
+def _issue_to_response(issue: Any) -> ReleaseDiagnosticIssue:
+    if isinstance(issue, dict):
+        return ReleaseDiagnosticIssue(
+            code=str(issue.get("code") or ""),
+            message=str(issue.get("message") or ""),
+            rule_id=str(issue.get("rule_id") or ""),
+            details=issue.get("details"),
+        )
+    return ReleaseDiagnosticIssue(
+        code=str(getattr(issue, "code", "") or ""),
+        message=str(getattr(issue, "message", "") or ""),
+        rule_id=str(getattr(issue, "rule_id", "") or ""),
+        details=getattr(issue, "details", None),
+    )
+
+
 def _raise_http_for_value_error(exc: ValueError):
     message = str(exc)
     not_found_prefixes = (
@@ -380,18 +412,45 @@ async def get_mbom(
 @mbom_router.put("/{mbom_id}/release", response_model=MBOMResponse)
 async def release_mbom(
     mbom_id: str,
+    ruleset_id: str = Query("default"),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_admin(user)
     service = MBOMService(db)
     try:
-        mbom = service.release_mbom(mbom_id)
+        mbom = service.release_mbom(mbom_id, ruleset_id=ruleset_id)
         db.commit()
     except ValueError as exc:
         db.rollback()
         _raise_http_for_value_error(exc)
     return _mbom_to_response(mbom, include_structure=False)
+
+
+@mbom_router.get("/{mbom_id}/release-diagnostics", response_model=ReleaseDiagnosticsResponse)
+async def get_mbom_release_diagnostics(
+    mbom_id: str,
+    ruleset_id: str = Query("default"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    service = MBOMService(db)
+    try:
+        diagnostics = service.get_release_diagnostics(mbom_id, ruleset_id=ruleset_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    errors = [_issue_to_response(issue) for issue in (diagnostics.get("errors") or [])]
+    warnings = [_issue_to_response(issue) for issue in (diagnostics.get("warnings") or [])]
+    return ReleaseDiagnosticsResponse(
+        ok=len(errors) == 0,
+        resource_type="mbom",
+        resource_id=mbom_id,
+        ruleset_id=str(diagnostics.get("ruleset_id") or ruleset_id),
+        errors=errors,
+        warnings=warnings,
+    )
 
 
 @mbom_router.put("/{mbom_id}/reopen", response_model=MBOMResponse)
@@ -619,18 +678,45 @@ async def calculate_time(
 @routing_router.put("/{routing_id}/release", response_model=RoutingResponse)
 async def release_routing(
     routing_id: str,
+    ruleset_id: str = Query("default"),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_admin(user)
     service = RoutingService(db)
     try:
-        routing = service.release_routing(routing_id)
+        routing = service.release_routing(routing_id, ruleset_id=ruleset_id)
         db.commit()
     except ValueError as exc:
         db.rollback()
         _raise_http_for_value_error(exc)
     return _routing_to_response(routing)
+
+
+@routing_router.get("/{routing_id}/release-diagnostics", response_model=ReleaseDiagnosticsResponse)
+async def get_routing_release_diagnostics(
+    routing_id: str,
+    ruleset_id: str = Query("default"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    _ensure_admin(user)
+    service = RoutingService(db)
+    try:
+        diagnostics = service.get_release_diagnostics(routing_id, ruleset_id=ruleset_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    errors = [_issue_to_response(issue) for issue in (diagnostics.get("errors") or [])]
+    warnings = [_issue_to_response(issue) for issue in (diagnostics.get("warnings") or [])]
+    return ReleaseDiagnosticsResponse(
+        ok=len(errors) == 0,
+        resource_type="routing",
+        resource_id=routing_id,
+        ruleset_id=str(diagnostics.get("ruleset_id") or ruleset_id),
+        errors=errors,
+        warnings=warnings,
+    )
 
 
 @routing_router.put("/{routing_id}/reopen", response_model=RoutingResponse)

@@ -333,6 +333,37 @@ def test_release_routing_requires_admin_role():
     assert response.json()["detail"] == "Admin role required"
 
 
+def test_routing_release_diagnostics_requires_admin_role():
+    user = SimpleNamespace(id=2, roles=["viewer"], is_superuser=False)
+    client, _db = _client_with_user(user)
+    response = client.get("/api/v1/routings/routing-1/release-diagnostics")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Admin role required"
+
+
+def test_routing_release_diagnostics_admin_success():
+    user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.manufacturing_router.RoutingService"
+    ) as service_cls:
+        service_cls.return_value.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+        response = client.get("/api/v1/routings/routing-1/release-diagnostics")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is True
+    assert body["resource_type"] == "routing"
+    assert body["resource_id"] == "routing-1"
+    assert body["ruleset_id"] == "default"
+    assert body["errors"] == []
+
+
 def test_release_and_reopen_routing_admin_success():
     user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
     client, db = _client_with_user(user)
