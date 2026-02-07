@@ -241,6 +241,12 @@ class Settings(BaseSettings):
         default=2, description="Timeout for external dependency checks"
     )
 
+    # Release validation (strategy-based prechecks)
+    RELEASE_VALIDATION_RULESETS_JSON: str = Field(
+        default="",
+        description="Optional JSON mapping release validation rulesets (routing_release/mbom_release).",
+    )
+
     # Search engine (optional)
     SEARCH_ENGINE_INDEX_PREFIX: str = Field(default="yuantus")
     SEARCH_ENGINE_URL: str = Field(default="")

@@ -9,6 +9,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from yuantus.meta_engine.manufacturing.models import Operation, Routing, WorkCenter
+from yuantus.meta_engine.services.release_validation import ValidationIssue, get_release_ruleset
 
 
 class RoutingService:
@@ -580,36 +581,192 @@ class RoutingService:
         self.session.flush()
         return routing
 
-    def release_routing(self, routing_id: str) -> Routing:
+    def _workcenter_issue_code(self, message: str) -> str:
+        if message.startswith("WorkCenter not found:"):
+            return "workcenter_not_found"
+        if message.startswith("WorkCenter id/code mismatch:"):
+            return "workcenter_id_code_mismatch"
+        if message.startswith("WorkCenter plant mismatch:"):
+            return "workcenter_plant_mismatch"
+        if message.startswith("WorkCenter line mismatch:"):
+            return "workcenter_line_mismatch"
+        if message.startswith("WorkCenter is inactive:"):
+            return "workcenter_inactive"
+        return "workcenter_invalid"
+
+    def get_release_diagnostics(
+        self,
+        routing_id: str,
+        *,
+        ruleset_id: str = "default",
+    ) -> Dict[str, Any]:
+        rules = get_release_ruleset("routing_release", ruleset_id)
+        errors: List[ValidationIssue] = []
+        warnings: List[ValidationIssue] = []
+
+        routing = self.session.get(Routing, routing_id)
+        if not routing:
+            errors.append(
+                ValidationIssue(
+                    code="routing_not_found",
+                    message=f"Routing not found: {routing_id}",
+                    rule_id="routing.exists",
+                    details={"routing_id": routing_id},
+                )
+            )
+            return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
+
+        operations: Optional[List[Operation]] = None
+        if "routing.has_operations" in rules or "routing.operation_workcenters_valid" in rules:
+            operations = self.list_operations(routing_id)
+
+        scope = self._scope_filters(mbom_id=routing.mbom_id, item_id=routing.item_id)
+
+        for rule in rules:
+            if rule == "routing.exists":
+                continue
+            if rule == "routing.not_already_released":
+                if (routing.state or "").lower() == "released":
+                    errors.append(
+                        ValidationIssue(
+                            code="routing_already_released",
+                            message="Routing is already released",
+                            rule_id=rule,
+                            details={"routing_id": routing_id},
+                        )
+                    )
+            elif rule == "routing.has_operations":
+                if not operations:
+                    errors.append(
+                        ValidationIssue(
+                            code="routing_empty_operations",
+                            message="Routing must contain at least one operation before release",
+                            rule_id=rule,
+                            details={"routing_id": routing_id},
+                        )
+                    )
+            elif rule == "routing.has_scope":
+                if not scope:
+                    errors.append(
+                        ValidationIssue(
+                            code="routing_missing_scope",
+                            message="Routing is missing scope (mbom_id/item_id); cannot release",
+                            rule_id=rule,
+                            details={"routing_id": routing_id},
+                        )
+                    )
+            elif rule == "routing.primary_unique_in_scope":
+                if not scope:
+                    # Avoid duplicated "missing scope" findings when the ruleset already includes routing.has_scope.
+                    if "routing.has_scope" in rules:
+                        continue
+                    errors.append(
+                        ValidationIssue(
+                            code="routing_missing_scope",
+                            message="Routing is missing scope (mbom_id/item_id); cannot release",
+                            rule_id=rule,
+                            details={"routing_id": routing_id},
+                        )
+                    )
+                else:
+                    primary_count = (
+                        self.session.query(Routing)
+                        .filter(*scope, Routing.is_primary.is_(True))
+                        .count()
+                    )
+                    if primary_count != 1:
+                        errors.append(
+                            ValidationIssue(
+                                code="routing_primary_not_unique",
+                                message="Routing scope must have exactly one primary routing before release",
+                                rule_id=rule,
+                                details={"routing_id": routing_id, "primary_count": primary_count},
+                            )
+                        )
+            elif rule == "routing.operation_workcenters_valid":
+                if not operations:
+                    continue
+                for operation in operations:
+                    if not operation.workcenter_id and not operation.workcenter_code:
+                        continue
+                    try:
+                        self._resolve_workcenter(
+                            workcenter_id=operation.workcenter_id,
+                            workcenter_code=operation.workcenter_code,
+                            routing=routing,
+                        )
+                    except ValueError as exc:
+                        message = str(exc)
+                        errors.append(
+                            ValidationIssue(
+                                code=self._workcenter_issue_code(message),
+                                message=message,
+                                rule_id=rule,
+                                details={
+                                    "routing_id": routing_id,
+                                    "operation_id": operation.id,
+                                    "operation_number": operation.operation_number,
+                                    "workcenter_id": operation.workcenter_id,
+                                    "workcenter_code": operation.workcenter_code,
+                                },
+                            )
+                        )
+
+        return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
+
+    def _validate_release_routing_or_raise(self, routing_id: str, *, ruleset_id: str) -> Routing:
+        rules = get_release_ruleset("routing_release", ruleset_id)
+
         routing = self.session.get(Routing, routing_id)
         if not routing:
             raise ValueError(f"Routing not found: {routing_id}")
-        if (routing.state or "").lower() == "released":
-            raise ValueError("Routing is already released")
 
-        operations = self.list_operations(routing_id)
-        if not operations:
-            raise ValueError("Routing must contain at least one operation before release")
+        operations: Optional[List[Operation]] = None
+        scope = None
 
-        scope = self._scope_filters(mbom_id=routing.mbom_id, item_id=routing.item_id)
-        if not scope:
-            raise ValueError("Routing is missing scope (mbom_id/item_id); cannot release")
-        primary_count = (
-            self.session.query(Routing)
-            .filter(*scope, Routing.is_primary.is_(True))
-            .count()
-        )
-        if primary_count != 1:
-            raise ValueError("Routing scope must have exactly one primary routing before release")
-
-        for operation in operations:
-            if not operation.workcenter_id and not operation.workcenter_code:
+        for rule in rules:
+            if rule == "routing.exists":
                 continue
-            self._resolve_workcenter(
-                workcenter_id=operation.workcenter_id,
-                workcenter_code=operation.workcenter_code,
-                routing=routing,
-            )
+            if rule == "routing.not_already_released":
+                if (routing.state or "").lower() == "released":
+                    raise ValueError("Routing is already released")
+            elif rule == "routing.has_operations":
+                operations = operations if operations is not None else self.list_operations(routing_id)
+                if not operations:
+                    raise ValueError("Routing must contain at least one operation before release")
+            elif rule == "routing.has_scope":
+                scope = self._scope_filters(mbom_id=routing.mbom_id, item_id=routing.item_id)
+                if not scope:
+                    raise ValueError("Routing is missing scope (mbom_id/item_id); cannot release")
+            elif rule == "routing.primary_unique_in_scope":
+                if scope is None:
+                    scope = self._scope_filters(mbom_id=routing.mbom_id, item_id=routing.item_id)
+                if not scope:
+                    raise ValueError("Routing is missing scope (mbom_id/item_id); cannot release")
+                primary_count = (
+                    self.session.query(Routing)
+                    .filter(*scope, Routing.is_primary.is_(True))
+                    .count()
+                )
+                if primary_count != 1:
+                    raise ValueError(
+                        "Routing scope must have exactly one primary routing before release"
+                    )
+            elif rule == "routing.operation_workcenters_valid":
+                operations = operations if operations is not None else self.list_operations(routing_id)
+                for operation in operations:
+                    if not operation.workcenter_id and not operation.workcenter_code:
+                        continue
+                    self._resolve_workcenter(
+                        workcenter_id=operation.workcenter_id,
+                        workcenter_code=operation.workcenter_code,
+                        routing=routing,
+                    )
+
+        return routing
+
+    def release_routing(self, routing_id: str, ruleset_id: str = "default") -> Routing:
+        routing = self._validate_release_routing_or_raise(routing_id, ruleset_id=ruleset_id)
 
         routing.state = "released"
         self.session.add(routing)

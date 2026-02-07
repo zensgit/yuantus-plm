@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from yuantus.meta_engine.manufacturing.models import BOMType, MBOMLine, ManufacturingBOM, Routing
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.bom_service import BOMService
+from yuantus.meta_engine.services.release_validation import ValidationIssue, get_release_ruleset
 
 
 class MBOMService:
@@ -368,25 +369,104 @@ class MBOMService:
             return True
         return False
 
-    def release_mbom(self, mbom_id: str) -> ManufacturingBOM:
+    def get_release_diagnostics(
+        self,
+        mbom_id: str,
+        *,
+        ruleset_id: str = "default",
+    ) -> Dict[str, Any]:
+        rules = get_release_ruleset("mbom_release", ruleset_id)
+        errors: List[ValidationIssue] = []
+        warnings: List[ValidationIssue] = []
+
+        mbom = self.session.get(ManufacturingBOM, mbom_id)
+        if not mbom:
+            errors.append(
+                ValidationIssue(
+                    code="mbom_not_found",
+                    message=f"MBOM not found: {mbom_id}",
+                    rule_id="mbom.exists",
+                    details={"mbom_id": mbom_id},
+                )
+            )
+            return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
+
+        for rule in rules:
+            if rule == "mbom.exists":
+                continue
+            if rule == "mbom.not_already_released":
+                if (mbom.state or "").lower() == "released":
+                    errors.append(
+                        ValidationIssue(
+                            code="mbom_already_released",
+                            message="MBOM is already released",
+                            rule_id=rule,
+                            details={"mbom_id": mbom_id},
+                        )
+                    )
+            elif rule == "mbom.has_non_empty_structure":
+                if not self._has_non_empty_structure(mbom):
+                    errors.append(
+                        ValidationIssue(
+                            code="mbom_empty_structure",
+                            message=f"MBOM structure is empty: {mbom_id}",
+                            rule_id=rule,
+                            details={"mbom_id": mbom_id},
+                        )
+                    )
+            elif rule == "mbom.has_released_routing":
+                released_routing_count = (
+                    self.session.query(Routing)
+                    .filter(
+                        Routing.mbom_id == mbom_id,
+                        Routing.state == "released",
+                    )
+                    .count()
+                )
+                if released_routing_count < 1:
+                    errors.append(
+                        ValidationIssue(
+                            code="mbom_missing_released_routing",
+                            message="MBOM requires at least one released routing before release",
+                            rule_id=rule,
+                            details={"mbom_id": mbom_id, "released_routing_count": released_routing_count},
+                        )
+                    )
+
+        return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
+
+    def _validate_release_mbom_or_raise(self, mbom_id: str, *, ruleset_id: str) -> ManufacturingBOM:
+        rules = get_release_ruleset("mbom_release", ruleset_id)
+
         mbom = self.session.get(ManufacturingBOM, mbom_id)
         if not mbom:
             raise ValueError(f"MBOM not found: {mbom_id}")
-        if (mbom.state or "").lower() == "released":
-            raise ValueError("MBOM is already released")
-        if not self._has_non_empty_structure(mbom):
-            raise ValueError(f"MBOM structure is empty: {mbom_id}")
 
-        released_routing_count = (
-            self.session.query(Routing)
-            .filter(
-                Routing.mbom_id == mbom_id,
-                Routing.state == "released",
-            )
-            .count()
-        )
-        if released_routing_count < 1:
-            raise ValueError("MBOM requires at least one released routing before release")
+        for rule in rules:
+            if rule == "mbom.exists":
+                continue
+            if rule == "mbom.not_already_released":
+                if (mbom.state or "").lower() == "released":
+                    raise ValueError("MBOM is already released")
+            elif rule == "mbom.has_non_empty_structure":
+                if not self._has_non_empty_structure(mbom):
+                    raise ValueError(f"MBOM structure is empty: {mbom_id}")
+            elif rule == "mbom.has_released_routing":
+                released_routing_count = (
+                    self.session.query(Routing)
+                    .filter(
+                        Routing.mbom_id == mbom_id,
+                        Routing.state == "released",
+                    )
+                    .count()
+                )
+                if released_routing_count < 1:
+                    raise ValueError("MBOM requires at least one released routing before release")
+
+        return mbom
+
+    def release_mbom(self, mbom_id: str, ruleset_id: str = "default") -> ManufacturingBOM:
+        mbom = self._validate_release_mbom_or_raise(mbom_id, ruleset_id=ruleset_id)
 
         mbom.state = "released"
         self.session.add(mbom)
