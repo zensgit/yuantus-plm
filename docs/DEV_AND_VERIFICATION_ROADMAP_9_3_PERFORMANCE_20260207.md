@@ -16,10 +16,10 @@ This delivery adds an automated benchmark harness for roadmap section 9.3 perfor
 
 ## Evidence (Latest)
 
-- `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-133420.md`
+- `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md` (PASS 6/6)
 - Strict gate:
-  - `docs/DAILY_REPORTS/STRICT_GATE_20260207-133606.md` (PASS)
+  - `docs/DAILY_REPORTS/STRICT_GATE_20260207-140604.md` (PASS)
 
 Notes:
-- Current harness runs in-process SQLAlchemy services (no HTTP/uvicorn).
-- Dedup "processing" is reported as SKIP until async worker + external vision service are wired into the benchmark.
+- Harness is in-process SQLAlchemy for most scenarios; dedup batch processing uses HTTP calls to a Dedup Vision sidecar when available.
+- The harness forces an isolated local storage root under `tmp/perf/storage_<timestamp>` to avoid polluting dev data.

@@ -11,6 +11,7 @@
 - Roadmap 9.3 performance benchmark harness: `scripts/perf_roadmap_9_3.py` + reports in `docs/PERFORMANCE_REPORTS/`.
 
 ### Changed
+- Performance: Roadmap 9.3 harness now measures end-to-end dedup batch processing (1000 files) via a Dedup Vision sidecar when available (no longer SKIP).
 - Baselines: enforce permission checks for compare/validate/release and comparison details/export; stabilize baseline member pagination order.
 - E-sign: accept rotated HMAC secrets for verification (via `YUANTUS_ESIGN_VERIFY_SECRET_KEYS`), log verifier identity in audit, and restrict audit endpoints to admin.
 - Search: add unit coverage for DB fallback behavior when Elasticsearch is unavailable.
