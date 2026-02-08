@@ -134,3 +134,35 @@ test('Reports: advanced search, saved search, report execute/export (API-only) w
   expect(delReport.ok()).toBeTruthy();
 });
 
+test('Reports: summary endpoint returns counts + request context meta', async ({ request }) => {
+  const { headers } = await login(request);
+  const ts = Date.now();
+
+  await createPart(request, headers, `RPT-SUM-${ts}-001`, `RPT-SUM-${ts} Summary Part`);
+  await createPart(request, headers, `RPT-SUM-${ts}-002`, `RPT-SUM-${ts} Summary Part`);
+
+  const resp = await request.get('/api/v1/reports/summary', { headers });
+  expect(resp.ok()).toBeTruthy();
+  const summary = await resp.json();
+
+  expect(summary.meta).toBeTruthy();
+  expect(summary.meta.tenant_id).toBe('tenant-1');
+  expect(summary.meta.org_id).toBe('org-1');
+  expect(summary.meta.tenancy_mode).toBe('single');
+  expect(String(summary.meta.generated_at || '')).toContain('T');
+
+  expect(summary.items).toBeTruthy();
+  expect(typeof summary.items.total).toBe('number');
+  expect(summary.items.total).toBeGreaterThanOrEqual(2);
+
+  const byType = summary.items.by_type || [];
+  const partRow = byType.find((r) => r.item_type_id === 'Part');
+  expect(partRow).toBeTruthy();
+  expect(partRow.count).toBeGreaterThanOrEqual(2);
+
+  // Basic smoke checks for the other sections.
+  expect(typeof summary.files.total).toBe('number');
+  expect(typeof summary.versions.total).toBe('number');
+  expect(typeof summary.ecos.total).toBe('number');
+  expect(typeof summary.jobs.total).toBe('number');
+});
