@@ -158,6 +158,44 @@ def _scenario_reports_search(session, *, query: str) -> ScenarioResult:
     )
 
 
+def _scenario_saved_search_run(session, *, query: str) -> ScenarioResult:
+    from yuantus.meta_engine.reports.search_service import SavedSearchService
+
+    svc = SavedSearchService(session)
+    saved = svc.create_saved_search(
+        name="Perf Saved Search",
+        description="perf harness",
+        owner_id=1,
+        is_public=False,
+        item_type_id="Part",
+        criteria={"item_type_id": "Part", "full_text": query},
+        display_columns=None,
+        page_size=20,
+    )
+
+    timings: List[float] = []
+
+    # Warm-up
+    svc.run_saved_search(saved.id, page=1, page_size=20)
+    for _ in range(10):
+        t_s, _ = _measure(lambda: svc.run_saved_search(saved.id, page=1, page_size=20))
+        timings.append(t_s)
+
+    p50 = statistics.median(timings)
+    p95 = _percentile(timings, 0.95)
+    measured_s = p95
+    status = "PASS" if measured_s < 1.0 else "FAIL"
+
+    return ScenarioResult(
+        name="Saved search run (p95 over 10 runs)",
+        target="< 1.0s",
+        threshold_s=1.0,
+        measured_s=measured_s,
+        status=status,
+        notes=f"page_size=20, query={query!r}, p50={_fmt_duration_s(p50)}, p95={_fmt_duration_s(p95)}",
+    )
+
+
 def _scenario_report_execute(session, *, query: str) -> ScenarioResult:
     from yuantus.meta_engine.reports.report_service import ReportDefinitionService
 
@@ -356,6 +394,7 @@ def main() -> int:
 
         results: List[ScenarioResult] = []
         results.append(_scenario_reports_search(session, query=query))
+        results.append(_scenario_saved_search_run(session, query=query))
         results.append(_scenario_report_execute(session, query=query))
         results.append(_scenario_report_export_csv(session, query=query))
 
@@ -369,4 +408,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

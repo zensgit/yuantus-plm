@@ -124,9 +124,10 @@ def _cell(run: PerfRun, scenario_name: str) -> str:
     return f"{status} {measured}"
 
 
-def _write_trend(out_path: Path, runs: List[PerfRun], *, limit: int) -> None:
+def _write_trend(out_path: Path, runs: List[PerfRun], *, report_dir: Path, limit: int) -> None:
     scenario_order = [
         "Reports advanced search response (p95 over 10 runs)",
+        "Saved search run (p95 over 10 runs)",
         "Report execute (p95 over 5 runs)",
         "Report export CSV (p95 over 5 runs)",
     ]
@@ -136,7 +137,12 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, limit: int) -> None:
     lines.append("# Phase 5 Reports/Search Performance Trend")
     lines.append("")
     lines.append(f"- Generated: `{now}`")
-    lines.append(f"- Source dir: `{out_path.parent.relative_to(REPO_ROOT)}`")
+    # Allow --dir outside the repo as well.
+    try:
+        source_dir = report_dir.relative_to(REPO_ROOT)
+    except ValueError:
+        source_dir = report_dir
+    lines.append(f"- Source dir: `{source_dir}`")
     lines.append(f"- Runs: `{len(runs)}` (showing latest `{min(limit, len(runs))}`)")
     lines.append("")
     lines.append("## Latest Runs")
@@ -148,6 +154,7 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, limit: int) -> None:
         "Overall",
         "Report",
         "Reports search p95",
+        "Saved search p95",
         "Report execute p95",
         "Report export p95",
     ]
@@ -155,7 +162,10 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, limit: int) -> None:
     lines.append("| " + " | ".join(["---"] * len(header)) + " |")
 
     for run in runs[:limit]:
-        report_rel = str(run.path.relative_to(REPO_ROOT))
+        try:
+            report_rel = str(run.path.relative_to(REPO_ROOT))
+        except ValueError:
+            report_rel = str(run.path)
         row = [
             f"`{run.started}`",
             f"`{run.git}`" if run.git else "-",
@@ -164,6 +174,7 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, limit: int) -> None:
             _cell(run, scenario_order[0]),
             _cell(run, scenario_order[1]),
             _cell(run, scenario_order[2]),
+            _cell(run, scenario_order[3]),
         ]
         lines.append("| " + " | ".join(row) + " |")
 
@@ -202,11 +213,10 @@ def main() -> int:
 
     runs = _discover_runs(report_dir)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    _write_trend(out_path, runs, limit=limit)
+    _write_trend(out_path, runs, report_dir=report_dir, limit=limit)
     print(f"Trend: {out_path}")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

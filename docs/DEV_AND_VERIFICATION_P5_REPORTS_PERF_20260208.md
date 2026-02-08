@@ -11,6 +11,7 @@ This delivery adds a lightweight, reproducible performance harness for Phase 5 (
 ## Scenarios
 
 - Reports advanced search response (p95 over 10 runs)
+- Saved search run (p95 over 10 runs)
 - Report execute (p95 over 5 runs)
 - Report export CSV (p95 over 5 runs)
 
@@ -31,5 +32,5 @@ Run locally (default SQLite under `tmp/perf/`):
 
 ## Evidence
 
-- Latest report: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-192938.md`
+- Latest report: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-203849.md`
 - Trend: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND.md`

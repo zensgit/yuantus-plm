@@ -57,6 +57,95 @@ async function createBaseline(request, headers, rootItemId, name) {
   return baseline.id;
 }
 
+async function addBomChild(request, headers, parentId, childId) {
+  const resp = await request.post(`/api/v1/bom/${parentId}/children`, {
+    headers,
+    data: { child_id: childId, quantity: 1, uom: 'EA' },
+  });
+  expect(resp.ok()).toBeTruthy();
+  return await resp.json();
+}
+
+async function createMbomFromEbom(request, headers, sourceItemId, name) {
+  const resp = await request.post('/api/v1/mboms/from-ebom', {
+    headers,
+    data: {
+      source_item_id: sourceItemId,
+      name,
+      version: '1.0',
+      plant_code: 'PLANT-1',
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const mbom = await resp.json();
+  expect(mbom.id).toBeTruthy();
+  return mbom;
+}
+
+async function createWorkcenter(request, headers, code, name) {
+  const resp = await request.post('/api/v1/workcenters', {
+    headers,
+    data: {
+      code,
+      name,
+      plant_code: 'PLANT-1',
+      department_code: 'LINE-1',
+      is_active: true,
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const wc = await resp.json();
+  expect(wc.id).toBeTruthy();
+  return wc.id;
+}
+
+async function createRouting(request, headers, mbomId, itemId, name) {
+  const resp = await request.post('/api/v1/routings', {
+    headers,
+    data: {
+      name,
+      mbom_id: mbomId,
+      item_id: itemId,
+      version: '1.0',
+      is_primary: true,
+      plant_code: 'PLANT-1',
+      line_code: 'LINE-1',
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const routing = await resp.json();
+  expect(routing.id).toBeTruthy();
+  return routing;
+}
+
+async function addRoutingOperation(request, headers, routingId, workcenterId) {
+  const resp = await request.post(`/api/v1/routings/${routingId}/operations`, {
+    headers,
+    data: {
+      operation_number: '10',
+      name: 'Op 10',
+      operation_type: 'fabrication',
+      workcenter_id: workcenterId,
+      setup_time: 5,
+      run_time: 1,
+      sequence: 10,
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const op = await resp.json();
+  expect(op.id).toBeTruthy();
+  return op.id;
+}
+
+async function listMbomsBySource(request, headers, sourceItemId) {
+  const resp = await request.get(
+    `/api/v1/mboms?source_item_id=${encodeURIComponent(sourceItemId)}`,
+    { headers }
+  );
+  expect(resp.ok()).toBeTruthy();
+  return await resp.json();
+}
+
 async function createManifest(request, headers, itemId, generation) {
   const resp = await request.post('/api/v1/esign/manifests', {
     headers,
@@ -186,4 +275,70 @@ test('Release orchestration baseline is gated by e-sign manifest completeness', 
   expect(baselineResult).toBeTruthy();
   expect(baselineResult.status).toBe('executed');
   expect(String(baselineResult.state_after || '')).toContain('released');
+});
+
+test('Release orchestration rolls back routing+mbom when baseline is blocked by e-sign', async ({ request }) => {
+  const { headers } = await login(request);
+  const ts = Date.now();
+
+  const parentId = await createPart(request, headers, `ORCH-RB-P-${ts}`, 'Orchestration Rollback Parent');
+  const childId = await createPart(request, headers, `ORCH-RB-C-${ts}`, 'Orchestration Rollback Child');
+  await addBomChild(request, headers, parentId, childId);
+
+  const baselineId = await createBaseline(request, headers, parentId, `BL-RB-${ts}`);
+
+  const mbom = await createMbomFromEbom(request, headers, parentId, `MBOM-RB-${ts}`);
+  const workcenterId = await createWorkcenter(request, headers, `WC-RB-${ts}`, `WorkCenter RB ${ts}`);
+  const routing = await createRouting(request, headers, mbom.id, parentId, `Routing RB ${ts}`);
+  await addRoutingOperation(request, headers, routing.id, workcenterId);
+
+  // Create an e-sign manifest but do not sign; baseline release should be blocked.
+  await createManifest(request, headers, parentId, 1);
+
+  const execResp = await request.post(`/api/v1/release-orchestration/items/${parentId}/execute`, {
+    headers,
+    data: {
+      ruleset_id: 'default',
+      include_routings: true,
+      include_mboms: true,
+      include_baselines: true,
+      rollback_on_failure: true,
+      // Keep the test stable even if baseline diagnostics become stricter.
+      baseline_force: true,
+    },
+  });
+  expect(execResp.ok()).toBeTruthy();
+  const execData = await execResp.json();
+  const results = execData.results || [];
+
+  const routingRelease = results.find((r) => r.kind === 'routing_release' && r.resource_id === routing.id);
+  expect(routingRelease).toBeTruthy();
+  expect(routingRelease.status).toBe('executed');
+
+  const mbomRelease = results.find((r) => r.kind === 'mbom_release' && r.resource_id === mbom.id);
+  expect(mbomRelease).toBeTruthy();
+  expect(mbomRelease.status).toBe('executed');
+
+  const baselineResult = results.find((r) => r.kind === 'baseline_release' && r.resource_id === baselineId);
+  expect(baselineResult).toBeTruthy();
+  expect(baselineResult.status).toBe('blocked_esign_incomplete');
+
+  // Rollback steps are appended after abort.
+  const mbomRollback = results.find((r) => r.kind === 'mbom_reopen' && r.resource_id === mbom.id);
+  expect(mbomRollback).toBeTruthy();
+  expect(mbomRollback.status).toBe('rolled_back');
+
+  const routingRollback = results.find((r) => r.kind === 'routing_reopen' && r.resource_id === routing.id);
+  expect(routingRollback).toBeTruthy();
+  expect(routingRollback.status).toBe('rolled_back');
+
+  const routingGet = await request.get(`/api/v1/routings/${routing.id}`, { headers });
+  expect(routingGet.ok()).toBeTruthy();
+  const routingAfter = await routingGet.json();
+  expect(String(routingAfter.state || '')).toBe('draft');
+
+  const mbomsAfter = await listMbomsBySource(request, headers, parentId);
+  const mbomAfter = (mbomsAfter || []).find((m) => m.id === mbom.id);
+  expect(mbomAfter).toBeTruthy();
+  expect(String(mbomAfter.state || '')).toBe('draft');
 });
