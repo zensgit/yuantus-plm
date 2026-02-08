@@ -6,6 +6,10 @@ on:
     # Weekly on Sunday 04:00 UTC
     - cron: "0 4 * * 0"
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   perf:
     runs-on: ubuntu-latest
@@ -35,6 +39,81 @@ jobs:
           . .venv/bin/activate
           python scripts/perf_roadmap_9_3.py --out "${REPORT_PATH}"
 
+      - name: Download baseline artifacts (best-effort)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BASELINE_DIR: tmp/perf-baseline
+          BASELINE_RUNS: "5"
+        run: |
+          set -euo pipefail
+          mkdir -p "${BASELINE_DIR}"
+
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          echo "Fetching baseline workflow runs for perf-roadmap-9-3..."
+
+          runs_json="$(curl -fsSL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${api}/actions/workflows/perf-roadmap-9-3.yml/runs?branch=main&status=success&per_page=20" || true)"
+
+          run_ids="$(echo "${runs_json}" | jq -r '.workflow_runs[]?.id' | head -n "${BASELINE_RUNS}" || true)"
+          if [ -z "${run_ids}" ]; then
+            echo "No baseline runs found; continuing without baselines."
+            exit 0
+          fi
+
+          for rid in ${run_ids}; do
+            echo "Baseline run: ${rid}"
+            artifacts_json="$(curl -fsSL \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "${api}/actions/runs/${rid}/artifacts?per_page=100" || true)"
+
+            echo "${artifacts_json}" | jq -r '.artifacts[]? | select(.name=="perf-roadmap-9-3-report") | "\(.id) \(.name)"' | while read -r aid aname; do
+              if [ -z "${aid}" ]; then
+                continue
+              fi
+              zip_path="${BASELINE_DIR}/${rid}-${aname}.zip"
+              echo "  - downloading artifact ${aname} (${aid})"
+              curl -fsSL -L \
+                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                "${api}/actions/artifacts/${aid}/zip" \
+                -o "${zip_path}" || true
+              unzip -q "${zip_path}" -d "${BASELINE_DIR}" || true
+            done
+          done
+
+          echo "Baseline reports:"
+          (ls -1 "${BASELINE_DIR}" | head -n 50) || true
+
+      - name: Gate perf results against baseline window
+        env:
+          REPORT_PATH: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_CI_${{ github.run_id }}.md
+          BASELINE_DIR: tmp/perf-baseline
+          GATE_LOG_PATH: tmp/perf-gate/ROADMAP_9_3_GATE_CI_${{ github.run_id }}.txt
+        run: |
+          set -euo pipefail
+          . .venv/bin/activate
+          mkdir -p "$(dirname "${GATE_LOG_PATH}")"
+          python scripts/perf_p5_reports_gate.py \
+            --candidate "${REPORT_PATH}" \
+            --baseline-dir "${BASELINE_DIR}" \
+            --baseline-glob "ROADMAP_9_3_*.md" \
+            --window 5 \
+            --pct 0.30 \
+            --abs-ms 10 \
+            --baseline-stat max \
+            --out "${GATE_LOG_PATH}"
+
+      - name: Upload perf gate log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-roadmap-9-3-gate
+          path: tmp/perf-gate/ROADMAP_9_3_GATE_CI_${{ github.run_id }}.txt
+          if-no-files-found: warn
+
       - name: Generate trend snapshot
         env:
           TREND_PATH: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND_CI_${{ github.run_id }}.md
@@ -56,4 +135,3 @@ jobs:
         with:
           name: perf-roadmap-9-3-trend
           path: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND_CI_${{ github.run_id }}.md
-
