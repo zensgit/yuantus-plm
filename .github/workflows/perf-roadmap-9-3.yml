@@ -1,0 +1,59 @@
+name: perf-roadmap-9-3
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Weekly on Sunday 04:00 UTC
+    - cron: "0 4 * * 0"
+
+jobs:
+  perf:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install deps (venv)
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Run benchmark
+        env:
+          REPORT_PATH: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_CI_${{ github.run_id }}.md
+        run: |
+          set -euo pipefail
+          . .venv/bin/activate
+          python scripts/perf_roadmap_9_3.py --out "${REPORT_PATH}"
+
+      - name: Generate trend snapshot
+        env:
+          TREND_PATH: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND_CI_${{ github.run_id }}.md
+        run: |
+          set -euo pipefail
+          . .venv/bin/activate
+          python scripts/perf_roadmap_9_3_trend.py --out "${TREND_PATH}"
+
+      - name: Upload perf report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-roadmap-9-3-report
+          path: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_CI_${{ github.run_id }}.md
+
+      - name: Upload perf trend snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-roadmap-9-3-trend
+          path: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND_CI_${{ github.run_id }}.md
+

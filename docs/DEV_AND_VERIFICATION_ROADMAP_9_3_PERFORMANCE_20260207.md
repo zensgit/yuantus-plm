@@ -13,6 +13,7 @@ This delivery adds an automated benchmark harness for roadmap section 9.3 perfor
 
 - Script: `scripts/perf_roadmap_9_3.py`
 - Output: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_*.md`
+- Trend summary (optional): `scripts/perf_roadmap_9_3_trend.py` -> `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND.md`
 
 ## Evidence (Latest)
 
