@@ -21,6 +21,7 @@ Execution order is `routing -> mbom -> baseline` (routing may unblock MBOM relea
       - `dry_run` (default: `false`)
       - `continue_on_error` (default: `false`)
       - `baseline_force` (default: `false`)
+        - When `true`, baseline steps may execute even if baseline release diagnostics have errors (baseline-only). This does not bypass the e-sign gate.
 
 ## E-Sign Gate (Baseline Only)
 
