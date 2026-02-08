@@ -93,6 +93,16 @@ docker rm -f yuantus-roadmap93-pg
 python3 -m py_compile scripts/perf_roadmap_9_3_trend.py scripts/perf_p5_reports_gate.py
 ```
 
+### CI verification (workflow_dispatch)
+
+- Workflow: `perf-roadmap-9-3`
+- Run: `21801294326` (success)
+- Artifacts:
+  - `perf-roadmap-9-3-report`
+  - `perf-roadmap-9-3-report-pg`
+  - `perf-roadmap-9-3-gate`
+  - `perf-roadmap-9-3-trend`
+
 ## Notes / Known Behavior
 
 - In CI, the Dedup Vision sidecar is typically unavailable; the dedup scenario will usually show `SKIP`. This is expected and is treated as non-failing for trend and gating purposes.
