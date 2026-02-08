@@ -20,7 +20,7 @@ This delivery adds a lightweight, reproducible performance harness for Phase 5 (
 
 - Workflow: `.github/workflows/perf-p5-reports.yml`
   - Weekly on Sunday 05:00 UTC
-  - Uploads the per-run report and a trend snapshot as workflow artifacts (does not commit to git).
+  - Runs the harness on SQLite and Postgres; uploads per-run reports and a trend snapshot as workflow artifacts (does not commit to git).
 
 ## Usage
 
@@ -28,6 +28,14 @@ Run locally (default SQLite under `tmp/perf/`):
 
 ```bash
 ./.venv/bin/python scripts/perf_p5_reports.py
+./.venv/bin/python scripts/perf_p5_reports_trend.py
+```
+
+Run against Postgres (example):
+
+```bash
+PG_URL='postgresql+psycopg://yuantus:yuantus@localhost:5432/yuantus_perf'
+./.venv/bin/python scripts/perf_p5_reports.py --db-url "$PG_URL"
 ./.venv/bin/python scripts/perf_p5_reports_trend.py
 ```
 

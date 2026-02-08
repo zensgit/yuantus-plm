@@ -7,6 +7,7 @@
   - `GET /api/v1/release-orchestration/items/{item_id}/plan`
   - `POST /api/v1/release-orchestration/items/{item_id}/execute` (routing -> mbom -> baseline; baseline optional)
 - Playwright regression: release orchestration rollback when baseline is blocked by incomplete e-sign.
+- Playwright regression: reports summary endpoint (`GET /api/v1/reports/summary`).
 - P5 reports/search performance harness:
   - `scripts/perf_p5_reports.py` + reports in `docs/PERFORMANCE_REPORTS/`
   - CI schedule: `.github/workflows/perf-p5-reports.yml`
@@ -14,7 +15,7 @@
 ### Changed
 - Release orchestration execute: validate `ruleset_id` up-front, support `rollback_on_failure` (best-effort reopen to draft), and honor `baseline_force` for diagnostics errors (baseline-only; still blocked by e-sign gate).
 - Demo closed-loop script: supports `DEMO_USE_RELEASE_ORCHESTRATION=1` to release via orchestration (plan + execute).
-- P5 reports/search perf harness: add reports summary + saved search run scenarios and include them in the trend report.
+- P5 reports/search perf harness: add reports summary + saved search run scenarios; trend now includes DB label; CI runs both SQLite and Postgres.
 
 ### Verification
 - Results logged in `docs/VERIFICATION_RESULTS.md`.

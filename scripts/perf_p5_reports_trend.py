@@ -24,6 +24,7 @@ class PerfRun:
     path: Path
     started: str
     git: str
+    db: str
     scenarios: Dict[str, ScenarioRow]
 
     @property
@@ -36,6 +37,7 @@ class PerfRun:
 
 _STARTED_RE = re.compile(r"^- Started: `([^`]+)`\s*$")
 _GIT_RE = re.compile(r"^- Git: `([^`]+)`\s*$")
+_DB_RE = re.compile(r"^- DB: `([^`]+)`\s*$")
 
 
 def _parse_report(path: Path) -> Optional[PerfRun]:
@@ -44,6 +46,7 @@ def _parse_report(path: Path) -> Optional[PerfRun]:
 
     started = ""
     git = ""
+    db = ""
     scenarios: Dict[str, ScenarioRow] = {}
     in_table = False
 
@@ -57,6 +60,11 @@ def _parse_report(path: Path) -> Optional[PerfRun]:
             m = _GIT_RE.match(line)
             if m:
                 git = m.group(1).strip()
+                continue
+        if not db:
+            m = _DB_RE.match(line)
+            if m:
+                db = m.group(1).strip()
                 continue
 
         if line.strip() == "| Scenario | Target | Measured | Status | Notes |":
@@ -91,7 +99,21 @@ def _parse_report(path: Path) -> Optional[PerfRun]:
     if not scenarios:
         return None
 
-    return PerfRun(path=path, started=started, git=git, scenarios=scenarios)
+    return PerfRun(path=path, started=started, git=git, db=db, scenarios=scenarios)
+
+
+def _db_label(db: str) -> str:
+    raw = (db or "").strip()
+    if not raw:
+        return "-"
+    s = raw.lower()
+    if s.startswith("sqlite:"):
+        return "sqlite"
+    if s.startswith("postgresql") or s.startswith("postgres:"):
+        return "postgres"
+    if s.startswith("mysql"):
+        return "mysql"
+    return raw.split(":", 1)[0] if ":" in raw else raw
 
 
 def _discover_runs(report_dir: Path) -> List[PerfRun]:
@@ -152,6 +174,7 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, report_dir: Path, limit
     header = [
         "Started",
         "Git",
+        "DB",
         "Overall",
         "Report",
         "Reports summary p95",
@@ -171,6 +194,7 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, report_dir: Path, limit
         row = [
             f"`{run.started}`",
             f"`{run.git}`" if run.git else "-",
+            f"`{_db_label(run.db)}`",
             run.overall,
             f"`{report_rel}`",
             _cell(run, scenario_order[0]),
@@ -185,6 +209,7 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, report_dir: Path, limit
     lines.append("## Notes")
     lines.append("")
     lines.append("- Measured values are copied from each per-run report.")
+    lines.append("- DB is inferred from the per-run report DB URL.")
     lines.append("")
 
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")

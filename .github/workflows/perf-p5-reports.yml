@@ -10,6 +10,20 @@ jobs:
   perf:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: yuantus
+          POSTGRES_PASSWORD: yuantus
+          POSTGRES_DB: yuantus_perf
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U yuantus -d yuantus_perf"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,6 +49,15 @@ jobs:
           . .venv/bin/activate
           python scripts/perf_p5_reports.py --out "${REPORT_PATH}"
 
+      - name: Run benchmark (Postgres)
+        env:
+          REPORT_PG_PATH: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_PG_CI_${{ github.run_id }}.md
+          PG_URL: postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus_perf
+        run: |
+          set -euo pipefail
+          . .venv/bin/activate
+          python scripts/perf_p5_reports.py --db-url "${PG_URL}" --out "${REPORT_PG_PATH}"
+
       - name: Generate trend snapshot
         env:
           TREND_PATH: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND_CI_${{ github.run_id }}.md
@@ -50,10 +73,16 @@ jobs:
           name: perf-p5-reports-report
           path: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_CI_${{ github.run_id }}.md
 
+      - name: Upload perf report (Postgres)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-p5-reports-report-pg
+          path: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_PG_CI_${{ github.run_id }}.md
+
       - name: Upload perf trend snapshot
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: perf-p5-reports-trend
           path: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND_CI_${{ github.run_id }}.md
-
