@@ -6,6 +6,10 @@ on:
     # Weekly on Sunday 05:00 UTC
     - cron: "0 5 * * 0"
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   perf:
     runs-on: ubuntu-latest
@@ -57,6 +61,71 @@ jobs:
           set -euo pipefail
           . .venv/bin/activate
           python scripts/perf_p5_reports.py --db-url "${PG_URL}" --out "${REPORT_PG_PATH}"
+
+      - name: Download baseline artifacts (best-effort)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BASELINE_DIR: tmp/perf-baseline
+          BASELINE_RUNS: "5"
+        run: |
+          set -euo pipefail
+          mkdir -p "${BASELINE_DIR}"
+
+          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+          echo "Fetching baseline workflow runs for perf-p5-reports..."
+
+          runs_json="$(curl -fsSL \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${api}/actions/workflows/perf-p5-reports.yml/runs?branch=main&status=success&per_page=20" || true)"
+
+          run_ids="$(echo "${runs_json}" | jq -r '.workflow_runs[]?.id' | head -n "${BASELINE_RUNS}" || true)"
+          if [ -z "${run_ids}" ]; then
+            echo "No baseline runs found; continuing without baselines."
+            exit 0
+          fi
+
+          for rid in ${run_ids}; do
+            echo "Baseline run: ${rid}"
+            artifacts_json="$(curl -fsSL \
+              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "${api}/actions/runs/${rid}/artifacts?per_page=100" || true)"
+
+            echo "${artifacts_json}" | jq -r '.artifacts[]? | select(.name=="perf-p5-reports-report" or .name=="perf-p5-reports-report-pg") | "\(.id) \(.name)"' | while read -r aid aname; do
+              if [ -z "${aid}" ]; then
+                continue
+              fi
+              zip_path="${BASELINE_DIR}/${rid}-${aname}.zip"
+              echo "  - downloading artifact ${aname} (${aid})"
+              curl -fsSL -L \
+                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+                -H "Accept: application/vnd.github+json" \
+                "${api}/actions/artifacts/${aid}/zip" \
+                -o "${zip_path}" || true
+              unzip -q "${zip_path}" -d "${BASELINE_DIR}" || true
+            done
+          done
+
+          echo "Baseline reports:"
+          (ls -1 "${BASELINE_DIR}" | head -n 50) || true
+
+      - name: Gate perf results against baseline window
+        env:
+          REPORT_PATH: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_CI_${{ github.run_id }}.md
+          REPORT_PG_PATH: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_PG_CI_${{ github.run_id }}.md
+          BASELINE_DIR: tmp/perf-baseline
+        run: |
+          set -euo pipefail
+          . .venv/bin/activate
+          python scripts/perf_p5_reports_gate.py \
+            --candidate "${REPORT_PATH}" \
+            --candidate "${REPORT_PG_PATH}" \
+            --baseline-dir "${BASELINE_DIR}" \
+            --window 5 \
+            --pct 0.30 \
+            --abs-ms 10 \
+            --baseline-stat max
 
       - name: Generate trend snapshot
         env:
