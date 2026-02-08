@@ -343,6 +343,65 @@ test('Release orchestration rolls back routing+mbom when baseline is blocked by 
   expect(String(mbomAfter.state || '')).toBe('draft');
 });
 
+test('Release orchestration rolls back routings on injected failure during routing release', async ({ request }) => {
+  const { headers } = await login(request);
+  const ts = Date.now();
+
+  const parentId = await createPart(request, headers, `ORCH-FP-P-${ts}`, 'Orchestration Failpoint Parent');
+  const childId = await createPart(request, headers, `ORCH-FP-C-${ts}`, 'Orchestration Failpoint Child');
+  await addBomChild(request, headers, parentId, childId);
+
+  const mbom = await createMbomFromEbom(request, headers, parentId, `MBOM-FP-${ts}`);
+  const workcenterId = await createWorkcenter(request, headers, `WC-FP-${ts}`, `WorkCenter FP ${ts}`);
+
+  const routingA = await createRouting(request, headers, mbom.id, parentId, `Routing A ${ts}`);
+  await addRoutingOperation(request, headers, routingA.id, workcenterId);
+  const routingB = await createRouting(request, headers, mbom.id, parentId, `Routing B ${ts}`);
+  await addRoutingOperation(request, headers, routingB.id, workcenterId);
+
+  // Execution order is stable (resource_id asc). Inject failure on the second routing so the first releases,
+  // then fails and triggers rollback.
+  const [routingFirst, routingSecond] =
+    String(routingA.id) < String(routingB.id) ? [routingA, routingB] : [routingB, routingA];
+
+  const execResp = await request.post(`/api/v1/release-orchestration/items/${parentId}/execute`, {
+    headers: { ...headers, 'x-yuantus-failpoint': `routing_release:${routingSecond.id}` },
+    data: {
+      ruleset_id: 'default',
+      include_routings: true,
+      include_mboms: false,
+      include_baselines: false,
+      rollback_on_failure: true,
+    },
+  });
+  expect(execResp.ok()).toBeTruthy();
+  const execData = await execResp.json();
+  const results = execData.results || [];
+
+  const okRelease = results.find((r) => r.kind === 'routing_release' && r.resource_id === routingFirst.id);
+  expect(okRelease).toBeTruthy();
+  expect(okRelease.status).toBe('executed');
+
+  const failRelease = results.find((r) => r.kind === 'routing_release' && r.resource_id === routingSecond.id);
+  expect(failRelease).toBeTruthy();
+  expect(failRelease.status).toBe('failed');
+  expect(String(failRelease.message || '')).toContain('Injected failure');
+
+  const rollback = results.find((r) => r.kind === 'routing_reopen' && r.resource_id === routingFirst.id);
+  expect(rollback).toBeTruthy();
+  expect(rollback.status).toBe('rolled_back');
+
+  const routingGet = await request.get(`/api/v1/routings/${routingFirst.id}`, { headers });
+  expect(routingGet.ok()).toBeTruthy();
+  const routingAfter = await routingGet.json();
+  expect(String(routingAfter.state || '')).toBe('draft');
+
+  const routingFailGet = await request.get(`/api/v1/routings/${routingSecond.id}`, { headers });
+  expect(routingFailGet.ok()).toBeTruthy();
+  const routingFailAfter = await routingFailGet.json();
+  expect(String(routingFailAfter.state || '')).toBe('draft');
+});
+
 test('Release orchestration execute rejects unknown ruleset_id (400)', async ({ request }) => {
   const { headers } = await login(request);
   const ts = Date.now();

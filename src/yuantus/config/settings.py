@@ -49,6 +49,10 @@ class Settings(BaseSettings):
         default=False,
         description="Seed legacy meta_relationship_types rows for compatibility",
     )
+    TEST_FAILPOINTS_ENABLED: bool = Field(
+        default=False,
+        description="Enable test-only failpoints (used by Playwright/E2E to inject controlled failures)",
+    )
     QUOTA_MODE: str = Field(
         default="disabled",
         description="disabled|soft|enforce quota checks for tenant limits",
