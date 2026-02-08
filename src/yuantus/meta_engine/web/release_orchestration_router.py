@@ -474,7 +474,7 @@ def execute_release_plan(
                 )
                 continue
 
-            if diagnostics.get("errors"):
+            if diagnostics.get("errors") and not bool(req.baseline_force):
                 _record(
                     kind="baseline_release",
                     resource_type="baseline",

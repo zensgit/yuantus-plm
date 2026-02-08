@@ -343,6 +343,87 @@ def test_execute_stops_after_failure_when_continue_on_error_false():
         baseline_svc.release_baseline.assert_not_called()
 
 
+def test_execute_allows_baseline_force_to_bypass_diagnostics_errors():
+    user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    db.get.return_value = Item(
+        id="item-1",
+        item_type_id="Part",
+        config_id="CFG-1",
+        generation=1,
+        state="released",
+        properties={"item_number": "P-1"},
+    )
+
+    baseline = SimpleNamespace(id="baseline-1", state="draft")
+
+    with (
+        patch("yuantus.meta_engine.web.release_orchestration_router.ReleaseReadinessService") as rr_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.RoutingService") as routing_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.MBOMService") as mbom_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.BaselineService") as baseline_cls,
+    ):
+        rr = rr_cls.return_value
+        rr.list_mboms.return_value = []
+        rr.list_routings.return_value = []
+        rr.list_baselines.return_value = [baseline]
+        rr.get_esign_manifest_status.return_value = None
+        rr.get_item_release_readiness.return_value = {
+            "item_id": "item-1",
+            "generated_at": "2026-02-07T00:00:00Z",
+            "ruleset_id": "default",
+            "summary": {"ok": True},
+            "resources": [],
+            "esign_manifest": None,
+        }
+
+        routing_cls.return_value.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+        mbom_cls.return_value.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+
+        baseline_svc = baseline_cls.return_value
+        baseline_svc.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [
+                {
+                    "code": "baseline_member_missing_item",
+                    "message": "missing",
+                    "rule_id": "baseline.members_references_exist",
+                    "details": {"baseline_id": "baseline-1"},
+                }
+            ],
+            "warnings": [],
+        }
+        baseline_svc.release_baseline.return_value = SimpleNamespace(id="baseline-1", state="released")
+
+        resp = client.post(
+            "/api/v1/release-orchestration/items/item-1/execute",
+            json={
+                "include_routings": False,
+                "include_mboms": False,
+                "include_baselines": True,
+                "baseline_force": True,
+                "ruleset_id": "default",
+            },
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        results = data.get("results") or []
+        baseline_result = next((r for r in results if r.get("resource_id") == "baseline-1"), None)
+        assert baseline_result
+        assert baseline_result["status"] == "executed"
+        baseline_svc.release_baseline.assert_called_once_with("baseline-1", user_id=1, force=True)
+
+
 def test_execute_blocks_baseline_when_esign_manifest_incomplete():
     user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
     client, db = _client_with_user(user)
