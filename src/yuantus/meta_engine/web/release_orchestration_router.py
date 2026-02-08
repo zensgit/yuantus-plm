@@ -198,7 +198,7 @@ def _maybe_inject_failpoint(*, request: Request, kind: str, resource_type: str, 
         f"release-orchestration:{resource_type}:{resource_id}",
     }
     if fp in candidates:
-        raise ValueError(f"Injected failure via {_FAILPOINT_HEADER}={fp}")
+        raise ValueError(f"Injected failure via {_FAILPOINT_HEADER}")
 
 
 @release_orchestration_router.get(
