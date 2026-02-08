@@ -251,6 +251,33 @@ test('Reports: summary endpoint returns counts + request context meta', async ({
   expect(summary.meta.tenancy_mode).toBe('single');
   expect(String(summary.meta.generated_at || '')).toContain('T');
 
+  expect(summary.windows).toBeTruthy();
+  expect(summary.windows.last_24h).toBeTruthy();
+  expect(summary.windows.last_7d).toBeTruthy();
+
+  const w24 = summary.windows.last_24h;
+  expect(typeof w24.items_created).toBe('number');
+  expect(w24.items_created).toBeGreaterThanOrEqual(2);
+  expect(typeof w24.mboms_created).toBe('number');
+  expect(w24.mboms_created).toBeGreaterThanOrEqual(1);
+  expect(typeof w24.routings_created).toBe('number');
+  expect(w24.routings_created).toBeGreaterThanOrEqual(1);
+  expect(typeof w24.workcenters_created).toBe('number');
+  expect(w24.workcenters_created).toBeGreaterThanOrEqual(1);
+  expect(typeof w24.files_created).toBe('number');
+  expect(typeof w24.jobs_created).toBe('number');
+  expect(typeof w24.ecos_created).toBe('number');
+
+  const w7d = summary.windows.last_7d;
+  expect(typeof w7d.items_created).toBe('number');
+  expect(w7d.items_created).toBeGreaterThanOrEqual(2);
+  expect(typeof w7d.mboms_created).toBe('number');
+  expect(w7d.mboms_created).toBeGreaterThanOrEqual(1);
+  expect(typeof w7d.routings_created).toBe('number');
+  expect(w7d.routings_created).toBeGreaterThanOrEqual(1);
+  expect(typeof w7d.workcenters_created).toBe('number');
+  expect(w7d.workcenters_created).toBeGreaterThanOrEqual(1);
+
   expect(summary.items).toBeTruthy();
   expect(typeof summary.items.total).toBe('number');
   expect(summary.items.total).toBeGreaterThanOrEqual(2);

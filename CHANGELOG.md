@@ -13,6 +13,9 @@
   - `scripts/perf_p5_reports.py` + reports in `docs/PERFORMANCE_REPORTS/`
   - Baseline gate: `scripts/perf_p5_reports_gate.py` (compare current run vs recent CI artifacts)
   - CI schedule: `.github/workflows/perf-p5-reports.yml`
+- Perf CI: `perf-p5-reports` also runs on pull requests via paths filter (smaller seed sizes).
+- Reports summary: add `windows.last_24h` and `windows.last_7d` time-window counts.
+- Dev doc: test-only failpoints (`docs/DEV_FAILPOINTS.md`).
 
 ### Changed
 - Release orchestration execute: validate `ruleset_id` up-front, support `rollback_on_failure` (best-effort reopen to draft), and honor `baseline_force` for diagnostics errors (baseline-only; still blocked by e-sign gate).
