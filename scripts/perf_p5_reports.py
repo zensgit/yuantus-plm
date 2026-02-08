@@ -123,6 +123,58 @@ def _create_parts(session, *, count: int, prefix: str) -> None:
     session.commit()
 
 
+def _create_conversion_jobs(session, *, count: int) -> None:
+    from yuantus.meta_engine.models.job import ConversionJob
+
+    statuses = ["pending", "processing", "completed", "failed"]
+    task_types = ["cad_preview", "cad_geometry", "report_generation"]
+
+    jobs: List[ConversionJob] = []
+    for i in range(int(count)):
+        jobs.append(
+            ConversionJob(
+                task_type=task_types[i % len(task_types)],
+                payload={"seed": True, "i": i},
+                status=statuses[i % len(statuses)],
+                priority=10,
+                created_by_id=1,
+            )
+        )
+
+    session.add_all(jobs)
+    session.commit()
+
+
+def _create_files(session, *, count: int, prefix: str) -> None:
+    from yuantus.meta_engine.models.file import DocumentType, FileContainer
+
+    doc_types = [DocumentType.CAD_3D.value, DocumentType.CAD_2D.value, DocumentType.OTHER.value]
+
+    files: List[FileContainer] = []
+    for i in range(int(count)):
+        file_id = str(uuid.uuid4())
+        files.append(
+            FileContainer(
+                id=file_id,
+                filename=f"{prefix}-{i:05d}.step",
+                file_type="step",
+                mime_type="model/step",
+                file_size=1234,
+                checksum=file_id.replace("-", ""),
+                system_path=f"{prefix}/{file_id}/v1/{prefix}-{i:05d}.step",
+                document_type=doc_types[i % len(doc_types)],
+                is_native_cad=True,
+                cad_format="STEP",
+                cad_connector_id="perf",
+                conversion_status="completed",
+                created_by_id=1,
+            )
+        )
+
+    session.add_all(files)
+    session.commit()
+
+
 def _scenario_reports_search(session, *, query: str) -> ScenarioResult:
     from yuantus.meta_engine.reports.search_service import AdvancedSearchService
 
@@ -155,6 +207,33 @@ def _scenario_reports_search(session, *, query: str) -> ScenarioResult:
         measured_s=measured_s,
         status=status,
         notes=f"query={query!r}, p50={_fmt_duration_s(p50)}, p95={_fmt_duration_s(p95)}",
+    )
+
+
+def _scenario_reports_summary(session) -> ScenarioResult:
+    from yuantus.meta_engine.services.report_service import ReportService
+
+    svc = ReportService(session)
+    timings: List[float] = []
+
+    # Warm-up
+    svc.get_summary()
+    for _ in range(10):
+        t_s, _ = _measure(lambda: svc.get_summary())
+        timings.append(t_s)
+
+    p50 = statistics.median(timings)
+    p95 = _percentile(timings, 0.95)
+    measured_s = p95
+    status = "PASS" if measured_s < 0.2 else "FAIL"
+
+    return ScenarioResult(
+        name="Reports summary (p95 over 10 runs)",
+        target="< 200ms",
+        threshold_s=0.2,
+        measured_s=measured_s,
+        status=status,
+        notes=f"p50={_fmt_duration_s(p50)}, p95={_fmt_duration_s(p95)}",
     )
 
 
@@ -347,6 +426,18 @@ def main() -> int:
         default=5000,
         help="Number of Part items to seed (default: 5000)",
     )
+    parser.add_argument(
+        "--seed-jobs",
+        type=int,
+        default=500,
+        help="Number of conversion jobs to seed (default: 500)",
+    )
+    parser.add_argument(
+        "--seed-files",
+        type=int,
+        default=500,
+        help="Number of file containers to seed (default: 500)",
+    )
     args = parser.parse_args()
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -391,8 +482,11 @@ def main() -> int:
         _ensure_item_types(session)
         _ensure_rbac_user(session, user_id=1, username="admin")
         _create_parts(session, count=max(0, int(args.seed_items)), prefix=query)
+        _create_conversion_jobs(session, count=max(0, int(args.seed_jobs)))
+        _create_files(session, count=max(0, int(args.seed_files)), prefix=query)
 
         results: List[ScenarioResult] = []
+        results.append(_scenario_reports_summary(session))
         results.append(_scenario_reports_search(session, query=query))
         results.append(_scenario_saved_search_run(session, query=query))
         results.append(_scenario_report_execute(session, query=query))
