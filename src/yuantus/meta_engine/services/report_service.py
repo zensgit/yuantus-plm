@@ -12,6 +12,7 @@ from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.eco import ECO, ECOStage
 from yuantus.meta_engine.models.job import ConversionJob
 from yuantus.meta_engine.models.file import FileContainer
+from yuantus.meta_engine.manufacturing.models import ManufacturingBOM, Operation, Routing, WorkCenter
 from yuantus.meta_engine.version.models import ItemVersion
 
 
@@ -53,6 +54,24 @@ class ReportService:
             .order_by(FileContainer.document_type.asc())
             .all()
         )
+        files_by_conversion_status = (
+            self.session.query(FileContainer.conversion_status, func.count(FileContainer.id))
+            .group_by(FileContainer.conversion_status)
+            .order_by(FileContainer.conversion_status.asc())
+            .all()
+        )
+        files_by_native = (
+            self.session.query(FileContainer.is_native_cad, func.count(FileContainer.id))
+            .group_by(FileContainer.is_native_cad)
+            .order_by(FileContainer.is_native_cad.asc())
+            .all()
+        )
+        files_by_connector = (
+            self.session.query(FileContainer.cad_connector_id, func.count(FileContainer.id))
+            .group_by(FileContainer.cad_connector_id)
+            .order_by(FileContainer.cad_connector_id.asc())
+            .all()
+        )
 
         eco_total = self.session.query(func.count(ECO.id)).scalar() or 0
         eco_by_state = (
@@ -87,6 +106,74 @@ class ReportService:
             .all()
         )
 
+        mboms_total = self.session.query(func.count(ManufacturingBOM.id)).scalar() or 0
+        mboms_by_state = (
+            self.session.query(ManufacturingBOM.state, func.count(ManufacturingBOM.id))
+            .group_by(ManufacturingBOM.state)
+            .order_by(ManufacturingBOM.state.asc())
+            .all()
+        )
+        mboms_by_plant = (
+            self.session.query(ManufacturingBOM.plant_code, func.count(ManufacturingBOM.id))
+            .group_by(ManufacturingBOM.plant_code)
+            .order_by(ManufacturingBOM.plant_code.asc())
+            .all()
+        )
+        mboms_by_line = (
+            self.session.query(ManufacturingBOM.line_code, func.count(ManufacturingBOM.id))
+            .group_by(ManufacturingBOM.line_code)
+            .order_by(ManufacturingBOM.line_code.asc())
+            .all()
+        )
+        mboms_by_type = (
+            self.session.query(ManufacturingBOM.bom_type, func.count(ManufacturingBOM.id))
+            .group_by(ManufacturingBOM.bom_type)
+            .order_by(ManufacturingBOM.bom_type.asc())
+            .all()
+        )
+
+        routings_total = self.session.query(func.count(Routing.id)).scalar() or 0
+        routings_by_state = (
+            self.session.query(Routing.state, func.count(Routing.id))
+            .group_by(Routing.state)
+            .order_by(Routing.state.asc())
+            .all()
+        )
+        routings_by_plant = (
+            self.session.query(Routing.plant_code, func.count(Routing.id))
+            .group_by(Routing.plant_code)
+            .order_by(Routing.plant_code.asc())
+            .all()
+        )
+        routings_by_line = (
+            self.session.query(Routing.line_code, func.count(Routing.id))
+            .group_by(Routing.line_code)
+            .order_by(Routing.line_code.asc())
+            .all()
+        )
+
+        workcenters_total = self.session.query(func.count(WorkCenter.id)).scalar() or 0
+        workcenters_by_active = (
+            self.session.query(WorkCenter.is_active, func.count(WorkCenter.id))
+            .group_by(WorkCenter.is_active)
+            .order_by(WorkCenter.is_active.asc())
+            .all()
+        )
+        workcenters_by_plant = (
+            self.session.query(WorkCenter.plant_code, func.count(WorkCenter.id))
+            .group_by(WorkCenter.plant_code)
+            .order_by(WorkCenter.plant_code.asc())
+            .all()
+        )
+
+        operations_total = self.session.query(func.count(Operation.id)).scalar() or 0
+        operations_by_type = (
+            self.session.query(Operation.operation_type, func.count(Operation.id))
+            .group_by(Operation.operation_type)
+            .order_by(Operation.operation_type.asc())
+            .all()
+        )
+
         return {
             "items": {
                 "total": items_total,
@@ -100,6 +187,9 @@ class ReportService:
             "files": {
                 "total": files_total,
                 "by_document_type": _group_counts(files_by_doc_type, "document_type"),
+                "by_conversion_status": _group_counts(files_by_conversion_status, "conversion_status"),
+                "by_is_native_cad": _group_counts(files_by_native, "is_native_cad"),
+                "by_cad_connector_id": _group_counts(files_by_connector, "cad_connector_id"),
             },
             "ecos": {
                 "total": eco_total,
@@ -110,6 +200,30 @@ class ReportService:
                 "total": jobs_total,
                 "by_status": _group_counts(jobs_by_status, "status"),
                 "by_task_type": _group_counts(jobs_by_task, "task_type"),
+            },
+            "manufacturing": {
+                "mboms": {
+                    "total": mboms_total,
+                    "by_state": _group_counts(mboms_by_state, "state"),
+                    "by_plant_code": _group_counts(mboms_by_plant, "plant_code"),
+                    "by_line_code": _group_counts(mboms_by_line, "line_code"),
+                    "by_bom_type": _group_counts(mboms_by_type, "bom_type"),
+                },
+                "routings": {
+                    "total": routings_total,
+                    "by_state": _group_counts(routings_by_state, "state"),
+                    "by_plant_code": _group_counts(routings_by_plant, "plant_code"),
+                    "by_line_code": _group_counts(routings_by_line, "line_code"),
+                },
+                "workcenters": {
+                    "total": workcenters_total,
+                    "by_is_active": _group_counts(workcenters_by_active, "is_active"),
+                    "by_plant_code": _group_counts(workcenters_by_plant, "plant_code"),
+                },
+                "operations": {
+                    "total": operations_total,
+                    "by_operation_type": _group_counts(operations_by_type, "operation_type"),
+                },
             },
         }
 
