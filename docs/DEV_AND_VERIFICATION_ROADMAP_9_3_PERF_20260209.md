@@ -96,7 +96,8 @@ python3 -m py_compile scripts/perf_roadmap_9_3_trend.py scripts/perf_p5_reports_
 ### CI verification (workflow_dispatch)
 
 - Workflow: `perf-roadmap-9-3`
-- Run: `21801294326` (success)
+- Pre-merge run (branch): `21801294326` (success)
+- Post-merge run (main): `21801412881` (success)
 - Artifacts:
   - `perf-roadmap-9-3-report`
   - `perf-roadmap-9-3-report-pg`
