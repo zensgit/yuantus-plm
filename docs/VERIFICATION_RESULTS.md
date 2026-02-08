@@ -9,7 +9,9 @@
   - `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_PG_20260209-001013.md`
 - Trend: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND.md`
 - CI:
-  - Workflow: `perf-roadmap-9-3` (workflow_dispatch) run `21801294326` (success)
+  - Workflow: `perf-roadmap-9-3` (workflow_dispatch)
+  - Pre-merge run (branch): `21801294326` (success)
+  - Post-merge run (main): `21801412881` (success)
   - Artifacts: `perf-roadmap-9-3-report`, `perf-roadmap-9-3-report-pg`, `perf-roadmap-9-3-gate`, `perf-roadmap-9-3-trend`
 - Notes:
   - Forced Dedup Vision to SKIP: `YUANTUS_DEDUP_VISION_BASE_URL=http://example.invalid:8100`
