@@ -4,10 +4,12 @@ Generates comparison and analysis reports.
 Phase 5: Reporting
 """
 
+from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from yuantus.meta_engine.services.bom_service import BOMService
+from yuantus.meta_engine.models.baseline import Baseline
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.eco import ECO, ECOStage
 from yuantus.meta_engine.models.job import ConversionJob
@@ -24,6 +26,15 @@ class ReportService:
     def get_summary(self) -> Dict[str, Any]:
         def _group_counts(rows, key_name: str) -> List[Dict[str, Any]]:
             return [{key_name: key, "count": count} for key, count in rows]
+
+        now = datetime.utcnow()
+        cutoff_24h = now - timedelta(hours=24)
+        cutoff_7d = now - timedelta(days=7)
+
+        def _count_since(model, column, cutoff: datetime) -> int:
+            return int(
+                self.session.query(func.count(model.id)).filter(column >= cutoff).scalar() or 0
+            )
 
         items_total = self.session.query(func.count(Item.id)).scalar() or 0
         items_by_type = (
@@ -174,7 +185,37 @@ class ReportService:
             .all()
         )
 
+        windows = {
+            "last_24h": {
+                "items_created": _count_since(Item, Item.created_at, cutoff_24h),
+                "versions_created": _count_since(ItemVersion, ItemVersion.created_at, cutoff_24h),
+                "files_created": _count_since(FileContainer, FileContainer.created_at, cutoff_24h),
+                "jobs_created": _count_since(ConversionJob, ConversionJob.created_at, cutoff_24h),
+                "ecos_created": _count_since(ECO, ECO.created_at, cutoff_24h),
+                "baselines_created": _count_since(Baseline, Baseline.created_at, cutoff_24h),
+                "baselines_released": _count_since(Baseline, Baseline.released_at, cutoff_24h),
+                "mboms_created": _count_since(ManufacturingBOM, ManufacturingBOM.created_at, cutoff_24h),
+                "mboms_released": _count_since(ManufacturingBOM, ManufacturingBOM.released_at, cutoff_24h),
+                "routings_created": _count_since(Routing, Routing.created_at, cutoff_24h),
+                "workcenters_created": _count_since(WorkCenter, WorkCenter.created_at, cutoff_24h),
+            },
+            "last_7d": {
+                "items_created": _count_since(Item, Item.created_at, cutoff_7d),
+                "versions_created": _count_since(ItemVersion, ItemVersion.created_at, cutoff_7d),
+                "files_created": _count_since(FileContainer, FileContainer.created_at, cutoff_7d),
+                "jobs_created": _count_since(ConversionJob, ConversionJob.created_at, cutoff_7d),
+                "ecos_created": _count_since(ECO, ECO.created_at, cutoff_7d),
+                "baselines_created": _count_since(Baseline, Baseline.created_at, cutoff_7d),
+                "baselines_released": _count_since(Baseline, Baseline.released_at, cutoff_7d),
+                "mboms_created": _count_since(ManufacturingBOM, ManufacturingBOM.created_at, cutoff_7d),
+                "mboms_released": _count_since(ManufacturingBOM, ManufacturingBOM.released_at, cutoff_7d),
+                "routings_created": _count_since(Routing, Routing.created_at, cutoff_7d),
+                "workcenters_created": _count_since(WorkCenter, WorkCenter.created_at, cutoff_7d),
+            },
+        }
+
         return {
+            "windows": windows,
             "items": {
                 "total": items_total,
                 "by_type": _group_counts(items_by_type, "item_type_id"),
