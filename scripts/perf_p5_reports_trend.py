@@ -126,6 +126,7 @@ def _cell(run: PerfRun, scenario_name: str) -> str:
 
 def _write_trend(out_path: Path, runs: List[PerfRun], *, report_dir: Path, limit: int) -> None:
     scenario_order = [
+        "Reports summary (p95 over 10 runs)",
         "Reports advanced search response (p95 over 10 runs)",
         "Saved search run (p95 over 10 runs)",
         "Report execute (p95 over 5 runs)",
@@ -153,6 +154,7 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, report_dir: Path, limit
         "Git",
         "Overall",
         "Report",
+        "Reports summary p95",
         "Reports search p95",
         "Saved search p95",
         "Report execute p95",
@@ -175,6 +177,7 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, report_dir: Path, limit
             _cell(run, scenario_order[1]),
             _cell(run, scenario_order[2]),
             _cell(run, scenario_order[3]),
+            _cell(run, scenario_order[4]),
         ]
         lines.append("| " + " | ".join(row) + " |")
 
