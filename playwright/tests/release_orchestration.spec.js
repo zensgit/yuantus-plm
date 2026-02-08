@@ -342,3 +342,76 @@ test('Release orchestration rolls back routing+mbom when baseline is blocked by 
   expect(mbomAfter).toBeTruthy();
   expect(String(mbomAfter.state || '')).toBe('draft');
 });
+
+test('Release orchestration execute rejects unknown ruleset_id (400)', async ({ request }) => {
+  const { headers } = await login(request);
+  const ts = Date.now();
+
+  const partId = await createPart(request, headers, `ORCH-BADRULE-${ts}`, 'Orchestration Bad Ruleset Part');
+
+  const execResp = await request.post(`/api/v1/release-orchestration/items/${partId}/execute`, {
+    headers,
+    data: {
+      include_routings: false,
+      include_mboms: false,
+      include_baselines: true,
+      ruleset_id: 'does-not-exist',
+    },
+  });
+  expect(execResp.status()).toBe(400);
+  const body = await execResp.json();
+  expect(String(body.detail || '')).toContain('Unknown release ruleset');
+});
+
+test('Release orchestration execute rejects rollback_on_failure with continue_on_error=true (400)', async ({ request }) => {
+  const { headers } = await login(request);
+  const ts = Date.now();
+
+  const partId = await createPart(request, headers, `ORCH-BADRB-${ts}`, 'Orchestration Bad Rollback Config Part');
+
+  const execResp = await request.post(`/api/v1/release-orchestration/items/${partId}/execute`, {
+    headers,
+    data: {
+      include_routings: false,
+      include_mboms: false,
+      include_baselines: false,
+      ruleset_id: 'default',
+      rollback_on_failure: true,
+      continue_on_error: true,
+    },
+  });
+  expect(execResp.status()).toBe(400);
+  const body = await execResp.json();
+  expect(String(body.detail || '')).toContain('rollback_on_failure requires continue_on_error=false');
+});
+
+test('Release orchestration execute dry_run does not change baseline state', async ({ request }) => {
+  const { headers } = await login(request);
+  const ts = Date.now();
+
+  const partId = await createPart(request, headers, `ORCH-DRY-${ts}`, 'Orchestration Dry Run Part');
+  const baselineId = await createBaseline(request, headers, partId, `BL-DRY-${ts}`);
+
+  const execResp = await request.post(`/api/v1/release-orchestration/items/${partId}/execute`, {
+    headers,
+    data: {
+      include_routings: false,
+      include_mboms: false,
+      include_baselines: true,
+      ruleset_id: 'default',
+      dry_run: true,
+    },
+  });
+  expect(execResp.ok()).toBeTruthy();
+  const execData = await execResp.json();
+  const baselineResult = (execData.results || []).find(
+    (r) => r.kind === 'baseline_release' && r.resource_id === baselineId
+  );
+  expect(baselineResult).toBeTruthy();
+  expect(baselineResult.status).toBe('planned');
+
+  const baselineGet = await request.get(`/api/v1/baselines/${baselineId}`, { headers });
+  expect(baselineGet.ok()).toBeTruthy();
+  const baseline = await baselineGet.json();
+  expect(String(baseline.state || '')).toBe('draft');
+});
