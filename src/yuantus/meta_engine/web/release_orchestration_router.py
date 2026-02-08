@@ -270,8 +270,10 @@ def execute_release_plan(
     def _should_stop_on_failure() -> bool:
         return not bool(req.continue_on_error)
 
+    abort = False
+
     # 1) Routings (may unblock MBOM release rules that require released routing).
-    if req.include_routings:
+    if req.include_routings and not abort:
         for routing in routings:
             rid = str(routing.id)
             state_before = getattr(routing, "state", None)
@@ -339,10 +341,11 @@ def execute_release_plan(
                     message=str(exc),
                 )
                 if _should_stop_on_failure():
+                    abort = True
                     break
 
     # 2) MBOMs
-    if req.include_mboms:
+    if req.include_mboms and not abort:
         for mbom in mboms:
             mid = str(mbom.id)
             state_before = getattr(mbom, "state", None)
@@ -410,10 +413,11 @@ def execute_release_plan(
                     message=str(exc),
                 )
                 if _should_stop_on_failure():
+                    abort = True
                     break
 
     # 3) Baselines (optional)
-    if req.include_baselines:
+    if req.include_baselines and not abort:
         for baseline in baselines:
             bid = str(baseline.id)
             state_before = getattr(baseline, "state", None)
@@ -483,6 +487,7 @@ def execute_release_plan(
                     message=str(exc),
                 )
                 if _should_stop_on_failure():
+                    abort = True
                     break
 
     post_readiness: Optional[ReleaseReadinessResponse] = None
@@ -506,4 +511,3 @@ def execute_release_plan(
         results=results,
         post_readiness=post_readiness,
     )
-
