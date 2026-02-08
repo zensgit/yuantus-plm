@@ -42,6 +42,77 @@ async function createPart(request, headers, number, name) {
   return data.id;
 }
 
+async function createMbomFromEbom(request, headers, sourceItemId, name, plantCode) {
+  const resp = await request.post('/api/v1/mboms/from-ebom', {
+    headers,
+    data: {
+      source_item_id: sourceItemId,
+      name,
+      version: '1.0',
+      plant_code: plantCode,
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const mbom = await resp.json();
+  expect(mbom.id).toBeTruthy();
+  return mbom;
+}
+
+async function createWorkcenter(request, headers, code, name, plantCode, lineCode) {
+  const resp = await request.post('/api/v1/workcenters', {
+    headers,
+    data: {
+      code,
+      name,
+      plant_code: plantCode,
+      department_code: lineCode,
+      is_active: true,
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const wc = await resp.json();
+  expect(wc.id).toBeTruthy();
+  return wc.id;
+}
+
+async function createRouting(request, headers, mbomId, itemId, name, plantCode, lineCode) {
+  const resp = await request.post('/api/v1/routings', {
+    headers,
+    data: {
+      name,
+      mbom_id: mbomId,
+      item_id: itemId,
+      version: '1.0',
+      is_primary: true,
+      plant_code: plantCode,
+      line_code: lineCode,
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const routing = await resp.json();
+  expect(routing.id).toBeTruthy();
+  return routing;
+}
+
+async function addRoutingOperation(request, headers, routingId, workcenterId) {
+  const resp = await request.post(`/api/v1/routings/${routingId}/operations`, {
+    headers,
+    data: {
+      operation_number: '10',
+      name: 'Op 10',
+      operation_type: 'fabrication',
+      workcenter_id: workcenterId,
+      setup_time: 5,
+      run_time: 1,
+      sequence: 10,
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const op = await resp.json();
+  expect(op.id).toBeTruthy();
+  return op.id;
+}
+
 test('Reports: advanced search, saved search, report execute/export (API-only) works', async ({ request }) => {
   const { headers } = await login(request);
   const ts = Date.now();
@@ -138,8 +209,37 @@ test('Reports: summary endpoint returns counts + request context meta', async ({
   const { headers } = await login(request);
   const ts = Date.now();
 
-  await createPart(request, headers, `RPT-SUM-${ts}-001`, `RPT-SUM-${ts} Summary Part`);
+  const partId = await createPart(request, headers, `RPT-SUM-${ts}-001`, `RPT-SUM-${ts} Summary Part`);
   await createPart(request, headers, `RPT-SUM-${ts}-002`, `RPT-SUM-${ts} Summary Part`);
+
+  // Add at least one manufacturing object so summary dimensions are exercised.
+  const plantCode = `PLANT-SUM-${ts}`;
+  const lineCode = `LINE-SUM-${ts}`;
+  const mbom = await createMbomFromEbom(
+    request,
+    headers,
+    partId,
+    `MBOM-SUM-${ts}`,
+    plantCode
+  );
+  const wcId = await createWorkcenter(
+    request,
+    headers,
+    `WC-SUM-${ts}`,
+    `WorkCenter SUM ${ts}`,
+    plantCode,
+    lineCode
+  );
+  const routing = await createRouting(
+    request,
+    headers,
+    mbom.id,
+    partId,
+    `Routing SUM ${ts}`,
+    plantCode,
+    lineCode
+  );
+  await addRoutingOperation(request, headers, routing.id, wcId);
 
   const resp = await request.get('/api/v1/reports/summary', { headers });
   expect(resp.ok()).toBeTruthy();
@@ -162,7 +262,25 @@ test('Reports: summary endpoint returns counts + request context meta', async ({
 
   // Basic smoke checks for the other sections.
   expect(typeof summary.files.total).toBe('number');
+  expect(Array.isArray(summary.files.by_conversion_status || [])).toBeTruthy();
+  expect(Array.isArray(summary.files.by_is_native_cad || [])).toBeTruthy();
   expect(typeof summary.versions.total).toBe('number');
   expect(typeof summary.ecos.total).toBe('number');
   expect(typeof summary.jobs.total).toBe('number');
+
+  expect(summary.manufacturing).toBeTruthy();
+  expect(typeof summary.manufacturing.mboms.total).toBe('number');
+  expect(typeof summary.manufacturing.routings.total).toBe('number');
+  expect(typeof summary.manufacturing.workcenters.total).toBe('number');
+  expect(typeof summary.manufacturing.operations.total).toBe('number');
+
+  const mbomByPlant = summary.manufacturing.mboms.by_plant_code || [];
+  const mbomPlantRow = mbomByPlant.find((r) => r.plant_code === plantCode);
+  expect(mbomPlantRow).toBeTruthy();
+  expect(mbomPlantRow.count).toBeGreaterThanOrEqual(1);
+
+  const routingByPlant = summary.manufacturing.routings.by_plant_code || [];
+  const routingPlantRow = routingByPlant.find((r) => r.plant_code === plantCode);
+  expect(routingPlantRow).toBeTruthy();
+  expect(routingPlantRow.count).toBeGreaterThanOrEqual(1);
 });

@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.manufacturing.mbom_service import MBOMService
 from yuantus.meta_engine.manufacturing.routing_service import RoutingService
@@ -29,6 +30,8 @@ release_orchestration_router = APIRouter(
     prefix="/release-orchestration",
     tags=["Release Orchestration"],
 )
+
+_FAILPOINT_HEADER = "x-yuantus-failpoint"
 
 
 def _ensure_admin(user: CurrentUser) -> None:
@@ -174,6 +177,30 @@ def _plan_steps(readiness: ReleaseReadinessResponse) -> List[OrchestrationStep]:
     return steps
 
 
+def _maybe_inject_failpoint(*, request: Request, kind: str, resource_type: str, resource_id: str) -> None:
+    """
+    Test-only failure injection for E2E coverage of rollback paths.
+
+    Enabled only when `YUANTUS_TEST_FAILPOINTS_ENABLED=true` and a matching
+    `x-yuantus-failpoint` header is present.
+    """
+    settings = get_settings()
+    if not bool(getattr(settings, "TEST_FAILPOINTS_ENABLED", False)):
+        return
+    fp = (request.headers.get(_FAILPOINT_HEADER) or "").strip()
+    if not fp:
+        return
+
+    candidates = {
+        f"{kind}:{resource_id}",
+        f"{resource_type}:{resource_id}",
+        f"release-orchestration:{kind}:{resource_id}",
+        f"release-orchestration:{resource_type}:{resource_id}",
+    }
+    if fp in candidates:
+        raise ValueError(f"Injected failure via {_FAILPOINT_HEADER}={fp}")
+
+
 @release_orchestration_router.get(
     "/items/{item_id}/plan",
     response_model=ReleaseOrchestrationPlanResponse,
@@ -222,6 +249,7 @@ def get_release_plan(
 def execute_release_plan(
     item_id: str,
     req: ReleaseOrchestrationExecuteRequest,
+    request: Request,
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ReleaseOrchestrationExecuteResponse:
@@ -255,6 +283,11 @@ def execute_release_plan(
     mbom_ids = [m.id for m in mboms]
     routings = readiness_svc.list_routings(item_id=item_id, mbom_ids=mbom_ids, limit=req.routing_limit)
     baselines = readiness_svc.list_baselines(item_id=item_id, limit=req.baseline_limit)
+
+    # Keep execution ordering stable and aligned with plan sorting (resource_id asc).
+    mboms.sort(key=lambda m: str(getattr(m, "id", "")))
+    routings.sort(key=lambda r: str(getattr(r, "id", "")))
+    baselines.sort(key=lambda b: str(getattr(b, "id", "")))
 
     routing_svc = RoutingService(db)
     mbom_svc = MBOMService(db)
@@ -375,6 +408,12 @@ def execute_release_plan(
                 continue
 
             try:
+                _maybe_inject_failpoint(
+                    request=request,
+                    kind="routing_release",
+                    resource_type="routing",
+                    resource_id=rid,
+                )
                 updated = routing_svc.release_routing(rid, ruleset_id=ruleset_id)
                 db.commit()
                 released_routing_ids.append(rid)
@@ -448,6 +487,12 @@ def execute_release_plan(
                 continue
 
             try:
+                _maybe_inject_failpoint(
+                    request=request,
+                    kind="mbom_release",
+                    resource_type="mbom",
+                    resource_id=mid,
+                )
                 updated = mbom_svc.release_mbom(mid, ruleset_id=ruleset_id)
                 db.commit()
                 released_mbom_ids.append(mid)
@@ -542,6 +587,12 @@ def execute_release_plan(
                 continue
 
             try:
+                _maybe_inject_failpoint(
+                    request=request,
+                    kind="baseline_release",
+                    resource_type="baseline",
+                    resource_id=bid,
+                )
                 updated = baseline_svc.release_baseline(
                     bid,
                     user_id=int(user.id),

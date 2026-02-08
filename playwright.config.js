@@ -17,6 +17,7 @@ module.exports = defineConfig({
         'export YUANTUS_TENANCY_MODE=single',
         'export YUANTUS_DATABASE_URL=sqlite:////tmp/yuantus_playwright.db',
         'export YUANTUS_IDENTITY_DATABASE_URL=sqlite:////tmp/yuantus_playwright.db',
+        'export YUANTUS_TEST_FAILPOINTS_ENABLED=true',
         'rm -f /tmp/yuantus_playwright.db',
         './.venv/bin/yuantus seed-identity --tenant tenant-1 --org org-1 --username admin --password admin --user-id 1 --roles admin',
         './.venv/bin/yuantus seed-meta',
