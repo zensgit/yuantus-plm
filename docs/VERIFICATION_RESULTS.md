@@ -9,8 +9,13 @@
 
 ## 2026-02-08 Perf (PASS) - P5 Reports/Search
 
-- Report: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-192938.md`
+- Report: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-205601.md`
 - Trend: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND.md`
+- Scenarios:
+  - Reports advanced search response (p95)
+  - Saved search run (p95)
+  - Report execute (p95)
+  - Report export CSV (p95)
 - Commands:
   - `./.venv/bin/python scripts/perf_p5_reports.py`
   - `./.venv/bin/python scripts/perf_p5_reports_trend.py`
