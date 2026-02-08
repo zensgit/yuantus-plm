@@ -62,6 +62,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 - Regression Evidence Autopack: `docs/DEV_AND_VERIFICATION_REGRESSION_EVIDENCE_AUTOPACK_20260207.md`
 - CI Strict Gate Schedule: `docs/DEV_AND_VERIFICATION_CI_STRICT_GATE_SCHEDULE_20260207.md`
+- Release Orchestration (Plan + Execute): `docs/DEV_AND_VERIFICATION_RELEASE_ORCHESTRATION_20260208.md`
 - Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
 - Export Bundles (Impact + Release Readiness): `docs/DEV_AND_VERIFICATION_EXPORT_BUNDLES_IMPACT_READINESS_20260207.md`
 - Item Cockpit + Export Bundle: `docs/DEV_AND_VERIFICATION_ITEM_COCKPIT_EXPORT_20260207.md`
@@ -73,6 +74,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Release Readiness + ECO Apply Diagnostics + Ruleset Directory: `docs/DEV_AND_VERIFICATION_RELEASE_READINESS_ECO_APPLY_DIAGNOSTICS_20260207.md`
 - Roadmap 9.3 Performance Benchmarks: `docs/DEV_AND_VERIFICATION_ROADMAP_9_3_PERFORMANCE_20260207.md`
 - Roadmap 9.3 Performance Report (2026-02-07): `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`
+- Roadmap 9.3 Performance Trend: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND.md`
 - Phase 4/5/6 Hardening: `docs/DEV_AND_VERIFICATION_P4_P5_P6_HARDENING_20260207.md`
 - Phase 3 Progress Snapshot: `docs/PHASE3_PROGRESS_SNAPSHOT_20260206.md`
 - Phase 3 M1 Lifecycle Closure: `docs/DEV_AND_VERIFICATION_P3_M1_LIFECYCLE_RELEASE_20260206.md`

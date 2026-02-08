@@ -87,7 +87,12 @@ class ReportExecution(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
 
-    report_id = Column(String, ForeignKey("meta_report_definitions.id"), nullable=False, index=True)
+    report_id = Column(
+        String,
+        ForeignKey("meta_report_definitions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     parameters_used = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
 

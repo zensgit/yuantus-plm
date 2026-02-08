@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.4 (Update) - 2026-02-08
+
+### Added
+- Release orchestration API (admin-only):
+  - `GET /api/v1/release-orchestration/items/{item_id}/plan`
+  - `POST /api/v1/release-orchestration/items/{item_id}/execute` (routing -> mbom -> baseline; baseline optional)
+
+### Verification
+- Results logged in `docs/VERIFICATION_RESULTS.md`.
+
 ## v0.1.4 (Update) - 2026-02-07
 
 ### Added
