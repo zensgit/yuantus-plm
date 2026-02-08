@@ -2,6 +2,24 @@
 
 > 完整复现步骤与更多验证项：见 `docs/VERIFICATION.md`。
 
+## 2026-02-09 Perf (PASS) - Roadmap 9.3 (SQLite + Postgres)
+
+- Reports:
+  - `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260209-000914.md`
+  - `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_PG_20260209-001013.md`
+- Trend: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND.md`
+- CI:
+  - Workflow: `perf-roadmap-9-3` (workflow_dispatch) run `21801294326` (success)
+  - Artifacts: `perf-roadmap-9-3-report`, `perf-roadmap-9-3-report-pg`, `perf-roadmap-9-3-gate`, `perf-roadmap-9-3-trend`
+- Notes:
+  - Forced Dedup Vision to SKIP: `YUANTUS_DEDUP_VISION_BASE_URL=http://example.invalid:8100`
+  - Postgres provisioned via Docker: `postgres:16` -> `localhost:55432`
+- Commands:
+  - `docker run -d --name yuantus-roadmap93-pg -e POSTGRES_USER=yuantus -e POSTGRES_PASSWORD=yuantus -e POSTGRES_DB=yuantus_perf -p 55432:5432 postgres:16`
+  - `YUANTUS_DEDUP_VISION_BASE_URL=http://example.invalid:8100 python3 scripts/perf_roadmap_9_3.py --out docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260209-000914.md`
+  - `YUANTUS_DEDUP_VISION_BASE_URL=http://example.invalid:8100 python3 scripts/perf_roadmap_9_3.py --db-url postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_perf --out docs/PERFORMANCE_REPORTS/ROADMAP_9_3_PG_20260209-001013.md`
+  - `python3 scripts/perf_roadmap_9_3_trend.py --out docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND.md`
+
 ## 2026-02-08 Strict Gate (PASS) - Release Orchestration
 
 - Report: `docs/DAILY_REPORTS/STRICT_GATE_20260208-105603.md`
