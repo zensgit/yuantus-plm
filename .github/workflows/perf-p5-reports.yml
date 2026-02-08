@@ -79,7 +79,8 @@ jobs:
       - name: Run benchmark (Postgres)
         env:
           REPORT_PG_PATH: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_PG_CI_${{ github.run_id }}.md
-          PG_URL: postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus_perf
+          # When the job runs on the GitHub-hosted VM, service containers are reachable via localhost.
+          PG_URL: postgresql+psycopg://yuantus:yuantus@localhost:5432/yuantus_perf
         run: |
           set -euo pipefail
           . .venv/bin/activate
