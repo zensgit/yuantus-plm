@@ -107,6 +107,7 @@ class ReleaseOrchestrationExecuteRequest(BaseModel):
     mbom_limit: int = Field(default=20, ge=0, le=200)
     baseline_limit: int = Field(default=20, ge=0, le=200)
     continue_on_error: bool = False
+    rollback_on_failure: bool = False
     dry_run: bool = False
     baseline_force: bool = False
 
@@ -242,6 +243,12 @@ def execute_release_plan(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    if bool(req.rollback_on_failure) and bool(req.continue_on_error):
+        raise HTTPException(
+            status_code=400,
+            detail="rollback_on_failure requires continue_on_error=false",
+        )
+
     # Select resources using the same listing logic as release readiness, so plan/execute stay aligned.
     readiness_svc = ReleaseReadinessService(db)
     mboms = readiness_svc.list_mboms(item_id=item_id, limit=req.mbom_limit)
@@ -254,6 +261,8 @@ def execute_release_plan(
     baseline_svc = BaselineService(db)
 
     results: List[ReleaseOrchestrationStepResult] = []
+    released_routing_ids: List[str] = []
+    released_mbom_ids: List[str] = []
 
     def _record(
         *,
@@ -368,6 +377,7 @@ def execute_release_plan(
             try:
                 updated = routing_svc.release_routing(rid, ruleset_id=ruleset_id)
                 db.commit()
+                released_routing_ids.append(rid)
                 _record(
                     kind="routing_release",
                     resource_type="routing",
@@ -440,6 +450,7 @@ def execute_release_plan(
             try:
                 updated = mbom_svc.release_mbom(mid, ruleset_id=ruleset_id)
                 db.commit()
+                released_mbom_ids.append(mid)
                 _record(
                     kind="mbom_release",
                     resource_type="mbom",
@@ -546,6 +557,7 @@ def execute_release_plan(
                     diagnostics=diagnostics,
                 )
             except ValueError as exc:
+                db.rollback()
                 _record(
                     kind="baseline_release",
                     resource_type="baseline",
@@ -559,6 +571,65 @@ def execute_release_plan(
                 if _should_stop_on_failure():
                     abort = True
                     break
+
+    # Best-effort rollback to "draft" for any resources released earlier in this run.
+    if abort and bool(req.rollback_on_failure) and not bool(req.dry_run):
+        empty_diag = {"ruleset_id": ruleset_id, "errors": [], "warnings": []}
+
+        # Reopen MBOMs first (they may depend on routings).
+        for mid in reversed(released_mbom_ids):
+            try:
+                before = "released"
+                reopened = mbom_svc.reopen_mbom(mid)
+                db.commit()
+                _record(
+                    kind="mbom_reopen",
+                    resource_type="mbom",
+                    resource_id=mid,
+                    status="rolled_back",
+                    state_before=before,
+                    state_after=getattr(reopened, "state", None),
+                    diagnostics=empty_diag,
+                )
+            except Exception as exc:
+                db.rollback()
+                _record(
+                    kind="mbom_reopen",
+                    resource_type="mbom",
+                    resource_id=mid,
+                    status="rollback_failed",
+                    state_before="released",
+                    state_after="released",
+                    diagnostics=empty_diag,
+                    message=str(exc),
+                )
+
+        for rid in reversed(released_routing_ids):
+            try:
+                before = "released"
+                reopened = routing_svc.reopen_routing(rid)
+                db.commit()
+                _record(
+                    kind="routing_reopen",
+                    resource_type="routing",
+                    resource_id=rid,
+                    status="rolled_back",
+                    state_before=before,
+                    state_after=getattr(reopened, "state", None),
+                    diagnostics=empty_diag,
+                )
+            except Exception as exc:
+                db.rollback()
+                _record(
+                    kind="routing_reopen",
+                    resource_type="routing",
+                    resource_id=rid,
+                    status="rollback_failed",
+                    state_before="released",
+                    state_after="released",
+                    diagnostics=empty_diag,
+                    message=str(exc),
+                )
 
     post_readiness: Optional[ReleaseReadinessResponse] = None
     try:

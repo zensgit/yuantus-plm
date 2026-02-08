@@ -39,6 +39,12 @@ Run the demo script directly:
 bash scripts/demo_plm_closed_loop.sh
 ```
 
+Run the demo script using release orchestration (plan + execute) instead of calling per-resource release endpoints:
+
+```bash
+DEMO_USE_RELEASE_ORCHESTRATION=1 bash scripts/demo_plm_closed_loop.sh
+```
+
 Run strict gate with demo step enabled:
 
 ```bash

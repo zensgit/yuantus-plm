@@ -367,6 +367,184 @@ def test_execute_stops_after_failure_when_continue_on_error_false():
         baseline_svc.release_baseline.assert_not_called()
 
 
+def test_execute_rolls_back_routing_when_mbom_release_fails():
+    user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    db.get.return_value = Item(
+        id="item-1",
+        item_type_id="Part",
+        config_id="CFG-1",
+        generation=1,
+        state="released",
+        properties={"item_number": "P-1"},
+    )
+
+    routing = SimpleNamespace(id="routing-1", state="draft")
+    mbom = SimpleNamespace(id="mbom-1", state="draft")
+
+    with (
+        patch("yuantus.meta_engine.web.release_orchestration_router.ReleaseReadinessService") as rr_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.RoutingService") as routing_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.MBOMService") as mbom_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.BaselineService") as baseline_cls,
+    ):
+        rr = rr_cls.return_value
+        rr.list_mboms.return_value = [mbom]
+        rr.list_routings.return_value = [routing]
+        rr.list_baselines.return_value = []
+        rr.get_item_release_readiness.return_value = {
+            "item_id": "item-1",
+            "generated_at": "2026-02-07T00:00:00Z",
+            "ruleset_id": "default",
+            "summary": {"ok": True},
+            "resources": [],
+        }
+
+        routing_svc = routing_cls.return_value
+        routing_svc.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+        routing_svc.release_routing.return_value = SimpleNamespace(id="routing-1", state="released")
+        routing_svc.reopen_routing.return_value = SimpleNamespace(id="routing-1", state="draft")
+
+        mbom_svc = mbom_cls.return_value
+        mbom_svc.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+        mbom_svc.release_mbom.side_effect = ValueError("mbom fail")
+
+        baseline_cls.return_value.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+
+        resp = client.post(
+            "/api/v1/release-orchestration/items/item-1/execute",
+            json={
+                "dry_run": False,
+                "rollback_on_failure": True,
+                "include_routings": True,
+                "include_mboms": True,
+                "include_baselines": False,
+            },
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        results = data.get("results") or []
+        statuses = {(r["kind"], r["resource_id"]): r["status"] for r in results}
+        assert statuses[("routing_release", "routing-1")] == "executed"
+        assert statuses[("mbom_release", "mbom-1")] == "failed"
+        assert statuses[("routing_reopen", "routing-1")] == "rolled_back"
+
+        routing_svc.release_routing.assert_called_once()
+        mbom_svc.release_mbom.assert_called_once()
+        routing_svc.reopen_routing.assert_called_once_with("routing-1")
+        baseline_cls.return_value.release_baseline.assert_not_called()
+
+
+def test_execute_rolls_back_routing_and_mbom_when_baseline_blocked_by_esign():
+    user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    db.get.return_value = Item(
+        id="item-1",
+        item_type_id="Part",
+        config_id="CFG-1",
+        generation=1,
+        state="released",
+        properties={"item_number": "P-1"},
+    )
+
+    routing = SimpleNamespace(id="routing-1", state="draft")
+    mbom = SimpleNamespace(id="mbom-1", state="draft")
+    baseline = SimpleNamespace(id="baseline-1", state="draft")
+
+    with (
+        patch("yuantus.meta_engine.web.release_orchestration_router.ReleaseReadinessService") as rr_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.RoutingService") as routing_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.MBOMService") as mbom_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.BaselineService") as baseline_cls,
+    ):
+        rr = rr_cls.return_value
+        rr.list_mboms.return_value = [mbom]
+        rr.list_routings.return_value = [routing]
+        rr.list_baselines.return_value = [baseline]
+        rr.get_esign_manifest_status.return_value = {
+            "manifest_id": "m-1",
+            "item_id": "item-1",
+            "generation": 1,
+            "is_complete": False,
+            "requirements": [
+                {"meaning": "approved", "required": True, "signed": False},
+            ],
+        }
+        rr.get_item_release_readiness.return_value = {
+            "item_id": "item-1",
+            "generated_at": "2026-02-07T00:00:00Z",
+            "ruleset_id": "default",
+            "summary": {"ok": True},
+            "resources": [],
+            "esign_manifest": rr.get_esign_manifest_status.return_value,
+        }
+
+        routing_svc = routing_cls.return_value
+        routing_svc.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+        routing_svc.release_routing.return_value = SimpleNamespace(id="routing-1", state="released")
+        routing_svc.reopen_routing.return_value = SimpleNamespace(id="routing-1", state="draft")
+
+        mbom_svc = mbom_cls.return_value
+        mbom_svc.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+        mbom_svc.release_mbom.return_value = SimpleNamespace(id="mbom-1", state="released")
+        mbom_svc.reopen_mbom.return_value = SimpleNamespace(id="mbom-1", state="draft")
+
+        baseline_svc = baseline_cls.return_value
+        baseline_svc.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+
+        resp = client.post(
+            "/api/v1/release-orchestration/items/item-1/execute",
+            json={
+                "rollback_on_failure": True,
+                "include_routings": True,
+                "include_mboms": True,
+                "include_baselines": True,
+                "ruleset_id": "default",
+            },
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        results = data.get("results") or []
+        statuses = {(r["kind"], r["resource_id"]): r["status"] for r in results}
+        assert statuses[("routing_release", "routing-1")] == "executed"
+        assert statuses[("mbom_release", "mbom-1")] == "executed"
+        assert statuses[("baseline_release", "baseline-1")] == "blocked_esign_incomplete"
+        assert statuses[("mbom_reopen", "mbom-1")] == "rolled_back"
+        assert statuses[("routing_reopen", "routing-1")] == "rolled_back"
+
+        baseline_svc.release_baseline.assert_not_called()
+        mbom_svc.reopen_mbom.assert_called_once_with("mbom-1")
+        routing_svc.reopen_routing.assert_called_once_with("routing-1")
+
+
 def test_execute_allows_baseline_force_to_bypass_diagnostics_errors():
     user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
     client, db = _client_with_user(user)

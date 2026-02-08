@@ -7,6 +7,14 @@
 - Report: `docs/DAILY_REPORTS/STRICT_GATE_20260208-105603.md`
 - Scope: release orchestration plan/execute API + unit tests + Playwright API-only regression
 
+## 2026-02-08 Perf (PASS) - P5 Reports/Search
+
+- Report: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-192938.md`
+- Trend: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND.md`
+- Commands:
+  - `./.venv/bin/python scripts/perf_p5_reports.py`
+  - `./.venv/bin/python scripts/perf_p5_reports_trend.py`
+
 ## 2026-02-07 Strict Gate (PASS) - Product Detail Cockpit Flags
 
 - Report: `docs/DAILY_REPORTS/STRICT_GATE_20260207-222534.md`

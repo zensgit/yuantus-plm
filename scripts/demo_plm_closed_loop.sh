@@ -21,6 +21,8 @@ REPORT_PATH="${DEMO_REPORT_PATH:-$REPORT_DEFAULT}"
 mkdir -p "$OUT_DIR"
 mkdir -p "$(dirname "$REPORT_PATH")"
 
+USE_RELEASE_ORCHESTRATION="${DEMO_USE_RELEASE_ORCHESTRATION:-0}"
+
 PORT="${DEMO_PORT:-0}"
 if [[ "$PORT" == "0" ]]; then
   PORT="$(python3 - <<'PY'
@@ -211,8 +213,10 @@ baseline_force="false"
 if [[ "${baseline_ok}" != "True" && "${baseline_ok}" != "true" ]]; then
   baseline_force="true"
 fi
-request_json POST "/api/v1/baselines/${baseline_id}/release?ruleset_id=default" \
-  "${OUT_DIR}/baseline_release.json" "{\"force\":${baseline_force}}"
+if [[ "${USE_RELEASE_ORCHESTRATION}" != "1" ]]; then
+  request_json POST "/api/v1/baselines/${baseline_id}/release?ruleset_id=default" \
+    "${OUT_DIR}/baseline_release.json" "{\"force\":${baseline_force}}"
+fi
 
 workcenter_code="WC-${ts}"
 workcenter_json="${OUT_DIR}/workcenter_create.json"
@@ -248,8 +252,10 @@ request_json POST "/api/v1/routings/${routing_id}/operations" "$op_json" \
 
 request_json GET "/api/v1/routings/${routing_id}/release-diagnostics?ruleset_id=default" \
   "${OUT_DIR}/routing_release_diagnostics.json"
-request_json PUT "/api/v1/routings/${routing_id}/release?ruleset_id=default" \
-  "${OUT_DIR}/routing_release.json"
+if [[ "${USE_RELEASE_ORCHESTRATION}" != "1" ]]; then
+  request_json PUT "/api/v1/routings/${routing_id}/release?ruleset_id=default" \
+    "${OUT_DIR}/routing_release.json"
+fi
 
 request_json POST "/api/v1/routings/${routing_id}/calculate-time" \
   "${OUT_DIR}/routing_time.json" "{\"quantity\":5,\"include_queue\":true,\"include_move\":true}"
@@ -258,8 +264,21 @@ request_json POST "/api/v1/routings/${routing_id}/calculate-cost" \
 
 request_json GET "/api/v1/mboms/${mbom_id}/release-diagnostics?ruleset_id=default" \
   "${OUT_DIR}/mbom_release_diagnostics.json"
-request_json PUT "/api/v1/mboms/${mbom_id}/release?ruleset_id=default" \
-  "${OUT_DIR}/mbom_release.json"
+if [[ "${USE_RELEASE_ORCHESTRATION}" != "1" ]]; then
+  request_json PUT "/api/v1/mboms/${mbom_id}/release?ruleset_id=default" \
+    "${OUT_DIR}/mbom_release.json"
+fi
+
+if [[ "${USE_RELEASE_ORCHESTRATION}" == "1" ]]; then
+  request_json GET "/api/v1/release-orchestration/items/${parent_id}/plan?ruleset_id=default" \
+    "${OUT_DIR}/release_orchestration_plan.json"
+  request_json POST "/api/v1/release-orchestration/items/${parent_id}/execute" \
+    "${OUT_DIR}/release_orchestration_execute.json" \
+    "{\"ruleset_id\":\"default\",\"include_routings\":true,\"include_mboms\":true,\"include_baselines\":true,\"rollback_on_failure\":true,\"baseline_force\":${baseline_force}}"
+  request_json GET "/api/v1/baselines/${baseline_id}" "${OUT_DIR}/baseline_after_orchestration.json"
+  request_json GET "/api/v1/routings/${routing_id}" "${OUT_DIR}/routing_after_orchestration.json"
+  request_json GET "/api/v1/mboms/${mbom_id}" "${OUT_DIR}/mbom_after_orchestration.json"
+fi
 
 request_json GET "/api/v1/release-readiness/items/${parent_id}?ruleset_id=readiness" \
   "${OUT_DIR}/release_readiness.json"
@@ -275,6 +294,27 @@ download_file "/api/v1/release-readiness/items/${parent_id}/export?export_format
 download_file "/api/v1/items/${parent_id}/cockpit/export?export_format=zip&ruleset_id=readiness" \
   "${OUT_DIR}/item-cockpit-${parent_id}.zip"
 
+release_payload_lines=""
+if [[ "${USE_RELEASE_ORCHESTRATION}" == "1" ]]; then
+  release_payload_lines=$(
+    cat <<'EOF'
+  - `baseline_release_diagnostics.json`
+  - `routing_release_diagnostics.json`
+  - `mbom_release_diagnostics.json`
+  - `release_orchestration_plan.json`, `release_orchestration_execute.json`
+  - `baseline_after_orchestration.json`, `routing_after_orchestration.json`, `mbom_after_orchestration.json`
+EOF
+  )
+else
+  release_payload_lines=$(
+    cat <<'EOF'
+  - `baseline_release_diagnostics.json`, `baseline_release.json`
+  - `routing_release_diagnostics.json`, `routing_release.json`
+  - `mbom_release_diagnostics.json`, `mbom_release.json`
+EOF
+  )
+fi
+
 cat >"$REPORT_PATH" <<EOF
 # Demo PLM Closed Loop
 
@@ -282,6 +322,7 @@ cat >"$REPORT_PATH" <<EOF
 - Base URL: \`$BASE_URL\`
 - Tenant/Org: \`${TENANT_ID}/${ORG_ID}\`
 - Timestamp: \`${timestamp}\`
+- Use release orchestration: \`${USE_RELEASE_ORCHESTRATION}\`
 
 ## Entities
 
@@ -297,10 +338,8 @@ cat >"$REPORT_PATH" <<EOF
 - Output directory: \`$OUT_DIR\`
 - API payloads:
   - \`health.json\`
-  - \`baseline_release_diagnostics.json\`, \`baseline_release.json\`
-  - \`routing_release_diagnostics.json\`, \`routing_release.json\`
+${release_payload_lines}
   - \`routing_time.json\`, \`routing_cost.json\`
-  - \`mbom_release_diagnostics.json\`, \`mbom_release.json\`
   - \`release_readiness.json\`
   - \`impact_summary.json\`
   - \`item_cockpit.json\`
