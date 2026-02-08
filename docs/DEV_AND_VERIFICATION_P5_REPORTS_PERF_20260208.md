@@ -7,6 +7,7 @@ This delivery adds a lightweight, reproducible performance harness for Phase 5 (
 - Script: `scripts/perf_p5_reports.py`
 - Trend generator: `scripts/perf_p5_reports_trend.py`
 - Baseline gate: `scripts/perf_p5_reports_gate.py` (compare candidate report(s) vs recent baselines)
+  - Note: the gate script supports `--baseline-glob` to reuse the same gate for other perf harnesses.
 - Output directory: `docs/PERFORMANCE_REPORTS/`
 
 ## Scenarios

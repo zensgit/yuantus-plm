@@ -243,6 +243,11 @@ def main() -> int:
         help="Directory containing baseline P5_REPORTS_PERF_*.md reports (searched recursively)",
     )
     parser.add_argument(
+        "--baseline-glob",
+        default="P5_REPORTS_PERF_*.md",
+        help="Baseline report glob (searched recursively under --baseline-dir). Default: P5_REPORTS_PERF_*.md",
+    )
+    parser.add_argument(
         "--window",
         type=int,
         default=5,
@@ -280,7 +285,8 @@ def main() -> int:
     baseline_dir = Path(args.baseline_dir).resolve() if args.baseline_dir else None
     baseline_paths: List[Path] = []
     if baseline_dir and baseline_dir.exists():
-        baseline_paths = list(baseline_dir.rglob("P5_REPORTS_PERF_*.md"))
+        baseline_glob = str(args.baseline_glob or "").strip() or "P5_REPORTS_PERF_*.md"
+        baseline_paths = list(baseline_dir.rglob(baseline_glob))
 
     # Avoid comparing a candidate report against itself when --baseline-dir overlaps.
     cand_set = {p.resolve() for p in candidates}

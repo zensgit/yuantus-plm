@@ -16,6 +16,7 @@
 - Perf CI: `perf-p5-reports` also runs on pull requests via paths filter (smaller seed sizes).
 - Reports summary: add `windows.last_24h` and `windows.last_7d` time-window counts.
 - Dev doc: test-only failpoints (`docs/DEV_FAILPOINTS.md`).
+- Perf CI: `perf-roadmap-9-3` now gates benchmark results against recent baselines and uploads gate logs as artifacts.
 
 ### Changed
 - Release orchestration execute: validate `ruleset_id` up-front, support `rollback_on_failure` (best-effort reopen to draft), and honor `baseline_force` for diagnostics errors (baseline-only; still blocked by e-sign gate).
