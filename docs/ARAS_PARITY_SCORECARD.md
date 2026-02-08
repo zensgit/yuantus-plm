@@ -11,14 +11,14 @@ This scorecard tracks parity-to-surpass progress against roadmap scope.
 | Performance attainment rate | Met performance targets / total performance targets |
 | Leading capability count | Number of capabilities measurably ahead of Aras baseline in target scenarios |
 
-## 2. Current Snapshot (2026-02-07)
+## 2. Current Snapshot (2026-02-08)
 
 | Metric | Current |
 |---|---|
 | Capability coverage rate | 6 / 6 phases with implemented core capability (`100%`) |
-| Quality pass rate | `100%` (latest strict gate report PASS: `docs/DAILY_REPORTS/STRICT_GATE_20260207-230224.md`; CI green on merged PRs) |
+| Quality pass rate | `100%` (latest strict gate report PASS: `docs/DAILY_REPORTS/STRICT_GATE_20260208-105603.md`; CI green on merged PRs) |
 | Performance attainment rate | 6 / 6 targets met (see `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`) |
-| Leading capability count | 4 (strict regression evidence autopack, cross-domain impact + release readiness summary APIs + export bundles, strategy-based validation rulesets + diagnostics for manufacturing + baselines + ECO apply + ruleset directory, item cockpit cross-domain cockpit API + export bundle) |
+| Leading capability count | 5 (strict regression evidence autopack, cross-domain impact + release readiness summary APIs + export bundles, strategy-based validation rulesets + diagnostics for manufacturing + baselines + ECO apply + ruleset directory, item cockpit cross-domain cockpit API + export bundle, release orchestration plan/execute API with structured step results) |
 
 ## 3. Notes
 

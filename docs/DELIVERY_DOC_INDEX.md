@@ -62,6 +62,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 - Regression Evidence Autopack: `docs/DEV_AND_VERIFICATION_REGRESSION_EVIDENCE_AUTOPACK_20260207.md`
 - CI Strict Gate Schedule: `docs/DEV_AND_VERIFICATION_CI_STRICT_GATE_SCHEDULE_20260207.md`
+- Release Orchestration (Plan + Execute): `docs/DEV_AND_VERIFICATION_RELEASE_ORCHESTRATION_20260208.md`
 - Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
 - Export Bundles (Impact + Release Readiness): `docs/DEV_AND_VERIFICATION_EXPORT_BUNDLES_IMPACT_READINESS_20260207.md`
 - Item Cockpit + Export Bundle: `docs/DEV_AND_VERIFICATION_ITEM_COCKPIT_EXPORT_20260207.md`

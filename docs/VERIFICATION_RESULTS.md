@@ -2,6 +2,11 @@
 
 > 完整复现步骤与更多验证项：见 `docs/VERIFICATION.md`。
 
+## 2026-02-08 Strict Gate (PASS) - Release Orchestration
+
+- Report: `docs/DAILY_REPORTS/STRICT_GATE_20260208-105603.md`
+- Scope: release orchestration plan/execute API + unit tests + Playwright API-only regression
+
 ## 2026-02-07 Strict Gate (PASS) - Product Detail Cockpit Flags
 
 - Report: `docs/DAILY_REPORTS/STRICT_GATE_20260207-222534.md`
