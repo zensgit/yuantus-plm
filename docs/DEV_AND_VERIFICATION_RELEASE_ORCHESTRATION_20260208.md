@@ -20,6 +20,7 @@ Execution order is `routing -> mbom -> baseline` (routing may unblock MBOM relea
       - `include_baselines` (default: `false`)
       - `dry_run` (default: `false`)
       - `continue_on_error` (default: `false`)
+      - `rollback_on_failure` (default: `false`)
       - `baseline_force` (default: `false`)
         - When `true`, baseline steps may execute even if baseline release diagnostics have errors (baseline-only). This does not bypass the e-sign gate.
 
@@ -53,3 +54,9 @@ When `include_baselines=true`, baseline release execution is blocked if an e-sig
   - `npx playwright test playwright/tests/release_orchestration.spec.js`
 - Strict gate evidence (PASS):
   - `docs/DAILY_REPORTS/STRICT_GATE_20260208-105603.md`
+
+## Notes
+
+- Rollback is best-effort and only applies to resources released during the current orchestration run:
+  - MBOM rollback steps are recorded as `kind=mbom_reopen`.
+  - Routing rollback steps are recorded as `kind=routing_reopen`.
