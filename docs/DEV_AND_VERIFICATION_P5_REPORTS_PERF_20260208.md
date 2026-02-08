@@ -23,6 +23,7 @@ This delivery adds a lightweight, reproducible performance harness for Phase 5 (
   - Weekly on Sunday 05:00 UTC
   - Runs the harness on SQLite and Postgres; uploads per-run reports and a trend snapshot as workflow artifacts (does not commit to git).
   - Downloads recent successful run artifacts as baselines and gates the current run (fails the workflow on regression beyond tolerance).
+  - On pull requests, runs only when relevant files change (paths filter) and uses smaller seed sizes to keep CI fast.
 
 ## Usage
 

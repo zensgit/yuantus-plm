@@ -266,6 +266,11 @@ def main() -> int:
         default="max",
         help="Statistic used for baseline aggregation (default: max)",
     )
+    parser.add_argument(
+        "--out",
+        default="",
+        help="Optional text output path for gate details (useful for CI artifacts).",
+    )
     args = parser.parse_args()
 
     candidates = [Path(p).resolve() for p in (args.candidate or []) if str(p).strip()]
@@ -283,11 +288,16 @@ def main() -> int:
 
     baseline_runs = _discover_reports(baseline_paths)
 
+    out_path = Path(args.out).resolve() if str(args.out or "").strip() else None
+    out_chunks: List[str] = []
+
     ok_all = True
     for cand_path in candidates:
         cand_run = _parse_report(cand_path)
         if not cand_run:
-            print(f"[gate] candidate={cand_path}: not a valid perf report; skip")
+            msg = f"[gate] candidate={cand_path}: not a valid perf report; skip"
+            print(msg)
+            out_chunks.append(msg)
             continue
 
         ok, details = _gate_one(
@@ -299,7 +309,13 @@ def main() -> int:
             stat=str(args.baseline_stat),
         )
         print(details)
+        out_chunks.append(details)
         ok_all = ok_all and ok
+
+    if out_path:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text("\n\n".join(out_chunks).rstrip() + "\n", encoding="utf-8")
+        print(f"[gate] wrote log: {out_path}")
 
     return 0 if ok_all else 1
 

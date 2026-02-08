@@ -5,6 +5,14 @@ on:
   schedule:
     # Weekly on Sunday 05:00 UTC
     - cron: "0 5 * * 0"
+  pull_request:
+    paths:
+      - ".github/workflows/perf-p5-reports.yml"
+      - "scripts/perf_p5_reports.py"
+      - "scripts/perf_p5_reports_trend.py"
+      - "scripts/perf_p5_reports_gate.py"
+      - "src/yuantus/meta_engine/reports/**"
+      - "src/yuantus/meta_engine/services/report_service.py"
 
 permissions:
   contents: read
@@ -14,6 +22,10 @@ jobs:
   perf:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      SEED_ITEMS: "5000"
+      SEED_JOBS: "500"
+      SEED_FILES: "500"
     services:
       postgres:
         image: postgres:16
@@ -45,13 +57,24 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e .
 
+      - name: Tune benchmark sizes (PR)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "SEED_ITEMS=2000" >> "$GITHUB_ENV"
+          echo "SEED_JOBS=200" >> "$GITHUB_ENV"
+          echo "SEED_FILES=200" >> "$GITHUB_ENV"
+
       - name: Run benchmark
         env:
           REPORT_PATH: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_CI_${{ github.run_id }}.md
         run: |
           set -euo pipefail
           . .venv/bin/activate
-          python scripts/perf_p5_reports.py --out "${REPORT_PATH}"
+          python scripts/perf_p5_reports.py \
+            --out "${REPORT_PATH}" \
+            --seed-items "${SEED_ITEMS}" \
+            --seed-jobs "${SEED_JOBS}" \
+            --seed-files "${SEED_FILES}"
 
       - name: Run benchmark (Postgres)
         env:
@@ -60,7 +83,12 @@ jobs:
         run: |
           set -euo pipefail
           . .venv/bin/activate
-          python scripts/perf_p5_reports.py --db-url "${PG_URL}" --out "${REPORT_PG_PATH}"
+          python scripts/perf_p5_reports.py \
+            --db-url "${PG_URL}" \
+            --out "${REPORT_PG_PATH}" \
+            --seed-items "${SEED_ITEMS}" \
+            --seed-jobs "${SEED_JOBS}" \
+            --seed-files "${SEED_FILES}"
 
       - name: Download baseline artifacts (best-effort)
         env:
@@ -115,9 +143,11 @@ jobs:
           REPORT_PATH: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_CI_${{ github.run_id }}.md
           REPORT_PG_PATH: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_PG_CI_${{ github.run_id }}.md
           BASELINE_DIR: tmp/perf-baseline
+          GATE_LOG_PATH: tmp/perf-gate/P5_REPORTS_GATE_CI_${{ github.run_id }}.txt
         run: |
           set -euo pipefail
           . .venv/bin/activate
+          mkdir -p "$(dirname "${GATE_LOG_PATH}")"
           python scripts/perf_p5_reports_gate.py \
             --candidate "${REPORT_PATH}" \
             --candidate "${REPORT_PG_PATH}" \
@@ -125,7 +155,16 @@ jobs:
             --window 5 \
             --pct 0.30 \
             --abs-ms 10 \
-            --baseline-stat max
+            --baseline-stat max \
+            --out "${GATE_LOG_PATH}"
+
+      - name: Upload perf gate log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-p5-reports-gate
+          path: tmp/perf-gate/P5_REPORTS_GATE_CI_${{ github.run_id }}.txt
+          if-no-files-found: warn
 
       - name: Generate trend snapshot
         env:
