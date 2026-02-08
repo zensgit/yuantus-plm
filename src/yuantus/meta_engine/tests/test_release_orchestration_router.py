@@ -45,6 +45,30 @@ def test_execute_denies_non_admin():
     assert resp.status_code == 403
 
 
+def test_execute_returns_400_when_ruleset_invalid():
+    user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    db.get.return_value = Item(
+        id="item-1",
+        item_type_id="Part",
+        config_id="CFG-1",
+        generation=1,
+        state="released",
+        properties={"item_number": "P-1"},
+    )
+
+    with patch("yuantus.meta_engine.web.release_orchestration_router.get_release_ruleset") as gr:
+        gr.side_effect = ValueError("Unknown ruleset: bad")
+        resp = client.post(
+            "/api/v1/release-orchestration/items/item-1/execute",
+            json={"ruleset_id": "bad"},
+        )
+
+    assert resp.status_code == 400
+    assert resp.json().get("detail") == "Unknown ruleset: bad"
+
+
 def test_plan_returns_steps_with_actions():
     user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
     client, db = _client_with_user(user)

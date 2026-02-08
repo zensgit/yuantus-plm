@@ -13,6 +13,7 @@ from yuantus.meta_engine.manufacturing.mbom_service import MBOMService
 from yuantus.meta_engine.manufacturing.routing_service import RoutingService
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.baseline_service import BaselineService
+from yuantus.meta_engine.services.release_validation import get_release_ruleset
 from yuantus.meta_engine.services.release_readiness_service import ReleaseReadinessService
 from yuantus.meta_engine.web.release_diagnostics_models import (
     ReleaseDiagnosticsResponse,
@@ -229,7 +230,17 @@ def execute_release_plan(
     if not item:
         raise HTTPException(status_code=404, detail=f"Item {item_id} not found")
 
-    ruleset_id = (req.ruleset_id or "default").strip()
+    ruleset_id = (req.ruleset_id or "default").strip() or "default"
+
+    try:
+        if req.include_routings:
+            get_release_ruleset("routing_release", ruleset_id)
+        if req.include_mboms:
+            get_release_ruleset("mbom_release", ruleset_id)
+        if req.include_baselines:
+            get_release_ruleset("baseline_release", ruleset_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # Select resources using the same listing logic as release readiness, so plan/execute stay aligned.
     readiness_svc = ReleaseReadinessService(db)
