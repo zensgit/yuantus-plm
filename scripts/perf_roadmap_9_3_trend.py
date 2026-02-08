@@ -24,6 +24,7 @@ class PerfRun:
     path: Path
     started: str
     git: str
+    db: str
     scenarios: Dict[str, ScenarioRow]
 
     @property
@@ -37,6 +38,7 @@ class PerfRun:
 
 _STARTED_RE = re.compile(r"^- Started: `([^`]+)`\s*$")
 _GIT_RE = re.compile(r"^- Git: `([^`]+)`\s*$")
+_DB_RE = re.compile(r"^- DB: `([^`]+)`\s*$")
 
 
 def _parse_report(path: Path) -> Optional[PerfRun]:
@@ -45,6 +47,7 @@ def _parse_report(path: Path) -> Optional[PerfRun]:
 
     started = ""
     git = ""
+    db = ""
 
     in_table = False
     scenarios: Dict[str, ScenarioRow] = {}
@@ -58,6 +61,11 @@ def _parse_report(path: Path) -> Optional[PerfRun]:
             m = _GIT_RE.match(line)
             if m:
                 git = m.group(1).strip()
+                continue
+        if not db:
+            m = _DB_RE.match(line)
+            if m:
+                db = m.group(1).strip()
                 continue
 
         if line.strip() == "| Scenario | Target | Measured | Status | Notes |":
@@ -96,7 +104,21 @@ def _parse_report(path: Path) -> Optional[PerfRun]:
     if not scenarios:
         return None
 
-    return PerfRun(path=path, started=started, git=git, scenarios=scenarios)
+    return PerfRun(path=path, started=started, git=git, db=db, scenarios=scenarios)
+
+
+def _db_label(db: str) -> str:
+    raw = (db or "").strip()
+    if not raw:
+        return "-"
+    s = raw.lower()
+    if s.startswith("sqlite:"):
+        return "sqlite"
+    if s.startswith("postgresql") or s.startswith("postgres:"):
+        return "postgres"
+    if s.startswith("mysql"):
+        return "mysql"
+    return raw.split(":", 1)[0] if ":" in raw else raw
 
 
 def _discover_runs(report_dir: Path) -> List[PerfRun]:
@@ -132,7 +154,7 @@ def _cell(run: PerfRun, scenario_name: str) -> str:
     return f"{status} {measured}"
 
 
-def _write_trend(out_path: Path, runs: List[PerfRun], *, limit: int) -> None:
+def _write_trend(out_path: Path, runs: List[PerfRun], *, report_dir: Path, limit: int) -> None:
     scenario_order = [
         "Dedup batch (1000 files) processing",
         "Config BOM calculation (500 levels)",
@@ -147,7 +169,12 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, limit: int) -> None:
     lines.append("# Roadmap 9.3 Performance Trend")
     lines.append("")
     lines.append(f"- Generated: `{now}`")
-    lines.append(f"- Source dir: `{out_path.parent.relative_to(REPO_ROOT)}`")
+    # Allow --dir outside the repo as well.
+    try:
+        source_dir = report_dir.relative_to(REPO_ROOT)
+    except ValueError:
+        source_dir = report_dir
+    lines.append(f"- Source dir: `{source_dir}`")
     lines.append(f"- Runs: `{len(runs)}` (showing latest `{min(limit, len(runs))}`)")
     lines.append("")
     lines.append("## Latest Runs")
@@ -156,6 +183,7 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, limit: int) -> None:
     header = [
         "Started",
         "Git",
+        "DB",
         "Overall",
         "Report",
         "Dedup 1000",
@@ -169,10 +197,14 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, limit: int) -> None:
     lines.append("| " + " | ".join(["---"] * len(header)) + " |")
 
     for run in runs[:limit]:
-        report_rel = str(run.path.relative_to(REPO_ROOT))
+        try:
+            report_rel = str(run.path.relative_to(REPO_ROOT))
+        except ValueError:
+            report_rel = str(run.path)
         row = [
             f"`{run.started}`",
             f"`{run.git}`" if run.git else "-",
+            f"`{_db_label(run.db)}`",
             run.overall,
             f"`{report_rel}`",
             _cell(run, scenario_order[0]),
@@ -189,6 +221,7 @@ def _write_trend(out_path: Path, runs: List[PerfRun], *, limit: int) -> None:
     lines.append("")
     lines.append("- `SKIP` typically indicates missing optional external dependencies (e.g. Dedup Vision sidecar).")
     lines.append("- Measured values are copied from each per-run report.")
+    lines.append("- DB is inferred from the per-run report DB URL.")
     lines.append("")
 
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -220,11 +253,10 @@ def main() -> int:
 
     runs = _discover_runs(report_dir)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    _write_trend(out_path, runs, limit=limit)
+    _write_trend(out_path, runs, report_dir=report_dir, limit=limit)
     print(f"Trend: {out_path}")
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

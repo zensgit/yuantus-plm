@@ -14,6 +14,20 @@ jobs:
   perf:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: yuantus
+          POSTGRES_PASSWORD: yuantus
+          POSTGRES_DB: yuantus_perf
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U yuantus -d yuantus_perf"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,6 +52,16 @@ jobs:
           set -euo pipefail
           . .venv/bin/activate
           python scripts/perf_roadmap_9_3.py --out "${REPORT_PATH}"
+
+      - name: Run benchmark (Postgres)
+        env:
+          REPORT_PG_PATH: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_PG_CI_${{ github.run_id }}.md
+          # When the job runs on the GitHub-hosted VM, service containers are reachable via localhost.
+          PG_URL: postgresql+psycopg://yuantus:yuantus@localhost:5432/yuantus_perf
+        run: |
+          set -euo pipefail
+          . .venv/bin/activate
+          python scripts/perf_roadmap_9_3.py --db-url "${PG_URL}" --out "${REPORT_PG_PATH}"
 
       - name: Download baseline artifacts (best-effort)
         env:
@@ -69,7 +93,7 @@ jobs:
               -H "Accept: application/vnd.github+json" \
               "${api}/actions/runs/${rid}/artifacts?per_page=100" || true)"
 
-            echo "${artifacts_json}" | jq -r '.artifacts[]? | select(.name=="perf-roadmap-9-3-report") | "\(.id) \(.name)"' | while read -r aid aname; do
+            echo "${artifacts_json}" | jq -r '.artifacts[]? | select(.name=="perf-roadmap-9-3-report" or .name=="perf-roadmap-9-3-report-pg") | "\(.id) \(.name)"' | while read -r aid aname; do
               if [ -z "${aid}" ]; then
                 continue
               fi
@@ -90,6 +114,7 @@ jobs:
       - name: Gate perf results against baseline window
         env:
           REPORT_PATH: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_CI_${{ github.run_id }}.md
+          REPORT_PG_PATH: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_PG_CI_${{ github.run_id }}.md
           BASELINE_DIR: tmp/perf-baseline
           GATE_LOG_PATH: tmp/perf-gate/ROADMAP_9_3_GATE_CI_${{ github.run_id }}.txt
         run: |
@@ -98,6 +123,7 @@ jobs:
           mkdir -p "$(dirname "${GATE_LOG_PATH}")"
           python scripts/perf_p5_reports_gate.py \
             --candidate "${REPORT_PATH}" \
+            --candidate "${REPORT_PG_PATH}" \
             --baseline-dir "${BASELINE_DIR}" \
             --baseline-glob "ROADMAP_9_3_*.md" \
             --window 5 \
@@ -128,6 +154,13 @@ jobs:
         with:
           name: perf-roadmap-9-3-report
           path: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_CI_${{ github.run_id }}.md
+
+      - name: Upload perf report (Postgres)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-roadmap-9-3-report-pg
+          path: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_PG_CI_${{ github.run_id }}.md
 
       - name: Upload perf trend snapshot
         if: always()
