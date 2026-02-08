@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import or_, cast, Float
+from sqlalchemy import String, or_, cast, Float
 from sqlalchemy.orm import Session
 
 from yuantus.meta_engine.models.item import Item
@@ -14,6 +14,21 @@ from yuantus.meta_engine.reports.models import SavedSearch
 class AdvancedSearchService:
     def __init__(self, session: Session):
         self.session = session
+
+    @staticmethod
+    def _json_text(expr):
+        """
+        JSON field to a string-ish SQL expression across dialects.
+
+        - SQLAlchemy 2 uses `.as_string()` (preferred).
+        - Older patterns used `.astext` (Postgres).
+        - Fallback to casting.
+        """
+        if hasattr(expr, "as_string"):
+            return expr.as_string()
+        if hasattr(expr, "astext"):
+            return expr.astext
+        return cast(expr, String)
 
     def search(
         self,
@@ -64,8 +79,8 @@ class AdvancedSearchService:
             query = query.filter(
                 or_(
                     Item.config_id.ilike(search_term),
-                    Item.properties["name"].astext.ilike(search_term),
-                    Item.properties["description"].astext.ilike(search_term),
+                    self._json_text(Item.properties["name"]).ilike(search_term),
+                    self._json_text(Item.properties["description"]).ilike(search_term),
                 )
             )
 
@@ -79,7 +94,7 @@ class AdvancedSearchService:
                 if hasattr(Item, field):
                     col = getattr(Item, field)
                 else:
-                    col = Item.properties[field].astext
+                    col = self._json_text(Item.properties[field])
 
                 if order == "desc":
                     query = query.order_by(col.desc())
@@ -132,7 +147,7 @@ class AdvancedSearchService:
         if hasattr(Item, field):
             column = getattr(Item, field)
         else:
-            column = Item.properties[field].astext
+            column = self._json_text(Item.properties[field])
 
         if op in {"eq", "="}:
             return query.filter(column == value)
