@@ -32,5 +32,5 @@ Run locally (default SQLite under `tmp/perf/`):
 
 ## Evidence
 
-- Latest report: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-203849.md`
+- Latest report: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-205601.md`
 - Trend: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND.md`
