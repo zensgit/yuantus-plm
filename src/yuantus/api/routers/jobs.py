@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import get_current_user_id_optional
@@ -59,6 +60,14 @@ def _sanitize_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     if "Authorization" in cleaned:
         cleaned["Authorization"] = "<redacted>"
     return cleaned
+
+
+def _json_text(expr):
+    if hasattr(expr, "as_string"):
+        return expr.as_string()
+    if hasattr(expr, "astext"):
+        return expr.astext
+    return cast(expr, String)
 
 
 def _build_job_diagnostics(job: ConversionJob, db: Session) -> Optional[Dict[str, Any]]:
@@ -204,7 +213,7 @@ def list_jobs(
     if task_type:
         q = q.filter(ConversionJob.task_type == task_type)
     if file_id:
-        q = q.filter(ConversionJob.payload["file_id"].astext == str(file_id))
+        q = q.filter(_json_text(ConversionJob.payload["file_id"]) == str(file_id))
 
     total = q.count()
     jobs: List[ConversionJob] = (
