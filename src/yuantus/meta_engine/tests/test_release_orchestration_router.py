@@ -131,6 +131,61 @@ def test_plan_returns_steps_with_actions():
     assert actions["baseline-1"] == "skip_errors"
 
 
+def test_plan_marks_baseline_step_requires_esign_when_manifest_incomplete():
+    user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    db.get.return_value = Item(
+        id="item-1",
+        item_type_id="Part",
+        config_id="CFG-1",
+        generation=1,
+        state="released",
+        properties={"item_number": "P-1"},
+    )
+
+    payload = {
+        "item_id": "item-1",
+        "generated_at": "2026-02-07T00:00:00Z",
+        "ruleset_id": "default",
+        "summary": {"ok": True},
+        "resources": [
+            {
+                "kind": "baseline_release",
+                "resource_type": "baseline",
+                "resource_id": "baseline-1",
+                "name": "B-1",
+                "state": "draft",
+                "ruleset_id": "default",
+                "errors": [],
+                "warnings": [],
+            }
+        ],
+        "esign_manifest": {
+            "manifest_id": "m-1",
+            "item_id": "item-1",
+            "generation": 1,
+            "is_complete": False,
+            "requirements": [
+                {"meaning": "approved", "required": True, "signed": False},
+            ],
+        },
+    }
+
+    with patch(
+        "yuantus.meta_engine.web.release_orchestration_router.ReleaseReadinessService.get_item_release_readiness"
+    ) as mocked:
+        mocked.return_value = payload
+        resp = client.get("/api/v1/release-orchestration/items/item-1/plan?ruleset_id=default")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    steps = data.get("steps") or []
+    baseline_step = next((s for s in steps if s.get("resource_id") == "baseline-1"), None)
+    assert baseline_step
+    assert baseline_step["action"] == "requires_esign"
+
+
 def test_execute_dry_run_does_not_call_release():
     user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
     client, db = _client_with_user(user)
@@ -285,4 +340,87 @@ def test_execute_stops_after_failure_when_continue_on_error_false():
 
         routing_svc.release_routing.assert_called()
         mbom_svc.release_mbom.assert_not_called()
+        baseline_svc.release_baseline.assert_not_called()
+
+
+def test_execute_blocks_baseline_when_esign_manifest_incomplete():
+    user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    db.get.return_value = Item(
+        id="item-1",
+        item_type_id="Part",
+        config_id="CFG-1",
+        generation=1,
+        state="released",
+        properties={"item_number": "P-1"},
+    )
+
+    baseline = SimpleNamespace(id="baseline-1", state="draft")
+
+    with (
+        patch("yuantus.meta_engine.web.release_orchestration_router.ReleaseReadinessService") as rr_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.RoutingService") as routing_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.MBOMService") as mbom_cls,
+        patch("yuantus.meta_engine.web.release_orchestration_router.BaselineService") as baseline_cls,
+    ):
+        rr = rr_cls.return_value
+        rr.list_mboms.return_value = []
+        rr.list_routings.return_value = []
+        rr.list_baselines.return_value = [baseline]
+        rr.get_esign_manifest_status.return_value = {
+            "manifest_id": "m-1",
+            "item_id": "item-1",
+            "generation": 1,
+            "is_complete": False,
+            "requirements": [
+                {"meaning": "approved", "required": True, "signed": False},
+            ],
+        }
+        rr.get_item_release_readiness.return_value = {
+            "item_id": "item-1",
+            "generated_at": "2026-02-07T00:00:00Z",
+            "ruleset_id": "default",
+            "summary": {"ok": True},
+            "resources": [],
+            "esign_manifest": rr.get_esign_manifest_status.return_value,
+        }
+
+        routing_svc = routing_cls.return_value
+        routing_svc.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+
+        mbom_svc = mbom_cls.return_value
+        mbom_svc.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+
+        baseline_svc = baseline_cls.return_value
+        baseline_svc.get_release_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+
+        resp = client.post(
+            "/api/v1/release-orchestration/items/item-1/execute",
+            json={
+                "include_routings": False,
+                "include_mboms": False,
+                "include_baselines": True,
+                "ruleset_id": "default",
+            },
+        )
+
+        assert resp.status_code == 200
+        data = resp.json()
+        results = data.get("results") or []
+        baseline_result = next((r for r in results if r.get("resource_id") == "baseline-1"), None)
+        assert baseline_result
+        assert baseline_result["status"] == "blocked_esign_incomplete"
         baseline_svc.release_baseline.assert_not_called()

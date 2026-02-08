@@ -132,6 +132,12 @@ class ReleaseOrchestrationExecuteResponse(BaseModel):
 
 def _plan_steps(readiness: ReleaseReadinessResponse) -> List[OrchestrationStep]:
     steps: List[OrchestrationStep] = []
+    esign_manifest = readiness.esign_manifest
+    esign_incomplete = (
+        isinstance(esign_manifest, dict)
+        and ("is_complete" in esign_manifest)
+        and (not bool(esign_manifest.get("is_complete")))
+    )
 
     for res in readiness.resources or []:
         kind = res.kind
@@ -145,6 +151,9 @@ def _plan_steps(readiness: ReleaseReadinessResponse) -> List[OrchestrationStep]:
             action = "skip_errors"
         else:
             action = "release"
+
+        if kind == "baseline_release" and action == "release" and esign_incomplete:
+            action = "requires_esign"
 
         steps.append(
             OrchestrationStep(
@@ -271,6 +280,35 @@ def execute_release_plan(
         return not bool(req.continue_on_error)
 
     abort = False
+
+    esign_status: Any = None
+    esign_incomplete = False
+    missing_required_meanings: List[str] = []
+    if req.include_baselines:
+        try:
+            esign_status = readiness_svc.get_esign_manifest_status(item_id=item_id)
+        except Exception:
+            esign_status = None
+        if (
+            isinstance(esign_status, dict)
+            and ("is_complete" in esign_status)
+            and (not bool(esign_status.get("is_complete")))
+        ):
+            esign_incomplete = True
+            try:
+                reqs = esign_status.get("requirements") or []
+                for entry in reqs:
+                    if not isinstance(entry, dict):
+                        continue
+                    if not bool(entry.get("required")):
+                        continue
+                    if bool(entry.get("signed")):
+                        continue
+                    meaning = (entry.get("meaning") or "").strip()
+                    if meaning:
+                        missing_required_meanings.append(meaning)
+            except Exception:
+                missing_required_meanings = []
 
     # 1) Routings (may unblock MBOM release rules that require released routing).
     if req.include_routings and not abort:
@@ -446,6 +484,27 @@ def execute_release_plan(
                     state_after=state_before,
                     diagnostics=diagnostics,
                 )
+                continue
+
+            if esign_incomplete:
+                message = "Electronic signature manifest incomplete"
+                if missing_required_meanings:
+                    shown = missing_required_meanings[:10]
+                    suffix = "" if len(missing_required_meanings) <= 10 else ", ..."
+                    message = f"{message}; missing required meanings: {', '.join(shown)}{suffix}"
+                _record(
+                    kind="baseline_release",
+                    resource_type="baseline",
+                    resource_id=bid,
+                    status="blocked_esign_incomplete",
+                    state_before=state_before,
+                    state_after=state_before,
+                    diagnostics=diagnostics,
+                    message=message,
+                )
+                if _should_stop_on_failure():
+                    abort = True
+                    break
                 continue
 
             if req.dry_run:

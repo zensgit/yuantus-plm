@@ -22,6 +22,13 @@ Execution order is `routing -> mbom -> baseline` (routing may unblock MBOM relea
       - `continue_on_error` (default: `false`)
       - `baseline_force` (default: `false`)
 
+## E-Sign Gate (Baseline Only)
+
+When `include_baselines=true`, baseline release execution is blocked if an e-sign manifest exists for the Item and `is_complete=false`.
+
+- Plan: baseline steps will show `action=requires_esign` when blocked.
+- Execute: baseline results will show `status=blocked_esign_incomplete` when blocked.
+
 ## Implementation
 
 - Router: `src/yuantus/meta_engine/web/release_orchestration_router.py`
@@ -45,4 +52,3 @@ Execution order is `routing -> mbom -> baseline` (routing may unblock MBOM relea
   - `npx playwright test playwright/tests/release_orchestration.spec.js`
 - Strict gate evidence (PASS):
   - `docs/DAILY_REPORTS/STRICT_GATE_20260208-105603.md`
-
