@@ -66,6 +66,7 @@ This change extracts a generic performance baseline gate into a reusable script 
   - `db_overrides`: per-DB thresholds (currently `postgres`)
   - `profiles`: per-harness `baseline_glob` (and optional threshold overrides)
 - Tuning guide: `docs/RUNBOOK_PERF_GATE_CONFIG.md`
+- CI guard: `pytest -q src/yuantus/meta_engine/tests/test_perf_gate_config_file.py`
 
 ## Verification
 
