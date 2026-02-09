@@ -8,16 +8,22 @@ on:
   pull_request:
     paths:
       - ".github/workflows/perf-p5-reports.yml"
+      - "configs/perf_gate.json"
       - "scripts/perf_p5_reports.py"
       - "scripts/perf_p5_reports_trend.py"
       - "scripts/perf_p5_reports_gate.py"
       - "scripts/perf_gate.py"
+      - "scripts/perf_ci_download_baselines.sh"
       - "src/yuantus/meta_engine/reports/**"
       - "src/yuantus/meta_engine/services/report_service.py"
 
 permissions:
   contents: read
   actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   perf:
@@ -99,46 +105,12 @@ jobs:
           BASELINE_RUNS: "5"
         run: |
           set -euo pipefail
-          mkdir -p "${BASELINE_DIR}"
-
-          api="https://api.github.com/repos/${GITHUB_REPOSITORY}"
-          echo "Fetching baseline workflow runs for perf-p5-reports..."
-
-          runs_json="$(curl -fsSL \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${api}/actions/workflows/perf-p5-reports.yml/runs?branch=main&status=success&per_page=20" || true)"
-
-          run_ids="$(echo "${runs_json}" | jq -r '.workflow_runs[]?.id' | head -n "${BASELINE_RUNS}" || true)"
-          if [ -z "${run_ids}" ]; then
-            echo "No baseline runs found; continuing without baselines."
-            exit 0
-          fi
-
-          for rid in ${run_ids}; do
-            echo "Baseline run: ${rid}"
-            artifacts_json="$(curl -fsSL \
-              -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "${api}/actions/runs/${rid}/artifacts?per_page=100" || true)"
-
-            echo "${artifacts_json}" | jq -r '.artifacts[]? | select(.name=="perf-p5-reports-report" or .name=="perf-p5-reports-report-pg") | "\(.id) \(.name)"' | while read -r aid aname; do
-              if [ -z "${aid}" ]; then
-                continue
-              fi
-              zip_path="${BASELINE_DIR}/${rid}-${aname}.zip"
-              echo "  - downloading artifact ${aname} (${aid})"
-              curl -fsSL -L \
-                -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                -H "Accept: application/vnd.github+json" \
-                "${api}/actions/artifacts/${aid}/zip" \
-                -o "${zip_path}" || true
-              unzip -q "${zip_path}" -d "${BASELINE_DIR}" || true
-            done
-          done
-
-          echo "Baseline reports:"
-          (ls -1 "${BASELINE_DIR}" | head -n 50) || true
+          bash scripts/perf_ci_download_baselines.sh \
+            --workflow perf-p5-reports.yml \
+            --artifact perf-p5-reports-report \
+            --artifact perf-p5-reports-report-pg \
+            --baseline-runs "${BASELINE_RUNS}" \
+            --baseline-dir "${BASELINE_DIR}"
 
       - name: Gate perf results against baseline window
         env:
@@ -151,16 +123,11 @@ jobs:
           . .venv/bin/activate
           mkdir -p "$(dirname "${GATE_LOG_PATH}")"
           python scripts/perf_gate.py \
+            --config configs/perf_gate.json \
+            --profile p5_reports \
             --candidate "${REPORT_PATH}" \
             --candidate "${REPORT_PG_PATH}" \
             --baseline-dir "${BASELINE_DIR}" \
-            --baseline-glob "P5_REPORTS_PERF_*.md" \
-            --window 5 \
-            --pct 0.30 \
-            --abs-ms 10 \
-            --db-pct postgres=0.50 \
-            --db-abs-ms postgres=15 \
-            --baseline-stat max \
             --out "${GATE_LOG_PATH}"
 
       - name: Upload perf gate log

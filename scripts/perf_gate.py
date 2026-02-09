@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import statistics
 from dataclasses import dataclass
@@ -250,8 +251,43 @@ def _parse_db_overrides(items: Iterable[str], *, flag_name: str) -> Dict[str, fl
     return out
 
 
+def _load_config(path: Path) -> Dict:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid JSON in --config {path}: {exc}") from exc
+    if not isinstance(data, dict):
+        raise SystemExit(f"Invalid --config {path}: expected a JSON object")
+    return data
+
+
+def _as_int(value, *, field: str) -> int:
+    try:
+        return int(value)
+    except Exception as exc:
+        raise SystemExit(f"Invalid config field '{field}': expected int") from exc
+
+
+def _as_float(value, *, field: str) -> float:
+    try:
+        return float(value)
+    except Exception as exc:
+        raise SystemExit(f"Invalid config field '{field}': expected number") from exc
+
+
 def main(argv: Optional[List[str]] = None, *, default_baseline_glob: str = "*.md") -> int:
     parser = argparse.ArgumentParser(description="Gate perf reports against a baseline window")
+    parser.add_argument(
+        "--config",
+        default="",
+        help="Optional JSON config file for defaults and per-DB overrides.",
+    )
+    parser.add_argument(
+        "--profile",
+        default="",
+        help="Optional config profile name (e.g. p5_reports, roadmap_9_3).",
+    )
     parser.add_argument(
         "--candidate",
         action="append",
@@ -265,26 +301,26 @@ def main(argv: Optional[List[str]] = None, *, default_baseline_glob: str = "*.md
     )
     parser.add_argument(
         "--baseline-glob",
-        default=default_baseline_glob,
+        default=None,
         help=f"Baseline report glob (searched recursively under --baseline-dir). Default: {default_baseline_glob}",
     )
     parser.add_argument(
         "--window",
         type=int,
-        default=5,
-        help="Baseline sliding window size (default: 5)",
+        default=None,
+        help="Baseline sliding window size (default: 5; can be set in --config).",
     )
     parser.add_argument(
         "--pct",
         type=float,
-        default=0.30,
-        help="Allowed regression percentage over baseline (default: 0.30)",
+        default=None,
+        help="Allowed regression percentage over baseline (default: 0.30; can be set in --config).",
     )
     parser.add_argument(
         "--abs-ms",
         type=float,
-        default=10.0,
-        help="Allowed absolute regression in ms (default: 10ms)",
+        default=None,
+        help="Allowed absolute regression in ms (default: 10ms; can be set in --config).",
     )
     parser.add_argument(
         "--db-pct",
@@ -301,8 +337,8 @@ def main(argv: Optional[List[str]] = None, *, default_baseline_glob: str = "*.md
     parser.add_argument(
         "--baseline-stat",
         choices=["max", "median"],
-        default="max",
-        help="Statistic used for baseline aggregation (default: max)",
+        default=None,
+        help="Statistic used for baseline aggregation (default: max; can be set in --config).",
     )
     parser.add_argument(
         "--out",
@@ -315,13 +351,105 @@ def main(argv: Optional[List[str]] = None, *, default_baseline_glob: str = "*.md
     if not candidates:
         raise SystemExit("No --candidate reports provided")
 
-    pct_overrides = _parse_db_overrides(args.db_pct or [], flag_name="--db-pct")
-    abs_overrides = _parse_db_overrides(args.db_abs_ms or [], flag_name="--db-abs-ms")
+    config: Dict = {}
+    profile: Dict = {}
+    if str(args.config or "").strip():
+        config_path = Path(args.config).resolve()
+        config = _load_config(config_path)
+
+        profiles = config.get("profiles", {})
+        if args.profile:
+            if not isinstance(profiles, dict):
+                raise SystemExit("Invalid --config: 'profiles' must be an object")
+            if str(args.profile) not in profiles:
+                raise SystemExit(f"Unknown --profile '{args.profile}' in --config {config_path}")
+            profile = profiles.get(str(args.profile)) or {}
+            if not isinstance(profile, dict):
+                raise SystemExit(f"Invalid --config: profile '{args.profile}' must be an object")
+
+    defaults = config.get("defaults", {}) if config else {}
+    if defaults and not isinstance(defaults, dict):
+        raise SystemExit("Invalid --config: 'defaults' must be an object")
+
+    # Resolve effective base thresholds from: CLI > profile > defaults > built-in defaults.
+    window = int(args.window) if args.window is not None else None
+    pct = float(args.pct) if args.pct is not None else None
+    abs_ms = float(args.abs_ms) if args.abs_ms is not None else None
+    baseline_stat = str(args.baseline_stat) if args.baseline_stat is not None else None
+
+    if window is None:
+        if "window" in profile:
+            window = _as_int(profile.get("window"), field="profiles.<name>.window")
+        elif "window" in defaults:
+            window = _as_int(defaults.get("window"), field="defaults.window")
+        else:
+            window = 5
+    window = max(1, int(window))
+
+    if baseline_stat is None:
+        if "baseline_stat" in profile:
+            baseline_stat = str(profile.get("baseline_stat"))
+        elif "baseline_stat" in defaults:
+            baseline_stat = str(defaults.get("baseline_stat"))
+        else:
+            baseline_stat = "max"
+    if baseline_stat not in {"max", "median"}:
+        raise SystemExit(f"Invalid baseline_stat: {baseline_stat} (expected max|median)")
+
+    if pct is None:
+        if "pct" in profile:
+            pct = _as_float(profile.get("pct"), field="profiles.<name>.pct")
+        elif "pct" in defaults:
+            pct = _as_float(defaults.get("pct"), field="defaults.pct")
+        else:
+            pct = 0.30
+
+    if abs_ms is None:
+        if "abs_ms" in profile:
+            abs_ms = _as_float(profile.get("abs_ms"), field="profiles.<name>.abs_ms")
+        elif "abs_ms" in defaults:
+            abs_ms = _as_float(defaults.get("abs_ms"), field="defaults.abs_ms")
+        else:
+            abs_ms = 10.0
+
+    cfg_glob: Optional[str] = None
+    if "baseline_glob" in profile:
+        cfg_glob = str(profile.get("baseline_glob") or "").strip() or None
+    elif config and "baseline_glob" in config:
+        cfg_glob = str(config.get("baseline_glob") or "").strip() or None
+    baseline_glob = (str(args.baseline_glob).strip() if args.baseline_glob is not None else "") or (cfg_glob or "")
+    baseline_glob = baseline_glob or default_baseline_glob
+
+    cfg_db_overrides: Dict[str, Dict] = {}
+    if config and "db_overrides" in config:
+        if not isinstance(config.get("db_overrides"), dict):
+            raise SystemExit("Invalid --config: 'db_overrides' must be an object")
+        cfg_db_overrides.update(config.get("db_overrides") or {})
+    if profile and "db_overrides" in profile:
+        if not isinstance(profile.get("db_overrides"), dict):
+            raise SystemExit("Invalid --config: profile 'db_overrides' must be an object")
+        cfg_db_overrides.update(profile.get("db_overrides") or {})
+
+    cfg_pct_overrides: Dict[str, float] = {}
+    cfg_abs_overrides: Dict[str, float] = {}
+    for label_raw, ov in cfg_db_overrides.items():
+        if not isinstance(ov, dict):
+            raise SystemExit("Invalid --config: db_overrides values must be objects")
+        label = str(label_raw).strip().lower()
+        if not label:
+            continue
+        if "pct" in ov:
+            cfg_pct_overrides[label] = _as_float(ov.get("pct"), field=f"db_overrides.{label}.pct")
+        if "abs_ms" in ov:
+            cfg_abs_overrides[label] = _as_float(ov.get("abs_ms"), field=f"db_overrides.{label}.abs_ms")
+
+    # CLI overrides take precedence over config overrides.
+    pct_overrides = {**cfg_pct_overrides, **_parse_db_overrides(args.db_pct or [], flag_name="--db-pct")}
+    abs_overrides = {**cfg_abs_overrides, **_parse_db_overrides(args.db_abs_ms or [], flag_name="--db-abs-ms")}
 
     baseline_dir = Path(args.baseline_dir).resolve() if args.baseline_dir else None
     baseline_paths: List[Path] = []
     if baseline_dir and baseline_dir.exists():
-        baseline_glob = str(args.baseline_glob or "").strip() or default_baseline_glob
         baseline_paths = list(baseline_dir.rglob(baseline_glob))
 
     # Avoid comparing a candidate report against itself when --baseline-dir overlaps.
@@ -343,16 +471,16 @@ def main(argv: Optional[List[str]] = None, *, default_baseline_glob: str = "*.md
             continue
 
         label = _db_label(cand_run.db)
-        pct = pct_overrides.get(label, float(args.pct))
-        abs_ms = abs_overrides.get(label, float(args.abs_ms))
+        pct_for_db = pct_overrides.get(label, float(pct))
+        abs_ms_for_db = abs_overrides.get(label, float(abs_ms))
 
         ok, details = _gate_one(
             candidate=cand_run,
             baselines=baseline_runs,
-            window=int(args.window),
-            pct=pct,
-            abs_ms=abs_ms,
-            stat=str(args.baseline_stat),
+            window=int(window),
+            pct=float(pct_for_db),
+            abs_ms=float(abs_ms_for_db),
+            stat=str(baseline_stat),
         )
         print(details)
         out_chunks.append(details)
@@ -368,4 +496,3 @@ def main(argv: Optional[List[str]] = None, *, default_baseline_glob: str = "*.md
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

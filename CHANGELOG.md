@@ -5,10 +5,14 @@
 ### Added
 - Perf gate: add generic baseline gate script `scripts/perf_gate.py` (supports DB-specific overrides like `--db-pct postgres=0.50`).
 - Perf CI: `perf-roadmap-9-3` also runs on pull requests via paths filter.
+- Perf CI helper: add baseline artifact downloader script `scripts/perf_ci_download_baselines.sh` (shared by perf workflows; best-effort).
+- Perf gate config: add `configs/perf_gate.json` (defaults + per-profile baseline globs + per-DB overrides).
 
 ### Changed
 - Perf CI: `perf-p5-reports` and `perf-roadmap-9-3` now use `scripts/perf_gate.py` (wrapper `scripts/perf_p5_reports_gate.py` kept for compatibility).
 - Perf gate: relax Postgres thresholds (`pct=0.50`, `abs-ms=15ms`) while keeping SQLite thresholds unchanged.
+- Perf gate: support config-driven defaults and profiles via `--config` and `--profile` (CLI flags still override config).
+- Perf CI: perf workflows now use config-driven gate invocation and add `concurrency.cancel-in-progress` to reduce wasted CI.
 
 ### Verification
 - Results logged in `docs/VERIFICATION_RESULTS.md`.

@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "defaults": {
+    "window": 5,
+    "baseline_stat": "max",
+    "pct": 0.30,
+    "abs_ms": 10
+  },
+  "db_overrides": {
+    "postgres": {
+      "pct": 0.50,
+      "abs_ms": 15
+    }
+  },
+  "profiles": {
+    "p5_reports": {
+      "baseline_glob": "P5_REPORTS_PERF_*.md"
+    },
+    "roadmap_9_3": {
+      "baseline_glob": "ROADMAP_9_3_*.md"
+    }
+  }
+}
+
