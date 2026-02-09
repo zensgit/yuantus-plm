@@ -8,6 +8,8 @@ This delivery adds a lightweight, reproducible performance harness for Phase 5 (
 - Trend generator: `scripts/perf_p5_reports_trend.py`
 - Baseline gate: `scripts/perf_gate.py` (compare candidate report(s) vs recent baselines)
   - Backward-compatible wrapper: `scripts/perf_p5_reports_gate.py`
+- Gate config (used by CI, optional locally): `configs/perf_gate.json`
+- CI baseline downloader (best-effort): `scripts/perf_ci_download_baselines.sh`
 - Output directory: `docs/PERFORMANCE_REPORTS/`
 
 ## Scenarios
@@ -23,8 +25,9 @@ This delivery adds a lightweight, reproducible performance harness for Phase 5 (
 - Workflow: `.github/workflows/perf-p5-reports.yml`
   - Weekly on Sunday 05:00 UTC
   - Runs the harness on SQLite and Postgres; uploads per-run reports and a trend snapshot as workflow artifacts (does not commit to git).
-  - Downloads recent successful run artifacts as baselines and gates the current run (fails the workflow on regression beyond tolerance).
+  - Downloads recent successful run artifacts as baselines (best-effort) and gates the current run (fails the workflow on regression beyond tolerance).
   - On pull requests, runs only when relevant files change (paths filter) and uses smaller seed sizes to keep CI fast.
+  - Uses `concurrency.cancel-in-progress` to avoid wasting CI on rapid PR pushes.
 
 ## CI Evidence
 
@@ -52,14 +55,11 @@ Gate a candidate run against a local baseline directory (example):
 
 ```bash
 python scripts/perf_gate.py \
+  --config configs/perf_gate.json \
+  --profile p5_reports \
   --candidate docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-211413.md \
   --baseline-dir docs/PERFORMANCE_REPORTS \
-  --baseline-glob "P5_REPORTS_PERF_*.md" \
-  --window 5 \
-  --pct 0.30 \
-  --abs-ms 10 \
-  --db-pct postgres=0.50 \
-  --db-abs-ms postgres=15
+  --out tmp/perf-gate/p5_reports_gate_example.txt
 ```
 
 ## Evidence

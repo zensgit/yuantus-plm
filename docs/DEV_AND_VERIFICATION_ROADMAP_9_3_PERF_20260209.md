@@ -14,13 +14,14 @@ Make the `perf-roadmap-9-3` GitHub Actions workflow run the Roadmap 9.3 performa
   - SQLite report: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_CI_${{ github.run_id }}.md`
   - Postgres report: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_PG_CI_${{ github.run_id }}.md`
   - Postgres URL (GitHub-hosted runner): `postgresql+psycopg://yuantus:yuantus@localhost:5432/yuantus_perf`
-- Baseline download now fetches both artifacts from recent successful runs:
+- Baseline download now fetches both artifacts from recent successful runs (best-effort) via `scripts/perf_ci_download_baselines.sh`:
   - `perf-roadmap-9-3-report`
   - `perf-roadmap-9-3-report-pg`
 - Gate step now gates **two candidates** in one invocation and writes one log:
   - `python scripts/perf_gate.py --candidate <sqlite> --candidate <pg> ... --out <gate_log>`
 - Uploads additional artifact:
   - `perf-roadmap-9-3-report-pg`
+ - Uses `concurrency.cancel-in-progress` to avoid wasting CI on rapid PR pushes.
 
 ### 2) Trend: add DB column
 
@@ -44,7 +45,10 @@ When `perf-roadmap-9-3` runs, it should publish:
 
 ## Gate Policy Details
 
-The gate is implemented by `scripts/perf_gate.py` (with `scripts/perf_p5_reports_gate.py` kept as a backward-compatible wrapper) and configured in CI as:
+The gate is implemented by `scripts/perf_gate.py` (with `scripts/perf_p5_reports_gate.py` kept as a backward-compatible wrapper) and configured in CI via:
+
+- Config file: `configs/perf_gate.json`
+- Profile: `roadmap_9_3`
 
 - baseline window: `5` recent successful workflow runs
 - baseline stat: `max`
