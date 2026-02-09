@@ -7,11 +7,17 @@
 - PR checks (PR #76):
   - `perf-p5-reports` run `21814459187` (success)
   - `perf-roadmap-9-3` run `21814459189` (success)
+- PR checks (PR #79, config/baseline refactor):
+  - `perf-p5-reports` run `21823036492` (success)
+  - `perf-roadmap-9-3` run `21823036504` (success)
 - Main runs (workflow_dispatch):
   - `perf-p5-reports` run `21821935491` (success)
   - `perf-roadmap-9-3` run `21821935636` (success)
 - Notes:
   - Gate script: `scripts/perf_gate.py` (DB-aware; supports per-DB overrides)
+  - Gate config: `configs/perf_gate.json` (defaults + profiles + `postgres` overrides)
+  - Baseline downloader: `scripts/perf_ci_download_baselines.sh` (best-effort, shared by perf workflows)
+  - CI optimization: perf workflows use `concurrency.cancel-in-progress`
   - Postgres thresholds in CI: `pct=0.50`, `abs-ms=15ms` (SQLite unchanged)
 
 ## 2026-02-09 Perf (PASS) - Roadmap 9.3 (SQLite + Postgres)
