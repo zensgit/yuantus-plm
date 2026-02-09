@@ -13,6 +13,9 @@
 - Main runs (workflow_dispatch):
   - `perf-p5-reports` run `21821935491` (success)
   - `perf-roadmap-9-3` run `21821935636` (success)
+- Main runs (workflow_dispatch, post-refactor):
+  - `perf-p5-reports` run `21832779252` (success)
+  - `perf-roadmap-9-3` run `21832780373` (success)
 - Notes:
   - Gate script: `scripts/perf_gate.py` (DB-aware; supports per-DB overrides)
   - Gate config: `configs/perf_gate.json` (defaults + profiles + `postgres` overrides)

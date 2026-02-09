@@ -86,3 +86,6 @@ pytest -q src/yuantus/meta_engine/tests/test_perf_gate_cli.py
 - Refactor PR checks (PR #79):
   - `perf-p5-reports` run `21823036492` (success)
   - `perf-roadmap-9-3` run `21823036504` (success)
+- Refactor main runs (workflow_dispatch):
+  - `perf-p5-reports` run `21832779252` (success)
+  - `perf-roadmap-9-3` run `21832780373` (success)
