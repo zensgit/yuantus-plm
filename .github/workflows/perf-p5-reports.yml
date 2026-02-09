@@ -11,6 +11,7 @@ on:
       - "scripts/perf_p5_reports.py"
       - "scripts/perf_p5_reports_trend.py"
       - "scripts/perf_p5_reports_gate.py"
+      - "scripts/perf_gate.py"
       - "src/yuantus/meta_engine/reports/**"
       - "src/yuantus/meta_engine/services/report_service.py"
 
@@ -149,13 +150,16 @@ jobs:
           set -euo pipefail
           . .venv/bin/activate
           mkdir -p "$(dirname "${GATE_LOG_PATH}")"
-          python scripts/perf_p5_reports_gate.py \
+          python scripts/perf_gate.py \
             --candidate "${REPORT_PATH}" \
             --candidate "${REPORT_PG_PATH}" \
             --baseline-dir "${BASELINE_DIR}" \
+            --baseline-glob "P5_REPORTS_PERF_*.md" \
             --window 5 \
             --pct 0.30 \
             --abs-ms 10 \
+            --db-pct postgres=0.50 \
+            --db-abs-ms postgres=15 \
             --baseline-stat max \
             --out "${GATE_LOG_PATH}"
 

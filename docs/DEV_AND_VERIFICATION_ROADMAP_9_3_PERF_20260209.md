@@ -18,7 +18,7 @@ Make the `perf-roadmap-9-3` GitHub Actions workflow run the Roadmap 9.3 performa
   - `perf-roadmap-9-3-report`
   - `perf-roadmap-9-3-report-pg`
 - Gate step now gates **two candidates** in one invocation and writes one log:
-  - `python scripts/perf_p5_reports_gate.py --candidate <sqlite> --candidate <pg> ... --out <gate_log>`
+  - `python scripts/perf_gate.py --candidate <sqlite> --candidate <pg> ... --out <gate_log>`
 - Uploads additional artifact:
   - `perf-roadmap-9-3-report-pg`
 
@@ -44,13 +44,18 @@ When `perf-roadmap-9-3` runs, it should publish:
 
 ## Gate Policy Details
 
-The gate is implemented by `scripts/perf_p5_reports_gate.py` and configured in CI as:
+The gate is implemented by `scripts/perf_gate.py` (with `scripts/perf_p5_reports_gate.py` kept as a backward-compatible wrapper) and configured in CI as:
 
 - baseline window: `5` recent successful workflow runs
 - baseline stat: `max`
-- allowed regression: `+30%` AND `>= 10ms` absolute regression
+- allowed regression (sqlite): `+30%` AND `>= 10ms` absolute regression
+- allowed regression (postgres): `+50%` AND `>= 15ms` absolute regression
 
 Important: gating is **DB-aware**. The gate script infers a DB label from each report’s `- DB:` URL and only compares candidates against baseline reports with the same DB label (sqlite vs postgres).
+
+## PR Trigger (Paths Filter)
+
+`perf-roadmap-9-3` also runs on pull requests when perf-related files change (paths filter in `.github/workflows/perf-roadmap-9-3.yml`).
 
 ## Verification (Executed)
 
@@ -90,7 +95,7 @@ docker rm -f yuantus-roadmap93-pg
 ### Script sanity
 
 ```bash
-python3 -m py_compile scripts/perf_roadmap_9_3_trend.py scripts/perf_p5_reports_gate.py
+python3 -m py_compile scripts/perf_roadmap_9_3_trend.py scripts/perf_gate.py scripts/perf_p5_reports_gate.py
 ```
 
 ### CI verification (workflow_dispatch)

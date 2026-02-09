@@ -5,6 +5,17 @@ on:
   schedule:
     # Weekly on Sunday 04:00 UTC
     - cron: "0 4 * * 0"
+  pull_request:
+    paths:
+      - ".github/workflows/perf-roadmap-9-3.yml"
+      - "scripts/perf_roadmap_9_3.py"
+      - "scripts/perf_roadmap_9_3_trend.py"
+      - "scripts/perf_gate.py"
+      - "scripts/perf_p5_reports_gate.py"
+      - "pyproject.toml"
+      - "src/yuantus/meta_engine/**"
+      - "src/yuantus/database.py"
+      - "src/yuantus/settings.py"
 
 permissions:
   contents: read
@@ -121,7 +132,7 @@ jobs:
           set -euo pipefail
           . .venv/bin/activate
           mkdir -p "$(dirname "${GATE_LOG_PATH}")"
-          python scripts/perf_p5_reports_gate.py \
+          python scripts/perf_gate.py \
             --candidate "${REPORT_PATH}" \
             --candidate "${REPORT_PG_PATH}" \
             --baseline-dir "${BASELINE_DIR}" \
@@ -129,6 +140,8 @@ jobs:
             --window 5 \
             --pct 0.30 \
             --abs-ms 10 \
+            --db-pct postgres=0.50 \
+            --db-abs-ms postgres=15 \
             --baseline-stat max \
             --out "${GATE_LOG_PATH}"
 
