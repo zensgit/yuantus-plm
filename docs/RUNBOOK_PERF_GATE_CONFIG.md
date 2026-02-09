@@ -124,6 +124,12 @@ pytest -q \
   src/yuantus/meta_engine/tests/test_perf_gate_config_file.py
 ```
 
+Optional sanity (CI helper script syntax):
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py
+```
+
 ### 2) Run a local gate (example)
 
 ```bash

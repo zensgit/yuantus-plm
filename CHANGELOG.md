@@ -9,6 +9,7 @@
 - Perf gate config: add `configs/perf_gate.json` (defaults + per-profile baseline globs + per-DB overrides).
 - Perf gate docs: add tuning runbook `docs/RUNBOOK_PERF_GATE_CONFIG.md`.
 - Perf gate CI guard: validate `configs/perf_gate.json` via unit test.
+- Perf CI guard: validate `scripts/perf_ci_download_baselines.sh` syntax and `--help` via unit test.
 
 ### Changed
 - Perf CI: `perf-p5-reports` and `perf-roadmap-9-3` now use `scripts/perf_gate.py` (wrapper `scripts/perf_p5_reports_gate.py` kept for compatibility).

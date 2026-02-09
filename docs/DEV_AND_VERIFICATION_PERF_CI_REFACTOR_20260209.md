@@ -59,6 +59,7 @@ This change refactors perf CI plumbing so both perf workflows share baseline-dow
 python3 -m py_compile scripts/perf_gate.py scripts/perf_p5_reports_gate.py
 pytest -q src/yuantus/meta_engine/tests/test_perf_gate_cli.py
 pytest -q src/yuantus/meta_engine/tests/test_perf_gate_config_file.py
+pytest -q src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py
 ```
 
 ### CI evidence
