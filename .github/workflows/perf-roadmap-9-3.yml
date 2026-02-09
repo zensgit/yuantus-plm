@@ -12,11 +12,16 @@ on:
       - "scripts/perf_roadmap_9_3.py"
       - "scripts/perf_roadmap_9_3_trend.py"
       - "scripts/perf_gate.py"
-      - "scripts/perf_p5_reports_gate.py"
       - "scripts/perf_ci_download_baselines.sh"
       - "pyproject.toml"
-      - "src/yuantus/meta_engine/**"
+      - "src/yuantus/meta_engine/bootstrap.py"
+      - "src/yuantus/meta_engine/dedup/**"
+      - "src/yuantus/meta_engine/esign/**"
+      - "src/yuantus/meta_engine/models/**"
+      - "src/yuantus/meta_engine/services/**"
+      - "src/yuantus/meta_engine/tasks/**"
       - "src/yuantus/database.py"
+      - "src/yuantus/security/rbac/**"
       - "src/yuantus/settings.py"
 
 permissions:
