@@ -26,6 +26,11 @@ This delivery adds a lightweight, reproducible performance harness for Phase 5 (
   - Downloads recent successful run artifacts as baselines and gates the current run (fails the workflow on regression beyond tolerance).
   - On pull requests, runs only when relevant files change (paths filter) and uses smaller seed sizes to keep CI fast.
 
+## CI Evidence
+
+- PR check run (PR #76): `perf-p5-reports` run `21814459187` (success)
+- Main run (workflow_dispatch): `perf-p5-reports` run `21821935491` (success)
+
 ## Usage
 
 Run locally (default SQLite under `tmp/perf/`):
