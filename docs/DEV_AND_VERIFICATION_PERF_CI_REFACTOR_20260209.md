@@ -60,7 +60,6 @@ pytest -q src/yuantus/meta_engine/tests/test_perf_gate_cli.py
 
 ### CI evidence
 
-- PR checks: (fill after PR CI completes)
-  - `perf-p5-reports`: run `<run_id>` (success)
-  - `perf-roadmap-9-3`: run `<run_id>` (success)
-
+- PR checks (PR #79):
+  - `perf-p5-reports`: run `21823036492` (success)
+  - `perf-roadmap-9-3`: run `21823036504` (success)

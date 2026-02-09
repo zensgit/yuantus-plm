@@ -32,6 +32,7 @@ This delivery adds a lightweight, reproducible performance harness for Phase 5 (
 ## CI Evidence
 
 - PR check run (PR #76): `perf-p5-reports` run `21814459187` (success)
+- Refactor PR check (PR #79): `perf-p5-reports` run `21823036492` (success)
 - Main run (workflow_dispatch): `perf-p5-reports` run `21821935491` (success)
 
 ## Usage
