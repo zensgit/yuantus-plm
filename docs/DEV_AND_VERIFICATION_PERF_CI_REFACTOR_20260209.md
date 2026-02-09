@@ -20,6 +20,8 @@ This change refactors perf CI plumbing so both perf workflows share baseline-dow
 - New shared assets:
   - `scripts/perf_ci_download_baselines.sh`
   - `configs/perf_gate.json`
+- Runbook:
+  - `docs/RUNBOOK_PERF_GATE_CONFIG.md`
 
 ## Implementation (What Changed)
 

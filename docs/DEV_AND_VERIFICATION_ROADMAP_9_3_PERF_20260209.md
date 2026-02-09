@@ -61,6 +61,10 @@ Important: gating is **DB-aware**. The gate script infers a DB label from each r
 
 `perf-roadmap-9-3` also runs on pull requests when perf-related files change (paths filter in `.github/workflows/perf-roadmap-9-3.yml`).
 
+Notes:
+
+- The paths filter is intentionally scoped to the harness, the gate/config, and the core model/service/task modules used by the harness (to reduce CI noise from unrelated changes).
+
 ## Verification (Executed)
 
 ### Local smoke verification (SQLite + Postgres)
