@@ -119,7 +119,9 @@ python scripts/perf_gate.py --config configs/perf_gate.json --profile my_harness
 ### 1) Run unit tests (fast)
 
 ```bash
-pytest -q src/yuantus/meta_engine/tests/test_perf_gate_cli.py
+pytest -q \
+  src/yuantus/meta_engine/tests/test_perf_gate_cli.py \
+  src/yuantus/meta_engine/tests/test_perf_gate_config_file.py
 ```
 
 ### 2) Run a local gate (example)
@@ -137,4 +139,3 @@ Notes:
 
 - If no matching baselines exist, the gate will print a skip message and exit success.
 - The config only sets defaults; CLI flags can always be used to experiment without editing JSON.
-
