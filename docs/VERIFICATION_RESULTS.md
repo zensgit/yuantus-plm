@@ -2,6 +2,18 @@
 
 > 完整复现步骤与更多验证项：见 `docs/VERIFICATION.md`。
 
+## 2026-02-09 Perf CI (PASS) - Generic Gate + PR Perf Triggers
+
+- PR checks (PR #76):
+  - `perf-p5-reports` run `21814459187` (success)
+  - `perf-roadmap-9-3` run `21814459189` (success)
+- Main runs (workflow_dispatch):
+  - `perf-p5-reports` run `21821935491` (success)
+  - `perf-roadmap-9-3` run `21821935636` (success)
+- Notes:
+  - Gate script: `scripts/perf_gate.py` (DB-aware; supports per-DB overrides)
+  - Postgres thresholds in CI: `pct=0.50`, `abs-ms=15ms` (SQLite unchanged)
+
 ## 2026-02-09 Perf (PASS) - Roadmap 9.3 (SQLite + Postgres)
 
 - Reports:
