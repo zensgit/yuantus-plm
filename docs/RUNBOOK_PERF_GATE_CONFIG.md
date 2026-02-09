@@ -130,6 +130,12 @@ Optional sanity (CI helper script syntax):
 pytest -q src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py
 ```
 
+Optional sanity (workflow/config contract):
+
+```bash
+pytest -q src/yuantus/meta_engine/tests/test_perf_workflow_contracts.py
+```
+
 ### 2) Run a local gate (example)
 
 ```bash
