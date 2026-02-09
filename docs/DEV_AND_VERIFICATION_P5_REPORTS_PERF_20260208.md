@@ -6,8 +6,8 @@ This delivery adds a lightweight, reproducible performance harness for Phase 5 (
 
 - Script: `scripts/perf_p5_reports.py`
 - Trend generator: `scripts/perf_p5_reports_trend.py`
-- Baseline gate: `scripts/perf_p5_reports_gate.py` (compare candidate report(s) vs recent baselines)
-  - Note: the gate script supports `--baseline-glob` to reuse the same gate for other perf harnesses.
+- Baseline gate: `scripts/perf_gate.py` (compare candidate report(s) vs recent baselines)
+  - Backward-compatible wrapper: `scripts/perf_p5_reports_gate.py`
 - Output directory: `docs/PERFORMANCE_REPORTS/`
 
 ## Scenarios
@@ -46,12 +46,15 @@ PG_URL='postgresql+psycopg://yuantus:yuantus@localhost:5432/yuantus_perf'
 Gate a candidate run against a local baseline directory (example):
 
 ```bash
-python scripts/perf_p5_reports_gate.py \
+python scripts/perf_gate.py \
   --candidate docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-211413.md \
   --baseline-dir docs/PERFORMANCE_REPORTS \
+  --baseline-glob "P5_REPORTS_PERF_*.md" \
   --window 5 \
   --pct 0.30 \
-  --abs-ms 10
+  --abs-ms 10 \
+  --db-pct postgres=0.50 \
+  --db-abs-ms postgres=15
 ```
 
 ## Evidence
