@@ -9,6 +9,7 @@ This runbook explains how to tune the **perf baseline gate** configuration used 
 - Workflows (CI):
   - `.github/workflows/perf-p5-reports.yml`
   - `.github/workflows/perf-roadmap-9-3.yml`
+  - Both workflows write a short gate verdict into `GITHUB_STEP_SUMMARY` and upload the gate log as an artifact.
 
 In CI, workflows run the gate like:
 
@@ -151,3 +152,37 @@ Notes:
 
 - If no matching baselines exist, the gate will print a skip message and exit success.
 - The config only sets defaults; CLI flags can always be used to experiment without editing JSON.
+
+## CI Evidence (Where To Look)
+
+When a perf workflow runs in GitHub Actions, you can triage gate results without downloading artifacts:
+
+- Open the workflow run
+- Click the job (`perf_p5_reports` / `perf_roadmap_9_3`)
+- Check the job **Summary** (it includes `Perf Gate Summary (...)` and a tail of the gate log)
+
+Artifacts uploaded by the workflows:
+
+- `perf-p5-reports`
+  - `perf-p5-reports-gate` (gate log)
+  - `perf-p5-reports-report` (SQLite perf report)
+  - `perf-p5-reports-report-pg` (Postgres perf report)
+  - `perf-p5-reports-trend` (trend snapshot)
+- `perf-roadmap-9-3`
+  - `perf-roadmap-9-3-gate` (gate log)
+  - `perf-roadmap-9-3-report` (SQLite perf report)
+  - `perf-roadmap-9-3-report-pg` (Postgres perf report)
+  - `perf-roadmap-9-3-trend` (trend snapshot)
+
+## How To Triage A Gate Failure
+
+1) Start from the job summary: it prints a quick PASS/FAIL verdict and the failing scenario lines.
+
+2) If you need full context, download the `*-gate` artifact and search for:
+
+- `=> FAIL`
+- `[gate] FAIL scenarios=...`
+
+3) If the gate says it skipped due to missing baselines:
+
+- Confirm the baseline downloader step ran (best-effort) and the workflow has recent successful runs with uploaded perf artifacts.
