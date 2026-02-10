@@ -30,6 +30,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
 
     # Keep this list small and focused on scripts used by CI workflows or ops runbooks.
     paths = [
+        scripts_dir / "ci_change_scope_debug.sh",
         scripts_dir / "strict_gate_report.sh",
         scripts_dir / "demo_plm_closed_loop.sh",
         scripts_dir / "release_orchestration.sh",
@@ -58,4 +59,3 @@ def test_release_orchestration_script_has_help() -> None:
     assert "Usage:" in (cp.stdout or "")
     assert "release_orchestration.sh plan" in (cp.stdout or "")
     assert "release_orchestration.sh execute" in (cp.stdout or "")
-

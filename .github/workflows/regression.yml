@@ -40,6 +40,15 @@ jobs:
           if [[ "$event" == "schedule" || "$event" == "workflow_dispatch" ]]; then
             echo "cadgf=true" >> "$GITHUB_OUTPUT"
             echo "regression=true" >> "$GITHUB_OUTPUT"
+
+            {
+              echo "## Regression Change Scope"
+              echo ""
+              echo "- event: \`${event}\`"
+              echo "- reason: \`scheduled/dispatch => full regression + CADGF\`"
+              echo "- cadgf_changed: \`true\`"
+              echo "- regression_needed: \`true\`"
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -83,28 +92,52 @@ jobs:
 
           git diff --name-only "$base" "$head" > /tmp/changed.txt
           changed_count="$(wc -l < /tmp/changed.txt | tr -d ' ')"
+
+          regression_workflow_changed="false"
+          if grep -q '^.github/workflows/regression.yml$' /tmp/changed.txt; then
+            regression_workflow_changed="true"
+          fi
+
+          # For PRs, treat workflow-only edits as "no need to run" by default.
+          # Use `cadgf:force` / `regression:force` / `ci:full` labels to force heavy runs.
           cadgf="false"
-          if grep -E -q '^(\\.github/workflows/regression\\.yml|docker-compose\\.cadgf\\.yml|docs/samples/cadgf_preview_square\\.dxf|docs/CADGF_|scripts/verify_cad_preview_online\\.sh|scripts/verify_all\\.sh|src/yuantus/config/settings\\.py|src/yuantus/meta_engine/services/cadgf_converter_service\\.py|src/yuantus/meta_engine/tasks/cad_pipeline_tasks\\.py)' /tmp/changed.txt; then
+          cadgf_reason=""
+          cadgf_regex='^(docker-compose\\.cadgf\\.yml|docs/samples/cadgf_preview_square\\.dxf|docs/CADGF_|scripts/verify_cad_preview_online\\.sh|scripts/verify_all\\.sh|src/yuantus/config/settings\\.py|src/yuantus/meta_engine/services/cadgf_converter_service\\.py|src/yuantus/meta_engine/tasks/cad_pipeline_tasks\\.py)'
+          if [[ "$event" != "pull_request" ]]; then
+            cadgf_regex='^(\\.github/workflows/regression\\.yml|docker-compose\\.cadgf\\.yml|docs/samples/cadgf_preview_square\\.dxf|docs/CADGF_|scripts/verify_cad_preview_online\\.sh|scripts/verify_all\\.sh|src/yuantus/config/settings\\.py|src/yuantus/meta_engine/services/cadgf_converter_service\\.py|src/yuantus/meta_engine/tasks/cad_pipeline_tasks\\.py)'
+          fi
+          cadgf_match="$(grep -E "${cadgf_regex}" /tmp/changed.txt | head -n 1 || true)"
+          if [[ -n "${cadgf_match}" ]]; then
             cadgf="true"
+            cadgf_reason="matched: ${cadgf_match}"
+          elif [[ "${event}" == "pull_request" && "${regression_workflow_changed}" == "true" ]]; then
+            cadgf_reason="regression.yml changed (PR) but excluded; add label cadgf:force to run"
           fi
 
           # Only run the full docker-compose regression on PR/push when the change set
           # can affect runtime/integration behavior. This avoids burning CI minutes
           # on docs-only or CI-only changes (perf workflow edits, etc.).
           regression="false"
+          regression_reason=""
           while IFS= read -r f; do
             [[ -z "${f}" ]] && continue
             case "${f}" in
-              .github/workflows/regression.yml|alembic.ini|pyproject.toml|requirements.lock)
-                regression="true"; break ;;
+              .github/workflows/regression.yml)
+                if [[ "$event" == "pull_request" ]]; then
+                  # Workflow file edits alone shouldn't trigger full integration regression.
+                  continue
+                fi
+                regression="true"; regression_reason="matched workflow: ${f}"; break ;;
+              alembic.ini|pyproject.toml|requirements.lock)
+                regression="true"; regression_reason="matched core inputs: ${f}"; break ;;
               docker-compose*.yml|Dockerfile*)
-                regression="true"; break ;;
+                regression="true"; regression_reason="matched docker: ${f}"; break ;;
               migrations/*)
-                regression="true"; break ;;
+                regression="true"; regression_reason="matched migration: ${f}"; break ;;
               scripts/verify_all.sh|scripts/verify_*.sh)
-                regression="true"; break ;;
+                regression="true"; regression_reason="matched verify script: ${f}"; break ;;
               docs/samples/*)
-                regression="true"; break ;;
+                regression="true"; regression_reason="matched sample: ${f}"; break ;;
               src/*)
                 # Ignore test-only changes for the expensive integration regression.
                 if [[ "${f}" == *"/tests/"* ]]; then
@@ -114,15 +147,21 @@ jobs:
                 if [[ "${base}" == test_*.py ]]; then
                   continue
                 fi
-                regression="true"; break ;;
+                regression="true"; regression_reason="matched src: ${f}"; break ;;
             esac
           done < /tmp/changed.txt
 
           if [[ "${force_cadgf}" == "true" ]]; then
             cadgf="true"
+            cadgf_reason="forced by label"
           fi
           if [[ "${force_regression}" == "true" ]]; then
             regression="true"
+            regression_reason="forced by label"
+          fi
+
+          if [[ "${regression}" == "false" && "${event}" == "pull_request" && "${regression_workflow_changed}" == "true" ]]; then
+            regression_reason="regression.yml changed (PR) but excluded; add label regression:force to run"
           fi
 
           echo "cadgf=${cadgf}" >> "$GITHUB_OUTPUT"
@@ -133,8 +172,11 @@ jobs:
             echo ""
             echo "- force_cadgf (labels ci:full/cadgf:force): \`${force_cadgf}\`"
             echo "- force_regression (labels ci:full/regression:force): \`${force_regression}\`"
+            echo "- regression_workflow_changed: \`${regression_workflow_changed}\`"
             echo "- cadgf_changed: \`${cadgf}\`"
+            echo "- cadgf_reason: \`${cadgf_reason}\`"
             echo "- regression_needed: \`${regression}\`"
+            echo "- regression_reason: \`${regression_reason}\`"
             echo ""
             echo "Changed files: ${changed_count}"
             echo ""
