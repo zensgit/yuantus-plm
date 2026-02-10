@@ -97,6 +97,12 @@ RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
 
 - `docs/RUNBOOK_JOBS_DIAG.md` (Jobs/CAD failure diagnostics)
 - `docs/ERROR_CODES_JOBS.md` (Jobs error codes)
+- `docs/RUNBOOK_RUNTIME.md` (Runtime operations)
+- `docs/RUNBOOK_BACKUP_RESTORE.md` (Backup/restore)
+- `docs/RUNBOOK_SCHEDULED_BACKUP.md` (Scheduled backups)
+- `docs/RUNBOOK_PERF_GATE_CONFIG.md` (Perf CI gate config)
+- `docs/RUNBOOK_RELATIONSHIP_ITEM_MIGRATION.md` (Relationship item migration)
+- `docs/OPS_RUNBOOK_MT.md` (Multi-tenancy ops)
 
 ## Development design
 

@@ -7,7 +7,117 @@ on:
       - main
 
 jobs:
+  detect_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run_plugin_tests: ${{ steps.change_flags.outputs.run_plugin_tests }}
+      run_playwright: ${{ steps.change_flags.outputs.run_playwright }}
+      run_contracts: ${{ steps.change_flags.outputs.run_contracts }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect change scope
+        id: change_flags
+        run: |
+          set -euo pipefail
+          event="${{ github.event_name }}"
+
+          # On main pushes, keep CI fully enabled.
+          if [[ "${event}" != "pull_request" ]]; then
+            echo "run_plugin_tests=true" >> "$GITHUB_OUTPUT"
+            echo "run_playwright=true" >> "$GITHUB_OUTPUT"
+            echo "run_contracts=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          if [[ -z "${base}" || -z "${head}" ]]; then
+            echo "run_plugin_tests=true" >> "$GITHUB_OUTPUT"
+            echo "run_playwright=true" >> "$GITHUB_OUTPUT"
+            echo "run_contracts=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git diff --name-only "${base}" "${head}" > /tmp/changed.txt
+
+          run_plugin_tests="false"
+          run_playwright="false"
+          run_contracts="false"
+
+          while IFS= read -r f; do
+            [[ -z "${f}" ]] && continue
+
+            case "${f}" in
+              .github/workflows/ci.yml|pyproject.toml|requirements.lock|alembic.ini)
+                run_plugin_tests="true"
+                run_playwright="true"
+                run_contracts="true"
+                break
+                ;;
+              .github/workflows/perf-*.yml|.github/workflows/perf-*.yaml|configs/perf_gate.json)
+                run_contracts="true"
+                ;;
+              scripts/perf_*.py|scripts/perf_*.sh)
+                run_contracts="true"
+                ;;
+              docs/DELIVERY_DOC_INDEX.md)
+                run_contracts="true"
+                ;;
+              migrations/*)
+                run_plugin_tests="true"
+                break
+                ;;
+              package.json|package-lock.json|playwright/*)
+                run_playwright="true"
+                ;;
+              src/*)
+                # Ignore test-only changes for the heavier CI jobs.
+                if [[ "${f}" == *"/tests/"* ]]; then
+                  continue
+                fi
+                base_name="$(basename "${f}")"
+                if [[ "${base_name}" == test_*.py ]]; then
+                  continue
+                fi
+                run_plugin_tests="true"
+                run_playwright="true"
+                ;;
+            esac
+          done < /tmp/changed.txt
+
+          echo "run_plugin_tests=${run_plugin_tests}" >> "$GITHUB_OUTPUT"
+          echo "run_playwright=${run_playwright}" >> "$GITHUB_OUTPUT"
+          echo "run_contracts=${run_contracts}" >> "$GITHUB_OUTPUT"
+
+  contracts:
+    needs: detect_changes
+    if: needs.detect_changes.outputs.run_contracts == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pytest
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+      - name: Contract checks (perf workflows + delivery doc index)
+        run: |
+          pytest -q \
+            src/yuantus/meta_engine/tests/test_perf_workflow_contracts.py \
+            src/yuantus/meta_engine/tests/test_perf_gate_config_file.py \
+            src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
+            src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
+
   plugin-tests:
+    needs: detect_changes
+    if: needs.detect_changes.outputs.run_plugin_tests == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +141,8 @@ jobs:
             src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
 
   playwright-esign:
+    needs: detect_changes
+    if: needs.detect_changes.outputs.run_playwright == 'true'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
