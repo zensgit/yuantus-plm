@@ -76,6 +76,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI Cost Optimization (Selective Jobs + Perf Gate Summaries): `docs/DEV_AND_VERIFICATION_CI_COST_OPTIMIZATION_20260210.md`
 - CI Concurrency + Runbooks: `docs/DEV_AND_VERIFICATION_CI_CONCURRENCY_RUNBOOKS_20260210.md`
 - CI/Regression Change Scope + Release Orchestration Script: `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_RUNBOOK_RELEASE_ORCH_SCRIPT_20260210.md`
+- CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`
 - CI/Regression Label Overrides: `docs/DEV_AND_VERIFICATION_CI_LABEL_OVERRIDES_20260210.md`
 - CI Contracts (Shell Script Syntax): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SHELL_SCRIPT_SYNTAX_20260210.md`
 - CI Contracts (README Runbook Links): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_README_RUNBOOK_LINKS_20260210.md`

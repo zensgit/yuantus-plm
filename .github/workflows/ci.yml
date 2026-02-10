@@ -33,9 +33,22 @@ jobs:
 
           # On main pushes, keep CI fully enabled.
           if [[ "${event}" != "pull_request" ]]; then
+            run_plugin_tests="true"
+            run_playwright="true"
+            run_contracts="true"
             echo "run_plugin_tests=true" >> "$GITHUB_OUTPUT"
             echo "run_playwright=true" >> "$GITHUB_OUTPUT"
             echo "run_contracts=true" >> "$GITHUB_OUTPUT"
+
+            {
+              echo "## CI Change Scope"
+              echo ""
+              echo "- event: \`${event}\`"
+              echo "- reason: \`non-pull_request => full CI\`"
+              echo "- run_plugin_tests: \`${run_plugin_tests}\`"
+              echo "- run_playwright: \`${run_playwright}\`"
+              echo "- run_contracts: \`${run_contracts}\`"
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -51,9 +64,22 @@ jobs:
           base="${{ github.event.pull_request.base.sha }}"
           head="${{ github.event.pull_request.head.sha }}"
           if [[ -z "${base}" || -z "${head}" ]]; then
+            run_plugin_tests="true"
+            run_playwright="true"
+            run_contracts="true"
             echo "run_plugin_tests=true" >> "$GITHUB_OUTPUT"
             echo "run_playwright=true" >> "$GITHUB_OUTPUT"
             echo "run_contracts=true" >> "$GITHUB_OUTPUT"
+
+            {
+              echo "## CI Change Scope"
+              echo ""
+              echo "- force_full (label ci:full): \`${force_full}\`"
+              echo "- reason: \`missing base/head sha => full CI\`"
+              echo "- run_plugin_tests: \`${run_plugin_tests}\`"
+              echo "- run_playwright: \`${run_playwright}\`"
+              echo "- run_contracts: \`${run_contracts}\`"
+            } >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
 
@@ -63,6 +89,9 @@ jobs:
           run_plugin_tests="false"
           run_playwright="false"
           run_contracts="false"
+          reason_plugin_tests=""
+          reason_playwright=""
+          reason_contracts=""
 
           while IFS= read -r f; do
             [[ -z "${f}" ]] && continue
@@ -72,26 +101,35 @@ jobs:
                 run_plugin_tests="true"
                 run_playwright="true"
                 run_contracts="true"
+                reason_plugin_tests="${reason_plugin_tests:-matched core inputs: ${f}}"
+                reason_playwright="${reason_playwright:-matched core inputs: ${f}}"
+                reason_contracts="${reason_contracts:-matched core inputs: ${f}}"
                 break
                 ;;
               .github/workflows/*.yml|.github/workflows/*.yaml|configs/perf_gate.json)
                 run_contracts="true"
+                reason_contracts="${reason_contracts:-matched workflow/perf config: ${f}}"
                 ;;
               scripts/perf_*.py|scripts/perf_*.sh)
                 run_contracts="true"
+                reason_contracts="${reason_contracts:-matched perf script: ${f}}"
                 ;;
               docs/DELIVERY_DOC_INDEX.md)
                 run_contracts="true"
+                reason_contracts="${reason_contracts:-matched delivery doc index: ${f}}"
                 ;;
               README.md|docs/RUNBOOK_*.md|docs/OPS_RUNBOOK_MT.md|docs/ERROR_CODES*.md)
                 run_contracts="true"
+                reason_contracts="${reason_contracts:-matched docs wiring: ${f}}"
                 ;;
               migrations/*)
                 run_plugin_tests="true"
+                reason_plugin_tests="${reason_plugin_tests:-matched migration: ${f}}"
                 break
                 ;;
               package.json|package-lock.json|playwright/*)
                 run_playwright="true"
+                reason_playwright="${reason_playwright:-matched frontend/playwright: ${f}}"
                 ;;
               src/*)
                 # Ignore test-only changes for the heavier CI jobs.
@@ -104,6 +142,8 @@ jobs:
                 fi
                 run_plugin_tests="true"
                 run_playwright="true"
+                reason_plugin_tests="${reason_plugin_tests:-matched src: ${f}}"
+                reason_playwright="${reason_playwright:-matched src: ${f}}"
                 ;;
             esac
           done < /tmp/changed.txt
@@ -112,6 +152,9 @@ jobs:
             run_plugin_tests="true"
             run_playwright="true"
             run_contracts="true"
+            reason_plugin_tests="forced by label ci:full"
+            reason_playwright="forced by label ci:full"
+            reason_contracts="forced by label ci:full"
           fi
 
           echo "run_plugin_tests=${run_plugin_tests}" >> "$GITHUB_OUTPUT"
@@ -123,8 +166,11 @@ jobs:
             echo ""
             echo "- force_full (label ci:full): \`${force_full}\`"
             echo "- run_plugin_tests: \`${run_plugin_tests}\`"
+            echo "- run_plugin_tests_reason: \`${reason_plugin_tests}\`"
             echo "- run_playwright: \`${run_playwright}\`"
+            echo "- run_playwright_reason: \`${reason_playwright}\`"
             echo "- run_contracts: \`${run_contracts}\`"
+            echo "- run_contracts_reason: \`${reason_contracts}\`"
             echo ""
             echo "Changed files: ${changed_count}"
             echo ""

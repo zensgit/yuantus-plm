@@ -8,13 +8,45 @@
 
 - `CI` workflow：`detect_changes (CI)` job 的 Summary 会输出：
   - `run_plugin_tests`
+  - `run_plugin_tests_reason`
   - `run_playwright`
+  - `run_playwright_reason`
   - `run_contracts`
+  - `run_contracts_reason`
+  - `Changed files (first 50)`
 - `regression` workflow：`detect_changes (regression)` job 的 Summary 会输出：
   - `cadgf_changed`
+  - `cadgf_reason`
   - `regression_needed`
+  - `regression_reason`
+  - `regression_workflow_changed`
+  - `Changed files (first 50)`
 
 注意：如果 job 是被 `if:` 条件跳过（skipped），在 PR 页面点 “Re-run jobs” 通常不会让它变成执行，必须触发一次新的 workflow run（见下文“强制跑”）。
+
+## 0.1 本地复现（推荐）
+
+如果你想在本地快速判断“这组变更在 PR/push 下会触发哪些重任务”，可以用脚本：
+
+- `scripts/ci_change_scope_debug.sh`
+
+示例：
+
+```bash
+# 默认：模拟 pull_request 语义，对比 origin/main...HEAD（merge-base）
+scripts/ci_change_scope_debug.sh --show-files
+
+# 模拟 push 语义（更接近 main 上的行为）
+scripts/ci_change_scope_debug.sh --event push --show-files
+
+# 模拟 PR label 覆盖
+scripts/ci_change_scope_debug.sh --force-full
+scripts/ci_change_scope_debug.sh --force-regression
+scripts/ci_change_scope_debug.sh --force-cadgf
+```
+
+说明：
+- 该脚本用于 debug/沟通，**最终逻辑以 workflow 内的 detect 脚本为准**。
 
 ## 1) CI workflow（`.github/workflows/ci.yml`）
 
@@ -103,6 +135,10 @@ gh pr edit <pr_number> --add-label "ci:full"
 - `src/**`（非 `tests/` 且非 `test_*.py`）
 
 `cadgf_changed=true`（会跑 CADGF preview 子任务）当你改动匹配 CADGF 相关路径（见 `detect_changes (regression)` job 脚本里的正则）。
+
+注意（PR 默认降本规则）：
+- PR 里如果仅修改 `.github/workflows/regression.yml`（workflow-only），默认不会触发 `regression_needed` / `cadgf_changed`。
+- 需要时用 label `regression:force` / `cadgf:force` / `ci:full` 强制跑（见 2.3），或手动触发 `workflow_dispatch`（见 2.2）。
 
 ### 2.2 如何强制跑全量 regression
 
