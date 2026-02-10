@@ -141,6 +141,10 @@ while IFS= read -r f; do
       run_contracts="true"
       reason_contracts="${reason_contracts:-matched perf script: ${f}}"
       ;;
+    scripts/*.sh|scripts/*.py)
+      run_contracts="true"
+      reason_contracts="${reason_contracts:-matched scripts: ${f}}"
+      ;;
     docs/DELIVERY_DOC_INDEX.md)
       run_contracts="true"
       reason_contracts="${reason_contracts:-matched delivery doc index: ${f}}"
@@ -268,4 +272,3 @@ echo "- cadgf_changed: ${cadgf}"
 echo "- cadgf_reason: ${cadgf_reason}"
 echo "- regression_needed: ${regression}"
 echo "- regression_reason: ${regression_reason}"
-
