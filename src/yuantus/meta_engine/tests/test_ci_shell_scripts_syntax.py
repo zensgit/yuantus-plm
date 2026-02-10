@@ -59,3 +59,21 @@ def test_release_orchestration_script_has_help() -> None:
     assert "Usage:" in (cp.stdout or "")
     assert "release_orchestration.sh plan" in (cp.stdout or "")
     assert "release_orchestration.sh execute" in (cp.stdout or "")
+
+
+def test_strict_gate_report_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_report.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    assert "Usage:" in out
+    assert "strict_gate_report.sh" in out
+    assert "OUT_DIR" in out
+    assert "REPORT_PATH" in out
