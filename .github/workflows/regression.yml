@@ -82,6 +82,7 @@ jobs:
           fi
 
           git diff --name-only "$base" "$head" > /tmp/changed.txt
+          changed_count="$(wc -l < /tmp/changed.txt | tr -d ' ')"
           cadgf="false"
           if grep -E -q '^(\\.github/workflows/regression\\.yml|docker-compose\\.cadgf\\.yml|docs/samples/cadgf_preview_square\\.dxf|docs/CADGF_|scripts/verify_cad_preview_online\\.sh|scripts/verify_all\\.sh|src/yuantus/config/settings\\.py|src/yuantus/meta_engine/services/cadgf_converter_service\\.py|src/yuantus/meta_engine/tasks/cad_pipeline_tasks\\.py)' /tmp/changed.txt; then
             cadgf="true"
@@ -135,7 +136,16 @@ jobs:
             echo "- cadgf_changed: \`${cadgf}\`"
             echo "- regression_needed: \`${regression}\`"
             echo ""
-            echo "Changed files: $(wc -l < /tmp/changed.txt | tr -d ' ')"
+            echo "Changed files: ${changed_count}"
+            echo ""
+            echo "### Changed Files (first 50)"
+            echo ""
+            echo '```text'
+            head -n 50 /tmp/changed.txt
+            if [[ "${changed_count}" -gt 50 ]]; then
+              echo "... (truncated; see logs for full list)"
+            fi
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   regression:
