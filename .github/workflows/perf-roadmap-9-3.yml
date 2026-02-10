@@ -126,6 +126,47 @@ jobs:
             --baseline-dir "${BASELINE_DIR}" \
             --out "${GATE_LOG_PATH}"
 
+      - name: Summarize perf gate
+        if: always()
+        env:
+          REPORT_PATH: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_CI_${{ github.run_id }}.md
+          REPORT_PG_PATH: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_PG_CI_${{ github.run_id }}.md
+          BASELINE_DIR: tmp/perf-baseline
+          GATE_LOG_PATH: tmp/perf-gate/ROADMAP_9_3_GATE_CI_${{ github.run_id }}.txt
+        run: |
+          set -euo pipefail
+          {
+            echo "## Perf Gate Summary (Roadmap 9.3)"
+            echo ""
+            echo "- Profile: \`roadmap_9_3\`"
+            echo "- Candidate (SQLite): \`${REPORT_PATH}\`"
+            echo "- Candidate (Postgres): \`${REPORT_PG_PATH}\`"
+            echo "- Baseline dir: \`${BASELINE_DIR}\`"
+            echo "- Gate log: \`${GATE_LOG_PATH}\`"
+            echo ""
+            if [[ -f "${GATE_LOG_PATH}" ]]; then
+              if grep -q "FAIL scenarios=" "${GATE_LOG_PATH}"; then
+                echo "**Result:** FAIL"
+              else
+                echo "**Result:** PASS"
+              fi
+              echo ""
+              echo "### Failures (if any)"
+              echo ""
+              echo '```text'
+              grep -E "=> FAIL$|\\[gate\\] FAIL scenarios=" "${GATE_LOG_PATH}" || true
+              echo '```'
+              echo ""
+              echo "### Gate Log (tail)"
+              echo ""
+              echo '```text'
+              tail -n 120 "${GATE_LOG_PATH}" || true
+              echo '```'
+            else
+              echo "_No gate log found._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload perf gate log
         if: always()
         uses: actions/upload-artifact@v4
