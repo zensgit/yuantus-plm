@@ -59,7 +59,7 @@ jobs:
                 run_contracts="true"
                 break
                 ;;
-              .github/workflows/perf-*.yml|.github/workflows/perf-*.yaml|configs/perf_gate.json)
+              .github/workflows/*.yml|.github/workflows/*.yaml|configs/perf_gate.json)
                 run_contracts="true"
                 ;;
               scripts/perf_*.py|scripts/perf_*.sh)
@@ -120,7 +120,24 @@ jobs:
       - name: Install pytest
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install pytest pyyaml
+      - name: Validate workflow YAML
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+          
+          from pathlib import Path
+          
+          import yaml
+          
+          workflows = sorted(Path(".github/workflows").glob("*.y*ml"))
+          assert workflows, "No workflow YAML files found under .github/workflows"
+          
+          for wf in workflows:
+            yaml.safe_load(wf.read_text(encoding="utf-8", errors="replace"))
+          
+          print(f"workflow_yaml_ok={len(workflows)}")
+          PY
       - name: Contract checks (perf workflows + delivery doc index)
         run: |
           pytest -q \
