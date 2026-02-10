@@ -1,0 +1,66 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def _find_repo_root(start: Path) -> Path:
+    cur = start.resolve()
+    for _ in range(12):
+        if (cur / "pyproject.toml").is_file() and (cur / ".github").is_dir():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    raise AssertionError("Could not locate repo root (expected pyproject.toml + .github/)")
+
+
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+
+    wf = repo_root / ".github" / "workflows" / "strict-gate.yml"
+    assert wf.is_file(), f"Missing workflow: {wf}"
+    wf_text = _read(wf)
+
+    # Triggers (ops contract).
+    assert "workflow_dispatch:" in wf_text
+    assert "schedule:" in wf_text
+    assert 'cron: "0 3 * * *"' in wf_text
+    assert "run_demo:" in wf_text
+    assert 'default: "false"' in wf_text
+
+    # Concurrency contract (must cancel in-progress runs on same ref).
+    assert "concurrency:" in wf_text
+    assert "group: ${{ github.workflow }}-${{ github.ref }}" in wf_text
+    assert "cancel-in-progress: true" in wf_text
+
+    # Evidence output wiring (report path + logs dir + artifacts).
+    assert "bash scripts/strict_gate_report.sh" in wf_text
+    assert "OUT_DIR: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}" in wf_text
+    assert "REPORT_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md" in wf_text
+
+    for needle in (
+        "name: strict-gate-report",
+        "path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md",
+        "name: strict-gate-logs",
+        "path: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}",
+    ):
+        assert needle in wf_text, f"strict-gate workflow missing: {needle!r}"
+
+    # Runbook must document how to run + download artifacts.
+    runbook = repo_root / "docs" / "RUNBOOK_STRICT_GATE.md"
+    assert runbook.is_file(), f"Missing runbook: {runbook}"
+    runbook_text = _read(runbook)
+
+    for token in (
+        "gh workflow run strict-gate",
+        "gh run list --workflow strict-gate",
+        "gh run download",
+        "strict-gate-report",
+        "strict-gate-logs",
+    ):
+        assert token in runbook_text, f"strict-gate runbook missing: {token!r}"
+
