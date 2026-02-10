@@ -41,6 +41,12 @@ Examples:
 EOF
 }
 
+# Global help (no args required).
+if [[ $# -ge 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
+  usage
+  exit 0
+fi
+
 if [[ $# -lt 2 ]]; then
   usage >&2
   exit 2
@@ -259,4 +265,3 @@ PY
     exit 2
     ;;
 esac
-
