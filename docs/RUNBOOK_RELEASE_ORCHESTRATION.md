@@ -13,6 +13,25 @@
   - `x-tenant-id: tenant-1`
   - `x-org-id: org-1`
 
+## 0.1 推荐：使用脚本一键调用
+
+如果你不想手写 curl，可以直接使用：
+
+- `scripts/release_orchestration.sh`
+
+示例：
+
+```bash
+# Plan
+scripts/release_orchestration.sh plan <item_id> --base http://127.0.0.1:7910
+
+# Execute dry-run（不改状态）
+scripts/release_orchestration.sh execute <item_id> --dry-run
+
+# Execute（包含 baselines + 失败回滚）
+scripts/release_orchestration.sh execute <item_id> --include-baselines --rollback-on-failure
+```
+
 ## 1) Plan（只读预览，不改状态）
 
 接口：
@@ -168,4 +187,3 @@ curl -s -X POST "$BASE_URL/api/v1/release-orchestration/items/<item_id>/execute"
   - `routing:<routing_id>` / `mbom:<mbom_id>` / `baseline:<baseline_id>`
 
 说明：Failpoint 只用于测试环境，生产不要开启。
-
