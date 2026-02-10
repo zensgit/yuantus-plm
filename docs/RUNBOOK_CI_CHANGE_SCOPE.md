@@ -62,6 +62,7 @@ scripts/ci_change_scope_debug.sh --force-cadgf
   - `.github/workflows/*.yml|*.yaml`
   - `configs/perf_gate.json`
   - `scripts/perf_*.py|scripts/perf_*.sh`
+  - `scripts/*.sh|scripts/*.py`（CI/ops/runbook scripts）
   - `docs/DELIVERY_DOC_INDEX.md`
 - `plugin-tests`（含 migrations smoke）会在 PR 中被触发当你改动：
   - `src/**`（非 `tests/` 且非 `test_*.py`）

@@ -79,6 +79,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`
 - CI/Regression Label Overrides: `docs/DEV_AND_VERIFICATION_CI_LABEL_OVERRIDES_20260210.md`
 - CI Contracts (Shell Script Syntax): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SHELL_SCRIPT_SYNTAX_20260210.md`
+- CI Contracts (Scripts Trigger): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SCRIPTS_TRIGGER_20260210.md`
 - CI Contracts (README Runbook Links): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_README_RUNBOOK_LINKS_20260210.md`
 - CI Contracts (Runbook Index Completeness + Change Scope Summaries): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_INDEX_COMPLETENESS_20260210.md`
 - Strict Gate Runbook + Failure Tails: `docs/DEV_AND_VERIFICATION_STRICT_GATE_RUNBOOK_REPORT_TAILS_20260210.md`
