@@ -8,6 +8,9 @@ This change reduces wasted CI minutes on PRs that only touch documentation or CI
 
 - `.github/workflows/ci.yml`: enable pip caching for `contracts`, `plugin-tests`, `playwright-esign`.
 - `.github/workflows/perf-*.yml`: rename perf job ids so PR checks show distinct contexts (avoid two checks both named `perf`).
+- `.github/workflows/perf-*.yml`: add `cache-dependency-path` for pip caching (`pyproject.toml`) to improve cache reuse.
+- `.github/workflows/ci.yml` + `.github/workflows/regression.yml`: rename `detect_changes` jobs to avoid duplicate check names, and write the change-scope decision to `GITHUB_STEP_SUMMARY` for quick debugging.
+- `.github/workflows/regression.yml`: write `regression-summary.md` and `cadgf-preview-summary.md` to `GITHUB_STEP_SUMMARY` (in addition to artifacts).
 
 ### 1) README: runbooks discoverability
 

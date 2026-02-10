@@ -7,7 +7,8 @@ on:
       - main
 
 jobs:
-  detect_changes:
+  detect_changes_ci:
+    name: detect_changes (CI)
     runs-on: ubuntu-latest
     outputs:
       run_plugin_tests: ${{ steps.change_flags.outputs.run_plugin_tests }}
@@ -93,9 +94,19 @@ jobs:
           echo "run_playwright=${run_playwright}" >> "$GITHUB_OUTPUT"
           echo "run_contracts=${run_contracts}" >> "$GITHUB_OUTPUT"
 
+          {
+            echo "## CI Change Scope"
+            echo ""
+            echo "- run_plugin_tests: \`${run_plugin_tests}\`"
+            echo "- run_playwright: \`${run_playwright}\`"
+            echo "- run_contracts: \`${run_contracts}\`"
+            echo ""
+            echo "Changed files: $(wc -l < /tmp/changed.txt | tr -d ' ')"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   contracts:
-    needs: detect_changes
-    if: needs.detect_changes.outputs.run_contracts == 'true'
+    needs: detect_changes_ci
+    if: needs.detect_changes_ci.outputs.run_contracts == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -119,8 +130,8 @@ jobs:
             src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
 
   plugin-tests:
-    needs: detect_changes
-    if: needs.detect_changes.outputs.run_plugin_tests == 'true'
+    needs: detect_changes_ci
+    if: needs.detect_changes_ci.outputs.run_plugin_tests == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -147,8 +158,8 @@ jobs:
             src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
 
   playwright-esign:
-    needs: detect_changes
-    if: needs.detect_changes.outputs.run_playwright == 'true'
+    needs: detect_changes_ci
+    if: needs.detect_changes_ci.outputs.run_playwright == 'true'
     runs-on: ubuntu-latest
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
