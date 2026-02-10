@@ -230,6 +230,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_label_override_contracts.py \
             src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \
             src/yuantus/meta_engine/tests/test_ci_change_scope_contracts.py \
+            src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py \
             src/yuantus/meta_engine/tests/test_perf_gate_config_file.py \
             src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
             src/yuantus/meta_engine/tests/test_readme_runbook_references.py \

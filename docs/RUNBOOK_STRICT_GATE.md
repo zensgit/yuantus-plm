@@ -75,6 +75,40 @@ Outputs:
   - `strict-gate-report`：报告 Markdown
   - `strict-gate-logs`：`tmp/strict-gate/...` 的日志目录
 
+### Trigger From CLI (Recommended)
+
+用 `gh` 直接触发（避免点网页）：
+
+```bash
+# 不跑 demo（推荐，默认）
+gh workflow run strict-gate --ref <branch> -f run_demo=false
+
+# 跑 demo
+gh workflow run strict-gate --ref <branch> -f run_demo=true
+```
+
+找到对应的 workflow run（run id 会被用于报告文件名）：
+
+```bash
+gh run list --workflow strict-gate --branch <branch> --limit 5
+```
+
+下载 artifacts（推荐下载到单独目录，避免污染当前工作区）：
+
+```bash
+RUN_ID=<run_id>
+OUT_DIR=tmp/strict-gate-artifacts/$RUN_ID
+mkdir -p "$OUT_DIR"
+
+gh run download "$RUN_ID" -n strict-gate-report -D "$OUT_DIR"
+gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"
+```
+
+说明：
+- strict gate 报告与日志是在 Actions runner 的工作区生成，并通过 artifact 上传；默认不会提交回 repo。
+- `strict-gate-report` 解压后会包含类似路径：`docs/DAILY_REPORTS/STRICT_GATE_CI_<run_id>.md`
+- `strict-gate-logs` 解压后会包含类似路径：`tmp/strict-gate/STRICT_GATE_CI_<run_id>/*.log`
+
 ## How To Triage A Failure
 
 1) 先看 workflow run 的 **Job Summary**：报告里会标出哪一步失败，并附上该步日志的 tail。
@@ -89,4 +123,3 @@ Outputs:
 - `pytest (DB)` 失败：通常与 migrations/DB fixture/事务隔离有关
 - `playwright` 失败：通常是 API 响应契约变化、权限变化或导出文件名变化
 - `demo_plm_closed_loop` 失败：查看 demo log 的最后 160 行，通常会包含 HTTP code + body 路径
-
