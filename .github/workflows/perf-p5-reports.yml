@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  perf:
+  perf_p5_reports:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

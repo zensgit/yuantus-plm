@@ -4,6 +4,11 @@ This change reduces wasted CI minutes on PRs that only touch documentation or CI
 
 ## Changes
 
+### 0) Follow-up: cache + check name clarity
+
+- `.github/workflows/ci.yml`: enable pip caching for `contracts`, `plugin-tests`, `playwright-esign`.
+- `.github/workflows/perf-*.yml`: rename perf job ids so PR checks show distinct contexts (avoid two checks both named `perf`).
+
 ### 1) README: runbooks discoverability
 
 - Expanded the `Runbooks` list in `README.md` so common operational runbooks are one click away.
@@ -49,4 +54,3 @@ pytest -q \
   src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
   src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
 ```
-
