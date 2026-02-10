@@ -236,6 +236,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_readme_runbook_references.py \
             src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py \
             src/yuantus/meta_engine/tests/test_runbook_index_completeness.py \
+            src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
 
   plugin-tests:
