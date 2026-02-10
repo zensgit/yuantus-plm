@@ -11,6 +11,7 @@ This change reduces wasted CI minutes on PRs that only touch documentation or CI
 - `.github/workflows/perf-*.yml`: add `cache-dependency-path` for pip caching (`pyproject.toml`) to improve cache reuse.
 - `.github/workflows/ci.yml` + `.github/workflows/regression.yml`: rename `detect_changes` jobs to avoid duplicate check names, and write the change-scope decision to `GITHUB_STEP_SUMMARY` for quick debugging.
 - `.github/workflows/regression.yml`: write `regression-summary.md` and `cadgf-preview-summary.md` to `GITHUB_STEP_SUMMARY` (in addition to artifacts).
+- `.github/workflows/ci.yml`: `contracts` job now also parses all `.github/workflows/*.yml` for YAML syntax validity.
 
 ### 1) README: runbooks discoverability
 
