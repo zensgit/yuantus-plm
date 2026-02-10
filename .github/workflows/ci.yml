@@ -39,6 +39,15 @@ jobs:
             exit 0
           fi
 
+          # Optional override: if the PR has label `ci:full`, force all CI jobs.
+          labels_json='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          force_full="false"
+          if [[ -n "${labels_json}" && "${labels_json}" != "null" ]]; then
+            if echo "${labels_json}" | grep -q '"ci:full"'; then
+              force_full="true"
+            fi
+          fi
+
           base="${{ github.event.pull_request.base.sha }}"
           head="${{ github.event.pull_request.head.sha }}"
           if [[ -z "${base}" || -z "${head}" ]]; then
@@ -95,6 +104,12 @@ jobs:
             esac
           done < /tmp/changed.txt
 
+          if [[ "${force_full}" == "true" ]]; then
+            run_plugin_tests="true"
+            run_playwright="true"
+            run_contracts="true"
+          fi
+
           echo "run_plugin_tests=${run_plugin_tests}" >> "$GITHUB_OUTPUT"
           echo "run_playwright=${run_playwright}" >> "$GITHUB_OUTPUT"
           echo "run_contracts=${run_contracts}" >> "$GITHUB_OUTPUT"
@@ -102,6 +117,7 @@ jobs:
           {
             echo "## CI Change Scope"
             echo ""
+            echo "- force_full (label ci:full): \`${force_full}\`"
             echo "- run_plugin_tests: \`${run_plugin_tests}\`"
             echo "- run_playwright: \`${run_playwright}\`"
             echo "- run_contracts: \`${run_contracts}\`"
@@ -148,6 +164,7 @@ jobs:
           pytest -q \
             src/yuantus/meta_engine/tests/test_perf_workflow_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_label_override_contracts.py \
             src/yuantus/meta_engine/tests/test_perf_gate_config_file.py \
             src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py

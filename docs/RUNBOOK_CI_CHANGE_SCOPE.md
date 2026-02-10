@@ -54,6 +54,13 @@
 
 因为 `workflow_dispatch` 事件会走 “非 PR 事件 → 全量开启” 分支，所以会跑全量 job。
 
+方式 A2（可选）：用 `gh` 触发 workflow_dispatch（不需要点网页）
+
+```bash
+# 触发 CI workflow（选择 PR 分支）
+gh workflow run CI --ref <branch>
+```
+
 方式 B：让 PR 的变更命中“全量触发”路径
 
 例如触碰任一文件（即使是无害改动）：
@@ -63,6 +70,20 @@
 - `alembic.ini`
 
 不推荐作为常规手段（会污染 diff），但在紧急情况下可用。
+
+### 1.3 PR Label Overrides（在 PR Checks 内强制跑）
+
+如果你有权限给 PR 加 label，可以用 label 覆盖 change-scope 检测，让重任务在 PR checks 内执行：
+
+- `ci:full`
+  - 强制 `plugin-tests` + `playwright-esign` + `contracts` 全部执行
+  - 在 `detect_changes (CI)` 的 job summary 中会显示 `force_full=true`
+
+示例（CLI）：
+
+```bash
+gh pr edit <pr_number> --add-label "ci:full"
+```
 
 ## 2) Regression workflow（`.github/workflows/regression.yml`）
 
@@ -93,6 +114,26 @@
 4. （可选）设置 `run_cad_ml=true` 启动 cad-ml docker
 5. Run
 
+也可以用 `gh` 触发：
+
+```bash
+gh workflow run regression --ref <branch> -f run_cad_ml=false
+```
+
+### 2.3 PR Label Overrides（在 PR Checks 内强制跑）
+
+在 PR 上添加以下 label 可覆盖 `detect_changes (regression)` 的判定：
+
+- `ci:full`：强制 `regression_needed=true` 且 `cadgf_changed=true`
+- `regression:force`：强制 `regression_needed=true`
+- `cadgf:force`：强制 `cadgf_changed=true`
+
+示例：
+
+```bash
+gh pr edit <pr_number> --add-label "regression:force"
+```
+
 ## 3) 并发取消（避免浪费）
 
 以下 workflow 已启用 `concurrency`（同一 ref 新跑会 cancel 旧跑）：
@@ -104,4 +145,3 @@
 - `perf-roadmap-9-3`
 
 含义：你在 PR 上连续 push 多次时，旧的 in-progress runs 会被自动取消，减少排队与 CI minutes 消耗。
-
