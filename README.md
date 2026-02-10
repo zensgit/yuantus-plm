@@ -103,6 +103,7 @@ RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
 - `docs/RUNBOOK_SCHEDULED_BACKUP.md` (Scheduled backups)
 - `docs/RUNBOOK_PERF_GATE_CONFIG.md` (Perf CI gate config)
 - `docs/RUNBOOK_RELEASE_ORCHESTRATION.md` (Release orchestration)
+- `docs/RUNBOOK_STRICT_GATE.md` (Strict gate evidence run)
 - `docs/RUNBOOK_RELATIONSHIP_ITEM_MIGRATION.md` (Relationship item migration)
 - `docs/OPS_RUNBOOK_MT.md` (Multi-tenancy ops)
 
