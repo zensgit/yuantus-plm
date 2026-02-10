@@ -58,6 +58,7 @@ jobs:
           fi
 
           git diff --name-only "${base}" "${head}" > /tmp/changed.txt
+          changed_count="$(wc -l < /tmp/changed.txt | tr -d ' ')"
 
           run_plugin_tests="false"
           run_playwright="false"
@@ -125,7 +126,16 @@ jobs:
             echo "- run_playwright: \`${run_playwright}\`"
             echo "- run_contracts: \`${run_contracts}\`"
             echo ""
-            echo "Changed files: $(wc -l < /tmp/changed.txt | tr -d ' ')"
+            echo "Changed files: ${changed_count}"
+            echo ""
+            echo "### Changed Files (first 50)"
+            echo ""
+            echo '```text'
+            head -n 50 /tmp/changed.txt
+            if [[ "${changed_count}" -gt 50 ]]; then
+              echo "... (truncated; see logs for full list)"
+            fi
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   contracts:
@@ -172,6 +182,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_perf_gate_config_file.py \
             src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
             src/yuantus/meta_engine/tests/test_readme_runbook_references.py \
+            src/yuantus/meta_engine/tests/test_runbook_index_completeness.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
 
   plugin-tests:
