@@ -44,6 +44,7 @@ This index aggregates all delivery‑related documents for private deployments.
 ## Ops & Deployment
 
 - Multi‑Tenancy Ops Runbook: `docs/OPS_RUNBOOK_MT.md`
+- Perf Gate Config Runbook: `docs/RUNBOOK_PERF_GATE_CONFIG.md`
 - Delivery Readiness Checklist: `docs/DELIVERY_READINESS_CHECKLIST.md`
 - Delivery Package Layout: `docs/DELIVERY_PACKAGE_LAYOUT.md`
 - Production Readiness Check: `docs/PROD_READINESS_CHECK.md`
@@ -62,6 +63,8 @@ This index aggregates all delivery‑related documents for private deployments.
 
 - Regression Evidence Autopack: `docs/DEV_AND_VERIFICATION_REGRESSION_EVIDENCE_AUTOPACK_20260207.md`
 - CI Strict Gate Schedule: `docs/DEV_AND_VERIFICATION_CI_STRICT_GATE_SCHEDULE_20260207.md`
+- Perf CI Refactor (Config + Baselines + Concurrency): `docs/DEV_AND_VERIFICATION_PERF_CI_REFACTOR_20260209.md`
+- Perf Gate (Generic) - Dev Plan & Verification: `docs/DEV_AND_VERIFICATION_PERF_GATE_20260209.md`
 - Release Orchestration (Plan + Execute): `docs/DEV_AND_VERIFICATION_RELEASE_ORCHESTRATION_20260208.md`
 - Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
 - Export Bundles (Impact + Release Readiness): `docs/DEV_AND_VERIFICATION_EXPORT_BUNDLES_IMPACT_READINESS_20260207.md`
@@ -73,6 +76,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - P4 Baseline Release Diagnostics: `docs/DEV_AND_VERIFICATION_P4_BASELINE_RELEASE_DIAGNOSTICS_20260207.md`
 - Release Readiness + ECO Apply Diagnostics + Ruleset Directory: `docs/DEV_AND_VERIFICATION_RELEASE_READINESS_ECO_APPLY_DIAGNOSTICS_20260207.md`
 - Roadmap 9.3 Performance Benchmarks: `docs/DEV_AND_VERIFICATION_ROADMAP_9_3_PERFORMANCE_20260207.md`
+- Roadmap 9.3 Perf CI (SQLite + Postgres): `docs/DEV_AND_VERIFICATION_ROADMAP_9_3_PERF_20260209.md`
 - Roadmap 9.3 Performance Report (2026-02-07): `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`
 - Roadmap 9.3 Performance Trend: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND.md`
 - P5 Reports/Search Performance Harness: `docs/DEV_AND_VERIFICATION_P5_REPORTS_PERF_20260208.md`
