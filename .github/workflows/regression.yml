@@ -43,6 +43,28 @@ jobs:
             exit 0
           fi
 
+          # Optional override labels (PR only):
+          # - `ci:full` forces both `cadgf=true` and `regression=true`
+          # - `cadgf:force` forces `cadgf=true`
+          # - `regression:force` forces `regression=true`
+          force_cadgf="false"
+          force_regression="false"
+          if [[ "$event" == "pull_request" ]]; then
+            labels_json='${{ toJson(github.event.pull_request.labels.*.name) }}'
+            if [[ -n "${labels_json}" && "${labels_json}" != "null" ]]; then
+              if echo "${labels_json}" | grep -q '"ci:full"'; then
+                force_regression="true"
+                force_cadgf="true"
+              fi
+              if echo "${labels_json}" | grep -q '"regression:force"'; then
+                force_regression="true"
+              fi
+              if echo "${labels_json}" | grep -q '"cadgf:force"'; then
+                force_cadgf="true"
+              fi
+            fi
+          fi
+
           base=""
           head=""
           if [[ "$event" == "pull_request" ]]; then
@@ -64,7 +86,6 @@ jobs:
           if grep -E -q '^(\\.github/workflows/regression\\.yml|docker-compose\\.cadgf\\.yml|docs/samples/cadgf_preview_square\\.dxf|docs/CADGF_|scripts/verify_cad_preview_online\\.sh|scripts/verify_all\\.sh|src/yuantus/config/settings\\.py|src/yuantus/meta_engine/services/cadgf_converter_service\\.py|src/yuantus/meta_engine/tasks/cad_pipeline_tasks\\.py)' /tmp/changed.txt; then
             cadgf="true"
           fi
-          echo "cadgf=${cadgf}" >> "$GITHUB_OUTPUT"
 
           # Only run the full docker-compose regression on PR/push when the change set
           # can affect runtime/integration behavior. This avoids burning CI minutes
@@ -95,11 +116,22 @@ jobs:
                 regression="true"; break ;;
             esac
           done < /tmp/changed.txt
+
+          if [[ "${force_cadgf}" == "true" ]]; then
+            cadgf="true"
+          fi
+          if [[ "${force_regression}" == "true" ]]; then
+            regression="true"
+          fi
+
+          echo "cadgf=${cadgf}" >> "$GITHUB_OUTPUT"
           echo "regression=${regression}" >> "$GITHUB_OUTPUT"
 
           {
             echo "## Regression Change Scope"
             echo ""
+            echo "- force_cadgf (labels ci:full/cadgf:force): \`${force_cadgf}\`"
+            echo "- force_regression (labels ci:full/regression:force): \`${force_regression}\`"
             echo "- cadgf_changed: \`${cadgf}\`"
             echo "- regression_needed: \`${regression}\`"
             echo ""
