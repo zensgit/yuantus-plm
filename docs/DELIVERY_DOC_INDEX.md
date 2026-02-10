@@ -45,6 +45,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 - Multi‑Tenancy Ops Runbook: `docs/OPS_RUNBOOK_MT.md`
 - Perf Gate Config Runbook: `docs/RUNBOOK_PERF_GATE_CONFIG.md`
+- Release Orchestration Runbook: `docs/RUNBOOK_RELEASE_ORCHESTRATION.md`
 - Runtime Runbook: `docs/RUNBOOK_RUNTIME.md`
 - Backup & Restore Runbook: `docs/RUNBOOK_BACKUP_RESTORE.md`
 - Scheduled Backup Runbook: `docs/RUNBOOK_SCHEDULED_BACKUP.md`
@@ -71,6 +72,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI Strict Gate Schedule: `docs/DEV_AND_VERIFICATION_CI_STRICT_GATE_SCHEDULE_20260207.md`
 - Delivery Doc Index (Ops Runbooks + Link Contract): `docs/DEV_AND_VERIFICATION_DELIVERY_DOC_INDEX_RUNBOOKS_20260210.md`
 - CI Cost Optimization (Selective Jobs + Perf Gate Summaries): `docs/DEV_AND_VERIFICATION_CI_COST_OPTIMIZATION_20260210.md`
+- CI Concurrency + Runbooks: `docs/DEV_AND_VERIFICATION_CI_CONCURRENCY_RUNBOOKS_20260210.md`
 - Perf CI Refactor (Config + Baselines + Concurrency): `docs/DEV_AND_VERIFICATION_PERF_CI_REFACTOR_20260209.md`
 - Perf Gate (Generic) - Dev Plan & Verification: `docs/DEV_AND_VERIFICATION_PERF_GATE_20260209.md`
 - Release Orchestration (Plan + Execute): `docs/DEV_AND_VERIFICATION_RELEASE_ORCHESTRATION_20260208.md`

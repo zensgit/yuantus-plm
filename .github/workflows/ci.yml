@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   detect_changes_ci:
     name: detect_changes (CI)
@@ -142,6 +146,7 @@ jobs:
         run: |
           pytest -q \
             src/yuantus/meta_engine/tests/test_perf_workflow_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py \
             src/yuantus/meta_engine/tests/test_perf_gate_config_file.py \
             src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py

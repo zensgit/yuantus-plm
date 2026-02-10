@@ -11,6 +11,10 @@ on:
     # Daily 03:00 UTC
     - cron: "0 3 * * *"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   strict_gate:
     runs-on: ubuntu-latest
