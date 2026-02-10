@@ -42,7 +42,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  perf:
+  perf_roadmap_9_3:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
