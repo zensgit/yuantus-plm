@@ -111,9 +111,6 @@ jobs:
     timeout-minutes: 60
     needs: detect_changes_regression
     if: needs.detect_changes_regression.outputs.regression_needed == 'true'
-    concurrency:
-      group: regression-${{ github.ref }}
-      cancel-in-progress: true
     env:
       YUANTUS_CADGF_DEFAULT_EMIT: "json,gltf,meta"
     steps:
