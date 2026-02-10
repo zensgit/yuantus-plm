@@ -16,7 +16,8 @@ on:
   pull_request:
 
 jobs:
-  detect_changes:
+  detect_changes_regression:
+    name: detect_changes (regression)
     runs-on: ubuntu-latest
     outputs:
       cadgf_changed: ${{ steps.change_flags.outputs.cadgf }}
@@ -55,11 +56,11 @@ jobs:
           fi
 
           git diff --name-only "$base" "$head" > /tmp/changed.txt
+          cadgf="false"
           if grep -E -q '^(\\.github/workflows/regression\\.yml|docker-compose\\.cadgf\\.yml|docs/samples/cadgf_preview_square\\.dxf|docs/CADGF_|scripts/verify_cad_preview_online\\.sh|scripts/verify_all\\.sh|src/yuantus/config/settings\\.py|src/yuantus/meta_engine/services/cadgf_converter_service\\.py|src/yuantus/meta_engine/tasks/cad_pipeline_tasks\\.py)' /tmp/changed.txt; then
-            echo "cadgf=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "cadgf=false" >> "$GITHUB_OUTPUT"
+            cadgf="true"
           fi
+          echo "cadgf=${cadgf}" >> "$GITHUB_OUTPUT"
 
           # Only run the full docker-compose regression on PR/push when the change set
           # can affect runtime/integration behavior. This avoids burning CI minutes
@@ -92,11 +93,20 @@ jobs:
           done < /tmp/changed.txt
           echo "regression=${regression}" >> "$GITHUB_OUTPUT"
 
+          {
+            echo "## Regression Change Scope"
+            echo ""
+            echo "- cadgf_changed: \`${cadgf}\`"
+            echo "- regression_needed: \`${regression}\`"
+            echo ""
+            echo "Changed files: $(wc -l < /tmp/changed.txt | tr -d ' ')"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   regression:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: detect_changes
-    if: needs.detect_changes.outputs.regression_needed == 'true'
+    needs: detect_changes_regression
+    if: needs.detect_changes_regression.outputs.regression_needed == 'true'
     concurrency:
       group: regression-${{ github.ref }}
       cancel-in-progress: true
@@ -189,6 +199,15 @@ jobs:
               echo "CADGF Preview Online: separate job"
             fi
           } > regression-summary.md
+
+      - name: Write summary to job summary
+        if: always()
+        run: |
+          if [[ -f regression-summary.md ]]; then
+            cat regression-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "regression-summary.md missing" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Compose logs (on failure)
         if: failure()
@@ -304,11 +323,11 @@ jobs:
   cadgf_preview:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: detect_changes
+    needs: detect_changes_regression
     if: >
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch' ||
-      needs.detect_changes.outputs.cadgf_changed == 'true'
+      needs.detect_changes_regression.outputs.cadgf_changed == 'true'
     env:
       CADGF_HOST_ROOT: ${{ github.workspace }}/CADGameFusion
       YUANTUS_CADGF_ROOT: ${{ github.workspace }}/CADGameFusion
@@ -426,6 +445,15 @@ jobs:
               echo "cadgf_preview_report: missing"
             fi
           } > cadgf-preview-summary.md
+
+      - name: Write summary to job summary
+        if: always()
+        run: |
+          if [[ -f cadgf-preview-summary.md ]]; then
+            cat cadgf-preview-summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "cadgf-preview-summary.md missing" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload CADGF preview report
         if: always()
