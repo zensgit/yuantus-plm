@@ -30,6 +30,12 @@
 bash scripts/strict_gate_report.sh
 ```
 
+查看帮助（包含环境变量/示例）：
+
+```bash
+scripts/strict_gate_report.sh --help
+```
+
 常用参数：
 
 - 自定义输出目录/报告路径：

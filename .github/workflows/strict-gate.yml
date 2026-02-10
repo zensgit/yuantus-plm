@@ -62,6 +62,27 @@ jobs:
           fi
           bash scripts/strict_gate_report.sh
 
+      - name: Download artifacts hints
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "## Strict Gate Artifacts"
+            echo ""
+            echo "Run ID: \`${{ github.run_id }}\`"
+            echo ""
+            echo '```bash'
+            echo "RUN_ID=${{ github.run_id }}"
+            echo 'OUT_DIR=tmp/strict-gate-artifacts/$RUN_ID'
+            echo 'mkdir -p "$OUT_DIR"'
+            echo 'gh run download "$RUN_ID" -n strict-gate-report -D "$OUT_DIR"'
+            echo 'gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"'
+            echo '```'
+            echo ""
+            echo "Report path (inside artifact): \`docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md\`"
+            echo "Logs dir (inside artifact): \`tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Write report to job summary
         if: always()
         env:

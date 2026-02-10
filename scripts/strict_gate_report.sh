@@ -10,6 +10,44 @@
 #   REPORT_PATH=docs/DAILY_REPORTS/STRICT_GATE_20260207.md scripts/strict_gate_report.sh
 set -uo pipefail
 
+usage() {
+  cat <<'EOF'
+Usage:
+  scripts/strict_gate_report.sh [--help]
+
+Environment:
+  RUN_ID=<id>                Stable run id used in output folder naming.
+                             Default: STRICT_GATE_<timestamp>
+  OUT_DIR=<path>             Directory for logs.
+                             Default: tmp/strict-gate/<run_id>
+  REPORT_PATH=<path>         Markdown report output path.
+                             Default: docs/DAILY_REPORTS/STRICT_GATE_<timestamp>.md
+
+  TARGETED_PYTEST_ARGS=<arg> Optional. If set, runs an extra targeted pytest step.
+  PYTEST_BIN=<path>          Optional. Default: .venv/bin/pytest
+  PLAYWRIGHT_CMD=<cmd>       Optional. Default: npx playwright test
+  DEMO_SCRIPT=1              Optional. If set, runs scripts/demo_plm_closed_loop.sh
+
+Examples:
+  scripts/strict_gate_report.sh
+  OUT_DIR=tmp/strict-gate/local REPORT_PATH=docs/DAILY_REPORTS/STRICT_GATE_local.md \
+    scripts/strict_gate_report.sh
+  TARGETED_PYTEST_ARGS='src/yuantus/meta_engine/tests/test_perf_gate_config_file.py' \
+    scripts/strict_gate_report.sh
+  DEMO_SCRIPT=1 scripts/strict_gate_report.sh
+EOF
+}
+
+if [[ $# -ge 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
+  usage
+  exit 0
+fi
+if [[ $# -ne 0 ]]; then
+  echo "ERROR: unexpected arguments: $*" >&2
+  usage >&2
+  exit 2
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 

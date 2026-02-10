@@ -50,6 +50,10 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     ):
         assert needle in wf_text, f"strict-gate workflow missing: {needle!r}"
 
+    # Job summary should include copy/paste download hints.
+    assert "gh run download" in wf_text
+    assert "tmp/strict-gate-artifacts" in wf_text
+
     # Runbook must document how to run + download artifacts.
     runbook = repo_root / "docs" / "RUNBOOK_STRICT_GATE.md"
     assert runbook.is_file(), f"Missing runbook: {runbook}"
@@ -63,4 +67,3 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "strict-gate-logs",
     ):
         assert token in runbook_text, f"strict-gate runbook missing: {token!r}"
-
