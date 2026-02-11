@@ -79,6 +79,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI Contracts (Development & Verification Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFICATION_SECTION_SORTING_20260210.md`
 - CI Contracts (Dev & Verification Doc Index Completeness): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFY_DOC_INDEX_COMPLETENESS_20260210.md`
 - CI Contracts (Contracts Job Wiring Guard): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_JOB_WIRING_20260210.md`
+- CI Contracts (Product + Optional Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_PRODUCT_OPTIONAL_SECTION_SORTING_20260211.md`
 - CI Contracts (README Runbook Links): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_README_RUNBOOK_LINKS_20260210.md`
 - CI Contracts (README Runbooks Indexed In Delivery Doc Index): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_DELIVERY_INDEX_SYNC_20260210.md`
 - CI Contracts (Runbook Index Completeness + Change Scope Summaries): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_INDEX_COMPLETENESS_20260210.md`
@@ -131,8 +132,8 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Optional
 
-- Docker Release Template: `docs/RELEASE_DOCKER_TEMPLATE.md`
 - Release Announcement: `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260203.md` (latest), `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260202.md`, `docs/RELEASE_ANNOUNCEMENT_v0.1.3_update_20260201.md`, `docs/RELEASE_ANNOUNCEMENT_v0.1.3.md`
+- Docker Release Template: `docs/RELEASE_DOCKER_TEMPLATE.md`
 
 ## External (Not Included in Package)
 
