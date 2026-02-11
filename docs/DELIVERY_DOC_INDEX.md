@@ -78,13 +78,14 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI/Regression Change Scope + Release Orchestration Script: `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_RUNBOOK_RELEASE_ORCH_SCRIPT_20260210.md`
 - CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`
 - CI/Regression Label Overrides: `docs/DEV_AND_VERIFICATION_CI_LABEL_OVERRIDES_20260210.md`
-- CI Contracts (Shell Script Syntax): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SHELL_SCRIPT_SYNTAX_20260210.md`
-- CI Contracts (Scripts Trigger): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SCRIPTS_TRIGGER_20260210.md`
+- CI Contracts (Delivery Doc Index Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DELIVERY_DOC_INDEX_SORTING_20260210.md`
+- CI Contracts (Dev & Verification Doc Index Completeness): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFY_DOC_INDEX_COMPLETENESS_20260210.md`
+- CI Contracts (Contracts Job Wiring Guard): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_JOB_WIRING_20260210.md`
 - CI Contracts (README Runbook Links): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_README_RUNBOOK_LINKS_20260210.md`
 - CI Contracts (README Runbooks Indexed In Delivery Doc Index): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_DELIVERY_INDEX_SYNC_20260210.md`
 - CI Contracts (Runbook Index Completeness + Change Scope Summaries): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_INDEX_COMPLETENESS_20260210.md`
-- CI Contracts (Dev & Verification Doc Index Completeness): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFY_DOC_INDEX_COMPLETENESS_20260210.md`
-- CI Contracts (Contracts Job Wiring Guard): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_JOB_WIRING_20260210.md`
+- CI Contracts (Scripts Trigger): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SCRIPTS_TRIGGER_20260210.md`
+- CI Contracts (Shell Script Syntax): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SHELL_SCRIPT_SYNTAX_20260210.md`
 - Strict Gate Runbook + Failure Tails: `docs/DEV_AND_VERIFICATION_STRICT_GATE_RUNBOOK_REPORT_TAILS_20260210.md`
 - Strict Gate Workflow Contracts + CLI Runbook: `docs/DEV_AND_VERIFICATION_STRICT_GATE_WORKFLOW_CONTRACTS_20260210.md`
 - Strict Gate Script Help + Job Summary Download Hints: `docs/DEV_AND_VERIFICATION_STRICT_GATE_SCRIPT_HELP_AND_JOB_SUMMARY_HINTS_20260210.md`
