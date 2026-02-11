@@ -64,9 +64,9 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Verification Reports (Latest)
 
+- Product Detail CAD Summary: `docs/VERIFICATION_PRODUCT_DETAIL_CAD_SUMMARY_20260129_0936.md`
 - UI + Config Variants Full Regression: `docs/VERIFICATION_RUN_ALL_UI_CONFIG_20260129_1322.md`
 - UI Aggregation Regression: `docs/VERIFICATION_UI_AGG_RUN_ALL_20260129_0946.md`
-- Product Detail CAD Summary: `docs/VERIFICATION_PRODUCT_DETAIL_CAD_SUMMARY_20260129_0936.md`
 
 ## Development & Verification
 
@@ -84,6 +84,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI Contracts (Runbook Index Completeness + Change Scope Summaries): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_INDEX_COMPLETENESS_20260210.md`
 - CI Contracts (Scripts Trigger): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SCRIPTS_TRIGGER_20260210.md`
 - CI Contracts (Shell Script Syntax): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SHELL_SCRIPT_SYNTAX_20260210.md`
+- CI Contracts (Verification Reports Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_VERIFICATION_REPORTS_SECTION_SORTING_20260210.md`
 - CI Cost Optimization (Selective Jobs + Perf Gate Summaries): `docs/DEV_AND_VERIFICATION_CI_COST_OPTIMIZATION_20260210.md`
 - CI/Regression Label Overrides: `docs/DEV_AND_VERIFICATION_CI_LABEL_OVERRIDES_20260210.md`
 - CI Strict Gate Schedule: `docs/DEV_AND_VERIFICATION_CI_STRICT_GATE_SCHEDULE_20260207.md`
