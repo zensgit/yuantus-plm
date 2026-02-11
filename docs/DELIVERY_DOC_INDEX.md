@@ -78,6 +78,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI/Regression Change Scope + Release Orchestration Script: `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_RUNBOOK_RELEASE_ORCH_SCRIPT_20260210.md`
 - CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`
 - CI/Regression Label Overrides: `docs/DEV_AND_VERIFICATION_CI_LABEL_OVERRIDES_20260210.md`
+- CI Contracts (CI YAML Contracts Test List Ordering): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_CI_YML_TEST_LIST_ORDER_20260210.md`
 - CI Contracts (Delivery Doc Index Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DELIVERY_DOC_INDEX_SORTING_20260210.md`
 - CI Contracts (Dev & Verification Doc Index Completeness): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFY_DOC_INDEX_COMPLETENESS_20260210.md`
 - CI Contracts (Contracts Job Wiring Guard): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_JOB_WIRING_20260210.md`
