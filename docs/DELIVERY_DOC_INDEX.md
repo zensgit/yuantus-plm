@@ -70,16 +70,12 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
-- Regression Evidence Autopack: `docs/DEV_AND_VERIFICATION_REGRESSION_EVIDENCE_AUTOPACK_20260207.md`
-- CI Strict Gate Schedule: `docs/DEV_AND_VERIFICATION_CI_STRICT_GATE_SCHEDULE_20260207.md`
-- Delivery Doc Index (Ops Runbooks + Link Contract): `docs/DEV_AND_VERIFICATION_DELIVERY_DOC_INDEX_RUNBOOKS_20260210.md`
-- CI Cost Optimization (Selective Jobs + Perf Gate Summaries): `docs/DEV_AND_VERIFICATION_CI_COST_OPTIMIZATION_20260210.md`
-- CI Concurrency + Runbooks: `docs/DEV_AND_VERIFICATION_CI_CONCURRENCY_RUNBOOKS_20260210.md`
-- CI/Regression Change Scope + Release Orchestration Script: `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_RUNBOOK_RELEASE_ORCH_SCRIPT_20260210.md`
 - CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`
-- CI/Regression Label Overrides: `docs/DEV_AND_VERIFICATION_CI_LABEL_OVERRIDES_20260210.md`
+- CI/Regression Change Scope + Release Orchestration Script: `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_RUNBOOK_RELEASE_ORCH_SCRIPT_20260210.md`
+- CI Concurrency + Runbooks: `docs/DEV_AND_VERIFICATION_CI_CONCURRENCY_RUNBOOKS_20260210.md`
 - CI Contracts (CI YAML Contracts Test List Ordering): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_CI_YML_TEST_LIST_ORDER_20260210.md`
 - CI Contracts (Delivery Doc Index Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DELIVERY_DOC_INDEX_SORTING_20260210.md`
+- CI Contracts (Development & Verification Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFICATION_SECTION_SORTING_20260210.md`
 - CI Contracts (Dev & Verification Doc Index Completeness): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFY_DOC_INDEX_COMPLETENESS_20260210.md`
 - CI Contracts (Contracts Job Wiring Guard): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_JOB_WIRING_20260210.md`
 - CI Contracts (README Runbook Links): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_README_RUNBOOK_LINKS_20260210.md`
@@ -87,44 +83,49 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI Contracts (Runbook Index Completeness + Change Scope Summaries): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_INDEX_COMPLETENESS_20260210.md`
 - CI Contracts (Scripts Trigger): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SCRIPTS_TRIGGER_20260210.md`
 - CI Contracts (Shell Script Syntax): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_SHELL_SCRIPT_SYNTAX_20260210.md`
-- Strict Gate Runbook + Failure Tails: `docs/DEV_AND_VERIFICATION_STRICT_GATE_RUNBOOK_REPORT_TAILS_20260210.md`
-- Strict Gate Workflow Contracts + CLI Runbook: `docs/DEV_AND_VERIFICATION_STRICT_GATE_WORKFLOW_CONTRACTS_20260210.md`
-- Strict Gate Script Help + Job Summary Download Hints: `docs/DEV_AND_VERIFICATION_STRICT_GATE_SCRIPT_HELP_AND_JOB_SUMMARY_HINTS_20260210.md`
+- CI Cost Optimization (Selective Jobs + Perf Gate Summaries): `docs/DEV_AND_VERIFICATION_CI_COST_OPTIMIZATION_20260210.md`
+- CI/Regression Label Overrides: `docs/DEV_AND_VERIFICATION_CI_LABEL_OVERRIDES_20260210.md`
+- CI Strict Gate Schedule: `docs/DEV_AND_VERIFICATION_CI_STRICT_GATE_SCHEDULE_20260207.md`
+- Delivery Doc Index (Ops Runbooks + Link Contract): `docs/DEV_AND_VERIFICATION_DELIVERY_DOC_INDEX_RUNBOOKS_20260210.md`
+- Demo PLM Closed Loop Script: `docs/DEV_AND_VERIFICATION_DEMO_PLM_CLOSED_LOOP_20260207.md`
+- Export Bundles (Impact + Release Readiness): `docs/DEV_AND_VERIFICATION_EXPORT_BUNDLES_IMPACT_READINESS_20260207.md`
+- Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
+- Item Cockpit + Export Bundle: `docs/DEV_AND_VERIFICATION_ITEM_COCKPIT_EXPORT_20260207.md`
+- Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
+- Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
+- Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
+- Phase 3 Day 3 WorkCenter Strong Association: `docs/DEV_AND_VERIFICATION_P3_DAY3_WORKCENTER_ASSOC_20260206.md`
+- Phase 3 Day 4 Routing Primary Control: `docs/DEV_AND_VERIFICATION_P3_DAY4_ROUTING_PRIMARY_20260206.md`
+- Phase 3 M1 Lifecycle Closure: `docs/DEV_AND_VERIFICATION_P3_M1_LIFECYCLE_RELEASE_20260206.md`
+- P4 Baseline Release Diagnostics: `docs/DEV_AND_VERIFICATION_P4_BASELINE_RELEASE_DIAGNOSTICS_20260207.md`
+- Phase 4/5 Baseline + Reports: `docs/DEV_AND_VERIFICATION_P4_P5_20260201.md`
+- Phase 4/5/6 Hardening: `docs/DEV_AND_VERIFICATION_P4_P5_P6_HARDENING_20260207.md`
+- P5 Reports/Search Performance Harness: `docs/DEV_AND_VERIFICATION_P5_REPORTS_PERF_20260208.md`
+- Phase 6 E-Signatures: `docs/DEV_AND_VERIFICATION_P6_ESIGN_20260201.md`
 - Perf CI Refactor (Config + Baselines + Concurrency): `docs/DEV_AND_VERIFICATION_PERF_CI_REFACTOR_20260209.md`
 - Perf Gate (Generic) - Dev Plan & Verification: `docs/DEV_AND_VERIFICATION_PERF_GATE_20260209.md`
-- Release Orchestration (Plan + Execute): `docs/DEV_AND_VERIFICATION_RELEASE_ORCHESTRATION_20260208.md`
-- Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
-- Export Bundles (Impact + Release Readiness): `docs/DEV_AND_VERIFICATION_EXPORT_BUNDLES_IMPACT_READINESS_20260207.md`
-- Item Cockpit + Export Bundle: `docs/DEV_AND_VERIFICATION_ITEM_COCKPIT_EXPORT_20260207.md`
+- Plan Execution (2026-02-02): `docs/DEV_AND_VERIFICATION_PLAN_20260202.md`
+- Plan Execution (2026-02-02 09:22): `docs/DEV_AND_VERIFICATION_PLAN_20260202_0922.md`
+- Playwright CI Integration: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_CI_20260201.md`
 - Playwright API-Only Export Bundle Regression: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_EXPORT_BUNDLES_API_20260207.md`
 - Product Detail Cockpit Flags: `docs/DEV_AND_VERIFICATION_PRODUCT_DETAIL_COCKPIT_FLAGS_20260207.md`
-- Demo PLM Closed Loop Script: `docs/DEV_AND_VERIFICATION_DEMO_PLM_CLOSED_LOOP_20260207.md`
-- Strategy-Based Release Validation: `docs/DEV_AND_VERIFICATION_STRATEGY_RELEASE_VALIDATION_20260207.md`
-- P4 Baseline Release Diagnostics: `docs/DEV_AND_VERIFICATION_P4_BASELINE_RELEASE_DIAGNOSTICS_20260207.md`
+- Regression Evidence Autopack: `docs/DEV_AND_VERIFICATION_REGRESSION_EVIDENCE_AUTOPACK_20260207.md`
+- Release Orchestration (Plan + Execute): `docs/DEV_AND_VERIFICATION_RELEASE_ORCHESTRATION_20260208.md`
 - Release Readiness + ECO Apply Diagnostics + Ruleset Directory: `docs/DEV_AND_VERIFICATION_RELEASE_READINESS_ECO_APPLY_DIAGNOSTICS_20260207.md`
 - Roadmap 9.3 Performance Benchmarks: `docs/DEV_AND_VERIFICATION_ROADMAP_9_3_PERFORMANCE_20260207.md`
 - Roadmap 9.3 Perf CI (SQLite + Postgres): `docs/DEV_AND_VERIFICATION_ROADMAP_9_3_PERF_20260209.md`
-- Roadmap 9.3 Performance Report (2026-02-07): `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`
-- Roadmap 9.3 Performance Trend: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND.md`
-- P5 Reports/Search Performance Harness: `docs/DEV_AND_VERIFICATION_P5_REPORTS_PERF_20260208.md`
-- P5 Reports/Search Performance Report (2026-02-08): `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-192938.md`
-- P5 Reports/Search Performance Trend: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND.md`
-- Phase 4/5/6 Hardening: `docs/DEV_AND_VERIFICATION_P4_P5_P6_HARDENING_20260207.md`
-- Phase 3 Progress Snapshot: `docs/PHASE3_PROGRESS_SNAPSHOT_20260206.md`
-- Phase 3 M1 Lifecycle Closure: `docs/DEV_AND_VERIFICATION_P3_M1_LIFECYCLE_RELEASE_20260206.md`
-- Phase 3 Day 4 Routing Primary Control: `docs/DEV_AND_VERIFICATION_P3_DAY4_ROUTING_PRIMARY_20260206.md`
-- Phase 3 Day 3 WorkCenter Strong Association: `docs/DEV_AND_VERIFICATION_P3_DAY3_WORKCENTER_ASSOC_20260206.md`
-- Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
-- Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
-- Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
-- Phase 4/5 Baseline + Reports: `docs/DEV_AND_VERIFICATION_P4_P5_20260201.md`
-- Phase 6 E-Signatures: `docs/DEV_AND_VERIFICATION_P6_ESIGN_20260201.md`
-- Playwright CI Integration: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_CI_20260201.md`
-- Plan Execution (2026-02-02): `docs/DEV_AND_VERIFICATION_PLAN_20260202.md`
-- Plan Execution (2026-02-02 09:22): `docs/DEV_AND_VERIFICATION_PLAN_20260202_0922.md`
+- Strategy-Based Release Validation: `docs/DEV_AND_VERIFICATION_STRATEGY_RELEASE_VALIDATION_20260207.md`
+- Strict Gate Runbook + Failure Tails: `docs/DEV_AND_VERIFICATION_STRICT_GATE_RUNBOOK_REPORT_TAILS_20260210.md`
+- Strict Gate Script Help + Job Summary Download Hints: `docs/DEV_AND_VERIFICATION_STRICT_GATE_SCRIPT_HELP_AND_JOB_SUMMARY_HINTS_20260210.md`
+- Strict Gate Workflow Contracts + CLI Runbook: `docs/DEV_AND_VERIFICATION_STRICT_GATE_WORKFLOW_CONTRACTS_20260210.md`
 - Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`
 - Week Plan & Verification (Enhancements): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202_FEATURES2.md`
 - Week Plan & Verification (Enhancements 2026-02-03): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260203_ENHANCEMENTS.md`
+- P5 Reports/Search Performance Report (2026-02-08): `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-192938.md`
+- P5 Reports/Search Performance Trend: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND.md`
+- Roadmap 9.3 Performance Report (2026-02-07): `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`
+- Roadmap 9.3 Performance Trend: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND.md`
+- Phase 3 Progress Snapshot: `docs/PHASE3_PROGRESS_SNAPSHOT_20260206.md`
 
 ## Optional
 
