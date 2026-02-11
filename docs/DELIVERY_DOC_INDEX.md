@@ -84,6 +84,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI Contracts (README Runbooks Indexed In Delivery Doc Index): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_DELIVERY_INDEX_SYNC_20260210.md`
 - CI Contracts (Runbook Index Completeness + Change Scope Summaries): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_INDEX_COMPLETENESS_20260210.md`
 - CI Contracts (Dev & Verification Doc Index Completeness): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFY_DOC_INDEX_COMPLETENESS_20260210.md`
+- CI Contracts (Contracts Job Wiring Guard): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_JOB_WIRING_20260210.md`
 - Strict Gate Runbook + Failure Tails: `docs/DEV_AND_VERIFICATION_STRICT_GATE_RUNBOOK_REPORT_TAILS_20260210.md`
 - Strict Gate Workflow Contracts + CLI Runbook: `docs/DEV_AND_VERIFICATION_STRICT_GATE_WORKFLOW_CONTRACTS_20260210.md`
 - Strict Gate Script Help + Job Summary Download Hints: `docs/DEV_AND_VERIFICATION_STRICT_GATE_SCRIPT_HELP_AND_JOB_SUMMARY_HINTS_20260210.md`
