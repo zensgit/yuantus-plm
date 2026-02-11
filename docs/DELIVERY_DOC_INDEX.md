@@ -4,59 +4,59 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Core
 
-- Release Notes: `docs/RELEASE_NOTES_v0.1.3_update_20260203.md` (latest), `docs/RELEASE_NOTES_v0.1.3_update_20260202.md`, `docs/RELEASE_NOTES_v0.1.3_update_20260201.md`, `docs/RELEASE_NOTES_v0.1.3.md`
 - Changelog: `CHANGELOG.md`
-- Verification Summary: `docs/VERIFICATION_RESULTS.md`
-- Delivery Summary: `docs/DELIVERY_SUMMARY_20260202.md`
-- Delivery Checklist: `docs/DELIVERY_CHECKLIST_20260202.md`
-- Delivery Package Manifest: `docs/DELIVERY_PACKAGE_MANIFEST_20260203.txt`
-- Delivery Package Scripts: `docs/DELIVERY_PACKAGE_SCRIPTS_20260202.md`
-- Delivery Package Note: `docs/DELIVERY_PACKAGE_NOTE_20260203.md`
-- External Verification Guide: `docs/DELIVERY_EXTERNAL_VERIFICATION_GUIDE_20260203.md`
-- Delivery Acceptance Guide: `docs/DELIVERY_ACCEPTANCE_GUIDE_20260202.md`
-- Delivery Acceptance Checklist: `docs/DELIVERY_ACCEPTANCE_CHECKLIST_20260202.md`
-- Delivery Contents Overview: `docs/DELIVERY_CONTENTS_OVERVIEW_20260202.md`
-- Delivery Startup Example: `docs/DELIVERY_STARTUP_EXAMPLE_20260202.md`
-- Delivery FAQ: `docs/DELIVERY_FAQ_20260202.md`
-- Delivery Quick Acceptance: `docs/DELIVERY_QUICK_ACCEPTANCE_20260202.md`
-- Delivery Ops Checklist: `docs/DELIVERY_OPS_CHECKLIST_20260202.md`
-- Delivery Changelog: `docs/DELIVERY_CHANGELOG_20260202.md`
-- Delivery Dependencies: `docs/DELIVERY_DEPENDENCIES_20260202.md`
 - Aras Parity Scorecard: `docs/ARAS_PARITY_SCORECARD.md`
-- Post-Deployment Verification: `docs/DELIVERY_POST_DEPLOY_CHECKLIST_20260202.md`
-- Delivery Upgrade Guide: `docs/DELIVERY_UPGRADE_GUIDE_20260202.md`
-- Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`
+- Delivery Acceptance Checklist: `docs/DELIVERY_ACCEPTANCE_CHECKLIST_20260202.md`
+- Delivery Acceptance Guide: `docs/DELIVERY_ACCEPTANCE_GUIDE_20260202.md`
 - Delivery API Examples: `docs/DELIVERY_API_EXAMPLES_20260202.md`
+- Delivery Changelog: `docs/DELIVERY_CHANGELOG_20260202.md`
+- Delivery Checklist: `docs/DELIVERY_CHECKLIST_20260202.md`
+- Delivery Contents Overview: `docs/DELIVERY_CONTENTS_OVERVIEW_20260202.md`
+- Delivery Delta Summary: `docs/DELIVERY_DELTA_SUMMARY_20260202.md`
+- Delivery Dependencies: `docs/DELIVERY_DEPENDENCIES_20260202.md`
+- Delivery Docs List: `docs/DELIVERY_DOCS_LIST_20260202.md`
+- Delivery Endpoint Changelog: `docs/DELIVERY_ENDPOINT_CHANGELOG_20260202.md`
+- External Verification Guide: `docs/DELIVERY_EXTERNAL_VERIFICATION_GUIDE_20260203.md`
+- Delivery FAQ: `docs/DELIVERY_FAQ_20260202.md`
+- Delivery One Pager: `docs/DELIVERY_ONE_PAGER_20260202.md`
+- Delivery Ops Checklist: `docs/DELIVERY_OPS_CHECKLIST_20260202.md`
+- Delivery Package Manifest: `docs/DELIVERY_PACKAGE_MANIFEST_20260203.txt`
+- Delivery Package Note: `docs/DELIVERY_PACKAGE_NOTE_20260203.md`
+- Delivery Package Scripts: `docs/DELIVERY_PACKAGE_SCRIPTS_20260202.md`
+- Post-Deployment Verification: `docs/DELIVERY_POST_DEPLOY_CHECKLIST_20260202.md`
+- Delivery Quality Report: `docs/DELIVERY_QUALITY_REPORT_20260202.md`
+- Delivery Quick Acceptance: `docs/DELIVERY_QUICK_ACCEPTANCE_20260202.md`
+- Delivery Release Summary: `docs/DELIVERY_RELEASE_SUMMARY_20260202.md`
 - Delivery Report Export Formats: `docs/DELIVERY_REPORT_EXPORT_FORMATS_20260202.md`
 - Delivery Rollback Guide: `docs/DELIVERY_ROLLBACK_GUIDE_20260202.md`
-- Delivery Package Tree: `docs/DELIVERY_TREE_20260202.md`
-- Delivery Release Summary: `docs/DELIVERY_RELEASE_SUMMARY_20260202.md`
-- Delivery Version Docs Map: `docs/DELIVERY_VERSION_DOCS_MAP_20260202.md`
-- Delivery Delta Summary: `docs/DELIVERY_DELTA_SUMMARY_20260202.md`
-- Delivery Docs List: `docs/DELIVERY_DOCS_LIST_20260202.md`
 - Delivery Scripts Index: `docs/DELIVERY_SCRIPTS_INDEX_20260202.md`
-- Delivery One Pager: `docs/DELIVERY_ONE_PAGER_20260202.md`
-- Delivery Quality Report: `docs/DELIVERY_QUALITY_REPORT_20260202.md`
+- Delivery Startup Example: `docs/DELIVERY_STARTUP_EXAMPLE_20260202.md`
+- Delivery Summary: `docs/DELIVERY_SUMMARY_20260202.md`
+- Delivery Package Tree: `docs/DELIVERY_TREE_20260202.md`
+- Delivery Upgrade Guide: `docs/DELIVERY_UPGRADE_GUIDE_20260202.md`
+- Delivery Version Docs Map: `docs/DELIVERY_VERSION_DOCS_MAP_20260202.md`
+- Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`
 - Week Plan & Verification (Enhancements): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202_FEATURES2.md`
 - Week Plan & Verification (Enhancements 2026-02-03): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260203_ENHANCEMENTS.md`
-- Delivery Endpoint Changelog: `docs/DELIVERY_ENDPOINT_CHANGELOG_20260202.md`
+- Release Notes: `docs/RELEASE_NOTES_v0.1.3_update_20260203.md` (latest), `docs/RELEASE_NOTES_v0.1.3_update_20260202.md`, `docs/RELEASE_NOTES_v0.1.3_update_20260201.md`, `docs/RELEASE_NOTES_v0.1.3.md`
+- Verification Summary: `docs/VERIFICATION_RESULTS.md`
 
 ## Ops & Deployment
 
-- Multi‑Tenancy Ops Runbook: `docs/OPS_RUNBOOK_MT.md`
-- Perf Gate Config Runbook: `docs/RUNBOOK_PERF_GATE_CONFIG.md`
-- Release Orchestration Runbook: `docs/RUNBOOK_RELEASE_ORCHESTRATION.md`
-- CI/Regression Change Scope Runbook: `docs/RUNBOOK_CI_CHANGE_SCOPE.md`
-- Strict Gate Runbook: `docs/RUNBOOK_STRICT_GATE.md`
-- Runtime Runbook: `docs/RUNBOOK_RUNTIME.md`
-- Backup & Restore Runbook: `docs/RUNBOOK_BACKUP_RESTORE.md`
-- Scheduled Backup Runbook: `docs/RUNBOOK_SCHEDULED_BACKUP.md`
-- Jobs Diagnostics Runbook: `docs/RUNBOOK_JOBS_DIAG.md`
-- Jobs Error Codes: `docs/ERROR_CODES_JOBS.md`
-- Relationship Item Migration Runbook: `docs/RUNBOOK_RELATIONSHIP_ITEM_MIGRATION.md`
-- Delivery Readiness Checklist: `docs/DELIVERY_READINESS_CHECKLIST.md`
 - Delivery Package Layout: `docs/DELIVERY_PACKAGE_LAYOUT.md`
+- Delivery Readiness Checklist: `docs/DELIVERY_READINESS_CHECKLIST.md`
+- Jobs Error Codes: `docs/ERROR_CODES_JOBS.md`
+- Multi‑Tenancy Ops Runbook: `docs/OPS_RUNBOOK_MT.md`
 - Production Readiness Check: `docs/PROD_READINESS_CHECK.md`
+- Backup & Restore Runbook: `docs/RUNBOOK_BACKUP_RESTORE.md`
+- CI/Regression Change Scope Runbook: `docs/RUNBOOK_CI_CHANGE_SCOPE.md`
+- Jobs Diagnostics Runbook: `docs/RUNBOOK_JOBS_DIAG.md`
+- Perf Gate Config Runbook: `docs/RUNBOOK_PERF_GATE_CONFIG.md`
+- Relationship Item Migration Runbook: `docs/RUNBOOK_RELATIONSHIP_ITEM_MIGRATION.md`
+- Release Orchestration Runbook: `docs/RUNBOOK_RELEASE_ORCHESTRATION.md`
+- Runtime Runbook: `docs/RUNBOOK_RUNTIME.md`
+- Scheduled Backup Runbook: `docs/RUNBOOK_SCHEDULED_BACKUP.md`
+- Strict Gate Runbook: `docs/RUNBOOK_STRICT_GATE.md`
 
 ## Product/UI Integration
 
@@ -74,6 +74,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI/Regression Change Scope + Release Orchestration Script: `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_RUNBOOK_RELEASE_ORCH_SCRIPT_20260210.md`
 - CI Concurrency + Runbooks: `docs/DEV_AND_VERIFICATION_CI_CONCURRENCY_RUNBOOKS_20260210.md`
 - CI Contracts (CI YAML Contracts Test List Ordering): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_CI_YML_TEST_LIST_ORDER_20260210.md`
+- CI Contracts (Core + Ops Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_CORE_OPS_SECTION_SORTING_20260210.md`
 - CI Contracts (Delivery Doc Index Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DELIVERY_DOC_INDEX_SORTING_20260210.md`
 - CI Contracts (Development & Verification Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFICATION_SECTION_SORTING_20260210.md`
 - CI Contracts (Dev & Verification Doc Index Completeness): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFY_DOC_INDEX_COMPLETENESS_20260210.md`
