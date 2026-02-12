@@ -67,13 +67,16 @@ Additionally:
     - `src/yuantus/meta_engine/services/job_worker.py`
 - SimilarityRecord unordered pair uniqueness:
   - Adds `pair_key` (unordered `source_file_id|target_file_id`) and enforces uniqueness at the DB level.
+  - Enforces `pair_key` as `NOT NULL` (align with ORM + avoid NULL bypass).
   - Ingestion uses `ON CONFLICT DO NOTHING` to be concurrency-safe.
   - Files:
     - `src/yuantus/meta_engine/dedup/models.py`
     - `src/yuantus/meta_engine/dedup/service.py`
     - `migrations/versions/y1b2c3d4e7a3_add_similarity_record_pair_key.py`
+    - `migrations/versions/y1b2c3d4e7a4_make_similarity_pair_key_not_null.py`
 - Auto-trigger workflow on confirm:
   - When a SimilarityRecord is confirmed and the rule has `auto_trigger_workflow=true` + `workflow_map_id`, start a workflow for the created `Part Equivalent` relationship item.
+  - Rule validation: `auto_trigger_workflow=true` requires `workflow_map_id` (HTTP 400 on create/update).
   - Files:
     - `src/yuantus/meta_engine/dedup/service.py`
 - Dedup report + export:
@@ -124,9 +127,34 @@ Expected:
 - Confirms batch run `index=true` results in `cad_dedup.indexed.success=true`
 - Confirms dedupe promotion results in pending job payload containing `index=true`
 - Confirms SimilarityRecord unordered pair uniqueness is enforced (`pair_key`)
+- Confirms rule validation: `auto_trigger_workflow=true` requires `workflow_map_id` (HTTP 400)
+- Confirms DB constraint: `pair_key` is `NOT NULL`
 - Confirms dedup report + CSV export endpoints return rows
 
 ## Verification Results (2026-02-12)
+
+### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-20260212-225211
+
+- 时间：`2026-02-12 22:52:58 +0800`
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision，worker 用本机 CLI 轮询执行）
+- 命令：`LOG=/tmp/verify_cad_dedup_relationship_s3_20260212-225211.log; scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 原始日志：`/tmp/verify_cad_dedup_relationship_s3_20260212-225211.log`
+
+关键 ID：
+
+- workflow_map_id: `2dad5291-c67e-4c7b-8f0a-0e9540e27c02`
+- rule_id: `7924dbaa-07f8-4766-9979-6a9b7274a8de`
+- part_a_id: `ac70d991-5403-4f24-bfce-3a61779f9a29`
+- part_b_id: `c3a738e4-af7c-4b6c-a1ab-39627842298c`
+- baseline_file_id: `5bbc1e6e-2091-49a8-8bb8-59d7e9a6b7a9`
+- query_file_id: `33f60fb0-b18c-47a8-896b-3861b1098cea`
+- similarity_record_id: `e29b14a6-4c13-4de5-9fc3-dd822e134d6a`
+- relationship_item_id: `ce5123e8-f027-45dd-b642-2652aac7c878`
+- batch_id: `fac44a10-7e55-4595-8c90-fc215ef905f0`
+- reverse_job_id: `574481fb-e549-410b-8d57-ac21e46b1200`
+- promote_file_id: `46d2189b-41a6-4a70-ac26-6e9a5ca4a0c9`
+- promote_job_id: `d3343d28-4d21-4f82-b590-f317fe52cc4b`
 
 ### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-20260212-215323
 

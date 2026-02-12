@@ -32,3 +32,6 @@ def test_dedup_review_can_auto_trigger_workflow() -> None:
     assert "_start_workflow_for_item" in text, (
         "DedupService should route workflow triggering via a helper to keep review_record readable."
     )
+    assert "workflow_map_id required when auto_trigger_workflow=true" in text, (
+        "Dedup rule creation/update must reject auto_trigger_workflow=true without workflow_map_id."
+    )

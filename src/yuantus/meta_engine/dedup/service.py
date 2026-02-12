@@ -43,6 +43,26 @@ class DedupService:
         existing = self.session.query(DedupRule).filter(DedupRule.name == name).first()
         if existing:
             raise ValueError("Rule name already exists")
+
+        auto_trigger_workflow = bool(payload.get("auto_trigger_workflow", False))
+        workflow_map_id = payload.get("workflow_map_id")
+        if isinstance(workflow_map_id, str):
+            workflow_map_id = workflow_map_id.strip() or None
+
+        if auto_trigger_workflow and not workflow_map_id:
+            raise ValueError("workflow_map_id required when auto_trigger_workflow=true")
+
+        if workflow_map_id:
+            # Validate existence early to fail with HTTP 400 rather than a later runtime skip.
+            from yuantus.meta_engine.workflow.models import WorkflowMap
+
+            exists = (
+                self.session.query(WorkflowMap.id)
+                .filter(WorkflowMap.id == workflow_map_id)
+                .first()
+            )
+            if not exists:
+                raise ValueError(f"workflow_map_id not found: {workflow_map_id}")
         rule = DedupRule(
             id=payload.get("id") or str(uuid.uuid4()),
             name=name,
@@ -54,8 +74,8 @@ class DedupService:
             combined_threshold=payload.get("combined_threshold", 0.80),
             detection_mode=payload.get("detection_mode", "balanced"),
             auto_create_relationship=bool(payload.get("auto_create_relationship", False)),
-            auto_trigger_workflow=bool(payload.get("auto_trigger_workflow", False)),
-            workflow_map_id=payload.get("workflow_map_id"),
+            auto_trigger_workflow=auto_trigger_workflow,
+            workflow_map_id=workflow_map_id,
             exclude_patterns=payload.get("exclude_patterns") or [],
             priority=payload.get("priority", 100),
             is_active=bool(payload.get("is_active", True)),
@@ -87,6 +107,30 @@ class DedupService:
             if existing:
                 raise ValueError("Rule name already exists")
             rule.name = name
+
+        # Validate workflow requirements based on the _resulting_ state after patch.
+        new_auto_trigger_workflow = bool(payload.get("auto_trigger_workflow", rule.auto_trigger_workflow))
+        new_workflow_map_id = payload.get("workflow_map_id", rule.workflow_map_id)
+        if isinstance(new_workflow_map_id, str):
+            new_workflow_map_id = new_workflow_map_id.strip() or None
+
+        if new_auto_trigger_workflow and not new_workflow_map_id:
+            raise ValueError("workflow_map_id required when auto_trigger_workflow=true")
+
+        if new_workflow_map_id:
+            from yuantus.meta_engine.workflow.models import WorkflowMap
+
+            exists = (
+                self.session.query(WorkflowMap.id)
+                .filter(WorkflowMap.id == new_workflow_map_id)
+                .first()
+            )
+            if not exists:
+                raise ValueError(f"workflow_map_id not found: {new_workflow_map_id}")
+
+        # Normalize payload so stored IDs are trimmed / canonical.
+        if "workflow_map_id" in payload and isinstance(payload["workflow_map_id"], str):
+            payload["workflow_map_id"] = payload["workflow_map_id"].strip() or None
         for field in [
             "description",
             "item_type_id",

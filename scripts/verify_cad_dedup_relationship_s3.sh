@@ -147,7 +147,36 @@ ok "Admin login"
 AUTH_HEADERS=(-H "Authorization: Bearer $ADMIN_TOKEN")
 
 # -----------------------------------------------------------------------------
-# 0) Create a workflow map for auto_trigger_workflow
+# 0) Rule validation: auto_trigger_workflow requires workflow_map_id
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Rule validation: auto_trigger_workflow requires workflow_map_id"
+INVALID_RULE_NAME="verify-dedup-invalid-wf-$(date +%s)"
+INVALID_HTTP="$(
+  http_code -X POST "$API/dedup/rules" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+    -H 'content-type: application/json' \
+    -d "{
+      \"name\": \"${INVALID_RULE_NAME}\",
+      \"description\": \"Expected to fail: auto_trigger_workflow without workflow_map_id\",
+      \"document_type\": \"2d\",
+      \"phash_threshold\": 64,
+      \"feature_threshold\": 0.0,
+      \"combined_threshold\": 0.0,
+      \"detection_mode\": \"fast\",
+      \"auto_create_relationship\": true,
+      \"auto_trigger_workflow\": true,
+      \"priority\": 100,
+      \"is_active\": true
+    }"
+)"
+if [[ "$INVALID_HTTP" != "400" ]]; then
+  fail "Expected HTTP 400 for auto_trigger_workflow without workflow_map_id (got: $INVALID_HTTP)"
+fi
+ok "Rule validation enforced (auto_trigger_workflow without workflow_map_id => 400)"
+
+# -----------------------------------------------------------------------------
+# 1) Create a workflow map for auto_trigger_workflow
 # -----------------------------------------------------------------------------
 echo ""
 echo "==> Create workflow map (Start -> Review(admin role) -> End)"
@@ -799,6 +828,61 @@ if [[ "$PAIR_COUNT" != "1" ]]; then
   fail "Expected SimilarityRecord count for pair_key=$PAIR_KEY to be 1 (got: $PAIR_COUNT)"
 fi
 ok "SimilarityRecord unordered pair uniqueness enforced (pair_key)"
+
+echo ""
+echo "==> Verify pair_key is NOT NULL at DB level (Postgres only)"
+PAIR_KEY_NULLABLE="$(
+  TENANT="$TENANT" ORG="$ORG" run_meta_py - <<'PY'
+import os
+from sqlalchemy import text
+
+from yuantus.config import get_settings
+from yuantus.database import (
+    SessionLocal as GlobalSessionLocal,
+    get_sessionmaker_for_scope,
+    get_sessionmaker_for_tenant,
+)
+
+tenant = os.environ.get("TENANT")
+org = os.environ.get("ORG")
+
+settings = get_settings()
+if settings.TENANCY_MODE == "db-per-tenant-org":
+    SessionLocal = get_sessionmaker_for_scope(tenant, org)
+elif settings.TENANCY_MODE == "db-per-tenant":
+    SessionLocal = get_sessionmaker_for_tenant(tenant)
+else:
+    SessionLocal = GlobalSessionLocal
+
+session = SessionLocal()
+try:
+    dialect = session.bind.dialect.name  # type: ignore[union-attr]
+    if dialect != "postgresql":
+        print(f"SKIP:{dialect}")
+    else:
+        nullable = session.execute(
+            text(
+                """
+                SELECT is_nullable
+                FROM information_schema.columns
+                WHERE table_schema='public'
+                  AND table_name='meta_similarity_records'
+                  AND column_name='pair_key'
+                """
+            )
+        ).scalar()
+        print(nullable or "")
+finally:
+    session.close()
+PY
+)"
+if [[ "$PAIR_KEY_NULLABLE" == SKIP:* ]]; then
+  ok "pair_key NOT NULL check skipped ($PAIR_KEY_NULLABLE)"
+elif [[ "$PAIR_KEY_NULLABLE" != "NO" ]]; then
+  fail "Expected information_schema.columns.is_nullable=NO for pair_key (got: $PAIR_KEY_NULLABLE)"
+else
+  ok "pair_key is NOT NULL (db constraint)"
+fi
 
 echo ""
 echo "==> Verify dedup report endpoint + CSV export"
