@@ -191,6 +191,8 @@ services:
       YUANTUS_CADGF_ROUTER_BASE_URL: ${YUANTUS_CADGF_ROUTER_BASE_URL:-}
       YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL: ${YUANTUS_CADGF_ROUTER_PUBLIC_BASE_URL:-}
       YUANTUS_CAD_CONNECTORS_CONFIG_PATH: ${YUANTUS_CAD_CONNECTORS_CONFIG_PATH:-}
+      # Dedup Vision (required for cad_dedup_vision jobs)
+      YUANTUS_DEDUP_VISION_BASE_URL: ${YUANTUS_DEDUP_VISION_BASE_URL:-http://dedup-vision:8000}
     command:
       [
         "yuantus",
