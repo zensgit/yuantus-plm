@@ -59,9 +59,11 @@ class DedupVisionClient:
             authorization=self._resolve_authorization(authorization)
         ).as_dict()
         upload_name = upload_filename or os.path.basename(file_path)
+        # Backward-compat: some callers use "accurate" (legacy v1 search) while v2 expects "precise".
+        v2_mode = "precise" if str(mode).strip().lower() == "accurate" else mode
         with httpx.Client(base_url=self.base_url, timeout=self.timeout_s) as client:
             v2_data = {
-                "mode": mode,
+                "mode": v2_mode,
                 "max_results": str(max_results),
                 "compute_diff": "false",
                 "exclude_self": "true" if exclude_self else "false",
@@ -76,7 +78,7 @@ class DedupVisionClient:
                 return resp.json()
             except httpx.HTTPStatusError as exc:
                 status = exc.response.status_code if exc.response else None
-                if status not in {404, 405, 422, 503}:
+                if status not in {400, 404, 405, 422, 503}:
                     raise
 
             with open(file_path, "rb") as f:
