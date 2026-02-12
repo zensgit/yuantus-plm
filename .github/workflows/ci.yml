@@ -245,6 +245,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_perf_workflow_contracts.py \
             src/yuantus/meta_engine/tests/test_readme_runbook_references.py \
             src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py \
+            src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py \
             src/yuantus/meta_engine/tests/test_runbook_index_completeness.py \
             src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py \

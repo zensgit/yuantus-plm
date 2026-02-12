@@ -95,17 +95,17 @@ RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
 
 ## Runbooks
 
-- `docs/RUNBOOK_JOBS_DIAG.md` (Jobs/CAD failure diagnostics)
 - `docs/ERROR_CODES_JOBS.md` (Jobs error codes)
-- `docs/RUNBOOK_CI_CHANGE_SCOPE.md` (CI/regression skip rules + force full runs)
-- `docs/RUNBOOK_RUNTIME.md` (Runtime operations)
-- `docs/RUNBOOK_BACKUP_RESTORE.md` (Backup/restore)
-- `docs/RUNBOOK_SCHEDULED_BACKUP.md` (Scheduled backups)
-- `docs/RUNBOOK_PERF_GATE_CONFIG.md` (Perf CI gate config)
-- `docs/RUNBOOK_RELEASE_ORCHESTRATION.md` (Release orchestration)
-- `docs/RUNBOOK_STRICT_GATE.md` (Strict gate evidence run)
-- `docs/RUNBOOK_RELATIONSHIP_ITEM_MIGRATION.md` (Relationship item migration)
 - `docs/OPS_RUNBOOK_MT.md` (Multi-tenancy ops)
+- `docs/RUNBOOK_BACKUP_RESTORE.md` (Backup/restore)
+- `docs/RUNBOOK_CI_CHANGE_SCOPE.md` (CI/regression skip rules + force full runs)
+- `docs/RUNBOOK_JOBS_DIAG.md` (Jobs/CAD failure diagnostics)
+- `docs/RUNBOOK_PERF_GATE_CONFIG.md` (Perf CI gate config)
+- `docs/RUNBOOK_RELATIONSHIP_ITEM_MIGRATION.md` (Relationship item migration)
+- `docs/RUNBOOK_RELEASE_ORCHESTRATION.md` (Release orchestration)
+- `docs/RUNBOOK_RUNTIME.md` (Runtime operations)
+- `docs/RUNBOOK_SCHEDULED_BACKUP.md` (Scheduled backups)
+- `docs/RUNBOOK_STRICT_GATE.md` (Strict gate evidence run)
 
 ## Development design
 

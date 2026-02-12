@@ -84,6 +84,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI Contracts (External Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_EXTERNAL_SECTION_SORTING_20260211.md`
 - CI Contracts (Contracts Job Wiring Guard): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_JOB_WIRING_20260210.md`
 - CI Contracts (Product + Optional Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_PRODUCT_OPTIONAL_SECTION_SORTING_20260211.md`
+- CI Contracts (README Runbooks Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_README_RUNBOOKS_SORTING_20260211.md`
 - CI Contracts (README Runbook Links): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_README_RUNBOOK_LINKS_20260210.md`
 - CI Contracts (README Runbooks Indexed In Delivery Doc Index): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_DELIVERY_INDEX_SYNC_20260210.md`
 - CI Contracts (Runbook Index Completeness + Change Scope Summaries): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_RUNBOOK_INDEX_COMPLETENESS_20260210.md`
