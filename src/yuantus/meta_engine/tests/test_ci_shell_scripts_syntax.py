@@ -36,6 +36,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "release_orchestration.sh",
         scripts_dir / "verify_all.sh",
         scripts_dir / "verify_cad_dedup_vision_s3.sh",
+        scripts_dir / "verify_cad_dedup_relationship_s3.sh",
         scripts_dir / "verify_cad_ml_quick.sh",
         scripts_dir / "verify_cad_preview_online.sh",
         scripts_dir / "verify_run_h.sh",

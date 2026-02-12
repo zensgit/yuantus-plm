@@ -16,6 +16,7 @@
 - ✅ docker compose 一键：API + Worker + Postgres + MinIO
 - ✅ Run H 全链路脚本：`scripts/verify_run_h.sh`
 - ✅ CAD 2D 去重（Dedup Vision）S3 验证脚本：`scripts/verify_cad_dedup_vision_s3.sh`（`dedup_index` + `cad_dedup_url` `302->200`）
+- ✅ CAD 去重结果产品化（SimilarityRecord -> Part Equivalent）S3 验证脚本：`scripts/verify_cad_dedup_relationship_s3.sh`（等效关系 + batch index + dedupe promotion）
 
 补充待办（基于现状的“硬化/复核”清单，避免重复开发）：
 

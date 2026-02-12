@@ -70,6 +70,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- CAD Dedup (SimilarityRecord -> Part Equivalent) (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
 - CAD Dedup Vision (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_VISION_S3_PG_MINIO_20260212.md`
 - CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`
 - CI/Regression Change Scope + Release Orchestration Script: `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_RUNBOOK_RELEASE_ORCH_SCRIPT_20260210.md`

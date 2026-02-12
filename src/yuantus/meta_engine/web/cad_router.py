@@ -444,7 +444,9 @@ def _validate_upload(filename: str, file_size: int) -> None:
 
 def _get_document_type(extension: str) -> str:
     ext = extension.lower().lstrip(".")
-    if ext in {"dwg", "dxf", "pdf"}:
+    # Treat common 2D drawing formats (including rendered images) as "2d"
+    # so dedup rules (document_type=2d) can apply consistently.
+    if ext in {"dwg", "dxf", "pdf", "png", "jpg", "jpeg"}:
         return "2d"
     if ext in {
         "step",

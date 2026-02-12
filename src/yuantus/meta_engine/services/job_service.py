@@ -49,6 +49,22 @@ class JobService:
                 .first()
             )
             if existing:
+                # cad_dedup_vision: "index=true" is a superset of "index=false".
+                # If a request asks for indexing but we dedupe to an existing job, promote the
+                # existing job payload so the worker will perform indexing when it runs.
+                try:
+                    if task_type == "cad_dedup_vision" and isinstance(payload, dict):
+                        want_index = bool(payload.get("index", False))
+                        if want_index:
+                            cur = dict(existing.payload or {}) if isinstance(existing.payload, dict) else {}
+                            if not bool(cur.get("index", False)):
+                                cur["index"] = True
+                                existing.payload = cur
+                                self.session.add(existing)
+                                self.session.commit()
+                except Exception:
+                    # Never fail job submission due to promotion; fall back to returning the existing job.
+                    pass
                 return existing
         self._enforce_quota_for_job(payload)
         job = ConversionJob(

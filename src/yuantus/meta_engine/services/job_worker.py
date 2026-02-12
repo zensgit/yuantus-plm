@@ -132,6 +132,11 @@ class JobWorker:
         tenant_token = None
         org_token = None
         user_token = None
+        # Reload in case the API updated the payload after claim/dedupe (e.g. promote cad_dedup_vision to index=true).
+        try:
+            job_service.session.refresh(job)
+        except Exception:
+            pass
         payload = job.payload or {}
 
         tenant_id = payload.get("tenant_id")

@@ -135,6 +135,7 @@ class DedupBatchRunRequest(BaseModel):
     limit: Optional[int] = Field(default=None, ge=1, le=5000)
     priority: int = Field(default=30, ge=1, le=100)
     dedupe: bool = True
+    index: bool = False
     rule_id: Optional[str] = None
 
 
@@ -419,6 +420,7 @@ async def run_batch(
         limit=request.limit,
         priority=request.priority,
         dedupe=request.dedupe,
+        index=request.index,
         rule_id=request.rule_id,
     )
     db.commit()

@@ -788,6 +788,20 @@ scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"
 - query 上传使用 `dedup_index=false`，只做 search
 - S3 存储下读取 `GET /api/v1/file/{id}/cad_dedup` 可能返回 `302` 到 presigned URL；脚本使用 `curl -L` 自动跟随
 
+### 16.6 CAD 去重结果产品化：SimilarityRecord -> Part Equivalent（S3）
+
+一键验证脚本（创建 2 个 Part、上传 2D 图纸、确认相似记录并自动创建等效关系；包含 batch index 与 dedupe promotion 验证）：
+
+```bash
+docker compose -f docker-compose.yml --profile dedup up -d postgres minio api dedup-vision
+docker compose -f docker-compose.yml --profile dedup up -d --build --no-deps api
+
+LOG=/tmp/verify_cad_dedup_relationship_s3_$(date +%Y%m%d-%H%M%S).log
+scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"
+```
+
+期望：输出 `ALL CHECKS PASSED`。
+
 ---
 
 ## 17) Auth：登录并调用受保护接口（可选）

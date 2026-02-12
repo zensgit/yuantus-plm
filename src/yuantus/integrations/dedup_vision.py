@@ -49,13 +49,36 @@ class DedupVisionClient:
         authorization: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Call dedupcad-vision `/api/search` (v1) to find similar drawings.
+        Call dedupcad-vision search API to find similar drawings.
+
+        Prefer `/api/v2/search` (progressive engine) when available because it supports
+        incremental indexing (new drawings are immediately queryable after `/api/index/add`).
+        Fall back to legacy `/api/search` (v1) for older deployments.
         """
         headers = build_outbound_headers(
             authorization=self._resolve_authorization(authorization)
         ).as_dict()
         upload_name = upload_filename or os.path.basename(file_path)
         with httpx.Client(base_url=self.base_url, timeout=self.timeout_s) as client:
+            v2_data = {
+                "mode": mode,
+                "max_results": str(max_results),
+                "compute_diff": "false",
+                "exclude_self": "true" if exclude_self else "false",
+                "enable_ml": "false",
+                "enable_geometric": "false",
+            }
+            try:
+                with open(file_path, "rb") as f:
+                    files = {"file": (upload_name, f)}
+                    resp = client.post("/api/v2/search", files=files, data=v2_data, headers=headers)
+                resp.raise_for_status()
+                return resp.json()
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code if exc.response else None
+                if status not in {404, 405, 422, 503}:
+                    raise
+
             with open(file_path, "rb") as f:
                 files = {"file": (upload_name, f)}
                 data = {
@@ -67,8 +90,8 @@ class DedupVisionClient:
                     "diff_top_k": str(diff_top_k),
                 }
                 resp = client.post("/api/search", files=files, data=data, headers=headers)
-                resp.raise_for_status()
-                return resp.json()
+            resp.raise_for_status()
+            return resp.json()
 
     def index_add_sync(
         self,

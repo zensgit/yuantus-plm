@@ -235,6 +235,36 @@ class DedupService:
             if score < combined_threshold:
                 continue
 
+            # Apply rule thresholds to search results (important when upstream search API
+            # doesn't enforce our thresholds, e.g. progressive v2).
+            phash_distance = match.get("phash_distance")
+            if phash_distance is None:
+                levels = match.get("levels")
+                if isinstance(levels, dict):
+                    l1 = levels.get("l1")
+                    if isinstance(l1, dict):
+                        phash_distance = l1.get("phash_distance")
+            if phash_distance is not None:
+                try:
+                    if int(phash_distance) > int(phash_threshold):
+                        continue
+                except (TypeError, ValueError):
+                    pass
+
+            feature_similarity = match.get("feature_similarity")
+            if feature_similarity is None:
+                levels = match.get("levels")
+                if isinstance(levels, dict):
+                    l2 = levels.get("l2")
+                    if isinstance(l2, dict):
+                        feature_similarity = l2.get("feature_similarity")
+            if feature_similarity is not None:
+                try:
+                    if float(feature_similarity) < float(feature_threshold):
+                        continue
+                except (TypeError, ValueError):
+                    pass
+
             existing = self.session.query(SimilarityRecord).filter(
                 or_(
                     and_(
@@ -493,6 +523,7 @@ class DedupService:
         limit: Optional[int] = None,
         priority: int = 30,
         dedupe: bool = True,
+        index: bool = False,
         rule_id: Optional[str] = None,
     ) -> Tuple[int, List[str]]:
         effective_rule_id = rule_id or batch.rule_id
@@ -510,6 +541,7 @@ class DedupService:
                 "user_name": user_name,
                 "batch_id": batch.id,
                 "rule_id": rule.id if rule else None,
+                "index": bool(index),
             }
             job = job_service.create_job(
                 "cad_dedup_vision",
@@ -530,6 +562,7 @@ class DedupService:
                 "jobs_created": len(job_ids),
                 "mode": effective_mode,
                 "rule_id": rule.id if rule else None,
+                "index": bool(index),
             }
         )
         if limit:
