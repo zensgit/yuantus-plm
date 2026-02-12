@@ -75,6 +75,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI Concurrency + Runbooks: `docs/DEV_AND_VERIFICATION_CI_CONCURRENCY_RUNBOOKS_20260210.md`
 - CI Contracts (CI YAML Contracts Test List Ordering): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_CI_YML_TEST_LIST_ORDER_20260210.md`
 - CI Contracts (Core + Ops Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_CORE_OPS_SECTION_SORTING_20260210.md`
+- CI Contracts (Core Required Entries): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_CORE_REQUIRED_ENTRIES_20260211.md`
 - CI Contracts (Delivery Doc Index All Sections Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DELIVERY_DOC_INDEX_ALL_SECTIONS_SORTING_20260211.md`
 - CI Contracts (Delivery Doc Index Section Headings): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DELIVERY_DOC_INDEX_SECTION_HEADINGS_20260211.md`
 - CI Contracts (Delivery Doc Index Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DELIVERY_DOC_INDEX_SORTING_20260210.md`
