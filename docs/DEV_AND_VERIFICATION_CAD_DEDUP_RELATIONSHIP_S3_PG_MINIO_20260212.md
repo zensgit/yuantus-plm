@@ -13,6 +13,41 @@ Additionally:
 - allow dedup batches to run with `index=true` (backfill/index historical drawings)
 - ensure `dedup_index=true` can promote an existing pending dedup job that was created with `dedup_index=false` (dedupe-key reuse)
 
+## Development Plan (Implemented)
+
+1) SimilarityRecord unordered-pair uniqueness (DB-level)
+
+- Add `SimilarityRecord.pair_key` and a unique constraint/index.
+- Add an Alembic migration:
+  - Add/backfill `pair_key` for existing records.
+  - Delete historical duplicates (keep newest by `created_at`) so uniqueness can be enforced.
+  - Create a unique index on `pair_key`.
+- Update ingestion code to compute `pair_key` and use `INSERT .. ON CONFLICT DO NOTHING` for concurrency safety.
+
+2) Dedup operational report + export
+
+- Implement `DedupService.generate_report(...)` and `DedupService.list_records_for_export(...)`.
+- Add endpoints:
+  - `GET /api/v1/dedup/report`
+  - `GET /api/v1/dedup/report/export` (CSV)
+
+3) auto_trigger_workflow on confirm
+
+- In `DedupService.review_record(...)`, after a record is confirmed and the relationship item exists:
+  - If rule has `auto_trigger_workflow=true` and `workflow_map_id` configured, start the workflow for the relationship item.
+  - Persist `workflow_map_id` and `workflow_process_id` on the relationship item properties for traceability.
+
+4) Verification + CI hardening
+
+- Extend `scripts/verify_cad_dedup_relationship_s3.sh` to cover:
+  - auto-created `Part Equivalent` relationship
+  - auto-trigger workflow task
+  - batch run `index=true`
+  - job promotion to `index=true`
+  - SimilarityRecord `pair_key` uniqueness
+  - report/export endpoints
+- Add stdlib-only contract tests and wire them into the CI `contracts` job.
+
 ## Changes
 
 - 2D classification:
@@ -30,6 +65,25 @@ Additionally:
   - Files:
     - `src/yuantus/meta_engine/services/job_service.py`
     - `src/yuantus/meta_engine/services/job_worker.py`
+- SimilarityRecord unordered pair uniqueness:
+  - Adds `pair_key` (unordered `source_file_id|target_file_id`) and enforces uniqueness at the DB level.
+  - Enforces `pair_key` as `NOT NULL` (align with ORM + avoid NULL bypass).
+  - Ingestion uses `ON CONFLICT DO NOTHING` to be concurrency-safe.
+  - Files:
+    - `src/yuantus/meta_engine/dedup/models.py`
+    - `src/yuantus/meta_engine/dedup/service.py`
+    - `migrations/versions/y1b2c3d4e7a3_add_similarity_record_pair_key.py`
+    - `migrations/versions/y1b2c3d4e7a4_make_similarity_pair_key_not_null.py`
+- Auto-trigger workflow on confirm:
+  - When a SimilarityRecord is confirmed and the rule has `auto_trigger_workflow=true` + `workflow_map_id`, start a workflow for the created `Part Equivalent` relationship item.
+  - Rule validation: `auto_trigger_workflow=true` requires `workflow_map_id` (HTTP 400 on create/update).
+  - Files:
+    - `src/yuantus/meta_engine/dedup/service.py`
+- Dedup report + export:
+  - Adds operational report endpoint and CSV export.
+  - Files:
+    - `src/yuantus/meta_engine/web/dedup_router.py`
+    - `src/yuantus/meta_engine/dedup/service.py`
 - Added end-to-end verification script:
   - `scripts/verify_cad_dedup_relationship_s3.sh`
 - Dedup Vision search integration:
@@ -41,8 +95,11 @@ Additionally:
 
 To reduce regressions, the following stdlib-only contract tests are included in the CI `contracts` job:
 
+- `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_auto_trigger_workflow.py`
 - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_batch_run_index.py`
 - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_job_promotion.py`
+- `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_report_endpoints.py`
+- `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_similarity_pair_key.py`
 - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_v2_fallback.py`
 
 ## Verification
@@ -66,10 +123,63 @@ Expected:
 - Outputs `ALL CHECKS PASSED`
 - Confirms SimilarityRecord exists and becomes `confirmed`
 - Confirms a `Part Equivalent` relationship exists via `GET /api/v1/items/{part_id}/equivalents`
+- Confirms a workflow task is created for the `Part Equivalent` relationship (rule `auto_trigger_workflow=true`)
 - Confirms batch run `index=true` results in `cad_dedup.indexed.success=true`
 - Confirms dedupe promotion results in pending job payload containing `index=true`
+- Confirms SimilarityRecord unordered pair uniqueness is enforced (`pair_key`)
+- Confirms rule validation: `auto_trigger_workflow=true` requires `workflow_map_id` (HTTP 400)
+- Confirms DB constraint: `pair_key` is `NOT NULL`
+- Confirms dedup report + CSV export endpoints return rows
 
 ## Verification Results (2026-02-12)
+
+### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-20260212-225211
+
+- 时间：`2026-02-12 22:52:58 +0800`
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision，worker 用本机 CLI 轮询执行）
+- 命令：`LOG=/tmp/verify_cad_dedup_relationship_s3_20260212-225211.log; scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 原始日志：`/tmp/verify_cad_dedup_relationship_s3_20260212-225211.log`
+
+关键 ID：
+
+- workflow_map_id: `2dad5291-c67e-4c7b-8f0a-0e9540e27c02`
+- rule_id: `7924dbaa-07f8-4766-9979-6a9b7274a8de`
+- part_a_id: `ac70d991-5403-4f24-bfce-3a61779f9a29`
+- part_b_id: `c3a738e4-af7c-4b6c-a1ab-39627842298c`
+- baseline_file_id: `5bbc1e6e-2091-49a8-8bb8-59d7e9a6b7a9`
+- query_file_id: `33f60fb0-b18c-47a8-896b-3861b1098cea`
+- similarity_record_id: `e29b14a6-4c13-4de5-9fc3-dd822e134d6a`
+- relationship_item_id: `ce5123e8-f027-45dd-b642-2652aac7c878`
+- batch_id: `fac44a10-7e55-4595-8c90-fc215ef905f0`
+- reverse_job_id: `574481fb-e549-410b-8d57-ac21e46b1200`
+- promote_file_id: `46d2189b-41a6-4a70-ac26-6e9a5ca4a0c9`
+- promote_job_id: `d3343d28-4d21-4f82-b590-f317fe52cc4b`
+
+### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-20260212-215323
+
+- 时间：`2026-02-12 21:54:06 +0800`
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision，worker 用本机 CLI 轮询执行）
+- 命令：`LOG=/tmp/verify_cad_dedup_relationship_s3_20260212-215323.log; scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 原始日志：`/tmp/verify_cad_dedup_relationship_s3_20260212-215323.log`
+
+关键 ID：
+
+- workflow_map_id: `405a0868-d06e-4880-bc1d-62002b70db2e`
+- rule_id: `778ddcaf-0fb1-4187-beb2-8f3d933b08ce`
+- part_a_id: `70d910b4-3e6f-48ea-b73a-edb8fb41f41d`
+- part_b_id: `37535e7b-0a7e-4266-ad70-b31013f38a70`
+- baseline_file_id: `d41522da-2abc-48a6-86f3-0a568e10184a`
+- query_file_id: `e505912e-4baa-4e59-aec5-bb60e1906f45`
+- similarity_record_id: `33d72879-a991-4111-9bb9-a4cab2a162b5`
+- relationship_item_id: `8a6ed2de-bb90-4934-931e-2b94c91c795a`
+- batch_id: `ead459bd-9020-410f-afeb-deec6a9fe9f2`
+- reverse_job_id: `1def885e-aa21-45a1-9b0c-1858122d8117`
+- promote_file_id: `d6959bf2-2f73-4982-8ccd-c3ece1668f48`
+- promote_job_id: `a895e292-fcda-4880-b546-5549d5b38a26`
+
+### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-20260212-195201
 
 - 时间：`2026-02-12 19:52:01 +0800`
 - 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision，worker 用本机 CLI 轮询执行）
