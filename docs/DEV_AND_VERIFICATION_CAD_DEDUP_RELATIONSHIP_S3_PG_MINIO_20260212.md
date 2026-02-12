@@ -37,6 +37,14 @@ Additionally:
   - Falls back to legacy `/api/search` for older deployments.
   - File: `src/yuantus/integrations/dedup_vision.py`
 
+## CI Contracts (Hardening)
+
+To reduce regressions, the following stdlib-only contract tests are included in the CI `contracts` job:
+
+- `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_batch_run_index.py`
+- `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_job_promotion.py`
+- `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_v2_fallback.py`
+
 ## Verification
 
 Bring up dependencies (Dedup profile):
@@ -81,4 +89,3 @@ Expected:
 - batch_id: `d85487ee-a051-4214-8cb6-41db775e7b86`
 - promote_file_id: `6b0a7e76-e010-409c-97bb-42dce9e667ad`
 - promote_job_id: `7958abc5-11dd-473b-b645-7cd64721abee`
-
