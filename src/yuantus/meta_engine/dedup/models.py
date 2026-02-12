@@ -14,6 +14,7 @@ from sqlalchemy import (
     JSON,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -46,11 +47,20 @@ class SimilarityRecord(Base):
     """Similarity record between two CAD files."""
 
     __tablename__ = "meta_similarity_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "pair_key",
+            name="uq_meta_similarity_records_pair_key",
+        ),
+    )
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
 
     source_file_id = Column(String, ForeignKey("meta_files.id"), nullable=False, index=True)
     target_file_id = Column(String, ForeignKey("meta_files.id"), nullable=False, index=True)
+    # Unordered (source,target) key for DB-level uniqueness + concurrency safety.
+    # Format: "<min_uuid>|<max_uuid>" (lexical order).
+    pair_key = Column(String(length=80), nullable=False, index=True)
 
     similarity_score = Column(Float, nullable=False)
     similarity_type = Column(String, default="visual")

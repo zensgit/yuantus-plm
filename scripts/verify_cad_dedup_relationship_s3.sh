@@ -8,9 +8,12 @@
 #   - upload query 2D drawing (PNG) attached to Part B and search for baseline
 #   - confirm SimilarityRecord is created and can be reviewed/confirmed
 #   - auto-create Part Equivalent relationship (rule auto_create_relationship=true)
+#   - auto-trigger Workflow for the Part Equivalent relationship (rule auto_trigger_workflow=true)
 #   - verify equivalents API returns the relationship
 #   - verify dedup batch run supports index=true and indexes a previously unindexed drawing
 #   - verify dedupe promotion: pending search-only job is promoted to index=true
+#   - verify SimilarityRecord unordered pair uniqueness (pair_key)
+#   - verify dedup operational report + CSV export endpoints
 #
 # Expected environment (defaults match docker-compose.yml host ports):
 #   - Postgres: localhost:55432
@@ -76,6 +79,14 @@ run_cli() {
     "$CLI" "$@"
 }
 
+run_meta_py() {
+  env \
+    YUANTUS_DATABASE_URL="$DB_URL" \
+    ${DB_URL_TEMPLATE:+YUANTUS_DATABASE_URL_TEMPLATE="$DB_URL_TEMPLATE"} \
+    ${TENANCY_MODE_ENV:+YUANTUS_TENANCY_MODE="$TENANCY_MODE_ENV"} \
+    "$PY" "$@"
+}
+
 http_code() {
   # shellcheck disable=SC2086
   $CURL -o /dev/null -w "%{http_code}" "$@"
@@ -136,11 +147,133 @@ ok "Admin login"
 AUTH_HEADERS=(-H "Authorization: Bearer $ADMIN_TOKEN")
 
 # -----------------------------------------------------------------------------
+# 0) Create a workflow map for auto_trigger_workflow
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Create workflow map (Start -> Review(admin role) -> End)"
+WF_RESP="$(
+  TENANT="$TENANT" ORG="$ORG" run_meta_py - <<'PY'
+import json
+import os
+import time
+import uuid
+
+from yuantus.config import get_settings
+from yuantus.database import (
+    SessionLocal as GlobalSessionLocal,
+    get_sessionmaker_for_scope,
+    get_sessionmaker_for_tenant,
+)
+from yuantus.meta_engine.workflow.models import WorkflowActivity, WorkflowMap, WorkflowTransition
+from yuantus.security.rbac.models import RBACRole
+
+tenant = os.environ.get("TENANT")
+org = os.environ.get("ORG")
+
+settings = get_settings()
+if settings.TENANCY_MODE == "db-per-tenant-org":
+    SessionLocal = get_sessionmaker_for_scope(tenant, org)
+elif settings.TENANCY_MODE == "db-per-tenant":
+    SessionLocal = get_sessionmaker_for_tenant(tenant)
+else:
+    SessionLocal = GlobalSessionLocal
+
+session = SessionLocal()
+try:
+    admin_role = session.query(RBACRole).filter_by(name="admin").first()
+    if not admin_role:
+        raise SystemExit("Missing RBACRole(name=admin); did you run seed-meta?")
+
+    ts = int(time.time())
+    map_name = f"DEDUP-EQUIVALENT-REVIEW-{ts}"
+    wf_map = WorkflowMap(
+        id=str(uuid.uuid4()),
+        name=map_name,
+        description="Auto-triggered review workflow for Part Equivalent relationships (verification)",
+    )
+    session.add(wf_map)
+    session.flush()
+
+    act_start = WorkflowActivity(
+        id=str(uuid.uuid4()),
+        workflow_map_id=wf_map.id,
+        name="Start",
+        type="start",
+    )
+    act_review = WorkflowActivity(
+        id=str(uuid.uuid4()),
+        workflow_map_id=wf_map.id,
+        name="Review",
+        description="Review the equivalent relationship created by CAD dedup.",
+        type="activity",
+        assignee_type="role",
+        role_id=admin_role.id,
+    )
+    act_end = WorkflowActivity(
+        id=str(uuid.uuid4()),
+        workflow_map_id=wf_map.id,
+        name="End",
+        type="end",
+    )
+    session.add_all([act_start, act_review, act_end])
+    session.flush()
+
+    t1 = WorkflowTransition(
+        id=str(uuid.uuid4()),
+        workflow_map_id=wf_map.id,
+        from_activity_id=act_start.id,
+        to_activity_id=act_review.id,
+        condition="Default",
+        priority=0,
+    )
+    t2 = WorkflowTransition(
+        id=str(uuid.uuid4()),
+        workflow_map_id=wf_map.id,
+        from_activity_id=act_review.id,
+        to_activity_id=act_end.id,
+        condition="Approve",
+        priority=0,
+    )
+    t3 = WorkflowTransition(
+        id=str(uuid.uuid4()),
+        workflow_map_id=wf_map.id,
+        from_activity_id=act_review.id,
+        to_activity_id=act_end.id,
+        condition="Default",
+        priority=1,
+    )
+    session.add_all([t1, t2, t3])
+    session.commit()
+
+    print(
+        json.dumps(
+            {
+                "workflow_map_id": wf_map.id,
+                "workflow_map_name": wf_map.name,
+                "admin_role_id": admin_role.id,
+            }
+        )
+    )
+finally:
+    session.close()
+PY
+)"
+WF_ID="$(echo "$WF_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("workflow_map_id","") or "")')"
+if [[ -z "$WF_ID" ]]; then
+  echo "Workflow response: $WF_RESP" >&2
+  fail "Could not create workflow map"
+fi
+ok "Workflow map created: $WF_ID"
+
+# -----------------------------------------------------------------------------
 # 1) Create rule: auto_create_relationship=true for 2D drawings
 # -----------------------------------------------------------------------------
 echo ""
 echo "==> Create dedup rule (2d, auto_create_relationship=true, lenient thresholds)"
 RULE_NAME="verify-dedup-rel-$(date +%s)"
+# NOTE: meta_dedup_rules.priority is a 32-bit integer in Postgres (SQLAlchemy Integer).
+# Keep within [-2147483648, 2147483647] while still being "highest precedence" (smallest value).
+RULE_PRIORITY=-2147483648
 RULE_RESP="$(
   # shellcheck disable=SC2086
   $CURL -X POST "$API/dedup/rules" \
@@ -155,7 +288,9 @@ RULE_RESP="$(
       \"combined_threshold\": 0.0,
       \"detection_mode\": \"fast\",
       \"auto_create_relationship\": true,
-      \"priority\": -1000,
+      \"auto_trigger_workflow\": true,
+      \"workflow_map_id\": \"$WF_ID\",
+      \"priority\": $RULE_PRIORITY,
       \"is_active\": true
     }"
 )"
@@ -451,6 +586,32 @@ fi
 ok "Relationship created: $REL_ITEM_ID"
 
 echo ""
+echo "==> Verify workflow task was created (RPC Workflow.get_inbox contains Part Equivalent relationship item)"
+INBOX_RESP="$(
+  # shellcheck disable=SC2086
+  $CURL -X POST "$API/rpc/" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+    -H 'content-type: application/json' \
+    -d "{
+      \"model\": \"Workflow\",
+      \"method\": \"get_inbox\",
+      \"args\": [],
+      \"kwargs\": {}
+    }"
+)"
+echo "$INBOX_RESP" | "$PY" -c '
+import json, sys
+d=json.load(sys.stdin)
+tasks=d.get("result")
+if not isinstance(tasks, list):
+    raise SystemExit(f"Unexpected inbox response: {d}")
+item_ids=[(t.get("item") or {}).get("id") for t in tasks if isinstance(t, dict)]
+assert "'"$REL_ITEM_ID"'" in item_ids, item_ids
+print("ok")
+' >/dev/null
+ok "Workflow inbox contains a task for Part Equivalent relationship"
+
+echo ""
 echo "==> Verify equivalents API shows Part A <-> Part B"
 EQS_A="$(
   # shellcheck disable=SC2086
@@ -548,6 +709,128 @@ assert indexed.get("success") is True, indexed
 print("ok")
 ' >/dev/null
 ok "Query cad_dedup indexed.success=true"
+
+# -----------------------------------------------------------------------------
+# 7.5) Verify unordered pair uniqueness (pair_key): baseline search after query is indexed
+# -----------------------------------------------------------------------------
+echo ""
+echo "==> Verify SimilarityRecord unordered pair uniqueness (pair_key)"
+echo "==> Create baseline re-search job via /jobs (query is indexed now)"
+REVERSE_JOB_RESP="$(
+  # shellcheck disable=SC2086
+  $CURL -X POST "$API/jobs" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+    -H 'content-type: application/json' \
+    -d "{
+      \"task_type\": \"cad_dedup_vision\",
+      \"payload\": {
+        \"file_id\": \"$BASE_FILE_ID\",
+        \"mode\": \"fast\",
+        \"user_name\": \"admin\",
+        \"rule_id\": \"$RULE_ID\",
+        \"index\": false
+      },
+      \"priority\": 30,
+      \"dedupe\": false
+    }"
+)"
+REVERSE_JOB_ID="$(echo "$REVERSE_JOB_RESP" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("id","") or "")')"
+if [[ -z "$REVERSE_JOB_ID" ]]; then
+  echo "Reverse job response: $REVERSE_JOB_RESP" >&2
+  fail "Could not create baseline re-search job"
+fi
+ok "Baseline re-search job created: $REVERSE_JOB_ID"
+
+echo ""
+echo "==> Run worker until baseline re-search job completes"
+for _ in {1..20}; do
+  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
+  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once >/dev/null
+
+  REVERSE_STATUS="$(
+    # shellcheck disable=SC2086
+    $CURL "$API/jobs/$REVERSE_JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+      | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status","") or "")'
+  )"
+  echo "Reverse job status: $REVERSE_STATUS"
+  if [[ "$REVERSE_STATUS" == "completed" || "$REVERSE_STATUS" == "failed" || "$REVERSE_STATUS" == "cancelled" ]]; then
+    break
+  fi
+  sleep 1
+done
+if [[ "$REVERSE_STATUS" != "completed" ]]; then
+  fail "Baseline re-search job did not complete (status=$REVERSE_STATUS)"
+fi
+ok "Baseline re-search job completed"
+
+PAIR_KEY="$("$PY" -c "a='$BASE_FILE_ID'; b='$QUERY_FILE_ID'; print(f'{a}|{b}' if a < b else f'{b}|{a}')")"
+PAIR_COUNT="$(
+  TENANT="$TENANT" ORG="$ORG" PAIR_KEY="$PAIR_KEY" run_meta_py - <<'PY'
+import os
+from yuantus.config import get_settings
+from yuantus.database import (
+    SessionLocal as GlobalSessionLocal,
+    get_sessionmaker_for_scope,
+    get_sessionmaker_for_tenant,
+)
+from yuantus.meta_engine.dedup.models import SimilarityRecord
+
+tenant = os.environ.get("TENANT")
+org = os.environ.get("ORG")
+pair_key = os.environ.get("PAIR_KEY")
+
+settings = get_settings()
+if settings.TENANCY_MODE == "db-per-tenant-org":
+    SessionLocal = get_sessionmaker_for_scope(tenant, org)
+elif settings.TENANCY_MODE == "db-per-tenant":
+    SessionLocal = get_sessionmaker_for_tenant(tenant)
+else:
+    SessionLocal = GlobalSessionLocal
+
+session = SessionLocal()
+try:
+    count = session.query(SimilarityRecord).filter(SimilarityRecord.pair_key == pair_key).count()
+    print(count)
+finally:
+    session.close()
+PY
+)"
+if [[ "$PAIR_COUNT" != "1" ]]; then
+  fail "Expected SimilarityRecord count for pair_key=$PAIR_KEY to be 1 (got: $PAIR_COUNT)"
+fi
+ok "SimilarityRecord unordered pair uniqueness enforced (pair_key)"
+
+echo ""
+echo "==> Verify dedup report endpoint + CSV export"
+REPORT_RESP="$(
+  # shellcheck disable=SC2086
+  $CURL "$API/dedup/report?days=7&rule_id=$RULE_ID&latest_limit=1" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}"
+)"
+echo "$REPORT_RESP" | "$PY" -c '
+import sys,json
+d=json.load(sys.stdin)
+assert int(d.get("total") or 0) >= 1, d
+by_rule = d.get("by_rule_id") or {}
+assert "'"$RULE_ID"'" in by_rule, by_rule
+print("ok")
+' >/dev/null
+ok "Dedup report includes rule_id counts"
+
+CSV_RESP="$(
+  # shellcheck disable=SC2086
+  $CURL "$API/dedup/report/export?days=7&rule_id=$RULE_ID&limit=10" \
+    "${HEADERS[@]}" "${AUTH_HEADERS[@]}"
+)"
+echo "$CSV_RESP" | "$PY" -c '
+import sys
+text=sys.stdin.read()
+lines=[l for l in text.splitlines() if l.strip()]
+assert lines and lines[0].startswith("id,status,source_file_id"), lines[:2]
+assert len(lines) >= 2, f"expected at least 1 row, got {len(lines)-1}"
+print("ok")
+' >/dev/null
+ok "Dedup CSV export returns rows"
 
 # -----------------------------------------------------------------------------
 # 8) Verify promotion: pending search-only job promoted to index=true

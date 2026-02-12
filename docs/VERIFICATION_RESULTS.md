@@ -825,6 +825,17 @@ OK: Audit logs verified
 ALL CHECKS PASSED
 ```
 
+## Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-20260212-215323
+
+- 时间：`2026-02-12 21:54:06 +0800`
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision，worker 用本机 CLI 执行）
+- 命令：`docker compose -f docker-compose.yml --profile dedup up -d postgres minio api dedup-vision`
+- 命令：`docker compose -f docker-compose.yml --profile dedup up -d --build --no-deps api`
+- 命令：`LOG=/tmp/verify_cad_dedup_relationship_s3_20260212-215323.log; scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 证据：`docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
+- 原始日志：`/tmp/verify_cad_dedup_relationship_s3_20260212-215323.log`
+
 ## Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-20260212-195201
 
 - 时间：`2026-02-12 19:52:01 +0800`

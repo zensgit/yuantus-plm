@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import csv
+import io
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -314,6 +316,89 @@ async def list_records(
         offset=offset,
     )
     return {"total": total, "items": [_record_to_response(r).model_dump() for r in items]}
+
+
+@dedup_router.get("/report", response_model=Dict[str, Any])
+async def get_report(
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    days: int = Query(30, ge=1, le=365),
+    status: Optional[str] = Query(None),
+    rule_id: Optional[str] = Query(None),
+    batch_id: Optional[str] = Query(None),
+    latest_limit: int = Query(20, ge=0, le=200),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _ensure_admin(user)
+    service = DedupService(db)
+    try:
+        return service.generate_report(
+            start_date=start_date,
+            end_date=end_date,
+            days=days,
+            status=status,
+            rule_id=rule_id,
+            batch_id=batch_id,
+            latest_limit=latest_limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@dedup_router.get("/report/export")
+async def export_report(
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    days: int = Query(30, ge=1, le=365),
+    status: Optional[str] = Query(None),
+    rule_id: Optional[str] = Query(None),
+    batch_id: Optional[str] = Query(None),
+    limit: int = Query(5000, ge=1, le=50000),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _ensure_admin(user)
+    service = DedupService(db)
+    try:
+        rows = service.list_records_for_export(
+            start_date=start_date,
+            end_date=end_date,
+            days=days,
+            status=status,
+            rule_id=rule_id,
+            batch_id=batch_id,
+            limit=limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    fieldnames = [
+        "id",
+        "status",
+        "source_file_id",
+        "target_file_id",
+        "pair_key",
+        "similarity_score",
+        "rule_id",
+        "batch_id",
+        "reviewed_by_id",
+        "reviewed_at",
+        "relationship_item_id",
+        "created_at",
+    ]
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for r in rows:
+        writer.writerow(r)
+
+    content = buf.getvalue()
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=dedup_report.csv"},
+    )
 
 
 @dedup_router.get("/records/{record_id}", response_model=SimilarityRecordResponse)
