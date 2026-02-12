@@ -16173,3 +16173,51 @@ PASS: MBOM + routing + time/cost
 - 命令：`TARGETED_PYTEST_ARGS='src/yuantus/meta_engine/tests/test_impact_export_bundles.py src/yuantus/meta_engine/tests/test_release_readiness_export_bundles.py src/yuantus/meta_engine/tests/test_item_cockpit_router.py src/yuantus/meta_engine/tests/test_baseline_release_diagnostics.py' bash scripts/strict_gate_report.sh`
 - 结果：`PASS`
 - 证据：`docs/DAILY_REPORTS/STRICT_GATE_20260207-230224.md`
+
+## Run RUN-H-PG-MINIO-20260212-1657
+
+- 时间：`2026-02-12 16:57:37 +0800`
+- 环境：`docker compose -f docker-compose.yml`（Postgres + MinIO + API + Worker，`STORAGE_TYPE=s3`）
+- 命令：`docker compose -f docker-compose.yml up -d`
+- 命令：`YUANTUS_SCHEMA_MODE=migrations DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity bash scripts/verify_run_h.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 摘要：
+  - S3 download：`302->200`（presigned URL 可用）
+
+```text
+==> Seed identity/meta
+==> Login
+==> Health
+Health: OK
+==> Meta metadata (Part)
+Meta metadata: OK
+==> AML add/get
+AML add: OK (part_id=ec3ba088-839c-46c9-ab19-8f091fed46e1)
+AML get: OK
+==> Search
+Search: OK
+==> RPC Item.create
+RPC Item.create: OK (part_id=486c2045-a476-40a4-a5b9-b364d1de37f9)
+==> File upload/download
+File upload: OK (file_id=0699d1e2-a79b-4589-813e-f4551d78e803)
+File metadata: OK
+File download: OK (http=302->200)
+==> BOM effective
+BOM effective: OK
+==> Plugins
+Plugins list: OK
+Plugins ping: OK
+==> ECO full flow
+ECO stage: OK (stage_id=6c94ea53-8d2e-4c88-b72c-1bad270028f9)
+ECO create: OK (eco_id=478a57ba-83eb-4e76-9fa8-be22248876b4)
+ECO new-revision: OK (version_id=f4543521-7740-40c3-a175-3d65b9a2d546)
+ECO approve: OK
+ECO apply: OK
+==> Versions history/tree
+Versions history: OK
+Versions tree: OK
+==> Integrations health (should be 200 even if services down)
+Integrations health: OK (ok=False)
+
+ALL CHECKS PASSED
+```
