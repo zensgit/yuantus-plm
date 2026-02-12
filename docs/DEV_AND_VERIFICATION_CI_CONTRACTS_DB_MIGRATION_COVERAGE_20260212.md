@@ -19,10 +19,16 @@ Lock two high-risk infra contracts so regressions fail fast in CI:
 - Added migration coverage contract test:
   - `src/yuantus/meta_engine/tests/test_migration_table_coverage_contracts.py`
   - Enforces:
-    - every ORM table in `Base` + `WorkflowBase` has at least one `op.create_table(...)` migration
-    - migration-only tables are explicit allowlist only (currently `audit_logs`)
+    - every declared table name under `src/yuantus` (`__tablename__` + `Table(...)`) has at least one `op.create_table(...)` migration
+    - migrations do not introduce tables that are missing from `src/yuantus`
 - Updated CI contract wiring:
   - `.github/workflows/ci.yml` now executes both new contract tests
+- Backfilled missing migrations discovered by the contract:
+  - Added Alembic revision `w1b2c3d4e7a1` to create:
+    - `meta_store_listings`
+    - `meta_app_licenses`
+  - Ensured these models are registered for `create_all()` and Alembic autogenerate:
+    - `src/yuantus/meta_engine/bootstrap.py` imports `yuantus.meta_engine.app_framework.store_models`
 - Indexed this evidence doc:
   - `docs/DELIVERY_DOC_INDEX.md` under `## Development & Verification`
 
@@ -65,4 +71,3 @@ python3 -m pytest -q \
 ```
 
 Result: PASS
-
