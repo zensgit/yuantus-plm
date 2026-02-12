@@ -228,6 +228,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_change_scope_contracts.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_cad_import_dedup_index.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_compose_worker_dedup_vision_url.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_auto_trigger_workflow.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_batch_run_index.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_job_promotion.py \
