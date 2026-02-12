@@ -22,7 +22,9 @@
   - 已补充 CLI 契约测试：`test_db_cli_identity_contracts.py`
 - ✅ 迁移覆盖性复核：Meta + Identity + Jobs + File 表迁移覆盖已纳入 CI 契约
   - 已补充覆盖契约测试：`test_migration_table_coverage_contracts.py`
-- ⏳ Job 并发事务边界：锁定 + 状态更新同事务；必要索引补齐
+- ✅ Job 并发事务边界：锁定 + 状态更新同事务；必要索引补齐
+  - 已补充 CI 契约测试：`test_job_queue_tx_boundary_contracts.py`
+  - 已补充 stale requeue 索引：`ix_meta_conversion_jobs_stale`（revision `x1b2c3d4e7a2`）
 - ⏳ MinIO/S3 兼容性细节（仅当实测失败才改）：path-style/region/public endpoint
 - ⏳ 私有化复测：Postgres + MinIO 模式跑通 Run H，并记录在 `docs/VERIFICATION_RESULTS.md`
 - 🔜 身份分库“identity-only migrations”作为后续优化：当前已满足交付与验证，先做业务功能与 CAD 价值链闭环

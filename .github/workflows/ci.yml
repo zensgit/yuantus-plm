@@ -242,6 +242,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_delivery_doc_index_verification_reports_sorting_contracts.py \
             src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
             src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py \
+            src/yuantus/meta_engine/tests/test_job_queue_tx_boundary_contracts.py \
             src/yuantus/meta_engine/tests/test_migration_table_coverage_contracts.py \
             src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
             src/yuantus/meta_engine/tests/test_perf_gate_config_file.py \

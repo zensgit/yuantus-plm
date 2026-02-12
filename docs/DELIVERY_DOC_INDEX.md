@@ -83,6 +83,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI Contracts (Development & Verification Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFICATION_SECTION_SORTING_20260210.md`
 - CI Contracts (Dev & Verification Doc Index Completeness): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_DEV_VERIFY_DOC_INDEX_COMPLETENESS_20260210.md`
 - CI Contracts (External Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_EXTERNAL_SECTION_SORTING_20260211.md`
+- CI Contracts (Job Queue Transaction Boundary): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_JOB_QUEUE_TX_BOUNDARY_20260212.md`
 - CI Contracts (Contracts Job Wiring Guard): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_JOB_WIRING_20260210.md`
 - CI Contracts (Ops Required Entries): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_OPS_REQUIRED_ENTRIES_20260211.md`
 - CI Contracts (Product + Optional Section Sorting): `docs/DEV_AND_VERIFICATION_CI_CONTRACTS_PRODUCT_OPTIONAL_SECTION_SORTING_20260211.md`
