@@ -825,6 +825,82 @@ OK: Audit logs verified
 ALL CHECKS PASSED
 ```
 
+## Run CAD-PIPELINE-S3-PG-MINIO-20260212-1702
+
+- 时间：`2026-02-12 17:02:54 +0800`
+- 环境：`docker compose -f docker-compose.yml`（Postgres + MinIO + API + Worker，`STORAGE_TYPE=s3`）
+- 命令：`YUANTUS_SCHEMA_MODE=migrations DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity YUANTUS_STORAGE_TYPE=s3 YUANTUS_S3_ENDPOINT_URL=http://localhost:59000 YUANTUS_S3_PUBLIC_ENDPOINT_URL=http://localhost:59000 YUANTUS_S3_BUCKET_NAME=yuantus YUANTUS_S3_ACCESS_KEY_ID=minioadmin YUANTUS_S3_SECRET_ACCESS_KEY=minioadmin bash scripts/verify_cad_pipeline_s3.sh http://127.0.0.1:7910 tenant-1 org-1`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 摘要：
+  - Preview endpoint：`302`
+  - Geometry endpoint：`302`
+  - presigned URL follow：`200`
+
+```text
+==============================================
+S3 CAD Pipeline Verification
+BASE_URL: http://127.0.0.1:7910
+TENANT: tenant-1, ORG: org-1
+==============================================
+
+==> Seed identity (admin user)
+OK: Identity seeded
+
+==> Seed meta schema
+OK: Meta schema seeded
+
+==> Login as admin
+OK: Admin login
+
+==> Create test STL file
+OK: Created test file: /tmp/yuantus_cad_s3_test.stl
+
+==> Upload STL via /cad/import
+OK: File uploaded: ed755836-291a-4de3-bdeb-92695fcdfb1b
+Preview job ID: 39c082a6-ed93-4eeb-b697-e376616d57a5
+Geometry job ID: 362f8213-1d0b-4d15-9492-c2630c6013ba
+
+==> Run worker to process jobs
+OK: Worker executed
+
+==> Check job statuses
+Preview job status: completed
+Geometry job status: completed
+
+==> Check file metadata
+Preview URL: /api/v1/file/ed755836-291a-4de3-bdeb-92695fcdfb1b/preview
+Geometry URL: /api/v1/file/ed755836-291a-4de3-bdeb-92695fcdfb1b/geometry
+Conversion status: completed
+OK: Preview path set
+OK: Geometry path set
+
+==> Test preview endpoint
+OK: Preview endpoint works (HTTP 302)
+
+==> Test geometry endpoint
+OK: Geometry endpoint works (HTTP 302)
+
+==> Check storage type
+OK: S3 storage detected (302 redirect)
+Testing S3 presigned URL follow (no API auth headers)...
+OK: S3 presigned URL accessible (followed redirect)
+
+==> Cleanup
+OK: Cleaned up test file
+
+==============================================
+CAD Pipeline S3 Verification Complete
+==============================================
+
+Summary:
+  - File upload: OK
+  - Job processing: completed / completed
+  - Preview endpoint: 302
+  - Geometry endpoint: 302
+
+ALL CHECKS PASSED
+```
+
 ## Run MT-MIGRATE-AUTOSTAMP-20260112-0915（无 alembic_version 自动 stamp 初始版本）
 
 - 时间：`2026-01-12 09:15:02 +0800`
