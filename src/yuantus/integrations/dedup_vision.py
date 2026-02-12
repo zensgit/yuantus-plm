@@ -39,6 +39,7 @@ class DedupVisionClient:
         self,
         *,
         file_path: str,
+        upload_filename: Optional[str] = None,
         mode: str = "balanced",
         phash_threshold: int = 10,
         feature_threshold: float = 0.85,
@@ -53,9 +54,10 @@ class DedupVisionClient:
         headers = build_outbound_headers(
             authorization=self._resolve_authorization(authorization)
         ).as_dict()
+        upload_name = upload_filename or os.path.basename(file_path)
         with httpx.Client(base_url=self.base_url, timeout=self.timeout_s) as client:
             with open(file_path, "rb") as f:
-                files = {"file": (os.path.basename(file_path), f)}
+                files = {"file": (upload_name, f)}
                 data = {
                     "mode": mode,
                     "phash_threshold": str(phash_threshold),
@@ -72,6 +74,7 @@ class DedupVisionClient:
         self,
         *,
         file_path: str,
+        upload_filename: Optional[str] = None,
         user_name: str,
         upload_to_s3: bool = False,
         authorization: Optional[str] = None,
@@ -82,9 +85,10 @@ class DedupVisionClient:
         headers = build_outbound_headers(
             authorization=self._resolve_authorization(authorization)
         ).as_dict()
+        upload_name = upload_filename or os.path.basename(file_path)
         with httpx.Client(base_url=self.base_url, timeout=self.timeout_s) as client:
             with open(file_path, "rb") as f:
-                files = {"file": (os.path.basename(file_path), f)}
+                files = {"file": (upload_name, f)}
                 resp = client.post(
                     "/api/index/add",
                     params={"user_name": user_name, "upload_to_s3": "true" if upload_to_s3 else "false"},

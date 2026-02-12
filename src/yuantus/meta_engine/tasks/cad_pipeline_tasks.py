@@ -1046,6 +1046,10 @@ def cad_dedup_vision(payload: Dict[str, Any], session: Session) -> Dict[str, Any
             if not local_path or not os.path.exists(local_path):
                 return {"ok": False, "file_id": file_id, "error": "Local file not available"}
 
+        upload_name = file_container.filename or (
+            f"{file_container.id}.{file_container.get_extension() or 'bin'}"
+        )
+
         client = DedupVisionClient()
         settings = get_settings()
         authorization = _build_authorization_header(
@@ -1054,6 +1058,7 @@ def cad_dedup_vision(payload: Dict[str, Any], session: Session) -> Dict[str, Any
         try:
             search = client.search_sync(
                 file_path=local_path,
+                upload_filename=upload_name,
                 mode=mode,
                 phash_threshold=phash_threshold,
                 feature_threshold=feature_threshold,
@@ -1079,6 +1084,7 @@ def cad_dedup_vision(payload: Dict[str, Any], session: Session) -> Dict[str, Any
             try:
                 indexed = client.index_add_sync(
                     file_path=local_path,
+                    upload_filename=upload_name,
                     user_name=user_name,
                     upload_to_s3=False,
                     authorization=authorization,

@@ -6,7 +6,7 @@
 
 > 说明：本文是“工程开发计划 + 验收/验证计划”。架构设计见 `docs/DEVELOPMENT_DESIGN.md`；可执行验证入口见 `docs/VERIFICATION.md`。
 
-## 当前状态（截至 `2026-01-30`）
+## 当前状态（截至 `2026-02-12`）
 
 已具备“可持续迭代”的交付底座（可私有化部署 + 可验证）：
 
@@ -15,6 +15,7 @@
 - ✅ Job 并发安全（Postgres `SKIP LOCKED`）
 - ✅ docker compose 一键：API + Worker + Postgres + MinIO
 - ✅ Run H 全链路脚本：`scripts/verify_run_h.sh`
+- ✅ CAD 2D 去重（Dedup Vision）S3 验证脚本：`scripts/verify_cad_dedup_vision_s3.sh`（`dedup_index` + `cad_dedup_url` `302->200`）
 
 补充待办（基于现状的“硬化/复核”清单，避免重复开发）：
 

@@ -1491,6 +1491,10 @@ async def import_cad(
     ),
     create_dedup_job: bool = Form(default=False),
     dedup_mode: str = Form(default="balanced", description="fast|balanced|precise"),
+    dedup_index: bool = Form(
+        default=False,
+        description="Index drawing into Dedup Vision after search (recommended for first-time ingest)",
+    ),
     create_ml_job: bool = Form(default=False, description="Call cad-ml-platform vision analyze"),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1779,7 +1783,12 @@ async def import_cad(
     if create_dedup_job and file_container.file_type in {"dwg", "dxf", "pdf", "png", "jpg", "jpeg"}:
         _enqueue(
             "cad_dedup_vision",
-            {"file_id": file_container.id, "mode": dedup_mode, "user_name": user.username},
+            {
+                "file_id": file_container.id,
+                "mode": dedup_mode,
+                "user_name": user.username,
+                "index": bool(dedup_index),
+            },
             priority=30,
         )
 

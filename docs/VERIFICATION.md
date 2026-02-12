@@ -768,6 +768,26 @@ curl -s -o /tmp/yuantus_preview_test.png -w '%{http_code}\n' \
 
 期望：返回 `200` 且输出为 `image/png`。
 
+### 16.5 CAD 2D 图纸去重（Dedup Vision）：`cad_dedup_vision`（S3）
+
+一键验证脚本（Postgres + MinIO + API + Dedup Vision）：
+
+```bash
+docker compose -f docker-compose.yml --profile dedup up -d postgres minio api dedup-vision
+docker compose -f docker-compose.yml --profile dedup up -d --build --no-deps api
+
+LOG=/tmp/verify_cad_dedup_vision_s3_$(date +%Y%m%d-%H%M%S).log
+scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"
+```
+
+期望：输出 `ALL CHECKS PASSED`。
+
+说明：
+
+- baseline 上传使用 `dedup_index=true`，用于把图纸写入 Dedup Vision index（便于后续相似检索）
+- query 上传使用 `dedup_index=false`，只做 search
+- S3 存储下读取 `GET /api/v1/file/{id}/cad_dedup` 可能返回 `302` 到 presigned URL；脚本使用 `curl -L` 自动跟随
+
 ---
 
 ## 17) Auth：登录并调用受保护接口（可选）

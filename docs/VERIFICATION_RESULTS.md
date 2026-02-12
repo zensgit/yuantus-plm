@@ -825,6 +825,35 @@ OK: Audit logs verified
 ALL CHECKS PASSED
 ```
 
+## Run RUN-CAD-DEDUP-VISION-S3-PG-MINIO-20260212-174112
+
+- 时间：`2026-02-12 17:41:12 +0800`
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Worker + Dedup Vision，`STORAGE_TYPE=s3`）
+- 命令：`docker compose -f docker-compose.yml --profile dedup up -d postgres minio api dedup-vision`
+- 命令：`docker compose -f docker-compose.yml --profile dedup up -d --build --no-deps api`
+- 命令：`LOG=/tmp/verify_cad_dedup_vision_s3_20260212-174112.log; scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 摘要：
+  - baseline upload：`verify_dedup_base.png`（`dedup_index=true`）→ search + index success
+  - query upload：`verify_dedup_query.png`（`dedup_index=false`）→ search returned baseline match
+  - S3 readback：`302->200`（presigned URL；脚本使用 `curl -L` 自动跟随）
+  - Dedup rule：`2057c992-d691-4145-a8dd-47e7745c454c`
+  - Baseline：file `a63b0d35-96a5-4c3d-af71-dbb375bf2b46`，job `4c409eca-865e-4bdc-9b85-3e8bd5e7adbc`
+  - Query：file `50897b9d-af95-4b91-a8b5-aa9ec9c641f0`，job `ab94f266-6e97-457b-b61f-84e830660c64`
+- 证据：`/tmp/verify_cad_dedup_vision_s3_20260212-174112.log`
+
+```text
+==> Upload baseline PNG via /cad/import (dedup_index=true)
+OK: Baseline file uploaded: a63b0d35-96a5-4c3d-af71-dbb375bf2b46
+Baseline dedup job ID: 4c409eca-865e-4bdc-9b85-3e8bd5e7adbc
+...
+==> Upload query PNG via /cad/import (dedup_index=false)
+OK: Query file uploaded: 50897b9d-af95-4b91-a8b5-aa9ec9c641f0
+Query dedup job ID: ab94f266-6e97-457b-b61f-84e830660c64
+...
+ALL CHECKS PASSED
+```
+
 ## Run CAD-PIPELINE-S3-PG-MINIO-20260212-1702
 
 - 时间：`2026-02-12 17:02:54 +0800`
