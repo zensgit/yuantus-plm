@@ -230,6 +230,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_doc_index_sorting.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
             src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \
+            src/yuantus/meta_engine/tests/test_delivery_doc_index_all_sections_sorting_contracts.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_core_ops_sorting_contracts.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_external_sorting_contracts.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_product_optional_sorting_contracts.py \
