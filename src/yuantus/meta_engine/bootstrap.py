@@ -30,6 +30,7 @@ def import_all_models() -> None:
 
     # Subsystems
     from yuantus.meta_engine.app_framework import models as _app_framework  # noqa: F401
+    from yuantus.meta_engine.app_framework import store_models as _store_models  # noqa: F401
     from yuantus.meta_engine.business_logic import models as _business_logic  # noqa: F401
     from yuantus.meta_engine.lifecycle import models as _lifecycle  # noqa: F401
     from yuantus.meta_engine.permission import models as _permission  # noqa: F401

@@ -18,9 +18,10 @@
 
 补充待办（基于现状的“硬化/复核”清单，避免重复开发）：
 
-- ⏳ Identity 分库迁移支持：当 `IDENTITY_DATABASE_URL` 不为空时，支持单独跑 Alembic
-  - 建议形式：`yuantus db upgrade --identity` 或 `--db-url`
-- ⏳ 迁移覆盖性复核：确认 Meta + Identity + Jobs + File 全表均被 migrations 覆盖
+- ✅ Identity 分库迁移支持：`yuantus db upgrade --identity` / `--db-url` 已可用
+  - 已补充 CLI 契约测试：`test_db_cli_identity_contracts.py`
+- ✅ 迁移覆盖性复核：Meta + Identity + Jobs + File 表迁移覆盖已纳入 CI 契约
+  - 已补充覆盖契约测试：`test_migration_table_coverage_contracts.py`
 - ⏳ Job 并发事务边界：锁定 + 状态更新同事务；必要索引补齐
 - ⏳ MinIO/S3 兼容性细节（仅当实测失败才改）：path-style/region/public endpoint
 - ⏳ 私有化复测：Postgres + MinIO 模式跑通 Run H，并记录在 `docs/VERIFICATION_RESULTS.md`
