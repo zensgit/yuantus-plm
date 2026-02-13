@@ -43,6 +43,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_platform_tenant_provisioning.sh",
         scripts_dir / "verify_item_equivalents.sh",
         scripts_dir / "verify_version_file_binding.sh",
+        scripts_dir / "verify_where_used_e2e.sh",
         scripts_dir / "verify_cad_dedup_vision_s3.sh",
         scripts_dir / "verify_cad_dedup_relationship_s3.sh",
         scripts_dir / "verify_cad_ml_quick.sh",

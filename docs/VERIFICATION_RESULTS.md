@@ -39,6 +39,23 @@
   - viewer attach during checkout: `409`
   - `/versions/{id}/files` contains `native_cad` binding for the uploaded file
 
+## 2026-02-14 Where-Used API-only E2E (PASS)
+
+- Scope:
+  - create Parts and build a BOM graph:
+    - `ASSEMBLY -> SUBASSY -> COMPONENT`
+    - `ASSEMBLY2 -> COMPONENT`
+  - where-used non-recursive (direct parents): `GET /api/v1/bom/{item_id}/where-used?recursive=false`
+  - where-used recursive (ancestors): `GET /api/v1/bom/{item_id}/where-used?recursive=true&max_levels=...`
+- Command:
+  - `bash scripts/verify_where_used_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_where_used_e2e_20260214-010434.log`
+  - Payloads: `tmp/verify-where-used/20260214-010434/`
+- Result:
+  - non-recursive: `count=2` (direct parents = SUBASSY + ASSEMBLY2)
+  - recursive: `count=3` (includes ancestor ASSEMBLY with `level=2`)
+
 ## 2026-02-13 Release Orchestration Script + E-sign Gate (PASS)
 
 - Scope:
