@@ -782,6 +782,15 @@ scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"
 
 期望：输出 `ALL CHECKS PASSED`。
 
+Docker worker 模式（更贴近生产；脚本不再执行本机 `yuantus worker --once`，而是等待 compose `worker` 容器处理 job）：
+
+```bash
+docker compose -f docker-compose.yml --profile dedup up -d worker
+
+LOG=/tmp/verify_cad_dedup_vision_s3_docker_worker_$(date +%Y%m%d-%H%M%S).log
+USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"
+```
+
 说明：
 
 - baseline 上传使用 `dedup_index=true`，用于把图纸写入 Dedup Vision index（便于后续相似检索）
@@ -801,6 +810,15 @@ scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"
 ```
 
 期望：输出 `ALL CHECKS PASSED`。
+
+Docker worker 模式（更贴近生产；脚本不再执行本机 `yuantus worker --once`，而是等待 compose `worker` 容器处理 job）：
+
+```bash
+docker compose -f docker-compose.yml --profile dedup up -d worker
+
+LOG=/tmp/verify_cad_dedup_relationship_s3_docker_worker_$(date +%Y%m%d-%H%M%S).log
+USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"
+```
 
 ---
 
