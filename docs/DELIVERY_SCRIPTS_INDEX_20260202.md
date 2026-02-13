@@ -33,6 +33,6 @@
 
 ## Notes
 
-- `verify_all.sh` supports `RUN_CONFIG_VARIANTS=1`, `RUN_OPS_S8=1`, `RUN_UI_PLAYWRIGHT=1`, and `MIGRATE_TENANT_DB=1`.
+- `verify_all.sh` supports `RUN_CONFIG_VARIANTS=1`, `RUN_DEDUP=1`, `RUN_OPS_S8=1`, `RUN_UI_PLAYWRIGHT=1`, and `MIGRATE_TENANT_DB=1`.
 - `verify_playwright_product_ui_summaries.sh` requires Playwright installed in `node_modules`.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.

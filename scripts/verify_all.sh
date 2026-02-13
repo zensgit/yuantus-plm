@@ -25,6 +25,7 @@ TENANT="${2:-tenant-1}"
 ORG="${3:-org-1}"
 DB_URL="${DB_URL:-}"
 MIGRATE_TENANT_DB="${MIGRATE_TENANT_DB:-0}"
+RUN_DEDUP="${RUN_DEDUP:-0}"
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -45,7 +46,7 @@ load_server_env() {
         local key="${token%%=*}"
         local value="${token#*=}"
         case "$key" in
-          YUANTUS_DATABASE_URL|YUANTUS_DATABASE_URL_TEMPLATE|YUANTUS_IDENTITY_DATABASE_URL|YUANTUS_TENANCY_MODE|YUANTUS_SCHEMA_MODE|YUANTUS_AUTH_MODE|YUANTUS_PLATFORM_ADMIN_ENABLED|YUANTUS_PLATFORM_TENANT_ID|YUANTUS_AUDIT_ENABLED|YUANTUS_CADGF_DEFAULT_EMIT)
+          YUANTUS_DATABASE_URL|YUANTUS_DATABASE_URL_TEMPLATE|YUANTUS_IDENTITY_DATABASE_URL|YUANTUS_TENANCY_MODE|YUANTUS_SCHEMA_MODE|YUANTUS_AUTH_MODE|YUANTUS_PLATFORM_ADMIN_ENABLED|YUANTUS_PLATFORM_TENANT_ID|YUANTUS_AUDIT_ENABLED|YUANTUS_CADGF_DEFAULT_EMIT|YUANTUS_DEDUP_VISION_BASE_URL)
             if [[ -z "${!key:-}" ]]; then
               export "${key}=${value}"
             fi
@@ -151,6 +152,7 @@ echo "CLI: $CLI"
 if [[ -n "$DB_URL" ]]; then
   echo "DB_URL: $DB_URL"
 fi
+echo "RUN_DEDUP: $RUN_DEDUP"
 if [[ -n "${RUN_CAD_ML_DOCKER:-}" || -n "${CAD_ML_BASE_URL:-}" || -n "${YUANTUS_CAD_ML_BASE_URL:-}" || -n "${CAD_PREVIEW_SAMPLE_FILE:-}" ]]; then
   echo "CAD-ML:"
   echo "  RUN_CAD_ML_DOCKER: ${RUN_CAD_ML_DOCKER:-0}"
@@ -746,6 +748,32 @@ if [[ -x "$SCRIPT_DIR/verify_cad_real_samples.sh" ]]; then
   fi
 fi
 
+# 11.7 CAD Dedup (S3 + Dedup Vision) (optional)
+if [[ "${RUN_DEDUP:-0}" == "1" ]]; then
+  if [[ "${YUANTUS_STORAGE_TYPE:-}" != "s3" ]]; then
+    skip_test "CAD Dedup Vision (S3)" "storage_type=${YUANTUS_STORAGE_TYPE:-<empty>} (requires s3)"
+    skip_test "CAD Dedup Relationship (S3)" "storage_type=${YUANTUS_STORAGE_TYPE:-<empty>} (requires s3)"
+  else
+    if [[ -x "$SCRIPT_DIR/verify_cad_dedup_vision_s3.sh" ]]; then
+      run_test "CAD Dedup Vision (S3)" \
+        "$SCRIPT_DIR/verify_cad_dedup_vision_s3.sh" \
+        "$BASE_URL" "$TENANT" "$ORG" || true
+    else
+      skip_test "CAD Dedup Vision (S3)" "script not found"
+    fi
+    if [[ -x "$SCRIPT_DIR/verify_cad_dedup_relationship_s3.sh" ]]; then
+      run_test "CAD Dedup Relationship (S3)" \
+        "$SCRIPT_DIR/verify_cad_dedup_relationship_s3.sh" \
+        "$BASE_URL" "$TENANT" "$ORG" || true
+    else
+      skip_test "CAD Dedup Relationship (S3)" "script not found"
+    fi
+  fi
+else
+  skip_test "CAD Dedup Vision (S3)" "RUN_DEDUP=0"
+  skip_test "CAD Dedup Relationship (S3)" "RUN_DEDUP=0"
+fi
+
 # 12. S6 - Search Index (optional)
 if [[ -x "$SCRIPT_DIR/verify_search_index.sh" ]]; then
   run_test "Search Index" \
@@ -994,7 +1022,7 @@ echo ""
 printf "%-25s %s\n" "Test Suite" "Result"
 printf "%-25s %s\n" "-------------------------" "------"
 
-for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "Lifecycle Suspended" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "Effectivity Extended" "BOM Obsolete" "BOM Weight Rollup" "S12 (Config Variants)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "UI Product Detail" "UI Product Summary" "UI Where-Used" "UI BOM" "UI Docs Approval" "UI Docs ECO Summary" "BOM Compare" "Baseline" "Baseline Filters" "BOM Substitutes" "MBOM Convert" "Item Equivalents" "Version-File Binding"; do
+for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "Lifecycle Suspended" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "Effectivity Extended" "BOM Obsolete" "BOM Weight Rollup" "S12 (Config Variants)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "CAD Dedup Vision (S3)" "CAD Dedup Relationship (S3)" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "UI Product Detail" "UI Product Summary" "UI Where-Used" "UI BOM" "UI Docs Approval" "UI Docs ECO Summary" "BOM Compare" "Baseline" "Baseline Filters" "BOM Substitutes" "MBOM Convert" "Item Equivalents" "Version-File Binding"; do
   result="${RESULTS[$name]:-N/A}"
   case "$result" in
     PASS) printf "%-25s ${GREEN}%s${NC}\n" "$name" "$result" ;;
