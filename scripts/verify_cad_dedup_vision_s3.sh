@@ -273,7 +273,7 @@ BASE_PNG="/tmp/yuantus_dedup_base.png"
 QUERY_PNG="/tmp/yuantus_dedup_query.png"
 
 "$PY" - << 'PY'
-import struct, zlib
+import struct, time, zlib
 from pathlib import Path
 
 def _chunk(tag: bytes, payload: bytes) -> bytes:
@@ -281,21 +281,23 @@ def _chunk(tag: bytes, payload: bytes) -> bytes:
     crc = struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
     return length + tag + payload + crc
 
-def write_png(path: str, *, width: int, height: int, tweak: bool) -> None:
+def write_png(path: str, *, width: int, height: int, seed: int, tweak: bool) -> None:
     width = int(width)
     height = int(height)
     # RGB, 8-bit, no interlace.
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
 
     # Build raw scanlines: filter=0 + RGB bytes.
+    # Use time seed so each run generates unique bytes (avoid checksum dedupe reusing stale FileContainer rows).
+    base_v = 20 + (int(seed) % 200)  # keep within a safe grayscale range
     rows = []
     for y in range(height):
         row = bytearray()
         row.append(0)  # filter
         for x in range(width):
-            v = 128
+            v = base_v
             if tweak and x == 0 and y == 0:
-                v = 129
+                v = (base_v + 1) % 256
             row.extend((v, v, v))
         rows.append(bytes(row))
     raw = b"".join(rows)
@@ -311,8 +313,9 @@ def write_png(path: str, *, width: int, height: int, tweak: bool) -> None:
     )
     Path(path).write_bytes(png)
 
-write_png("/tmp/yuantus_dedup_base.png", width=256, height=256, tweak=False)
-write_png("/tmp/yuantus_dedup_query.png", width=256, height=256, tweak=True)
+seed = int(time.time())
+write_png("/tmp/yuantus_dedup_base.png", width=256, height=256, seed=seed, tweak=False)
+write_png("/tmp/yuantus_dedup_query.png", width=256, height=256, seed=seed, tweak=True)
 PY
 
 if [[ ! -s "$BASE_PNG" || ! -s "$QUERY_PNG" ]]; then
@@ -405,6 +408,18 @@ print("ok")
 ' >/dev/null
 ok "Baseline cad_dedup payload readable (search+index success)"
 
+BASE_FILE_HASH="$(echo "$BASE_DEDUP_PAYLOAD" | "$PY" -c '
+import sys,json
+d=json.load(sys.stdin)
+indexed=d.get("indexed") or {}
+print(indexed.get("file_hash") or "")
+')"
+if [[ -z "$BASE_FILE_HASH" ]]; then
+  echo "Baseline cad_dedup payload: $BASE_DEDUP_PAYLOAD" >&2
+  fail "Baseline indexed.file_hash missing"
+fi
+ok "Baseline indexed file_hash: $BASE_FILE_HASH"
+
 # -----------------------------------------------------------------------------
 # 8) Upload query PNG and search for baseline
 # -----------------------------------------------------------------------------
@@ -472,7 +487,8 @@ QUERY_DEDUP_PAYLOAD="$(
   # shellcheck disable=SC2086
   $CURL_FOLLOW "$BASE_URL$QUERY_CAD_DEDUP_URL" "${HEADERS[@]}" "${AUTH_HEADERS[@]}"
 )"
-echo "$QUERY_DEDUP_PAYLOAD" | "$PY" -c '
+echo "$QUERY_DEDUP_PAYLOAD" | EXPECTED_FILE_HASH="$BASE_FILE_HASH" "$PY" -c '
+import os
 import sys,json
 d=json.load(sys.stdin)
 search=d.get("search") or {}
@@ -494,7 +510,13 @@ if isinstance(similar, list):
     entries.extend(similar)
 
 assert total >= 1 and entries, {"total_matches": total, "entries_len": len(entries), "search_keys": sorted(search.keys())}
-names=[(e or {}).get("file_name") for e in entries if isinstance(e, dict)]
+
+expected_hash = os.environ.get("EXPECTED_FILE_HASH") or ""
+assert expected_hash, "Missing EXPECTED_FILE_HASH env"
+matched = [e for e in entries if isinstance(e, dict) and (e.get("file_hash") == expected_hash)]
+assert matched, {"expected_file_hash": expected_hash, "entries_len": len(entries), "sample_names": [(e or {}).get("file_name") for e in entries[:5] if isinstance(e, dict)]}
+
+names=[(e or {}).get("file_name") for e in matched if isinstance(e, dict)]
 assert "verify_dedup_base.png" in names, names
 print("ok")
 ' >/dev/null

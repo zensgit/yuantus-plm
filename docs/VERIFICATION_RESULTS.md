@@ -825,6 +825,18 @@ OK: Audit logs verified
 ALL CHECKS PASSED
 ```
 
+## Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-DOCKER-WORKER-20260213-013516
+
+- 时间：`2026-02-13 01:35:16 +0800`
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision + worker=compose container；脚本使用 `USE_DOCKER_WORKER=1` 等待容器 worker 处理 job）
+- 命令：`docker compose -f docker-compose.yml --profile dedup up -d postgres minio api dedup-vision`
+- 命令：`docker compose -f docker-compose.yml --profile dedup up -d worker`
+- 命令：`docker compose -f docker-compose.yml --profile dedup up -d --build --no-deps api`
+- 命令：`LOG=/tmp/verify_cad_dedup_relationship_s3_docker_worker_20260213-013516.log; USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 证据：`docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
+- 原始日志：`/tmp/verify_cad_dedup_relationship_s3_docker_worker_20260213-013516.log`
+
 ## Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-20260212-225211
 
 - 时间：`2026-02-12 22:52:58 +0800`
@@ -856,6 +868,18 @@ ALL CHECKS PASSED
 - 结果：`PASS`（`ALL CHECKS PASSED`）
 - 证据：`docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
 
+
+## Run RUN-CAD-DEDUP-VISION-S3-PG-MINIO-DOCKER-WORKER-20260213-114631
+
+- 时间：`2026-02-13 11:46:31 +0800`
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision + worker=compose container；脚本使用 `USE_DOCKER_WORKER=1` 等待容器 worker 处理 job）
+- 命令：`docker compose -f docker-compose.yml --profile dedup up -d postgres minio api dedup-vision`
+- 命令：`docker compose -f docker-compose.yml --profile dedup up -d worker`
+- 命令：`docker compose -f docker-compose.yml --profile dedup up -d --build --no-deps api`
+- 命令：`LOG=/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-114631.log; USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 证据：`docs/DEV_AND_VERIFICATION_CAD_DEDUP_VISION_S3_PG_MINIO_20260212.md`
+- 原始日志：`/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-114631.log`
 
 ## Run RUN-CAD-DEDUP-VISION-S3-PG-MINIO-20260212-174112
 

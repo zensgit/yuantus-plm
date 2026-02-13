@@ -20,7 +20,8 @@
   - Multipart uploads use the provided filename instead of the temp basename.
 - Added verification script:
   - `scripts/verify_cad_dedup_vision_s3.sh`
-  - Generates two near-identical PNGs (different bytes), uploads baseline with `dedup_index=true`, uploads query with `dedup_index=false`, and asserts the query returns the baseline as a match.
+  - Generates two near-identical PNGs (different bytes), uploads baseline with `dedup_index=true`, uploads query with `dedup_index=false`, and asserts the query returns the baseline as a match (by `file_hash`).
+  - Uses a time seed so each run generates unique bytes (avoids checksum-based dedupe reusing old `FileContainer` rows with stale metadata).
   - Uses `curl -L` to follow S3 presigned redirects when reading back `/file/{id}/cad_dedup`.
   - Supports `USE_DOCKER_WORKER=1` mode so the script waits for Docker compose `worker` container processing instead of invoking local `yuantus worker --once`.
   - Validates `/api/v1/jobs/{id}` payload contract by checking `payload.result.ok == true` (not only `status=completed`).
@@ -75,24 +76,26 @@ Evidence:
 
 - `/tmp/verify_cad_dedup_vision_s3_20260212-174112.log`
 - `/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-113354.log`
+- `/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-114631.log`
 
 ## Verification Results (Docker worker mode, 2026-02-13)
 
-Run: `RUN-CAD-DEDUP-VISION-S3-PG-MINIO-DOCKER-WORKER-20260213-113354`
+Run: `RUN-CAD-DEDUP-VISION-S3-PG-MINIO-DOCKER-WORKER-20260213-114631`
 
-- 时间：`2026-02-13 11:33:54 +0800`
+- 时间：`2026-02-13 11:46:31 +0800`
 - 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision + worker compose container）
-- 命令：`LOG=/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-113354.log; USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"`
+- 命令：`LOG=/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-114631.log; USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"`
 - 结果：`PASS`（`ALL CHECKS PASSED`）
-- 原始日志：`/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-113354.log`
+- 原始日志：`/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-114631.log`
 
 关键 ID：
 
-- rule_id: `5e52c978-821d-40bf-8b66-36631a2affff`
-- baseline_file_id: `a63b0d35-96a5-4c3d-af71-dbb375bf2b46`
-- baseline_job_id: `613858bc-d8b9-4340-8308-aabdce511365`
-- query_file_id: `50897b9d-af95-4b91-a8b5-aa9ec9c641f0`
-- query_job_id: `a51e179c-d8f4-4bb4-a1aa-d9b549125150`
+- rule_id: `bbc6459e-fef9-408a-92c1-5586b5410aca`
+- baseline_file_id: `8fdda999-34a4-448b-b9a6-4a0f43fe2754`
+- baseline_job_id: `66e95643-a97d-436b-a9bb-2fcbfbf0dd48`
+- baseline_file_hash: `961db2e736ab693c4e00b3283290632b36b5cd16a25da7676cc0b3911b14e8c4`
+- query_file_id: `fb810f7e-258f-4003-9d21-137cf6e87701`
+- query_job_id: `4491da8a-c3d0-483a-9230-6d75a8735772`
 
 ### Notes
 
