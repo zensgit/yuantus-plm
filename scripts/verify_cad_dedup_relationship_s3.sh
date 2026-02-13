@@ -23,7 +23,11 @@
 # Usage:
 #   docker compose -f docker-compose.yml --profile dedup up -d postgres minio api dedup-vision
 #   docker compose -f docker-compose.yml --profile dedup up -d --build --no-deps api
+#   # Mode A: local worker via CLI (--once)
 #   scripts/verify_cad_dedup_relationship_s3.sh
+#   # Mode B: docker worker container (more production-like)
+#   docker compose -f docker-compose.yml --profile dedup up -d worker
+#   USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh
 # =============================================================================
 set -euo pipefail
 
@@ -53,8 +57,22 @@ S3_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY:-${YUANTUS_S3_SECRET_ACCESS_KEY:-mi
 
 DEDUP_BASE_URL="${DEDUP_BASE_URL:-${YUANTUS_DEDUP_VISION_BASE_URL:-http://localhost:8100}}"
 
+USE_DOCKER_WORKER="${USE_DOCKER_WORKER:-0}"
+
 fail() { echo "FAIL: $1" >&2; exit 1; }
 ok() { echo "OK: $1"; }
+
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+USE_DOCKER_WORKER_ENABLED=false
+if is_truthy "$USE_DOCKER_WORKER"; then
+  USE_DOCKER_WORKER_ENABLED=true
+fi
 
 if [[ ! -x "$CLI" ]]; then
   fail "Missing CLI at $CLI (set CLI=...)"
@@ -92,6 +110,115 @@ http_code() {
   $CURL -o /dev/null -w "%{http_code}" "$@"
 }
 
+pump_local_worker_once() {
+  if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+    return 0
+  fi
+
+  # Best-effort: in some tenancy modes, worker should run without --tenant/--org.
+  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null 2>&1 || \
+  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once >/dev/null 2>&1 || \
+  true
+}
+
+wait_for_job_completed() {
+  local job_id="$1"
+  local label="$2"
+  local timeout_s="${3:-180}"
+  local poll_s="${4:-2}"
+
+  local start
+  start="$(date +%s)"
+
+  while true; do
+    pump_local_worker_once
+
+    local job_json status
+    # shellcheck disable=SC2086
+    job_json="$($CURL "$API/jobs/$job_id" "${HEADERS[@]}" "${AUTH_HEADERS[@]}")"
+    status="$(echo "$job_json" | "$PY" -c 'import sys,json; print((json.load(sys.stdin).get("status") or ""))')"
+    echo "${label} status: ${status}"
+
+    if [[ "$status" == "completed" || "$status" == "failed" || "$status" == "cancelled" ]]; then
+      if [[ "$status" != "completed" ]]; then
+        fail "${label} did not complete (status=$status)"
+      fi
+
+      local ok_flag err
+      ok_flag="$(echo "$job_json" | "$PY" -c '
+import sys,json
+d=json.load(sys.stdin)
+r=(d.get("payload") or {}).get("result") or {}
+print(r.get("ok", None))
+')"
+      if [[ "$ok_flag" != "True" && "$ok_flag" != "true" ]]; then
+        err="$(echo "$job_json" | "$PY" -c '
+import sys,json
+d=json.load(sys.stdin)
+r=(d.get("payload") or {}).get("result") or {}
+print(r.get("error") or d.get("last_error") or "")
+')"
+        if [[ -n "$err" ]]; then
+          fail "${label} completed but result.ok is not true (ok=$ok_flag, error=$err)"
+        fi
+        fail "${label} completed but result.ok is not true (ok=$ok_flag)"
+      fi
+      return 0
+    fi
+
+    local now
+    now="$(date +%s)"
+    if (( now - start >= timeout_s )); then
+      fail "${label} timed out after ${timeout_s}s (status=$status)"
+    fi
+    sleep "$poll_s"
+  done
+}
+
+wait_for_file_cad_dedup_indexed_success() {
+  local file_id="$1"
+  local label="$2"
+  local timeout_s="${3:-240}"
+  local poll_s="${4:-2}"
+
+  local start
+  start="$(date +%s)"
+
+  while true; do
+    pump_local_worker_once
+
+    local meta_json cad_dedup_url
+    # shellcheck disable=SC2086
+    meta_json="$($CURL "$API/file/$file_id" "${HEADERS[@]}" "${AUTH_HEADERS[@]}")"
+    cad_dedup_url="$(echo "$meta_json" | "$PY" -c 'import sys,json; print((json.load(sys.stdin).get("cad_dedup_url") or ""))')"
+
+    if [[ -n "$cad_dedup_url" ]]; then
+      local dedup_payload indexed_success
+      # shellcheck disable=SC2086
+      dedup_payload="$($CURL_FOLLOW "$BASE_URL$cad_dedup_url" "${HEADERS[@]}" "${AUTH_HEADERS[@]}")"
+      indexed_success="$(echo "$dedup_payload" | "$PY" -c '
+import sys,json
+d=json.load(sys.stdin)
+indexed=d.get("indexed") or {}
+print(indexed.get("success", None))
+')"
+      echo "${label} indexed.success: ${indexed_success}"
+      if [[ "$indexed_success" == "True" || "$indexed_success" == "true" ]]; then
+        return 0
+      fi
+    else
+      echo "${label} cad_dedup_url: <empty>"
+    fi
+
+    local now
+    now="$(date +%s)"
+    if (( now - start >= timeout_s )); then
+      fail "${label} timed out after ${timeout_s}s (cad_dedup_url=$cad_dedup_url)"
+    fi
+    sleep "$poll_s"
+  done
+}
+
 echo "=============================================="
 echo "CAD Dedup Vision Relationship Verification (S3)"
 echo "BASE_URL: $BASE_URL"
@@ -99,6 +226,7 @@ echo "TENANT: $TENANT, ORG: $ORG"
 echo "DB_URL: $DB_URL"
 echo "S3_ENDPOINT_URL: $S3_ENDPOINT_URL"
 echo "DEDUP_BASE_URL: $DEDUP_BASE_URL"
+echo "USE_DOCKER_WORKER: $USE_DOCKER_WORKER_ENABLED (raw=$USE_DOCKER_WORKER)"
 echo "=============================================="
 
 echo ""
@@ -116,6 +244,21 @@ if [[ "$DEDUP_HEALTH_HTTP" != "200" ]]; then
   fail "Dedup Vision not healthy: $DEDUP_BASE_URL/health (HTTP $DEDUP_HEALTH_HTTP)"
 fi
 ok "Dedup Vision is healthy"
+
+if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+  echo ""
+  echo "==> Preflight: Docker worker container (best-effort)"
+  if command -v docker >/dev/null 2>&1; then
+    if docker ps --format '{{.Names}}' --filter 'label=com.docker.compose.service=worker' --filter 'status=running' | grep -q .; then
+      ok "Docker worker container is running"
+    else
+      echo "WARN: USE_DOCKER_WORKER=1 but no running compose worker container found (label com.docker.compose.service=worker)." >&2
+      echo "WARN: The script will wait for jobs to be processed by an external worker; start the worker if it times out." >&2
+    fi
+  else
+    echo "WARN: docker not found; USE_DOCKER_WORKER=1 will just wait for jobs to be processed by an external worker." >&2
+  fi
+fi
 
 if [[ "$STORAGE_TYPE_ENV" != "s3" ]]; then
   fail "This script expects S3 storage. Set YUANTUS_STORAGE_TYPE=s3 (got: $STORAGE_TYPE_ENV)"
@@ -493,25 +636,8 @@ fi
 echo "Baseline dedup job ID: $BASE_JOB_ID"
 
 echo ""
-echo "==> Run worker until baseline job completes"
-for _ in {1..15}; do
-  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
-  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once >/dev/null
-
-  BASE_STATUS="$(
-    # shellcheck disable=SC2086
-    $CURL "$API/jobs/$BASE_JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
-      | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status","") or "")'
-  )"
-  echo "Baseline job status: $BASE_STATUS"
-  if [[ "$BASE_STATUS" == "completed" || "$BASE_STATUS" == "failed" || "$BASE_STATUS" == "cancelled" ]]; then
-    break
-  fi
-  sleep 1
-done
-if [[ "$BASE_STATUS" != "completed" ]]; then
-  fail "Baseline job did not complete (status=$BASE_STATUS)"
-fi
+echo "==> Wait for baseline job to complete"
+wait_for_job_completed "$BASE_JOB_ID" "Baseline dedup job" 180
 ok "Baseline job completed"
 
 # -----------------------------------------------------------------------------
@@ -555,25 +681,8 @@ fi
 echo "Query dedup job ID: $QUERY_JOB_ID"
 
 echo ""
-echo "==> Run worker until query job completes"
-for _ in {1..15}; do
-  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
-  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once >/dev/null
-
-  QUERY_STATUS="$(
-    # shellcheck disable=SC2086
-    $CURL "$API/jobs/$QUERY_JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
-      | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status","") or "")'
-  )"
-  echo "Query job status: $QUERY_STATUS"
-  if [[ "$QUERY_STATUS" == "completed" || "$QUERY_STATUS" == "failed" || "$QUERY_STATUS" == "cancelled" ]]; then
-    break
-  fi
-  sleep 1
-done
-if [[ "$QUERY_STATUS" != "completed" ]]; then
-  fail "Query job did not complete (status=$QUERY_STATUS)"
-fi
+echo "==> Wait for query job to complete"
+wait_for_job_completed "$QUERY_JOB_ID" "Query dedup job" 180
 ok "Query job completed"
 
 # -----------------------------------------------------------------------------
@@ -700,20 +809,9 @@ fi
 ok "Batch jobs created: $JOBS_CREATED"
 
 echo ""
-echo "==> Run worker until batch jobs complete"
-for _ in {1..20}; do
-  processed=false
-  if run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null; then
-    processed=true
-  elif run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once >/dev/null; then
-    processed=true
-  fi
-  if [[ "$processed" == "false" ]]; then
-    break
-  fi
-  sleep 1
-done
-ok "Worker executed (batch indexing)"
+echo "==> Wait for batch indexing to update query cad_dedup indexed.success=true"
+wait_for_file_cad_dedup_indexed_success "$QUERY_FILE_ID" "Query file (batch index=true)" 240
+ok "Batch indexing completed (query indexed.success=true)"
 
 echo ""
 echo "==> Verify query cad_dedup payload now has indexed.success=true"
@@ -771,25 +869,8 @@ fi
 ok "Baseline re-search job created: $REVERSE_JOB_ID"
 
 echo ""
-echo "==> Run worker until baseline re-search job completes"
-for _ in {1..20}; do
-  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
-  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once >/dev/null
-
-  REVERSE_STATUS="$(
-    # shellcheck disable=SC2086
-    $CURL "$API/jobs/$REVERSE_JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
-      | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status","") or "")'
-  )"
-  echo "Reverse job status: $REVERSE_STATUS"
-  if [[ "$REVERSE_STATUS" == "completed" || "$REVERSE_STATUS" == "failed" || "$REVERSE_STATUS" == "cancelled" ]]; then
-    break
-  fi
-  sleep 1
-done
-if [[ "$REVERSE_STATUS" != "completed" ]]; then
-  fail "Baseline re-search job did not complete (status=$REVERSE_STATUS)"
-fi
+echo "==> Wait for baseline re-search job to complete"
+wait_for_job_completed "$REVERSE_JOB_ID" "Baseline re-search job" 180
 ok "Baseline re-search job completed"
 
 PAIR_KEY="$("$PY" -c "a='$BASE_FILE_ID'; b='$QUERY_FILE_ID'; print(f'{a}|{b}' if a < b else f'{b}|{a}')")"
@@ -1001,25 +1082,8 @@ print("ok")
 ok "Pending job payload promoted to index=true"
 
 echo ""
-echo "==> Run worker until promoted job completes"
-for _ in {1..15}; do
-  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
-  run_cli worker --worker-id cad-dedup-rel-verify --poll-interval 1 --once >/dev/null
-
-  STATUS="$(
-    # shellcheck disable=SC2086
-    $CURL "$API/jobs/$PROMOTE_JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
-      | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status","") or "")'
-  )"
-  echo "Promoted job status: $STATUS"
-  if [[ "$STATUS" == "completed" || "$STATUS" == "failed" || "$STATUS" == "cancelled" ]]; then
-    break
-  fi
-  sleep 1
-done
-if [[ "$STATUS" != "completed" ]]; then
-  fail "Promoted job did not complete (status=$STATUS)"
-fi
+echo "==> Wait for promoted job to complete"
+wait_for_job_completed "$PROMOTE_JOB_ID" "Promoted job" 180
 ok "Promoted job completed"
 
 echo ""

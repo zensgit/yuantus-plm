@@ -101,6 +101,7 @@ To reduce regressions, the following stdlib-only contract tests are included in 
 - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_report_endpoints.py`
 - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_similarity_pair_key.py`
 - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_v2_fallback.py`
+- `src/yuantus/meta_engine/tests/test_ci_contracts_compose_worker_dedup_vision_url.py` (ensures `docker-compose.yml` worker sets `YUANTUS_DEDUP_VISION_BASE_URL` so `cad_dedup_vision` jobs can reach Dedup Vision inside the container network)
 
 ## Verification
 
@@ -118,6 +119,14 @@ LOG=/tmp/verify_cad_dedup_relationship_s3_$(date +%Y%m%d-%H%M%S).log
 scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"
 ```
 
+Docker worker mode (more production-like; do not run local `yuantus worker --once`):
+
+```bash
+docker compose -f docker-compose.yml --profile dedup up -d worker
+LOG=/tmp/verify_cad_dedup_relationship_s3_docker_worker_$(date +%Y%m%d-%H%M%S).log
+USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"
+```
+
 Expected:
 
 - Outputs `ALL CHECKS PASSED`
@@ -132,6 +141,31 @@ Expected:
 - Confirms dedup report + CSV export endpoints return rows
 
 ## Verification Results (2026-02-12)
+
+### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-DOCKER-WORKER-20260213-013516
+
+- 时间：`2026-02-13 01:35:16 +0800`
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision + worker=compose container；脚本使用 `USE_DOCKER_WORKER=1` 等待容器 worker 处理 job）
+- 命令：`LOG=/tmp/verify_cad_dedup_relationship_s3_docker_worker_20260213-013516.log; USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 原始日志：`/tmp/verify_cad_dedup_relationship_s3_docker_worker_20260213-013516.log`
+
+关键 ID：
+
+- workflow_map_id: `9f226ef6-b970-41e4-84dc-1205b294c6e2`
+- rule_id: `0d6c9ee1-2c5a-4c03-ba8d-1072d445ffe7`
+- part_a_id: `b01c9688-51ad-4f3f-8d62-62086fe4f1f1`
+- part_b_id: `652b2b56-204d-41bb-bfc9-2073c8737347`
+- baseline_file_id: `792ef6cd-1b6e-4660-9dbd-c3e59ae1540d`
+- query_file_id: `f47cf34e-fcaa-482d-b7d5-cebee3c153cf`
+- baseline_job_id: `a6b39bd8-20b9-4da6-bc01-04e92290632b`
+- query_job_id: `0ceae9b9-688f-43dc-a795-11197da9531e`
+- similarity_record_id: `be6954cc-6730-40b2-b859-4eb614245221`
+- relationship_item_id: `0463ea55-f0b2-4465-8a5a-cb105504a20b`
+- batch_id: `d54ddf5a-61f1-4fe8-b44b-df66ec6aaafc`
+- reverse_job_id: `e2aef774-6838-4cb2-a7bc-3a93c77f8181`
+- promote_file_id: `07244275-1817-4b9d-bdb8-fc12c9ad3626`
+- promote_job_id: `8ebc8860-5c56-4ae9-9647-271f039ea84c`
 
 ### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-20260212-225211
 
