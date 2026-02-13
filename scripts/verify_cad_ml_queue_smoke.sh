@@ -18,6 +18,7 @@ DB_URL="${DB_URL:-${YUANTUS_DATABASE_URL:-}}"
 IDENTITY_DB_URL="${IDENTITY_DB_URL:-${YUANTUS_IDENTITY_DATABASE_URL:-}}"
 DB_URL_TEMPLATE="${DB_URL_TEMPLATE:-${YUANTUS_DATABASE_URL_TEMPLATE:-}}"
 TENANCY_MODE_ENV="${TENANCY_MODE_ENV:-${YUANTUS_TENANCY_MODE:-}}"
+USE_DOCKER_WORKER="${USE_DOCKER_WORKER:-0}"
 
 RUN_CAD_ML_DOCKER="${RUN_CAD_ML_DOCKER:-0}"
 CAD_ML_API_PORT="${CAD_ML_API_PORT:-18000}"
@@ -26,6 +27,26 @@ export CAD_ML_BASE_URL
 export YUANTUS_CAD_ML_BASE_URL="${YUANTUS_CAD_ML_BASE_URL:-${CAD_ML_BASE_URL}}"
 
 declare -a TMP_FILES=()
+
+fail() { echo "FAIL: $1" >&2; exit 1; }
+ok() { echo "OK: $1"; }
+
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+USE_DOCKER_WORKER_ENABLED=false
+if is_truthy "$USE_DOCKER_WORKER"; then
+  USE_DOCKER_WORKER_ENABLED=true
+fi
+
+CAD_ML_QUEUE_WORKER_RUNS_ENV_SET=0
+if [[ -n "${CAD_ML_QUEUE_WORKER_RUNS+x}" ]]; then
+  CAD_ML_QUEUE_WORKER_RUNS_ENV_SET=1
+fi
 
 CAD_ML_QUEUE_REPEAT="${CAD_ML_QUEUE_REPEAT:-5}"
 CAD_ML_QUEUE_WORKER_RUNS="${CAD_ML_QUEUE_WORKER_RUNS:-6}"
@@ -47,8 +68,10 @@ CAD_ML_QUEUE_STATS_CSV_ROTATE_DAYS="${CAD_ML_QUEUE_STATS_CSV_ROTATE_DAYS:-30}"
 DEFAULT_SAMPLE_FILE="${REPO_ROOT}/docs/samples/cad_ml_preview_sample.dxf"
 SAMPLE_FILE="${CAD_PREVIEW_SAMPLE_FILE:-$DEFAULT_SAMPLE_FILE}"
 
-fail() { echo "FAIL: $1" >&2; exit 1; }
-ok() { echo "OK: $1"; }
+if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" && "$CAD_ML_QUEUE_WORKER_RUNS_ENV_SET" == "0" ]]; then
+  # Docker compose worker uses --poll-interval 5 by default; give it more time without needing env tweaks.
+  CAD_ML_QUEUE_WORKER_RUNS=60
+fi
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -133,14 +156,40 @@ run_cli() {
   fi
 }
 
+pump_local_worker_once() {
+  if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+    return 0
+  fi
+
+  run_cli worker --worker-id cad-ml-queue --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null 2>&1 || \
+  run_cli worker --worker-id cad-ml-queue --poll-interval 1 --once >/dev/null 2>&1 || \
+  true
+}
+
 echo "=============================================="
 echo "CAD-ML Queue Smoke Test"
 echo "BASE_URL: $BASE_URL"
 echo "TENANT: $TENANT, ORG: $ORG"
 echo "CAD_ML_BASE_URL: $CAD_ML_BASE_URL"
+echo "USE_DOCKER_WORKER: $USE_DOCKER_WORKER_ENABLED (raw=$USE_DOCKER_WORKER)"
 echo "REPEAT: $CAD_ML_QUEUE_REPEAT"
 echo "SAMPLES: ${#SAMPLE_FILES[@]}"
 echo "=============================================="
+
+if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+  echo ""
+  echo "==> Preflight: Docker worker container (best-effort)"
+  if command -v docker >/dev/null 2>&1; then
+    if docker ps --format '{{.Names}}' --filter 'label=com.docker.compose.service=worker' --filter 'status=running' | grep -q .; then
+      ok "Docker worker container is running"
+    else
+      echo "WARN: USE_DOCKER_WORKER=1 but no running compose worker container found (label com.docker.compose.service=worker)." >&2
+      echo "WARN: The script will wait for jobs to be processed by an external worker; start the worker if it times out." >&2
+    fi
+  else
+    echo "WARN: docker not found; USE_DOCKER_WORKER=1 will just wait for jobs to be processed by an external worker." >&2
+  fi
+fi
 
 echo ""
 echo "==> Seed identity/meta"
@@ -246,8 +295,7 @@ done
 echo ""
 echo "==> Run worker to drain queue"
 for i in $(seq 1 "$CAD_ML_QUEUE_WORKER_RUNS"); do
-  run_cli worker --worker-id cad-ml-queue --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
-  run_cli worker --worker-id cad-ml-queue --poll-interval 1 --once >/dev/null
+  pump_local_worker_once
 
   sleep "$CAD_ML_QUEUE_SLEEP_SECONDS"
 

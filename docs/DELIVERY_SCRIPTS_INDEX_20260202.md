@@ -33,6 +33,7 @@
 
 ## Notes
 
-- `verify_all.sh` supports `RUN_CONFIG_VARIANTS=1`, `RUN_DEDUP=1`, `RUN_OPS_S8=1`, `RUN_UI_PLAYWRIGHT=1`, and `MIGRATE_TENANT_DB=1`.
+- `verify_all.sh` supports `RUN_CONFIG_VARIANTS=1`, `RUN_DEDUP=1`, `START_DEDUP_STACK=1`, `RUN_OPS_S8=1`, `RUN_UI_PLAYWRIGHT=1`, and `MIGRATE_TENANT_DB=1`.
+- CAD verification scripts support `USE_DOCKER_WORKER=1` to wait for jobs to be processed by a running docker-compose `worker` service (instead of running `yuantus worker --once` locally).
 - `verify_playwright_product_ui_summaries.sh` requires Playwright installed in `node_modules`.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.
