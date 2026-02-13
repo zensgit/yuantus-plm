@@ -106,6 +106,40 @@
   - MBOM root/source link: `mbom_root_source_ok=1`
   - MBOM substitutes copied: `mbom_substitute_source_ok=1`
 
+## 2026-02-14 Baseline API-only E2E (PASS)
+
+- Scope:
+  - build a minimal BOM (parent + children)
+  - create baseline snapshot via `POST /api/v1/baselines`
+  - compare baseline vs current (no diff): `POST /api/v1/baselines/{id}/compare`
+  - modify BOM and compare again (expect added + changed)
+  - baseline-to-baseline compare (expect diff)
+- Command:
+  - `bash scripts/verify_baseline_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_baseline_e2e_20260214-021042.log`
+  - Payloads: `tmp/verify-baseline/20260214-021042/`
+- Result:
+  - baseline snapshot: `children=2`, `relationship_count>=2`
+  - compare no diff: `added=0 removed=0 changed=0`
+  - compare diff: `added>=1 changed>=1`
+
+## 2026-02-14 Baseline Filters API-only E2E (PASS)
+
+- Scope:
+  - create baseline with explicit `baseline_type/scope/state/effective_date`
+  - list filters:
+    - `baseline_type/scope/state`
+    - effective date range (`effective_from/effective_to`)
+- Command:
+  - `bash scripts/verify_baseline_filters_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_baseline_filters_e2e_20260214-021055.log`
+  - Payloads: `tmp/verify-baseline-filters/20260214-021055/`
+- Result:
+  - type/scope/state filters: `ok`
+  - effective date range filters: `ok`
+
 ## 2026-02-13 Release Orchestration Script + E-sign Gate (PASS)
 
 - Scope:

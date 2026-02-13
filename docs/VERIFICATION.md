@@ -2407,6 +2407,55 @@ RUN_MBOM_CONVERT_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1
 - `tmp/verify-mbom-convert/<timestamp>/...json`（health/login/convert/tree/substitutes 等证据）
 - `tmp/verify-mbom-convert/<timestamp>/server.log`
 
+### 26.2.13 Baseline（可选自包含 API-only E2E）
+
+该验证用于覆盖 Baseline 快照与对比的最小闭环（无需 docker compose）：
+
+- 构造 BOM（parent + children）
+- 创建 baseline snapshot：`POST /api/v1/baselines`
+- baseline vs current compare（无差异）：`POST /api/v1/baselines/{id}/compare`
+- 修改 BOM（qty 变更 + add line）后 compare（应出现 added/changed）
+- baseline-to-baseline compare（应出现 diff）
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_baseline_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_BASELINE_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-baseline/<timestamp>/...json`（health/login/baselines/compare 等证据）
+- `tmp/verify-baseline/<timestamp>/server.log`
+
+### 26.2.14 Baseline Filters（可选自包含 API-only E2E）
+
+该验证用于覆盖 Baseline list filters 的最小闭环（无需 docker compose）：
+
+- 创建 baseline（含 baseline_type/scope/state/effective_date）
+- list filters：
+  - type/scope/state：`GET /api/v1/baselines?baseline_type=...&scope=...&state=...`
+  - effective date range：`GET /api/v1/baselines?effective_from=...&effective_to=...`
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_baseline_filters_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_BASELINE_FILTERS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-baseline-filters/<timestamp>/...json`（health/login/baselines list 等证据）
+- `tmp/verify-baseline-filters/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2456,6 +2505,8 @@ RUN_MBOM_CONVERT_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1
 | BOM Compare (E2E) | `verify_bom_compare_e2e.sh` | BOM Compare（差异对比：effectivity/substitutes + compare_mode 变体）自包含验证 |
 | BOM Substitutes (E2E) | `verify_bom_substitutes_e2e.sh` | BOM substitutes（add/list/delete + guardrails）自包含验证 |
 | MBOM Convert (E2E) | `verify_mbom_convert_e2e.sh` | EBOM → MBOM 转换（含 substitutes 复制）自包含验证 |
+| Baseline (E2E) | `verify_baseline_e2e.sh` | Baseline 快照与对比（baseline vs current + baseline-to-baseline）自包含验证 |
+| Baseline Filters (E2E) | `verify_baseline_filters_e2e.sh` | Baseline list filters（type/scope/state + effective range）自包含验证 |
 | Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
 
@@ -2482,6 +2533,8 @@ RUN_MBOM_CONVERT_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1
 > `BOM Compare (E2E)` 需要设置 `RUN_BOM_COMPARE_E2E=1`（或直接运行 `scripts/verify_bom_compare_e2e.sh`）。
 > `BOM Substitutes (E2E)` 需要设置 `RUN_BOM_SUBSTITUTES_E2E=1`（或直接运行 `scripts/verify_bom_substitutes_e2e.sh`）。
 > `MBOM Convert (E2E)` 需要设置 `RUN_MBOM_CONVERT_E2E=1`（或直接运行 `scripts/verify_mbom_convert_e2e.sh`）。
+> `Baseline (E2E)` 需要设置 `RUN_BASELINE_E2E=1`（或直接运行 `scripts/verify_baseline_e2e.sh`）。
+> `Baseline Filters (E2E)` 需要设置 `RUN_BASELINE_FILTERS_E2E=1`（或直接运行 `scripts/verify_baseline_filters_e2e.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
 ### 26.4 输出格式
