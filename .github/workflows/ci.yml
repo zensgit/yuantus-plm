@@ -235,6 +235,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_report_endpoints.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_similarity_pair_key.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_v2_fallback.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_verify_script_docker_worker.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_doc_index_sorting.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
             src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \

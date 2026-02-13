@@ -22,6 +22,11 @@
   - `scripts/verify_cad_dedup_vision_s3.sh`
   - Generates two near-identical PNGs (different bytes), uploads baseline with `dedup_index=true`, uploads query with `dedup_index=false`, and asserts the query returns the baseline as a match.
   - Uses `curl -L` to follow S3 presigned redirects when reading back `/file/{id}/cad_dedup`.
+  - Supports `USE_DOCKER_WORKER=1` mode so the script waits for Docker compose `worker` container processing instead of invoking local `yuantus worker --once`.
+  - Validates `/api/v1/jobs/{id}` payload contract by checking `payload.result.ok == true` (not only `status=completed`).
+- Added CI contract:
+  - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_verify_script_docker_worker.py`
+  - Guards docker-worker mode + `result.ok` validation in `verify_cad_dedup_vision_s3.sh`.
 
 ## Verification
 
@@ -48,6 +53,14 @@ scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"
 
 Result: PASS (`ALL CHECKS PASSED`)
 
+Docker worker mode:
+
+```bash
+docker compose -f docker-compose.yml --profile dedup up -d worker
+LOG=/tmp/verify_cad_dedup_vision_s3_docker_worker_$(date +%Y%m%d-%H%M%S).log
+USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"
+```
+
 Key IDs from the verified run:
 
 - Dedup rule: `2057c992-d691-4145-a8dd-47e7745c454c`
@@ -61,8 +74,26 @@ Key IDs from the verified run:
 Evidence:
 
 - `/tmp/verify_cad_dedup_vision_s3_20260212-174112.log`
+- `/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-113354.log`
+
+## Verification Results (Docker worker mode, 2026-02-13)
+
+Run: `RUN-CAD-DEDUP-VISION-S3-PG-MINIO-DOCKER-WORKER-20260213-113354`
+
+- 时间：`2026-02-13 11:33:54 +0800`
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision + worker compose container）
+- 命令：`LOG=/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-113354.log; USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_vision_s3.sh | tee "$LOG"`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 原始日志：`/tmp/verify_cad_dedup_vision_s3_docker_worker_20260213-113354.log`
+
+关键 ID：
+
+- rule_id: `5e52c978-821d-40bf-8b66-36631a2affff`
+- baseline_file_id: `a63b0d35-96a5-4c3d-af71-dbb375bf2b46`
+- baseline_job_id: `613858bc-d8b9-4340-8308-aabdce511365`
+- query_file_id: `50897b9d-af95-4b91-a8b5-aa9ec9c641f0`
+- query_job_id: `a51e179c-d8f4-4bb4-a1aa-d9b549125150`
 
 ### Notes
 
 - Under S3 storage, `GET /api/v1/file/{id}/cad_dedup` may return `302` to a presigned URL. The verification script uses `curl -L` (via `CURL_FOLLOW`) to follow redirects.
-

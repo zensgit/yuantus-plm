@@ -16,7 +16,11 @@
 #
 # Usage:
 #   docker compose -f docker-compose.yml --profile dedup up -d postgres minio api dedup-vision
+#   # Mode A: local worker via CLI (--once)
 #   scripts/verify_cad_dedup_vision_s3.sh
+#   # Mode B: docker worker container (more production-like)
+#   docker compose -f docker-compose.yml --profile dedup up -d worker
+#   USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_vision_s3.sh
 # =============================================================================
 set -euo pipefail
 
@@ -45,9 +49,22 @@ S3_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID:-${YUANTUS_S3_ACCESS_KEY_ID:-minioadmin}}"
 S3_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY:-${YUANTUS_S3_SECRET_ACCESS_KEY:-minioadmin}}"
 
 DEDUP_BASE_URL="${DEDUP_BASE_URL:-${YUANTUS_DEDUP_VISION_BASE_URL:-http://localhost:8100}}"
+USE_DOCKER_WORKER="${USE_DOCKER_WORKER:-0}"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 ok() { echo "OK: $1"; }
+
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+USE_DOCKER_WORKER_ENABLED=false
+if is_truthy "$USE_DOCKER_WORKER"; then
+  USE_DOCKER_WORKER_ENABLED=true
+fi
 
 if [[ ! -x "$CLI" ]]; then
   fail "Missing CLI at $CLI (set CLI=...)"
@@ -77,6 +94,70 @@ http_code() {
   $CURL -o /dev/null -w "%{http_code}" "$@"
 }
 
+pump_local_worker_once() {
+  if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+    return 0
+  fi
+
+  run_cli worker --worker-id cad-dedup-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null 2>&1 || \
+  run_cli worker --worker-id cad-dedup-verify --poll-interval 1 --once >/dev/null 2>&1 || \
+  true
+}
+
+wait_for_job_completed() {
+  local job_id="$1"
+  local label="$2"
+  local timeout_s="${3:-180}"
+  local poll_s="${4:-2}"
+
+  local start
+  start="$(date +%s)"
+
+  while true; do
+    pump_local_worker_once
+
+    local job_json status
+    # shellcheck disable=SC2086
+    job_json="$($CURL "$API/jobs/$job_id" "${HEADERS[@]}" "${AUTH_HEADERS[@]}")"
+    status="$(echo "$job_json" | "$PY" -c 'import sys,json; print((json.load(sys.stdin).get("status") or ""))')"
+    echo "${label} status: ${status}"
+
+    if [[ "$status" == "completed" || "$status" == "failed" || "$status" == "cancelled" ]]; then
+      if [[ "$status" != "completed" ]]; then
+        fail "${label} did not complete (status=$status)"
+      fi
+
+      local ok_flag err
+      ok_flag="$(echo "$job_json" | "$PY" -c '
+import sys,json
+d=json.load(sys.stdin)
+r=(d.get("payload") or {}).get("result") or {}
+print(r.get("ok", None))
+')"
+      if [[ "$ok_flag" != "True" && "$ok_flag" != "true" ]]; then
+        err="$(echo "$job_json" | "$PY" -c '
+import sys,json
+d=json.load(sys.stdin)
+r=(d.get("payload") or {}).get("result") or {}
+print(r.get("error") or d.get("last_error") or "")
+')"
+        if [[ -n "$err" ]]; then
+          fail "${label} completed but result.ok is not true (ok=$ok_flag, error=$err)"
+        fi
+        fail "${label} completed but result.ok is not true (ok=$ok_flag)"
+      fi
+      return 0
+    fi
+
+    local now
+    now="$(date +%s)"
+    if (( now - start >= timeout_s )); then
+      fail "${label} timed out after ${timeout_s}s (status=$status)"
+    fi
+    sleep "$poll_s"
+  done
+}
+
 echo "=============================================="
 echo "CAD Dedup Vision Verification (S3)"
 echo "BASE_URL: $BASE_URL"
@@ -84,6 +165,7 @@ echo "TENANT: $TENANT, ORG: $ORG"
 echo "DB_URL: $DB_URL"
 echo "S3_ENDPOINT_URL: $S3_ENDPOINT_URL"
 echo "DEDUP_BASE_URL: $DEDUP_BASE_URL"
+echo "USE_DOCKER_WORKER: $USE_DOCKER_WORKER_ENABLED (raw=$USE_DOCKER_WORKER)"
 echo "=============================================="
 
 echo ""
@@ -101,6 +183,21 @@ if [[ "$DEDUP_HEALTH_HTTP" != "200" ]]; then
   fail "Dedup Vision not healthy: $DEDUP_BASE_URL/health (HTTP $DEDUP_HEALTH_HTTP)"
 fi
 ok "Dedup Vision is healthy"
+
+if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+  echo ""
+  echo "==> Preflight: Docker worker container (best-effort)"
+  if command -v docker >/dev/null 2>&1; then
+    if docker ps --format '{{.Names}}' --filter 'label=com.docker.compose.service=worker' --filter 'status=running' | grep -q .; then
+      ok "Docker worker container is running"
+    else
+      echo "WARN: USE_DOCKER_WORKER=1 but no running compose worker container found (label com.docker.compose.service=worker)." >&2
+      echo "WARN: The script will wait for jobs to be processed by an external worker; start the worker if it times out." >&2
+    fi
+  else
+    echo "WARN: docker not found; USE_DOCKER_WORKER=1 will just wait for jobs to be processed by an external worker." >&2
+  fi
+fi
 
 if [[ "$STORAGE_TYPE_ENV" != "s3" ]]; then
   fail "This script expects S3 storage. Set YUANTUS_STORAGE_TYPE=s3 (got: $STORAGE_TYPE_ENV)"
@@ -270,26 +367,8 @@ echo "Baseline dedup job ID: $BASE_JOB_ID"
 # 6) Process jobs
 # -----------------------------------------------------------------------------
 echo ""
-echo "==> Run worker until baseline job completes"
-for _ in {1..15}; do
-  run_cli worker --worker-id cad-dedup-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
-  run_cli worker --worker-id cad-dedup-verify --poll-interval 1 --once >/dev/null
-
-  BASE_STATUS="$(
-    # shellcheck disable=SC2086
-    $CURL "$API/jobs/$BASE_JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
-      | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status","") or "")'
-  )"
-  echo "Baseline job status: $BASE_STATUS"
-  if [[ "$BASE_STATUS" == "completed" || "$BASE_STATUS" == "failed" || "$BASE_STATUS" == "cancelled" ]]; then
-    break
-  fi
-  sleep 1
-done
-
-if [[ "$BASE_STATUS" != "completed" ]]; then
-  fail "Baseline job did not complete (status=$BASE_STATUS)"
-fi
+echo "==> Wait for baseline job to complete"
+wait_for_job_completed "$BASE_JOB_ID" "Baseline dedup job" 180
 ok "Baseline job completed"
 
 # -----------------------------------------------------------------------------
@@ -370,26 +449,8 @@ fi
 echo "Query dedup job ID: $QUERY_JOB_ID"
 
 echo ""
-echo "==> Run worker until query job completes"
-for _ in {1..15}; do
-  run_cli worker --worker-id cad-dedup-verify --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
-  run_cli worker --worker-id cad-dedup-verify --poll-interval 1 --once >/dev/null
-
-  QUERY_STATUS="$(
-    # shellcheck disable=SC2086
-    $CURL "$API/jobs/$QUERY_JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
-      | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status","") or "")'
-  )"
-  echo "Query job status: $QUERY_STATUS"
-  if [[ "$QUERY_STATUS" == "completed" || "$QUERY_STATUS" == "failed" || "$QUERY_STATUS" == "cancelled" ]]; then
-    break
-  fi
-  sleep 1
-done
-
-if [[ "$QUERY_STATUS" != "completed" ]]; then
-  fail "Query job did not complete (status=$QUERY_STATUS)"
-fi
+echo "==> Wait for query job to complete"
+wait_for_job_completed "$QUERY_JOB_ID" "Query dedup job" 180
 ok "Query job completed"
 
 echo ""
@@ -417,9 +478,23 @@ d=json.load(sys.stdin)
 search=d.get("search") or {}
 assert search.get("success") is True, search
 total=int(search.get("total_matches") or 0)
-results=search.get("results") or []
-assert total >= 1 and results, {"total_matches": total, "results_len": len(results)}
-names=[(r or {}).get("file_name") for r in results]
+
+entries=[]
+
+results=search.get("results")
+if isinstance(results, list):
+    entries.extend(results)
+
+duplicates=search.get("duplicates")
+if isinstance(duplicates, list):
+    entries.extend(duplicates)
+
+similar=search.get("similar")
+if isinstance(similar, list):
+    entries.extend(similar)
+
+assert total >= 1 and entries, {"total_matches": total, "entries_len": len(entries), "search_keys": sorted(search.keys())}
+names=[(e or {}).get("file_name") for e in entries if isinstance(e, dict)]
 assert "verify_dedup_base.png" in names, names
 print("ok")
 ' >/dev/null
