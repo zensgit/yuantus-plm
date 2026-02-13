@@ -2177,6 +2177,30 @@ RUN_ESIGN=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 - `tmp/verify-esign/<timestamp>/...json`（health/login/sign/revoke/audit 等证据）
 - `tmp/verify-esign/<timestamp>/server.log`
 
+### 26.2.4 Dedup Management（可选自包含 API-only E2E）
+
+该验证用于覆盖 Dedup 管理端点（无需 Dedup Vision / 无需 docker compose）：
+
+- rule 管理（admin-only）：`/api/v1/dedup/rules`
+- similarity record 管理（admin-only）：`/api/v1/dedup/records` + review
+- report + CSV export：`/api/v1/dedup/report`、`/api/v1/dedup/report/export`
+- review 时创建 `Part Equivalent` 关系（`create_relationship=true`）
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_dedup_management.sh
+
+# 或合并到一键回归（可选）
+RUN_DEDUP_MGMT=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-dedup-management/<timestamp>/...json`（health/login/rules/records/report/export 等证据）
+- `tmp/verify-dedup-management/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2217,6 +2241,7 @@ RUN_ESIGN=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 | MBOM Convert | `verify_mbom_convert.sh` | EBOM → MBOM 转换 |
 | Release Orchestration (E2E) | `verify_release_orchestration.sh` | release orchestration（plan/execute + e-sign gate + rollback）自包含验证 |
 | E-Sign (API) | `verify_esign_api.sh` | e-sign（原因/清单/签署/撤销/审计导出）自包含验证 |
+| Dedup Management (E2E) | `verify_dedup_management.sh` | dedup 管理端点（rules/records/review/report/export）自包含验证 |
 | Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
 
@@ -2234,6 +2259,7 @@ RUN_ESIGN=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 > `Run H (Core APIs)` 如需自动应用租户库迁移，可设置 `MIGRATE_TENANT_DB=1`（会调用 `scripts/migrate_tenant_db.sh`）。
 > `Release Orchestration (E2E)` 需要设置 `RUN_RELEASE_ORCH=1`（或直接运行 `scripts/verify_release_orchestration.sh`）。
 > `E-Sign (API)` 需要设置 `RUN_ESIGN=1`（或直接运行 `scripts/verify_esign_api.sh`）。
+> `Dedup Management (E2E)` 需要设置 `RUN_DEDUP_MGMT=1`（或直接运行 `scripts/verify_dedup_management.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
 ### 26.4 输出格式
