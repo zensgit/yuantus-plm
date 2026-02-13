@@ -288,6 +288,27 @@ data = json.loads(os.environ.get("STORAGE_JSON") or "{}")
 print(data.get("endpoint_url",""))
 PY
     )"
+    local effective_endpoint_url="$endpoint_url"
+    if [[ -n "$endpoint_url" ]]; then
+      # When the server is running in docker-compose, the internal endpoint (e.g. http://yuantus-minio:9000)
+      # is not reachable from host-run verification scripts. Prefer the host-mapped port.
+      if [[ "$endpoint_url" != *"localhost"* && "$endpoint_url" != *"127.0.0.1"* ]]; then
+        if command -v docker >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/docker-compose.yml" ]]; then
+          local minio_port_line
+          minio_port_line="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" -p yuantusplm port minio 9000 2>/dev/null | head -n 1 || true)"
+          if [[ -z "$minio_port_line" ]]; then
+            minio_port_line="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" port minio 9000 2>/dev/null | head -n 1 || true)"
+          fi
+          if [[ -n "$minio_port_line" ]]; then
+            local minio_host_port
+            minio_host_port="${minio_port_line##*:}"
+            if [[ -n "$minio_host_port" ]]; then
+              effective_endpoint_url="http://localhost:${minio_host_port}"
+            fi
+          fi
+        fi
+      fi
+    fi
     bucket_name="$(
       STORAGE_JSON="$storage_json" "$PY" - <<'PY'
 import json, os
@@ -295,16 +316,24 @@ data = json.loads(os.environ.get("STORAGE_JSON") or "{}")
 print(data.get("bucket",""))
 PY
     )"
-    if [[ -n "$endpoint_url" ]]; then
+    if [[ -n "$effective_endpoint_url" ]]; then
       if [[ -z "${YUANTUS_S3_ENDPOINT_URL:-}" ]]; then
-        export YUANTUS_S3_ENDPOINT_URL="$endpoint_url"
+        export YUANTUS_S3_ENDPOINT_URL="$effective_endpoint_url"
       fi
       if [[ -z "${YUANTUS_S3_PUBLIC_ENDPOINT_URL:-}" ]]; then
-        export YUANTUS_S3_PUBLIC_ENDPOINT_URL="$endpoint_url"
+        export YUANTUS_S3_PUBLIC_ENDPOINT_URL="$effective_endpoint_url"
       fi
     fi
     if [[ -n "$bucket_name" && -z "${YUANTUS_S3_BUCKET_NAME:-}" ]]; then
       export YUANTUS_S3_BUCKET_NAME="$bucket_name"
+    fi
+
+    # docker-compose MinIO defaults (best-effort). Keep opt-in based on endpoint being local/minio-like.
+    if [[ -z "${YUANTUS_S3_ACCESS_KEY_ID:-}" && -z "${YUANTUS_S3_SECRET_ACCESS_KEY:-}" ]]; then
+      if is_truthy "${START_DEDUP_STACK:-0}" || [[ "${effective_endpoint_url:-}" == http://localhost:* || "${effective_endpoint_url:-}" == http://127.0.0.1:* ]]; then
+        export YUANTUS_S3_ACCESS_KEY_ID="${YUANTUS_S3_ACCESS_KEY_ID:-minioadmin}"
+        export YUANTUS_S3_SECRET_ACCESS_KEY="${YUANTUS_S3_SECRET_ACCESS_KEY:-minioadmin}"
+      fi
     fi
   fi
 }
@@ -325,16 +354,43 @@ if is_truthy "${START_DEDUP_STACK:-0}"; then
     exit 2
   fi
 
-  echo "Starting docker compose --profile dedup stack..."
-  if ! docker compose -f "${REPO_ROOT}/docker-compose.yml" --profile dedup up -d postgres minio; then
+  if [[ -z "${YUANTUS_CAD_EXTRACTOR_MODE:-}" ]]; then
+    # Local docker-compose runs usually don't have an external cad-extractor service.
+    # Make cad_extract jobs fall back to built-in/local extraction by default.
+    export YUANTUS_CAD_EXTRACTOR_MODE="optional"
+  fi
+
+  # Choose compose overlays based on requested tenancy mode.
+  # docker-compose.yml defaults to single tenancy; db-per-tenant-org requires docker-compose.mt.yml overlay.
+  USE_MT_OVERLAY=0
+  COMPOSE_FILES=(-f "${REPO_ROOT}/docker-compose.yml")
+  if [[ "${YUANTUS_TENANCY_MODE:-}" == "db-per-tenant-org" ]]; then
+    if [[ -f "${REPO_ROOT}/docker-compose.mt.yml" ]]; then
+      USE_MT_OVERLAY=1
+      COMPOSE_FILES+=(-f "${REPO_ROOT}/docker-compose.mt.yml")
+    else
+      echo "WARN: YUANTUS_TENANCY_MODE=db-per-tenant-org but docker-compose.mt.yml not found; docker stack may be misconfigured." >&2
+    fi
+  fi
+
+  echo "Starting docker compose --profile dedup stack (mt_overlay=$USE_MT_OVERLAY)..."
+  if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d postgres minio; then
     echo -e "${RED}ERROR${NC}: Failed to start postgres/minio for dedup stack" >&2
     exit 2
   fi
-  if ! docker compose -f "${REPO_ROOT}/docker-compose.yml" --profile dedup up -d --build --no-deps api worker; then
-    echo -e "${RED}ERROR${NC}: Failed to (re)build and start api/worker for dedup stack" >&2
-    exit 2
+  if [[ "$USE_MT_OVERLAY" == "1" ]]; then
+    # Multi-tenant overlay includes mt-bootstrap dependency; do not use --no-deps.
+    if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d --build api worker; then
+      echo -e "${RED}ERROR${NC}: Failed to (re)build and start api/worker for dedup stack (mt overlay)" >&2
+      exit 2
+    fi
+  else
+    if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d --build --no-deps api worker; then
+      echo -e "${RED}ERROR${NC}: Failed to (re)build and start api/worker for dedup stack" >&2
+      exit 2
+    fi
   fi
-  if ! docker compose -f "${REPO_ROOT}/docker-compose.yml" --profile dedup up -d dedup-vision; then
+  if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d dedup-vision; then
     echo -e "${RED}ERROR${NC}: Failed to start dedup-vision service." >&2
     echo "Hint: Ensure DEDUP_VISION_BUILD_CONTEXT is set and points to a valid dedupcad-vision checkout." >&2
     exit 2
@@ -343,18 +399,35 @@ fi
 
 # If DB_URL is set, ensure child scripts use the same database.
 if [[ -z "$DB_URL" ]]; then
-  if [[ -n "${YUANTUS_DATABASE_URL:-}" ]]; then
+  DOCKER_POSTGRES_PORT_LINE=""
+  if command -v docker >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/docker-compose.yml" ]]; then
+    DOCKER_POSTGRES_PORT_LINE="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" -p yuantusplm port postgres 5432 2>/dev/null | head -n 1 || true)"
+    if [[ -z "$DOCKER_POSTGRES_PORT_LINE" ]]; then
+      DOCKER_POSTGRES_PORT_LINE="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" port postgres 5432 2>/dev/null | head -n 1 || true)"
+    fi
+  fi
+
+  if is_truthy "${START_DEDUP_STACK:-0}" && [[ -n "$DOCKER_POSTGRES_PORT_LINE" ]]; then
+    HOST_PORT="${DOCKER_POSTGRES_PORT_LINE##*:}"
+    DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:${HOST_PORT}/yuantus"
+    if [[ -z "${IDENTITY_DB_URL:-}" ]]; then
+      IDENTITY_DB_NAME="yuantus_identity"
+      if [[ "${YUANTUS_TENANCY_MODE:-}" == "db-per-tenant-org" ]]; then
+        IDENTITY_DB_NAME="yuantus_identity_mt_pg"
+      fi
+      IDENTITY_DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:${HOST_PORT}/${IDENTITY_DB_NAME}"
+    fi
+  elif [[ -n "${YUANTUS_DATABASE_URL:-}" ]]; then
     DB_URL="$YUANTUS_DATABASE_URL"
-  else
-    if command -v docker >/dev/null 2>&1; then
-      PORT_LINE="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" -p yuantusplm port postgres 5432 2>/dev/null | head -n 1)"
-      if [[ -z "$PORT_LINE" ]]; then
-        PORT_LINE="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" port postgres 5432 2>/dev/null | head -n 1)"
+  elif [[ -n "$DOCKER_POSTGRES_PORT_LINE" ]]; then
+    HOST_PORT="${DOCKER_POSTGRES_PORT_LINE##*:}"
+    DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:${HOST_PORT}/yuantus"
+    if [[ -z "${IDENTITY_DB_URL:-}" ]]; then
+      IDENTITY_DB_NAME="yuantus_identity"
+      if [[ "${YUANTUS_TENANCY_MODE:-}" == "db-per-tenant-org" ]]; then
+        IDENTITY_DB_NAME="yuantus_identity_mt_pg"
       fi
-      if [[ -n "$PORT_LINE" ]]; then
-        HOST_PORT="${PORT_LINE##*:}"
-        DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:${HOST_PORT}/yuantus"
-      fi
+      IDENTITY_DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:${HOST_PORT}/${IDENTITY_DB_NAME}"
     fi
   fi
 fi
@@ -363,6 +436,16 @@ if [[ -n "$DB_URL" ]]; then
   : "${YUANTUS_DATABASE_URL:=$DB_URL}"
   export YUANTUS_DATABASE_URL
   export DB_URL
+fi
+
+# Export identity DB early so CLI fallbacks (e.g. seeding admin when login fails) are consistent with the running API.
+if [[ -n "${IDENTITY_DB_URL:-}" ]]; then
+  : "${YUANTUS_IDENTITY_DATABASE_URL:=$IDENTITY_DB_URL}"
+  export YUANTUS_IDENTITY_DATABASE_URL
+  export IDENTITY_DB_URL
+elif [[ -n "$DB_URL" ]]; then
+  : "${YUANTUS_IDENTITY_DATABASE_URL:=$DB_URL}"
+  export YUANTUS_IDENTITY_DATABASE_URL
 fi
 
 # Check CLI
@@ -483,7 +566,6 @@ AUDIT_ENABLED_HEALTH="$(health_field audit_enabled)"
 if [[ "$TENANCY_MODE_HEALTH" != "db-per-tenant" && "$TENANCY_MODE_HEALTH" != "db-per-tenant-org" ]]; then
   export YUANTUS_TENANCY_MODE="single"
   unset YUANTUS_DATABASE_URL_TEMPLATE
-  unset YUANTUS_IDENTITY_DATABASE_URL
 fi
 
 if [[ -z "${YUANTUS_TENANCY_MODE:-}" && -n "$TENANCY_MODE_HEALTH" ]]; then
