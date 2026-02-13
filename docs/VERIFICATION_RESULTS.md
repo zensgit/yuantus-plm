@@ -57,6 +57,23 @@
   - report.total: `1`
   - report export rows: `1`
 
+## 2026-02-13 Quota Enforcement API-only E2E (PASS)
+
+- Scope:
+  - quota admin (superuser-only): `GET /api/v1/admin/quota`, `PUT /api/v1/admin/quota`
+  - quota enforcement on uploads: `POST /api/v1/file/upload` (reject with `429 QUOTA_EXCEEDED`)
+  - RBAC guardrails: non-superuser gets HTTP 403 on `/api/v1/admin/quota`
+- Command:
+  - `bash scripts/verify_quota_enforcement.sh`
+- Evidence:
+  - Log: `tmp/verify_quota_enforcement_20260213-233554.log`
+  - Payloads: `tmp/verify-quota-enforcement/20260213-233554/`
+- Result:
+  - quota: `max_files=1` (mode=`enforce`)
+  - upload #1: `200`
+  - upload #2: `429` (`QUOTA_EXCEEDED`)
+  - usage.files: `1`
+
 ## 2026-02-09 Perf CI (PASS) - Generic Gate + PR Perf Triggers
 
 - PR checks (PR #76):

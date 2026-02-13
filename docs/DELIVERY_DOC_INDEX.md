@@ -124,6 +124,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Playwright CI Integration: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_CI_20260201.md`
 - Playwright API-Only Export Bundle Regression: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_EXPORT_BUNDLES_API_20260207.md`
 - Product Detail Cockpit Flags: `docs/DEV_AND_VERIFICATION_PRODUCT_DETAIL_COCKPIT_FLAGS_20260207.md`
+- Quota Enforcement API-only E2E Verification: `docs/DEV_AND_VERIFICATION_QUOTA_ENFORCEMENT_E2E_20260213.md`
 - Regression Evidence Autopack: `docs/DEV_AND_VERIFICATION_REGRESSION_EVIDENCE_AUTOPACK_20260207.md`
 - Release Orchestration (Plan + Execute): `docs/DEV_AND_VERIFICATION_RELEASE_ORCHESTRATION_20260208.md`
 - Release Orchestration Script + E2E Verification: `docs/DEV_AND_VERIFICATION_RELEASE_ORCH_SCRIPT_E2E_20260213.md`
