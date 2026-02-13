@@ -70,6 +70,8 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
+- Baseline Filters API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`
 - BOM Compare API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_COMPARE_E2E_20260214.md`
 - BOM Substitutes API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_SUBSTITUTES_E2E_20260214.md`
 - CAD Dedup (SimilarityRecord -> Part Equivalent) (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
