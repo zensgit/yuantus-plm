@@ -74,6 +74,25 @@
   - upload #2: `429` (`QUOTA_EXCEEDED`)
   - usage.files: `1`
 
+## 2026-02-13 Platform Tenant Provisioning API-only E2E (PASS)
+
+- Scope:
+  - platform admin enablement: `YUANTUS_PLATFORM_ADMIN_ENABLED=true`, `YUANTUS_PLATFORM_TENANT_ID=platform`
+  - list tenants (platform admin-only): `GET /api/v1/admin/tenants`
+  - create tenant (with default org + tenant admin): `POST /api/v1/admin/tenants`
+  - list orgs for tenant (platform admin-only): `GET /api/v1/admin/tenants/{tenant_id}/orgs`
+  - RBAC guardrails: a non-platform tenant admin must get HTTP 403 on platform admin endpoints
+- Command:
+  - `bash scripts/verify_platform_tenant_provisioning.sh`
+- Evidence:
+  - Log: `tmp/verify_platform_tenant_provisioning_20260213-234951.log`
+  - Payloads: `tmp/verify-platform-tenant-provisioning/20260213-234951/`
+- Result:
+  - tenant created with default org: `org-1`
+  - tenant admin:
+    - `GET /api/v1/admin/tenants` -> `403`
+    - `GET /api/v1/admin/orgs` -> `200` (contains default org)
+
 ## 2026-02-09 Perf CI (PASS) - Generic Gate + PR Perf Triggers
 
 - PR checks (PR #76):
