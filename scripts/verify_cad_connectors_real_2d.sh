@@ -33,6 +33,7 @@ CAD_EXTRACTOR_MODE="${CAD_EXTRACTOR_MODE:-${YUANTUS_CAD_EXTRACTOR_MODE:-}}"
 CAD_SAMPLE_HAOCHEN_DWG="${CAD_SAMPLE_HAOCHEN_DWG:-/Users/huazhou/Downloads/训练图纸/训练图纸/J2824002-06上封头组件v2.dwg}"
 CAD_SAMPLE_ZHONGWANG_DWG="${CAD_SAMPLE_ZHONGWANG_DWG:-/Users/huazhou/Downloads/训练图纸/训练图纸/J2825002-09下轴承支架组件v2.dwg}"
 CAD_REAL_FORCE_UNIQUE="${CAD_REAL_FORCE_UNIQUE:-1}"
+USE_DOCKER_WORKER="${USE_DOCKER_WORKER:-0}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -75,6 +76,18 @@ run_cli() {
 fail() { echo "FAIL: $1" >&2; exit 1; }
 ok() { echo "OK: $1"; }
 
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+USE_DOCKER_WORKER_ENABLED=false
+if is_truthy "$USE_DOCKER_WORKER"; then
+  USE_DOCKER_WORKER_ENABLED=true
+fi
+
 make_unique_copy() {
   local src="$1"
   local label="$2"
@@ -110,15 +123,51 @@ print(json.dumps({"prefix": prefix, "revision": revision, "stem": stem}))
 PY
 }
 
+job_status() {
+  local job_id="$1"
+  $CURL "$API/jobs/$job_id" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+    | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status",""))'
+}
+
+pump_local_worker_once() {
+  if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+    return 0
+  fi
+
+  run_cli worker --worker-id cad-2d-real --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null 2>&1 || \
+  run_cli worker --worker-id cad-2d-real --poll-interval 1 --once >/dev/null 2>&1 || \
+  true
+}
+
 wait_for_job() {
   local job_id="$1"
   local status=""
+
+  if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+    local start now
+    start="$(date +%s)"
+    while true; do
+      status="$(job_status "$job_id")"
+      echo "Job status: $status"
+      if [[ "$status" == "completed" || "$status" == "failed" || "$status" == "cancelled" ]]; then
+        if [[ "$status" != "completed" ]]; then
+          fail "Job did not complete (status=$status)"
+        fi
+        ok "Job completed"
+        return 0
+      fi
+      now="$(date +%s)"
+      if (( now - start >= 240 )); then
+        fail "Job timed out after 240s (status=$status)"
+      fi
+      sleep 2
+    done
+  fi
+
   local completed=0
   for _ in {1..5}; do
-    run_cli worker --worker-id cad-2d-real --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
-    run_cli worker --worker-id cad-2d-real --poll-interval 1 --once >/dev/null
-    status="$($CURL "$API/jobs/$job_id" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
-      | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status",""))')"
+    pump_local_worker_once
+    status="$(job_status "$job_id")"
     if [[ "$status" == "completed" ]]; then
       completed=1
       ok "Job completed"
@@ -254,8 +303,24 @@ echo "BASE_URL: $BASE_URL"
 echo "TENANT: $TENANT, ORG: $ORG"
 echo "HAOCHEN: $CAD_SAMPLE_HAOCHEN_DWG"
 echo "ZHONGWANG: $CAD_SAMPLE_ZHONGWANG_DWG"
+echo "USE_DOCKER_WORKER: $USE_DOCKER_WORKER_ENABLED (raw=$USE_DOCKER_WORKER)"
 echo "CAD_EXTRACTOR_BASE_URL: ${CAD_EXTRACTOR_BASE_URL:-}"
 echo "=============================================="
+
+if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+  echo ""
+  echo "==> Preflight: Docker worker container (best-effort)"
+  if command -v docker >/dev/null 2>&1; then
+    if docker ps --format '{{.Names}}' --filter 'label=com.docker.compose.service=worker' --filter 'status=running' | grep -q .; then
+      ok "Docker worker container is running"
+    else
+      echo "WARN: USE_DOCKER_WORKER=1 but no running compose worker container found (label com.docker.compose.service=worker)." >&2
+      echo "WARN: The script will wait for jobs to be processed by an external worker; start the worker if it times out." >&2
+    fi
+  else
+    echo "WARN: docker not found; USE_DOCKER_WORKER=1 will just wait for jobs to be processed by an external worker." >&2
+  fi
+fi
 
 echo ""
 echo "==> Seed identity/meta"

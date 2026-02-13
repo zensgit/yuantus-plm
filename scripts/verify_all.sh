@@ -26,6 +26,7 @@ ORG="${3:-org-1}"
 DB_URL="${DB_URL:-}"
 MIGRATE_TENANT_DB="${MIGRATE_TENANT_DB:-0}"
 RUN_DEDUP="${RUN_DEDUP:-0}"
+START_DEDUP_STACK="${START_DEDUP_STACK:-0}"
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -153,6 +154,7 @@ if [[ -n "$DB_URL" ]]; then
   echo "DB_URL: $DB_URL"
 fi
 echo "RUN_DEDUP: $RUN_DEDUP"
+echo "START_DEDUP_STACK: $START_DEDUP_STACK"
 if [[ -n "${RUN_CAD_ML_DOCKER:-}" || -n "${CAD_ML_BASE_URL:-}" || -n "${YUANTUS_CAD_ML_BASE_URL:-}" || -n "${CAD_PREVIEW_SAMPLE_FILE:-}" ]]; then
   echo "CAD-ML:"
   echo "  RUN_CAD_ML_DOCKER: ${RUN_CAD_ML_DOCKER:-0}"
@@ -172,6 +174,13 @@ echo ""
 # -----------------------------------------------------------------------------
 # Helper functions
 # -----------------------------------------------------------------------------
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 run_test() {
   local name="$1"
   local script="$2"
@@ -305,15 +314,42 @@ PY
 # -----------------------------------------------------------------------------
 echo "==> Pre-flight checks"
 
+if is_truthy "${START_DEDUP_STACK:-0}"; then
+  if ! command -v docker >/dev/null 2>&1; then
+    echo -e "${RED}ERROR${NC}: START_DEDUP_STACK=1 requires docker." >&2
+    echo "Start the stack manually or install docker, then rerun." >&2
+    exit 2
+  fi
+  if [[ ! -f "${REPO_ROOT}/docker-compose.yml" ]]; then
+    echo -e "${RED}ERROR${NC}: Missing docker-compose.yml at ${REPO_ROOT}/docker-compose.yml" >&2
+    exit 2
+  fi
+
+  echo "Starting docker compose --profile dedup stack..."
+  if ! docker compose -f "${REPO_ROOT}/docker-compose.yml" --profile dedup up -d postgres minio; then
+    echo -e "${RED}ERROR${NC}: Failed to start postgres/minio for dedup stack" >&2
+    exit 2
+  fi
+  if ! docker compose -f "${REPO_ROOT}/docker-compose.yml" --profile dedup up -d --build --no-deps api worker; then
+    echo -e "${RED}ERROR${NC}: Failed to (re)build and start api/worker for dedup stack" >&2
+    exit 2
+  fi
+  if ! docker compose -f "${REPO_ROOT}/docker-compose.yml" --profile dedup up -d dedup-vision; then
+    echo -e "${RED}ERROR${NC}: Failed to start dedup-vision service." >&2
+    echo "Hint: Ensure DEDUP_VISION_BUILD_CONTEXT is set and points to a valid dedupcad-vision checkout." >&2
+    exit 2
+  fi
+fi
+
 # If DB_URL is set, ensure child scripts use the same database.
 if [[ -z "$DB_URL" ]]; then
   if [[ -n "${YUANTUS_DATABASE_URL:-}" ]]; then
     DB_URL="$YUANTUS_DATABASE_URL"
   else
     if command -v docker >/dev/null 2>&1; then
-      PORT_LINE="$(docker compose -p yuantusplm port postgres 5432 2>/dev/null | head -n 1)"
+      PORT_LINE="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" -p yuantusplm port postgres 5432 2>/dev/null | head -n 1)"
       if [[ -z "$PORT_LINE" ]]; then
-        PORT_LINE="$(docker compose port postgres 5432 2>/dev/null | head -n 1)"
+        PORT_LINE="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" port postgres 5432 2>/dev/null | head -n 1)"
       fi
       if [[ -n "$PORT_LINE" ]]; then
         HOST_PORT="${PORT_LINE##*:}"
@@ -347,8 +383,27 @@ echo "Python: OK"
 
 # Check API health
 echo "Checking API health..."
-HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/api/v1/health" \
-  -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" 2>/dev/null || echo "000")
+API_HEALTH_RETRIES="${API_HEALTH_RETRIES:-}"
+API_HEALTH_SLEEP_SECONDS="${API_HEALTH_SLEEP_SECONDS:-2}"
+if [[ -z "$API_HEALTH_RETRIES" ]]; then
+  if is_truthy "${START_DEDUP_STACK:-0}"; then
+    API_HEALTH_RETRIES=60
+  else
+    API_HEALTH_RETRIES=1
+  fi
+fi
+
+HTTP_CODE="000"
+for ((i=1; i<=API_HEALTH_RETRIES; i++)); do
+  HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/api/v1/health" \
+    -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" 2>/dev/null || echo "000")
+  if [[ "$HTTP_CODE" == "200" ]]; then
+    break
+  fi
+  if (( i < API_HEALTH_RETRIES )); then
+    sleep "$API_HEALTH_SLEEP_SECONDS"
+  fi
+done
 
 if [[ "$HTTP_CODE" != "200" ]]; then
   echo -e "${RED}ERROR${NC}: API not reachable at $BASE_URL (HTTP $HTTP_CODE)"

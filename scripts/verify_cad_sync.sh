@@ -29,6 +29,7 @@ EXPECTED_DESCRIPTION="${CAD_SYNC_EXPECT_DESCRIPTION:-浩辰CAD零件}"
 EXPECTED_REVISION="${CAD_SYNC_EXPECT_REVISION:-}"
 CAD_FORMAT_OVERRIDE="${CAD_SYNC_CAD_FORMAT:-}"
 CAD_CONNECTOR_OVERRIDE="${CAD_SYNC_CONNECTOR_ID:-}"
+USE_DOCKER_WORKER="${USE_DOCKER_WORKER:-0}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -69,13 +70,87 @@ run_cli() {
 fail() { echo "FAIL: $1" >&2; exit 1; }
 ok() { echo "OK: $1"; }
 
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+USE_DOCKER_WORKER_ENABLED=false
+if is_truthy "$USE_DOCKER_WORKER"; then
+  USE_DOCKER_WORKER_ENABLED=true
+fi
+
+job_status() {
+  local job_id="$1"
+  $CURL "$API/jobs/$job_id" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
+    | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status","") or "")'
+}
+
+pump_local_worker_once() {
+  if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+    return 0
+  fi
+
+  run_cli worker --worker-id cad-sync --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null 2>&1 || \
+  run_cli worker --worker-id cad-sync --poll-interval 1 --once >/dev/null 2>&1 || \
+  true
+}
+
+wait_for_job_completed() {
+  local job_id="$1"
+  local label="$2"
+  local timeout_s="${3:-240}"
+  local poll_s="${4:-2}"
+
+  local start now status
+  start="$(date +%s)"
+
+  while true; do
+    pump_local_worker_once
+
+    status="$(job_status "$job_id")"
+    echo "${label} status: ${status}"
+
+    if [[ "$status" == "completed" || "$status" == "failed" || "$status" == "cancelled" ]]; then
+      if [[ "$status" != "completed" ]]; then
+        fail "${label} did not complete (status=$status)"
+      fi
+      return 0
+    fi
+
+    now="$(date +%s)"
+    if (( now - start >= timeout_s )); then
+      fail "${label} timed out after ${timeout_s}s (status=$status)"
+    fi
+    sleep "$poll_s"
+  done
+}
+
 TS="$(date +%s)"
 
 echo "=============================================="
 echo "CAD Attribute Sync Verification"
 echo "BASE_URL: $BASE_URL"
 echo "TENANT: $TENANT, ORG: $ORG"
+echo "USE_DOCKER_WORKER: $USE_DOCKER_WORKER_ENABLED (raw=$USE_DOCKER_WORKER)"
 echo "=============================================="
+
+if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+  echo ""
+  echo "==> Preflight: Docker worker container (best-effort)"
+  if command -v docker >/dev/null 2>&1; then
+    if docker ps --format '{{.Names}}' --filter 'label=com.docker.compose.service=worker' --filter 'status=running' | grep -q .; then
+      ok "Docker worker container is running"
+    else
+      echo "WARN: USE_DOCKER_WORKER=1 but no running compose worker container found (label com.docker.compose.service=worker)." >&2
+      echo "WARN: The script will wait for jobs to be processed by an external worker; start the worker if it times out." >&2
+    fi
+  else
+    echo "WARN: docker not found; USE_DOCKER_WORKER=1 will just wait for jobs to be processed by an external worker." >&2
+  fi
+fi
 
 echo ""
 echo "==> Seed identity/meta"
@@ -201,56 +276,60 @@ ok "Created job: $JOB_ID"
 
 echo ""
 echo "==> Run worker and wait for job completion"
-completed=0
-for i in {1..5}; do
-  run_cli worker --worker-id cad-sync --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
-  run_cli worker --worker-id cad-sync --poll-interval 1 --once >/dev/null
-  STATUS="$($CURL "$API/jobs/$JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status",""))')"
-  if [[ "$STATUS" == "completed" ]]; then
-    ok "Job completed"
-    completed=1
-    break
-  fi
-  sleep 1
-done
+if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+  echo "USE_DOCKER_WORKER=1: skipping local 'yuantus worker --once' and direct processor."
+  wait_for_job_completed "$JOB_ID" "cad_extract job"
+  ok "Job completed"
+else
+  completed=0
+  for i in {1..5}; do
+    pump_local_worker_once
+    STATUS="$(job_status "$JOB_ID")"
+    if [[ "$STATUS" == "completed" ]]; then
+      ok "Job completed"
+      completed=1
+      break
+    fi
+    sleep 1
+  done
 
-if [[ "$completed" -ne 1 ]]; then
-  echo "Worker did not complete job (status=$STATUS). Running direct processor..."
-  PY_ENV=("JOB_ID=$JOB_ID" "TENANT=$TENANT" "ORG=$ORG")
-  if [[ -n "$DB_URL" ]]; then
-    PY_ENV+=("YUANTUS_DATABASE_URL=$DB_URL")
-  fi
-  if [[ -n "$DB_URL_TEMPLATE" ]]; then
-    PY_ENV+=("YUANTUS_DATABASE_URL_TEMPLATE=$DB_URL_TEMPLATE")
-  fi
-  if [[ -n "$TENANCY_MODE_ENV" ]]; then
-    PY_ENV+=("YUANTUS_TENANCY_MODE=$TENANCY_MODE_ENV")
-  fi
-  if [[ -n "$IDENTITY_DB_URL" ]]; then
-    PY_ENV+=("YUANTUS_IDENTITY_DATABASE_URL=$IDENTITY_DB_URL")
-  fi
-  if [[ -n "$STORAGE_TYPE" ]]; then
-    PY_ENV+=("YUANTUS_STORAGE_TYPE=$STORAGE_TYPE")
-  fi
-  if [[ -n "$S3_ENDPOINT_URL" ]]; then
-    PY_ENV+=("YUANTUS_S3_ENDPOINT_URL=$S3_ENDPOINT_URL")
-  fi
-  if [[ -n "$S3_PUBLIC_ENDPOINT_URL" ]]; then
-    PY_ENV+=("YUANTUS_S3_PUBLIC_ENDPOINT_URL=$S3_PUBLIC_ENDPOINT_URL")
-  fi
-  if [[ -n "$S3_BUCKET_NAME" ]]; then
-    PY_ENV+=("YUANTUS_S3_BUCKET_NAME=$S3_BUCKET_NAME")
-  fi
-  if [[ -n "$S3_ACCESS_KEY_ID" ]]; then
-    PY_ENV+=("YUANTUS_S3_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID")
-  fi
-  if [[ -n "$S3_SECRET_ACCESS_KEY" ]]; then
-    PY_ENV+=("YUANTUS_S3_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY")
-  fi
-  if [[ -n "$LOCAL_STORAGE_PATH" ]]; then
-    PY_ENV+=("YUANTUS_LOCAL_STORAGE_PATH=$LOCAL_STORAGE_PATH")
-  fi
-  env "${PY_ENV[@]}" "$PY" - <<'PY'
+  if [[ "$completed" -ne 1 ]]; then
+    echo "Worker did not complete job (status=$STATUS). Running direct processor..."
+    PY_ENV=("JOB_ID=$JOB_ID" "TENANT=$TENANT" "ORG=$ORG")
+    if [[ -n "$DB_URL" ]]; then
+      PY_ENV+=("YUANTUS_DATABASE_URL=$DB_URL")
+    fi
+    if [[ -n "$DB_URL_TEMPLATE" ]]; then
+      PY_ENV+=("YUANTUS_DATABASE_URL_TEMPLATE=$DB_URL_TEMPLATE")
+    fi
+    if [[ -n "$TENANCY_MODE_ENV" ]]; then
+      PY_ENV+=("YUANTUS_TENANCY_MODE=$TENANCY_MODE_ENV")
+    fi
+    if [[ -n "$IDENTITY_DB_URL" ]]; then
+      PY_ENV+=("YUANTUS_IDENTITY_DATABASE_URL=$IDENTITY_DB_URL")
+    fi
+    if [[ -n "$STORAGE_TYPE" ]]; then
+      PY_ENV+=("YUANTUS_STORAGE_TYPE=$STORAGE_TYPE")
+    fi
+    if [[ -n "$S3_ENDPOINT_URL" ]]; then
+      PY_ENV+=("YUANTUS_S3_ENDPOINT_URL=$S3_ENDPOINT_URL")
+    fi
+    if [[ -n "$S3_PUBLIC_ENDPOINT_URL" ]]; then
+      PY_ENV+=("YUANTUS_S3_PUBLIC_ENDPOINT_URL=$S3_PUBLIC_ENDPOINT_URL")
+    fi
+    if [[ -n "$S3_BUCKET_NAME" ]]; then
+      PY_ENV+=("YUANTUS_S3_BUCKET_NAME=$S3_BUCKET_NAME")
+    fi
+    if [[ -n "$S3_ACCESS_KEY_ID" ]]; then
+      PY_ENV+=("YUANTUS_S3_ACCESS_KEY_ID=$S3_ACCESS_KEY_ID")
+    fi
+    if [[ -n "$S3_SECRET_ACCESS_KEY" ]]; then
+      PY_ENV+=("YUANTUS_S3_SECRET_ACCESS_KEY=$S3_SECRET_ACCESS_KEY")
+    fi
+    if [[ -n "$LOCAL_STORAGE_PATH" ]]; then
+      PY_ENV+=("YUANTUS_LOCAL_STORAGE_PATH=$LOCAL_STORAGE_PATH")
+    fi
+    env "${PY_ENV[@]}" "$PY" - <<'PY'
 import os
 from datetime import datetime
 
@@ -303,11 +382,12 @@ with get_db_session() as session:
         svc.fail_job(job.id, str(exc))
 PY
 
-  STATUS="$($CURL "$API/jobs/$JOB_ID" "${HEADERS[@]}" "${AUTH_HEADERS[@]}" | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("status",""))')"
-  if [[ "$STATUS" != "completed" ]]; then
-    fail "Job did not complete (status=$STATUS)"
+    STATUS="$(job_status "$JOB_ID")"
+    if [[ "$STATUS" != "completed" ]]; then
+      fail "Job did not complete (status=$STATUS)"
+    fi
+    ok "Job completed (direct processor)"
   fi
-  ok "Job completed (direct processor)"
 fi
 
 echo ""

@@ -23,6 +23,7 @@ S3_BUCKET_NAME="${S3_BUCKET_NAME:-${YUANTUS_S3_BUCKET_NAME:-}}"
 S3_ACCESS_KEY_ID="${S3_ACCESS_KEY_ID:-${YUANTUS_S3_ACCESS_KEY_ID:-}}"
 S3_SECRET_ACCESS_KEY="${S3_SECRET_ACCESS_KEY:-${YUANTUS_S3_SECRET_ACCESS_KEY:-}}"
 LOCAL_STORAGE_PATH="${LOCAL_STORAGE_PATH:-${YUANTUS_LOCAL_STORAGE_PATH:-./data/storage}}"
+USE_DOCKER_WORKER="${USE_DOCKER_WORKER:-0}"
 
 if [[ ! -x "$CLI" ]]; then
   echo "Missing CLI at $CLI (set CLI=...)" >&2
@@ -38,6 +39,18 @@ HEADERS=(-H "x-tenant-id: $TENANT" -H "x-org-id: $ORG")
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
 ok() { echo "OK: $1"; }
+
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+USE_DOCKER_WORKER_ENABLED=false
+if is_truthy "$USE_DOCKER_WORKER"; then
+  USE_DOCKER_WORKER_ENABLED=true
+fi
 
 run_cli() {
   local identity_url="$IDENTITY_DB_URL"
@@ -56,12 +69,61 @@ run_cli() {
   fi
 }
 
+pump_local_worker_once() {
+  if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+    return 0
+  fi
+
+  run_cli worker --worker-id cad-missing --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null 2>&1 || \
+  run_cli worker --worker-id cad-missing --poll-interval 1 --once >/dev/null 2>&1 || \
+  true
+}
+
+query_job_status() {
+  JOB_ID="$PREVIEW_JOB_ID" DB_URL="$DB_URL_EFFECTIVE" "$PY" - <<'PY'
+import os
+from sqlalchemy import create_engine, text
+
+job_id = os.environ.get("JOB_ID")
+db_url = os.environ.get("DB_URL")
+if not db_url:
+    raise SystemExit("")
+engine = create_engine(db_url)
+with engine.begin() as conn:
+    row = conn.execute(
+        text("SELECT status, attempt_count, last_error FROM meta_conversion_jobs WHERE id=:jid"),
+        {"jid": job_id},
+    ).fetchone()
+    if not row:
+        print("")
+    else:
+        status, attempts, last_error = row
+        print(f"{status}|{attempts}|{last_error or ''}")
+PY
+}
+
 echo "=============================================="
 echo "CAD Missing Source Verification"
 echo "BASE_URL: $BASE_URL"
 echo "TENANT: $TENANT, ORG: $ORG"
 echo "LOCAL_STORAGE_PATH: $LOCAL_STORAGE_PATH"
+echo "USE_DOCKER_WORKER: $USE_DOCKER_WORKER_ENABLED (raw=$USE_DOCKER_WORKER)"
 echo "=============================================="
+
+if [[ "$USE_DOCKER_WORKER_ENABLED" == "true" ]]; then
+  echo ""
+  echo "==> Preflight: Docker worker container (best-effort)"
+  if command -v docker >/dev/null 2>&1; then
+    if docker ps --format '{{.Names}}' --filter 'label=com.docker.compose.service=worker' --filter 'status=running' | grep -q .; then
+      ok "Docker worker container is running"
+    else
+      echo "WARN: USE_DOCKER_WORKER=1 but no running compose worker container found (label com.docker.compose.service=worker)." >&2
+      echo "WARN: The script will wait for jobs to be processed by an external worker; start the worker if it times out." >&2
+    fi
+  else
+    echo "WARN: docker not found; USE_DOCKER_WORKER=1 will just wait for jobs to be processed by an external worker." >&2
+  fi
+fi
 
 echo ""
 echo "==> Seed identity (admin user)"
@@ -222,44 +284,37 @@ else
 fi
 
 echo ""
-echo "==> Run worker once"
-run_cli worker --worker-id cad-missing --poll-interval 1 --once --tenant "$TENANT" --org "$ORG" >/dev/null || \
-run_cli worker --worker-id cad-missing --poll-interval 1 --once >/dev/null
-ok "Worker executed"
+echo "==> Wait for job failure (missing source)"
+STATUS=""
+ATTEMPTS=""
+LAST_ERROR=""
+JOB_STATUS=""
+start="$(date +%s)"
+while true; do
+  pump_local_worker_once
 
-echo ""
-echo "==> Verify job status"
-JOB_STATUS="$(
-  JOB_ID="$PREVIEW_JOB_ID" DB_URL="$DB_URL_EFFECTIVE" "$PY" - <<'PY'
-import os
-from sqlalchemy import create_engine, text
+  JOB_STATUS="$(query_job_status || true)"
+  if [[ -n "$JOB_STATUS" ]]; then
+    STATUS="${JOB_STATUS%%|*}"
+    REST="${JOB_STATUS#*|}"
+    ATTEMPTS="${REST%%|*}"
+    LAST_ERROR="${REST#*|}"
+    echo "Job status: $STATUS (attempt_count=$ATTEMPTS)"
+    if [[ "$STATUS" == "failed" || "$STATUS" == "completed" || "$STATUS" == "cancelled" ]]; then
+      break
+    fi
+  fi
 
-job_id = os.environ.get("JOB_ID")
-db_url = os.environ.get("DB_URL")
-if not db_url:
-    raise SystemExit("")
-engine = create_engine(db_url)
-with engine.begin() as conn:
-    row = conn.execute(
-        text("SELECT status, attempt_count, last_error FROM meta_conversion_jobs WHERE id=:jid"),
-        {"jid": job_id},
-    ).fetchone()
-    if not row:
-        print("")
-    else:
-        status, attempts, last_error = row
-        print(f"{status}|{attempts}|{last_error or ''}")
-PY
-)"
+  now="$(date +%s)"
+  if (( now - start >= 240 )); then
+    fail "Timed out waiting for job terminal status (last_status=${STATUS:-unknown})"
+  fi
+  sleep 2
+done
 
 if [[ -z "$JOB_STATUS" ]]; then
   fail "Could not fetch job status"
 fi
-
-STATUS="${JOB_STATUS%%|*}"
-REST="${JOB_STATUS#*|}"
-ATTEMPTS="${REST%%|*}"
-LAST_ERROR="${REST#*|}"
 
 if [[ "$STATUS" != "failed" ]]; then
   fail "Expected status=failed, got $STATUS"
