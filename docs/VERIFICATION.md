@@ -2332,6 +2332,81 @@ RUN_WHERE_USED_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 o
 - `tmp/verify-where-used/<timestamp>/...json`（health/login/parts/bom/where-used 等证据）
 - `tmp/verify-where-used/<timestamp>/server.log`
 
+### 26.2.10 BOM Compare（可选自包含 API-only E2E）
+
+该验证用于覆盖 BOM Compare（差异对比）的最小闭环（无需 docker compose）：
+
+- 构造两棵 BOM（left/right）并制造差异：
+  - quantity/find_num/refdes 变更
+  - removed/added 行
+  - substitutes + effectivity
+- 验证 `/api/v1/bom/compare` 输出的 summary 与关键字段差异（changes.fields）契约
+- 验证 compare_mode 变体：`only_product`、`num_qty`、`summarized`
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_bom_compare_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_BOM_COMPARE_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-bom-compare/<timestamp>/...json`（health/login/parts/bom/compare 等证据）
+- `tmp/verify-bom-compare/<timestamp>/server.log`
+
+### 26.2.11 BOM Substitutes（可选自包含 API-only E2E）
+
+该验证用于覆盖 BOM substitutes 管理端点的最小闭环（无需 docker compose）：
+
+- 创建 parent/child + 建立 BOM line
+- substitutes add/list/delete：`POST/GET/DELETE /api/v1/bom/{bom_line_id}/substitutes`
+- guardrails：duplicate add 应返回 `400`
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_bom_substitutes_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_BOM_SUBSTITUTES_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-bom-substitutes/<timestamp>/...json`（health/login/bom/substitutes 等证据）
+- `tmp/verify-bom-substitutes/<timestamp>/server.log`
+
+### 26.2.12 MBOM Convert（可选自包含 API-only E2E）
+
+该验证用于覆盖 EBOM -> MBOM conversion 的最小闭环（无需 docker compose）：
+
+- 构造 EBOM（root + child）并添加 substitute
+- 调用转换端点：`POST /api/v1/bom/convert/ebom-to-mbom`
+- 验证：
+  - MBOM root 为 Manufacturing Part，且回链 `source_ebom_id`
+  - MBOM tree 返回预期 child（含 `source_ebom_id`）
+  - substitutes 被复制到 MBOM BOM line
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_mbom_convert_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_MBOM_CONVERT_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-mbom-convert/<timestamp>/...json`（health/login/convert/tree/substitutes 等证据）
+- `tmp/verify-mbom-convert/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2378,6 +2453,9 @@ RUN_WHERE_USED_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 o
 | Item Equivalents (E2E) | `verify_item_equivalents.sh` | Part 等效件（add/list/delete + guardrails）自包含验证 |
 | Version-File Binding (E2E) | `verify_version_file_binding.sh` | checkout/file lock + VersionFile 绑定自包含验证 |
 | Where-Used API (E2E) | `verify_where_used_e2e.sh` | Where-Used（反向 BOM 查询：direct + recursive + level）自包含验证 |
+| BOM Compare (E2E) | `verify_bom_compare_e2e.sh` | BOM Compare（差异对比：effectivity/substitutes + compare_mode 变体）自包含验证 |
+| BOM Substitutes (E2E) | `verify_bom_substitutes_e2e.sh` | BOM substitutes（add/list/delete + guardrails）自包含验证 |
+| MBOM Convert (E2E) | `verify_mbom_convert_e2e.sh` | EBOM → MBOM 转换（含 substitutes 复制）自包含验证 |
 | Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
 
@@ -2401,6 +2479,9 @@ RUN_WHERE_USED_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 o
 > `Item Equivalents (E2E)` 需要设置 `RUN_ITEM_EQUIVALENTS_E2E=1`（或直接运行 `scripts/verify_item_equivalents.sh`）。
 > `Version-File Binding (E2E)` 需要设置 `RUN_VERSION_FILE_BINDING_E2E=1`（或直接运行 `scripts/verify_version_file_binding.sh`）。
 > `Where-Used API (E2E)` 需要设置 `RUN_WHERE_USED_E2E=1`（或直接运行 `scripts/verify_where_used_e2e.sh`）。
+> `BOM Compare (E2E)` 需要设置 `RUN_BOM_COMPARE_E2E=1`（或直接运行 `scripts/verify_bom_compare_e2e.sh`）。
+> `BOM Substitutes (E2E)` 需要设置 `RUN_BOM_SUBSTITUTES_E2E=1`（或直接运行 `scripts/verify_bom_substitutes_e2e.sh`）。
+> `MBOM Convert (E2E)` 需要设置 `RUN_MBOM_CONVERT_E2E=1`（或直接运行 `scripts/verify_mbom_convert_e2e.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
 ### 26.4 输出格式

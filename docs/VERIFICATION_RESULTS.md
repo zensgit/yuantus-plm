@@ -56,6 +56,56 @@
   - non-recursive: `count=2` (direct parents = SUBASSY + ASSEMBLY2)
   - recursive: `count=3` (includes ancestor ASSEMBLY with `level=2`)
 
+## 2026-02-14 BOM Compare API-only E2E (PASS)
+
+- Scope:
+  - build two parent BOMs (left/right) with add/remove/change
+  - include substitutes + effectivity on the changed line
+  - validate `/api/v1/bom/compare` summary + changed field contract
+  - validate compare_mode variants: `only_product`, `num_qty`, `summarized`
+- Command:
+  - `bash scripts/verify_bom_compare_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_bom_compare_e2e_20260214-013350.log`
+  - Payloads: `tmp/verify-bom-compare/20260214-013350/`
+- Result:
+  - compare summary: added>=1, removed>=1, changed>=1, changed_major>=1
+  - changed fields include: `quantity`, `find_num`, `refdes`, `substitutes`, `effectivities`
+  - compare_mode:
+    - `only_product`: changed=0
+    - `num_qty`: treats qty change as remove+add (changed=0)
+
+## 2026-02-14 BOM Substitutes API-only E2E (PASS)
+
+- Scope:
+  - create parent/child + BOM line
+  - add/list/delete substitutes on the BOM line
+  - guardrail: duplicate add should return `400`
+- Command:
+  - `bash scripts/verify_bom_substitutes_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_bom_substitutes_e2e_20260214-013414.log`
+  - Payloads: `tmp/verify-bom-substitutes/20260214-013414/`
+- Result:
+  - list substitutes: `1` -> `2` -> duplicate add `400` -> delete 1 -> remaining `1`
+
+## 2026-02-14 MBOM Convert API-only E2E (PASS)
+
+- Scope:
+  - build EBOM + BOM line + substitute
+  - convert EBOM -> MBOM via `POST /api/v1/bom/convert/ebom-to-mbom`
+  - verify MBOM root links back to EBOM root (`source_ebom_id`)
+  - verify MBOM tree returns expected child (with `source_ebom_id`)
+  - verify substitutes were copied to MBOM BOM line
+- Command:
+  - `bash scripts/verify_mbom_convert_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_mbom_convert_e2e_20260214-013423.log`
+  - Payloads: `tmp/verify-mbom-convert/20260214-013423/`
+- Result:
+  - MBOM root/source link: `mbom_root_source_ok=1`
+  - MBOM substitutes copied: `mbom_substitute_source_ok=1`
+
 ## 2026-02-13 Release Orchestration Script + E-sign Gate (PASS)
 
 - Scope:
