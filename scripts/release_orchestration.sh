@@ -175,11 +175,10 @@ if [[ -z "${OUT_PATH}" ]]; then
   OUT_PATH="${default_out_dir}/${cmd}.json"
 fi
 
-auth_header=(-H "Authorization: Bearer ${TOKEN}" -H "x-tenant-id: ${TENANT}" -H "x-org-id: ${ORG}")
-
 case "${cmd}" in
   plan)
     ensure_token
+    auth_header=(-H "Authorization: Bearer ${TOKEN}" -H "x-tenant-id: ${TENANT}" -H "x-org-id: ${ORG}")
     url="${BASE_URL}/api/v1/release-orchestration/items/${item_id}/plan?ruleset_id=${RULESET_ID}&routing_limit=${ROUTING_LIMIT}&mbom_limit=${MBOM_LIMIT}&baseline_limit=${BASELINE_LIMIT}"
     code="$(curl -sS -o "${OUT_PATH}" -w "%{http_code}" "${url}" "${auth_header[@]}")"
     if [[ "${code}" != "200" ]]; then
@@ -206,21 +205,25 @@ PY
     ;;
   execute)
     ensure_token
+    auth_header=(-H "Authorization: Bearer ${TOKEN}" -H "x-tenant-id: ${TENANT}" -H "x-org-id: ${ORG}")
     payload="$("$PY" - <<PY
 import json
 
+def to_bool(v: str) -> bool:
+  return str(v).strip().lower() in {"1", "true", "yes", "y", "on"}
+
 req = {
   "ruleset_id": "${RULESET_ID}",
-  "include_routings": ${INCLUDE_ROUTINGS},
-  "include_mboms": ${INCLUDE_MBOMS},
-  "include_baselines": ${INCLUDE_BASELINES},
+  "include_routings": to_bool("${INCLUDE_ROUTINGS}"),
+  "include_mboms": to_bool("${INCLUDE_MBOMS}"),
+  "include_baselines": to_bool("${INCLUDE_BASELINES}"),
   "routing_limit": int("${ROUTING_LIMIT}"),
   "mbom_limit": int("${MBOM_LIMIT}"),
   "baseline_limit": int("${BASELINE_LIMIT}"),
-  "continue_on_error": ${CONTINUE_ON_ERROR},
-  "rollback_on_failure": ${ROLLBACK_ON_FAILURE},
-  "dry_run": ${DRY_RUN},
-  "baseline_force": ${BASELINE_FORCE},
+  "continue_on_error": to_bool("${CONTINUE_ON_ERROR}"),
+  "rollback_on_failure": to_bool("${ROLLBACK_ON_FAILURE}"),
+  "dry_run": to_bool("${DRY_RUN}"),
+  "baseline_force": to_bool("${BASELINE_FORCE}"),
 }
 print(json.dumps(req, separators=(",", ":"), ensure_ascii=True))
 PY
