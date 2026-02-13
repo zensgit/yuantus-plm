@@ -121,6 +121,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Perf Gate (Generic) - Dev Plan & Verification: `docs/DEV_AND_VERIFICATION_PERF_GATE_20260209.md`
 - Plan Execution (2026-02-02): `docs/DEV_AND_VERIFICATION_PLAN_20260202.md`
 - Plan Execution (2026-02-02 09:22): `docs/DEV_AND_VERIFICATION_PLAN_20260202_0922.md`
+- Platform Tenant Provisioning API-only E2E Verification: `docs/DEV_AND_VERIFICATION_PLATFORM_TENANT_PROVISIONING_E2E_20260213.md`
 - Playwright CI Integration: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_CI_20260201.md`
 - Playwright API-Only Export Bundle Regression: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_EXPORT_BUNDLES_API_20260207.md`
 - Product Detail Cockpit Flags: `docs/DEV_AND_VERIFICATION_PRODUCT_DETAIL_COCKPIT_FLAGS_20260207.md`

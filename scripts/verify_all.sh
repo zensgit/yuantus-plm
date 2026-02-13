@@ -31,6 +31,7 @@ START_DEDUP_STACK="${START_DEDUP_STACK:-0}"
 RUN_RELEASE_ORCH="${RUN_RELEASE_ORCH:-0}"
 RUN_ESIGN="${RUN_ESIGN:-0}"
 RUN_QUOTA_E2E="${RUN_QUOTA_E2E:-0}"
+RUN_PLATFORM_TENANT_PROV="${RUN_PLATFORM_TENANT_PROV:-0}"
 MT_RESET="${MT_RESET:-0}"
 MT_SCHEMA_PRECHECK="${MT_SCHEMA_PRECHECK:-1}"
 
@@ -170,6 +171,7 @@ echo "START_DEDUP_STACK: $START_DEDUP_STACK"
 echo "RUN_RELEASE_ORCH: $RUN_RELEASE_ORCH"
 echo "RUN_ESIGN: $RUN_ESIGN"
 echo "RUN_QUOTA_E2E: $RUN_QUOTA_E2E"
+echo "RUN_PLATFORM_TENANT_PROV: $RUN_PLATFORM_TENANT_PROV"
 echo "MT_RESET: $MT_RESET"
 echo "MT_SCHEMA_PRECHECK: $MT_SCHEMA_PRECHECK"
 if [[ -n "${RUN_CAD_ML_DOCKER:-}" || -n "${CAD_ML_BASE_URL:-}" || -n "${YUANTUS_CAD_ML_BASE_URL:-}" || -n "${CAD_PREVIEW_SAMPLE_FILE:-}" ]]; then
@@ -1276,6 +1278,16 @@ if [[ -x "$SCRIPT_DIR/verify_quota_enforcement.sh" ]]; then
   fi
 fi
 
+# 20.5 Platform Tenant Provisioning (self-contained, optional)
+if [[ -x "$SCRIPT_DIR/verify_platform_tenant_provisioning.sh" ]]; then
+  if [[ "${RUN_PLATFORM_TENANT_PROV:-0}" == "1" ]]; then
+    run_test "Platform Tenant Provisioning (E2E)" \
+      "$SCRIPT_DIR/verify_platform_tenant_provisioning.sh" || true
+  else
+    skip_test "Platform Tenant Provisioning (E2E)" "RUN_PLATFORM_TENANT_PROV=0"
+  fi
+fi
+
 # 21. Item Equivalents (skip if endpoint not available)
 if [[ -x "$SCRIPT_DIR/verify_equivalents.sh" ]]; then
   if has_openapi_path "/api/v1/items/{item_id}/equivalents"; then
@@ -1311,7 +1323,7 @@ echo ""
 printf "%-25s %s\n" "Test Suite" "Result"
 printf "%-25s %s\n" "-------------------------" "------"
 
-for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "Lifecycle Suspended" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "Effectivity Extended" "BOM Obsolete" "BOM Weight Rollup" "S12 (Config Variants)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "CAD Dedup Vision (S3)" "CAD Dedup Relationship (S3)" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "UI Product Detail" "UI Product Summary" "UI Where-Used" "UI BOM" "UI Docs Approval" "UI Docs ECO Summary" "BOM Compare" "Baseline" "Baseline Filters" "BOM Substitutes" "MBOM Convert" "Release Orchestration (E2E)" "E-Sign (API)" "Dedup Management (E2E)" "Quota Enforcement (E2E)" "Item Equivalents" "Version-File Binding"; do
+for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "Lifecycle Suspended" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "Effectivity Extended" "BOM Obsolete" "BOM Weight Rollup" "S12 (Config Variants)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "CAD Dedup Vision (S3)" "CAD Dedup Relationship (S3)" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "UI Product Detail" "UI Product Summary" "UI Where-Used" "UI BOM" "UI Docs Approval" "UI Docs ECO Summary" "BOM Compare" "Baseline" "Baseline Filters" "BOM Substitutes" "MBOM Convert" "Release Orchestration (E2E)" "E-Sign (API)" "Dedup Management (E2E)" "Quota Enforcement (E2E)" "Platform Tenant Provisioning (E2E)" "Item Equivalents" "Version-File Binding"; do
   result="${RESULTS[$name]:-N/A}"
   case "$result" in
     PASS) printf "%-25s ${GREEN}%s${NC}\n" "$name" "$result" ;;

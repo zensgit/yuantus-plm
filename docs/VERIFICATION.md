@@ -2226,6 +2226,34 @@ RUN_QUOTA_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 - `tmp/verify-quota-enforcement/<timestamp>/...json`（health/login/quota/upload 等证据）
 - `tmp/verify-quota-enforcement/<timestamp>/server.log`
 
+### 26.2.6 Platform Tenant Provisioning（可选自包含 API-only E2E）
+
+该验证用于覆盖 Platform Admin 的租户开通能力（无需 docker compose）：
+
+- platform admin enablement：`YUANTUS_PLATFORM_ADMIN_ENABLED=true`
+- platform admin tenant id：`YUANTUS_PLATFORM_TENANT_ID=platform`
+- 平台管理员端点（platform admin-only）：
+  - `GET /api/v1/admin/tenants`
+  - `POST /api/v1/admin/tenants`（创建 tenant + default org + tenant admin user）
+  - `GET /api/v1/admin/tenants/{tenant_id}/orgs`
+- RBAC：新创建租户的 tenant admin（superuser）不应访问平台管理员端点（应返回 `403`）
+- tenant-local superuser：新租户的 tenant admin 可访问本租户 admin 端点（例如 `GET /api/v1/admin/orgs`）
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_platform_tenant_provisioning.sh
+
+# 或合并到一键回归（可选）
+RUN_PLATFORM_TENANT_PROV=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-platform-tenant-provisioning/<timestamp>/...json`（health/login/tenants/orgs 等证据）
+- `tmp/verify-platform-tenant-provisioning/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2268,6 +2296,7 @@ RUN_QUOTA_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 | E-Sign (API) | `verify_esign_api.sh` | e-sign（原因/清单/签署/撤销/审计导出）自包含验证 |
 | Dedup Management (E2E) | `verify_dedup_management.sh` | dedup 管理端点（rules/records/review/report/export）自包含验证 |
 | Quota Enforcement (E2E) | `verify_quota_enforcement.sh` | quota 管理（/admin/quota）+ enforce 上传拦截 自包含验证 |
+| Platform Tenant Provisioning (E2E) | `verify_platform_tenant_provisioning.sh` | 平台管理员 tenant 开通（list/create tenant + default org + RBAC）自包含验证 |
 | Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
 
@@ -2287,6 +2316,7 @@ RUN_QUOTA_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 > `E-Sign (API)` 需要设置 `RUN_ESIGN=1`（或直接运行 `scripts/verify_esign_api.sh`）。
 > `Dedup Management (E2E)` 需要设置 `RUN_DEDUP_MGMT=1`（或直接运行 `scripts/verify_dedup_management.sh`）。
 > `Quota Enforcement (E2E)` 需要设置 `RUN_QUOTA_E2E=1`（或直接运行 `scripts/verify_quota_enforcement.sh`）。
+> `Platform Tenant Provisioning (E2E)` 需要设置 `RUN_PLATFORM_TENANT_PROV=1`（或直接运行 `scripts/verify_platform_tenant_provisioning.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
 ### 26.4 输出格式
