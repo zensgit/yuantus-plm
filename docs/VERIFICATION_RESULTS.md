@@ -2,6 +2,43 @@
 
 > 完整复现步骤与更多验证项：见 `docs/VERIFICATION.md`。
 
+## 2026-02-14 Item Equivalents API-only E2E (PASS)
+
+- Scope:
+  - create Part A/B/C via `POST /api/v1/aml/apply`
+  - add equivalents: `POST /api/v1/items/{item_id}/equivalents`
+  - list equivalents: `GET /api/v1/items/{item_id}/equivalents`
+  - guardrails: duplicate add `400`, self-equivalence `400`
+  - remove equivalent: `DELETE /api/v1/items/{item_id}/equivalents/{equivalent_id}`
+- Command:
+  - `bash scripts/verify_item_equivalents.sh`
+- Evidence:
+  - Log: `tmp/verify_item_equivalents_20260214-004911.log`
+  - Payloads: `tmp/verify-item-equivalents/20260214-004911/`
+- Result:
+  - list A: `2` (contains B,C)
+  - list B: `1` (contains A) → `0` (after delete)
+  - list A after delete: `1`
+
+## 2026-02-14 Version-File Binding API-only E2E (PASS)
+
+- Scope:
+  - version init + checkout/checkin: `/api/v1/versions/items/{item_id}/init|checkout|checkin`
+  - file upload + attach: `/api/v1/file/upload`, `/api/v1/file/attach`
+  - version file binding: `/api/v1/versions/{version_id}/files`
+  - guardrails:
+    - attach version file without checkout -> `409`
+    - non-owner attach during checkout -> `409`
+- Command:
+  - `bash scripts/verify_version_file_binding.sh`
+- Evidence:
+  - Log: `tmp/verify_version_file_binding_20260214-004948.log`
+  - Payloads: `tmp/verify-version-file-binding/20260214-004948/`
+- Result:
+  - attach version file without checkout: `409`
+  - viewer attach during checkout: `409`
+  - `/versions/{id}/files` contains `native_cad` binding for the uploaded file
+
 ## 2026-02-13 Release Orchestration Script + E-sign Gate (PASS)
 
 - Scope:
