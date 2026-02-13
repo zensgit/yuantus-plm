@@ -36,6 +36,7 @@ echo "=============================================="
 YUANTUS_DATABASE_URL="sqlite:///$DB_PATH" \
 YUANTUS_SCHEMA_MODE="create_all" \
 YUANTUS_TENANCY_MODE="single" \
+YUANTUS_STORAGE_TYPE="local" \
 YUANTUS_LOCAL_STORAGE_PATH="$STORAGE_PATH" \
 YUANTUS_CAD_EXTRACTOR_BASE_URL="" \
 "$PY" - <<'PY'

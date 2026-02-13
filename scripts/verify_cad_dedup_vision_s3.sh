@@ -273,7 +273,10 @@ BASE_PNG="/tmp/yuantus_dedup_base.png"
 QUERY_PNG="/tmp/yuantus_dedup_query.png"
 
 "$PY" - << 'PY'
-import struct, time, zlib
+import random
+import struct
+import time
+import zlib
 from pathlib import Path
 
 def _chunk(tag: bytes, payload: bytes) -> bytes:
@@ -288,16 +291,25 @@ def write_png(path: str, *, width: int, height: int, seed: int, tweak: bool) -> 
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
 
     # Build raw scanlines: filter=0 + RGB bytes.
-    # Use time seed so each run generates unique bytes (avoid checksum dedupe reusing stale FileContainer rows).
-    base_v = 20 + (int(seed) % 200)  # keep within a safe grayscale range
+    # Use a seed-dependent block pattern so each run generates a meaningfully different image.
+    # Keep baseline/query nearly identical (single-pixel tweak) to ensure the dedup result is deterministic.
+    seed = int(seed)
+    block = 16
+    blocks_w = max(1, (width + block - 1) // block)
+    blocks_h = max(1, (height + block - 1) // block)
+    rng = random.Random(seed)
+    grid = [[rng.getrandbits(1) for _ in range(blocks_w)] for __ in range(blocks_h)]
     rows = []
     for y in range(height):
         row = bytearray()
         row.append(0)  # filter
         for x in range(width):
-            v = base_v
+            by = y // block
+            bx = x // block
+            v = 40 if grid[by][bx] == 0 else 220
+            # Ensure query bytes differ from baseline without changing the overall pattern.
             if tweak and x == 0 and y == 0:
-                v = (base_v + 1) % 256
+                v = (v + 1) % 256
             row.extend((v, v, v))
         rows.append(bytes(row))
     raw = b"".join(rows)

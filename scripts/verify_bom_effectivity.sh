@@ -49,6 +49,8 @@ run_cli() {
 
 TS="$(date +%s)"
 FAILED=0
+VIEWER_USER="viewer-$TS"
+VIEWER_ID=$((10000 + (TS % 100000)))
 
 fail() {
   echo "FAIL: $1" >&2
@@ -67,8 +69,8 @@ echo "Date context: TODAY=$TODAY, NEXT_WEEK=$NEXT_WEEK, LAST_WEEK=$LAST_WEEK"
 # =============================================================================
 echo "==> Seed identity (admin + viewer)"
 run_cli seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin --superuser >/dev/null
-run_cli seed-identity --tenant "$TENANT" --org "$ORG" --username viewer --password viewer --user-id 2 --roles viewer --no-superuser >/dev/null
-echo "Created users: admin (superuser), viewer (no write)"
+run_cli seed-identity --tenant "$TENANT" --org "$ORG" --username "$VIEWER_USER" --password viewer --user-id "$VIEWER_ID" --roles viewer --no-superuser >/dev/null
+echo "Created users: admin (superuser), $VIEWER_USER (no write)"
 
 echo "==> Seed meta schema"
 run_cli seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
@@ -292,7 +294,7 @@ echo "==> RBAC: Viewer cannot add BOM children (should be 403)"
 VIEWER_TOKEN="$(
   curl -s -X POST "$BASE/api/v1/auth/login" \
     -H 'content-type: application/json' \
-    -d "{\"tenant_id\":\"$TENANT\",\"username\":\"viewer\",\"password\":\"viewer\",\"org_id\":\"$ORG\"}" \
+    -d "{\"tenant_id\":\"$TENANT\",\"username\":\"$VIEWER_USER\",\"password\":\"viewer\",\"org_id\":\"$ORG\"}" \
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin)["access_token"])'
 )"
 echo "Viewer login: OK"
