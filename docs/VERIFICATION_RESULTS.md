@@ -18,6 +18,23 @@
   - execute #1: baseline `blocked_esign_incomplete` + routing/mbom rolled back
   - execute #2 (after sign): routing/mbom/baseline all `released`
 
+## 2026-02-13 E-sign API-only E2E (PASS)
+
+- Scope:
+  - signing reasons + manifests (admin-only)
+  - sign (password-verified) + verify
+  - revoke + verify invalid
+  - audit logs + CSV export
+- Command:
+  - `bash scripts/verify_esign_api.sh`
+- Evidence:
+  - Log: `tmp/verify_esign_api_20260213-215240.log`
+  - Payloads: `tmp/verify-esign/20260213-215240/`
+- Result:
+  - signatures: `1` (then revoked)
+  - audit logs: `4`
+  - audit export rows: `4`
+
 ## 2026-02-09 Perf CI (PASS) - Generic Gate + PR Perf Triggers
 
 - PR checks (PR #76):

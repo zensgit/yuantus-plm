@@ -2152,6 +2152,31 @@ RUN_RELEASE_ORCH=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org
 - `tmp/verify-release-orchestration/<timestamp>/...json`（health/login/plan/execute 等证据）
 - `tmp/verify-release-orchestration/<timestamp>/server.log`
 
+### 26.2.3 E-sign（可选自包含 API-only E2E）
+
+该验证用于覆盖电子签名 API 的最小闭环（无需 UI / Playwright）：
+
+- 创建签署原因（admin-only）
+- 创建签署清单（manifest）
+- 签署（含 password 校验）→ 验证
+- 撤销签名 → 验证 invalid
+- 审计日志查询 + CSV 导出
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_esign_api.sh
+
+# 或合并到一键回归（可选）
+RUN_ESIGN=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-esign/<timestamp>/...json`（health/login/sign/revoke/audit 等证据）
+- `tmp/verify-esign/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2191,6 +2216,7 @@ RUN_RELEASE_ORCH=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org
 | BOM Substitutes | `verify_substitutes.sh` | BOM 替代件管理（如端点可用则执行） |
 | MBOM Convert | `verify_mbom_convert.sh` | EBOM → MBOM 转换 |
 | Release Orchestration (E2E) | `verify_release_orchestration.sh` | release orchestration（plan/execute + e-sign gate + rollback）自包含验证 |
+| E-Sign (API) | `verify_esign_api.sh` | e-sign（原因/清单/签署/撤销/审计导出）自包含验证 |
 | Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
 
@@ -2207,6 +2233,7 @@ RUN_RELEASE_ORCH=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org
 > `S8 (Ops Monitoring)` 需要设置 `RUN_OPS_S8=1` 且启用 `YUANTUS_PLATFORM_ADMIN_ENABLED=true`、`YUANTUS_AUDIT_ENABLED=true`、`YUANTUS_QUOTA_MODE=enforce`。
 > `Run H (Core APIs)` 如需自动应用租户库迁移，可设置 `MIGRATE_TENANT_DB=1`（会调用 `scripts/migrate_tenant_db.sh`）。
 > `Release Orchestration (E2E)` 需要设置 `RUN_RELEASE_ORCH=1`（或直接运行 `scripts/verify_release_orchestration.sh`）。
+> `E-Sign (API)` 需要设置 `RUN_ESIGN=1`（或直接运行 `scripts/verify_esign_api.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
 ### 26.4 输出格式
