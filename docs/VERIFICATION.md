@@ -2129,6 +2129,29 @@ MT_RESET=1 RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash scripts/veri
 MT_SCHEMA_PRECHECK=0 RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash scripts/verify_all.sh
 ```
 
+### 26.2.2 Release Orchestration + E-sign（可选自包含 E2E）
+
+该验证用于覆盖：
+
+- `scripts/release_orchestration.sh` 的 **login + plan/execute** 调用链路
+- baseline release 在 **电子签名清单不完整** 时的阻断（`blocked_esign_incomplete`）
+- `rollback_on_failure=true` 时的 best-effort 回滚（routing/mbom reopen）
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_release_orchestration.sh
+
+# 或合并到一键回归（可选）
+RUN_RELEASE_ORCH=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-release-orchestration/<timestamp>/...json`（health/login/plan/execute 等证据）
+- `tmp/verify-release-orchestration/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2167,6 +2190,7 @@ MT_SCHEMA_PRECHECK=0 RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash sc
 | BOM Compare | `verify_bom_compare.sh` | BOM 差异对比（如端点可用则执行） |
 | BOM Substitutes | `verify_substitutes.sh` | BOM 替代件管理（如端点可用则执行） |
 | MBOM Convert | `verify_mbom_convert.sh` | EBOM → MBOM 转换 |
+| Release Orchestration (E2E) | `verify_release_orchestration.sh` | release orchestration（plan/execute + e-sign gate + rollback）自包含验证 |
 | Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
 
@@ -2182,6 +2206,7 @@ MT_SCHEMA_PRECHECK=0 RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash sc
 > `S7 (Tenant Provisioning)` 需要设置 `RUN_TENANT_PROVISIONING=1` 且 `YUANTUS_PLATFORM_ADMIN_ENABLED=true`。
 > `S8 (Ops Monitoring)` 需要设置 `RUN_OPS_S8=1` 且启用 `YUANTUS_PLATFORM_ADMIN_ENABLED=true`、`YUANTUS_AUDIT_ENABLED=true`、`YUANTUS_QUOTA_MODE=enforce`。
 > `Run H (Core APIs)` 如需自动应用租户库迁移，可设置 `MIGRATE_TENANT_DB=1`（会调用 `scripts/migrate_tenant_db.sh`）。
+> `Release Orchestration (E2E)` 需要设置 `RUN_RELEASE_ORCH=1`（或直接运行 `scripts/verify_release_orchestration.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
 ### 26.4 输出格式

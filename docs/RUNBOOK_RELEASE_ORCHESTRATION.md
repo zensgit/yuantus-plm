@@ -7,7 +7,7 @@
 ## 0) 前置条件
 
 - API 已运行：`http://127.0.0.1:7910`
-- 已获得 admin/superuser 的 `$TOKEN`
+- 已获得 admin/superuser 凭据（推荐：`username/password`；或已有 `$TOKEN`）
 - 已知 `item_id`（要发布的目标 Item）
 - 多租户下请带上租户/组织头：
   - `x-tenant-id: tenant-1`
@@ -18,6 +18,11 @@
 如果你不想手写 curl，可以直接使用：
 
 - `scripts/release_orchestration.sh`
+
+说明：
+
+- 若未提供 `--token`，脚本会使用 `--username/--password` 自动 login 获取 JWT（默认 `admin/admin`）。
+- 输出默认写入：`tmp/release-orchestration/<timestamp>/plan.json|execute.json`。
 
 示例：
 

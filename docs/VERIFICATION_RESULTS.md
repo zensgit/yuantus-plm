@@ -2,6 +2,22 @@
 
 > 完整复现步骤与更多验证项：见 `docs/VERIFICATION.md`。
 
+## 2026-02-13 Release Orchestration Script + E-sign Gate (PASS)
+
+- Scope:
+  - `scripts/release_orchestration.sh` (login + plan/execute)
+  - rollback path when baseline release is blocked by incomplete e-sign manifest
+  - e-sign completion via `/api/v1/esign/sign`
+- Command:
+  - `bash scripts/verify_release_orchestration.sh`
+- Evidence:
+  - Log: `tmp/verify_release_orchestration_20260213-195400.log`
+  - Payloads: `tmp/verify-release-orchestration/20260213-195255/`
+- Result:
+  - plan: `requires_esign=1`
+  - execute #1: baseline `blocked_esign_incomplete` + routing/mbom rolled back
+  - execute #2 (after sign): routing/mbom/baseline all `released`
+
 ## 2026-02-09 Perf CI (PASS) - Generic Gate + PR Perf Triggers
 
 - PR checks (PR #76):
