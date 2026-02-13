@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, JSON
+from sqlalchemy import Column, String, DateTime, ForeignKey, Integer, JSON, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from yuantus.models.base import Base
@@ -66,5 +66,8 @@ class Effectivity(Base):
     )
 
     # Audit fields
-    created_at = Column(DateTime, server_default="now()")
+    # Use a DB-side timestamp default that works across PostgreSQL and SQLite.
+    # NOTE: server_default="now()" would be treated as a quoted literal in
+    # SQLite DDL (DEFAULT 'now()'), which then breaks DateTime parsing.
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP"))
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)

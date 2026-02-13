@@ -70,6 +70,8 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- BOM Compare API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_COMPARE_E2E_20260214.md`
+- BOM Substitutes API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_SUBSTITUTES_E2E_20260214.md`
 - CAD Dedup (SimilarityRecord -> Part Equivalent) (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
 - CAD Dedup Vision (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_VISION_S3_PG_MINIO_20260212.md`
 - CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`
@@ -107,6 +109,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
 - Item Cockpit + Export Bundle: `docs/DEV_AND_VERIFICATION_ITEM_COCKPIT_EXPORT_20260207.md`
 - Item Equivalents API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ITEM_EQUIVALENTS_E2E_20260214.md`
+- MBOM Convert API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_CONVERT_E2E_20260214.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
 - Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
 - Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
