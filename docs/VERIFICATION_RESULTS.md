@@ -16397,3 +16397,16 @@ ALL CHECKS PASSED
   - Dedup Vision + Dedup Relationship：PASS
   - S7 Multi-Tenancy：PASS
 - 证据：`tmp/verify_all_20260213-143456.log`
+
+## Run VERIFY-ALL-DEDUP-MT-20260213-190341
+
+- 时间：`2026-02-13 19:03:41`（本机）
+- 环境：
+  - `START_DEDUP_STACK=1` 自动启动 `docker compose -f docker-compose.yml -f docker-compose.mt.yml --profile dedup`（Postgres + MinIO + API + Worker + Dedup Vision）
+  - `TENANCY_MODE=db-per-tenant-org`（多租户分库：`yuantus_mt_pg__{tenant_id}__{org_id}`）
+  - `MT_SCHEMA_PRECHECK=1`（MT schema drift fail-fast 预检）
+- 命令：`RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash scripts/verify_all.sh`
+- 结果：`PASS`（`ALL TESTS PASSED`）
+- 摘要：
+  - `PASS: 42  FAIL: 0  SKIP: 19`
+- 证据：`tmp/verify_all_20260213-190341.log`

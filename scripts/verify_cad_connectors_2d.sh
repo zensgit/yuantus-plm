@@ -113,7 +113,7 @@ upload_and_check() {
     $CURL -X POST "$API/cad/import" \
       "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
       -F "file=@$file_path;filename=$filename" \
-      "${cad_form[@]}" \
+      "${cad_form[@]:+${cad_form[@]}}" \
       -F "file_role=drawing" \
       -F "create_preview_job=false" \
       -F "create_geometry_job=false" \

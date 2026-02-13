@@ -102,12 +102,16 @@ Result:
 
 Note (MT schema drift):
 
-- `docker-compose.mt.yml` uses `SCHEMA_MODE=create_all`, which will not migrate/alter existing tenant DB schemas. If you previously ran MT mode and tenant DBs are stale, reset them (destructive):
+- `docker-compose.mt.yml` uses `SCHEMA_MODE=create_all`, which will not migrate/alter existing tenant DB schemas.
+- `scripts/verify_all.sh` has a fail-fast precheck for a known drift symptom (`meta_similarity_records.pair_key` missing) when MT overlay is enabled.
+- If you previously ran MT mode and tenant DBs are stale, reset them (destructive):
 
 ```bash
-docker stop yuantus-api-1 yuantus-worker-1
-DBS=(yuantus_identity_mt_pg yuantus_mt_pg__tenant-1__org-1 yuantus_mt_pg__tenant-1__org-2 yuantus_mt_pg__tenant-2__org-1 yuantus_mt_pg__tenant-2__org-2)
-for db in "${DBS[@]}"; do docker exec -i yuantus-postgres-1 dropdb -U yuantus --if-exists --force "$db" || true; done
-for db in "${DBS[@]}"; do docker exec -i yuantus-postgres-1 createdb -U yuantus "$db"; done
-docker compose -f docker-compose.yml -f docker-compose.mt.yml --profile dedup up -d api worker
+# One-liner: reset + rerun suite (destructive)
+MT_RESET=1 RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash scripts/verify_all.sh
+
+# Manual reset (destructive)
+docker compose stop api worker
+RESET=1 bash scripts/mt_pg_bootstrap.sh
+docker compose -f docker-compose.yml -f docker-compose.mt.yml --profile dedup up -d --build api worker
 ```
