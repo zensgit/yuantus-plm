@@ -2182,9 +2182,11 @@ RUN_ESIGN=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 该验证用于覆盖 Dedup 管理端点（无需 Dedup Vision / 无需 docker compose）：
 
 - rule 管理（admin-only）：`/api/v1/dedup/rules`
+- batch 管理（admin-only）：`/api/v1/dedup/batches` + run/refresh
 - similarity record 管理（admin-only）：`/api/v1/dedup/records` + review
 - report + CSV export：`/api/v1/dedup/report`、`/api/v1/dedup/report/export`
 - review 时创建 `Part Equivalent` 关系（`create_relationship=true`）
+- RBAC：非 admin 用户访问 dedup 管理端点应返回 `403`
 
 运行方式：
 

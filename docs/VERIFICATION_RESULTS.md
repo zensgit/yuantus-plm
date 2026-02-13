@@ -39,15 +39,19 @@
 
 - Scope:
   - dedup rules (admin-only): `/api/v1/dedup/rules`
+  - dedup batches (admin-only): `/api/v1/dedup/batches`, `/api/v1/dedup/batches/{id}/run`, `/api/v1/dedup/batches/{id}/refresh`
   - similarity records list/get/review: `/api/v1/dedup/records`, `/api/v1/dedup/records/{id}/review`
   - operational report + CSV export: `/api/v1/dedup/report`, `/api/v1/dedup/report/export`
   - relationship creation via review: creates a `Part Equivalent` relationship item
+  - RBAC guardrails: non-admin user gets HTTP 403 on dedup management endpoints
 - Command:
   - `bash scripts/verify_dedup_management.sh`
 - Evidence:
-  - Log: `tmp/verify_dedup_management_20260213-223847.log`
-  - Payloads: `tmp/verify-dedup-management/20260213-223847/`
+  - Log: `tmp/verify_dedup_management_20260213-231923.log`
+  - Payloads: `tmp/verify-dedup-management/20260213-231923/`
 - Result:
+  - RBAC: non-admin `403`
+  - batches: `1` (jobs_created>=1; refresh shows pending)
   - records: `1` (pending -> confirmed)
   - relationship: `Part Equivalent` created
   - report.total: `1`

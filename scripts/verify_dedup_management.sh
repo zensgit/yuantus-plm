@@ -56,6 +56,8 @@ TENANT_ID="${TENANT_ID:-tenant-1}"
 ORG_ID="${ORG_ID:-org-1}"
 USERNAME="${USERNAME:-admin}"
 PASSWORD="${PASSWORD:-admin}"
+NONADMIN_USERNAME="${NONADMIN_USERNAME:-viewer}"
+NONADMIN_PASSWORD="${NONADMIN_PASSWORD:-viewer}"
 
 DB_PATH="${DB_PATH:-/tmp/yuantus_verify_dedup_mgmt_${timestamp}.db}"
 db_path_norm="${DB_PATH#/}"
@@ -81,6 +83,10 @@ log "Seed identity/meta (db=${DB_PATH})"
   --tenant "$TENANT_ID" --org "$ORG_ID" \
   --username "$USERNAME" --password "$PASSWORD" \
   --user-id 1 --roles admin >/dev/null
+"$YUANTUS_BIN" seed-identity \
+  --tenant "$TENANT_ID" --org "$ORG_ID" \
+  --username "$NONADMIN_USERNAME" --password "$NONADMIN_PASSWORD" \
+  --user-id 2 --roles viewer --no-superuser >/dev/null
 "$YUANTUS_BIN" seed-meta >/dev/null
 
 server_log="${OUT_DIR}/server.log"
@@ -223,6 +229,44 @@ assert_nonempty() {
   fi
 }
 
+log "Login as non-admin and verify dedup endpoints are admin-only"
+nonadmin_login_json="${OUT_DIR}/login_nonadmin.json"
+code="$(
+  curl -sS -o "$nonadmin_login_json" -w "%{http_code}" \
+    -X POST "${BASE_URL}/api/v1/auth/login" \
+    -H 'content-type: application/json' \
+    -d "{\"tenant_id\":\"${TENANT_ID}\",\"org_id\":\"${ORG_ID}\",\"username\":\"${NONADMIN_USERNAME}\",\"password\":\"${NONADMIN_PASSWORD}\"}"
+)"
+if [[ "$code" != "200" ]]; then
+  cat "$nonadmin_login_json" >&2 || true
+  fail "non-admin login -> HTTP $code"
+fi
+NONADMIN_TOKEN="$("$PY_BIN" - "$nonadmin_login_json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+  print(json.load(f)["access_token"])
+PY
+)"
+if [[ -z "$NONADMIN_TOKEN" ]]; then
+  fail "failed to parse non-admin access_token"
+fi
+
+nonadmin_auth_header=(-H "Authorization: Bearer ${NONADMIN_TOKEN}" -H "x-tenant-id: ${TENANT_ID}" -H "x-org-id: ${ORG_ID}")
+nonadmin_out="${OUT_DIR}/nonadmin_dedup_rules.json"
+code="$(
+  curl -sS -o "$nonadmin_out" -w "%{http_code}" \
+    "${BASE_URL}/api/v1/dedup/rules" "${nonadmin_auth_header[@]}"
+)"
+assert_eq "non-admin GET /dedup/rules http_code" "$code" "403"
+
+nonadmin_out="${OUT_DIR}/nonadmin_dedup_records.json"
+code="$(
+  curl -sS -o "$nonadmin_out" -w "%{http_code}" \
+    "${BASE_URL}/api/v1/dedup/records?limit=1" "${nonadmin_auth_header[@]}"
+)"
+assert_eq "non-admin GET /dedup/records http_code" "$code" "403"
+
 log "Create two Part items"
 ts="$(date +%s)"
 
@@ -288,6 +332,54 @@ log "Get rule by id"
 rule_get_json="${OUT_DIR}/dedup_rule_get.json"
 request_json GET "/api/v1/dedup/rules/${rule_id}" "$rule_get_json"
 assert_eq "get_rule.id" "$(json_get "$rule_get_json" id)" "$rule_id"
+
+log "Create and run a Dedup batch (admin-only; API-level semantics only)"
+batch_create_json="${OUT_DIR}/dedup_batch_create.json"
+request_json POST "/api/v1/dedup/batches" "$batch_create_json" \
+  "{\"name\":\"dedup-mgmt-batch-${ts}\",\"description\":\"Dedup batch (E2E)\",\"scope_type\":\"file_list\",\"scope_config\":{\"file_ids\":[\"${file_a_id}\",\"${file_b_id}\"]},\"rule_id\":\"${rule_id}\"}"
+batch_id="$(json_get "$batch_create_json" id)"
+assert_nonempty "dedup_batch.id" "$batch_id"
+
+batch_list_json="${OUT_DIR}/dedup_batches_list.json"
+request_json GET "/api/v1/dedup/batches?limit=10&offset=0" "$batch_list_json"
+"$PY_BIN" - "$batch_list_json" "$batch_id" <<'PY'
+import json
+import sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+  data = json.load(f)
+bid = sys.argv[2]
+items = data.get("items") or []
+if not any(isinstance(b, dict) and b.get("id") == bid for b in items):
+  raise SystemExit("expected batch_id in list_batches response")
+print("batches_list_contains_created=1")
+PY
+
+batch_get_json="${OUT_DIR}/dedup_batch_get.json"
+request_json GET "/api/v1/dedup/batches/${batch_id}" "$batch_get_json"
+assert_eq "batch.rule_id" "$(json_get "$batch_get_json" rule_id)" "$rule_id"
+
+batch_run_json="${OUT_DIR}/dedup_batch_run.json"
+request_json POST "/api/v1/dedup/batches/${batch_id}/run" "$batch_run_json" \
+  "{\"mode\":\"fast\",\"limit\":1,\"priority\":30,\"dedupe\":true,\"index\":false}"
+jobs_created="$(json_get "$batch_run_json" jobs_created)"
+if [[ "${jobs_created:-0}" -lt 1 ]]; then
+  cat "$batch_run_json" >&2 || true
+  fail "expected jobs_created >= 1"
+fi
+
+batch_refresh_json="${OUT_DIR}/dedup_batch_refresh.json"
+request_json POST "/api/v1/dedup/batches/${batch_id}/refresh" "$batch_refresh_json"
+"$PY_BIN" - "$batch_refresh_json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+  data = json.load(f)
+summary = data.get("summary") or {}
+job_status = summary.get("job_status") or {}
+pending = int(job_status.get("pending") or 0)
+assert pending >= 1, job_status
+print("batch_refresh_job_status_ok=1")
+PY
 
 log "Inject one SimilarityRecord into SQLite (no create API by design)"
 record_id="$("$PY_BIN" - <<'PY'
