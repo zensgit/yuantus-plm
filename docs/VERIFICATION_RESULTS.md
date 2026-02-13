@@ -35,6 +35,24 @@
   - audit logs: `4`
   - audit export rows: `4`
 
+## 2026-02-13 Dedup Management API-only E2E (PASS)
+
+- Scope:
+  - dedup rules (admin-only): `/api/v1/dedup/rules`
+  - similarity records list/get/review: `/api/v1/dedup/records`, `/api/v1/dedup/records/{id}/review`
+  - operational report + CSV export: `/api/v1/dedup/report`, `/api/v1/dedup/report/export`
+  - relationship creation via review: creates a `Part Equivalent` relationship item
+- Command:
+  - `bash scripts/verify_dedup_management.sh`
+- Evidence:
+  - Log: `tmp/verify_dedup_management_20260213-223847.log`
+  - Payloads: `tmp/verify-dedup-management/20260213-223847/`
+- Result:
+  - records: `1` (pending -> confirmed)
+  - relationship: `Part Equivalent` created
+  - report.total: `1`
+  - report export rows: `1`
+
 ## 2026-02-09 Perf CI (PASS) - Generic Gate + PR Perf Triggers
 
 - PR checks (PR #76):
