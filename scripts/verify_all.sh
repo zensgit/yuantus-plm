@@ -27,12 +27,19 @@ DB_URL="${DB_URL:-}"
 MIGRATE_TENANT_DB="${MIGRATE_TENANT_DB:-0}"
 RUN_DEDUP="${RUN_DEDUP:-0}"
 START_DEDUP_STACK="${START_DEDUP_STACK:-0}"
+MT_RESET="${MT_RESET:-0}"
+MT_SCHEMA_PRECHECK="${MT_SCHEMA_PRECHECK:-1}"
 
 # Paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLI="${CLI:-.venv/bin/yuantus}"
 PY="${PY:-.venv/bin/python}"
+
+# Docker compose selection (only set when START_DEDUP_STACK=1, but must be defined
+# to avoid "unbound variable" errors under set -u.
+USE_MT_OVERLAY=0
+COMPOSE_FILES=()
 
 load_server_env() {
   local pid_file="${REPO_ROOT}/yuantus.pid"
@@ -155,6 +162,8 @@ if [[ -n "$DB_URL" ]]; then
 fi
 echo "RUN_DEDUP: $RUN_DEDUP"
 echo "START_DEDUP_STACK: $START_DEDUP_STACK"
+echo "MT_RESET: $MT_RESET"
+echo "MT_SCHEMA_PRECHECK: $MT_SCHEMA_PRECHECK"
 if [[ -n "${RUN_CAD_ML_DOCKER:-}" || -n "${CAD_ML_BASE_URL:-}" || -n "${YUANTUS_CAD_ML_BASE_URL:-}" || -n "${CAD_PREVIEW_SAMPLE_FILE:-}" ]]; then
   echo "CAD-ML:"
   echo "  RUN_CAD_ML_DOCKER: ${RUN_CAD_ML_DOCKER:-0}"
@@ -338,6 +347,86 @@ PY
   fi
 }
 
+wait_for_docker_postgres() {
+  # Best-effort readiness wait for host-driven scripts that exec into the postgres container.
+  local retries="${PG_READY_RETRIES:-30}"
+  local sleep_seconds="${PG_READY_SLEEP_SECONDS:-1}"
+  if [[ "${#COMPOSE_FILES[@]}" -eq 0 ]]; then
+    return 0
+  fi
+  for ((i=1; i<=retries; i++)); do
+    if docker compose "${COMPOSE_FILES[@]}" exec -T postgres pg_isready -U yuantus >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep "$sleep_seconds"
+  done
+  echo -e "${RED}ERROR${NC}: postgres not ready after ${retries}s." >&2
+  return 1
+}
+
+mt_schema_precheck_pair_key() {
+  # When running db-per-tenant-org in docker-compose.mt.yml, schema mode is create_all,
+  # which does not alter existing DB schemas. If a tenant DB already exists with an
+  # older schema (missing meta_similarity_records.pair_key), dedup ingestion can get
+  # stuck. Detect and fail-fast with a reset hint.
+  if [[ "${USE_MT_OVERLAY:-0}" != "1" ]]; then
+    return 0
+  fi
+  if ! is_truthy "${MT_SCHEMA_PRECHECK:-1}"; then
+    return 0
+  fi
+
+  local dbs
+  dbs="$(
+    docker compose "${COMPOSE_FILES[@]}" exec -T postgres \
+      psql -U yuantus -d postgres -Atc "SELECT datname FROM pg_database WHERE datname LIKE 'yuantus_mt_pg__%' ORDER BY datname;" \
+      2>/dev/null || true
+  )"
+  if [[ -z "$dbs" ]]; then
+    return 0
+  fi
+
+  local drift=0
+  while IFS= read -r db; do
+    [[ -z "$db" ]] && continue
+
+    local has_table
+    has_table="$(
+      docker compose "${COMPOSE_FILES[@]}" exec -T postgres \
+        psql -U yuantus -d "$db" -Atc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='meta_similarity_records' LIMIT 1;" \
+        2>/dev/null | tr -d '[:space:]' || true
+    )"
+    if [[ "$has_table" != "1" ]]; then
+      continue
+    fi
+
+    local has_pair_key
+    has_pair_key="$(
+      docker compose "${COMPOSE_FILES[@]}" exec -T postgres \
+        psql -U yuantus -d "$db" -Atc "SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='meta_similarity_records' AND column_name='pair_key' LIMIT 1;" \
+        2>/dev/null | tr -d '[:space:]' || true
+    )"
+    if [[ "$has_pair_key" != "1" ]]; then
+      echo -e "${RED}ERROR${NC}: MT schema drift detected in ${db}: meta_similarity_records exists but pair_key is missing." >&2
+      drift=1
+    fi
+  done <<< "$dbs"
+
+  if [[ "$drift" == "1" ]]; then
+    echo "" >&2
+    echo "This usually happens when docker-compose.mt.yml runs with YUANTUS_SCHEMA_MODE=create_all." >&2
+    echo "create_all does not alter existing schemas, so stale tenant DBs must be reset." >&2
+    echo "" >&2
+    echo "Fix (destructive):" >&2
+    echo "  MT_RESET=1 RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash scripts/verify_all.sh" >&2
+    echo "Or manual:" >&2
+    echo "  docker compose stop api worker && RESET=1 bash scripts/mt_pg_bootstrap.sh && docker compose up -d --build api worker" >&2
+    return 1
+  fi
+
+  return 0
+}
+
 # -----------------------------------------------------------------------------
 # Pre-flight checks
 # -----------------------------------------------------------------------------
@@ -378,6 +467,21 @@ if is_truthy "${START_DEDUP_STACK:-0}"; then
     echo -e "${RED}ERROR${NC}: Failed to start postgres/minio for dedup stack" >&2
     exit 2
   fi
+
+  if ! wait_for_docker_postgres; then
+    exit 2
+  fi
+
+  if [[ "$USE_MT_OVERLAY" == "1" ]] && is_truthy "${MT_RESET:-0}"; then
+    echo "MT_RESET=1: resetting tenant/org databases (destructive)..."
+    docker compose "${COMPOSE_FILES[@]}" --profile dedup stop api worker >/dev/null 2>&1 || true
+    (cd "$REPO_ROOT" && RESET=1 bash scripts/mt_pg_bootstrap.sh)
+  fi
+
+  if ! mt_schema_precheck_pair_key; then
+    exit 2
+  fi
+
   if [[ "$USE_MT_OVERLAY" == "1" ]]; then
     # Multi-tenant overlay includes mt-bootstrap dependency; do not use --no-deps.
     if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d --build api worker; then

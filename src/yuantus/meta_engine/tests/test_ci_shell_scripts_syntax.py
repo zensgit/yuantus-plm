@@ -34,6 +34,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "strict_gate_report.sh",
         scripts_dir / "demo_plm_closed_loop.sh",
         scripts_dir / "release_orchestration.sh",
+        scripts_dir / "mt_pg_bootstrap.sh",
         scripts_dir / "verify_all.sh",
         scripts_dir / "verify_cad_dedup_vision_s3.sh",
         scripts_dir / "verify_cad_dedup_relationship_s3.sh",

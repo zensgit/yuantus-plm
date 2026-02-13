@@ -2110,6 +2110,25 @@ DB_URL='postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus' \
 CLI=.venv/bin/yuantus PY=.venv/bin/python bash scripts/verify_all.sh
 ```
 
+### 26.2.1 Docker Dedup Stack（可选一键启动）
+
+当你需要验证 Dedup Vision + Docker worker（以及 MT overlay）时，可用以下方式一键启动 docker compose stack 并执行回归：
+
+```bash
+# 一键启动（Postgres + MinIO + API + Worker + Dedup Vision）并运行回归
+RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash scripts/verify_all.sh
+
+# 若 .env / 环境设置了 YUANTUS_TENANCY_MODE=db-per-tenant-org：
+# - verify_all 会自动叠加 docker-compose.mt.yml（mt-bootstrap + DATABASE_URL_TEMPLATE）
+# - 并启用一个 MT schema drift 的 fail-fast 预检（默认 MT_SCHEMA_PRECHECK=1）
+
+# 如遇到 MT schema drift（例如旧 tenant DB 缺列），可用 MT_RESET=1 重置租户/组织 DB（破坏性）
+MT_RESET=1 RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash scripts/verify_all.sh
+
+# 如需关闭该预检（不推荐）
+MT_SCHEMA_PRECHECK=0 RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash scripts/verify_all.sh
+```
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
