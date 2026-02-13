@@ -106,6 +106,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Export Bundles (Impact + Release Readiness): `docs/DEV_AND_VERIFICATION_EXPORT_BUNDLES_IMPACT_READINESS_20260207.md`
 - Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
 - Item Cockpit + Export Bundle: `docs/DEV_AND_VERIFICATION_ITEM_COCKPIT_EXPORT_20260207.md`
+- Item Equivalents API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ITEM_EQUIVALENTS_E2E_20260214.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
 - Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
 - Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
@@ -136,6 +137,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Strict Gate Runbook + Failure Tails: `docs/DEV_AND_VERIFICATION_STRICT_GATE_RUNBOOK_REPORT_TAILS_20260210.md`
 - Strict Gate Script Help + Job Summary Download Hints: `docs/DEV_AND_VERIFICATION_STRICT_GATE_SCRIPT_HELP_AND_JOB_SUMMARY_HINTS_20260210.md`
 - Strict Gate Workflow Contracts + CLI Runbook: `docs/DEV_AND_VERIFICATION_STRICT_GATE_WORKFLOW_CONTRACTS_20260210.md`
+- Version-File Binding API-only E2E Verification: `docs/DEV_AND_VERIFICATION_VERSION_FILE_BINDING_E2E_20260214.md`
 - Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`
 - Week Plan & Verification (Enhancements): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202_FEATURES2.md`
 - Week Plan & Verification (Enhancements 2026-02-03): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260203_ENHANCEMENTS.md`

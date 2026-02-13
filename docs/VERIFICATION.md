@@ -2254,6 +2254,59 @@ RUN_PLATFORM_TENANT_PROV=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tena
 - `tmp/verify-platform-tenant-provisioning/<timestamp>/...json`（health/login/tenants/orgs 等证据）
 - `tmp/verify-platform-tenant-provisioning/<timestamp>/server.log`
 
+### 26.2.7 Item Equivalents（可选自包含 API-only E2E）
+
+该验证用于覆盖 Part 等效件（Item Equivalents）API 的最小闭环（无需 docker compose）：
+
+- 创建 Part A/B/C
+- 添加等效关系：A<->B、A<->C：`POST /api/v1/items/{item_id}/equivalents`
+- 查询等效关系列表并校验 count/ids：`GET /api/v1/items/{item_id}/equivalents`
+- guardrails：
+  - duplicate add 应返回 `400`
+  - self-equivalence 应返回 `400`
+- 删除等效关系：`DELETE /api/v1/items/{item_id}/equivalents/{equivalent_id}`
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_item_equivalents.sh
+
+# 或合并到一键回归（可选）
+RUN_ITEM_EQUIVALENTS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-item-equivalents/<timestamp>/...json`（health/login/parts/equivalents 等证据）
+- `tmp/verify-item-equivalents/<timestamp>/server.log`
+
+### 26.2.8 Version-File Binding（可选自包含 API-only E2E）
+
+该验证用于覆盖 Version checkout/file lock + VersionFile 绑定（无需 docker compose）：
+
+- 创建 Part + init version：`POST /api/v1/versions/items/{item_id}/init`
+- 上传文件 + attach 到 item：`POST /api/v1/file/upload`、`POST /api/v1/file/attach`
+- 未 checkout 时绑定 version file 应返回 `409`：`POST /api/v1/versions/{version_id}/files`
+- checkout 后绑定 version file：`POST /api/v1/versions/items/{item_id}/checkout`、`POST /api/v1/versions/{version_id}/files`
+- 非 owner 在 checkout 期间 attach 应返回 `409`
+- checkin 并校验 `/api/v1/versions/{id}/files` 包含预期 file_role（例如 `native_cad`）
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_version_file_binding.sh
+
+# 或合并到一键回归（可选）
+RUN_VERSION_FILE_BINDING_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-version-file-binding/<timestamp>/...json`（health/login/version/file 等证据）
+- `tmp/verify-version-file-binding/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2297,6 +2350,8 @@ RUN_PLATFORM_TENANT_PROV=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tena
 | Dedup Management (E2E) | `verify_dedup_management.sh` | dedup 管理端点（rules/records/review/report/export）自包含验证 |
 | Quota Enforcement (E2E) | `verify_quota_enforcement.sh` | quota 管理（/admin/quota）+ enforce 上传拦截 自包含验证 |
 | Platform Tenant Provisioning (E2E) | `verify_platform_tenant_provisioning.sh` | 平台管理员 tenant 开通（list/create tenant + default org + RBAC）自包含验证 |
+| Item Equivalents (E2E) | `verify_item_equivalents.sh` | Part 等效件（add/list/delete + guardrails）自包含验证 |
+| Version-File Binding (E2E) | `verify_version_file_binding.sh` | checkout/file lock + VersionFile 绑定自包含验证 |
 | Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
 
@@ -2317,6 +2372,8 @@ RUN_PLATFORM_TENANT_PROV=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tena
 > `Dedup Management (E2E)` 需要设置 `RUN_DEDUP_MGMT=1`（或直接运行 `scripts/verify_dedup_management.sh`）。
 > `Quota Enforcement (E2E)` 需要设置 `RUN_QUOTA_E2E=1`（或直接运行 `scripts/verify_quota_enforcement.sh`）。
 > `Platform Tenant Provisioning (E2E)` 需要设置 `RUN_PLATFORM_TENANT_PROV=1`（或直接运行 `scripts/verify_platform_tenant_provisioning.sh`）。
+> `Item Equivalents (E2E)` 需要设置 `RUN_ITEM_EQUIVALENTS_E2E=1`（或直接运行 `scripts/verify_item_equivalents.sh`）。
+> `Version-File Binding (E2E)` 需要设置 `RUN_VERSION_FILE_BINDING_E2E=1`（或直接运行 `scripts/verify_version_file_binding.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
 ### 26.4 输出格式
