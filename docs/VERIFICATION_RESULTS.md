@@ -94,6 +94,25 @@
   - versions history/tree: `ok`
   - integrations health: `200` + `services` present
 
+## 2026-02-14 Identity-only Migrations E2E (PASS)
+
+- Scope:
+  - core DB migrations: `alembic.ini` (`script_location=migrations`)
+  - identity-only migrations: `alembic.identity.ini` (`script_location=migrations_identity`)
+  - assert identity DB contains only:
+    - `auth_*` (tenant/org/user/credential/membership/quota)
+    - `audit_logs`
+    - `alembic_version` (and optional `sqlite_sequence`)
+    - should NOT contain `meta_items`
+- Command:
+  - `bash scripts/verify_identity_only_migrations.sh`
+- Evidence:
+  - Log: `tmp/verify_identity_only_migrations_20260214-164518.log`
+  - Payloads: `tmp/verify-identity-only-migrations/20260214-164518/`
+- Result:
+  - core tables: `85` (includes `meta_items`)
+  - identity tables: `8` (auth + audit + alembic_version)
+
 ## 2026-02-14 ECO Advanced API-only E2E (PASS)
 
 - Scope:

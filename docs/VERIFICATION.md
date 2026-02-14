@@ -2820,12 +2820,42 @@ RUN_RUN_H_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
 - `tmp/verify-run-h/<timestamp>/...json`（health/login/aml/search/rpc/file/bom/eco/versions/integrations 等证据）
 - `tmp/verify-run-h/<timestamp>/server.log`
 
+### 26.2.28 Identity-only migrations（可选自包含 E2E）
+
+该验证用于覆盖“Identity 分库迁移（identity-only migrations）”的基础契约（无需 docker compose）：
+
+- Core DB 迁移：使用 `alembic.ini`（`script_location=migrations`）
+- Identity DB 迁移：使用 `alembic.identity.ini`（`script_location=migrations_identity`）
+- 断言 Identity DB 仅包含：
+  - `auth_*`（tenant/org/user/credential/membership/quota）
+  - `audit_logs`
+  - Alembic 版本表 `alembic_version`（SQLite 可能还包含 `sqlite_sequence`）
+  - **不应包含** `meta_*` 等 Core schema 表（例如 `meta_items`）
+
+运行方式：
+
+```bash
+# 直接运行（会在 /tmp 创建两份 SQLite DB：core + identity）
+bash scripts/verify_identity_only_migrations.sh
+
+# 或合并到一键回归（可选）
+RUN_IDENTITY_ONLY_MIGRATIONS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-identity-only-migrations/<timestamp>/core_upgrade.log`
+- `tmp/verify-identity-only-migrations/<timestamp>/identity_upgrade.log`
+- `tmp/verify-identity-only-migrations/<timestamp>/core_tables.json`
+- `tmp/verify-identity-only-migrations/<timestamp>/identity_tables.json`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
 |----------|------|----------|
 | Run H (Core APIs) | `verify_run_h.sh` | Health、AML、Search、RPC、File、BOM |
 | Run H (E2E) | `verify_run_h_e2e.sh` | Run H 自包含 API-only E2E（会启动临时服务 + SQLite DB） |
+| Identity-only Migrations (E2E) | `verify_identity_only_migrations.sh` | Identity 分库迁移（auth + audit only）契约 |
 | S2 (Documents & Files) | `verify_documents.sh` | 文件元数据、去重、挂载列表 |
 | S1 (Meta + RBAC) | `verify_permissions.sh` | 权限配置、RBAC 执行 |
 | S3.1 (BOM Tree) | `verify_bom_tree.sh` | BOM 写入、循环检测 |
