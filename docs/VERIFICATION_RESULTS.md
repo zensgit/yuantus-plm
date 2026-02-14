@@ -74,6 +74,44 @@
   - iterations: latest=`1.C.2`
   - schemes: list `>= 1`
 
+## 2026-02-14 ECO Advanced API-only E2E (PASS)
+
+- Scope:
+  - stage/stage-move + overdue notify:
+    - `POST /api/v1/eco/stages`
+    - `POST /api/v1/eco/{eco_id}/move-stage`
+    - `GET /api/v1/eco/approvals/overdue`
+    - `POST /api/v1/eco/approvals/notify-overdue`
+  - approval + apply:
+    - `POST /api/v1/eco/{eco_id}/approve`
+    - `GET /api/v1/eco/{eco_id}/apply-diagnostics`
+    - `POST /api/v1/eco/{eco_id}/apply`
+  - bom diff + impact + export:
+    - `GET /api/v1/eco/{eco_id}/bom-diff`
+    - `GET /api/v1/eco/{eco_id}/impact`
+    - `GET /api/v1/eco/{eco_id}/impact/export`（csv/xlsx/pdf）
+  - batch approvals:
+    - `POST /api/v1/eco/approvals/batch`（admin ok、viewer denied）
+- Command:
+  - `bash scripts/verify_eco_advanced_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_eco_advanced_e2e_20260214-160347.log`
+  - Payloads: `tmp/verify-eco-advanced/20260214-160347/`
+- Result:
+  - apply: `200` and ECO state becomes `done`
+  - bom diff: `added>=1` and includes the effective child
+  - impact:
+    - impacted_assemblies contains parent assembly
+    - files.item_files includes attached native_cad file
+    - impact_level = `high`
+  - export files:
+    - csv contains `# Overview` + `bom_compare_mode,only_product`
+    - xlsx has `PK` header
+    - pdf has `%PDF` header
+  - batch approvals:
+    - admin: ok>=2
+    - viewer: denied
+
 ## 2026-02-14 Where-Used API-only E2E (PASS)
 
 - Scope:

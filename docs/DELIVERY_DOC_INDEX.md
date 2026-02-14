@@ -110,6 +110,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Dedup Management API-only E2E Verification: `docs/DEV_AND_VERIFICATION_DEDUP_MANAGEMENT_E2E_20260213.md`
 - Delivery Doc Index (Ops Runbooks + Link Contract): `docs/DEV_AND_VERIFICATION_DELIVERY_DOC_INDEX_RUNBOOKS_20260210.md`
 - Demo PLM Closed Loop Script: `docs/DEV_AND_VERIFICATION_DEMO_PLM_CLOSED_LOOP_20260207.md`
+- ECO Advanced API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ECO_ADVANCED_E2E_20260214.md`
 - Effectivity Extended (Lot/Serial) API-only E2E Verification: `docs/DEV_AND_VERIFICATION_EFFECTIVITY_EXTENDED_E2E_20260214.md`
 - E-sign API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ESIGN_API_E2E_20260213.md`
 - Export Bundles (Impact + Release Readiness): `docs/DEV_AND_VERIFICATION_EXPORT_BUNDLES_IMPACT_READINESS_20260207.md`

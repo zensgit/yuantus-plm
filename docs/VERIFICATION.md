@@ -2755,6 +2755,40 @@ RUN_VERSIONS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org
 - `tmp/verify-versions/<timestamp>/...json`（health/login/versions/tree/history/iterations 等证据）
 - `tmp/verify-versions/<timestamp>/server.log`
 
+### 26.2.26 ECO Advanced（可选自包含 API-only E2E）
+
+该验证用于覆盖 ECO Advanced 的完整闭环（无需 docker compose）：
+
+- stage/stage-move + overdue notify：
+  - `POST /api/v1/eco/stages`
+  - `POST /api/v1/eco/{eco_id}/move-stage`
+  - `GET /api/v1/eco/approvals/overdue`
+  - `POST /api/v1/eco/approvals/notify-overdue`
+- new revision + apply：
+  - `POST /api/v1/eco/{eco_id}/new-revision`
+  - `POST /api/v1/eco/{eco_id}/apply`
+- BOM diff + impact + export：
+  - `GET /api/v1/eco/{eco_id}/bom-diff`
+  - `GET /api/v1/eco/{eco_id}/impact`
+  - `GET /api/v1/eco/{eco_id}/impact/export`（csv/xlsx/pdf）
+- batch approvals：
+  - `POST /api/v1/eco/approvals/batch`（admin ok、viewer denied）
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_eco_advanced_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_ECO_ADVANCED_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-eco-advanced/<timestamp>/...json`（health/login/eco/bom-diff/impact/export 等证据）
+- `tmp/verify-eco-advanced/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2801,6 +2835,7 @@ RUN_VERSIONS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org
 | Item Equivalents (E2E) | `verify_item_equivalents.sh` | Part 等效件（add/list/delete + guardrails）自包含验证 |
 | Version-File Binding (E2E) | `verify_version_file_binding.sh` | checkout/file lock + VersionFile 绑定自包含验证 |
 | Versions Core (E2E) | `verify_versions_e2e.sh` | Versions（init/revise/checkout/checkin/tree/history + revision utils + iterations + compare + schemes）自包含验证 |
+| ECO Advanced (E2E) | `verify_eco_advanced_e2e.sh` | ECO advanced（impact/bom diff/export/batch approvals）自包含验证 |
 | Where-Used API (E2E) | `verify_where_used_e2e.sh` | Where-Used（反向 BOM 查询：direct + recursive + level）自包含验证 |
 | BOM Tree (E2E) | `verify_bom_tree_e2e.sh` | BOM tree（multi-level + cycle detection + delete）自包含验证 |
 | BOM Effectivity (E2E) | `verify_bom_effectivity_e2e.sh` | BOM effectivity（effectivity_from/to + RBAC + delete cascade）自包含验证 |
@@ -2840,6 +2875,7 @@ RUN_VERSIONS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org
 > `Item Equivalents (E2E)` 需要设置 `RUN_ITEM_EQUIVALENTS_E2E=1`（或直接运行 `scripts/verify_item_equivalents.sh`）。
 > `Version-File Binding (E2E)` 需要设置 `RUN_VERSION_FILE_BINDING_E2E=1`（或直接运行 `scripts/verify_version_file_binding.sh`）。
 > `Versions Core (E2E)` 需要设置 `RUN_VERSIONS_E2E=1`（或直接运行 `scripts/verify_versions_e2e.sh`）。
+> `ECO Advanced (E2E)` 需要设置 `RUN_ECO_ADVANCED_E2E=1`（或直接运行 `scripts/verify_eco_advanced_e2e.sh`）。
 > `Where-Used API (E2E)` 需要设置 `RUN_WHERE_USED_E2E=1`（或直接运行 `scripts/verify_where_used_e2e.sh`）。
 > `BOM Tree (E2E)` 需要设置 `RUN_BOM_TREE_E2E=1`（或直接运行 `scripts/verify_bom_tree_e2e.sh`）。
 > `BOM Effectivity (E2E)` 需要设置 `RUN_BOM_EFFECTIVITY_E2E=1`（或直接运行 `scripts/verify_bom_effectivity_e2e.sh`）。

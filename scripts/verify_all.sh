@@ -35,6 +35,7 @@ RUN_PLATFORM_TENANT_PROV="${RUN_PLATFORM_TENANT_PROV:-0}"
 RUN_ITEM_EQUIVALENTS_E2E="${RUN_ITEM_EQUIVALENTS_E2E:-0}"
 RUN_VERSION_FILE_BINDING_E2E="${RUN_VERSION_FILE_BINDING_E2E:-0}"
 RUN_VERSIONS_E2E="${RUN_VERSIONS_E2E:-0}"
+RUN_ECO_ADVANCED_E2E="${RUN_ECO_ADVANCED_E2E:-0}"
 RUN_WHERE_USED_E2E="${RUN_WHERE_USED_E2E:-0}"
 RUN_BOM_TREE_E2E="${RUN_BOM_TREE_E2E:-0}"
 RUN_BOM_EFFECTIVITY_E2E="${RUN_BOM_EFFECTIVITY_E2E:-0}"
@@ -194,6 +195,7 @@ echo "RUN_PLATFORM_TENANT_PROV: $RUN_PLATFORM_TENANT_PROV"
 echo "RUN_ITEM_EQUIVALENTS_E2E: $RUN_ITEM_EQUIVALENTS_E2E"
 echo "RUN_VERSION_FILE_BINDING_E2E: $RUN_VERSION_FILE_BINDING_E2E"
 echo "RUN_VERSIONS_E2E: $RUN_VERSIONS_E2E"
+echo "RUN_ECO_ADVANCED_E2E: $RUN_ECO_ADVANCED_E2E"
 echo "RUN_WHERE_USED_E2E: $RUN_WHERE_USED_E2E"
 echo "RUN_BOM_TREE_E2E: $RUN_BOM_TREE_E2E"
 echo "RUN_BOM_EFFECTIVITY_E2E: $RUN_BOM_EFFECTIVITY_E2E"
@@ -1356,7 +1358,17 @@ if [[ -x "$SCRIPT_DIR/verify_versions_e2e.sh" ]]; then
   fi
 fi
 
-# 20.9 Where-Used API (self-contained, optional)
+# 20.9 ECO Advanced (self-contained, optional)
+if [[ -x "$SCRIPT_DIR/verify_eco_advanced_e2e.sh" ]]; then
+  if [[ "${RUN_ECO_ADVANCED_E2E:-0}" == "1" ]]; then
+    run_test "ECO Advanced (E2E)" \
+      "$SCRIPT_DIR/verify_eco_advanced_e2e.sh" || true
+  else
+    skip_test "ECO Advanced (E2E)" "RUN_ECO_ADVANCED_E2E=0"
+  fi
+fi
+
+# 20.10 Where-Used API (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_where_used_e2e.sh" ]]; then
   if [[ "${RUN_WHERE_USED_E2E:-0}" == "1" ]]; then
     run_test "Where-Used API (E2E)" \
@@ -1366,7 +1378,7 @@ if [[ -x "$SCRIPT_DIR/verify_where_used_e2e.sh" ]]; then
   fi
 fi
 
-# 20.10 BOM Tree (self-contained, optional)
+# 20.11 BOM Tree (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_tree_e2e.sh" ]]; then
   if [[ "${RUN_BOM_TREE_E2E:-0}" == "1" ]]; then
     run_test "BOM Tree (E2E)" \
@@ -1376,7 +1388,7 @@ if [[ -x "$SCRIPT_DIR/verify_bom_tree_e2e.sh" ]]; then
   fi
 fi
 
-# 20.11 BOM Effectivity (self-contained, optional)
+# 20.12 BOM Effectivity (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_effectivity_e2e.sh" ]]; then
   if [[ "${RUN_BOM_EFFECTIVITY_E2E:-0}" == "1" ]]; then
     run_test "BOM Effectivity (E2E)" \
@@ -1386,7 +1398,7 @@ if [[ -x "$SCRIPT_DIR/verify_bom_effectivity_e2e.sh" ]]; then
   fi
 fi
 
-# 20.12 BOM Compare (self-contained, optional)
+# 20.13 BOM Compare (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_compare_e2e.sh" ]]; then
   if [[ "${RUN_BOM_COMPARE_E2E:-0}" == "1" ]]; then
     run_test "BOM Compare (E2E)" \
@@ -1396,7 +1408,7 @@ if [[ -x "$SCRIPT_DIR/verify_bom_compare_e2e.sh" ]]; then
   fi
 fi
 
-# 20.13 BOM Substitutes (self-contained, optional)
+# 20.14 BOM Substitutes (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_substitutes_e2e.sh" ]]; then
   if [[ "${RUN_BOM_SUBSTITUTES_E2E:-0}" == "1" ]]; then
     run_test "BOM Substitutes (E2E)" \
@@ -1406,7 +1418,7 @@ if [[ -x "$SCRIPT_DIR/verify_bom_substitutes_e2e.sh" ]]; then
   fi
 fi
 
-# 20.14 MBOM Convert (self-contained, optional)
+# 20.15 MBOM Convert (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_mbom_convert_e2e.sh" ]]; then
   if [[ "${RUN_MBOM_CONVERT_E2E:-0}" == "1" ]]; then
     run_test "MBOM Convert (E2E)" \
@@ -1416,7 +1428,7 @@ if [[ -x "$SCRIPT_DIR/verify_mbom_convert_e2e.sh" ]]; then
   fi
 fi
 
-# 20.15 MBOM + Routing (self-contained, optional)
+# 20.16 MBOM + Routing (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_mbom_routing_e2e.sh" ]]; then
   if [[ "${RUN_MBOM_ROUTING_E2E:-0}" == "1" ]]; then
     run_test "MBOM + Routing (E2E)" \
@@ -1426,7 +1438,7 @@ if [[ -x "$SCRIPT_DIR/verify_mbom_routing_e2e.sh" ]]; then
   fi
 fi
 
-# 20.16 Routing primary + release (self-contained, optional)
+# 20.17 Routing primary + release (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_routing_primary_release_e2e.sh" ]]; then
   if [[ "${RUN_ROUTING_PRIMARY_RELEASE_E2E:-0}" == "1" ]]; then
     run_test "Routing Primary+Release (E2E)" \
@@ -1436,7 +1448,7 @@ if [[ -x "$SCRIPT_DIR/verify_routing_primary_release_e2e.sh" ]]; then
   fi
 fi
 
-# 20.17 Routing operations (self-contained, optional)
+# 20.18 Routing operations (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_routing_operations_e2e.sh" ]]; then
   if [[ "${RUN_ROUTING_OPERATIONS_E2E:-0}" == "1" ]]; then
     run_test "Routing Operations (E2E)" \
@@ -1446,7 +1458,7 @@ if [[ -x "$SCRIPT_DIR/verify_routing_operations_e2e.sh" ]]; then
   fi
 fi
 
-# 20.18 Routing copy (self-contained, optional)
+# 20.19 Routing copy (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_routing_copy_e2e.sh" ]]; then
   if [[ "${RUN_ROUTING_COPY_E2E:-0}" == "1" ]]; then
     run_test "Routing Copy (E2E)" \
@@ -1456,7 +1468,7 @@ if [[ -x "$SCRIPT_DIR/verify_routing_copy_e2e.sh" ]]; then
   fi
 fi
 
-# 20.19 WorkCenter (self-contained, optional)
+# 20.20 WorkCenter (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_workcenter_e2e.sh" ]]; then
   if [[ "${RUN_WORKCENTER_E2E:-0}" == "1" ]]; then
     run_test "WorkCenter (E2E)" \
@@ -1466,7 +1478,7 @@ if [[ -x "$SCRIPT_DIR/verify_workcenter_e2e.sh" ]]; then
   fi
 fi
 
-# 20.20 Baseline (self-contained, optional)
+# 20.21 Baseline (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_baseline_e2e.sh" ]]; then
   if [[ "${RUN_BASELINE_E2E:-0}" == "1" ]]; then
     run_test "Baseline (E2E)" \
@@ -1476,7 +1488,7 @@ if [[ -x "$SCRIPT_DIR/verify_baseline_e2e.sh" ]]; then
   fi
 fi
 
-# 20.21 Baseline Filters (self-contained, optional)
+# 20.22 Baseline Filters (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_baseline_filters_e2e.sh" ]]; then
   if [[ "${RUN_BASELINE_FILTERS_E2E:-0}" == "1" ]]; then
     run_test "Baseline Filters (E2E)" \
@@ -1486,7 +1498,7 @@ if [[ -x "$SCRIPT_DIR/verify_baseline_filters_e2e.sh" ]]; then
   fi
 fi
 
-# 20.22 Effectivity Extended (self-contained, optional)
+# 20.23 Effectivity Extended (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_effectivity_extended_e2e.sh" ]]; then
   if [[ "${RUN_EFFECTIVITY_EXTENDED_E2E:-0}" == "1" ]]; then
     run_test "Effectivity Extended (E2E)" \
@@ -1496,7 +1508,7 @@ if [[ -x "$SCRIPT_DIR/verify_effectivity_extended_e2e.sh" ]]; then
   fi
 fi
 
-# 20.23 BOM Obsolete (self-contained, optional)
+# 20.24 BOM Obsolete (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_obsolete_e2e.sh" ]]; then
   if [[ "${RUN_BOM_OBSOLETE_E2E:-0}" == "1" ]]; then
     run_test "BOM Obsolete (E2E)" \
@@ -1506,7 +1518,7 @@ if [[ -x "$SCRIPT_DIR/verify_bom_obsolete_e2e.sh" ]]; then
   fi
 fi
 
-# 20.24 BOM Weight Rollup (self-contained, optional)
+# 20.25 BOM Weight Rollup (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_weight_rollup_e2e.sh" ]]; then
   if [[ "${RUN_BOM_WEIGHT_ROLLUP_E2E:-0}" == "1" ]]; then
     run_test "BOM Weight Rollup (E2E)" \
