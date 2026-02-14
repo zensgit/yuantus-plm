@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Evidence-grade, API-only verification for Manufacturing MBOM + Routing.
+# Evidence-grade, API-only verification for Manufacturing Routing primary switch + release.
 #
 # Coverage:
-# - build a minimal EBOM (parent -> child)
-# - create MBOM from EBOM via /api/v1/mboms/from-ebom
-# - validate MBOM structure endpoint returns expected child
-# - create routing and add operations
-# - validate routing primary uniqueness + primary switch
-# - validate routing/MBOM release diagnostics + release guardrails
-# - validate operations list ordering
-# - calculate time/cost and validate numeric + expected totals
+# - build a minimal EBOM (parent -> child) and create MBOM
+# - create two routings in the same MBOM scope and validate primary uniqueness behavior
+# - switch primary routing via: PUT /api/v1/routings/{routing_id}/primary
+# - release-diagnostics + release guardrails:
+#   - empty operations -> release-diagnostics errors + release blocked
+#   - inactive workcenter referenced by an operation -> release-diagnostics errors + release blocked
+# - successful routing release + already-released guardrail
 #
 # This script is self-contained: it starts a temporary local server using a
 # fresh SQLite DB + local storage, runs the scenario, and shuts the server down.
@@ -20,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
-OUT_DIR_DEFAULT="${REPO_ROOT}/tmp/verify-mbom-routing/${timestamp}"
+OUT_DIR_DEFAULT="${REPO_ROOT}/tmp/verify-routing-primary-release/${timestamp}"
 OUT_DIR="${OUT_DIR:-$OUT_DIR_DEFAULT}"
 mkdir -p "$OUT_DIR"
 
@@ -61,7 +60,7 @@ ORG_ID="${ORG_ID:-org-1}"
 USERNAME="${USERNAME:-admin}"
 PASSWORD="${PASSWORD:-admin}"
 
-DB_PATH="${DB_PATH:-/tmp/yuantus_verify_mbom_routing_${timestamp}.db}"
+DB_PATH="${DB_PATH:-/tmp/yuantus_verify_routing_primary_release_${timestamp}.db}"
 db_path_norm="${DB_PATH#/}"
 
 STORAGE_DIR="${STORAGE_DIR:-${OUT_DIR}/storage}"
@@ -169,6 +168,9 @@ assert_nonempty "admin.access_token" "$ADMIN_TOKEN"
 admin_header=(-H "Authorization: Bearer ${ADMIN_TOKEN}" -H "x-tenant-id: ${TENANT_ID}" -H "x-org-id: ${ORG_ID}")
 
 ts="$(date +%s)"
+PLANT="PLANT-1"
+LINE="LINE-1"
+WC_CODE="WC-${ts}"
 
 log "Create EBOM parent + child"
 parent_json="${OUT_DIR}/parent_create.json"
@@ -176,7 +178,7 @@ code="$(
   curl -sS -o "$parent_json" -w "%{http_code}" \
     -X POST "${BASE_URL}/api/v1/aml/apply" \
     "${admin_header[@]}" -H 'content-type: application/json' \
-    -d "{\"type\":\"Part\",\"action\":\"add\",\"properties\":{\"item_number\":\"MR-P-${ts}\",\"name\":\"MBOM Routing Parent\"}}"
+    -d "{\"type\":\"Part\",\"action\":\"add\",\"properties\":{\"item_number\":\"RPR-P-${ts}\",\"name\":\"Routing Release Parent\"}}"
 )"
 assert_eq "create parent http_code" "$code" "200"
 PARENT_ID="$(json_get "$parent_json" id)"
@@ -187,97 +189,56 @@ code="$(
   curl -sS -o "$child_json" -w "%{http_code}" \
     -X POST "${BASE_URL}/api/v1/aml/apply" \
     "${admin_header[@]}" -H 'content-type: application/json' \
-    -d "{\"type\":\"Part\",\"action\":\"add\",\"properties\":{\"item_number\":\"MR-C-${ts}\",\"name\":\"MBOM Routing Child\"}}"
+    -d "{\"type\":\"Part\",\"action\":\"add\",\"properties\":{\"item_number\":\"RPR-C-${ts}\",\"name\":\"Routing Release Child\"}}"
 )"
 assert_eq "create child http_code" "$code" "200"
 CHILD_ID="$(json_get "$child_json" id)"
 assert_nonempty "child.id" "$CHILD_ID"
 
 log "Build EBOM (parent -> child)"
-bom_add_json="${OUT_DIR}/bom_add_parent_child.json"
+bom_add_json="${OUT_DIR}/bom_add.json"
 code="$(
   curl -sS -o "$bom_add_json" -w "%{http_code}" \
     -X POST "${BASE_URL}/api/v1/bom/${PARENT_ID}/children" \
     "${admin_header[@]}" -H 'content-type: application/json' \
-    -d "{\"child_id\":\"${CHILD_ID}\",\"quantity\":2,\"uom\":\"EA\"}"
+    -d "{\"child_id\":\"${CHILD_ID}\",\"quantity\":1,\"uom\":\"EA\"}"
 )"
 assert_eq "add parent->child http_code" "$code" "200"
 assert_eq "add parent->child ok" "$(json_get "$bom_add_json" ok)" "True"
 
 log "Create MBOM from EBOM"
-mbom_create_json="${OUT_DIR}/mbom_create_from_ebom.json"
+mbom_create_json="${OUT_DIR}/mbom_create.json"
 code="$(
   curl -sS -o "$mbom_create_json" -w "%{http_code}" \
     -X POST "${BASE_URL}/api/v1/mboms/from-ebom" \
     "${admin_header[@]}" -H 'content-type: application/json' \
-    -d "{\"source_item_id\":\"${PARENT_ID}\",\"name\":\"MBOM-${ts}\"}"
+    -d "{\"source_item_id\":\"${PARENT_ID}\",\"name\":\"MBOM-RPR-${ts}\"}"
 )"
 assert_eq "mbom create http_code" "$code" "200"
 MBOM_ID="$(json_get "$mbom_create_json" id)"
 assert_nonempty "mbom.id" "$MBOM_ID"
 
-"$PY_BIN" - "$mbom_create_json" "$CHILD_ID" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as f:
-  resp = json.load(f)
-structure = resp.get("structure") or {}
-children = structure.get("children") or []
-if len(children) != 1:
-  raise SystemExit(f"expected mbom.structure.children=1, got {len(children)}")
-
-child_item = (children[0] or {}).get("item") or {}
-if child_item.get("id") != sys.argv[2]:
-  raise SystemExit(f"expected child.id={sys.argv[2]}, got {child_item.get('id')}")
-
-print("mbom_create_ok=1")
-PY
-
-log "Get MBOM structure endpoint (expect child exists)"
-mbom_get_json="${OUT_DIR}/mbom_get_structure.json"
+log "Create two routings (primary uniqueness contract)"
+routing_a_json="${OUT_DIR}/routing_a_create.json"
 code="$(
-  curl -sS -o "$mbom_get_json" -w "%{http_code}" \
-    "${BASE_URL}/api/v1/mboms/${MBOM_ID}" \
-    "${admin_header[@]}"
-)"
-assert_eq "mbom get http_code" "$code" "200"
-"$PY_BIN" - "$mbom_get_json" "$CHILD_ID" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as f:
-  struct = json.load(f)
-children = struct.get("children") or []
-if len(children) != 1:
-  raise SystemExit(f"expected mbom.children=1, got {len(children)}")
-child_item = (children[0] or {}).get("item") or {}
-if child_item.get("id") != sys.argv[2]:
-  raise SystemExit(f"expected child.id={sys.argv[2]}, got {child_item.get('id')}")
-print("mbom_get_ok=1")
-PY
-
-log "Create two routings for MBOM (primary uniqueness + switch)"
-routing_a_create_json="${OUT_DIR}/routing_a_create.json"
-code="$(
-  curl -sS -o "$routing_a_create_json" -w "%{http_code}" \
+  curl -sS -o "$routing_a_json" -w "%{http_code}" \
     -X POST "${BASE_URL}/api/v1/routings" \
     "${admin_header[@]}" -H 'content-type: application/json' \
-    -d "{\"name\":\"Routing-A-${ts}\",\"mbom_id\":\"${MBOM_ID}\"}"
+    -d "{\"name\":\"Routing-A-${ts}\",\"mbom_id\":\"${MBOM_ID}\",\"plant_code\":\"${PLANT}\",\"line_code\":\"${LINE}\"}"
 )"
 assert_eq "routing A create http_code" "$code" "200"
-ROUTING_A_ID="$(json_get "$routing_a_create_json" id)"
+ROUTING_A_ID="$(json_get "$routing_a_json" id)"
 assert_nonempty "routing_a.id" "$ROUTING_A_ID"
 
-routing_b_create_json="${OUT_DIR}/routing_b_create.json"
+routing_b_json="${OUT_DIR}/routing_b_create.json"
 code="$(
-  curl -sS -o "$routing_b_create_json" -w "%{http_code}" \
+  curl -sS -o "$routing_b_json" -w "%{http_code}" \
     -X POST "${BASE_URL}/api/v1/routings" \
     "${admin_header[@]}" -H 'content-type: application/json' \
-    -d "{\"name\":\"Routing-B-${ts}\",\"mbom_id\":\"${MBOM_ID}\"}"
+    -d "{\"name\":\"Routing-B-${ts}\",\"mbom_id\":\"${MBOM_ID}\",\"plant_code\":\"${PLANT}\",\"line_code\":\"${LINE}\"}"
 )"
 assert_eq "routing B create http_code" "$code" "200"
-ROUTING_B_ID="$(json_get "$routing_b_create_json" id)"
+ROUTING_B_ID="$(json_get "$routing_b_json" id)"
 assert_nonempty "routing_b.id" "$ROUTING_B_ID"
 
 log "Get routings and verify primary moved to the latest one"
@@ -318,13 +279,11 @@ code="$(
 assert_eq "routing B get after switch http_code" "$code" "200"
 assert_eq "routing B is_primary after switch" "$(json_get "$routing_b_get2" is_primary)" "False"
 
-ROUTING_ID="$ROUTING_A_ID"
-
-log "Routing release diagnostics (expect error: routing_empty_operations)"
+log "Release diagnostics (expect error: routing_empty_operations)"
 diag_empty_ops_json="${OUT_DIR}/routing_release_diag_empty_ops.json"
 code="$(
   curl -sS -o "$diag_empty_ops_json" -w "%{http_code}" \
-    "${BASE_URL}/api/v1/routings/${ROUTING_ID}/release-diagnostics?ruleset_id=default" \
+    "${BASE_URL}/api/v1/routings/${ROUTING_A_ID}/release-diagnostics?ruleset_id=default" \
     "${admin_header[@]}"
 )"
 assert_eq "release diagnostics (empty ops) http_code" "$code" "200"
@@ -346,148 +305,112 @@ log "Release routing (expect blocked; HTTP 400)"
 release_empty_err_json="${OUT_DIR}/routing_release_empty_ops_err.json"
 code="$(
   curl -sS -o "$release_empty_err_json" -w "%{http_code}" \
-    -X PUT "${BASE_URL}/api/v1/routings/${ROUTING_ID}/release?ruleset_id=default" \
+    -X PUT "${BASE_URL}/api/v1/routings/${ROUTING_A_ID}/release?ruleset_id=default" \
     "${admin_header[@]}"
 )"
 assert_eq "release (empty ops) http_code" "$code" "400"
+"$PY_BIN" - "$release_empty_err_json" <<'PY'
+import json
+import sys
 
-log "Add operations"
-op1_json="${OUT_DIR}/routing_op_10_add.json"
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+  resp = json.load(f)
+detail = str(resp.get("detail") or "")
+if "operation" not in detail.lower():
+  raise SystemExit(f"unexpected detail: {detail}")
+print("routing_release_empty_ops_block_ok=1")
+PY
+
+log "Create workcenter and add an operation referencing it"
+wc_create_json="${OUT_DIR}/workcenter_create.json"
+code="$(
+  curl -sS -o "$wc_create_json" -w "%{http_code}" \
+    -X POST "${BASE_URL}/api/v1/workcenters" \
+    "${admin_header[@]}" -H 'content-type: application/json' \
+    -d "{\"code\":\"${WC_CODE}\",\"name\":\"WorkCenter ${ts}\",\"plant_code\":\"${PLANT}\",\"department_code\":\"${LINE}\",\"is_active\":true}"
+)"
+assert_eq "workcenter create http_code" "$code" "200"
+WC_ID="$(json_get "$wc_create_json" id)"
+assert_nonempty "workcenter.id" "$WC_ID"
+
+op1_json="${OUT_DIR}/op10_add.json"
 code="$(
   curl -sS -o "$op1_json" -w "%{http_code}" \
-    -X POST "${BASE_URL}/api/v1/routings/${ROUTING_ID}/operations" \
+    -X POST "${BASE_URL}/api/v1/routings/${ROUTING_A_ID}/operations" \
     "${admin_header[@]}" -H 'content-type: application/json' \
-    -d '{"operation_number":"10","name":"Cut","setup_time":5,"run_time":1}'
+    -d "{\"operation_number\":\"10\",\"name\":\"Cut\",\"workcenter_code\":\"${WC_CODE}\",\"setup_time\":5,\"run_time\":1}"
 )"
 assert_eq "add op10 http_code" "$code" "200"
-OP1_ID="$(json_get "$op1_json" id)"
-assert_nonempty "op10.id" "$OP1_ID"
+assert_eq "op10.workcenter_code" "$(json_get "$op1_json" workcenter_code)" "$WC_CODE"
+assert_nonempty "op10.workcenter_id" "$(json_get "$op1_json" workcenter_id)"
 
-op2_json="${OUT_DIR}/routing_op_20_add.json"
+log "Deactivate workcenter -> release should be blocked by workcenter_inactive"
+wc_deactivate_json="${OUT_DIR}/workcenter_deactivate.json"
 code="$(
-  curl -sS -o "$op2_json" -w "%{http_code}" \
-    -X POST "${BASE_URL}/api/v1/routings/${ROUTING_ID}/operations" \
+  curl -sS -o "$wc_deactivate_json" -w "%{http_code}" \
+    -X PATCH "${BASE_URL}/api/v1/workcenters/${WC_ID}" \
     "${admin_header[@]}" -H 'content-type: application/json' \
-    -d '{"operation_number":"20","name":"Assemble","setup_time":10,"run_time":2}'
+    -d "{\"is_active\":false}"
 )"
-assert_eq "add op20 http_code" "$code" "200"
-OP2_ID="$(json_get "$op2_json" id)"
-assert_nonempty "op20.id" "$OP2_ID"
+assert_eq "workcenter deactivate http_code" "$code" "200"
 
-log "List operations (expect 2, in order)"
-ops_list_json="${OUT_DIR}/routing_ops_list.json"
+diag_inactive_wc_json="${OUT_DIR}/routing_release_diag_inactive_workcenter.json"
 code="$(
-  curl -sS -o "$ops_list_json" -w "%{http_code}" \
-    "${BASE_URL}/api/v1/routings/${ROUTING_ID}/operations" \
+  curl -sS -o "$diag_inactive_wc_json" -w "%{http_code}" \
+    "${BASE_URL}/api/v1/routings/${ROUTING_A_ID}/release-diagnostics?ruleset_id=default" \
     "${admin_header[@]}"
 )"
-assert_eq "list ops http_code" "$code" "200"
-"$PY_BIN" - "$ops_list_json" "$OP1_ID" "$OP2_ID" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as f:
-  ops = json.load(f)
-if not isinstance(ops, list):
-  raise SystemExit("expected list")
-if len(ops) != 2:
-  raise SystemExit(f"expected 2 ops, got {len(ops)}")
-ids = [o.get("id") for o in ops]
-if ids != [sys.argv[2], sys.argv[3]]:
-  raise SystemExit(f"unexpected op order: {ids}")
-seqs = [int(o.get("sequence") or 0) for o in ops]
-if seqs != [10, 20]:
-  raise SystemExit(f"unexpected sequences: {seqs}")
-print("routing_ops_ok=1")
-PY
-
-log "Calculate time (quantity=5; expect total_time=30)"
-time_json="${OUT_DIR}/routing_time_calc.json"
-code="$(
-  curl -sS -o "$time_json" -w "%{http_code}" \
-    -X POST "${BASE_URL}/api/v1/routings/${ROUTING_ID}/calculate-time" \
-    "${admin_header[@]}" -H 'content-type: application/json' \
-    -d '{"quantity":5}'
-)"
-assert_eq "calc time http_code" "$code" "200"
-"$PY_BIN" - "$time_json" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as f:
-  resp = json.load(f)
-total = float(resp.get("total_time") or 0)
-setup = float(resp.get("setup_time") or 0)
-run = float(resp.get("run_time") or 0)
-if total != 30.0 or setup != 15.0 or run != 15.0:
-  raise SystemExit(f"unexpected time totals: total={total} setup={setup} run={run}")
-ops = resp.get("operations") or []
-if len(ops) != 2:
-  raise SystemExit(f"expected 2 ops in time calc, got {len(ops)}")
-print("routing_time_ok=1")
-PY
-
-log "Calculate cost (quantity=5; expect total_cost=40, cost_per_unit=8)"
-cost_json="${OUT_DIR}/routing_cost_calc.json"
-code="$(
-  curl -sS -o "$cost_json" -w "%{http_code}" \
-    -X POST "${BASE_URL}/api/v1/routings/${ROUTING_ID}/calculate-cost" \
-    "${admin_header[@]}" -H 'content-type: application/json' \
-    -d '{"quantity":5}'
-)"
-assert_eq "calc cost http_code" "$code" "200"
-"$PY_BIN" - "$cost_json" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as f:
-  resp = json.load(f)
-total = float(resp.get("total_cost") or 0)
-cpu = float(resp.get("cost_per_unit") or 0)
-labor = float(resp.get("labor_cost") or 0)
-overhead = float(resp.get("overhead_cost") or 0)
-if total != 40.0 or cpu != 8.0 or labor != 25.0 or overhead != 15.0:
-  raise SystemExit(
-    f"unexpected cost: total={total} cpu={cpu} labor={labor} overhead={overhead}"
-  )
-print("routing_cost_ok=1")
-PY
-
-log "MBOM release diagnostics before routing release (expect blocked)"
-mbom_diag_block_json="${OUT_DIR}/mbom_release_diag_blocked.json"
-code="$(
-  curl -sS -o "$mbom_diag_block_json" -w "%{http_code}" \
-    "${BASE_URL}/api/v1/mboms/${MBOM_ID}/release-diagnostics?ruleset_id=default" \
-    "${admin_header[@]}"
-)"
-assert_eq "mbom release diagnostics (blocked) http_code" "$code" "200"
-"$PY_BIN" - "$mbom_diag_block_json" <<'PY'
+assert_eq "release diagnostics (inactive wc) http_code" "$code" "200"
+"$PY_BIN" - "$diag_inactive_wc_json" "$WC_CODE" <<'PY'
 import json
 import sys
 
 with open(sys.argv[1], "r", encoding="utf-8") as f:
   resp = json.load(f)
 if resp.get("ok") is True:
-  raise SystemExit("expected ok=false for mbom without released routing")
+  raise SystemExit("expected ok=false for inactive workcenter")
 codes = [e.get("code") for e in (resp.get("errors") or [])]
-if "mbom_missing_released_routing" not in codes:
-  raise SystemExit(f"expected mbom_missing_released_routing in errors, got: {codes}")
-print("mbom_release_diag_block_ok=1")
+if "workcenter_inactive" not in codes:
+  raise SystemExit(f"expected workcenter_inactive in errors, got: {codes}")
+msgs = [str(e.get("message") or "") for e in (resp.get("errors") or [])]
+if not any(sys.argv[2] in m for m in msgs):
+  raise SystemExit(f"expected workcenter code {sys.argv[2]} in messages, got: {msgs}")
+print("routing_release_diag_inactive_wc_ok=1")
 PY
 
-mbom_release_block_json="${OUT_DIR}/mbom_release_blocked.json"
+release_inactive_err_json="${OUT_DIR}/routing_release_inactive_workcenter_err.json"
 code="$(
-  curl -sS -o "$mbom_release_block_json" -w "%{http_code}" \
-    -X PUT "${BASE_URL}/api/v1/mboms/${MBOM_ID}/release?ruleset_id=default" \
+  curl -sS -o "$release_inactive_err_json" -w "%{http_code}" \
+    -X PUT "${BASE_URL}/api/v1/routings/${ROUTING_A_ID}/release?ruleset_id=default" \
     "${admin_header[@]}"
 )"
-assert_eq "mbom release (blocked) http_code" "$code" "400"
+assert_eq "release (inactive wc) http_code" "$code" "400"
+"$PY_BIN" - "$release_inactive_err_json" <<'PY'
+import json
+import sys
 
-log "Routing release diagnostics (expect ok) + release routing"
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+  resp = json.load(f)
+detail = str(resp.get("detail") or "")
+if "inactive" not in detail.lower():
+  raise SystemExit(f"unexpected detail: {detail}")
+print("routing_release_inactive_wc_block_ok=1")
+PY
+
+log "Reactivate workcenter -> diagnostics ok -> release ok"
+wc_reactivate_json="${OUT_DIR}/workcenter_reactivate.json"
+code="$(
+  curl -sS -o "$wc_reactivate_json" -w "%{http_code}" \
+    -X PATCH "${BASE_URL}/api/v1/workcenters/${WC_ID}" \
+    "${admin_header[@]}" -H 'content-type: application/json' \
+    -d "{\"is_active\":true}"
+)"
+assert_eq "workcenter reactivate http_code" "$code" "200"
+
 diag_ok_json="${OUT_DIR}/routing_release_diag_ok.json"
 code="$(
   curl -sS -o "$diag_ok_json" -w "%{http_code}" \
-    "${BASE_URL}/api/v1/routings/${ROUTING_ID}/release-diagnostics?ruleset_id=default" \
+    "${BASE_URL}/api/v1/routings/${ROUTING_A_ID}/release-diagnostics?ruleset_id=default" \
     "${admin_header[@]}"
 )"
 assert_eq "release diagnostics (ok) http_code" "$code" "200"
@@ -505,44 +428,34 @@ if errors:
 print("routing_release_diag_ok=1")
 PY
 
-routing_release_ok_json="${OUT_DIR}/routing_release_ok.json"
+release_ok_json="${OUT_DIR}/routing_release_ok.json"
 code="$(
-  curl -sS -o "$routing_release_ok_json" -w "%{http_code}" \
-    -X PUT "${BASE_URL}/api/v1/routings/${ROUTING_ID}/release?ruleset_id=default" \
+  curl -sS -o "$release_ok_json" -w "%{http_code}" \
+    -X PUT "${BASE_URL}/api/v1/routings/${ROUTING_A_ID}/release?ruleset_id=default" \
     "${admin_header[@]}"
 )"
-assert_eq "routing release ok http_code" "$code" "200"
-assert_eq "routing.state after release" "$(json_get "$routing_release_ok_json" state)" "released"
+assert_eq "release ok http_code" "$code" "200"
+assert_eq "routing.state after release" "$(json_get "$release_ok_json" state)" "released"
 
-log "MBOM release diagnostics after routing release (expect ok) + release MBOM"
-mbom_diag_ok_json="${OUT_DIR}/mbom_release_diag_ok.json"
+log "Release already-released routing (expect blocked; HTTP 400)"
+release_again_err_json="${OUT_DIR}/routing_release_again_err.json"
 code="$(
-  curl -sS -o "$mbom_diag_ok_json" -w "%{http_code}" \
-    "${BASE_URL}/api/v1/mboms/${MBOM_ID}/release-diagnostics?ruleset_id=default" \
+  curl -sS -o "$release_again_err_json" -w "%{http_code}" \
+    -X PUT "${BASE_URL}/api/v1/routings/${ROUTING_A_ID}/release?ruleset_id=default" \
     "${admin_header[@]}"
 )"
-assert_eq "mbom release diagnostics (ok) http_code" "$code" "200"
-"$PY_BIN" - "$mbom_diag_ok_json" <<'PY'
+assert_eq "release again http_code" "$code" "400"
+"$PY_BIN" - "$release_again_err_json" <<'PY'
 import json
 import sys
 
 with open(sys.argv[1], "r", encoding="utf-8") as f:
   resp = json.load(f)
-if resp.get("ok") is not True:
-  raise SystemExit(f"expected ok=true, got ok={resp.get('ok')}")
-errors = resp.get("errors") or []
-if errors:
-  raise SystemExit(f"expected no errors, got: {[e.get('code') for e in errors]}")
-print("mbom_release_diag_ok=1")
+detail = str(resp.get("detail") or "")
+if "already" not in detail.lower():
+  raise SystemExit(f"unexpected detail: {detail}")
+print("routing_release_already_released_block_ok=1")
 PY
 
-mbom_release_ok_json="${OUT_DIR}/mbom_release_ok.json"
-code="$(
-  curl -sS -o "$mbom_release_ok_json" -w "%{http_code}" \
-    -X PUT "${BASE_URL}/api/v1/mboms/${MBOM_ID}/release?ruleset_id=default" \
-    "${admin_header[@]}"
-)"
-assert_eq "mbom release ok http_code" "$code" "200"
-assert_eq "mbom.state after release" "$(json_get "$mbom_release_ok_json" state)" "released"
+log "PASS: Routing primary + release API E2E verification"
 
-log "PASS: MBOM + Routing API E2E verification"

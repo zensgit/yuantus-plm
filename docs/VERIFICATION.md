@@ -2464,6 +2464,10 @@ RUN_BASELINE_FILTERS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tena
 - 创建 MBOM：`POST /api/v1/mboms/from-ebom`
 - 校验 MBOM 结构：`GET /api/v1/mboms/{mbom_id}`
 - 创建 routing + operations：`POST /api/v1/routings`、`POST /api/v1/routings/{id}/operations`
+- 主路线切换 + release 校验：
+  - primary switch：`PUT /api/v1/routings/{id}/primary`
+  - routing release-diagnostics + release：`GET /api/v1/routings/{id}/release-diagnostics`、`PUT /api/v1/routings/{id}/release`
+  - mbom release-diagnostics + release：`GET /api/v1/mboms/{id}/release-diagnostics`、`PUT /api/v1/mboms/{id}/release`
 - 时间/成本计算：`POST /api/v1/routings/{id}/calculate-time`、`POST /api/v1/routings/{id}/calculate-cost`
 
 运行方式：
@@ -2503,6 +2507,31 @@ RUN_WORKCENTER_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 o
 
 - `tmp/verify-workcenter/<timestamp>/...json`（health/login/workcenters/routing 等证据）
 - `tmp/verify-workcenter/<timestamp>/server.log`
+
+### 26.2.17 Routing Primary+Release（可选自包含 API-only E2E）
+
+该验证用于覆盖 Manufacturing Routing 的主路线切换与 release 校验（无需 docker compose）：
+
+- primary uniqueness（同一 scope 仅一个 `is_primary=true`）
+- 主路线切换：`PUT /api/v1/routings/{id}/primary`
+- release-diagnostics：`GET /api/v1/routings/{id}/release-diagnostics`
+- release：`PUT /api/v1/routings/{id}/release`
+- workcenter guardrail（release 时校验 operation 引用的 workcenter 仍为 active）
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_routing_primary_release_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_ROUTING_PRIMARY_RELEASE_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-routing-primary-release/<timestamp>/...json`（health/login/mbom/routing/release-diagnostics 等证据）
+- `tmp/verify-routing-primary-release/<timestamp>/server.log`
 
 ### 26.3 测试套件
 
@@ -2555,7 +2584,8 @@ RUN_WORKCENTER_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 o
 | MBOM Convert (E2E) | `verify_mbom_convert_e2e.sh` | EBOM → MBOM 转换（含 substitutes 复制）自包含验证 |
 | Baseline (E2E) | `verify_baseline_e2e.sh` | Baseline 快照与对比（baseline vs current + baseline-to-baseline）自包含验证 |
 | Baseline Filters (E2E) | `verify_baseline_filters_e2e.sh` | Baseline list filters（type/scope/state + effective range）自包含验证 |
-| MBOM + Routing (E2E) | `verify_mbom_routing_e2e.sh` | Manufacturing MBOM + Routing（operations + time/cost）自包含验证 |
+| MBOM + Routing (E2E) | `verify_mbom_routing_e2e.sh` | Manufacturing MBOM + Routing（operations + time/cost + release）自包含验证 |
+| Routing Primary+Release (E2E) | `verify_routing_primary_release_e2e.sh` | Routing 主路线切换 + release-diagnostics/release guardrails 自包含验证 |
 | WorkCenter (E2E) | `verify_workcenter_e2e.sh` | Manufacturing WorkCenter（workcenter CRUD + routing operation guardrails）自包含验证 |
 | Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
@@ -2586,6 +2616,7 @@ RUN_WORKCENTER_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 o
 > `Baseline (E2E)` 需要设置 `RUN_BASELINE_E2E=1`（或直接运行 `scripts/verify_baseline_e2e.sh`）。
 > `Baseline Filters (E2E)` 需要设置 `RUN_BASELINE_FILTERS_E2E=1`（或直接运行 `scripts/verify_baseline_filters_e2e.sh`）。
 > `MBOM + Routing (E2E)` 需要设置 `RUN_MBOM_ROUTING_E2E=1`（或直接运行 `scripts/verify_mbom_routing_e2e.sh`）。
+> `Routing Primary+Release (E2E)` 需要设置 `RUN_ROUTING_PRIMARY_RELEASE_E2E=1`（或直接运行 `scripts/verify_routing_primary_release_e2e.sh`）。
 > `WorkCenter (E2E)` 需要设置 `RUN_WORKCENTER_E2E=1`（或直接运行 `scripts/verify_workcenter_e2e.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
