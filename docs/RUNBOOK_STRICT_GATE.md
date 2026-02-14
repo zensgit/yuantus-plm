@@ -17,6 +17,8 @@
 - `pytest (targeted)`：可选（由 `TARGETED_PYTEST_ARGS` 决定）
 - `pytest (non-DB)`：默认全量 non-DB 测试
 - `pytest (DB)`：默认全量 DB 测试（由 `YUANTUS_PYTEST_DB=1` 控制）
+- `verify_run_h_e2e`：可选（由 `RUN_RUN_H_E2E=1` 控制；Run H 自包含 API-only E2E）
+- `verify_identity_only_migrations`：可选（由 `RUN_IDENTITY_ONLY_MIGRATIONS_E2E=1` 控制；Identity-only migrations 契约）
 - `demo_plm_closed_loop`：可选（由 `DEMO_SCRIPT=1` 控制）
 - `playwright`：默认执行 `npx playwright test`（主要是 API-only 断言）
 
@@ -57,6 +59,13 @@ TARGETED_PYTEST_ARGS='src/yuantus/meta_engine/tests/test_perf_gate_config_file.p
 
 ```bash
 DEMO_SCRIPT=1 bash scripts/strict_gate_report.sh
+```
+
+- 开启 Shell E2E（Run H + identity-only migrations）：
+
+```bash
+RUN_RUN_H_E2E=1 RUN_IDENTITY_ONLY_MIGRATIONS_E2E=1 \
+  bash scripts/strict_gate_report.sh
 ```
 
 - 只跑某个 Playwright spec：

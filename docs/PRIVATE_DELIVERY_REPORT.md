@@ -76,7 +76,10 @@ yuantus db history          # 查看迁移历史
 
 **CLI 支持**：
 ```bash
-# 指向 identity DB 运行迁移
+# 推荐：identity-only migrations（auth + audit only）
+yuantus db upgrade --identity-only
+
+# 兼容：对 identity DB 运行“全量 schema”迁移（legacy behavior）
 yuantus db upgrade --identity
 
 # 或者直接指定 URL
@@ -91,6 +94,16 @@ YUANTUS_IDENTITY_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@postgres:543
 > 说明：当前迁移为“全量 schema”，若未来需要 identity-only 迁移，可另建独立迁移配置。
 > 说明（更新）：已支持 identity-only migrations（auth + audit only）：
 > `yuantus db upgrade --identity-only`（使用 `alembic.identity.ini` + `migrations_identity/`）。
+
+Compose 行为：
+
+- 默认使用 identity-only migrations（推荐）。
+- 如需 legacy 行为（对 identity DB 跑全量 schema migrations），可设置：
+
+```bash
+export YUANTUS_IDENTITY_MIGRATIONS_MODE=full
+docker compose up -d --build
+```
 
 **已有表但无 alembic_version 的处理**：
 ```bash

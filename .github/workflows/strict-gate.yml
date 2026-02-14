@@ -55,6 +55,8 @@ jobs:
           RUN_ID: STRICT_GATE_CI_${{ github.run_id }}
           OUT_DIR: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}
           REPORT_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md
+          RUN_RUN_H_E2E: "1"
+          RUN_IDENTITY_ONLY_MIGRATIONS_E2E: "1"
         run: |
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.run_demo }}" == "true" ]]; then

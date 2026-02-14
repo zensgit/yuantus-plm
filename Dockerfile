@@ -22,7 +22,9 @@ COPY requirements.lock ./
 COPY src/ ./src/
 COPY plugins/ ./plugins/
 COPY alembic.ini ./
+COPY alembic.identity.ini ./
 COPY migrations/ ./migrations/
+COPY migrations_identity/ ./migrations_identity/
 COPY vendor/wheels/ /wheels/
 
 # Install dependencies (non-editable for production)
