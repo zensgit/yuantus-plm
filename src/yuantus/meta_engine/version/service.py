@@ -5,6 +5,7 @@ Manages Item revisions, generations, checkouts, and history.
 
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+import copy
 import uuid
 
 from sqlalchemy.orm import Session
@@ -63,7 +64,7 @@ class VersionService:
             is_current=True,
             is_released=False,
             # Snapshot current properties
-            properties=item.properties,
+            properties=copy.deepcopy(item.properties) if item.properties else None,
             created_by_id=user_id,
             created_at=datetime.utcnow(),
         )
@@ -149,14 +150,16 @@ class VersionService:
 
         # Update properties if provided
         if properties:
-            current_props = version.properties or {}
+            # Important: JSON columns are not mutable-tracked by default; ensure we
+            # assign a fresh object so SQLAlchemy will persist the change.
+            current_props = copy.deepcopy(version.properties or {})
             current_props.update(properties)
             version.properties = current_props
 
             # Only update Item Master if we are checking in the CURRENT version
             # If checking in a branch, do NOT update item master properties yet
             if item.current_version_id == version.id:
-                item_props = item.properties or {}
+                item_props = copy.deepcopy(item.properties or {})
                 item_props.update(properties)
                 item.properties = item_props
 
@@ -236,9 +239,9 @@ class VersionService:
         new_ver_id = str(uuid.uuid4())
 
         # Merge properties: Target + Source (Source overwrites Target)
-        merged_props = target_ver.properties or {}
+        merged_props = copy.deepcopy(target_ver.properties or {})
         if source_ver.properties:
-            merged_props.update(source_ver.properties)
+            merged_props.update(copy.deepcopy(source_ver.properties))
 
         new_ver = ItemVersion(
             id=new_ver_id,
@@ -250,7 +253,7 @@ class VersionService:
             is_current=target_ver.is_current,  # Inherit current status (if target was current, new one becomes current)
             is_released=False,
             predecessor_id=target_ver.id,
-            properties=merged_props,
+            properties=copy.deepcopy(merged_props) if merged_props else None,
             created_by_id=user_id,
             created_at=datetime.utcnow(),
         )
@@ -261,7 +264,7 @@ class VersionService:
             item = self.session.query(Item).get(item_id)
             item.current_version_id = new_ver_id
             # Also sync item properties
-            item.properties = merged_props
+            item.properties = copy.deepcopy(merged_props) if merged_props else None
 
         self.session.add(new_ver)
         self.session.add(target_ver)
@@ -299,7 +302,9 @@ class VersionService:
             is_current=True,
             is_released=False,
             predecessor_id=current_ver.id,
-            properties=current_ver.properties,  # Copy props
+            properties=copy.deepcopy(current_ver.properties)
+            if current_ver.properties
+            else None,  # Snapshot props
             created_by_id=user_id,
             created_at=datetime.utcnow(),
         )
@@ -347,7 +352,9 @@ class VersionService:
             is_current=True,
             is_released=False,
             predecessor_id=current_ver.id,
-            properties=current_ver.properties,
+            properties=copy.deepcopy(current_ver.properties)
+            if current_ver.properties
+            else None,  # Snapshot props
             created_by_id=user_id,
             created_at=datetime.utcnow(),
         )
@@ -633,7 +640,7 @@ class VersionService:
             is_current=False,  # Branches are usually not "Current" main line immediately
             is_released=False,
             predecessor_id=source_ver.id,
-            properties=source_ver.properties,
+            properties=copy.deepcopy(source_ver.properties) if source_ver.properties else None,
             created_by_id=user_id,
             created_at=datetime.utcnow(),
         )
@@ -747,7 +754,9 @@ class IterationService:
             iteration_number=next_number,
             iteration_label=f"{version.version_label}.{next_number}",
             is_latest=True,
-            properties=properties or version.properties,
+            properties=copy.deepcopy(properties)
+            if properties is not None
+            else copy.deepcopy(version.properties or {}),
             description=description,
             source_type=source_type,
             created_by_id=user_id,
