@@ -48,6 +48,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_bom_obsolete_e2e.sh",
         scripts_dir / "verify_bom_weight_rollup_e2e.sh",
         scripts_dir / "verify_bom_compare_e2e.sh",
+        scripts_dir / "verify_bom_effectivity_e2e.sh",
         scripts_dir / "verify_bom_substitutes_e2e.sh",
         scripts_dir / "verify_mbom_convert_e2e.sh",
         scripts_dir / "verify_mbom_routing_e2e.sh",
