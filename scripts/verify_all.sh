@@ -38,6 +38,7 @@ RUN_WHERE_USED_E2E="${RUN_WHERE_USED_E2E:-0}"
 RUN_BOM_COMPARE_E2E="${RUN_BOM_COMPARE_E2E:-0}"
 RUN_BOM_SUBSTITUTES_E2E="${RUN_BOM_SUBSTITUTES_E2E:-0}"
 RUN_MBOM_CONVERT_E2E="${RUN_MBOM_CONVERT_E2E:-0}"
+RUN_MBOM_ROUTING_E2E="${RUN_MBOM_ROUTING_E2E:-0}"
 RUN_BASELINE_E2E="${RUN_BASELINE_E2E:-0}"
 RUN_BASELINE_FILTERS_E2E="${RUN_BASELINE_FILTERS_E2E:-0}"
 MT_RESET="${MT_RESET:-0}"
@@ -186,6 +187,7 @@ echo "RUN_WHERE_USED_E2E: $RUN_WHERE_USED_E2E"
 echo "RUN_BOM_COMPARE_E2E: $RUN_BOM_COMPARE_E2E"
 echo "RUN_BOM_SUBSTITUTES_E2E: $RUN_BOM_SUBSTITUTES_E2E"
 echo "RUN_MBOM_CONVERT_E2E: $RUN_MBOM_CONVERT_E2E"
+echo "RUN_MBOM_ROUTING_E2E: $RUN_MBOM_ROUTING_E2E"
 echo "RUN_BASELINE_E2E: $RUN_BASELINE_E2E"
 echo "RUN_BASELINE_FILTERS_E2E: $RUN_BASELINE_FILTERS_E2E"
 echo "MT_RESET: $MT_RESET"
@@ -1364,7 +1366,17 @@ if [[ -x "$SCRIPT_DIR/verify_mbom_convert_e2e.sh" ]]; then
   fi
 fi
 
-# 20.12 Baseline (self-contained, optional)
+# 20.12 MBOM + Routing (self-contained, optional)
+if [[ -x "$SCRIPT_DIR/verify_mbom_routing_e2e.sh" ]]; then
+  if [[ "${RUN_MBOM_ROUTING_E2E:-0}" == "1" ]]; then
+    run_test "MBOM + Routing (E2E)" \
+      "$SCRIPT_DIR/verify_mbom_routing_e2e.sh" || true
+  else
+    skip_test "MBOM + Routing (E2E)" "RUN_MBOM_ROUTING_E2E=0"
+  fi
+fi
+
+# 20.13 Baseline (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_baseline_e2e.sh" ]]; then
   if [[ "${RUN_BASELINE_E2E:-0}" == "1" ]]; then
     run_test "Baseline (E2E)" \
@@ -1374,7 +1386,7 @@ if [[ -x "$SCRIPT_DIR/verify_baseline_e2e.sh" ]]; then
   fi
 fi
 
-# 20.13 Baseline Filters (self-contained, optional)
+# 20.14 Baseline Filters (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_baseline_filters_e2e.sh" ]]; then
   if [[ "${RUN_BASELINE_FILTERS_E2E:-0}" == "1" ]]; then
     run_test "Baseline Filters (E2E)" \
@@ -1419,7 +1431,7 @@ echo ""
 printf "%-25s %s\n" "Test Suite" "Result"
 printf "%-25s %s\n" "-------------------------" "------"
 
-for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "Lifecycle Suspended" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "Effectivity Extended" "BOM Obsolete" "BOM Weight Rollup" "S12 (Config Variants)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "CAD Dedup Vision (S3)" "CAD Dedup Relationship (S3)" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "UI Product Detail" "UI Product Summary" "UI Where-Used" "UI BOM" "UI Docs Approval" "UI Docs ECO Summary" "BOM Compare" "Baseline" "Baseline Filters" "BOM Substitutes" "MBOM Convert" "Release Orchestration (E2E)" "E-Sign (API)" "Dedup Management (E2E)" "Quota Enforcement (E2E)" "Platform Tenant Provisioning (E2E)" "Item Equivalents (E2E)" "Version-File Binding (E2E)" "Where-Used API (E2E)" "BOM Compare (E2E)" "BOM Substitutes (E2E)" "MBOM Convert (E2E)" "Baseline (E2E)" "Baseline Filters (E2E)" "Item Equivalents" "Version-File Binding"; do
+for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "Lifecycle Suspended" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "Effectivity Extended" "BOM Obsolete" "BOM Weight Rollup" "S12 (Config Variants)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "CAD Dedup Vision (S3)" "CAD Dedup Relationship (S3)" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "UI Product Detail" "UI Product Summary" "UI Where-Used" "UI BOM" "UI Docs Approval" "UI Docs ECO Summary" "BOM Compare" "Baseline" "Baseline Filters" "BOM Substitutes" "MBOM Convert" "Release Orchestration (E2E)" "E-Sign (API)" "Dedup Management (E2E)" "Quota Enforcement (E2E)" "Platform Tenant Provisioning (E2E)" "Item Equivalents (E2E)" "Version-File Binding (E2E)" "Where-Used API (E2E)" "BOM Compare (E2E)" "BOM Substitutes (E2E)" "MBOM Convert (E2E)" "MBOM + Routing (E2E)" "Baseline (E2E)" "Baseline Filters (E2E)" "Item Equivalents" "Version-File Binding"; do
   result="${RESULTS[$name]:-N/A}"
   case "$result" in
     PASS) printf "%-25s ${GREEN}%s${NC}\n" "$name" "$result" ;;

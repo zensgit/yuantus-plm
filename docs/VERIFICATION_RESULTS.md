@@ -140,6 +140,25 @@
   - type/scope/state filters: `ok`
   - effective date range filters: `ok`
 
+## 2026-02-14 MBOM + Routing API-only E2E (PASS)
+
+- Scope:
+  - build a minimal EBOM (parent -> child)
+  - create MBOM from EBOM: `POST /api/v1/mboms/from-ebom`
+  - validate MBOM structure: `GET /api/v1/mboms/{mbom_id}`
+  - create routing + operations: `POST /api/v1/routings`, `POST /api/v1/routings/{id}/operations`
+  - calculate time/cost: `POST /api/v1/routings/{id}/calculate-time`, `POST /api/v1/routings/{id}/calculate-cost`
+- Command:
+  - `bash scripts/verify_mbom_routing_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_mbom_routing_e2e_20260214-105622.log`
+  - Payloads: `tmp/verify-mbom-routing/20260214-105622/`
+- Result:
+  - MBOM child count: `1`
+  - ops: `2` (sequence `10,20`)
+  - time (qty=5): `total_time=30`, `setup_time=15`, `run_time=15`
+  - cost (qty=5): `total_cost=40`, `cost_per_unit=8`
+
 ## 2026-02-13 Release Orchestration Script + E-sign Gate (PASS)
 
 - Scope:
