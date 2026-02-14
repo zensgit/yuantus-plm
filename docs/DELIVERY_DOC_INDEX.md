@@ -73,6 +73,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
 - Baseline Filters API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`
 - BOM Compare API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_COMPARE_E2E_20260214.md`
+- BOM Effectivity API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_EFFECTIVITY_E2E_20260214.md`
 - BOM Obsolete API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_OBSOLETE_E2E_20260214.md`
 - BOM Substitutes API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_SUBSTITUTES_E2E_20260214.md`
 - BOM Weight Rollup API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_WEIGHT_ROLLUP_E2E_20260214.md`

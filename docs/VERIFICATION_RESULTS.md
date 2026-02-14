@@ -89,6 +89,29 @@
 - Result:
   - list substitutes: `1` -> `2` -> duplicate add `400` -> delete 1 -> remaining `1`
 
+## 2026-02-14 BOM Effectivity API-only E2E (PASS)
+
+- Scope:
+  - build BOM lines with `effectivity_from/to` and query different dates:
+    - `POST /api/v1/bom/{item_id}/children`
+    - `GET /api/v1/bom/{item_id}/effective?date=...`
+  - RBAC:
+    - viewer add BOM child -> `403`
+    - viewer read effective BOM -> `200`
+  - delete BOM relationship and validate effective results update:
+    - `DELETE /api/v1/bom/{parent_id}/children/{child_id}`
+- Command:
+  - `bash scripts/verify_bom_effectivity_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_bom_effectivity_e2e_20260214-145202.log`
+  - Payloads: `tmp/verify-bom-effectivity/20260214-145202/`
+- Result:
+  - TODAY: `C only`
+  - NEXT_WEEK: `B + C`
+  - LAST_WEEK: `C + D`
+  - RBAC: `403` (add) + `200` (read)
+  - delete A->B: NEXT_WEEK becomes `C only`
+
 ## 2026-02-14 Effectivity Extended (Lot/Serial) API-only E2E (PASS)
 
 - Scope:
