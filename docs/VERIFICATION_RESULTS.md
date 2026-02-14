@@ -159,6 +159,26 @@
   - time (qty=5): `total_time=30`, `setup_time=15`, `run_time=15`
   - cost (qty=5): `total_cost=40`, `cost_per_unit=8`
 
+## 2026-02-14 WorkCenter API-only E2E (PASS)
+
+- Scope:
+  - workcenter CRUD:
+    - create/list/get/update via `POST/GET/PATCH /api/v1/workcenters`
+  - routing integration:
+    - create MBOM + routing
+    - add operation with `workcenter_code` (should resolve `workcenter_id`)
+  - guardrail:
+    - inactive workcenter cannot be assigned to operations (HTTP `400`)
+- Command:
+  - `bash scripts/verify_workcenter_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_workcenter_e2e_20260214-110913.log`
+  - Payloads: `tmp/verify-workcenter/20260214-110913/`
+- Result:
+  - list contains created workcenter: `ok`
+  - operation resolved workcenter_code: `ok`
+  - inactive guardrail: `400` + `detail` contains `inactive`
+
 ## 2026-02-13 Release Orchestration Script + E-sign Gate (PASS)
 
 - Scope:
