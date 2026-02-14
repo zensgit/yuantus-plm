@@ -73,7 +73,9 @@ This index aggregates all delivery‑related documents for private deployments.
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
 - Baseline Filters API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`
 - BOM Compare API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_COMPARE_E2E_20260214.md`
+- BOM Obsolete API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_OBSOLETE_E2E_20260214.md`
 - BOM Substitutes API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_SUBSTITUTES_E2E_20260214.md`
+- BOM Weight Rollup API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_WEIGHT_ROLLUP_E2E_20260214.md`
 - CAD Dedup (SimilarityRecord -> Part Equivalent) (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
 - CAD Dedup Vision (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_VISION_S3_PG_MINIO_20260212.md`
 - CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`
@@ -106,6 +108,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Dedup Management API-only E2E Verification: `docs/DEV_AND_VERIFICATION_DEDUP_MANAGEMENT_E2E_20260213.md`
 - Delivery Doc Index (Ops Runbooks + Link Contract): `docs/DEV_AND_VERIFICATION_DELIVERY_DOC_INDEX_RUNBOOKS_20260210.md`
 - Demo PLM Closed Loop Script: `docs/DEV_AND_VERIFICATION_DEMO_PLM_CLOSED_LOOP_20260207.md`
+- Effectivity Extended (Lot/Serial) API-only E2E Verification: `docs/DEV_AND_VERIFICATION_EFFECTIVITY_EXTENDED_E2E_20260214.md`
 - E-sign API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ESIGN_API_E2E_20260213.md`
 - Export Bundles (Impact + Release Readiness): `docs/DEV_AND_VERIFICATION_EXPORT_BUNDLES_IMPACT_READINESS_20260207.md`
 - Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`

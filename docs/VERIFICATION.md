@@ -2587,6 +2587,82 @@ RUN_ROUTING_COPY_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1
 - `tmp/verify-routing-copy/<timestamp>/...json`（health/login/mbom/routing/copy 等证据）
 - `tmp/verify-routing-copy/<timestamp>/server.log`
 
+### 26.2.20 Effectivity Extended（可选自包含 API-only E2E）
+
+该验证用于覆盖 BOM 生效性扩展（Lot/Serial）的最小闭环（无需 docker compose）：
+
+- create effectivities：`POST /api/v1/effectivities`（Lot/Serial）
+- query effective BOM：`GET /api/v1/bom/{item_id}/effective?lot_number=...&serial_number=...`
+- contract：
+  - lot/serial 匹配时可见对应子件
+  - lot/serial 均不匹配时子件被过滤
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_effectivity_extended_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_EFFECTIVITY_EXTENDED_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-effectivity-extended/<timestamp>/...json`（health/login/bom/effectivities/effective 等证据）
+- `tmp/verify-effectivity-extended/<timestamp>/server.log`
+
+### 26.2.21 BOM Obsolete（可选自包含 API-only E2E）
+
+该验证用于覆盖 BOM obsolete scan + resolve 的最小闭环（无需 docker compose）：
+
+- scan obsolete：`GET /api/v1/bom/{item_id}/obsolete`
+- resolve：
+  - update mode：`POST /api/v1/bom/{item_id}/obsolete/resolve`（`mode=update`）
+  - new_bom mode：`POST /api/v1/bom/{item_id}/obsolete/resolve`（`mode=new_bom`）
+- contract：
+  - scan count 从 `1 -> 0`
+  - resolve 后 child 被替换为 `replacement_id`
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_bom_obsolete_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_BOM_OBSOLETE_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-bom-obsolete/<timestamp>/...json`（health/login/obsolete scan/resolve/tree 等证据）
+- `tmp/verify-bom-obsolete/<timestamp>/server.log`
+
+### 26.2.22 BOM Weight Rollup（可选自包含 API-only E2E）
+
+该验证用于覆盖 BOM weight rollup 的最小闭环（无需 docker compose）：
+
+- rollup weight：`POST /api/v1/bom/{item_id}/rollup/weight`
+- contract：
+  - total_weight 等于 `sum(child_weight * qty)`
+  - write_back 在 parent 缺失时写回 `weight_rollup`
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_bom_weight_rollup_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_BOM_WEIGHT_ROLLUP_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-bom-weight-rollup/<timestamp>/...json`（health/login/bom rollup/aml get 等证据）
+- `tmp/verify-bom-weight-rollup/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2633,6 +2709,9 @@ RUN_ROUTING_COPY_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1
 | Item Equivalents (E2E) | `verify_item_equivalents.sh` | Part 等效件（add/list/delete + guardrails）自包含验证 |
 | Version-File Binding (E2E) | `verify_version_file_binding.sh` | checkout/file lock + VersionFile 绑定自包含验证 |
 | Where-Used API (E2E) | `verify_where_used_e2e.sh` | Where-Used（反向 BOM 查询：direct + recursive + level）自包含验证 |
+| Effectivity Extended (E2E) | `verify_effectivity_extended_e2e.sh` | Effectivity（Lot/Serial）过滤自包含验证 |
+| BOM Obsolete (E2E) | `verify_bom_obsolete_e2e.sh` | BOM obsolete scan + resolve（update/new_bom）自包含验证 |
+| BOM Weight Rollup (E2E) | `verify_bom_weight_rollup_e2e.sh` | BOM weight rollup（write_back）自包含验证 |
 | BOM Compare (E2E) | `verify_bom_compare_e2e.sh` | BOM Compare（差异对比：effectivity/substitutes + compare_mode 变体）自包含验证 |
 | BOM Substitutes (E2E) | `verify_bom_substitutes_e2e.sh` | BOM substitutes（add/list/delete + guardrails）自包含验证 |
 | MBOM Convert (E2E) | `verify_mbom_convert_e2e.sh` | EBOM → MBOM 转换（含 substitutes 复制）自包含验证 |
@@ -2666,6 +2745,9 @@ RUN_ROUTING_COPY_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1
 > `Item Equivalents (E2E)` 需要设置 `RUN_ITEM_EQUIVALENTS_E2E=1`（或直接运行 `scripts/verify_item_equivalents.sh`）。
 > `Version-File Binding (E2E)` 需要设置 `RUN_VERSION_FILE_BINDING_E2E=1`（或直接运行 `scripts/verify_version_file_binding.sh`）。
 > `Where-Used API (E2E)` 需要设置 `RUN_WHERE_USED_E2E=1`（或直接运行 `scripts/verify_where_used_e2e.sh`）。
+> `Effectivity Extended (E2E)` 需要设置 `RUN_EFFECTIVITY_EXTENDED_E2E=1`（或直接运行 `scripts/verify_effectivity_extended_e2e.sh`）。
+> `BOM Obsolete (E2E)` 需要设置 `RUN_BOM_OBSOLETE_E2E=1`（或直接运行 `scripts/verify_bom_obsolete_e2e.sh`）。
+> `BOM Weight Rollup (E2E)` 需要设置 `RUN_BOM_WEIGHT_ROLLUP_E2E=1`（或直接运行 `scripts/verify_bom_weight_rollup_e2e.sh`）。
 > `BOM Compare (E2E)` 需要设置 `RUN_BOM_COMPARE_E2E=1`（或直接运行 `scripts/verify_bom_compare_e2e.sh`）。
 > `BOM Substitutes (E2E)` 需要设置 `RUN_BOM_SUBSTITUTES_E2E=1`（或直接运行 `scripts/verify_bom_substitutes_e2e.sh`）。
 > `MBOM Convert (E2E)` 需要设置 `RUN_MBOM_CONVERT_E2E=1`（或直接运行 `scripts/verify_mbom_convert_e2e.sh`）。
