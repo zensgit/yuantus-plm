@@ -35,6 +35,7 @@ RUN_PLATFORM_TENANT_PROV="${RUN_PLATFORM_TENANT_PROV:-0}"
 RUN_ITEM_EQUIVALENTS_E2E="${RUN_ITEM_EQUIVALENTS_E2E:-0}"
 RUN_VERSION_FILE_BINDING_E2E="${RUN_VERSION_FILE_BINDING_E2E:-0}"
 RUN_WHERE_USED_E2E="${RUN_WHERE_USED_E2E:-0}"
+RUN_BOM_TREE_E2E="${RUN_BOM_TREE_E2E:-0}"
 RUN_BOM_EFFECTIVITY_E2E="${RUN_BOM_EFFECTIVITY_E2E:-0}"
 RUN_EFFECTIVITY_EXTENDED_E2E="${RUN_EFFECTIVITY_EXTENDED_E2E:-0}"
 RUN_BOM_OBSOLETE_E2E="${RUN_BOM_OBSOLETE_E2E:-0}"
@@ -192,6 +193,7 @@ echo "RUN_PLATFORM_TENANT_PROV: $RUN_PLATFORM_TENANT_PROV"
 echo "RUN_ITEM_EQUIVALENTS_E2E: $RUN_ITEM_EQUIVALENTS_E2E"
 echo "RUN_VERSION_FILE_BINDING_E2E: $RUN_VERSION_FILE_BINDING_E2E"
 echo "RUN_WHERE_USED_E2E: $RUN_WHERE_USED_E2E"
+echo "RUN_BOM_TREE_E2E: $RUN_BOM_TREE_E2E"
 echo "RUN_BOM_EFFECTIVITY_E2E: $RUN_BOM_EFFECTIVITY_E2E"
 echo "RUN_EFFECTIVITY_EXTENDED_E2E: $RUN_EFFECTIVITY_EXTENDED_E2E"
 echo "RUN_BOM_OBSOLETE_E2E: $RUN_BOM_OBSOLETE_E2E"
@@ -1352,7 +1354,17 @@ if [[ -x "$SCRIPT_DIR/verify_where_used_e2e.sh" ]]; then
   fi
 fi
 
-# 20.9 BOM Effectivity (self-contained, optional)
+# 20.9 BOM Tree (self-contained, optional)
+if [[ -x "$SCRIPT_DIR/verify_bom_tree_e2e.sh" ]]; then
+  if [[ "${RUN_BOM_TREE_E2E:-0}" == "1" ]]; then
+    run_test "BOM Tree (E2E)" \
+      "$SCRIPT_DIR/verify_bom_tree_e2e.sh" || true
+  else
+    skip_test "BOM Tree (E2E)" "RUN_BOM_TREE_E2E=0"
+  fi
+fi
+
+# 20.10 BOM Effectivity (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_effectivity_e2e.sh" ]]; then
   if [[ "${RUN_BOM_EFFECTIVITY_E2E:-0}" == "1" ]]; then
     run_test "BOM Effectivity (E2E)" \
@@ -1362,7 +1374,7 @@ if [[ -x "$SCRIPT_DIR/verify_bom_effectivity_e2e.sh" ]]; then
   fi
 fi
 
-# 20.10 BOM Compare (self-contained, optional)
+# 20.11 BOM Compare (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_compare_e2e.sh" ]]; then
   if [[ "${RUN_BOM_COMPARE_E2E:-0}" == "1" ]]; then
     run_test "BOM Compare (E2E)" \
@@ -1372,7 +1384,7 @@ if [[ -x "$SCRIPT_DIR/verify_bom_compare_e2e.sh" ]]; then
   fi
 fi
 
-# 20.11 BOM Substitutes (self-contained, optional)
+# 20.12 BOM Substitutes (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_substitutes_e2e.sh" ]]; then
   if [[ "${RUN_BOM_SUBSTITUTES_E2E:-0}" == "1" ]]; then
     run_test "BOM Substitutes (E2E)" \
@@ -1382,7 +1394,7 @@ if [[ -x "$SCRIPT_DIR/verify_bom_substitutes_e2e.sh" ]]; then
   fi
 fi
 
-# 20.12 MBOM Convert (self-contained, optional)
+# 20.13 MBOM Convert (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_mbom_convert_e2e.sh" ]]; then
   if [[ "${RUN_MBOM_CONVERT_E2E:-0}" == "1" ]]; then
     run_test "MBOM Convert (E2E)" \
@@ -1392,7 +1404,7 @@ if [[ -x "$SCRIPT_DIR/verify_mbom_convert_e2e.sh" ]]; then
   fi
 fi
 
-# 20.13 MBOM + Routing (self-contained, optional)
+# 20.14 MBOM + Routing (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_mbom_routing_e2e.sh" ]]; then
   if [[ "${RUN_MBOM_ROUTING_E2E:-0}" == "1" ]]; then
     run_test "MBOM + Routing (E2E)" \
@@ -1402,7 +1414,7 @@ if [[ -x "$SCRIPT_DIR/verify_mbom_routing_e2e.sh" ]]; then
   fi
 fi
 
-# 20.14 Routing primary + release (self-contained, optional)
+# 20.15 Routing primary + release (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_routing_primary_release_e2e.sh" ]]; then
   if [[ "${RUN_ROUTING_PRIMARY_RELEASE_E2E:-0}" == "1" ]]; then
     run_test "Routing Primary+Release (E2E)" \
@@ -1412,7 +1424,7 @@ if [[ -x "$SCRIPT_DIR/verify_routing_primary_release_e2e.sh" ]]; then
   fi
 fi
 
-# 20.15 Routing operations (self-contained, optional)
+# 20.16 Routing operations (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_routing_operations_e2e.sh" ]]; then
   if [[ "${RUN_ROUTING_OPERATIONS_E2E:-0}" == "1" ]]; then
     run_test "Routing Operations (E2E)" \
@@ -1422,7 +1434,7 @@ if [[ -x "$SCRIPT_DIR/verify_routing_operations_e2e.sh" ]]; then
   fi
 fi
 
-# 20.16 Routing copy (self-contained, optional)
+# 20.17 Routing copy (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_routing_copy_e2e.sh" ]]; then
   if [[ "${RUN_ROUTING_COPY_E2E:-0}" == "1" ]]; then
     run_test "Routing Copy (E2E)" \
@@ -1432,7 +1444,7 @@ if [[ -x "$SCRIPT_DIR/verify_routing_copy_e2e.sh" ]]; then
   fi
 fi
 
-# 20.17 WorkCenter (self-contained, optional)
+# 20.18 WorkCenter (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_workcenter_e2e.sh" ]]; then
   if [[ "${RUN_WORKCENTER_E2E:-0}" == "1" ]]; then
     run_test "WorkCenter (E2E)" \
@@ -1442,7 +1454,7 @@ if [[ -x "$SCRIPT_DIR/verify_workcenter_e2e.sh" ]]; then
   fi
 fi
 
-# 20.18 Baseline (self-contained, optional)
+# 20.19 Baseline (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_baseline_e2e.sh" ]]; then
   if [[ "${RUN_BASELINE_E2E:-0}" == "1" ]]; then
     run_test "Baseline (E2E)" \
@@ -1452,7 +1464,7 @@ if [[ -x "$SCRIPT_DIR/verify_baseline_e2e.sh" ]]; then
   fi
 fi
 
-# 20.19 Baseline Filters (self-contained, optional)
+# 20.20 Baseline Filters (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_baseline_filters_e2e.sh" ]]; then
   if [[ "${RUN_BASELINE_FILTERS_E2E:-0}" == "1" ]]; then
     run_test "Baseline Filters (E2E)" \
@@ -1462,7 +1474,7 @@ if [[ -x "$SCRIPT_DIR/verify_baseline_filters_e2e.sh" ]]; then
   fi
 fi
 
-# 20.20 Effectivity Extended (self-contained, optional)
+# 20.21 Effectivity Extended (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_effectivity_extended_e2e.sh" ]]; then
   if [[ "${RUN_EFFECTIVITY_EXTENDED_E2E:-0}" == "1" ]]; then
     run_test "Effectivity Extended (E2E)" \
@@ -1472,7 +1484,7 @@ if [[ -x "$SCRIPT_DIR/verify_effectivity_extended_e2e.sh" ]]; then
   fi
 fi
 
-# 20.21 BOM Obsolete (self-contained, optional)
+# 20.22 BOM Obsolete (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_obsolete_e2e.sh" ]]; then
   if [[ "${RUN_BOM_OBSOLETE_E2E:-0}" == "1" ]]; then
     run_test "BOM Obsolete (E2E)" \
@@ -1482,7 +1494,7 @@ if [[ -x "$SCRIPT_DIR/verify_bom_obsolete_e2e.sh" ]]; then
   fi
 fi
 
-# 20.22 BOM Weight Rollup (self-contained, optional)
+# 20.23 BOM Weight Rollup (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_bom_weight_rollup_e2e.sh" ]]; then
   if [[ "${RUN_BOM_WEIGHT_ROLLUP_E2E:-0}" == "1" ]]; then
     run_test "BOM Weight Rollup (E2E)" \
@@ -1527,7 +1539,7 @@ echo ""
 printf "%-25s %s\n" "Test Suite" "Result"
 printf "%-25s %s\n" "-------------------------" "------"
 
-for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "Lifecycle Suspended" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "Effectivity Extended" "BOM Obsolete" "BOM Weight Rollup" "S12 (Config Variants)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "CAD Dedup Vision (S3)" "CAD Dedup Relationship (S3)" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "UI Product Detail" "UI Product Summary" "UI Where-Used" "UI BOM" "UI Docs Approval" "UI Docs ECO Summary" "BOM Compare" "Baseline" "Baseline Filters" "BOM Substitutes" "MBOM Convert" "Release Orchestration (E2E)" "E-Sign (API)" "Dedup Management (E2E)" "Quota Enforcement (E2E)" "Platform Tenant Provisioning (E2E)" "Item Equivalents (E2E)" "Version-File Binding (E2E)" "Where-Used API (E2E)" "BOM Effectivity (E2E)" "Effectivity Extended (E2E)" "BOM Obsolete (E2E)" "BOM Weight Rollup (E2E)" "BOM Compare (E2E)" "BOM Substitutes (E2E)" "MBOM Convert (E2E)" "MBOM + Routing (E2E)" "Routing Primary+Release (E2E)" "Routing Operations (E2E)" "Routing Copy (E2E)" "WorkCenter (E2E)" "Baseline (E2E)" "Baseline Filters (E2E)" "Item Equivalents" "Version-File Binding"; do
+for name in "Ops Health" "Run H (Core APIs)" "S2 (Documents & Files)" "Document Lifecycle" "Part Lifecycle" "Lifecycle Suspended" "S1 (Meta + RBAC)" "S7 (Quotas)" "S3.1 (BOM Tree)" "S3.2 (BOM Effectivity)" "Effectivity Extended" "BOM Obsolete" "BOM Weight Rollup" "S12 (Config Variants)" "S3.3 (Versions)" "S4 (ECO Advanced)" "S5-A (CAD Pipeline S3)" "S5-B (CAD 2D Connectors)" "S5-B (CAD 2D Real Connectors)" "S5-B (CAD 2D Connector Coverage)" "S5-C (CAD Attribute Sync)" "S5-B (CAD Connectors Config)" "S5-C (CAD Sync Template)" "S5-C (CAD Auto Part)" "S5-C (CAD Extractor Stub)" "S5-C (CAD Extractor External)" "S5-C (CAD Extractor Service)" "CAD Real Samples" "CAD Dedup Vision (S3)" "CAD Dedup Relationship (S3)" "Search Index" "Search Reindex" "Search ECO" "Reports Summary" "Audit Logs" "S8 (Ops Monitoring)" "S7 (Multi-Tenancy)" "S7 (Tenant Provisioning)" "Where-Used API" "UI Product Detail" "UI Product Summary" "UI Where-Used" "UI BOM" "UI Docs Approval" "UI Docs ECO Summary" "BOM Compare" "Baseline" "Baseline Filters" "BOM Substitutes" "MBOM Convert" "Release Orchestration (E2E)" "E-Sign (API)" "Dedup Management (E2E)" "Quota Enforcement (E2E)" "Platform Tenant Provisioning (E2E)" "Item Equivalents (E2E)" "Version-File Binding (E2E)" "Where-Used API (E2E)" "BOM Tree (E2E)" "BOM Effectivity (E2E)" "Effectivity Extended (E2E)" "BOM Obsolete (E2E)" "BOM Weight Rollup (E2E)" "BOM Compare (E2E)" "BOM Substitutes (E2E)" "MBOM Convert (E2E)" "MBOM + Routing (E2E)" "Routing Primary+Release (E2E)" "Routing Operations (E2E)" "Routing Copy (E2E)" "WorkCenter (E2E)" "Baseline (E2E)" "Baseline Filters (E2E)" "Item Equivalents" "Version-File Binding"; do
   result="${RESULTS[$name]:-N/A}"
   case "$result" in
     PASS) printf "%-25s ${GREEN}%s${NC}\n" "$name" "$result" ;;

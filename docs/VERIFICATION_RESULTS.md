@@ -89,6 +89,33 @@
 - Result:
   - list substitutes: `1` -> `2` -> duplicate add `400` -> delete 1 -> remaining `1`
 
+## 2026-02-14 BOM Tree API-only E2E (PASS)
+
+- Scope:
+  - build a multi-level BOM:
+    - `A -> B -> C`
+    - `B -> D`
+  - tree query:
+    - `GET /api/v1/bom/{parent_id}/tree?depth=10`
+    - `GET /api/v1/bom/{parent_id}/tree?depth=1`
+  - cycle detection:
+    - `C -> A` should return `409` with `error=CYCLE_DETECTED` + non-empty `cycle_path`
+    - `A -> A` should return `409`
+  - duplicate add `A -> B` again should return `400`
+  - delete existing relationship `B -> D` and verify tree updates
+  - delete non-existent relationship should return `404`
+- Command:
+  - `bash scripts/verify_bom_tree_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_bom_tree_e2e_20260214-150443.log`
+  - Payloads: `tmp/verify-bom-tree/20260214-150443/`
+- Result:
+  - depth tree query: `ok`
+  - cycle detection: `409` + `cycle_path`: `ok`
+  - duplicate add: `400`
+  - delete existing: `200` and tree updated: `ok`
+  - delete non-existent: `404`
+
 ## 2026-02-14 BOM Effectivity API-only E2E (PASS)
 
 - Scope:

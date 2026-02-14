@@ -76,6 +76,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - BOM Effectivity API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_EFFECTIVITY_E2E_20260214.md`
 - BOM Obsolete API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_OBSOLETE_E2E_20260214.md`
 - BOM Substitutes API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_SUBSTITUTES_E2E_20260214.md`
+- BOM Tree API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_TREE_E2E_20260214.md`
 - BOM Weight Rollup API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_WEIGHT_ROLLUP_E2E_20260214.md`
 - CAD Dedup (SimilarityRecord -> Part Equivalent) (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
 - CAD Dedup Vision (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_VISION_S3_PG_MINIO_20260212.md`
