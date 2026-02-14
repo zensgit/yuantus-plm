@@ -72,6 +72,10 @@ services:
       YUANTUS_TENANCY_MODE: ${YUANTUS_TENANCY_MODE:-single}
       YUANTUS_DATABASE_URL_TEMPLATE: ${YUANTUS_DATABASE_URL_TEMPLATE:-}
       YUANTUS_IDENTITY_DATABASE_URL: ${YUANTUS_IDENTITY_DATABASE_URL:-postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus_identity}
+      # Identity migrations mode (when IDENTITY_DATABASE_URL is set):
+      # - identity-only: migrate auth + audit only (recommended for true split DB)
+      # - full: run the full schema migrations on the identity DB (legacy behavior)
+      YUANTUS_IDENTITY_MIGRATIONS_MODE: ${YUANTUS_IDENTITY_MIGRATIONS_MODE:-identity-only}
       YUANTUS_PLATFORM_ADMIN_ENABLED: ${YUANTUS_PLATFORM_ADMIN_ENABLED:-false}
       YUANTUS_PLATFORM_TENANT_ID: ${YUANTUS_PLATFORM_TENANT_ID:-platform}
       # Storage: S3/MinIO
@@ -141,7 +145,11 @@ services:
           yuantus db upgrade &&
           if [ -n \"$$YUANTUS_IDENTITY_DATABASE_URL\" ]; then
             echo 'Running identity migrations...' &&
-            yuantus db upgrade --identity
+            if [ \"$$YUANTUS_IDENTITY_MIGRATIONS_MODE\" = \"full\" ]; then
+              yuantus db upgrade --identity
+            else
+              yuantus db upgrade --identity-only
+            fi
           else
             echo 'Skipping identity migrations (empty IDENTITY_DATABASE_URL)'
           fi &&

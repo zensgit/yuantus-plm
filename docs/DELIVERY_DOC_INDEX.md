@@ -107,6 +107,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI Cost Optimization (Selective Jobs + Perf Gate Summaries): `docs/DEV_AND_VERIFICATION_CI_COST_OPTIMIZATION_20260210.md`
 - CI/Regression Label Overrides: `docs/DEV_AND_VERIFICATION_CI_LABEL_OVERRIDES_20260210.md`
 - CI Strict Gate Schedule: `docs/DEV_AND_VERIFICATION_CI_STRICT_GATE_SCHEDULE_20260207.md`
+- Compose Identity-only Migrations + Strict Gate Shell E2E: `docs/DEV_AND_VERIFICATION_COMPOSE_IDENTITY_ONLY_STRICT_GATE_SHELL_E2E_20260214.md`
 - Dedup Management API-only E2E Verification: `docs/DEV_AND_VERIFICATION_DEDUP_MANAGEMENT_E2E_20260213.md`
 - Delivery Doc Index (Ops Runbooks + Link Contract): `docs/DEV_AND_VERIFICATION_DELIVERY_DOC_INDEX_RUNBOOKS_20260210.md`
 - Demo PLM Closed Loop Script: `docs/DEV_AND_VERIFICATION_DEMO_PLM_CLOSED_LOOP_20260207.md`

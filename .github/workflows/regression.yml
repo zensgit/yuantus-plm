@@ -128,11 +128,11 @@ jobs:
                   continue
                 fi
                 regression="true"; regression_reason="matched workflow: ${f}"; break ;;
-              alembic.ini|pyproject.toml|requirements.lock)
+              alembic.ini|alembic.identity.ini|pyproject.toml|requirements.lock)
                 regression="true"; regression_reason="matched core inputs: ${f}"; break ;;
               docker-compose*.yml|Dockerfile*)
                 regression="true"; regression_reason="matched docker: ${f}"; break ;;
-              migrations/*)
+              migrations/*|migrations_identity/*)
                 regression="true"; regression_reason="matched migration: ${f}"; break ;;
               scripts/verify_all.sh|scripts/verify_*.sh)
                 regression="true"; regression_reason="matched verify script: ${f}"; break ;;

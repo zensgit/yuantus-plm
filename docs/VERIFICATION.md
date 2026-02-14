@@ -2832,6 +2832,11 @@ RUN_RUN_H_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
   - Alembic 版本表 `alembic_version`（SQLite 可能还包含 `sqlite_sequence`）
   - **不应包含** `meta_*` 等 Core schema 表（例如 `meta_items`）
 
+备注：
+
+- `docker-compose.yml` 在 `YUANTUS_IDENTITY_DATABASE_URL` 非空时默认使用 identity-only migrations；
+  如需 legacy 行为（对 identity DB 跑全量 schema migrations），设置 `YUANTUS_IDENTITY_MIGRATIONS_MODE=full`。
+
 运行方式：
 
 ```bash

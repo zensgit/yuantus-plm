@@ -97,7 +97,7 @@ jobs:
             [[ -z "${f}" ]] && continue
 
             case "${f}" in
-              .github/workflows/ci.yml|pyproject.toml|requirements.lock|alembic.ini)
+              .github/workflows/ci.yml|pyproject.toml|requirements.lock|alembic.ini|alembic.identity.ini)
                 run_plugin_tests="true"
                 run_playwright="true"
                 run_contracts="true"
@@ -126,7 +126,7 @@ jobs:
                 run_contracts="true"
                 reason_contracts="${reason_contracts:-matched docs wiring: ${f}}"
                 ;;
-              migrations/*)
+              migrations/*|migrations_identity/*)
                 run_plugin_tests="true"
                 reason_plugin_tests="${reason_plugin_tests:-matched migration: ${f}}"
                 break
@@ -287,6 +287,11 @@ jobs:
           YUANTUS_DATABASE_URL: sqlite:///./ci.db
         run: |
           python -m alembic -c alembic.ini upgrade head
+      - name: Identity-only migrations smoke
+        env:
+          YUANTUS_DATABASE_URL: sqlite:///./ci_identity.db
+        run: |
+          python -m alembic -c alembic.identity.ini upgrade head
       - name: Plugin tests
         run: |
           pytest -q src/yuantus/meta_engine/tests/test_plugin_pack_and_go.py \

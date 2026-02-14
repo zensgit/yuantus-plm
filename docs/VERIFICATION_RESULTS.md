@@ -107,11 +107,45 @@
 - Command:
   - `bash scripts/verify_identity_only_migrations.sh`
 - Evidence:
-  - Log: `tmp/verify_identity_only_migrations_20260214-164518.log`
-  - Payloads: `tmp/verify-identity-only-migrations/20260214-164518/`
+  - Log: `tmp/verify_identity_only_migrations_20260214-174518.log`
+  - Payloads: `tmp/verify-identity-only-migrations/20260214-174518/`
 - Result:
   - core tables: `85` (includes `meta_items`)
   - identity tables: `8` (auth + audit + alembic_version)
+
+## 2026-02-14 Compose (Postgres + MinIO) Identity-only Migrations (PASS)
+
+- Scope:
+  - `docker-compose.yml` startup runs identity-only migrations by default when `YUANTUS_IDENTITY_DATABASE_URL` is set.
+  - Verify identity DB contains only auth + audit tables (no `meta_*` tables).
+- Command:
+  - `docker compose -p yuantusplm_idonly -f docker-compose.yml up -d --build`
+- Evidence:
+  - Payloads: `tmp/verify-compose-identity-only/20260214-174937/`
+    - `compose_up.log`
+    - `health.json`
+    - `identity_tables.txt`
+    - `identity_meta_tables.txt`
+    - `identity_alembic_version.txt`
+- Result:
+  - identity tables: `8` (auth + audit + alembic_version)
+  - identity `meta_*` tables: `0`
+  - identity alembic version: `i1b2c3d4e5f6`
+
+## 2026-02-14 Strict Gate (Local) + Shell E2E Steps (PASS)
+
+- Scope:
+  - strict gate report includes shell E2E steps:
+    - `verify_run_h_e2e` (controlled by `RUN_RUN_H_E2E=1`)
+    - `verify_identity_only_migrations` (controlled by `RUN_IDENTITY_ONLY_MIGRATIONS_E2E=1`)
+- Command:
+  - `RUN_RUN_H_E2E=1 RUN_IDENTITY_ONLY_MIGRATIONS_E2E=1 bash scripts/strict_gate_report.sh`
+- Evidence:
+  - Log: `tmp/verify_strict_gate_report_20260214-174534.log`
+  - Report: `docs/DAILY_REPORTS/STRICT_GATE_LOCAL_20260214-174534.md`
+  - Logs: `tmp/strict-gate/STRICT_GATE_LOCAL_20260214-174534/`
+- Result:
+  - `STRICT_GATE_REPORT: PASS`
 
 ## 2026-02-14 ECO Advanced API-only E2E (PASS)
 
