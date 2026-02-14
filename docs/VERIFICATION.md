@@ -2563,6 +2563,30 @@ RUN_ROUTING_OPERATIONS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 te
 - `tmp/verify-routing-operations/<timestamp>/...json`（health/login/mbom/routing/operations 等证据）
 - `tmp/verify-routing-operations/<timestamp>/server.log`
 
+### 26.2.19 Routing Copy（可选自包含 API-only E2E）
+
+该验证用于覆盖 Routing 复制能力的最小闭环（无需 docker compose）：
+
+- copy routing + operations：`POST /api/v1/routings/{routing_id}/copy?new_name=...`
+- contract：
+  - copied routing 默认 `is_primary=false`（源 routing 不受影响）
+  - copied routing operations 数量与关键字段复制正确（operation_number/sequence/workcenter_code）
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_routing_copy_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_ROUTING_COPY_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-routing-copy/<timestamp>/...json`（health/login/mbom/routing/copy 等证据）
+- `tmp/verify-routing-copy/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2617,6 +2641,7 @@ RUN_ROUTING_OPERATIONS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 te
 | MBOM + Routing (E2E) | `verify_mbom_routing_e2e.sh` | Manufacturing MBOM + Routing（operations + time/cost + release）自包含验证 |
 | Routing Primary+Release (E2E) | `verify_routing_primary_release_e2e.sh` | Routing 主路线切换 + release-diagnostics/release guardrails 自包含验证 |
 | Routing Operations (E2E) | `verify_routing_operations_e2e.sh` | Routing 工序（CRUD + resequence + totals + workcenter guardrails）自包含验证 |
+| Routing Copy (E2E) | `verify_routing_copy_e2e.sh` | Routing 复制（copy routing + operations, non-primary contract）自包含验证 |
 | WorkCenter (E2E) | `verify_workcenter_e2e.sh` | Manufacturing WorkCenter（workcenter CRUD + routing operation guardrails）自包含验证 |
 | Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
@@ -2649,6 +2674,7 @@ RUN_ROUTING_OPERATIONS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 te
 > `MBOM + Routing (E2E)` 需要设置 `RUN_MBOM_ROUTING_E2E=1`（或直接运行 `scripts/verify_mbom_routing_e2e.sh`）。
 > `Routing Primary+Release (E2E)` 需要设置 `RUN_ROUTING_PRIMARY_RELEASE_E2E=1`（或直接运行 `scripts/verify_routing_primary_release_e2e.sh`）。
 > `Routing Operations (E2E)` 需要设置 `RUN_ROUTING_OPERATIONS_E2E=1`（或直接运行 `scripts/verify_routing_operations_e2e.sh`）。
+> `Routing Copy (E2E)` 需要设置 `RUN_ROUTING_COPY_E2E=1`（或直接运行 `scripts/verify_routing_copy_e2e.sh`）。
 > `WorkCenter (E2E)` 需要设置 `RUN_WORKCENTER_E2E=1`（或直接运行 `scripts/verify_workcenter_e2e.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
