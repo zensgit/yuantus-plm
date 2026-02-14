@@ -165,8 +165,8 @@ admin_header=(-H "Authorization: Bearer ${ADMIN_TOKEN}" -H "x-tenant-id: ${TENAN
 
 ts="$(date +%s)"
 effective_date="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-effective_from="$(date -u -v-1d +"%Y-%m-%dT%H:%M:%SZ")"
-effective_to="$(date -u -v+1d +"%Y-%m-%dT%H:%M:%SZ")"
+effective_from="$(date -u -v-1d +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -d '-1 day' +"%Y-%m-%dT%H:%M:%SZ")"
+effective_to="$(date -u -v+1d +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u -d '+1 day' +"%Y-%m-%dT%H:%M:%SZ")"
 
 log "Create Part (baseline root)"
 part_json="${OUT_DIR}/part_create.json"
@@ -253,4 +253,3 @@ print("baseline_filters_effective_range_ok=1")
 PY
 
 log "PASS: Baseline Filters API E2E verification"
-
