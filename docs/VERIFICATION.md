@@ -2533,6 +2533,36 @@ RUN_ROUTING_PRIMARY_RELEASE_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:79
 - `tmp/verify-routing-primary-release/<timestamp>/...json`（health/login/mbom/routing/release-diagnostics 等证据）
 - `tmp/verify-routing-primary-release/<timestamp>/server.log`
 
+### 26.2.18 Routing Operations（可选自包含 API-only E2E）
+
+该验证用于覆盖 Routing 工序操作的最小闭环（无需 docker compose）：
+
+- operation CRUD：
+  - create/list/update/delete
+  - `POST/GET/PATCH/DELETE /api/v1/routings/{routing_id}/operations`
+- resequence：
+  - guardrails: duplicates/omitted ids -> `400`
+  - `POST /api/v1/routings/{routing_id}/operations/resequence`
+- routing totals 更新（setup/run/labor）
+- operation update 的 WorkCenter guardrails：
+  - unknown workcenter_code -> `404`
+  - inactive workcenter -> `400`
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_routing_operations_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_ROUTING_OPERATIONS_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-routing-operations/<timestamp>/...json`（health/login/mbom/routing/operations 等证据）
+- `tmp/verify-routing-operations/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2586,6 +2616,7 @@ RUN_ROUTING_PRIMARY_RELEASE_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:79
 | Baseline Filters (E2E) | `verify_baseline_filters_e2e.sh` | Baseline list filters（type/scope/state + effective range）自包含验证 |
 | MBOM + Routing (E2E) | `verify_mbom_routing_e2e.sh` | Manufacturing MBOM + Routing（operations + time/cost + release）自包含验证 |
 | Routing Primary+Release (E2E) | `verify_routing_primary_release_e2e.sh` | Routing 主路线切换 + release-diagnostics/release guardrails 自包含验证 |
+| Routing Operations (E2E) | `verify_routing_operations_e2e.sh` | Routing 工序（CRUD + resequence + totals + workcenter guardrails）自包含验证 |
 | WorkCenter (E2E) | `verify_workcenter_e2e.sh` | Manufacturing WorkCenter（workcenter CRUD + routing operation guardrails）自包含验证 |
 | Item Equivalents | `verify_equivalents.sh` | Part 等效件管理（如端点可用则执行） |
 | Version-File Binding | `verify_version_files.sh` | 版本-文件绑定（如端点可用则执行） |
@@ -2617,6 +2648,7 @@ RUN_ROUTING_PRIMARY_RELEASE_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:79
 > `Baseline Filters (E2E)` 需要设置 `RUN_BASELINE_FILTERS_E2E=1`（或直接运行 `scripts/verify_baseline_filters_e2e.sh`）。
 > `MBOM + Routing (E2E)` 需要设置 `RUN_MBOM_ROUTING_E2E=1`（或直接运行 `scripts/verify_mbom_routing_e2e.sh`）。
 > `Routing Primary+Release (E2E)` 需要设置 `RUN_ROUTING_PRIMARY_RELEASE_E2E=1`（或直接运行 `scripts/verify_routing_primary_release_e2e.sh`）。
+> `Routing Operations (E2E)` 需要设置 `RUN_ROUTING_OPERATIONS_E2E=1`（或直接运行 `scripts/verify_routing_operations_e2e.sh`）。
 > `WorkCenter (E2E)` 需要设置 `RUN_WORKCENTER_E2E=1`（或直接运行 `scripts/verify_workcenter_e2e.sh`）。
 > UI 聚合验收需要设置 `RUN_UI_AGG=1`（涵盖产品详情、BOM UI、文档/审批摘要）。
 
