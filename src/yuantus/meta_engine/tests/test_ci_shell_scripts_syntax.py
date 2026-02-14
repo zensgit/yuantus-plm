@@ -44,6 +44,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_item_equivalents.sh",
         scripts_dir / "verify_version_file_binding.sh",
         scripts_dir / "verify_versions_e2e.sh",
+        scripts_dir / "verify_eco_advanced_e2e.sh",
         scripts_dir / "verify_where_used_e2e.sh",
         scripts_dir / "verify_effectivity_extended_e2e.sh",
         scripts_dir / "verify_bom_obsolete_e2e.sh",
