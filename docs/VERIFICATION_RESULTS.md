@@ -39,6 +39,41 @@
   - viewer attach during checkout: `409`
   - `/versions/{id}/files` contains `native_cad` binding for the uploaded file
 
+## 2026-02-14 Versions Core API-only E2E (PASS)
+
+- Scope:
+  - version init/revise/tree/history:
+    - `POST /api/v1/versions/items/{item_id}/init|revise`
+    - `GET /api/v1/versions/items/{item_id}/tree|history`
+  - checkout/checkin + lock contention:
+    - viewer checkout during admin checkout should be blocked (`400`)
+  - revision utils:
+    - `GET /api/v1/versions/revision/next|parse|compare`
+  - iterations:
+    - create `1.C.1`, `1.C.2` and validate latest
+  - compare versions:
+    - `GET /api/v1/versions/compare?v1=...&v2=...` includes `description` diff
+  - revision schemes:
+    - `POST/GET /api/v1/versions/schemes`
+- Command:
+  - `bash scripts/verify_versions_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_versions_e2e_20260214-154159.log`
+  - Payloads: `tmp/verify-versions/20260214-154159/`
+- Result:
+  - init label: `1.A`
+  - revise labels: `1.B`, `1.C`
+  - tree labels: `1.A,1.B,1.C`
+  - history entries: `>= 5`
+  - revision utils:
+    - `next(letter)`: `A->B`, `Z->AA`
+    - `next(number)`: `1->2`
+    - `next(hybrid)`: `A99->B1`
+    - `parse(AA)`: `letter, value=27`
+    - `compare(A,C)`: `-1`
+  - iterations: latest=`1.C.2`
+  - schemes: list `>= 1`
+
 ## 2026-02-14 Where-Used API-only E2E (PASS)
 
 - Scope:
