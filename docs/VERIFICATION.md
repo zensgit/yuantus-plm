@@ -2692,6 +2692,35 @@ RUN_BOM_EFFECTIVITY_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenan
 - `tmp/verify-bom-effectivity/<timestamp>/...json`（health/login/bom/effective + RBAC + delete 等证据）
 - `tmp/verify-bom-effectivity/<timestamp>/server.log`
 
+### 26.2.24 BOM Tree（可选自包含 API-only E2E）
+
+该验证用于覆盖 BOM Tree + cycle detection 的最小闭环（无需 docker compose）：
+
+- add child：`POST /api/v1/bom/{parent_id}/children`
+- tree query：`GET /api/v1/bom/{parent_id}/tree?depth=...`
+- cycle detection：
+  - cycle: `409` + `error=CYCLE_DETECTED` + `cycle_path`
+  - self cycle: `409`
+- duplicate add：`400`
+- remove child：
+  - delete existing：`DELETE /api/v1/bom/{parent_id}/children/{child_id}` -> `200`
+  - delete non-existent -> `404`
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_bom_tree_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_BOM_TREE_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-bom-tree/<timestamp>/...json`（health/login/bom add/tree/cycle/delete 等证据）
+- `tmp/verify-bom-tree/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
@@ -2738,6 +2767,7 @@ RUN_BOM_EFFECTIVITY_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenan
 | Item Equivalents (E2E) | `verify_item_equivalents.sh` | Part 等效件（add/list/delete + guardrails）自包含验证 |
 | Version-File Binding (E2E) | `verify_version_file_binding.sh` | checkout/file lock + VersionFile 绑定自包含验证 |
 | Where-Used API (E2E) | `verify_where_used_e2e.sh` | Where-Used（反向 BOM 查询：direct + recursive + level）自包含验证 |
+| BOM Tree (E2E) | `verify_bom_tree_e2e.sh` | BOM tree（multi-level + cycle detection + delete）自包含验证 |
 | BOM Effectivity (E2E) | `verify_bom_effectivity_e2e.sh` | BOM effectivity（effectivity_from/to + RBAC + delete cascade）自包含验证 |
 | Effectivity Extended (E2E) | `verify_effectivity_extended_e2e.sh` | Effectivity（Lot/Serial）过滤自包含验证 |
 | BOM Obsolete (E2E) | `verify_bom_obsolete_e2e.sh` | BOM obsolete scan + resolve（update/new_bom）自包含验证 |
@@ -2775,6 +2805,7 @@ RUN_BOM_EFFECTIVITY_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenan
 > `Item Equivalents (E2E)` 需要设置 `RUN_ITEM_EQUIVALENTS_E2E=1`（或直接运行 `scripts/verify_item_equivalents.sh`）。
 > `Version-File Binding (E2E)` 需要设置 `RUN_VERSION_FILE_BINDING_E2E=1`（或直接运行 `scripts/verify_version_file_binding.sh`）。
 > `Where-Used API (E2E)` 需要设置 `RUN_WHERE_USED_E2E=1`（或直接运行 `scripts/verify_where_used_e2e.sh`）。
+> `BOM Tree (E2E)` 需要设置 `RUN_BOM_TREE_E2E=1`（或直接运行 `scripts/verify_bom_tree_e2e.sh`）。
 > `BOM Effectivity (E2E)` 需要设置 `RUN_BOM_EFFECTIVITY_E2E=1`（或直接运行 `scripts/verify_bom_effectivity_e2e.sh`）。
 > `Effectivity Extended (E2E)` 需要设置 `RUN_EFFECTIVITY_EXTENDED_E2E=1`（或直接运行 `scripts/verify_effectivity_extended_e2e.sh`）。
 > `BOM Obsolete (E2E)` 需要设置 `RUN_BOM_OBSOLETE_E2E=1`（或直接运行 `scripts/verify_bom_obsolete_e2e.sh`）。
