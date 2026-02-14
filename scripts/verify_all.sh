@@ -30,6 +30,7 @@ RUN_DEDUP_MGMT="${RUN_DEDUP_MGMT:-0}"
 START_DEDUP_STACK="${START_DEDUP_STACK:-0}"
 RUN_RELEASE_ORCH="${RUN_RELEASE_ORCH:-0}"
 RUN_ESIGN="${RUN_ESIGN:-0}"
+RUN_IDENTITY_ONLY_MIGRATIONS_E2E="${RUN_IDENTITY_ONLY_MIGRATIONS_E2E:-0}"
 RUN_QUOTA_E2E="${RUN_QUOTA_E2E:-0}"
 RUN_PLATFORM_TENANT_PROV="${RUN_PLATFORM_TENANT_PROV:-0}"
 RUN_ITEM_EQUIVALENTS_E2E="${RUN_ITEM_EQUIVALENTS_E2E:-0}"
@@ -191,6 +192,7 @@ echo "RUN_DEDUP_MGMT: $RUN_DEDUP_MGMT"
 echo "START_DEDUP_STACK: $START_DEDUP_STACK"
 echo "RUN_RELEASE_ORCH: $RUN_RELEASE_ORCH"
 echo "RUN_ESIGN: $RUN_ESIGN"
+echo "RUN_IDENTITY_ONLY_MIGRATIONS_E2E: $RUN_IDENTITY_ONLY_MIGRATIONS_E2E"
 echo "RUN_QUOTA_E2E: $RUN_QUOTA_E2E"
 echo "RUN_PLATFORM_TENANT_PROV: $RUN_PLATFORM_TENANT_PROV"
 echo "RUN_ITEM_EQUIVALENTS_E2E: $RUN_ITEM_EQUIVALENTS_E2E"
@@ -1300,7 +1302,17 @@ if [[ -x "$SCRIPT_DIR/verify_esign_api.sh" ]]; then
   fi
 fi
 
-# 20.3 Dedup Management (self-contained, optional)
+# 20.3 Identity-only migrations (self-contained, optional)
+if [[ -x "$SCRIPT_DIR/verify_identity_only_migrations.sh" ]]; then
+  if [[ "${RUN_IDENTITY_ONLY_MIGRATIONS_E2E:-0}" == "1" ]]; then
+    run_test "Identity-only Migrations (E2E)" \
+      "$SCRIPT_DIR/verify_identity_only_migrations.sh" || true
+  else
+    skip_test "Identity-only Migrations (E2E)" "RUN_IDENTITY_ONLY_MIGRATIONS_E2E=0"
+  fi
+fi
+
+# 20.4 Dedup Management (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_dedup_management.sh" ]]; then
   if [[ "${RUN_DEDUP_MGMT:-0}" == "1" ]]; then
     run_test "Dedup Management (E2E)" \
@@ -1310,7 +1322,7 @@ if [[ -x "$SCRIPT_DIR/verify_dedup_management.sh" ]]; then
   fi
 fi
 
-# 20.4 Quota Enforcement (self-contained, optional)
+# 20.5 Quota Enforcement (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_quota_enforcement.sh" ]]; then
   if [[ "${RUN_QUOTA_E2E:-0}" == "1" ]]; then
     run_test "Quota Enforcement (E2E)" \
@@ -1320,7 +1332,7 @@ if [[ -x "$SCRIPT_DIR/verify_quota_enforcement.sh" ]]; then
   fi
 fi
 
-# 20.5 Platform Tenant Provisioning (self-contained, optional)
+# 20.6 Platform Tenant Provisioning (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_platform_tenant_provisioning.sh" ]]; then
   if [[ "${RUN_PLATFORM_TENANT_PROV:-0}" == "1" ]]; then
     run_test "Platform Tenant Provisioning (E2E)" \
@@ -1330,7 +1342,7 @@ if [[ -x "$SCRIPT_DIR/verify_platform_tenant_provisioning.sh" ]]; then
   fi
 fi
 
-# 20.6 Run H Core (self-contained, optional)
+# 20.7 Run H Core (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_run_h_e2e.sh" ]]; then
   if [[ "${RUN_RUN_H_E2E:-0}" == "1" ]]; then
     run_test "Run H (E2E)" \
@@ -1340,7 +1352,7 @@ if [[ -x "$SCRIPT_DIR/verify_run_h_e2e.sh" ]]; then
   fi
 fi
 
-# 20.7 Item Equivalents (self-contained, optional)
+# 20.8 Item Equivalents (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_item_equivalents.sh" ]]; then
   if [[ "${RUN_ITEM_EQUIVALENTS_E2E:-0}" == "1" ]]; then
     run_test "Item Equivalents (E2E)" \
@@ -1350,7 +1362,7 @@ if [[ -x "$SCRIPT_DIR/verify_item_equivalents.sh" ]]; then
   fi
 fi
 
-# 20.8 Version-File Binding (self-contained, optional)
+# 20.9 Version-File Binding (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_version_file_binding.sh" ]]; then
   if [[ "${RUN_VERSION_FILE_BINDING_E2E:-0}" == "1" ]]; then
     run_test "Version-File Binding (E2E)" \

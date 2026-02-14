@@ -38,6 +38,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_all.sh",
         scripts_dir / "verify_release_orchestration.sh",
         scripts_dir / "verify_esign_api.sh",
+        scripts_dir / "verify_identity_only_migrations.sh",
         scripts_dir / "verify_dedup_management.sh",
         scripts_dir / "verify_quota_enforcement.sh",
         scripts_dir / "verify_platform_tenant_provisioning.sh",

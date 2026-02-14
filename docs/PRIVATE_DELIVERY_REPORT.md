@@ -89,11 +89,16 @@ YUANTUS_IDENTITY_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@postgres:543
 ```
 
 > 说明：当前迁移为“全量 schema”，若未来需要 identity-only 迁移，可另建独立迁移配置。
+> 说明（更新）：已支持 identity-only migrations（auth + audit only）：
+> `yuantus db upgrade --identity-only`（使用 `alembic.identity.ini` + `migrations_identity/`）。
 
 **已有表但无 alembic_version 的处理**：
 ```bash
 # 当历史上通过 create_all 生成了表，但没 Alembic 版本记录时
 yuantus db stamp --identity
+
+# identity-only migrations 对应的 stamp
+yuantus db stamp --identity-only
 ```
 
 ### 2.3 Job 并发安全

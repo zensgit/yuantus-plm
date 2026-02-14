@@ -6,7 +6,7 @@
 
 > 说明：本文是“工程开发计划 + 验收/验证计划”。架构设计见 `docs/DEVELOPMENT_DESIGN.md`；可执行验证入口见 `docs/VERIFICATION.md`。
 
-## 当前状态（截至 `2026-02-12`）
+## 当前状态（截至 `2026-02-14`）
 
 已具备“可持续迭代”的交付底座（可私有化部署 + 可验证）：
 
@@ -29,7 +29,7 @@
   - 已补充 stale requeue 索引：`ix_meta_conversion_jobs_stale`（revision `x1b2c3d4e7a2`）
 - ✅ MinIO/S3 兼容性细节：实测通过（presigned download `302->200`），暂无需调整 path-style/region/public endpoint
 - ✅ 私有化复测：Postgres + MinIO 模式跑通 Run H，并记录在 `docs/VERIFICATION_RESULTS.md`
-- 🔜 身份分库“identity-only migrations”作为后续优化：当前已满足交付与验证，先做业务功能与 CAD 价值链闭环
+- ✅ 身份分库“identity-only migrations”支持：`yuantus db upgrade --identity-only`（使用 `alembic.identity.ini` + `migrations_identity/`，Identity DB 仅迁移 auth + audit）
 
 证据（可复现记录）：
 

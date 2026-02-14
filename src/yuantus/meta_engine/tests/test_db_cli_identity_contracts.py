@@ -27,6 +27,9 @@ def test_db_command_declares_identity_and_db_url_flags() -> None:
     assert '@app.command("db")' in text, "Missing Typer command registration: @app.command('db')"
     assert "--db-url" in text, "Missing CLI flag: --db-url"
     assert "--identity/--no-identity" in text, "Missing CLI flag: --identity/--no-identity"
+    assert (
+        "--identity-only/--no-identity-only" in text
+    ), "Missing CLI flag: --identity-only/--no-identity-only"
 
 
 def test_db_command_rejects_conflicting_identity_flags_guard_present() -> None:
@@ -36,6 +39,12 @@ def test_db_command_rejects_conflicting_identity_flags_guard_present() -> None:
 
     assert "if db_url and identity" in text, "Missing mutual exclusion guard: if db_url and identity"
     assert "mutually exclusive" in text, "Missing mutual exclusion error message hint"
+    assert (
+        "if identity_only and (identity or db_url)" in text
+    ), "Missing mutual exclusion guard for identity-only: if identity_only and (identity or db_url)"
+    assert (
+        "--identity-only cannot be combined" in text
+    ), "Missing mutual exclusion error message for identity-only flag"
 
 
 def test_db_command_identity_targets_identity_database_url_or_falls_back() -> None:

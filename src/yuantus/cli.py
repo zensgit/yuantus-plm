@@ -754,6 +754,11 @@ def db_command(
         "--identity/--no-identity",
         help="Use IDENTITY_DATABASE_URL for migrations.",
     ),
+    identity_only: bool = typer.Option(
+        False,
+        "--identity-only/--no-identity-only",
+        help="Use IDENTITY_DATABASE_URL with identity-only migrations (auth + audit only).",
+    ),
 ) -> None:
     """
     Database migrations via Alembic.
@@ -770,18 +775,27 @@ def db_command(
     import subprocess
     import sys
 
+    if identity_only and (identity or db_url):
+        typer.echo(
+            "Error: --identity-only cannot be combined with --identity or --db-url",
+            err=True,
+        )
+        raise typer.Exit(1)
+
     if db_url and identity:
         typer.echo("Error: --db-url and --identity are mutually exclusive", err=True)
         raise typer.Exit(1)
 
-    # Find alembic.ini
-    alembic_ini = os.path.join(os.getcwd(), "alembic.ini")
+    config_basename = "alembic.identity.ini" if identity_only else "alembic.ini"
+
+    # Find alembic config
+    alembic_ini = os.path.join(os.getcwd(), config_basename)
     if not os.path.exists(alembic_ini):
         # Try package directory
         pkg_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        alembic_ini = os.path.join(pkg_dir, "alembic.ini")
+        alembic_ini = os.path.join(pkg_dir, config_basename)
         if not os.path.exists(alembic_ini):
-            typer.echo("Error: alembic.ini not found", err=True)
+            typer.echo(f"Error: {config_basename} not found", err=True)
             raise typer.Exit(1)
 
     # Build alembic command
@@ -814,7 +828,7 @@ def db_command(
         raise typer.Exit(1)
 
     env = os.environ.copy()
-    if identity:
+    if identity or identity_only:
         from yuantus.config import get_settings
 
         settings = get_settings()
