@@ -146,18 +146,57 @@
   - build a minimal EBOM (parent -> child)
   - create MBOM from EBOM: `POST /api/v1/mboms/from-ebom`
   - validate MBOM structure: `GET /api/v1/mboms/{mbom_id}`
-  - create routing + operations: `POST /api/v1/routings`, `POST /api/v1/routings/{id}/operations`
-  - calculate time/cost: `POST /api/v1/routings/{id}/calculate-time`, `POST /api/v1/routings/{id}/calculate-cost`
+  - create 2 routings + primary switch:
+    - `POST /api/v1/routings` (x2)
+    - `PUT /api/v1/routings/{id}/primary`
+  - routing release guardrails:
+    - release-diagnostics (empty operations): `GET /api/v1/routings/{id}/release-diagnostics`
+    - release blocked (empty operations): `PUT /api/v1/routings/{id}/release`
+  - create operations + calculate time/cost:
+    - `POST /api/v1/routings/{id}/operations`
+    - `POST /api/v1/routings/{id}/calculate-time`, `POST /api/v1/routings/{id}/calculate-cost`
+  - mbom release guardrails:
+    - release-diagnostics blocked until routing is released: `GET /api/v1/mboms/{id}/release-diagnostics`
+    - release blocked until routing is released: `PUT /api/v1/mboms/{id}/release`
+  - release routing + release MBOM
 - Command:
   - `bash scripts/verify_mbom_routing_e2e.sh`
 - Evidence:
-  - Log: `tmp/verify_mbom_routing_e2e_20260214-105622.log`
-  - Payloads: `tmp/verify-mbom-routing/20260214-105622/`
+  - Log: `tmp/verify_mbom_routing_e2e_20260214-114343.log`
+  - Payloads: `tmp/verify-mbom-routing/20260214-114343/`
 - Result:
   - MBOM child count: `1`
+  - primary switch: `ok`
+  - routing release blocked (empty ops): `ok` (`routing_empty_operations`)
   - ops: `2` (sequence `10,20`)
   - time (qty=5): `total_time=30`, `setup_time=15`, `run_time=15`
   - cost (qty=5): `total_cost=40`, `cost_per_unit=8`
+  - MBOM release blocked before routing release: `ok` (`mbom_missing_released_routing`)
+  - routing released: `state=released`
+  - MBOM released: `state=released`
+
+## 2026-02-14 Routing Primary+Release API-only E2E (PASS)
+
+- Scope:
+  - build a minimal EBOM (parent -> child) and create MBOM
+  - create 2 routings and validate primary uniqueness + primary switch:
+    - `POST /api/v1/routings` (x2)
+    - `PUT /api/v1/routings/{id}/primary`
+  - release guardrails:
+    - empty operations -> release-diagnostics errors + release blocked
+    - inactive workcenter referenced by operation -> release-diagnostics errors (`workcenter_inactive`) + release blocked
+  - routing release success + already-released guardrail
+- Command:
+  - `bash scripts/verify_routing_primary_release_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_routing_primary_release_e2e_20260214-114321.log`
+  - Payloads: `tmp/verify-routing-primary-release/20260214-114321/`
+- Result:
+  - primary switch: `ok`
+  - release blocked (empty ops): `ok` (`routing_empty_operations`)
+  - release blocked (inactive workcenter): `ok` (`workcenter_inactive`)
+  - routing released: `state=released`
+  - release again blocked: `ok` (`already released`)
 
 ## 2026-02-14 WorkCenter API-only E2E (PASS)
 
