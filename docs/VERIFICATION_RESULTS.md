@@ -198,6 +198,30 @@
   - routing released: `state=released`
   - release again blocked: `ok` (`already released`)
 
+## 2026-02-14 Routing Operations API-only E2E (PASS)
+
+- Scope:
+  - build a minimal EBOM (parent -> child) and create MBOM + routing
+  - operation CRUD:
+    - create/list/update/delete via `POST/GET/PATCH/DELETE /api/v1/routings/{routing_id}/operations`
+  - resequence:
+    - duplicates/omitted ids -> `400`
+    - `POST /api/v1/routings/{routing_id}/operations/resequence`
+  - routing totals updated (setup/run/labor): `GET /api/v1/routings/{routing_id}`
+  - workcenter guardrails during operation update:
+    - unknown workcenter_code -> `404`
+    - inactive workcenter -> `400`
+- Command:
+  - `bash scripts/verify_routing_operations_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_routing_operations_e2e_20260214-121320.log`
+  - Payloads: `tmp/verify-routing-operations/20260214-121320/`
+- Result:
+  - routing totals updated: `ok`
+  - resequence guardrails: `ok`
+  - delete resequences remaining ops: `ok`
+  - workcenter guardrails: `404` (unknown) + `400` (inactive)
+
 ## 2026-02-14 WorkCenter API-only E2E (PASS)
 
 - Scope:
