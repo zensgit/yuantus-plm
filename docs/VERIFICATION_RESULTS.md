@@ -74,6 +74,26 @@
   - iterations: latest=`1.C.2`
   - schemes: list `>= 1`
 
+## 2026-02-14 Run H API-only E2E (PASS)
+
+- Scope:
+  - health/meta/aml/search/rpc/file/bom/plugins/eco/versions/integrations core smoke (self-contained)
+- Command:
+  - `bash scripts/verify_run_h_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_run_h_e2e_20260214-161527.log`
+  - Payloads: `tmp/verify-run-h/20260214-161527/`
+- Result:
+  - health: `ok=true`
+  - AML add/get + Search: `ok`
+  - RPC Item.create: `ok`
+  - file upload/metadata/download: `ok` (content match)
+  - BOM effective: `ok`
+  - plugins list + demo ping: `ok`
+  - ECO flow: `new-revision/approve/apply`: `ok`
+  - versions history/tree: `ok`
+  - integrations health: `200` + `services` present
+
 ## 2026-02-14 ECO Advanced API-only E2E (PASS)
 
 - Scope:
