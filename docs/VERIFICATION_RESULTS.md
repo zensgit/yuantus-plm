@@ -89,6 +89,57 @@
 - Result:
   - list substitutes: `1` -> `2` -> duplicate add `400` -> delete 1 -> remaining `1`
 
+## 2026-02-14 Effectivity Extended (Lot/Serial) API-only E2E (PASS)
+
+- Scope:
+  - build a minimal BOM (parent -> child_lot, child_serial)
+  - create Lot/Serial effectivities on BOM lines via `POST /api/v1/effectivities`
+  - query effective BOM via `GET /api/v1/bom/{item_id}/effective?lot_number=...&serial_number=...`
+- Command:
+  - `bash scripts/verify_effectivity_extended_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_effectivity_extended_e2e_20260214-133406.log`
+  - Payloads: `tmp/verify-effectivity-extended/20260214-133406/`
+- Result:
+  - match: both children visible: `ok`
+  - non-match: children filtered out: `ok`
+
+## 2026-02-14 BOM Obsolete API-only E2E (PASS)
+
+- Scope:
+  - obsolete scan: `GET /api/v1/bom/{item_id}/obsolete`
+  - resolve: `POST /api/v1/bom/{item_id}/obsolete/resolve`
+  - contract:
+    - scan count `1 -> 0`
+    - child swapped to `replacement_id` after resolve
+  - modes:
+    - `mode=update`
+    - `mode=new_bom`
+- Command:
+  - `bash scripts/verify_bom_obsolete_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_bom_obsolete_e2e_20260214-133437.log`
+  - Payloads: `tmp/verify-bom-obsolete/20260214-133437/`
+- Result:
+  - update mode: `ok`
+  - new_bom mode: `ok`
+
+## 2026-02-14 BOM Weight Rollup API-only E2E (PASS)
+
+- Scope:
+  - rollup weight: `POST /api/v1/bom/{item_id}/rollup/weight`
+  - contract:
+    - total_weight == `sum(child_weight * qty)`
+    - write_back persists `weight_rollup` when missing
+- Command:
+  - `bash scripts/verify_bom_weight_rollup_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_bom_weight_rollup_e2e_20260214-133457.log`
+  - Payloads: `tmp/verify-bom-weight-rollup/20260214-133457/`
+- Result:
+  - total_weight: `8.0`
+  - write_back: `ok`
+
 ## 2026-02-14 MBOM Convert API-only E2E (PASS)
 
 - Scope:
