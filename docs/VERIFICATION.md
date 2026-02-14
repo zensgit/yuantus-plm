@@ -2789,11 +2789,43 @@ RUN_ECO_ADVANCED_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1
 - `tmp/verify-eco-advanced/<timestamp>/...json`（health/login/eco/bom-diff/impact/export 等证据）
 - `tmp/verify-eco-advanced/<timestamp>/server.log`
 
+### 26.2.27 Run H（可选自包含 API-only E2E）
+
+该验证用于覆盖 Run H（Core APIs）的最小闭环（无需 docker compose）：
+
+- health：`GET /api/v1/health`
+- meta metadata：`GET /api/v1/aml/metadata/Part`
+- AML add/get：`POST /api/v1/aml/apply`
+- Search：`GET /api/v1/search/?q=...`
+- RPC：`POST /api/v1/rpc/`
+- File upload/download：`POST /api/v1/file/upload`，`GET /api/v1/file/{id}/download`
+- BOM effective：`GET /api/v1/bom/{item_id}/effective`
+- Plugins：`GET /api/v1/plugins`，`GET /api/v1/plugins/demo/ping`
+- ECO full flow：`POST /api/v1/eco/...`（create/new-revision/approve/apply）
+- Versions history/tree：`GET /api/v1/versions/items/{item_id}/history|tree`
+- Integrations health：`GET /api/v1/integrations/health`（应始终返回 `200`）
+
+运行方式：
+
+```bash
+# 直接运行（会启动一个临时本地服务 + SQLite DB；无需 docker compose）
+bash scripts/verify_run_h_e2e.sh
+
+# 或合并到一键回归（可选）
+RUN_RUN_H_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1
+```
+
+产物：
+
+- `tmp/verify-run-h/<timestamp>/...json`（health/login/aml/search/rpc/file/bom/eco/versions/integrations 等证据）
+- `tmp/verify-run-h/<timestamp>/server.log`
+
 ### 26.3 测试套件
 
 | 测试名称 | 脚本 | 验证内容 |
 |----------|------|----------|
 | Run H (Core APIs) | `verify_run_h.sh` | Health、AML、Search、RPC、File、BOM |
+| Run H (E2E) | `verify_run_h_e2e.sh` | Run H 自包含 API-only E2E（会启动临时服务 + SQLite DB） |
 | S2 (Documents & Files) | `verify_documents.sh` | 文件元数据、去重、挂载列表 |
 | S1 (Meta + RBAC) | `verify_permissions.sh` | 权限配置、RBAC 执行 |
 | S3.1 (BOM Tree) | `verify_bom_tree.sh` | BOM 写入、循环检测 |
@@ -2872,6 +2904,7 @@ RUN_ECO_ADVANCED_E2E=1 bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1
 > `Dedup Management (E2E)` 需要设置 `RUN_DEDUP_MGMT=1`（或直接运行 `scripts/verify_dedup_management.sh`）。
 > `Quota Enforcement (E2E)` 需要设置 `RUN_QUOTA_E2E=1`（或直接运行 `scripts/verify_quota_enforcement.sh`）。
 > `Platform Tenant Provisioning (E2E)` 需要设置 `RUN_PLATFORM_TENANT_PROV=1`（或直接运行 `scripts/verify_platform_tenant_provisioning.sh`）。
+> `Run H (E2E)` 需要设置 `RUN_RUN_H_E2E=1`（或直接运行 `scripts/verify_run_h_e2e.sh`）。
 > `Item Equivalents (E2E)` 需要设置 `RUN_ITEM_EQUIVALENTS_E2E=1`（或直接运行 `scripts/verify_item_equivalents.sh`）。
 > `Version-File Binding (E2E)` 需要设置 `RUN_VERSION_FILE_BINDING_E2E=1`（或直接运行 `scripts/verify_version_file_binding.sh`）。
 > `Versions Core (E2E)` 需要设置 `RUN_VERSIONS_E2E=1`（或直接运行 `scripts/verify_versions_e2e.sh`）。
