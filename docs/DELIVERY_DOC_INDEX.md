@@ -139,6 +139,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Release Readiness + ECO Apply Diagnostics + Ruleset Directory: `docs/DEV_AND_VERIFICATION_RELEASE_READINESS_ECO_APPLY_DIAGNOSTICS_20260207.md`
 - Roadmap 9.3 Performance Benchmarks: `docs/DEV_AND_VERIFICATION_ROADMAP_9_3_PERFORMANCE_20260207.md`
 - Roadmap 9.3 Perf CI (SQLite + Postgres): `docs/DEV_AND_VERIFICATION_ROADMAP_9_3_PERF_20260209.md`
+- Routing Copy API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ROUTING_COPY_E2E_20260214.md`
 - Routing Operations API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ROUTING_OPERATIONS_E2E_20260214.md`
 - Routing Primary+Release + MBOM Release E2E: `docs/DEV_AND_VERIFICATION_ROUTING_PRIMARY_RELEASE_E2E_20260214.md`
 - Strategy-Based Release Validation: `docs/DEV_AND_VERIFICATION_STRATEGY_RELEASE_VALIDATION_20260207.md`

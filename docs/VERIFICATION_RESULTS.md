@@ -222,6 +222,23 @@
   - delete resequences remaining ops: `ok`
   - workcenter guardrails: `404` (unknown) + `400` (inactive)
 
+## 2026-02-14 Routing Copy API-only E2E (PASS)
+
+- Scope:
+  - build a minimal EBOM (parent -> child) and create MBOM + routing + operations
+  - copy routing + operations: `POST /api/v1/routings/{routing_id}/copy?new_name=...`
+  - contract:
+    - copied routing `is_primary=false` (source routing unchanged)
+    - copied operations count + basic fields are copied (operation_number/sequence/workcenter_code)
+- Command:
+  - `bash scripts/verify_routing_copy_e2e.sh`
+- Evidence:
+  - Log: `tmp/verify_routing_copy_e2e_20260214-122501.log`
+  - Payloads: `tmp/verify-routing-copy/20260214-122501/`
+- Result:
+  - copied routing non-primary: `ok`
+  - copied operations: `ok`
+
 ## 2026-02-14 WorkCenter API-only E2E (PASS)
 
 - Scope:
