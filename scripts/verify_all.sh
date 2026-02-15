@@ -228,19 +228,6 @@ echo "RUN_BASELINE_E2E: $RUN_BASELINE_E2E"
 echo "RUN_BASELINE_FILTERS_E2E: $RUN_BASELINE_FILTERS_E2E"
 echo "MT_RESET: $MT_RESET"
 echo "MT_SCHEMA_PRECHECK: $MT_SCHEMA_PRECHECK"
-if is_truthy "${RUN_DEDUP:-0}" || is_truthy "${RUN_DEDUP_MGMT:-0}" || [[ -n "${YUANTUS_DEDUP_VISION_BASE_URL:-}" || -n "${YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL:-}" || -n "${YUANTUS_DEDUP_VISION_FALLBACK_PORT:-}" || -n "${DEDUP_VISION_PORT:-}" ]]; then
-  dedup_effective_port="${DEDUP_VISION_PORT:-8100}"
-  dedup_effective_base_url="${YUANTUS_DEDUP_VISION_BASE_URL:-http://localhost:${dedup_effective_port}}"
-  dedup_effective_fallback_port="${YUANTUS_DEDUP_VISION_FALLBACK_PORT:-${dedup_effective_port}}"
-  dedup_effective_fallback_base_url="${YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL:-http://host.docker.internal:${dedup_effective_fallback_port}}"
-  echo "DEDUP_CONFIG:"
-  echo "  YUANTUS_DEDUP_VISION_BASE_URL: ${YUANTUS_DEDUP_VISION_BASE_URL:-<empty>}"
-  echo "  YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL: ${YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL:-<empty>}"
-  echo "  YUANTUS_DEDUP_VISION_FALLBACK_PORT: ${YUANTUS_DEDUP_VISION_FALLBACK_PORT:-<empty>}"
-  echo "  DEDUP_VISION_PORT: ${DEDUP_VISION_PORT:-<empty>}"
-  echo "  effective_base_url: ${dedup_effective_base_url}"
-  echo "  effective_fallback_base_url: ${dedup_effective_fallback_base_url}"
-fi
 if [[ -n "${RUN_CAD_ML_DOCKER:-}" || -n "${CAD_ML_BASE_URL:-}" || -n "${YUANTUS_CAD_ML_BASE_URL:-}" || -n "${CAD_PREVIEW_SAMPLE_FILE:-}" ]]; then
   echo "CAD-ML:"
   echo "  RUN_CAD_ML_DOCKER: ${RUN_CAD_ML_DOCKER:-0}"
@@ -333,6 +320,30 @@ api_health_http_code() {
     return 0
   fi
   echo "$http_code"
+}
+
+print_dedup_config() {
+  if ! is_truthy "${RUN_DEDUP:-0}" \
+    && ! is_truthy "${RUN_DEDUP_MGMT:-0}" \
+    && [[ -z "${YUANTUS_DEDUP_VISION_BASE_URL:-}" \
+      && -z "${YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL:-}" \
+      && -z "${YUANTUS_DEDUP_VISION_FALLBACK_PORT:-}" \
+      && -z "${DEDUP_VISION_PORT:-}" ]]; then
+    return 0
+  fi
+  local dedup_effective_port dedup_effective_base_url
+  local dedup_effective_fallback_port dedup_effective_fallback_base_url
+  dedup_effective_port="${DEDUP_VISION_PORT:-8100}"
+  dedup_effective_base_url="${YUANTUS_DEDUP_VISION_BASE_URL:-http://localhost:${dedup_effective_port}}"
+  dedup_effective_fallback_port="${YUANTUS_DEDUP_VISION_FALLBACK_PORT:-${dedup_effective_port}}"
+  dedup_effective_fallback_base_url="${YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL:-http://host.docker.internal:${dedup_effective_fallback_port}}"
+  echo "DEDUP_CONFIG:"
+  echo "  YUANTUS_DEDUP_VISION_BASE_URL: ${YUANTUS_DEDUP_VISION_BASE_URL:-<empty>}"
+  echo "  YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL: ${YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL:-<empty>}"
+  echo "  YUANTUS_DEDUP_VISION_FALLBACK_PORT: ${YUANTUS_DEDUP_VISION_FALLBACK_PORT:-<empty>}"
+  echo "  DEDUP_VISION_PORT: ${DEDUP_VISION_PORT:-<empty>}"
+  echo "  effective_base_url: ${dedup_effective_base_url}"
+  echo "  effective_fallback_base_url: ${dedup_effective_fallback_base_url}"
 }
 
 load_storage_from_health() {
@@ -607,6 +618,7 @@ if [[ -n "${DEDUP_VISION_PORT:-}" ]]; then
   export YUANTUS_DEDUP_VISION_FALLBACK_PORT
   echo "Dedup port resolved: DEDUP_VISION_PORT=${DEDUP_VISION_PORT}, YUANTUS_DEDUP_VISION_FALLBACK_PORT=${YUANTUS_DEDUP_VISION_FALLBACK_PORT}"
 fi
+print_dedup_config
 
 # If DB_URL is set, ensure child scripts use the same database.
 if [[ -z "$DB_URL" ]]; then
