@@ -953,6 +953,8 @@ trap restore_quota EXIT
 
 TENANCY_MODE_HEALTH="$(health_field tenancy_mode)"
 AUDIT_ENABLED_HEALTH="$(health_field audit_enabled)"
+DB_URL_TEMPLATE_HEALTH="$(health_field database_url_template)"
+RUNTIME_DB_URL_TEMPLATE_RAW="${DB_URL_TEMPLATE_HEALTH:-${YUANTUS_DATABASE_URL_TEMPLATE:-}}"
 
 # Align local CLI env with API tenancy mode to avoid stale multi-tenant settings.
 if [[ "$TENANCY_MODE_HEALTH" != "db-per-tenant" && "$TENANCY_MODE_HEALTH" != "db-per-tenant-org" ]]; then
@@ -966,7 +968,10 @@ fi
 
 if [[ -n "$DB_URL" && "$DB_URL" == postgresql* ]]; then
   DB_BASE="${DB_URL%/*}"
-  if [[ -z "${DB_URL_TEMPLATE:-}" ]]; then
+  if [[ -z "${DB_URL_TEMPLATE:-}" && -n "${RUNTIME_DB_URL_TEMPLATE_RAW:-}" ]]; then
+    # Only derive a host-reachable template when runtime itself is configured with
+    # db-per-tenant(*) URL templating. If runtime template is empty, keep DB_URL_TEMPLATE
+    # empty to avoid forcing CLI/tools into non-existent tenant DBs.
     if [[ "$TENANCY_MODE_HEALTH" == "db-per-tenant-org" ]]; then
       DB_URL_TEMPLATE="${DB_BASE}/yuantus_mt_pg__{tenant_id}__{org_id}"
     elif [[ "$TENANCY_MODE_HEALTH" == "db-per-tenant" ]]; then
@@ -974,7 +979,8 @@ if [[ -n "$DB_URL" && "$DB_URL" == postgresql* ]]; then
     fi
   fi
   if [[ -z "${IDENTITY_DB_URL:-}" && "$TENANCY_MODE_HEALTH" != "single" ]]; then
-    IDENTITY_DB_URL="${DB_BASE}/yuantus_identity_mt_pg"
+    IDENTITY_DB_NAME="$(resolve_identity_db_name_for_runtime)"
+    IDENTITY_DB_URL="${DB_BASE}/${IDENTITY_DB_NAME}"
   fi
 fi
 
@@ -1360,9 +1366,13 @@ fi
 
 # 15. S7 - Multi-Tenancy (only when TENANCY_MODE is enabled)
 if [[ "$TENANCY_MODE_HEALTH" == "db-per-tenant" || "$TENANCY_MODE_HEALTH" == "db-per-tenant-org" ]]; then
-  run_test "S7 (Multi-Tenancy)" \
-    "$SCRIPT_DIR/verify_multitenancy.sh" \
-    "$BASE_URL" "$TENANT" "tenant-2" "$ORG" "org-2" || true
+  if [[ "$TENANCY_MODE_HEALTH" == "db-per-tenant-org" && -z "${RUNTIME_DB_URL_TEMPLATE_RAW:-}" ]]; then
+    skip_test "S7 (Multi-Tenancy)" "db-per-tenant-org runtime missing database_url_template"
+  else
+    run_test "S7 (Multi-Tenancy)" \
+      "$SCRIPT_DIR/verify_multitenancy.sh" \
+      "$BASE_URL" "$TENANT" "tenant-2" "$ORG" "org-2" || true
+  fi
 else
   skip_test "S7 (Multi-Tenancy)" "tenancy_mode=$TENANCY_MODE_HEALTH"
 fi

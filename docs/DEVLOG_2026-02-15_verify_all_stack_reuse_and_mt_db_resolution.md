@@ -65,6 +65,18 @@ Both issues caused false-negative regressions in scripts that seed/login users a
 - Updated:
   - `.github/workflows/ci.yml` contracts list.
 
+6. Follow-up hardening after full-suite replay
+
+- `scripts/verify_all.sh`
+  - only derives `DB_URL_TEMPLATE` when runtime itself reports a non-empty template.
+  - skips `S7 (Multi-Tenancy)` when runtime is `db-per-tenant-org` but `database_url_template` is missing.
+  - avoids forcing scripts into non-existent tenant DBs in idonly-style deployments.
+- `scripts/verify_mbom_convert.sh`
+  - in `db-per-tenant-org` / `db-per-tenant` mode, keeps provided `DB_URL` if present.
+  - only falls back to `resolve_database_url()` when `DB_URL` is missing.
+- Added CI contract:
+  - `src/yuantus/meta_engine/tests/test_ci_contracts_verify_mbom_convert_db_url_fallback.py`
+
 ## Verification
 
 Contracts:
@@ -101,6 +113,11 @@ Runtime checks (key):
   - `USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh`: `PASS`
   - `scripts/verify_mbom_convert.sh`: `PASS`
   - `scripts/verify_version_files.sh` with `YUANTUS_DATABASE_URL` + `YUANTUS_IDENTITY_DATABASE_URL` + `YUANTUS_TENANCY_MODE=db-per-tenant-org`: `PASS`
+- Full-suite replay:
+  - command: `RUN_DEDUP=1 START_DEDUP_STACK=1 USE_DOCKER_WORKER=1 bash scripts/verify_all.sh`
+  - log: `/tmp/verify_all_dedup_docker_worker_20260216-002237.log`
+  - result: `PASS: 41  FAIL: 0  SKIP: 47` (`ALL TESTS PASSED`)
+  - notable skip: `S7 (Multi-Tenancy)` skipped when runtime template is missing (`db-per-tenant-org runtime missing database_url_template`), preventing false-negative failures on non-isolated runtime configs.
 
 ## Notes
 

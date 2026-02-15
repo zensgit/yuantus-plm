@@ -68,3 +68,27 @@ def test_verify_all_can_resolve_postgres_port_from_running_api_compose_project()
     assert "DOCKER_POSTGRES_PORT_LINE=\"$(resolve_postgres_port_line_from_api_project || true)\"" in text, (
         "verify_all.sh should fallback to API-project-based postgres port probing when static compose probing fails."
     )
+    assert 'IDENTITY_DB_NAME="$(resolve_identity_db_name_for_runtime)"' in text, (
+        "verify_all.sh should resolve identity DB name from runtime in DB alignment paths."
+    )
+
+
+def test_verify_all_skips_multitenancy_check_when_runtime_template_missing() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    verify_all = repo_root / "scripts" / "verify_all.sh"
+    assert verify_all.is_file(), f"Missing {verify_all}"
+    text = _read(verify_all)
+
+    assert "RUNTIME_DB_URL_TEMPLATE_RAW=" in text, (
+        "verify_all.sh should capture runtime DB URL template state before local derivation."
+    )
+    assert 'if [[ -z "${DB_URL_TEMPLATE:-}" && -n "${RUNTIME_DB_URL_TEMPLATE_RAW:-}" ]]; then' in text, (
+        "verify_all.sh should derive DB_URL_TEMPLATE only when runtime template is present."
+    )
+    assert 'db-per-tenant-org runtime missing database_url_template' in text, (
+        "verify_all.sh should skip multi-tenancy verification when runtime db-per-tenant-org "
+        "is missing database_url_template."
+    )
+    assert 'if [[ "$TENANCY_MODE_HEALTH" == "db-per-tenant-org" && -z "${RUNTIME_DB_URL_TEMPLATE_RAW:-}" ]]; then' in text, (
+        "verify_all.sh should gate multi-tenancy test on runtime db-per-tenant-org template availability."
+    )

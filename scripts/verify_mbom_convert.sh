@@ -30,7 +30,7 @@ if [[ "$TENANCY_MODE" == "db-per-tenant-org" ]]; then
   if [[ -n "$DB_URL_TEMPLATE" ]]; then
     DB_URL="${DB_URL_TEMPLATE//\{tenant_id\}/$TENANT}"
     DB_URL="${DB_URL//\{org_id\}/$ORG}"
-  else
+  elif [[ -z "$DB_URL" ]]; then
     DB_URL="$(
       TENANT="$TENANT" ORG="$ORG" "$PY" - <<'PY'
 import os
@@ -46,7 +46,7 @@ elif [[ "$TENANCY_MODE" == "db-per-tenant" ]]; then
   if [[ -n "$DB_URL_TEMPLATE" ]]; then
     DB_URL="${DB_URL_TEMPLATE//\{tenant_id\}/$TENANT}"
     DB_URL="${DB_URL//\{org_id\}/default}"
-  else
+  elif [[ -z "$DB_URL" ]]; then
     DB_URL="$(
       TENANT="$TENANT" "$PY" - <<'PY'
 import os
