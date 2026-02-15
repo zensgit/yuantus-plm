@@ -75,7 +75,7 @@ load_server_env() {
     pid="$(cat "$pid_file" 2>/dev/null || true)"
     if [[ -n "$pid" ]] && ps -p "$pid" >/dev/null 2>&1; then
       local tokens
-      tokens="$(ps eww -p "$pid" -o command= | tr ' ' '\n' | grep '^YUANTUS_' || true)"
+      tokens="$(ps eww -p "$pid" -o command= | tr ' ' '\n' | grep -E '^(YUANTUS_|DEDUP_VISION_PORT=)' || true)"
       while IFS= read -r token; do
         [[ -z "$token" ]] && continue
         local key="${token%%=*}"
