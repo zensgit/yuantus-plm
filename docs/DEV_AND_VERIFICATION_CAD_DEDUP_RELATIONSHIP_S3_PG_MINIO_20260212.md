@@ -200,6 +200,31 @@ USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh
 
 ## Verification Results (2026-02-12)
 
+### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-IDONLY-DOCKER-WORKER-20260215-142529Z
+
+- 时间：`2026-02-15 14:25:29 +0000`（本机时区：`2026-02-15 22:25:29 +0800`）
+- 环境：`docker compose -p yuantusplm_idonly -f docker-compose.yml`（Postgres + MinIO + API + worker=compose container）；Dedup Vision 由宿主 `http://localhost:8100` 提供
+- 命令：`LOG=/tmp/verify_cad_dedup_relationship_s3_docker_worker_20260215-222526.log; USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh | tee "$LOG"`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 原始日志：`/tmp/verify_cad_dedup_relationship_s3_docker_worker_20260215-222526.log`
+
+关键 ID：
+
+- workflow_map_id: `ba01ab20-7acc-4c94-abc9-5d2a41e2098e`
+- rule_id: `bafca8b5-841f-4f85-b8b6-1b80ffdf6361`
+- part_a_id: `668c59cc-4ae3-4cc4-9f41-a416b87ba7a3`
+- part_b_id: `a7e96c95-4e08-40c7-9c7a-e2286fe39732`
+- baseline_file_id: `6010ae7f-5d5b-4073-b5e0-eade74bd4552`
+- query_file_id: `69c66bab-213b-4bf6-9e7f-db2aad0547e3`
+- baseline_job_id: `89541f64-3bfe-4df9-9502-e1b867dc0ce8`
+- query_job_id: `cca9683a-2123-4f75-a7c8-320058d27c9d`
+- similarity_record_id: `fc631823-402a-45dc-8db9-607c2882d99c`
+- relationship_item_id: `6f639ef2-9b4d-45ec-bc65-0ab1edfc3959`
+- batch_id: `a9600be1-f290-4ea7-a4ae-56801665c479`
+- reverse_job_id: `da963e9f-af42-4c24-94fa-2dc9b1bd817f`
+- promote_file_id: `4efe469c-e8aa-4b2c-961c-36176ddadca9`
+- promote_job_id: `f07aa396-3ab9-427d-b823-7ecda227280d`
+
 ### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-IDONLY-DOCKER-WORKER-20260215-141144Z
 
 - 时间：`2026-02-15 14:11:44 +0000`（本机时区：`2026-02-15 22:11:44 +0800`）
