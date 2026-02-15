@@ -322,6 +322,19 @@ health_field() {
       "$field" 2>/dev/null || echo ""
 }
 
+api_health_http_code() {
+  local http_code
+  http_code="$(
+    curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/api/v1/health" \
+      -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" 2>/dev/null || true
+  )"
+  if [[ ! "$http_code" =~ ^[0-9]{3}$ ]]; then
+    echo "000"
+    return 0
+  fi
+  echo "$http_code"
+}
+
 load_storage_from_health() {
   if [[ -n "${YUANTUS_STORAGE_TYPE:-}" ]]; then
     return 0
@@ -676,8 +689,7 @@ fi
 
 HTTP_CODE="000"
 for ((i=1; i<=API_HEALTH_RETRIES; i++)); do
-  HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/api/v1/health" \
-    -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" 2>/dev/null || echo "000")
+  HTTP_CODE="$(api_health_http_code)"
   if [[ "$HTTP_CODE" == "200" ]]; then
     break
   fi
