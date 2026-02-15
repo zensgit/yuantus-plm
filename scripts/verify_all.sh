@@ -159,6 +159,16 @@ fi
 export CLI PY
 export MIGRATE_TENANT_DB
 
+# -----------------------------------------------------------------------------
+# Helper functions
+# -----------------------------------------------------------------------------
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Colors (if terminal supports)
 if [[ -t 1 ]]; then
   GREEN='\033[0;32m'
@@ -250,13 +260,6 @@ echo ""
 # -----------------------------------------------------------------------------
 # Helper functions
 # -----------------------------------------------------------------------------
-is_truthy() {
-  case "${1:-}" in
-    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 run_test() {
   local name="$1"
   local script="$2"
