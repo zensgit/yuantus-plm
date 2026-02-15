@@ -237,6 +237,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_host_fallback.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_v2_fallback.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_verify_script_docker_worker.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_verify_scripts_port_override.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_doc_index_sorting.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_verify_all_env_allowlist.py \
