@@ -148,6 +148,56 @@ Expected:
 - Confirms DB constraint: `pair_key` is `NOT NULL`
 - Confirms dedup report + CSV export endpoints return rows
 
+## Runbook: idonly + Dedup Vision (Docker Worker)
+
+适用场景：
+
+- API/Worker 运行在 `docker compose -p yuantusplm_idonly -f docker-compose.yml` 项目中
+- `cad_dedup_vision` 任务由容器内 worker 执行（`USE_DOCKER_WORKER=1`）
+- Dedup Vision 可能运行在另一个 compose 项目（例如默认 `yuantus`）并通过宿主 `8100` 暴露
+
+启动顺序（推荐）：
+
+```bash
+# 1) 启动 Dedup Vision（如果尚未运行）
+docker compose -f docker-compose.yml --profile dedup up -d dedup-vision
+
+# 2) 启动 idonly 栈核心服务
+docker compose -p yuantusplm_idonly -f docker-compose.yml up -d postgres minio api
+
+# 3) 重建并启动 idonly worker（确保包含最新 host fallback + extra_hosts）
+docker compose -p yuantusplm_idonly -f docker-compose.yml build worker
+docker compose -p yuantusplm_idonly -f docker-compose.yml up -d --force-recreate worker
+```
+
+健康检查：
+
+```bash
+curl -sS -o /dev/null -w 'api=%{http_code}\n' http://127.0.0.1:7910/api/v1/health
+curl -sS -o /dev/null -w 'dedup=%{http_code}\n' http://127.0.0.1:8100/health
+docker inspect -f '{{json .HostConfig.ExtraHosts}}' yuantusplm_idonly-worker-1
+docker exec yuantusplm_idonly-worker-1 python -c "import urllib.request;print(urllib.request.urlopen('http://host.docker.internal:8100/health', timeout=5).status)"
+```
+
+执行验证：
+
+```bash
+USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh
+```
+
+预期输出：
+
+- `ALL CHECKS PASSED`
+
+常见故障与处理：
+
+- 症状：`result.ok=false` 且错误 `Name or service not known`（解析 `dedup-vision` 失败）
+  - 处理：确认 worker 为最新镜像并已重建（`build worker` + `up --force-recreate worker`）。
+  - 处理：确认 worker `extra_hosts` 包含 `host.docker.internal:host-gateway`。
+  - 处理：确认宿主 `http://localhost:8100/health` 为 `200`。
+- 症状：`http://127.0.0.1:7910` 不可达
+  - 处理：检查端口冲突（可能被其它 compose 项目占用），并确保当前目标项目的 `api/postgres/minio` 在运行。
+
 ## Verification Results (2026-02-12)
 
 ### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-IDONLY-DOCKER-WORKER-20260215-141144Z
