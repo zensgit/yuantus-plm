@@ -197,7 +197,8 @@ USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh
   - 处理：确认宿主 `http://localhost:8100/health` 为 `200`。
   - 处理：若 Dedup 宿主端口不是 `8100`，设置 `YUANTUS_DEDUP_VISION_FALLBACK_PORT`（或 `DEDUP_VISION_PORT`）为实际端口后重启 worker。
   - 处理：若需指定完整备用地址（非 `host.docker.internal`），设置 `YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL`（例如 `http://10.0.0.12:18080`）后重启 worker。
-  - 说明：`verify_cad_dedup_vision_s3.sh` 与 `verify_cad_dedup_relationship_s3.sh` 在未显式提供 `YUANTUS_DEDUP_VISION_BASE_URL` 时，会自动使用 `http://localhost:${DEDUP_VISION_PORT:-8100}`。
+  - 说明：`verify_cad_dedup_vision_s3.sh` 与 `verify_cad_dedup_relationship_s3.sh` 的 Dedup 地址优先级为：
+    `DEDUP_BASE_URL` > `YUANTUS_DEDUP_VISION_BASE_URL` > `YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL` > `http://localhost:${DEDUP_VISION_PORT:-8100}`。
 - 症状：`http://127.0.0.1:7910` 不可达
   - 处理：检查端口冲突（可能被其它 compose 项目占用），并确保当前目标项目的 `api/postgres/minio` 在运行。
 

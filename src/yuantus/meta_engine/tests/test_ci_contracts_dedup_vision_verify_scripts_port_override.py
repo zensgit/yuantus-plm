@@ -28,6 +28,16 @@ def test_verify_scripts_use_dedup_vision_port_in_default_base_url() -> None:
         assert script.is_file(), f"Missing script: {script}"
         text = _read(script)
         assert "DEDUP_BASE_URL=" in text, f"{script} should define DEDUP_BASE_URL"
+        assert "YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL" in text, (
+            f"{script} should allow YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL as secondary fallback."
+        )
         assert "http://localhost:${DEDUP_VISION_PORT:-8100}" in text, (
             f"{script} should honor DEDUP_VISION_PORT in default DEDUP_BASE_URL."
+        )
+        assert (
+            'DEDUP_BASE_URL="${DEDUP_BASE_URL:-${YUANTUS_DEDUP_VISION_BASE_URL:-${YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL:-http://localhost:${DEDUP_VISION_PORT:-8100}}}}"'
+            in text
+        ), (
+            f"{script} should keep fallback precedence: DEDUP_BASE_URL > "
+            "YUANTUS_DEDUP_VISION_BASE_URL > YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL > localhost:DEDUP_VISION_PORT."
         )
