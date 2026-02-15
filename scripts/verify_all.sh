@@ -568,6 +568,30 @@ if is_truthy "${START_DEDUP_STACK:-0}"; then
   fi
 fi
 
+# Resolve Dedup host port for child scripts (best-effort).
+DOCKER_DEDUP_PORT_LINE=""
+if command -v docker >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/docker-compose.yml" ]]; then
+  if (( ${#COMPOSE_FILES[@]} > 0 )); then
+    DOCKER_DEDUP_PORT_LINE="$(docker compose "${COMPOSE_FILES[@]}" --profile dedup port dedup-vision 8000 2>/dev/null | head -n 1 || true)"
+  fi
+  if [[ -z "$DOCKER_DEDUP_PORT_LINE" ]]; then
+    DOCKER_DEDUP_PORT_LINE="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" -p yuantusplm port dedup-vision 8000 2>/dev/null | head -n 1 || true)"
+    if [[ -z "$DOCKER_DEDUP_PORT_LINE" ]]; then
+      DOCKER_DEDUP_PORT_LINE="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" --profile dedup port dedup-vision 8000 2>/dev/null | head -n 1 || true)"
+    fi
+  fi
+fi
+
+if [[ -z "${DEDUP_VISION_PORT:-}" && -n "$DOCKER_DEDUP_PORT_LINE" ]]; then
+  DEDUP_VISION_PORT="${DOCKER_DEDUP_PORT_LINE##*:}"
+  export DEDUP_VISION_PORT
+fi
+if [[ -n "${DEDUP_VISION_PORT:-}" ]]; then
+  : "${YUANTUS_DEDUP_VISION_FALLBACK_PORT:=$DEDUP_VISION_PORT}"
+  export YUANTUS_DEDUP_VISION_FALLBACK_PORT
+  echo "Dedup port resolved: DEDUP_VISION_PORT=${DEDUP_VISION_PORT}, YUANTUS_DEDUP_VISION_FALLBACK_PORT=${YUANTUS_DEDUP_VISION_FALLBACK_PORT}"
+fi
+
 # If DB_URL is set, ensure child scripts use the same database.
 if [[ -z "$DB_URL" ]]; then
   DOCKER_POSTGRES_PORT_LINE=""

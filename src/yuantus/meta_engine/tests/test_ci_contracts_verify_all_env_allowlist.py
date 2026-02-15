@@ -39,6 +39,12 @@ def test_verify_all_env_allowlist_includes_dedup_fallback_vars() -> None:
     assert "grep -E '^(YUANTUS_|DEDUP_VISION_PORT=)'" in text, (
         "verify_all.sh should capture both YUANTUS_* and DEDUP_VISION_PORT from server process env."
     )
+    assert "port dedup-vision 8000" in text, (
+        "verify_all.sh should probe docker compose dedup-vision host port (container 8000)."
+    )
+    assert ': "${YUANTUS_DEDUP_VISION_FALLBACK_PORT:=$DEDUP_VISION_PORT}"' in text, (
+        "verify_all.sh should derive YUANTUS_DEDUP_VISION_FALLBACK_PORT from DEDUP_VISION_PORT when unset."
+    )
     assert "DEDUP_CONFIG:" in text, (
         "verify_all.sh should print a DEDUP_CONFIG summary block for troubleshooting."
     )
