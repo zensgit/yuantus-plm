@@ -68,6 +68,17 @@ def test_compose_worker_sets_dedup_vision_base_url() -> None:
         f"\nGot: {val}"
     )
 
+    fallback_port_val = env.get("YUANTUS_DEDUP_VISION_FALLBACK_PORT")
+    assert isinstance(fallback_port_val, str) and fallback_port_val.strip(), (
+        "docker-compose.yml worker should set YUANTUS_DEDUP_VISION_FALLBACK_PORT so "
+        "host-network fallback can follow non-default Dedup host port mappings."
+        f"\nGot: {fallback_port_val!r}"
+    )
+    assert "DEDUP_VISION_PORT" in fallback_port_val or "8100" in fallback_port_val, (
+        "worker fallback port should derive from DEDUP_VISION_PORT with default 8100."
+        f"\nGot: {fallback_port_val}"
+    )
+
 
 def test_compose_worker_sets_host_gateway_mapping_for_dedup_fallback() -> None:
     repo_root = _find_repo_root(Path(__file__))

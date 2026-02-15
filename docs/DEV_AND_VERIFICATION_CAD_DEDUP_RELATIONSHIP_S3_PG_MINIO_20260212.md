@@ -195,6 +195,7 @@ USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh
   - 处理：确认 worker 为最新镜像并已重建（`build worker` + `up --force-recreate worker`）。
   - 处理：确认 worker `extra_hosts` 包含 `host.docker.internal:host-gateway`。
   - 处理：确认宿主 `http://localhost:8100/health` 为 `200`。
+  - 处理：若 Dedup 宿主端口不是 `8100`，设置 `YUANTUS_DEDUP_VISION_FALLBACK_PORT`（或 `DEDUP_VISION_PORT`）为实际端口后重启 worker。
 - 症状：`http://127.0.0.1:7910` 不可达
   - 处理：检查端口冲突（可能被其它 compose 项目占用），并确保当前目标项目的 `api/postgres/minio` 在运行。
 
