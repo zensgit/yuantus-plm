@@ -36,3 +36,19 @@ def test_dedup_vision_client_supports_host_network_fallback_for_compose_dns_fail
     assert "except httpx.RequestError" in text, (
         "Dedup Vision client should retry on request-level failures (e.g. DNS resolution errors)."
     )
+
+
+def test_dedup_vision_host_fallback_is_scoped_and_configurable() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    client_py = repo_root / "src" / "yuantus" / "integrations" / "dedup_vision.py"
+    text = _read(client_py)
+
+    assert 'if host not in {"dedup-vision", "yuantus-dedup-vision"}' in text, (
+        "Host-network fallback must stay scoped to compose Dedup hostnames only."
+    )
+    assert "YUANTUS_DEDUP_VISION_FALLBACK_PORT" in text, (
+        "Dedup Vision client should allow explicit fallback port override."
+    )
+    assert "DEDUP_VISION_PORT" in text, (
+        "Dedup Vision fallback should honor compose port override via DEDUP_VISION_PORT."
+    )
