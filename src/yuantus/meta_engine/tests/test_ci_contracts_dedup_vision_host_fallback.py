@@ -33,8 +33,9 @@ def test_dedup_vision_client_supports_host_network_fallback_for_compose_dns_fail
     assert "YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL" in text, (
         "Dedup Vision client should allow explicit fallback URL override for ops tuning."
     )
-    assert "except httpx.RequestError" in text, (
-        "Dedup Vision client should retry on request-level failures (e.g. DNS resolution errors)."
+    assert text.count("except httpx.RequestError") >= 3, (
+        "Dedup Vision client should retry on request-level failures (e.g. DNS resolution errors) "
+        "for health/search/index call paths."
     )
 
 
@@ -51,4 +52,23 @@ def test_dedup_vision_host_fallback_is_scoped_and_configurable() -> None:
     )
     assert "DEDUP_VISION_PORT" in text, (
         "Dedup Vision fallback should honor compose port override via DEDUP_VISION_PORT."
+    )
+    assert 'return f"{scheme}://host.docker.internal:{fallback_port}"' in text, (
+        "Fallback URL should be constructed from scheme + host.docker.internal + resolved port."
+    )
+
+
+def test_dedup_vision_candidate_urls_keep_primary_first_and_fallback_unique() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    client_py = repo_root / "src" / "yuantus" / "integrations" / "dedup_vision.py"
+    text = _read(client_py)
+
+    assert "urls = [self.base_url]" in text, (
+        "Candidate URL list should preserve configured base URL as first attempt."
+    )
+    assert "if fallback and fallback not in urls:" in text, (
+        "Fallback URL should be appended only when present and not duplicated."
+    )
+    assert "urls.append(fallback)" in text, (
+        "Fallback candidate should be appended after primary base URL."
     )
