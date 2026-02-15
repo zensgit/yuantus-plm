@@ -27,6 +27,9 @@ def test_verify_all_env_allowlist_includes_dedup_fallback_vars() -> None:
     assert "YUANTUS_DEDUP_VISION_BASE_URL" in text, (
         "verify_all.sh should preserve YUANTUS_DEDUP_VISION_BASE_URL from server env."
     )
+    assert "DEDUP_VISION_PORT" in text, (
+        "verify_all.sh should preserve DEDUP_VISION_PORT for non-default Dedup host port setups."
+    )
     assert "YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL" in text, (
         "verify_all.sh should preserve YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL from server env."
     )
