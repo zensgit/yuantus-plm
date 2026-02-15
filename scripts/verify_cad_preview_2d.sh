@@ -49,7 +49,16 @@ if [[ ! -f "$SAMPLE_FILE" ]]; then
   exit 0
 fi
 
-HTTP_CODE="$($CURL -o /dev/null -w '%{http_code}' "$CAD_ML_HEALTH_URL" 2>/dev/null || echo "000")"
+normalize_http_code() {
+  local http_code="${1:-}"
+  if [[ ! "$http_code" =~ ^[0-9]{3}$ ]]; then
+    echo "000"
+    return 0
+  fi
+  echo "$http_code"
+}
+
+HTTP_CODE="$(normalize_http_code "$($CURL -o /dev/null -w '%{http_code}' "$CAD_ML_HEALTH_URL" 2>/dev/null || true)")"
 if [[ "$HTTP_CODE" != "200" ]]; then
   if [[ "$CAD_PREVIEW_ALLOW_FALLBACK" == "1" ]]; then
     echo "WARN: CAD ML Vision not available at $CAD_ML_HEALTH_URL (HTTP $HTTP_CODE)"
@@ -209,7 +218,8 @@ echo ""
 echo "==> Check preview endpoint"
 PREVIEW_CODE="$($CURL -o /dev/null -w '%{http_code}' \
   -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" "${AUTH_HEADERS[@]}" \
-  "$BASE_URL/api/v1/file/$FILE_ID/preview" 2>/dev/null || echo "000")"
+  "$BASE_URL/api/v1/file/$FILE_ID/preview" 2>/dev/null || true)"
+PREVIEW_CODE="$(normalize_http_code "$PREVIEW_CODE")"
 
 if [[ "$PREVIEW_CODE" != "200" && "$PREVIEW_CODE" != "302" ]]; then
   fail "Preview endpoint returned HTTP $PREVIEW_CODE"
@@ -325,7 +335,8 @@ echo "==> Check CAD mesh stats (optional)"
 MESH_TMP="$(mktemp)"
 MESH_CODE="$($CURL -o "$MESH_TMP" -w '%{http_code}' \
   -H "x-tenant-id: $TENANT" -H "x-org-id: $ORG" "${AUTH_HEADERS[@]}" \
-  "$API/cad/files/$FILE_ID/mesh-stats" 2>/dev/null || echo "000")"
+  "$API/cad/files/$FILE_ID/mesh-stats" 2>/dev/null || true)"
+MESH_CODE="$(normalize_http_code "$MESH_CODE")"
 if [[ "$MESH_CODE" == "200" ]]; then
   read -r MESH_AVAILABLE MESH_KEYS <<<"$("$PY" - "$MESH_TMP" <<'PY'
 import json

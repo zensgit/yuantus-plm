@@ -74,6 +74,15 @@ run_cli() {
 fail() { echo "FAIL: $1" >&2; exit 1; }
 ok() { echo "OK: $1"; }
 
+normalize_http_code() {
+  local http_code="${1:-}"
+  if [[ ! "$http_code" =~ ^[0-9]{3}$ ]]; then
+    echo "000"
+    return 0
+  fi
+  echo "$http_code"
+}
+
 seed_meta() {
   run_cli seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id 1 --roles admin --superuser >/dev/null
   run_cli seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null || run_cli seed-meta >/dev/null
@@ -249,7 +258,8 @@ verify_sample() {
   local preview_code
   preview_code="$($CURL -o /dev/null -w '%{http_code}' \
     "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
-    "$BASE_URL/api/v1/file/$file_id/preview" 2>/dev/null || echo "000")"
+    "$BASE_URL/api/v1/file/$file_id/preview" 2>/dev/null || true)"
+  preview_code="$(normalize_http_code "$preview_code")"
   if [[ "$preview_code" != "200" && "$preview_code" != "302" ]]; then
     fail "$label preview endpoint returned HTTP $preview_code"
   fi

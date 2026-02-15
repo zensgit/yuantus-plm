@@ -50,7 +50,16 @@ if [[ ! -f "$SAMPLE_FILE" ]]; then
   exit 0
 fi
 
-HTTP_CODE="$($CURL -o /dev/null -w '%{http_code}' "$CAD_ML_HEALTH_URL" 2>/dev/null || echo "000")"
+normalize_http_code() {
+  local http_code="${1:-}"
+  if [[ ! "$http_code" =~ ^[0-9]{3}$ ]]; then
+    echo "000"
+    return 0
+  fi
+  echo "$http_code"
+}
+
+HTTP_CODE="$(normalize_http_code "$($CURL -o /dev/null -w '%{http_code}' "$CAD_ML_HEALTH_URL" 2>/dev/null || true)")"
 if [[ "$HTTP_CODE" != "200" ]]; then
   if [[ "$CAD_PREVIEW_ALLOW_FALLBACK" == "1" ]]; then
     echo "WARN: CAD ML Vision not available at $CAD_ML_HEALTH_URL (HTTP $HTTP_CODE)"
