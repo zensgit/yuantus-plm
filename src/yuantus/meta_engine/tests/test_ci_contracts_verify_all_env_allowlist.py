@@ -39,3 +39,12 @@ def test_verify_all_env_allowlist_includes_dedup_fallback_vars() -> None:
     assert "grep -E '^(YUANTUS_|DEDUP_VISION_PORT=)'" in text, (
         "verify_all.sh should capture both YUANTUS_* and DEDUP_VISION_PORT from server process env."
     )
+    assert "DEDUP_CONFIG:" in text, (
+        "verify_all.sh should print a DEDUP_CONFIG summary block for troubleshooting."
+    )
+    assert "effective_base_url:" in text, (
+        "verify_all.sh DEDUP_CONFIG should include effective_base_url."
+    )
+    assert "effective_fallback_base_url:" in text, (
+        "verify_all.sh DEDUP_CONFIG should include effective_fallback_base_url."
+    )
