@@ -32,6 +32,9 @@ TMP_DIR="$(mktemp -d)"
 cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT
 
+TS="$(date +%s)"
+VIEWER_USER="viewer-$TS"
+
 printf "==============================================\n"
 printf "Version-File Binding Verification\n"
 printf "BASE_URL: %s\n" "$BASE_URL"
@@ -43,7 +46,7 @@ RAND_BASE=$(( (RANDOM << 16) | RANDOM ))
 ADMIN_UID="${ADMIN_UID:-$((RAND_BASE + 100000))}"
 VIEWER_UID="${VIEWER_UID:-$((ADMIN_UID + 1))}"
 "$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username admin --password admin --user-id "$ADMIN_UID" --roles admin >/dev/null
-"$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username viewer --password viewer --user-id "$VIEWER_UID" --roles viewer >/dev/null
+"$CLI" seed-identity --tenant "$TENANT" --org "$ORG" --username "$VIEWER_USER" --password viewer --user-id "$VIEWER_UID" --roles viewer --no-superuser >/dev/null
 "$CLI" seed-meta --tenant "$TENANT" --org "$ORG" >/dev/null
 ok "Seeded identity/meta"
 
@@ -64,7 +67,7 @@ printf "\n==> Login as viewer\n"
 VIEWER_TOKEN="$(
   $CURL -X POST "$API/auth/login" \
     -H 'content-type: application/json' \
-    -d "{\"tenant_id\":\"$TENANT\",\"username\":\"viewer\",\"password\":\"viewer\",\"org_id\":\"$ORG\"}" \
+    -d "{\"tenant_id\":\"$TENANT\",\"username\":\"$VIEWER_USER\",\"password\":\"viewer\",\"org_id\":\"$ORG\"}" \
     | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("access_token",""))'
 )"
 if [[ -z "$VIEWER_TOKEN" ]]; then
@@ -72,8 +75,6 @@ if [[ -z "$VIEWER_TOKEN" ]]; then
 fi
 VIEWER_AUTH=(-H "Authorization: Bearer $VIEWER_TOKEN")
 ok "Viewer login"
-
-TS="$(date +%s)"
 
 printf "\n==> Create Part item\n"
 ITEM_ID="$(

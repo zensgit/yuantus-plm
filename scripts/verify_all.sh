@@ -67,6 +67,7 @@ PY="${PY:-.venv/bin/python}"
 # to avoid "unbound variable" errors under set -u.
 USE_MT_OVERLAY=0
 COMPOSE_FILES=()
+REUSED_DEDUP_BASE_URL=""
 
 load_server_env() {
   local pid_file="${REPO_ROOT}/yuantus.pid"
@@ -521,6 +522,154 @@ mt_schema_precheck_pair_key() {
   return 0
 }
 
+first_healthy_dedup_base_url() {
+  local candidates=()
+  local candidate
+  local configured_port="${DEDUP_VISION_PORT:-8100}"
+
+  for candidate in \
+    "${YUANTUS_DEDUP_VISION_BASE_URL:-}" \
+    "${YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL:-}" \
+    "http://localhost:${configured_port}"; do
+    [[ -z "$candidate" ]] && continue
+    candidate="${candidate%/}"
+    local seen=0
+    local existing
+    for existing in "${candidates[@]}"; do
+      if [[ "$existing" == "$candidate" ]]; then
+        seen=1
+        break
+      fi
+    done
+    if [[ "$seen" == "0" ]]; then
+      candidates+=("$candidate")
+    fi
+  done
+
+  local url
+  local code
+  for url in "${candidates[@]}"; do
+    code="$(curl -s -o /dev/null -w "%{http_code}" "$url/health" 2>/dev/null || true)"
+    if [[ "$code" == "200" ]]; then
+      echo "$url"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+has_running_compose_worker() {
+  if ! command -v docker >/dev/null 2>&1; then
+    return 1
+  fi
+  docker ps --format '{{.Names}}' \
+    --filter 'label=com.docker.compose.service=worker' \
+    --filter 'status=running' \
+    | grep -q .
+}
+
+can_reuse_running_stack() {
+  REUSED_DEDUP_BASE_URL=""
+
+  # Existing API must be reachable.
+  if [[ "$(api_health_http_code)" != "200" ]]; then
+    return 1
+  fi
+
+  # Dedup health is only required when dedup suites are enabled.
+  if is_truthy "${RUN_DEDUP:-0}" || is_truthy "${RUN_DEDUP_MGMT:-0}"; then
+    REUSED_DEDUP_BASE_URL="$(first_healthy_dedup_base_url || true)"
+    if [[ -z "$REUSED_DEDUP_BASE_URL" ]]; then
+      return 1
+    fi
+  fi
+
+  return 0
+}
+
+is_mt_skip_database_url() {
+  local url="${1:-}"
+  [[ "$url" == sqlite:///*yuantus_mt_skip.db* ]]
+}
+
+resolve_api_compose_project() {
+  if ! command -v docker >/dev/null 2>&1; then
+    return 1
+  fi
+  local base_no_scheme base_hostport base_port project
+  base_no_scheme="${BASE_URL#*://}"
+  base_hostport="${base_no_scheme%%/*}"
+  if [[ "$base_hostport" == *:* ]]; then
+    base_port="${base_hostport##*:}"
+  else
+    base_port="80"
+  fi
+  if [[ ! "$base_port" =~ ^[0-9]+$ ]]; then
+    return 1
+  fi
+  project="$(
+    docker ps \
+      --filter "publish=${base_port}" \
+      --filter 'label=com.docker.compose.service=api' \
+      --format '{{.Label "com.docker.compose.project"}}' \
+      | head -n 1 || true
+  )"
+  [[ -n "$project" ]] || return 1
+  echo "$project"
+}
+
+resolve_postgres_port_line_from_api_project() {
+  if ! command -v docker >/dev/null 2>&1; then
+    return 1
+  fi
+  local pg_id pg_port_line
+  pg_id="$(resolve_postgres_container_id_from_api_project || true)"
+  [[ -n "$pg_id" ]] || return 1
+  pg_port_line="$(docker port "$pg_id" 5432/tcp 2>/dev/null | head -n 1 || true)"
+  [[ -n "$pg_port_line" ]] || return 1
+  echo "$pg_port_line"
+}
+
+resolve_postgres_container_id_from_api_project() {
+  if ! command -v docker >/dev/null 2>&1; then
+    return 1
+  fi
+  local project pg_id
+  project="$(resolve_api_compose_project || true)"
+  [[ -n "$project" ]] || return 1
+  pg_id="$(
+    docker ps \
+      --filter "label=com.docker.compose.project=${project}" \
+      --filter 'label=com.docker.compose.service=postgres' \
+      --format '{{.ID}}' \
+      | head -n 1 || true
+  )"
+  [[ -n "$pg_id" ]] || return 1
+  echo "$pg_id"
+}
+
+resolve_identity_db_name_for_runtime() {
+  local pg_id db_name
+  pg_id="$(resolve_postgres_container_id_from_api_project || true)"
+  if [[ -n "$pg_id" ]]; then
+    db_name="$(
+      docker exec "$pg_id" psql -U yuantus -d postgres -At \
+        -c "SELECT datname FROM pg_database WHERE datname IN ('yuantus_identity_mt_pg','yuantus_identity') ORDER BY CASE datname WHEN 'yuantus_identity' THEN 0 WHEN 'yuantus_identity_mt_pg' THEN 1 ELSE 2 END LIMIT 1;" \
+        2>/dev/null | tr -d '[:space:]' || true
+    )"
+    if [[ -n "$db_name" ]]; then
+      echo "$db_name"
+      return 0
+    fi
+  fi
+  if [[ "${YUANTUS_TENANCY_MODE:-}" == "db-per-tenant-org" ]]; then
+    echo "yuantus_identity_mt_pg"
+  else
+    echo "yuantus_identity"
+  fi
+}
+
 # -----------------------------------------------------------------------------
 # Pre-flight checks
 # -----------------------------------------------------------------------------
@@ -556,42 +705,60 @@ if is_truthy "${START_DEDUP_STACK:-0}"; then
     fi
   fi
 
-  echo "Starting docker compose --profile dedup stack (mt_overlay=$USE_MT_OVERLAY)..."
-  if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d postgres minio; then
-    echo -e "${RED}ERROR${NC}: Failed to start postgres/minio for dedup stack" >&2
-    exit 2
-  fi
-
-  if ! wait_for_docker_postgres; then
-    exit 2
-  fi
-
-  if [[ "$USE_MT_OVERLAY" == "1" ]] && is_truthy "${MT_RESET:-0}"; then
-    echo "MT_RESET=1: resetting tenant/org databases (destructive)..."
-    docker compose "${COMPOSE_FILES[@]}" --profile dedup stop api worker >/dev/null 2>&1 || true
-    (cd "$REPO_ROOT" && RESET=1 bash scripts/mt_pg_bootstrap.sh)
-  fi
-
-  if ! mt_schema_precheck_pair_key; then
-    exit 2
-  fi
-
-  if [[ "$USE_MT_OVERLAY" == "1" ]]; then
-    # Multi-tenant overlay includes mt-bootstrap dependency; do not use --no-deps.
-    if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d --build api worker; then
-      echo -e "${RED}ERROR${NC}: Failed to (re)build and start api/worker for dedup stack (mt overlay)" >&2
-      exit 2
+  if can_reuse_running_stack; then
+    echo "START_DEDUP_STACK=1: detected healthy existing stack; reusing current services."
+    if [[ -n "$REUSED_DEDUP_BASE_URL" ]]; then
+      export YUANTUS_DEDUP_VISION_BASE_URL="$REUSED_DEDUP_BASE_URL"
+      echo "Reused Dedup endpoint: $REUSED_DEDUP_BASE_URL"
+      reused_hostport="${REUSED_DEDUP_BASE_URL#*://}"
+      reused_hostport="${reused_hostport%%/*}"
+      reused_port="${reused_hostport##*:}"
+      if [[ "$reused_port" =~ ^[0-9]+$ ]]; then
+        export DEDUP_VISION_PORT="$reused_port"
+      fi
+    fi
+    if is_truthy "${USE_DOCKER_WORKER:-0}" && ! has_running_compose_worker; then
+      echo "WARN: USE_DOCKER_WORKER=1 but no running compose worker container detected." >&2
+      echo "WARN: Verification may time out unless an external worker is started." >&2
     fi
   else
-    if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d --build --no-deps api worker; then
-      echo -e "${RED}ERROR${NC}: Failed to (re)build and start api/worker for dedup stack" >&2
+    echo "Starting docker compose --profile dedup stack (mt_overlay=$USE_MT_OVERLAY)..."
+    if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d postgres minio; then
+      echo -e "${RED}ERROR${NC}: Failed to start postgres/minio for dedup stack" >&2
       exit 2
     fi
-  fi
-  if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d dedup-vision; then
-    echo -e "${RED}ERROR${NC}: Failed to start dedup-vision service." >&2
-    echo "Hint: Ensure DEDUP_VISION_BUILD_CONTEXT is set and points to a valid dedupcad-vision checkout." >&2
-    exit 2
+
+    if ! wait_for_docker_postgres; then
+      exit 2
+    fi
+
+    if [[ "$USE_MT_OVERLAY" == "1" ]] && is_truthy "${MT_RESET:-0}"; then
+      echo "MT_RESET=1: resetting tenant/org databases (destructive)..."
+      docker compose "${COMPOSE_FILES[@]}" --profile dedup stop api worker >/dev/null 2>&1 || true
+      (cd "$REPO_ROOT" && RESET=1 bash scripts/mt_pg_bootstrap.sh)
+    fi
+
+    if ! mt_schema_precheck_pair_key; then
+      exit 2
+    fi
+
+    if [[ "$USE_MT_OVERLAY" == "1" ]]; then
+      # Multi-tenant overlay includes mt-bootstrap dependency; do not use --no-deps.
+      if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d --build api worker; then
+        echo -e "${RED}ERROR${NC}: Failed to (re)build and start api/worker for dedup stack (mt overlay)" >&2
+        exit 2
+      fi
+    else
+      if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d --build --no-deps api worker; then
+        echo -e "${RED}ERROR${NC}: Failed to (re)build and start api/worker for dedup stack" >&2
+        exit 2
+      fi
+    fi
+    if ! docker compose "${COMPOSE_FILES[@]}" --profile dedup up -d dedup-vision; then
+      echo -e "${RED}ERROR${NC}: Failed to start dedup-vision service." >&2
+      echo "Hint: Ensure DEDUP_VISION_BUILD_CONTEXT is set and points to a valid dedupcad-vision checkout." >&2
+      exit 2
+    fi
   fi
 fi
 
@@ -628,28 +795,29 @@ if [[ -z "$DB_URL" ]]; then
     if [[ -z "$DOCKER_POSTGRES_PORT_LINE" ]]; then
       DOCKER_POSTGRES_PORT_LINE="$(docker compose -f "${REPO_ROOT}/docker-compose.yml" port postgres 5432 2>/dev/null | head -n 1 || true)"
     fi
+    if [[ -z "$DOCKER_POSTGRES_PORT_LINE" ]]; then
+      DOCKER_POSTGRES_PORT_LINE="$(resolve_postgres_port_line_from_api_project || true)"
+    fi
   fi
 
   if is_truthy "${START_DEDUP_STACK:-0}" && [[ -n "$DOCKER_POSTGRES_PORT_LINE" ]]; then
     HOST_PORT="${DOCKER_POSTGRES_PORT_LINE##*:}"
     DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:${HOST_PORT}/yuantus"
     if [[ -z "${IDENTITY_DB_URL:-}" ]]; then
-      IDENTITY_DB_NAME="yuantus_identity"
-      if [[ "${YUANTUS_TENANCY_MODE:-}" == "db-per-tenant-org" ]]; then
-        IDENTITY_DB_NAME="yuantus_identity_mt_pg"
-      fi
+      IDENTITY_DB_NAME="$(resolve_identity_db_name_for_runtime)"
       IDENTITY_DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:${HOST_PORT}/${IDENTITY_DB_NAME}"
     fi
   elif [[ -n "${YUANTUS_DATABASE_URL:-}" ]]; then
-    DB_URL="$YUANTUS_DATABASE_URL"
+    if is_mt_skip_database_url "${YUANTUS_DATABASE_URL}"; then
+      echo "WARN: ignoring placeholder YUANTUS_DATABASE_URL (${YUANTUS_DATABASE_URL})" >&2
+    else
+      DB_URL="$YUANTUS_DATABASE_URL"
+    fi
   elif [[ -n "$DOCKER_POSTGRES_PORT_LINE" ]]; then
     HOST_PORT="${DOCKER_POSTGRES_PORT_LINE##*:}"
     DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:${HOST_PORT}/yuantus"
     if [[ -z "${IDENTITY_DB_URL:-}" ]]; then
-      IDENTITY_DB_NAME="yuantus_identity"
-      if [[ "${YUANTUS_TENANCY_MODE:-}" == "db-per-tenant-org" ]]; then
-        IDENTITY_DB_NAME="yuantus_identity_mt_pg"
-      fi
+      IDENTITY_DB_NAME="$(resolve_identity_db_name_for_runtime)"
       IDENTITY_DB_URL="postgresql+psycopg://yuantus:yuantus@localhost:${HOST_PORT}/${IDENTITY_DB_NAME}"
     fi
   fi
@@ -667,8 +835,10 @@ if [[ -n "${IDENTITY_DB_URL:-}" ]]; then
   export YUANTUS_IDENTITY_DATABASE_URL
   export IDENTITY_DB_URL
 elif [[ -n "$DB_URL" ]]; then
-  : "${YUANTUS_IDENTITY_DATABASE_URL:=$DB_URL}"
-  export YUANTUS_IDENTITY_DATABASE_URL
+  if ! is_mt_skip_database_url "$DB_URL"; then
+    : "${YUANTUS_IDENTITY_DATABASE_URL:=$DB_URL}"
+    export YUANTUS_IDENTITY_DATABASE_URL
+  fi
 fi
 
 # Check CLI
