@@ -79,6 +79,42 @@ def test_compose_worker_sets_dedup_vision_base_url() -> None:
         f"\nGot: {fallback_port_val}"
     )
 
+    fallback_base_url_val = env.get("YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL")
+    assert isinstance(fallback_base_url_val, str), (
+        "docker-compose.yml worker should expose YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL "
+        "for explicit fallback endpoint overrides."
+        f"\nGot: {fallback_base_url_val!r}"
+    )
+
+
+def test_compose_api_sets_dedup_fallback_env_vars() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    compose_yml = repo_root / "docker-compose.yml"
+    assert compose_yml.is_file(), f"Missing {compose_yml}"
+
+    doc = yaml.safe_load(compose_yml.read_text(encoding="utf-8", errors="replace"))
+    services = (doc or {}).get("services") or {}
+    api = services.get("api") or {}
+    env = _env_to_dict(api.get("environment"))
+
+    fallback_port_val = env.get("YUANTUS_DEDUP_VISION_FALLBACK_PORT")
+    assert isinstance(fallback_port_val, str) and fallback_port_val.strip(), (
+        "docker-compose.yml api should set YUANTUS_DEDUP_VISION_FALLBACK_PORT "
+        "to keep API-side Dedup fallback behavior aligned with worker."
+        f"\nGot: {fallback_port_val!r}"
+    )
+    assert "DEDUP_VISION_PORT" in fallback_port_val or "8100" in fallback_port_val, (
+        "api fallback port should derive from DEDUP_VISION_PORT with default 8100."
+        f"\nGot: {fallback_port_val}"
+    )
+
+    fallback_base_url_val = env.get("YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL")
+    assert isinstance(fallback_base_url_val, str), (
+        "docker-compose.yml api should expose YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL "
+        "for explicit fallback endpoint overrides."
+        f"\nGot: {fallback_base_url_val!r}"
+    )
+
 
 def test_compose_worker_sets_host_gateway_mapping_for_dedup_fallback() -> None:
     repo_root = _find_repo_root(Path(__file__))
