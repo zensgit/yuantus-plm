@@ -90,6 +90,13 @@ Additionally:
   - Prefer `/api/v2/search` (progressive engine) so newly indexed drawings are queryable immediately after `/api/index/add`.
   - Falls back to legacy `/api/search` for older deployments.
   - File: `src/yuantus/integrations/dedup_vision.py`
+- Dedup Vision host-network fallback (docker worker hardening):
+  - When `YUANTUS_DEDUP_VISION_BASE_URL` points to compose host `dedup-vision` but DNS is unavailable in the current worker network, client retries via `host.docker.internal:${DEDUP_VISION_PORT:-8100}`.
+  - Supports explicit override `YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL` (and optional `YUANTUS_DEDUP_VISION_FALLBACK_PORT`).
+  - Worker adds `extra_hosts: ["host.docker.internal:host-gateway"]` for Linux compatibility.
+  - Files:
+    - `src/yuantus/integrations/dedup_vision.py`
+    - `docker-compose.yml`
 
 ## CI Contracts (Hardening)
 
@@ -100,6 +107,7 @@ To reduce regressions, the following stdlib-only contract tests are included in 
 - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_job_promotion.py`
 - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_report_endpoints.py`
 - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_similarity_pair_key.py`
+- `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_host_fallback.py`
 - `src/yuantus/meta_engine/tests/test_ci_contracts_dedup_vision_v2_fallback.py`
 - `src/yuantus/meta_engine/tests/test_ci_contracts_compose_worker_dedup_vision_url.py` (ensures `docker-compose.yml` worker sets `YUANTUS_DEDUP_VISION_BASE_URL` so `cad_dedup_vision` jobs can reach Dedup Vision inside the container network)
 
@@ -141,6 +149,83 @@ Expected:
 - Confirms dedup report + CSV export endpoints return rows
 
 ## Verification Results (2026-02-12)
+
+### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-IDONLY-DOCKER-WORKER-20260215-141144Z
+
+- 时间：`2026-02-15 14:11:44 +0000`（本机时区：`2026-02-15 22:11:44 +0800`）
+- 环境：`docker compose -p yuantusplm_idonly -f docker-compose.yml`（Postgres + MinIO + API + worker=compose container）；Dedup Vision 由宿主 `http://localhost:8100` 提供
+- 命令：`USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 备注：该场景此前会在 worker 内出现 `Name or service not known`（`dedup-vision` DNS 解析失败）；本次验证确认 host-network fallback 已生效。
+
+关键 ID：
+
+- workflow_map_id: `60b7ead9-c6ae-42e6-a340-b62822eaed36`
+- rule_id: `c605b46d-68c2-4ae9-a1f0-2a11859ee8a3`
+- part_a_id: `3e81f8de-355c-44f9-8fb0-fa285e3007b9`
+- part_b_id: `a8dcf02c-2e0b-43ab-ad3f-5efcca959c26`
+- baseline_file_id: `74bd1b54-2e98-46d7-845d-eed017481119`
+- query_file_id: `914e6d6a-352d-4c33-b3fc-94d44552905f`
+- baseline_job_id: `162a24b8-0d64-41a8-80ac-4628628d5eac`
+- query_job_id: `45bb7372-f5bb-44ef-bc19-2205a6ece3e8`
+- similarity_record_id: `9a71adcc-ab2e-46a8-84fe-a64caa7a352e`
+- relationship_item_id: `ea21c282-08ae-476d-beba-dbf33622a49e`
+- batch_id: `08ad5f68-0278-4ba2-93c6-c0c8e75b15c9`
+- reverse_job_id: `53ed4974-b9c3-433b-b753-d35fbbb0266c`
+- promote_file_id: `ce013184-8a69-4312-8f26-5d708c56b54b`
+- promote_job_id: `3aa4952e-6e07-453d-a509-b5cc08181425`
+
+### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-DOCKER-WORKER-20260215-133023Z
+
+- 时间：`2026-02-15 13:30:23 +0000`（本机时区：`2026-02-15 21:30:23 +0800`）
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision + worker=compose container；脚本使用 `USE_DOCKER_WORKER=1`）
+- 命令：`USE_DOCKER_WORKER=1 scripts/verify_cad_dedup_relationship_s3.sh`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+
+关键 ID：
+
+- workflow_map_id: `4875679c-6029-4517-adb2-c78d63a8f834`
+- rule_id: `3b217b8f-8131-48f2-8a72-93e92ca84167`
+- part_a_id: `b193fec6-0eff-457d-a85c-39ff7d9981ef`
+- part_b_id: `a56f1cab-4a4c-495b-ba74-167d070e7bfd`
+- baseline_file_id: `62dc412d-8e32-4242-8288-8311f1c4a294`
+- query_file_id: `3764f8cf-de72-4f7f-b599-d38096d1a6ba`
+- baseline_job_id: `3d1ac57f-fa84-430d-bde4-a842db64cd9e`
+- query_job_id: `7cdb1ab4-5abe-49fb-9ac8-da8a917579d9`
+- similarity_record_id: `c39541cb-38c6-431e-b3a5-178824c776cf`
+- relationship_item_id: `75680db2-bd7a-4924-abcf-9767ac1ef8f7`
+- batch_id: `d4f14cb9-54e6-46f5-bf19-6b0916ae3b3f`
+- reverse_job_id: `90b3bee8-8230-4fe6-8ad9-5f6ca3103a55`
+- promote_file_id: `a79959dd-8ed2-4592-82b0-98be0117e334`
+- promote_job_id: `db5c230e-54ff-4126-abd2-9a4273151bb1`
+
+### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-20260214-174745Z
+
+- 时间：`2026-02-14 17:47:45 +0000`（本机时区：`2026-02-15 01:47:45 +0800`）
+- 环境：`docker compose -f docker-compose.yml --profile dedup`（Postgres + MinIO + API + Dedup Vision；worker 由脚本内本地 CLI `yuantus worker --once` 轮询执行）
+- 命令：`scripts/verify_cad_dedup_relationship_s3.sh`
+- 结果：`PASS`（`ALL CHECKS PASSED`）
+- 备注：
+  - 启动时宿主机已有 `yuantusplm_idonly` 项目占用 `7910/55432/59000` 端口。
+  - 本次验证期间临时停止冲突容器：`yuantusplm_idonly-api-1`、`yuantusplm_idonly-postgres-1`、`yuantusplm_idonly-minio-1`。
+  - 验证完成后已使用 `docker compose -p yuantusplm_idonly -f docker-compose.yml up -d postgres minio api` 恢复。
+
+关键 ID：
+
+- workflow_map_id: `fadd1d64-ce74-4927-90a8-0691883f7cb0`
+- rule_id: `7e51c548-6ce0-44dc-8114-6bb8842782a5`
+- part_a_id: `9d9494f6-0fb3-45c9-9c93-117d6be119ab`
+- part_b_id: `3ad78530-b3f2-422e-acf2-7515c9c3e1ed`
+- baseline_file_id: `0ef41c28-abc8-4f21-a343-e3e51f04e917`
+- query_file_id: `8bce154d-374a-4073-9a38-b3995af4f6eb`
+- baseline_job_id: `2300c49c-b86e-4442-b683-0036f4d5a605`
+- query_job_id: `8a625765-53cd-431f-94fb-cecefb0bb64c`
+- similarity_record_id: `9568350d-f200-4215-a924-2c603a3771e4`
+- relationship_item_id: `a5158ae0-c007-455b-88b9-b345a56d4f4a`
+- batch_id: `1fa3f4ae-6de7-418b-a6b4-4a325f4ee4b5`
+- reverse_job_id: `c6e63b08-7320-44d5-945a-938ee463780e`
+- promote_file_id: `af361e3b-ac4c-4e83-97fe-608c32f312ba`
+- promote_job_id: `08f99c03-45ff-4206-b4e5-e7c7f109d2b9`
 
 ### Run RUN-CAD-DEDUP-REL-S3-PG-MINIO-DOCKER-WORKER-20260213-013516
 

@@ -215,6 +215,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    # Allow container-to-host fallback (e.g. host.docker.internal:8100) on Linux.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # =============================================================================
   # DedupCAD Vision (2D similarity search)
