@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import os
+import logging
 import httpx
 from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 from yuantus.config import get_settings
 from yuantus.integrations.http import build_outbound_headers
+
+logger = logging.getLogger(__name__)
 
 
 class DedupVisionClient:
@@ -67,6 +70,13 @@ class DedupVisionClient:
             except httpx.RequestError as exc:
                 last_error = exc
                 if i + 1 < len(base_urls):
+                    logger.warning(
+                        "Dedup Vision request failed; retrying fallback endpoint "
+                        "(primary_base_url=%s fallback_base_url=%s error_type=%s)",
+                        base_url,
+                        base_urls[i + 1],
+                        type(exc).__name__,
+                    )
                     continue
                 raise
         assert last_error is not None
@@ -138,6 +148,13 @@ class DedupVisionClient:
             except httpx.RequestError as exc:
                 last_error = exc
                 if i + 1 < len(base_urls):
+                    logger.warning(
+                        "Dedup Vision request failed; retrying fallback endpoint "
+                        "(primary_base_url=%s fallback_base_url=%s error_type=%s)",
+                        base_url,
+                        base_urls[i + 1],
+                        type(exc).__name__,
+                    )
                     continue
                 raise
         assert last_error is not None
@@ -180,6 +197,13 @@ class DedupVisionClient:
             except httpx.RequestError as exc:
                 last_error = exc
                 if i + 1 < len(base_urls):
+                    logger.warning(
+                        "Dedup Vision request failed; retrying fallback endpoint "
+                        "(primary_base_url=%s fallback_base_url=%s error_type=%s)",
+                        base_url,
+                        base_urls[i + 1],
+                        type(exc).__name__,
+                    )
                     continue
                 raise
         assert last_error is not None

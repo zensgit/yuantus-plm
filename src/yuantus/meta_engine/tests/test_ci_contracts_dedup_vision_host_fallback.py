@@ -37,6 +37,13 @@ def test_dedup_vision_client_supports_host_network_fallback_for_compose_dns_fail
         "Dedup Vision client should retry on request-level failures (e.g. DNS resolution errors) "
         "for health/search/index call paths."
     )
+    assert "logger = logging.getLogger(__name__)" in text, (
+        "Dedup Vision client should initialize module logger for fallback observability."
+    )
+    assert text.count("retrying fallback endpoint") >= 3, (
+        "Dedup Vision fallback should emit warning logs on primary request failures "
+        "for health/search/index call paths."
+    )
 
 
 def test_dedup_vision_host_fallback_is_scoped_and_configurable() -> None:
@@ -71,4 +78,20 @@ def test_dedup_vision_candidate_urls_keep_primary_first_and_fallback_unique() ->
     )
     assert "urls.append(fallback)" in text, (
         "Fallback candidate should be appended after primary base URL."
+    )
+
+
+def test_dedup_vision_fallback_warning_log_contains_context_fields() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    client_py = repo_root / "src" / "yuantus" / "integrations" / "dedup_vision.py"
+    text = _read(client_py)
+
+    assert "primary_base_url=%s" in text, (
+        "Fallback warning log should include primary_base_url for debugging."
+    )
+    assert "fallback_base_url=%s" in text, (
+        "Fallback warning log should include fallback_base_url for debugging."
+    )
+    assert "error_type=%s" in text, (
+        "Fallback warning log should include error_type for quick triage."
     )
