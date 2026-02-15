@@ -33,6 +33,16 @@ def _env_to_dict(env):
     raise AssertionError(f"Unexpected environment type: {type(env)}")
 
 
+def _as_str_list(val):
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return [str(x) for x in val]
+    if isinstance(val, str):
+        return [val]
+    raise AssertionError(f"Unexpected list-like type: {type(val)}")
+
+
 def test_compose_worker_sets_dedup_vision_base_url() -> None:
     repo_root = _find_repo_root(Path(__file__))
     compose_yml = repo_root / "docker-compose.yml"
@@ -58,3 +68,23 @@ def test_compose_worker_sets_dedup_vision_base_url() -> None:
         f"\nGot: {val}"
     )
 
+
+def test_compose_worker_sets_host_gateway_mapping_for_dedup_fallback() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    compose_yml = repo_root / "docker-compose.yml"
+    assert compose_yml.is_file(), f"Missing {compose_yml}"
+
+    doc = yaml.safe_load(compose_yml.read_text(encoding="utf-8", errors="replace"))
+    services = (doc or {}).get("services") or {}
+    worker = services.get("worker") or {}
+    extra_hosts = _as_str_list(worker.get("extra_hosts"))
+
+    assert extra_hosts, (
+        "docker-compose.yml worker must define extra_hosts so host.docker.internal is resolvable "
+        "for Dedup Vision host-network fallback."
+    )
+    assert "host.docker.internal:host-gateway" in extra_hosts, (
+        "docker-compose.yml worker extra_hosts must include "
+        "'host.docker.internal:host-gateway' for Linux compatibility."
+        f"\nGot: {extra_hosts}"
+    )
