@@ -65,5 +65,11 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "gh run download",
         "strict-gate-report",
         "strict-gate-logs",
+        "verify_release_orchestration_perf_smoke",
+        "verify_esign_perf_smoke",
+        "verify_reports_perf_smoke",
+        "RUN_RELEASE_ORCH_PERF=1",
+        "RUN_ESIGN_PERF=1",
+        "RUN_REPORTS_PERF=1",
     ):
         assert token in runbook_text, f"strict-gate runbook missing: {token!r}"

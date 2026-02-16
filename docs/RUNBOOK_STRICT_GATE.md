@@ -19,6 +19,9 @@
 - `pytest (DB)`：默认全量 DB 测试（由 `YUANTUS_PYTEST_DB=1` 控制）
 - `verify_run_h_e2e`：可选（由 `RUN_RUN_H_E2E=1` 控制；Run H 自包含 API-only E2E）
 - `verify_identity_only_migrations`：可选（由 `RUN_IDENTITY_ONLY_MIGRATIONS_E2E=1` 控制；Identity-only migrations 契约）
+- `verify_release_orchestration_perf_smoke`：可选（由 `RUN_RELEASE_ORCH_PERF=1` 控制）
+- `verify_esign_perf_smoke`：可选（由 `RUN_ESIGN_PERF=1` 控制）
+- `verify_reports_perf_smoke`：可选（由 `RUN_REPORTS_PERF=1` 控制）
 - `demo_plm_closed_loop`：可选（由 `DEMO_SCRIPT=1` 控制）
 - `playwright`：默认执行 `npx playwright test`（主要是 API-only 断言）
 
@@ -65,6 +68,13 @@ DEMO_SCRIPT=1 bash scripts/strict_gate_report.sh
 
 ```bash
 RUN_RUN_H_E2E=1 RUN_IDENTITY_ONLY_MIGRATIONS_E2E=1 \
+  bash scripts/strict_gate_report.sh
+```
+
+- 开启 perf smoke（三条自包含脚本）：
+
+```bash
+RUN_RELEASE_ORCH_PERF=1 RUN_ESIGN_PERF=1 RUN_REPORTS_PERF=1 \
   bash scripts/strict_gate_report.sh
 ```
 
@@ -138,3 +148,4 @@ gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"
 - `pytest (DB)` 失败：通常与 migrations/DB fixture/事务隔离有关
 - `playwright` 失败：通常是 API 响应契约变化、权限变化或导出文件名变化
 - `demo_plm_closed_loop` 失败：查看 demo log 的最后 160 行，通常会包含 HTTP code + body 路径
+- `verify_*_perf_smoke` 失败：先看对应步骤的 p95 报错与阈值，再看同目录下 `server.log` 与 `*_summary.json`
