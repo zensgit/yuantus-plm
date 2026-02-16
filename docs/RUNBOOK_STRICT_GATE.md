@@ -9,6 +9,7 @@
 - Evidence outputs:
   - Report: `docs/DAILY_REPORTS/STRICT_GATE_*.md`
   - Perf summary: `docs/DAILY_REPORTS/STRICT_GATE_*_PERF.md`
+  - Perf trend: `docs/DAILY_REPORTS/STRICT_GATE_*_PERF_TREND.md`
   - Logs: `tmp/strict-gate/<run_id>/*.log`
 
 ## What It Runs
@@ -87,6 +88,15 @@ python3 scripts/strict_gate_perf_summary.py \
   --out docs/DAILY_REPORTS/STRICT_GATE_<run_id>_PERF.md
 ```
 
+- 从多个 `*_PERF.md` 生成趋势表（默认仅统计有 metrics 的 run）：
+
+```bash
+python3 scripts/strict_gate_perf_trend.py \
+  --dir docs/DAILY_REPORTS \
+  --out docs/DAILY_REPORTS/STRICT_GATE_PERF_TREND.md \
+  --limit 30
+```
+
 - 只跑某个 Playwright spec：
 
 ```bash
@@ -110,6 +120,7 @@ Outputs:
 - Artifacts:
   - `strict-gate-report`：报告 Markdown
   - `strict-gate-perf-summary`：perf-smoke 摘要 Markdown（无 perf 数据时会显示 skipped/missing 说明）
+  - `strict-gate-perf-trend`：perf 趋势 Markdown（聚合可见的 `*_PERF.md`）
   - `strict-gate-logs`：`tmp/strict-gate/...` 的日志目录
 
 ### Trigger From CLI (Recommended)
@@ -142,6 +153,7 @@ mkdir -p "$OUT_DIR"
 
 gh run download "$RUN_ID" -n strict-gate-report -D "$OUT_DIR"
 gh run download "$RUN_ID" -n strict-gate-perf-summary -D "$OUT_DIR"
+gh run download "$RUN_ID" -n strict-gate-perf-trend -D "$OUT_DIR"
 gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"
 ```
 
@@ -149,6 +161,7 @@ gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"
 - strict gate 报告与日志是在 Actions runner 的工作区生成，并通过 artifact 上传；默认不会提交回 repo。
 - `strict-gate-report` 解压后会包含类似路径：`docs/DAILY_REPORTS/STRICT_GATE_CI_<run_id>.md`
 - `strict-gate-perf-summary` 解压后会包含类似路径：`docs/DAILY_REPORTS/STRICT_GATE_CI_<run_id>_PERF.md`
+- `strict-gate-perf-trend` 解压后会包含类似路径：`docs/DAILY_REPORTS/STRICT_GATE_CI_<run_id>_PERF_TREND.md`
 - `strict-gate-logs` 解压后会包含类似路径：`tmp/strict-gate/STRICT_GATE_CI_<run_id>/*.log`
 
 ## How To Triage A Failure

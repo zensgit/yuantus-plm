@@ -42,9 +42,11 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     # Evidence output wiring (report path + logs dir + artifacts).
     assert "bash scripts/strict_gate_report.sh" in wf_text
     assert "python3 scripts/strict_gate_perf_summary.py" in wf_text
+    assert "python3 scripts/strict_gate_perf_trend.py" in wf_text
     assert "OUT_DIR: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}" in wf_text
     assert "REPORT_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md" in wf_text
     assert "PERF_SUMMARY_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md" in wf_text
+    assert "PERF_TREND_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF_TREND.md" in wf_text
     assert "github.event.inputs.run_perf_smokes" in wf_text
     assert "github.event.schedule" in wf_text
     assert "export RUN_RELEASE_ORCH_PERF=1" in wf_text
@@ -57,6 +59,8 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md",
         "name: strict-gate-perf-summary",
         "path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md",
+        "name: strict-gate-perf-trend",
+        "path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF_TREND.md",
         "name: strict-gate-logs",
         "path: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}",
     ):
@@ -77,6 +81,7 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "gh run download",
         "strict-gate-report",
         "strict-gate-perf-summary",
+        "strict-gate-perf-trend",
         "strict-gate-logs",
         "verify_release_orchestration_perf_smoke",
         "verify_esign_perf_smoke",
@@ -87,5 +92,7 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "run_perf_smokes=true",
         "每周一 `04:00 UTC`",
         "strict_gate_perf_summary.py",
+        "strict_gate_perf_trend.py",
+        "STRICT_GATE_PERF_TREND.md",
     ):
         assert token in runbook_text, f"strict-gate runbook missing: {token!r}"
