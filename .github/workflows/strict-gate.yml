@@ -7,6 +7,10 @@ on:
         description: "Run demo_plm_closed_loop step (DEMO_SCRIPT=1)"
         required: false
         default: "false"
+      run_perf_smokes:
+        description: "Run optional perf-smoke steps (release-orch/esign/reports)"
+        required: false
+        default: "false"
   schedule:
     # Daily 03:00 UTC
     - cron: "0 3 * * *"
@@ -61,6 +65,11 @@ jobs:
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.run_demo }}" == "true" ]]; then
             export DEMO_SCRIPT=1
+          fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.run_perf_smokes }}" == "true" ]]; then
+            export RUN_RELEASE_ORCH_PERF=1
+            export RUN_ESIGN_PERF=1
+            export RUN_REPORTS_PERF=1
           fi
           bash scripts/strict_gate_report.sh
 

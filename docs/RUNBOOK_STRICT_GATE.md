@@ -91,7 +91,7 @@ Workflow: `.github/workflows/strict-gate.yml`
 
 - Triggers:
   - schedule: 每天 `03:00 UTC`
-  - workflow_dispatch: 手动触发（可选 `run_demo=true`）
+  - workflow_dispatch: 手动触发（可选 `run_demo=true`、`run_perf_smokes=true`）
 
 Outputs:
 
@@ -106,10 +106,13 @@ Outputs:
 
 ```bash
 # 不跑 demo（推荐，默认）
-gh workflow run strict-gate --ref <branch> -f run_demo=false
+gh workflow run strict-gate --ref <branch> -f run_demo=false -f run_perf_smokes=false
 
 # 跑 demo
-gh workflow run strict-gate --ref <branch> -f run_demo=true
+gh workflow run strict-gate --ref <branch> -f run_demo=true -f run_perf_smokes=false
+
+# 跑 perf smoke（仍保持 demo 关闭）
+gh workflow run strict-gate --ref <branch> -f run_demo=false -f run_perf_smokes=true
 ```
 
 找到对应的 workflow run（run id 会被用于报告文件名）：
