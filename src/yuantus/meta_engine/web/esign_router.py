@@ -118,8 +118,8 @@ class ManifestCreateRequest(BaseModel):
 
 
 def _ensure_admin(user: CurrentUser) -> None:
-    roles = set(user.roles or [])
-    if not ("admin" in roles or "superuser" in roles or user.is_superuser):
+    roles = {str(role).strip().lower() for role in (user.roles or []) if str(role).strip()}
+    if not ("admin" in roles or "superuser" in roles or bool(getattr(user, "is_superuser", False))):
         raise HTTPException(status_code=403, detail="Admin permission required")
 
 

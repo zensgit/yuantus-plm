@@ -44,3 +44,54 @@ def test_export_definition_denies_when_role_not_allowed():
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Permission denied"
 
+
+def test_export_definition_allows_superuser_without_admin_role():
+    user = SimpleNamespace(id=2, roles=["viewer"], is_superuser=True)
+    client = _client_with_user(user)
+
+    report = SimpleNamespace(
+        id="rep-1",
+        owner_id=1,
+        is_public=False,
+        allowed_roles=None,
+    )
+
+    with patch("yuantus.meta_engine.web.report_router.ReportDefinitionService") as svc_cls:
+        svc = svc_cls.return_value
+        svc.get_definition.return_value = report
+        svc.export_definition.return_value = {
+            "content": b"id,name\n",
+            "media_type": "text/csv",
+            "extension": "csv",
+        }
+        resp = client.post("/api/v1/reports/definitions/rep-1/export", json={})
+
+    assert resp.status_code == 200
+    assert "attachment; filename=\"report_rep-1.csv\"" == resp.headers["content-disposition"]
+    svc.export_definition.assert_called_once()
+
+
+def test_export_definition_allows_case_insensitive_allowed_roles():
+    user = SimpleNamespace(id=2, roles=["Viewer"], is_superuser=False)
+    client = _client_with_user(user)
+
+    report = SimpleNamespace(
+        id="rep-1",
+        owner_id=1,
+        is_public=True,
+        allowed_roles=[" viewer "],
+    )
+
+    with patch("yuantus.meta_engine.web.report_router.ReportDefinitionService") as svc_cls:
+        svc = svc_cls.return_value
+        svc.get_definition.return_value = report
+        svc.export_definition.return_value = {
+            "content": b"id,name\n",
+            "media_type": "text/csv",
+            "extension": "csv",
+        }
+        resp = client.post("/api/v1/reports/definitions/rep-1/export", json={})
+
+    assert resp.status_code == 200
+    assert "attachment; filename=\"report_rep-1.csv\"" == resp.headers["content-disposition"]
+    svc.export_definition.assert_called_once()

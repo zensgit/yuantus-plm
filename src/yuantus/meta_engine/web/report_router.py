@@ -177,7 +177,9 @@ class DashboardResponse(BaseModel):
 
 
 def _is_admin(user: CurrentUser) -> bool:
-    roles = set(user.roles or [])
+    if bool(getattr(user, "is_superuser", False)):
+        return True
+    roles = {str(role).strip().lower() for role in (user.roles or []) if str(role).strip()}
     return "admin" in roles or "superuser" in roles
 
 
@@ -190,7 +192,13 @@ def _can_access_report(report, user: CurrentUser) -> bool:
         allowed = report.allowed_roles or []
         if not allowed:
             return True
-        return bool(set(allowed) & set(user.roles or []))
+        allowed_roles = {
+            str(role).strip().lower() for role in allowed if str(role).strip()
+        }
+        user_roles = {
+            str(role).strip().lower() for role in (user.roles or []) if str(role).strip()
+        }
+        return bool(allowed_roles & user_roles)
     return False
 
 @report_router.get("/summary")

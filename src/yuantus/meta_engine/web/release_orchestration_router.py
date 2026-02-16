@@ -35,7 +35,7 @@ _FAILPOINT_HEADER = "x-yuantus-failpoint"
 
 
 def _ensure_admin(user: CurrentUser) -> None:
-    roles = {str(r).lower() for r in (user.roles or [])}
+    roles = {str(r).strip().lower() for r in (user.roles or []) if str(r).strip()}
     if bool(getattr(user, "is_superuser", False)):
         return
     if "admin" in roles or "superuser" in roles:

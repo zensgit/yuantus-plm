@@ -45,6 +45,66 @@ def test_execute_denies_non_admin():
     assert resp.status_code == 403
 
 
+def test_plan_allows_superuser_without_admin_role():
+    user = SimpleNamespace(id=2, roles=["viewer"], is_superuser=True)
+    client, db = _client_with_user(user)
+
+    db.get.return_value = Item(
+        id="item-1",
+        item_type_id="Part",
+        config_id="CFG-1",
+        generation=1,
+        state="released",
+        properties={"item_number": "P-1"},
+    )
+
+    with patch(
+        "yuantus.meta_engine.web.release_orchestration_router.ReleaseReadinessService.get_item_release_readiness"
+    ) as mocked:
+        mocked.return_value = {
+            "item_id": "item-1",
+            "generated_at": "2026-02-07T00:00:00Z",
+            "ruleset_id": "default",
+            "summary": {"ok": True},
+            "resources": [],
+            "esign_manifest": None,
+        }
+        resp = client.get("/api/v1/release-orchestration/items/item-1/plan")
+
+    assert resp.status_code == 200
+    assert resp.json()["item_id"] == "item-1"
+
+
+def test_plan_allows_admin_role_with_whitespace_and_uppercase():
+    user = SimpleNamespace(id=2, roles=[" Admin "], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    db.get.return_value = Item(
+        id="item-1",
+        item_type_id="Part",
+        config_id="CFG-1",
+        generation=1,
+        state="released",
+        properties={"item_number": "P-1"},
+    )
+
+    with patch(
+        "yuantus.meta_engine.web.release_orchestration_router.ReleaseReadinessService.get_item_release_readiness"
+    ) as mocked:
+        mocked.return_value = {
+            "item_id": "item-1",
+            "generated_at": "2026-02-07T00:00:00Z",
+            "ruleset_id": "default",
+            "summary": {"ok": True},
+            "resources": [],
+            "esign_manifest": None,
+        }
+        resp = client.get("/api/v1/release-orchestration/items/item-1/plan")
+
+    assert resp.status_code == 200
+    assert resp.json()["item_id"] == "item-1"
+
+
 def test_execute_returns_400_when_ruleset_invalid():
     user = SimpleNamespace(id=1, roles=["admin"], is_superuser=False)
     client, db = _client_with_user(user)
