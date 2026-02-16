@@ -30,6 +30,9 @@ RUN_DEDUP_MGMT="${RUN_DEDUP_MGMT:-0}"
 START_DEDUP_STACK="${START_DEDUP_STACK:-0}"
 RUN_RELEASE_ORCH="${RUN_RELEASE_ORCH:-0}"
 RUN_ESIGN="${RUN_ESIGN:-0}"
+RUN_RELEASE_ORCH_PERF="${RUN_RELEASE_ORCH_PERF:-0}"
+RUN_REPORTS_PERF="${RUN_REPORTS_PERF:-0}"
+RUN_ESIGN_PERF="${RUN_ESIGN_PERF:-0}"
 RUN_IDENTITY_ONLY_MIGRATIONS_E2E="${RUN_IDENTITY_ONLY_MIGRATIONS_E2E:-0}"
 RUN_QUOTA_E2E="${RUN_QUOTA_E2E:-0}"
 RUN_PLATFORM_TENANT_PROV="${RUN_PLATFORM_TENANT_PROV:-0}"
@@ -203,6 +206,9 @@ echo "RUN_DEDUP_MGMT: $RUN_DEDUP_MGMT"
 echo "START_DEDUP_STACK: $START_DEDUP_STACK"
 echo "RUN_RELEASE_ORCH: $RUN_RELEASE_ORCH"
 echo "RUN_ESIGN: $RUN_ESIGN"
+echo "RUN_RELEASE_ORCH_PERF: $RUN_RELEASE_ORCH_PERF"
+echo "RUN_REPORTS_PERF: $RUN_REPORTS_PERF"
+echo "RUN_ESIGN_PERF: $RUN_ESIGN_PERF"
 echo "RUN_IDENTITY_ONLY_MIGRATIONS_E2E: $RUN_IDENTITY_ONLY_MIGRATIONS_E2E"
 echo "RUN_QUOTA_E2E: $RUN_QUOTA_E2E"
 echo "RUN_PLATFORM_TENANT_PROV: $RUN_PLATFORM_TENANT_PROV"
@@ -1536,6 +1542,16 @@ if [[ -x "$SCRIPT_DIR/verify_release_orchestration.sh" ]]; then
   fi
 fi
 
+# 20.1.1 Release Orchestration Perf Smoke (self-contained, optional)
+if [[ -x "$SCRIPT_DIR/verify_release_orchestration_perf_smoke.sh" ]]; then
+  if [[ "${RUN_RELEASE_ORCH_PERF:-0}" == "1" ]]; then
+    run_test "Release Orchestration (Perf Smoke)" \
+      "$SCRIPT_DIR/verify_release_orchestration_perf_smoke.sh" || true
+  else
+    skip_test "Release Orchestration (Perf Smoke)" "RUN_RELEASE_ORCH_PERF=0"
+  fi
+fi
+
 # 20.2 E-sign (self-contained, optional)
 if [[ -x "$SCRIPT_DIR/verify_esign_api.sh" ]]; then
   if [[ "${RUN_ESIGN:-0}" == "1" ]]; then
@@ -1543,6 +1559,26 @@ if [[ -x "$SCRIPT_DIR/verify_esign_api.sh" ]]; then
       "$SCRIPT_DIR/verify_esign_api.sh" || true
   else
     skip_test "E-Sign (API)" "RUN_ESIGN=0"
+  fi
+fi
+
+# 20.2.1 E-sign Perf Smoke (self-contained, optional)
+if [[ -x "$SCRIPT_DIR/verify_esign_perf_smoke.sh" ]]; then
+  if [[ "${RUN_ESIGN_PERF:-0}" == "1" ]]; then
+    run_test "E-Sign (Perf Smoke)" \
+      "$SCRIPT_DIR/verify_esign_perf_smoke.sh" || true
+  else
+    skip_test "E-Sign (Perf Smoke)" "RUN_ESIGN_PERF=0"
+  fi
+fi
+
+# 20.2.2 Reports Perf Smoke (self-contained, optional)
+if [[ -x "$SCRIPT_DIR/verify_reports_perf_smoke.sh" ]]; then
+  if [[ "${RUN_REPORTS_PERF:-0}" == "1" ]]; then
+    run_test "Reports (Perf Smoke)" \
+      "$SCRIPT_DIR/verify_reports_perf_smoke.sh" || true
+  else
+    skip_test "Reports (Perf Smoke)" "RUN_REPORTS_PERF=0"
   fi
 fi
 
