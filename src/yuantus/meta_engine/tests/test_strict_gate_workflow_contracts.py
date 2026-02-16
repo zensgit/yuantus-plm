@@ -29,6 +29,7 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     assert "workflow_dispatch:" in wf_text
     assert "schedule:" in wf_text
     assert 'cron: "0 3 * * *"' in wf_text
+    assert 'cron: "0 4 * * 1"' in wf_text
     assert "run_demo:" in wf_text
     assert "run_perf_smokes:" in wf_text
     assert 'default: "false"' in wf_text
@@ -43,9 +44,11 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     assert "OUT_DIR: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}" in wf_text
     assert "REPORT_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md" in wf_text
     assert "github.event.inputs.run_perf_smokes" in wf_text
+    assert "github.event.schedule" in wf_text
     assert "export RUN_RELEASE_ORCH_PERF=1" in wf_text
     assert "export RUN_ESIGN_PERF=1" in wf_text
     assert "export RUN_REPORTS_PERF=1" in wf_text
+    assert "weekly_schedule_perf" in wf_text
 
     for needle in (
         "name: strict-gate-report",
@@ -77,5 +80,6 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "RUN_ESIGN_PERF=1",
         "RUN_REPORTS_PERF=1",
         "run_perf_smokes=true",
+        "每周一 `04:00 UTC`",
     ):
         assert token in runbook_text, f"strict-gate runbook missing: {token!r}"

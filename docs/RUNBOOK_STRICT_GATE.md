@@ -90,7 +90,9 @@ PLAYWRIGHT_CMD='npx playwright test playwright/tests/export_bundles_api.spec.js'
 Workflow: `.github/workflows/strict-gate.yml`
 
 - Triggers:
-  - schedule: 每天 `03:00 UTC`
+  - schedule:
+    - 每天 `03:00 UTC`（core strict gate，默认不跑 perf-smokes）
+    - 每周一 `04:00 UTC`（自动开启 perf-smokes）
   - workflow_dispatch: 手动触发（可选 `run_demo=true`、`run_perf_smokes=true`）
 
 Outputs:

@@ -12,8 +12,10 @@ on:
         required: false
         default: "false"
   schedule:
-    # Daily 03:00 UTC
+    # Daily 03:00 UTC (core strict gate; no perf-smokes by default)
     - cron: "0 3 * * *"
+    # Weekly Monday 04:00 UTC (enable perf-smokes)
+    - cron: "0 4 * * 1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -71,16 +73,35 @@ jobs:
             export RUN_ESIGN_PERF=1
             export RUN_REPORTS_PERF=1
           fi
+          if [[ "${{ github.event_name }}" == "schedule" && "${{ github.event.schedule }}" == "0 4 * * 1" ]]; then
+            export RUN_RELEASE_ORCH_PERF=1
+            export RUN_ESIGN_PERF=1
+            export RUN_REPORTS_PERF=1
+          fi
           bash scripts/strict_gate_report.sh
 
       - name: Download artifacts hints
         if: always()
         run: |
           set -euo pipefail
+          MODE_DEMO="false"
+          MODE_PERF="false"
+          MODE_REASON="default"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            MODE_DEMO="${{ github.event.inputs.run_demo }}"
+            MODE_PERF="${{ github.event.inputs.run_perf_smokes }}"
+            MODE_REASON="workflow_dispatch"
+          fi
+          if [[ "${{ github.event_name }}" == "schedule" && "${{ github.event.schedule }}" == "0 4 * * 1" ]]; then
+            MODE_PERF="true"
+            MODE_REASON="weekly_schedule_perf"
+          fi
           {
             echo "## Strict Gate Artifacts"
             echo ""
             echo "Run ID: \`${{ github.run_id }}\`"
+            echo "Trigger: \`${{ github.event_name }}\`"
+            echo "Mode: demo=\`${MODE_DEMO}\`, perf_smokes=\`${MODE_PERF}\` (\`${MODE_REASON}\`)"
             echo ""
             echo '```bash'
             echo "RUN_ID=${{ github.run_id }}"
