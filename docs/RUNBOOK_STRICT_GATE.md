@@ -8,6 +8,7 @@
 - CI workflow: `.github/workflows/strict-gate.yml`
 - Evidence outputs:
   - Report: `docs/DAILY_REPORTS/STRICT_GATE_*.md`
+  - Perf summary: `docs/DAILY_REPORTS/STRICT_GATE_*_PERF.md`
   - Logs: `tmp/strict-gate/<run_id>/*.log`
 
 ## What It Runs
@@ -78,6 +79,14 @@ RUN_RELEASE_ORCH_PERF=1 RUN_ESIGN_PERF=1 RUN_REPORTS_PERF=1 \
   bash scripts/strict_gate_report.sh
 ```
 
+- 从 strict-gate 日志目录生成 perf 摘要（本地或下载 CI artifact 后均可）：
+
+```bash
+python3 scripts/strict_gate_perf_summary.py \
+  --logs-dir tmp/strict-gate/<run_id> \
+  --out docs/DAILY_REPORTS/STRICT_GATE_<run_id>_PERF.md
+```
+
 - 只跑某个 Playwright spec：
 
 ```bash
@@ -100,6 +109,7 @@ Outputs:
 - Job summary：会直接展示 strict gate 报告内容（含失败 tail）
 - Artifacts:
   - `strict-gate-report`：报告 Markdown
+  - `strict-gate-perf-summary`：perf-smoke 摘要 Markdown（无 perf 数据时会显示 skipped/missing 说明）
   - `strict-gate-logs`：`tmp/strict-gate/...` 的日志目录
 
 ### Trigger From CLI (Recommended)
@@ -131,12 +141,14 @@ OUT_DIR=tmp/strict-gate-artifacts/$RUN_ID
 mkdir -p "$OUT_DIR"
 
 gh run download "$RUN_ID" -n strict-gate-report -D "$OUT_DIR"
+gh run download "$RUN_ID" -n strict-gate-perf-summary -D "$OUT_DIR"
 gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"
 ```
 
 说明：
 - strict gate 报告与日志是在 Actions runner 的工作区生成，并通过 artifact 上传；默认不会提交回 repo。
 - `strict-gate-report` 解压后会包含类似路径：`docs/DAILY_REPORTS/STRICT_GATE_CI_<run_id>.md`
+- `strict-gate-perf-summary` 解压后会包含类似路径：`docs/DAILY_REPORTS/STRICT_GATE_CI_<run_id>_PERF.md`
 - `strict-gate-logs` 解压后会包含类似路径：`tmp/strict-gate/STRICT_GATE_CI_<run_id>/*.log`
 
 ## How To Triage A Failure

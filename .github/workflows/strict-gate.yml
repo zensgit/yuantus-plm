@@ -80,6 +80,20 @@ jobs:
           fi
           bash scripts/strict_gate_report.sh
 
+      - name: Build strict gate perf summary
+        if: always()
+        env:
+          OUT_DIR: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}
+          PERF_SUMMARY_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md
+        run: |
+          set -euo pipefail
+          python3 scripts/strict_gate_perf_summary.py \
+            --logs-dir "${OUT_DIR}" \
+            --out "${PERF_SUMMARY_PATH}"
+          if [[ -f "${PERF_SUMMARY_PATH}" ]]; then
+            cat "${PERF_SUMMARY_PATH}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Download artifacts hints
         if: always()
         run: |
@@ -108,10 +122,12 @@ jobs:
             echo 'OUT_DIR=tmp/strict-gate-artifacts/$RUN_ID'
             echo 'mkdir -p "$OUT_DIR"'
             echo 'gh run download "$RUN_ID" -n strict-gate-report -D "$OUT_DIR"'
+            echo 'gh run download "$RUN_ID" -n strict-gate-perf-summary -D "$OUT_DIR"'
             echo 'gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"'
             echo '```'
             echo ""
             echo "Report path (inside artifact): \`docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md\`"
+            echo "Perf summary path (inside artifact): \`docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md\`"
             echo "Logs dir (inside artifact): \`tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -132,6 +148,13 @@ jobs:
         with:
           name: strict-gate-report
           path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md
+
+      - name: Upload strict gate perf summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strict-gate-perf-summary
+          path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md
 
       - name: Upload strict gate logs
         if: always()
