@@ -17,6 +17,10 @@ Options:
                          (default: any)
   --artifact-name <name> Artifact name used by `gh run download -n`
                          (default: strict-gate-perf-summary)
+  --download-retries <n> Retry attempts per run for artifact download
+                         (default: 1)
+  --download-retry-delay-sec <n>
+                         Delay between retry attempts in seconds (default: 1)
   --fail-if-none-downloaded
                          Exit with non-zero when downloaded artifact count is 0
   --download-dir <path>  Local artifact download root
@@ -35,6 +39,7 @@ Examples:
   scripts/strict_gate_perf_download_and_trend.sh --limit 20 --branch main
   scripts/strict_gate_perf_download_and_trend.sh --conclusion failure --limit 10
   scripts/strict_gate_perf_download_and_trend.sh --artifact-name strict-gate-perf-summary
+  scripts/strict_gate_perf_download_and_trend.sh --download-retries 3 --download-retry-delay-sec 2
   scripts/strict_gate_perf_download_and_trend.sh \
     --download-dir tmp/strict-gate-artifacts/perf \
     --trend-out tmp/strict-gate-artifacts/perf/STRICT_GATE_PERF_TREND.md \
@@ -51,6 +56,8 @@ WORKFLOW="strict-gate"
 BRANCH="main"
 CONCLUSION="any"
 ARTIFACT_NAME="strict-gate-perf-summary"
+DOWNLOAD_RETRIES=1
+DOWNLOAD_RETRY_DELAY_SEC=1
 FAIL_IF_NONE_DOWNLOADED=0
 DOWNLOAD_DIR="${REPO_ROOT}/tmp/strict-gate-artifacts/recent-perf"
 TREND_OUT=""
@@ -82,6 +89,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --artifact-name)
       ARTIFACT_NAME="${2:-}"
+      shift 2
+      ;;
+    --download-retries)
+      DOWNLOAD_RETRIES="${2:-}"
+      shift 2
+      ;;
+    --download-retry-delay-sec)
+      DOWNLOAD_RETRY_DELAY_SEC="${2:-}"
       shift 2
       ;;
     --fail-if-none-downloaded)
@@ -130,6 +145,14 @@ if [[ "$CONCLUSION" != "any" && "$CONCLUSION" != "success" && "$CONCLUSION" != "
 fi
 if [[ -z "$ARTIFACT_NAME" ]]; then
   echo "ERROR: --artifact-name must not be empty." >&2
+  exit 2
+fi
+if ! [[ "$DOWNLOAD_RETRIES" =~ ^[0-9]+$ ]] || [[ "$DOWNLOAD_RETRIES" -lt 1 ]]; then
+  echo "ERROR: --download-retries must be a positive integer (got: $DOWNLOAD_RETRIES)" >&2
+  exit 2
+fi
+if ! [[ "$DOWNLOAD_RETRY_DELAY_SEC" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: --download-retry-delay-sec must be a non-negative integer (got: $DOWNLOAD_RETRY_DELAY_SEC)" >&2
   exit 2
 fi
 
@@ -240,7 +263,22 @@ while IFS= read -r run_id; do
   if [[ -n "$REPO_ARG" ]]; then
     dl_args+=(-R "$REPO_ARG")
   fi
-  if gh "${dl_args[@]}" >/dev/null 2>&1; then
+  attempt=1
+  dl_ok=0
+  while [[ "$attempt" -le "$DOWNLOAD_RETRIES" ]]; do
+    if gh "${dl_args[@]}" >/dev/null 2>&1; then
+      dl_ok=1
+      break
+    fi
+    if [[ "$attempt" -lt "$DOWNLOAD_RETRIES" ]]; then
+      echo "WARN: download attempt ${attempt}/${DOWNLOAD_RETRIES} failed for run_id=${run_id}; retry in ${DOWNLOAD_RETRY_DELAY_SEC}s." >&2
+      if [[ "$DOWNLOAD_RETRY_DELAY_SEC" -gt 0 ]]; then
+        sleep "$DOWNLOAD_RETRY_DELAY_SEC"
+      fi
+    fi
+    attempt=$((attempt + 1))
+  done
+  if [[ "$dl_ok" -eq 1 ]]; then
     downloaded=$((downloaded + 1))
     downloaded_run_ids+=("$run_id")
   else
@@ -273,7 +311,9 @@ python3 "${trend_args[@]}"
 
 if [[ -n "$JSON_OUT" ]]; then
   python3 - "$JSON_OUT" \
-    "$WORKFLOW" "$BRANCH" "$CONCLUSION" "$ARTIFACT_NAME" "$LIMIT" "$TREND_OUT" "$summary_dir" \
+    "$WORKFLOW" "$BRANCH" "$CONCLUSION" "$ARTIFACT_NAME" \
+    "$DOWNLOAD_RETRIES" "$DOWNLOAD_RETRY_DELAY_SEC" \
+    "$LIMIT" "$TREND_OUT" "$summary_dir" \
     "$downloaded" "$skipped" "$INCLUDE_EMPTY" "$RUN_IDS_RAW" \
     "$FAIL_IF_NONE_DOWNLOADED" \
     "$(printf '%s,' "${selected_run_ids[@]}")" \
@@ -295,19 +335,21 @@ payload = {
     "branch": sys.argv[3],
     "conclusion": sys.argv[4],
     "artifact_name": sys.argv[5],
-    "limit": int(sys.argv[6]),
-    "trend_report": sys.argv[7],
-    "summary_dir": sys.argv[8],
-    "downloaded_count": int(sys.argv[9]),
-    "skipped_count": int(sys.argv[10]),
-    "include_empty": sys.argv[11] == "1",
-    "run_id_mode": bool(sys.argv[12].strip()),
-    "run_id_input_raw": sys.argv[12],
-    "fail_if_none_downloaded": sys.argv[13] == "1",
-    "failed_due_to_zero_downloads": (sys.argv[13] == "1") and (int(sys.argv[9]) == 0),
-    "selected_run_ids": split_csv(sys.argv[14]),
-    "downloaded_run_ids": split_csv(sys.argv[15]),
-    "skipped_run_ids": split_csv(sys.argv[16]),
+    "download_retries": int(sys.argv[6]),
+    "download_retry_delay_sec": int(sys.argv[7]),
+    "limit": int(sys.argv[8]),
+    "trend_report": sys.argv[9],
+    "summary_dir": sys.argv[10],
+    "downloaded_count": int(sys.argv[11]),
+    "skipped_count": int(sys.argv[12]),
+    "include_empty": sys.argv[13] == "1",
+    "run_id_mode": bool(sys.argv[14].strip()),
+    "run_id_input_raw": sys.argv[14],
+    "fail_if_none_downloaded": sys.argv[15] == "1",
+    "failed_due_to_zero_downloads": (sys.argv[15] == "1") and (int(sys.argv[11]) == 0),
+    "selected_run_ids": split_csv(sys.argv[16]),
+    "downloaded_run_ids": split_csv(sys.argv[17]),
+    "skipped_run_ids": split_csv(sys.argv[18]),
 }
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(payload, f, indent=2)
