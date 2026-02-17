@@ -97,6 +97,16 @@ python3 scripts/strict_gate_perf_trend.py \
   --limit 30
 ```
 
+- 自动下载最近 N 次 CI perf summary 并一键生成趋势（需要 `gh auth login`）：
+
+```bash
+scripts/strict_gate_perf_download_and_trend.sh \
+  --limit 10 \
+  --branch main \
+  --download-dir tmp/strict-gate-artifacts/recent-perf \
+  --trend-out tmp/strict-gate-artifacts/recent-perf/STRICT_GATE_PERF_TREND.md
+```
+
 - 只跑某个 Playwright spec：
 
 ```bash
