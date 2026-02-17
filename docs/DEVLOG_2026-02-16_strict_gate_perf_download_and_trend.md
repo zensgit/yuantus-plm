@@ -52,3 +52,14 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
 ```bash
 bash scripts/strict_gate_perf_download_and_trend.sh --help
 ```
+
+3. End-to-end helper smoke (real gh download + trend output)
+```bash
+bash scripts/strict_gate_perf_download_and_trend.sh \
+  --limit 1 \
+  --branch main \
+  --download-dir tmp/strict-gate-artifacts/recent-perf-smoke \
+  --trend-out tmp/strict-gate-artifacts/recent-perf-smoke/STRICT_GATE_PERF_TREND.md \
+  --include-empty
+```
+Result: artifact download succeeded and trend markdown generated.

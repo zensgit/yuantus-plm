@@ -124,12 +124,16 @@ fi
 
 echo "==> Discover recent runs (workflow=${WORKFLOW}, branch=${BRANCH}, limit=${LIMIT})"
 run_ids="$(
-  gh "${gh_args[@]}" | python3 - "$LIMIT" <<'PY'
+  gh "${gh_args[@]}" | python3 -c '
 import json
 import sys
 
 target = int(sys.argv[1])
-rows = json.load(sys.stdin)
+raw = sys.stdin.read()
+if not raw.strip():
+    print("", end="")
+    raise SystemExit(0)
+rows = json.loads(raw)
 picked = []
 for row in rows:
     if row.get("status") != "completed":
@@ -141,7 +145,7 @@ for row in rows:
     if len(picked) >= target:
         break
 print("\n".join(picked))
-PY
+' "$LIMIT"
 )"
 
 if [[ -z "$run_ids" ]]; then
