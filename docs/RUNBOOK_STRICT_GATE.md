@@ -105,7 +105,8 @@ scripts/strict_gate_perf_download_and_trend.sh \
   --branch main \
   --conclusion failure \
   --download-dir tmp/strict-gate-artifacts/recent-perf \
-  --trend-out tmp/strict-gate-artifacts/recent-perf/STRICT_GATE_PERF_TREND.md
+  --trend-out tmp/strict-gate-artifacts/recent-perf/STRICT_GATE_PERF_TREND.md \
+  --json-out tmp/strict-gate-artifacts/recent-perf/strict_gate_perf_download.json
 ```
 
 - 快速复盘单次异常 run（跳过 run list，直接下载指定 run id）：
@@ -115,6 +116,7 @@ scripts/strict_gate_perf_download_and_trend.sh \
   --run-id <run_id> \
   --download-dir tmp/strict-gate-artifacts/recent-perf \
   --trend-out tmp/strict-gate-artifacts/recent-perf/STRICT_GATE_PERF_TREND.md \
+  --json-out tmp/strict-gate-artifacts/recent-perf/strict_gate_perf_download.json \
   --include-empty
 ```
 

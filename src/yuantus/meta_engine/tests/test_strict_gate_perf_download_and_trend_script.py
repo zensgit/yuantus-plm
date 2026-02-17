@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -92,6 +93,7 @@ raise SystemExit(2)
 
     download_dir = tmp_path / "downloaded"
     trend_out = download_dir / "STRICT_GATE_PERF_TREND.md"
+    json_out = download_dir / "strict_gate_perf_download.json"
 
     env = os.environ.copy()
     env["PATH"] = f"{fake_bin}:{env.get('PATH', '')}"
@@ -108,6 +110,8 @@ raise SystemExit(2)
             str(download_dir),
             "--trend-out",
             str(trend_out),
+            "--json-out",
+            str(json_out),
             "--include-empty",
         ],
         text=True,
@@ -118,12 +122,21 @@ raise SystemExit(2)
     assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
     assert "Downloaded artifacts: 2" in cp.stdout
     assert trend_out.is_file(), f"Missing trend output: {trend_out}"
+    assert json_out.is_file(), f"Missing json output: {json_out}"
 
     out = trend_out.read_text(encoding="utf-8", errors="replace")
     # Latest run id should appear first.
     assert out.index("`STRICT_GATE_CI_101`") < out.index("`STRICT_GATE_CI_100`")
     assert "| `STRICT_GATE_CI_101` | FAIL |" in out
     assert "FAIL 1900.000/1800.000" in out
+
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["downloaded_count"] == 2
+    assert payload["skipped_count"] == 0
+    assert payload["run_id_mode"] is False
+    assert payload["selected_run_ids"] == ["101", "100"]
+    assert payload["downloaded_run_ids"] == ["101", "100"]
+    assert payload["skipped_run_ids"] == []
 
 
 def test_strict_gate_perf_download_and_trend_with_conclusion_filter(tmp_path: Path) -> None:

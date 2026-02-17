@@ -19,6 +19,7 @@ Options:
                          (default: tmp/strict-gate-artifacts/recent-perf)
   --trend-out <path>     Output trend markdown path
                          (default: <download-dir>/STRICT_GATE_PERF_TREND.md)
+  --json-out <path>      Optional machine-readable summary output (JSON)
   --include-empty        Include NO_METRICS runs in trend output
   --repo <owner/name>    Optional GitHub repo for gh commands (-R)
   -h, --help             Show this help and exit
@@ -31,7 +32,8 @@ Examples:
   scripts/strict_gate_perf_download_and_trend.sh --conclusion failure --limit 10
   scripts/strict_gate_perf_download_and_trend.sh \
     --download-dir tmp/strict-gate-artifacts/perf \
-    --trend-out tmp/strict-gate-artifacts/perf/STRICT_GATE_PERF_TREND.md
+    --trend-out tmp/strict-gate-artifacts/perf/STRICT_GATE_PERF_TREND.md \
+    --json-out  tmp/strict-gate-artifacts/perf/strict_gate_perf_download.json
 EOF
 }
 
@@ -45,6 +47,7 @@ BRANCH="main"
 CONCLUSION="any"
 DOWNLOAD_DIR="${REPO_ROOT}/tmp/strict-gate-artifacts/recent-perf"
 TREND_OUT=""
+JSON_OUT=""
 INCLUDE_EMPTY=0
 REPO_ARG=""
 
@@ -76,6 +79,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --trend-out)
       TREND_OUT="${2:-}"
+      shift 2
+      ;;
+    --json-out)
+      JSON_OUT="${2:-}"
       shift 2
       ;;
     --include-empty)
@@ -202,9 +209,13 @@ fi
 
 downloaded=0
 skipped=0
+selected_run_ids=()
+downloaded_run_ids=()
+skipped_run_ids=()
 
 while IFS= read -r run_id; do
   [[ -z "$run_id" ]] && continue
+  selected_run_ids+=("$run_id")
   echo "==> Download artifact strict-gate-perf-summary (run_id=${run_id})"
   dl_args=(run download "$run_id" -n strict-gate-perf-summary -D "$DOWNLOAD_DIR")
   if [[ -n "$REPO_ARG" ]]; then
@@ -212,15 +223,20 @@ while IFS= read -r run_id; do
   fi
   if gh "${dl_args[@]}" >/dev/null 2>&1; then
     downloaded=$((downloaded + 1))
+    downloaded_run_ids+=("$run_id")
   else
     echo "WARN: unable to download strict-gate-perf-summary for run_id=${run_id}" >&2
     skipped=$((skipped + 1))
+    skipped_run_ids+=("$run_id")
   fi
 done <<< "$run_ids"
 
 summary_dir="${DOWNLOAD_DIR}/docs/DAILY_REPORTS"
 mkdir -p "$summary_dir"
 mkdir -p "$(dirname "$TREND_OUT")"
+if [[ -n "$JSON_OUT" ]]; then
+  mkdir -p "$(dirname "$JSON_OUT")"
+fi
 
 trend_args=(
   "$trend_script"
@@ -236,8 +252,51 @@ fi
 echo "==> Generate trend report"
 python3 "${trend_args[@]}"
 
+if [[ -n "$JSON_OUT" ]]; then
+  python3 - "$JSON_OUT" \
+    "$WORKFLOW" "$BRANCH" "$CONCLUSION" "$LIMIT" "$TREND_OUT" "$summary_dir" \
+    "$downloaded" "$skipped" "$INCLUDE_EMPTY" "$RUN_IDS_RAW" \
+    "$(printf '%s,' "${selected_run_ids[@]}")" \
+    "$(printf '%s,' "${downloaded_run_ids[@]}")" \
+    "$(printf '%s,' "${skipped_run_ids[@]}")" <<'PY'
+import json
+import sys
+from datetime import datetime, timezone
+
+
+def split_csv(s: str):
+    return [x for x in s.split(",") if x]
+
+
+out_path = sys.argv[1]
+payload = {
+    "generated_at": datetime.now(timezone.utc).isoformat(),
+    "workflow": sys.argv[2],
+    "branch": sys.argv[3],
+    "conclusion": sys.argv[4],
+    "limit": int(sys.argv[5]),
+    "trend_report": sys.argv[6],
+    "summary_dir": sys.argv[7],
+    "downloaded_count": int(sys.argv[8]),
+    "skipped_count": int(sys.argv[9]),
+    "include_empty": sys.argv[10] == "1",
+    "run_id_mode": bool(sys.argv[11].strip()),
+    "run_id_input_raw": sys.argv[11],
+    "selected_run_ids": split_csv(sys.argv[12]),
+    "downloaded_run_ids": split_csv(sys.argv[13]),
+    "skipped_run_ids": split_csv(sys.argv[14]),
+}
+with open(out_path, "w", encoding="utf-8") as f:
+    json.dump(payload, f, indent=2)
+print(out_path)
+PY
+fi
+
 echo ""
 echo "Downloaded artifacts: ${downloaded}"
 echo "Skipped downloads: ${skipped}"
 echo "Summary dir: ${summary_dir}"
 echo "Trend report: ${TREND_OUT}"
+if [[ -n "$JSON_OUT" ]]; then
+  echo "JSON summary: ${JSON_OUT}"
+fi

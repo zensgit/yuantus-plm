@@ -130,4 +130,5 @@ def test_strict_gate_perf_download_and_trend_script_has_help() -> None:
     assert "--limit" in out
     assert "--run-id" in out
     assert "--conclusion" in out
+    assert "--json-out" in out
     assert "--trend-out" in out

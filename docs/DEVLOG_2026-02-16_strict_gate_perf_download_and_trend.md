@@ -19,6 +19,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - `--conclusion` (default `any`; supports `any|success|failure`)
   - `--download-dir` (default `tmp/strict-gate-artifacts/recent-perf`)
   - `--trend-out` (default `<download-dir>/STRICT_GATE_PERF_TREND.md`)
+  - `--json-out` (optional JSON summary path for automation)
   - `--include-empty`
   - `--repo` (optional `owner/repo`, passed to gh `-R`)
 - Safety checks:
@@ -39,6 +40,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - validates downloaded artifact counting and generated trend ordering/content
   - validates `--conclusion success` only keeps success runs
   - validates `--run-id` mode bypasses `run list` and downloads explicit run ids
+  - validates `--json-out` output fields (counts + selected/downloaded/skipped ids)
 - Updated `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`:
   - runbook token now requires `strict_gate_perf_download_and_trend.sh`
 
@@ -79,5 +81,6 @@ bash scripts/strict_gate_perf_download_and_trend.sh \
   --run-id 22085198707 \
   --download-dir tmp/strict-gate-artifacts/recent-perf-smoke-runid \
   --trend-out tmp/strict-gate-artifacts/recent-perf-smoke-runid/STRICT_GATE_PERF_TREND.md \
+  --json-out tmp/strict-gate-artifacts/recent-perf-smoke-runid/strict_gate_perf_download.json \
   --include-empty
 ```
