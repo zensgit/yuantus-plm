@@ -139,6 +139,7 @@ raise SystemExit(2)
     assert payload["run_id_mode"] is False
     assert payload["fail_if_none_downloaded"] is False
     assert payload["failed_due_to_zero_downloads"] is False
+    assert payload["clean_download_dir"] is False
     assert payload["selected_run_ids"] == ["101", "100"]
     assert payload["downloaded_run_ids"] == ["101", "100"]
     assert payload["skipped_run_ids"] == []
@@ -248,6 +249,7 @@ raise SystemExit(2)
     assert payload["skipped_count"] == 0
     assert payload["fail_if_none_downloaded"] is False
     assert payload["failed_due_to_zero_downloads"] is False
+    assert payload["clean_download_dir"] is False
     assert payload["selected_run_ids"] == ["501"]
     assert payload["downloaded_run_ids"] == ["501"]
 
@@ -532,7 +534,121 @@ raise SystemExit(2)
     assert payload["download_retry_delay_sec"] == 0
     assert payload["downloaded_count"] == 1
     assert payload["skipped_count"] == 0
+    assert payload["clean_download_dir"] is False
     assert payload["downloaded_run_ids"] == ["901"]
+
+
+def test_strict_gate_perf_download_and_trend_clean_download_dir(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(parents=True, exist_ok=True)
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env python3
+import json
+import sys
+from pathlib import Path
+
+args = sys.argv[1:]
+
+if args[:2] == ["auth", "status"]:
+    raise SystemExit(0)
+
+if len(args) >= 2 and args[0] == "run" and args[1] == "list":
+    print(json.dumps([{"databaseId": 990, "status": "completed", "conclusion": "success"}]))
+    raise SystemExit(0)
+
+if len(args) >= 3 and args[0] == "run" and args[1] == "download":
+    run_id = args[2]
+    out_dir = "."
+    i = 3
+    while i < len(args):
+        if args[i] == "-D" and i + 1 < len(args):
+            out_dir = args[i + 1]
+            i += 2
+            continue
+        i += 1
+    p = Path(out_dir) / "docs" / "DAILY_REPORTS"
+    p.mkdir(parents=True, exist_ok=True)
+    report = "\\n".join(
+        [
+            "## Perf Smoke Summary",
+            "",
+            "| Metric | Status | p95 (ms) | Threshold (ms) | Samples | Source |",
+            "| --- | --- | --- | --- | --- | --- |",
+            f"| release_orchestration.plan | {'PASS' if run_id == '990' else 'FAIL'} | 120.000 | 1800.000 | 5 | `dummy` |",
+            "",
+        ]
+    )
+    (p / f"STRICT_GATE_CI_{run_id}_PERF.md").write_text(report, encoding="utf-8")
+    raise SystemExit(0)
+
+raise SystemExit(2)
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+
+    download_dir = tmp_path / "downloaded"
+    stale_path = download_dir / "docs" / "DAILY_REPORTS" / "STRICT_GATE_CI_777_PERF.md"
+    stale_path.parent.mkdir(parents=True, exist_ok=True)
+    stale_path.write_text(
+        "\n".join(
+            [
+                "## Perf Smoke Summary",
+                "",
+                "| Metric | Status | p95 (ms) | Threshold (ms) | Samples | Source |",
+                "| --- | --- | --- | --- | --- | --- |",
+                "| release_orchestration.plan | FAIL | 2500.000 | 1800.000 | 5 | `stale` |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    trend_out = download_dir / "STRICT_GATE_PERF_TREND.md"
+    json_out = download_dir / "strict_gate_perf_download.json"
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env.get('PATH', '')}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--limit",
+            "1",
+            "--clean-download-dir",
+            "--download-dir",
+            str(download_dir),
+            "--trend-out",
+            str(trend_out),
+            "--json-out",
+            str(json_out),
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert f"Clean download dir: {download_dir}" in cp.stdout
+    assert stale_path.exists() is False
+    assert trend_out.is_file(), f"Missing trend output: {trend_out}"
+    assert json_out.is_file(), f"Missing json output: {json_out}"
+
+    out = trend_out.read_text(encoding="utf-8", errors="replace")
+    assert "`STRICT_GATE_CI_990`" in out
+    assert "`STRICT_GATE_CI_777`" not in out
+
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["clean_download_dir"] is True
+    assert payload["downloaded_count"] == 1
+    assert payload["skipped_count"] == 0
+    assert payload["selected_run_ids"] == ["990"]
 
 
 def test_strict_gate_perf_download_and_trend_fail_if_none_downloaded(tmp_path: Path) -> None:
@@ -606,3 +722,4 @@ raise SystemExit(2)
     assert payload["skipped_count"] == 1
     assert payload["fail_if_none_downloaded"] is True
     assert payload["failed_due_to_zero_downloads"] is True
+    assert payload["clean_download_dir"] is False

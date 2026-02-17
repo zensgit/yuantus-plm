@@ -21,6 +21,7 @@ Options:
                          (default: 1)
   --download-retry-delay-sec <n>
                          Delay between retry attempts in seconds (default: 1)
+  --clean-download-dir   Remove download dir before fetching artifacts
   --fail-if-none-downloaded
                          Exit with non-zero when downloaded artifact count is 0
   --download-dir <path>  Local artifact download root
@@ -40,6 +41,7 @@ Examples:
   scripts/strict_gate_perf_download_and_trend.sh --conclusion failure --limit 10
   scripts/strict_gate_perf_download_and_trend.sh --artifact-name strict-gate-perf-summary
   scripts/strict_gate_perf_download_and_trend.sh --download-retries 3 --download-retry-delay-sec 2
+  scripts/strict_gate_perf_download_and_trend.sh --clean-download-dir --limit 10
   scripts/strict_gate_perf_download_and_trend.sh \
     --download-dir tmp/strict-gate-artifacts/perf \
     --trend-out tmp/strict-gate-artifacts/perf/STRICT_GATE_PERF_TREND.md \
@@ -58,6 +60,7 @@ CONCLUSION="any"
 ARTIFACT_NAME="strict-gate-perf-summary"
 DOWNLOAD_RETRIES=1
 DOWNLOAD_RETRY_DELAY_SEC=1
+CLEAN_DOWNLOAD_DIR=0
 FAIL_IF_NONE_DOWNLOADED=0
 DOWNLOAD_DIR="${REPO_ROOT}/tmp/strict-gate-artifacts/recent-perf"
 TREND_OUT=""
@@ -98,6 +101,10 @@ while [[ $# -gt 0 ]]; do
     --download-retry-delay-sec)
       DOWNLOAD_RETRY_DELAY_SEC="${2:-}"
       shift 2
+      ;;
+    --clean-download-dir)
+      CLEAN_DOWNLOAD_DIR=1
+      shift
       ;;
     --fail-if-none-downloaded)
       FAIL_IF_NONE_DOWNLOADED=1
@@ -195,6 +202,18 @@ if [[ ! -f "$trend_script" ]]; then
   exit 2
 fi
 
+if [[ "$CLEAN_DOWNLOAD_DIR" -eq 1 ]]; then
+  download_dir_abs="$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve())' "$DOWNLOAD_DIR")"
+  repo_root_abs="$(python3 -c 'from pathlib import Path; import sys; print(Path(sys.argv[1]).resolve())' "$REPO_ROOT")"
+  if [[ "$download_dir_abs" == "/" || "$download_dir_abs" == "$repo_root_abs" ]]; then
+    echo "ERROR: refusing to clean unsafe --download-dir: ${download_dir_abs}" >&2
+    exit 2
+  fi
+  if [[ -d "$DOWNLOAD_DIR" ]]; then
+    echo "==> Clean download dir: ${DOWNLOAD_DIR}"
+    rm -rf "$DOWNLOAD_DIR"
+  fi
+fi
 mkdir -p "$DOWNLOAD_DIR"
 
 LIST_LIMIT=$((LIMIT * 3))
@@ -315,7 +334,7 @@ if [[ -n "$JSON_OUT" ]]; then
     "$DOWNLOAD_RETRIES" "$DOWNLOAD_RETRY_DELAY_SEC" \
     "$LIMIT" "$TREND_OUT" "$summary_dir" \
     "$downloaded" "$skipped" "$INCLUDE_EMPTY" "$RUN_IDS_RAW" \
-    "$FAIL_IF_NONE_DOWNLOADED" \
+    "$FAIL_IF_NONE_DOWNLOADED" "$CLEAN_DOWNLOAD_DIR" \
     "$(printf '%s,' "${selected_run_ids[@]}")" \
     "$(printf '%s,' "${downloaded_run_ids[@]}")" \
     "$(printf '%s,' "${skipped_run_ids[@]}")" <<'PY'
@@ -347,9 +366,10 @@ payload = {
     "run_id_input_raw": sys.argv[14],
     "fail_if_none_downloaded": sys.argv[15] == "1",
     "failed_due_to_zero_downloads": (sys.argv[15] == "1") and (int(sys.argv[11]) == 0),
-    "selected_run_ids": split_csv(sys.argv[16]),
-    "downloaded_run_ids": split_csv(sys.argv[17]),
-    "skipped_run_ids": split_csv(sys.argv[18]),
+    "clean_download_dir": sys.argv[16] == "1",
+    "selected_run_ids": split_csv(sys.argv[17]),
+    "downloaded_run_ids": split_csv(sys.argv[18]),
+    "skipped_run_ids": split_csv(sys.argv[19]),
 }
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(payload, f, indent=2)

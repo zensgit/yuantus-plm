@@ -133,6 +133,7 @@ def test_strict_gate_perf_download_and_trend_script_has_help() -> None:
     assert "--artifact-name" in out
     assert "--download-retries" in out
     assert "--download-retry-delay-sec" in out
+    assert "--clean-download-dir" in out
     assert "--fail-if-none-downloaded" in out
     assert "--json-out" in out
     assert "--trend-out" in out
