@@ -108,6 +108,18 @@ scripts/strict_gate_perf_download_and_trend.sh \
   --trend-out tmp/strict-gate-artifacts/recent-perf/STRICT_GATE_PERF_TREND.md
 ```
 
+- 快速复盘单次异常 run（跳过 run list，直接下载指定 run id）：
+
+```bash
+scripts/strict_gate_perf_download_and_trend.sh \
+  --run-id <run_id> \
+  --download-dir tmp/strict-gate-artifacts/recent-perf \
+  --trend-out tmp/strict-gate-artifacts/recent-perf/STRICT_GATE_PERF_TREND.md \
+  --include-empty
+```
+
+说明：`--run-id` 模式会跳过 `gh run list`；此时 `--conclusion` 过滤不会生效。
+
 - 只跑某个 Playwright spec：
 
 ```bash

@@ -13,6 +13,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - call `scripts/strict_gate_perf_trend.py` to generate trend markdown
 - Inputs:
   - `--limit` (default `10`)
+  - `--run-id` (optional; explicit run id(s), comma-separated supported)
   - `--workflow` (default `strict-gate`)
   - `--branch` (default `main`)
   - `--conclusion` (default `any`; supports `any|success|failure`)
@@ -37,6 +38,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - uses a fake `gh` binary to simulate `run list` + `run download`
   - validates downloaded artifact counting and generated trend ordering/content
   - validates `--conclusion success` only keeps success runs
+  - validates `--run-id` mode bypasses `run list` and downloads explicit run ids
 - Updated `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`:
   - runbook token now requires `strict_gate_perf_download_and_trend.sh`
 
@@ -70,3 +72,12 @@ bash scripts/strict_gate_perf_download_and_trend.sh \
   --include-empty
 ```
 Result: artifact download succeeded and trend markdown generated.
+
+4. Real helper smoke for `--run-id` mode
+```bash
+bash scripts/strict_gate_perf_download_and_trend.sh \
+  --run-id 22085198707 \
+  --download-dir tmp/strict-gate-artifacts/recent-perf-smoke-runid \
+  --trend-out tmp/strict-gate-artifacts/recent-perf-smoke-runid/STRICT_GATE_PERF_TREND.md \
+  --include-empty
+```

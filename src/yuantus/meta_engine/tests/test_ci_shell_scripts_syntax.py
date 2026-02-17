@@ -128,5 +128,6 @@ def test_strict_gate_perf_download_and_trend_script_has_help() -> None:
     assert "Usage:" in out
     assert "strict_gate_perf_download_and_trend.sh" in out
     assert "--limit" in out
+    assert "--run-id" in out
     assert "--conclusion" in out
     assert "--trend-out" in out

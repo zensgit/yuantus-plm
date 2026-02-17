@@ -10,6 +10,7 @@ Usage:
 
 Options:
   --limit <n>            Number of recent completed runs to attempt (default: 10)
+  --run-id <id[,id...]>  Download specific run id(s) directly (skip run list)
   --workflow <name>      Workflow name/id for gh run list (default: strict-gate)
   --branch <name>        Branch filter for gh run list (default: main)
   --conclusion <v>       Filter completed runs by conclusion: any|success|failure
@@ -24,6 +25,8 @@ Options:
 
 Examples:
   scripts/strict_gate_perf_download_and_trend.sh
+  scripts/strict_gate_perf_download_and_trend.sh --run-id 22085198707
+  scripts/strict_gate_perf_download_and_trend.sh --run-id 22085198707,22050422422
   scripts/strict_gate_perf_download_and_trend.sh --limit 20 --branch main
   scripts/strict_gate_perf_download_and_trend.sh --conclusion failure --limit 10
   scripts/strict_gate_perf_download_and_trend.sh \
@@ -36,6 +39,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 LIMIT=10
+RUN_IDS_RAW=""
 WORKFLOW="strict-gate"
 BRANCH="main"
 CONCLUSION="any"
@@ -48,6 +52,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --limit)
       LIMIT="${2:-}"
+      shift 2
+      ;;
+    --run-id)
+      RUN_IDS_RAW="${RUN_IDS_RAW}${RUN_IDS_RAW:+ }${2:-}"
       shift 2
       ;;
     --workflow)
@@ -103,6 +111,22 @@ if [[ -z "$TREND_OUT" ]]; then
   TREND_OUT="${DOWNLOAD_DIR}/STRICT_GATE_PERF_TREND.md"
 fi
 
+RUN_IDS=()
+if [[ -n "$RUN_IDS_RAW" ]]; then
+  for token in ${RUN_IDS_RAW//,/ }; do
+    [[ -z "$token" ]] && continue
+    if ! [[ "$token" =~ ^[0-9]+$ ]]; then
+      echo "ERROR: --run-id only accepts numeric run ids (bad token: $token)" >&2
+      exit 2
+    fi
+    RUN_IDS+=("$token")
+  done
+  if [[ "${#RUN_IDS[@]}" -eq 0 ]]; then
+    echo "ERROR: --run-id was provided but no valid run ids were parsed." >&2
+    exit 2
+  fi
+fi
+
 if ! command -v gh >/dev/null 2>&1; then
   echo "ERROR: gh CLI not found in PATH." >&2
   exit 2
@@ -134,9 +158,17 @@ if [[ -n "$REPO_ARG" ]]; then
   gh_args+=(-R "$REPO_ARG")
 fi
 
-echo "==> Discover recent runs (workflow=${WORKFLOW}, branch=${BRANCH}, conclusion=${CONCLUSION}, limit=${LIMIT})"
-run_ids="$(
-  gh "${gh_args[@]}" | python3 -c '
+run_ids=""
+if [[ "${#RUN_IDS[@]}" -gt 0 ]]; then
+  if [[ "$CONCLUSION" != "any" ]]; then
+    echo "INFO: --conclusion is ignored when --run-id is explicitly provided." >&2
+  fi
+  echo "==> Use explicit run ids: ${RUN_IDS[*]}"
+  run_ids="$(printf '%s\n' "${RUN_IDS[@]}")"
+else
+  echo "==> Discover recent runs (workflow=${WORKFLOW}, branch=${BRANCH}, conclusion=${CONCLUSION}, limit=${LIMIT})"
+  run_ids="$(
+    gh "${gh_args[@]}" | python3 -c '
 import json
 import sys
 
@@ -161,7 +193,8 @@ for row in rows:
         break
 print("\n".join(picked))
 ' "$LIMIT" "$CONCLUSION"
-)"
+  )"
+fi
 
 if [[ -z "$run_ids" ]]; then
   echo "WARN: no matching runs found for workflow=${WORKFLOW} branch=${BRANCH} conclusion=${CONCLUSION}" >&2

@@ -94,6 +94,7 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "strict_gate_perf_summary.py",
         "strict_gate_perf_trend.py",
         "strict_gate_perf_download_and_trend.sh",
+        "--run-id <run_id>",
         "STRICT_GATE_PERF_TREND.md",
     ):
         assert token in runbook_text, f"strict-gate runbook missing: {token!r}"
