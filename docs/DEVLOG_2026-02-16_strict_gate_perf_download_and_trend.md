@@ -18,6 +18,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - `--branch` (default `main`)
   - `--conclusion` (default `any`; supports `any|success|failure`)
   - `--artifact-name` (default `strict-gate-perf-summary`)
+  - `--fail-if-none-downloaded` (optional; exit non-zero when downloaded count is 0)
   - `--download-dir` (default `tmp/strict-gate-artifacts/recent-perf`)
   - `--trend-out` (default `<download-dir>/STRICT_GATE_PERF_TREND.md`)
   - `--json-out` (optional JSON summary path for automation)
@@ -40,6 +41,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - uses a fake `gh` binary to simulate `run list` + `run download`
   - validates downloaded artifact counting and generated trend ordering/content
   - validates custom `--artifact-name` is forwarded to `gh run download -n`
+  - validates `--fail-if-none-downloaded` exits with non-zero when all downloads fail
   - validates `--conclusion success` only keeps success runs
   - validates `--run-id` mode bypasses `run list` and downloads explicit run ids
   - validates `--json-out` output fields (counts + selected/downloaded/skipped ids)

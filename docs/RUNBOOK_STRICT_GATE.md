@@ -125,6 +125,7 @@ scripts/strict_gate_perf_download_and_trend.sh \
 说明：
 - `--run-id` 模式会跳过 `gh run list`；此时 `--conclusion` 过滤不会生效。
 - 默认 artifact 名称是 `strict-gate-perf-summary`；若 workflow 里更改过 artifact 名，可改为 `--artifact-name <name>`。
+- 若用于严格自动化门禁，可加 `--fail-if-none-downloaded`：当下载数为 0 时脚本会返回非 0。
 
 - 只跑某个 Playwright spec：
 

@@ -17,6 +17,8 @@ Options:
                          (default: any)
   --artifact-name <name> Artifact name used by `gh run download -n`
                          (default: strict-gate-perf-summary)
+  --fail-if-none-downloaded
+                         Exit with non-zero when downloaded artifact count is 0
   --download-dir <path>  Local artifact download root
                          (default: tmp/strict-gate-artifacts/recent-perf)
   --trend-out <path>     Output trend markdown path
@@ -49,6 +51,7 @@ WORKFLOW="strict-gate"
 BRANCH="main"
 CONCLUSION="any"
 ARTIFACT_NAME="strict-gate-perf-summary"
+FAIL_IF_NONE_DOWNLOADED=0
 DOWNLOAD_DIR="${REPO_ROOT}/tmp/strict-gate-artifacts/recent-perf"
 TREND_OUT=""
 JSON_OUT=""
@@ -80,6 +83,10 @@ while [[ $# -gt 0 ]]; do
     --artifact-name)
       ARTIFACT_NAME="${2:-}"
       shift 2
+      ;;
+    --fail-if-none-downloaded)
+      FAIL_IF_NONE_DOWNLOADED=1
+      shift
       ;;
     --download-dir)
       DOWNLOAD_DIR="${2:-}"
@@ -268,6 +275,7 @@ if [[ -n "$JSON_OUT" ]]; then
   python3 - "$JSON_OUT" \
     "$WORKFLOW" "$BRANCH" "$CONCLUSION" "$ARTIFACT_NAME" "$LIMIT" "$TREND_OUT" "$summary_dir" \
     "$downloaded" "$skipped" "$INCLUDE_EMPTY" "$RUN_IDS_RAW" \
+    "$FAIL_IF_NONE_DOWNLOADED" \
     "$(printf '%s,' "${selected_run_ids[@]}")" \
     "$(printf '%s,' "${downloaded_run_ids[@]}")" \
     "$(printf '%s,' "${skipped_run_ids[@]}")" <<'PY'
@@ -295,9 +303,11 @@ payload = {
     "include_empty": sys.argv[11] == "1",
     "run_id_mode": bool(sys.argv[12].strip()),
     "run_id_input_raw": sys.argv[12],
-    "selected_run_ids": split_csv(sys.argv[13]),
-    "downloaded_run_ids": split_csv(sys.argv[14]),
-    "skipped_run_ids": split_csv(sys.argv[15]),
+    "fail_if_none_downloaded": sys.argv[13] == "1",
+    "failed_due_to_zero_downloads": (sys.argv[13] == "1") and (int(sys.argv[9]) == 0),
+    "selected_run_ids": split_csv(sys.argv[14]),
+    "downloaded_run_ids": split_csv(sys.argv[15]),
+    "skipped_run_ids": split_csv(sys.argv[16]),
 }
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(payload, f, indent=2)
@@ -312,4 +322,8 @@ echo "Summary dir: ${summary_dir}"
 echo "Trend report: ${TREND_OUT}"
 if [[ -n "$JSON_OUT" ]]; then
   echo "JSON summary: ${JSON_OUT}"
+fi
+if [[ "$FAIL_IF_NONE_DOWNLOADED" -eq 1 && "$downloaded" -eq 0 ]]; then
+  echo "ERROR: no artifacts downloaded; failing due to --fail-if-none-downloaded." >&2
+  exit 1
 fi
