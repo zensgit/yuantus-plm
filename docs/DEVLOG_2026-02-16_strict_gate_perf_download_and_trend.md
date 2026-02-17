@@ -32,6 +32,9 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
 - Updated `src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py`:
   - include `strict_gate_perf_download_and_trend.sh` in `bash -n` syntax list
   - add help-contract test for script (`--help` output tokens)
+- Added `src/yuantus/meta_engine/tests/test_strict_gate_perf_download_and_trend_script.py`:
+  - uses a fake `gh` binary to simulate `run list` + `run download`
+  - validates downloaded artifact counting and generated trend ordering/content
 - Updated `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`:
   - runbook token now requires `strict_gate_perf_download_and_trend.sh`
 
@@ -41,6 +44,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
 ```bash
 .venv/bin/pytest -q \
   src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \
+  src/yuantus/meta_engine/tests/test_strict_gate_perf_download_and_trend_script.py \
   src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py \
   src/yuantus/meta_engine/tests/test_strict_gate_perf_trend_script.py \
   src/yuantus/meta_engine/tests/test_strict_gate_perf_summary_script.py \
