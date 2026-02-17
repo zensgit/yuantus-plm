@@ -12,6 +12,8 @@ Options:
   --limit <n>            Number of recent completed runs to attempt (default: 10)
   --workflow <name>      Workflow name/id for gh run list (default: strict-gate)
   --branch <name>        Branch filter for gh run list (default: main)
+  --conclusion <v>       Filter completed runs by conclusion: any|success|failure
+                         (default: any)
   --download-dir <path>  Local artifact download root
                          (default: tmp/strict-gate-artifacts/recent-perf)
   --trend-out <path>     Output trend markdown path
@@ -23,6 +25,7 @@ Options:
 Examples:
   scripts/strict_gate_perf_download_and_trend.sh
   scripts/strict_gate_perf_download_and_trend.sh --limit 20 --branch main
+  scripts/strict_gate_perf_download_and_trend.sh --conclusion failure --limit 10
   scripts/strict_gate_perf_download_and_trend.sh \
     --download-dir tmp/strict-gate-artifacts/perf \
     --trend-out tmp/strict-gate-artifacts/perf/STRICT_GATE_PERF_TREND.md
@@ -35,6 +38,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 LIMIT=10
 WORKFLOW="strict-gate"
 BRANCH="main"
+CONCLUSION="any"
 DOWNLOAD_DIR="${REPO_ROOT}/tmp/strict-gate-artifacts/recent-perf"
 TREND_OUT=""
 INCLUDE_EMPTY=0
@@ -52,6 +56,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --branch)
       BRANCH="${2:-}"
+      shift 2
+      ;;
+    --conclusion)
+      CONCLUSION="${2:-}"
       shift 2
       ;;
     --download-dir)
@@ -84,6 +92,10 @@ done
 
 if ! [[ "$LIMIT" =~ ^[0-9]+$ ]] || [[ "$LIMIT" -lt 1 ]]; then
   echo "ERROR: --limit must be a positive integer (got: $LIMIT)" >&2
+  exit 2
+fi
+if [[ "$CONCLUSION" != "any" && "$CONCLUSION" != "success" && "$CONCLUSION" != "failure" ]]; then
+  echo "ERROR: --conclusion must be one of: any|success|failure (got: $CONCLUSION)" >&2
   exit 2
 fi
 
@@ -122,13 +134,14 @@ if [[ -n "$REPO_ARG" ]]; then
   gh_args+=(-R "$REPO_ARG")
 fi
 
-echo "==> Discover recent runs (workflow=${WORKFLOW}, branch=${BRANCH}, limit=${LIMIT})"
+echo "==> Discover recent runs (workflow=${WORKFLOW}, branch=${BRANCH}, conclusion=${CONCLUSION}, limit=${LIMIT})"
 run_ids="$(
   gh "${gh_args[@]}" | python3 -c '
 import json
 import sys
 
 target = int(sys.argv[1])
+conclusion_filter = sys.argv[2]
 raw = sys.stdin.read()
 if not raw.strip():
     print("", end="")
@@ -138,6 +151,8 @@ picked = []
 for row in rows:
     if row.get("status") != "completed":
         continue
+    if conclusion_filter != "any" and row.get("conclusion") != conclusion_filter:
+        continue
     run_id = row.get("databaseId")
     if not run_id:
         continue
@@ -145,11 +160,11 @@ for row in rows:
     if len(picked) >= target:
         break
 print("\n".join(picked))
-' "$LIMIT"
+' "$LIMIT" "$CONCLUSION"
 )"
 
 if [[ -z "$run_ids" ]]; then
-  echo "WARN: no completed runs found for workflow=${WORKFLOW} branch=${BRANCH}" >&2
+  echo "WARN: no matching runs found for workflow=${WORKFLOW} branch=${BRANCH} conclusion=${CONCLUSION}" >&2
 fi
 
 downloaded=0

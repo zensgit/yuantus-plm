@@ -103,6 +103,7 @@ python3 scripts/strict_gate_perf_trend.py \
 scripts/strict_gate_perf_download_and_trend.sh \
   --limit 10 \
   --branch main \
+  --conclusion failure \
   --download-dir tmp/strict-gate-artifacts/recent-perf \
   --trend-out tmp/strict-gate-artifacts/recent-perf/STRICT_GATE_PERF_TREND.md
 ```
