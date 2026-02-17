@@ -15,6 +15,8 @@ Options:
   --branch <name>        Branch filter for gh run list (default: main)
   --conclusion <v>       Filter completed runs by conclusion: any|success|failure
                          (default: any)
+  --artifact-name <name> Artifact name used by `gh run download -n`
+                         (default: strict-gate-perf-summary)
   --download-dir <path>  Local artifact download root
                          (default: tmp/strict-gate-artifacts/recent-perf)
   --trend-out <path>     Output trend markdown path
@@ -30,6 +32,7 @@ Examples:
   scripts/strict_gate_perf_download_and_trend.sh --run-id 22085198707,22050422422
   scripts/strict_gate_perf_download_and_trend.sh --limit 20 --branch main
   scripts/strict_gate_perf_download_and_trend.sh --conclusion failure --limit 10
+  scripts/strict_gate_perf_download_and_trend.sh --artifact-name strict-gate-perf-summary
   scripts/strict_gate_perf_download_and_trend.sh \
     --download-dir tmp/strict-gate-artifacts/perf \
     --trend-out tmp/strict-gate-artifacts/perf/STRICT_GATE_PERF_TREND.md \
@@ -45,6 +48,7 @@ RUN_IDS_RAW=""
 WORKFLOW="strict-gate"
 BRANCH="main"
 CONCLUSION="any"
+ARTIFACT_NAME="strict-gate-perf-summary"
 DOWNLOAD_DIR="${REPO_ROOT}/tmp/strict-gate-artifacts/recent-perf"
 TREND_OUT=""
 JSON_OUT=""
@@ -71,6 +75,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --conclusion)
       CONCLUSION="${2:-}"
+      shift 2
+      ;;
+    --artifact-name)
+      ARTIFACT_NAME="${2:-}"
       shift 2
       ;;
     --download-dir)
@@ -111,6 +119,10 @@ if ! [[ "$LIMIT" =~ ^[0-9]+$ ]] || [[ "$LIMIT" -lt 1 ]]; then
 fi
 if [[ "$CONCLUSION" != "any" && "$CONCLUSION" != "success" && "$CONCLUSION" != "failure" ]]; then
   echo "ERROR: --conclusion must be one of: any|success|failure (got: $CONCLUSION)" >&2
+  exit 2
+fi
+if [[ -z "$ARTIFACT_NAME" ]]; then
+  echo "ERROR: --artifact-name must not be empty." >&2
   exit 2
 fi
 
@@ -216,8 +228,8 @@ skipped_run_ids=()
 while IFS= read -r run_id; do
   [[ -z "$run_id" ]] && continue
   selected_run_ids+=("$run_id")
-  echo "==> Download artifact strict-gate-perf-summary (run_id=${run_id})"
-  dl_args=(run download "$run_id" -n strict-gate-perf-summary -D "$DOWNLOAD_DIR")
+  echo "==> Download artifact ${ARTIFACT_NAME} (run_id=${run_id})"
+  dl_args=(run download "$run_id" -n "$ARTIFACT_NAME" -D "$DOWNLOAD_DIR")
   if [[ -n "$REPO_ARG" ]]; then
     dl_args+=(-R "$REPO_ARG")
   fi
@@ -225,7 +237,7 @@ while IFS= read -r run_id; do
     downloaded=$((downloaded + 1))
     downloaded_run_ids+=("$run_id")
   else
-    echo "WARN: unable to download strict-gate-perf-summary for run_id=${run_id}" >&2
+    echo "WARN: unable to download ${ARTIFACT_NAME} for run_id=${run_id}" >&2
     skipped=$((skipped + 1))
     skipped_run_ids+=("$run_id")
   fi
@@ -254,7 +266,7 @@ python3 "${trend_args[@]}"
 
 if [[ -n "$JSON_OUT" ]]; then
   python3 - "$JSON_OUT" \
-    "$WORKFLOW" "$BRANCH" "$CONCLUSION" "$LIMIT" "$TREND_OUT" "$summary_dir" \
+    "$WORKFLOW" "$BRANCH" "$CONCLUSION" "$ARTIFACT_NAME" "$LIMIT" "$TREND_OUT" "$summary_dir" \
     "$downloaded" "$skipped" "$INCLUDE_EMPTY" "$RUN_IDS_RAW" \
     "$(printf '%s,' "${selected_run_ids[@]}")" \
     "$(printf '%s,' "${downloaded_run_ids[@]}")" \
@@ -274,17 +286,18 @@ payload = {
     "workflow": sys.argv[2],
     "branch": sys.argv[3],
     "conclusion": sys.argv[4],
-    "limit": int(sys.argv[5]),
-    "trend_report": sys.argv[6],
-    "summary_dir": sys.argv[7],
-    "downloaded_count": int(sys.argv[8]),
-    "skipped_count": int(sys.argv[9]),
-    "include_empty": sys.argv[10] == "1",
-    "run_id_mode": bool(sys.argv[11].strip()),
-    "run_id_input_raw": sys.argv[11],
-    "selected_run_ids": split_csv(sys.argv[12]),
-    "downloaded_run_ids": split_csv(sys.argv[13]),
-    "skipped_run_ids": split_csv(sys.argv[14]),
+    "artifact_name": sys.argv[5],
+    "limit": int(sys.argv[6]),
+    "trend_report": sys.argv[7],
+    "summary_dir": sys.argv[8],
+    "downloaded_count": int(sys.argv[9]),
+    "skipped_count": int(sys.argv[10]),
+    "include_empty": sys.argv[11] == "1",
+    "run_id_mode": bool(sys.argv[12].strip()),
+    "run_id_input_raw": sys.argv[12],
+    "selected_run_ids": split_csv(sys.argv[13]),
+    "downloaded_run_ids": split_csv(sys.argv[14]),
+    "skipped_run_ids": split_csv(sys.argv[15]),
 }
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(payload, f, indent=2)

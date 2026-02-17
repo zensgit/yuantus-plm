@@ -2,14 +2,14 @@
 
 ## Scope
 
-Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` and generates a local trend report in one command.
+Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` and generates a local trend report in one command. The helper now also supports a custom artifact name through `--artifact-name`.
 
 ## Changes
 
 1. New helper script: `scripts/strict_gate_perf_download_and_trend.sh`
 - Purpose:
   - list recent strict-gate runs
-  - download `strict-gate-perf-summary` artifacts
+  - download a configured artifact (default: `strict-gate-perf-summary`)
   - call `scripts/strict_gate_perf_trend.py` to generate trend markdown
 - Inputs:
   - `--limit` (default `10`)
@@ -17,6 +17,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - `--workflow` (default `strict-gate`)
   - `--branch` (default `main`)
   - `--conclusion` (default `any`; supports `any|success|failure`)
+  - `--artifact-name` (default `strict-gate-perf-summary`)
   - `--download-dir` (default `tmp/strict-gate-artifacts/recent-perf`)
   - `--trend-out` (default `<download-dir>/STRICT_GATE_PERF_TREND.md`)
   - `--json-out` (optional JSON summary path for automation)
@@ -38,6 +39,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
 - Added `src/yuantus/meta_engine/tests/test_strict_gate_perf_download_and_trend_script.py`:
   - uses a fake `gh` binary to simulate `run list` + `run download`
   - validates downloaded artifact counting and generated trend ordering/content
+  - validates custom `--artifact-name` is forwarded to `gh run download -n`
   - validates `--conclusion success` only keeps success runs
   - validates `--run-id` mode bypasses `run list` and downloads explicit run ids
   - validates `--json-out` output fields (counts + selected/downloaded/skipped ids)
@@ -69,6 +71,7 @@ bash scripts/strict_gate_perf_download_and_trend.sh \
   --limit 1 \
   --branch main \
   --conclusion failure \
+  --artifact-name strict-gate-perf-summary \
   --download-dir tmp/strict-gate-artifacts/recent-perf-smoke \
   --trend-out tmp/strict-gate-artifacts/recent-perf-smoke/STRICT_GATE_PERF_TREND.md \
   --include-empty

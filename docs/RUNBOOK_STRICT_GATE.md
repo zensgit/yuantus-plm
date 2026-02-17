@@ -104,6 +104,7 @@ scripts/strict_gate_perf_download_and_trend.sh \
   --limit 10 \
   --branch main \
   --conclusion failure \
+  --artifact-name strict-gate-perf-summary \
   --download-dir tmp/strict-gate-artifacts/recent-perf \
   --trend-out tmp/strict-gate-artifacts/recent-perf/STRICT_GATE_PERF_TREND.md \
   --json-out tmp/strict-gate-artifacts/recent-perf/strict_gate_perf_download.json
@@ -114,13 +115,16 @@ scripts/strict_gate_perf_download_and_trend.sh \
 ```bash
 scripts/strict_gate_perf_download_and_trend.sh \
   --run-id <run_id> \
+  --artifact-name strict-gate-perf-summary \
   --download-dir tmp/strict-gate-artifacts/recent-perf \
   --trend-out tmp/strict-gate-artifacts/recent-perf/STRICT_GATE_PERF_TREND.md \
   --json-out tmp/strict-gate-artifacts/recent-perf/strict_gate_perf_download.json \
   --include-empty
 ```
 
-说明：`--run-id` 模式会跳过 `gh run list`；此时 `--conclusion` 过滤不会生效。
+说明：
+- `--run-id` 模式会跳过 `gh run list`；此时 `--conclusion` 过滤不会生效。
+- 默认 artifact 名称是 `strict-gate-perf-summary`；若 workflow 里更改过 artifact 名，可改为 `--artifact-name <name>`。
 
 - 只跑某个 Playwright spec：
 
