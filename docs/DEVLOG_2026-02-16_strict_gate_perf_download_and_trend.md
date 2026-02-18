@@ -46,6 +46,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - validates downloaded artifact counting and generated trend ordering/content
   - validates custom `--artifact-name` is forwarded to `gh run download -n`
   - validates retry behavior (`--download-retries` + `--download-retry-delay-sec`)
+  - validates JSON `run_results` per run (`run_id`, `downloaded`, `attempts`)
   - validates `--clean-download-dir` removes stale downloaded reports before trend generation
   - validates `--clean-download-dir` safety guard rejects repo-root clean attempts
   - validates `--max-run-age-days` filters old runs in run-list mode

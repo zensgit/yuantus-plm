@@ -144,6 +144,10 @@ raise SystemExit(2)
     assert payload["selected_run_ids"] == ["101", "100"]
     assert payload["downloaded_run_ids"] == ["101", "100"]
     assert payload["skipped_run_ids"] == []
+    assert payload["run_results"] == [
+        {"run_id": "101", "downloaded": True, "attempts": 1},
+        {"run_id": "100", "downloaded": True, "attempts": 1},
+    ]
 
 
 def test_strict_gate_perf_download_and_trend_with_custom_artifact_name(tmp_path: Path) -> None:
@@ -254,6 +258,7 @@ raise SystemExit(2)
     assert payload["clean_download_dir"] is False
     assert payload["selected_run_ids"] == ["501"]
     assert payload["downloaded_run_ids"] == ["501"]
+    assert payload["run_results"] == [{"run_id": "501", "downloaded": True, "attempts": 1}]
 
 
 def test_strict_gate_perf_download_and_trend_with_conclusion_filter(tmp_path: Path) -> None:
@@ -539,6 +544,7 @@ raise SystemExit(2)
     assert payload["skipped_count"] == 0
     assert payload["clean_download_dir"] is False
     assert payload["downloaded_run_ids"] == ["901"]
+    assert payload["run_results"] == [{"run_id": "901", "downloaded": True, "attempts": 2}]
 
 
 def test_strict_gate_perf_download_and_trend_clean_download_dir(tmp_path: Path) -> None:
@@ -798,6 +804,7 @@ raise SystemExit(2)
     assert payload["downloaded_count"] == 1
     assert payload["skipped_count"] == 0
     assert payload["selected_run_ids"] == ["881"]
+    assert payload["run_results"] == [{"run_id": "881", "downloaded": True, "attempts": 1}]
 
 
 def test_strict_gate_perf_download_and_trend_rejects_negative_max_run_age_days(tmp_path: Path) -> None:
@@ -913,3 +920,4 @@ raise SystemExit(2)
     assert payload["fail_if_none_downloaded"] is True
     assert payload["failed_due_to_zero_downloads"] is True
     assert payload["clean_download_dir"] is False
+    assert payload["run_results"] == [{"run_id": "700", "downloaded": False, "attempts": 1}]

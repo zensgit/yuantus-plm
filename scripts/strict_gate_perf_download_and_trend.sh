@@ -300,6 +300,7 @@ skipped=0
 selected_run_ids=()
 downloaded_run_ids=()
 skipped_run_ids=()
+run_results=()
 
 while IFS= read -r run_id; do
   [[ -z "$run_id" ]] && continue
@@ -310,8 +311,10 @@ while IFS= read -r run_id; do
     dl_args+=(-R "$REPO_ARG")
   fi
   attempt=1
+  attempt_used=0
   dl_ok=0
   while [[ "$attempt" -le "$DOWNLOAD_RETRIES" ]]; do
+    attempt_used="$attempt"
     if gh "${dl_args[@]}" >/dev/null 2>&1; then
       dl_ok=1
       break
@@ -332,6 +335,7 @@ while IFS= read -r run_id; do
     skipped=$((skipped + 1))
     skipped_run_ids+=("$run_id")
   fi
+  run_results+=("${run_id}:${dl_ok}:${attempt_used}")
 done <<< "$run_ids"
 
 summary_dir="${DOWNLOAD_DIR}/docs/DAILY_REPORTS"
@@ -364,7 +368,8 @@ if [[ -n "$JSON_OUT" ]]; then
     "$FAIL_IF_NONE_DOWNLOADED" "$CLEAN_DOWNLOAD_DIR" \
     "$(printf '%s,' "${selected_run_ids[@]}")" \
     "$(printf '%s,' "${downloaded_run_ids[@]}")" \
-    "$(printf '%s,' "${skipped_run_ids[@]}")" <<'PY'
+    "$(printf '%s,' "${skipped_run_ids[@]}")" \
+    "$(printf '%s,' "${run_results[@]}")" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -372,6 +377,27 @@ from datetime import datetime, timezone
 
 def split_csv(s: str):
     return [x for x in s.split(",") if x]
+
+
+def parse_run_results(s: str):
+    rows = []
+    for raw in split_csv(s):
+        parts = raw.split(":")
+        if len(parts) != 3:
+            continue
+        run_id, downloaded_raw, attempts_raw = parts
+        try:
+            attempts = int(attempts_raw)
+        except ValueError:
+            attempts = 0
+        rows.append(
+            {
+                "run_id": run_id,
+                "downloaded": downloaded_raw == "1",
+                "attempts": attempts,
+            }
+        )
+    return rows
 
 
 out_path = sys.argv[1]
@@ -398,6 +424,7 @@ payload = {
     "selected_run_ids": split_csv(sys.argv[18]),
     "downloaded_run_ids": split_csv(sys.argv[19]),
     "skipped_run_ids": split_csv(sys.argv[20]),
+    "run_results": parse_run_results(sys.argv[21]),
 }
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(payload, f, indent=2)
