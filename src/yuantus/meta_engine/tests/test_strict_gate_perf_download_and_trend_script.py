@@ -651,6 +651,52 @@ raise SystemExit(2)
     assert payload["selected_run_ids"] == ["990"]
 
 
+def test_strict_gate_perf_download_and_trend_clean_download_dir_rejects_repo_root(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(parents=True, exist_ok=True)
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env python3
+import sys
+
+args = sys.argv[1:]
+
+if args[:2] == ["auth", "status"]:
+    raise SystemExit(0)
+
+# should not reach run list/download when clean path safety check fails first.
+raise SystemExit(9)
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env.get('PATH', '')}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--clean-download-dir",
+            "--download-dir",
+            str(repo_root),
+            "--limit",
+            "1",
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode == 2, cp.stdout + "\n" + cp.stderr
+    assert "ERROR: refusing to clean unsafe --download-dir:" in cp.stderr
+
+
 def test_strict_gate_perf_download_and_trend_fail_if_none_downloaded(tmp_path: Path) -> None:
     repo_root = _find_repo_root(Path(__file__))
     script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"

@@ -127,6 +127,7 @@ scripts/strict_gate_perf_download_and_trend.sh \
 - 默认 artifact 名称是 `strict-gate-perf-summary`；若 workflow 里更改过 artifact 名，可改为 `--artifact-name <name>`。
 - 网络不稳定时可设置 `--download-retries <n>` 与 `--download-retry-delay-sec <n>`（例如 `3` 和 `2`）。
 - 若希望每次只基于最新下载结果生成趋势，可加 `--clean-download-dir` 先清空下载目录。
+  - 安全保护：脚本会拒绝清理 `/` 或仓库根目录。
 - 若用于严格自动化门禁，可加 `--fail-if-none-downloaded`：当下载数为 0 时脚本会返回非 0。
 
 - 只跑某个 Playwright spec：
