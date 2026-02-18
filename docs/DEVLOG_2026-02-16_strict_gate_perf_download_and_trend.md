@@ -17,6 +17,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - `--workflow` (default `strict-gate`)
   - `--branch` (default `main`)
   - `--conclusion` (default `any`; supports `any|success|failure`)
+  - `--max-run-age-days` (optional; keep only recent runs by creation time)
   - `--artifact-name` (default `strict-gate-perf-summary`)
   - `--download-retries` (default `1`; retry attempts per run download)
   - `--download-retry-delay-sec` (default `1`; retry delay in seconds)
@@ -47,6 +48,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - validates retry behavior (`--download-retries` + `--download-retry-delay-sec`)
   - validates `--clean-download-dir` removes stale downloaded reports before trend generation
   - validates `--clean-download-dir` safety guard rejects repo-root clean attempts
+  - validates `--max-run-age-days` filters old runs in run-list mode
   - validates `--fail-if-none-downloaded` exits with non-zero when all downloads fail
   - validates `--conclusion success` only keeps success runs
   - validates `--run-id` mode bypasses `run list` and downloads explicit run ids

@@ -15,6 +15,7 @@ Options:
   --branch <name>        Branch filter for gh run list (default: main)
   --conclusion <v>       Filter completed runs by conclusion: any|success|failure
                          (default: any)
+  --max-run-age-days <n> Keep only runs created in the last N days (optional)
   --artifact-name <name> Artifact name used by `gh run download -n`
                          (default: strict-gate-perf-summary)
   --download-retries <n> Retry attempts per run for artifact download
@@ -39,6 +40,7 @@ Examples:
   scripts/strict_gate_perf_download_and_trend.sh --run-id 22085198707,22050422422
   scripts/strict_gate_perf_download_and_trend.sh --limit 20 --branch main
   scripts/strict_gate_perf_download_and_trend.sh --conclusion failure --limit 10
+  scripts/strict_gate_perf_download_and_trend.sh --max-run-age-days 7 --limit 20
   scripts/strict_gate_perf_download_and_trend.sh --artifact-name strict-gate-perf-summary
   scripts/strict_gate_perf_download_and_trend.sh --download-retries 3 --download-retry-delay-sec 2
   scripts/strict_gate_perf_download_and_trend.sh --clean-download-dir --limit 10
@@ -57,6 +59,7 @@ RUN_IDS_RAW=""
 WORKFLOW="strict-gate"
 BRANCH="main"
 CONCLUSION="any"
+MAX_RUN_AGE_DAYS=""
 ARTIFACT_NAME="strict-gate-perf-summary"
 DOWNLOAD_RETRIES=1
 DOWNLOAD_RETRY_DELAY_SEC=1
@@ -88,6 +91,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --conclusion)
       CONCLUSION="${2:-}"
+      shift 2
+      ;;
+    --max-run-age-days)
+      MAX_RUN_AGE_DAYS="${2:-}"
       shift 2
       ;;
     --artifact-name)
@@ -148,6 +155,10 @@ if ! [[ "$LIMIT" =~ ^[0-9]+$ ]] || [[ "$LIMIT" -lt 1 ]]; then
 fi
 if [[ "$CONCLUSION" != "any" && "$CONCLUSION" != "success" && "$CONCLUSION" != "failure" ]]; then
   echo "ERROR: --conclusion must be one of: any|success|failure (got: $CONCLUSION)" >&2
+  exit 2
+fi
+if [[ -n "$MAX_RUN_AGE_DAYS" ]] && { ! [[ "$MAX_RUN_AGE_DAYS" =~ ^[0-9]+$ ]] || [[ "$MAX_RUN_AGE_DAYS" -lt 0 ]]; }; then
+  echo "ERROR: --max-run-age-days must be a non-negative integer (got: $MAX_RUN_AGE_DAYS)" >&2
   exit 2
 fi
 if [[ -z "$ARTIFACT_NAME" ]]; then
@@ -221,7 +232,7 @@ if [[ "$LIST_LIMIT" -lt 30 ]]; then
   LIST_LIMIT=30
 fi
 
-gh_args=(run list --workflow "$WORKFLOW" --branch "$BRANCH" --limit "$LIST_LIMIT" --json databaseId,status,conclusion)
+gh_args=(run list --workflow "$WORKFLOW" --branch "$BRANCH" --limit "$LIST_LIMIT" --json databaseId,status,conclusion,createdAt)
 if [[ -n "$REPO_ARG" ]]; then
   gh_args+=(-R "$REPO_ARG")
 fi
@@ -231,17 +242,23 @@ if [[ "${#RUN_IDS[@]}" -gt 0 ]]; then
   if [[ "$CONCLUSION" != "any" ]]; then
     echo "INFO: --conclusion is ignored when --run-id is explicitly provided." >&2
   fi
+  if [[ -n "$MAX_RUN_AGE_DAYS" ]]; then
+    echo "INFO: --max-run-age-days is ignored when --run-id is explicitly provided." >&2
+  fi
   echo "==> Use explicit run ids: ${RUN_IDS[*]}"
   run_ids="$(printf '%s\n' "${RUN_IDS[@]}")"
 else
-  echo "==> Discover recent runs (workflow=${WORKFLOW}, branch=${BRANCH}, conclusion=${CONCLUSION}, limit=${LIMIT})"
+  echo "==> Discover recent runs (workflow=${WORKFLOW}, branch=${BRANCH}, conclusion=${CONCLUSION}, max_run_age_days=${MAX_RUN_AGE_DAYS:-any}, limit=${LIMIT})"
   run_ids="$(
     gh "${gh_args[@]}" | python3 -c '
 import json
 import sys
+from datetime import datetime, timezone
 
 target = int(sys.argv[1])
 conclusion_filter = sys.argv[2]
+max_age_raw = sys.argv[3]
+max_age_days = int(max_age_raw) if max_age_raw.strip() else None
 raw = sys.stdin.read()
 if not raw.strip():
     print("", end="")
@@ -253,6 +270,16 @@ for row in rows:
         continue
     if conclusion_filter != "any" and row.get("conclusion") != conclusion_filter:
         continue
+    if max_age_days is not None:
+        created_at = row.get("createdAt")
+        if created_at:
+            try:
+                dt = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+                age_days = (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0
+                if age_days > max_age_days:
+                    continue
+            except Exception:
+                pass
     run_id = row.get("databaseId")
     if not run_id:
         continue
@@ -260,12 +287,12 @@ for row in rows:
     if len(picked) >= target:
         break
 print("\n".join(picked))
-' "$LIMIT" "$CONCLUSION"
+' "$LIMIT" "$CONCLUSION" "$MAX_RUN_AGE_DAYS"
   )"
 fi
 
 if [[ -z "$run_ids" ]]; then
-  echo "WARN: no matching runs found for workflow=${WORKFLOW} branch=${BRANCH} conclusion=${CONCLUSION}" >&2
+  echo "WARN: no matching runs found for workflow=${WORKFLOW} branch=${BRANCH} conclusion=${CONCLUSION} max_run_age_days=${MAX_RUN_AGE_DAYS:-any}" >&2
 fi
 
 downloaded=0
@@ -330,7 +357,7 @@ python3 "${trend_args[@]}"
 
 if [[ -n "$JSON_OUT" ]]; then
   python3 - "$JSON_OUT" \
-    "$WORKFLOW" "$BRANCH" "$CONCLUSION" "$ARTIFACT_NAME" \
+    "$WORKFLOW" "$BRANCH" "$CONCLUSION" "$MAX_RUN_AGE_DAYS" "$ARTIFACT_NAME" \
     "$DOWNLOAD_RETRIES" "$DOWNLOAD_RETRY_DELAY_SEC" \
     "$LIMIT" "$TREND_OUT" "$summary_dir" \
     "$downloaded" "$skipped" "$INCLUDE_EMPTY" "$RUN_IDS_RAW" \
@@ -353,23 +380,24 @@ payload = {
     "workflow": sys.argv[2],
     "branch": sys.argv[3],
     "conclusion": sys.argv[4],
-    "artifact_name": sys.argv[5],
-    "download_retries": int(sys.argv[6]),
-    "download_retry_delay_sec": int(sys.argv[7]),
-    "limit": int(sys.argv[8]),
-    "trend_report": sys.argv[9],
-    "summary_dir": sys.argv[10],
-    "downloaded_count": int(sys.argv[11]),
-    "skipped_count": int(sys.argv[12]),
-    "include_empty": sys.argv[13] == "1",
-    "run_id_mode": bool(sys.argv[14].strip()),
-    "run_id_input_raw": sys.argv[14],
-    "fail_if_none_downloaded": sys.argv[15] == "1",
-    "failed_due_to_zero_downloads": (sys.argv[15] == "1") and (int(sys.argv[11]) == 0),
-    "clean_download_dir": sys.argv[16] == "1",
-    "selected_run_ids": split_csv(sys.argv[17]),
-    "downloaded_run_ids": split_csv(sys.argv[18]),
-    "skipped_run_ids": split_csv(sys.argv[19]),
+    "max_run_age_days": int(sys.argv[5]) if sys.argv[5].strip() else None,
+    "artifact_name": sys.argv[6],
+    "download_retries": int(sys.argv[7]),
+    "download_retry_delay_sec": int(sys.argv[8]),
+    "limit": int(sys.argv[9]),
+    "trend_report": sys.argv[10],
+    "summary_dir": sys.argv[11],
+    "downloaded_count": int(sys.argv[12]),
+    "skipped_count": int(sys.argv[13]),
+    "include_empty": sys.argv[14] == "1",
+    "run_id_mode": bool(sys.argv[15].strip()),
+    "run_id_input_raw": sys.argv[15],
+    "fail_if_none_downloaded": sys.argv[16] == "1",
+    "failed_due_to_zero_downloads": (sys.argv[16] == "1") and (int(sys.argv[12]) == 0),
+    "clean_download_dir": sys.argv[17] == "1",
+    "selected_run_ids": split_csv(sys.argv[18]),
+    "downloaded_run_ids": split_csv(sys.argv[19]),
+    "skipped_run_ids": split_csv(sys.argv[20]),
 }
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(payload, f, indent=2)

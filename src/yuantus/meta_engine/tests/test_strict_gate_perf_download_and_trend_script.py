@@ -131,6 +131,7 @@ raise SystemExit(2)
     assert "FAIL 1900.000/1800.000" in out
 
     payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["max_run_age_days"] is None
     assert payload["artifact_name"] == "strict-gate-perf-summary"
     assert payload["download_retries"] == 1
     assert payload["download_retry_delay_sec"] == 1
@@ -242,6 +243,7 @@ raise SystemExit(2)
     assert json_out.is_file(), f"Missing json output: {json_out}"
 
     payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["max_run_age_days"] is None
     assert payload["artifact_name"] == "custom-perf-artifact"
     assert payload["download_retries"] == 1
     assert payload["download_retry_delay_sec"] == 1
@@ -530,6 +532,7 @@ raise SystemExit(2)
     assert json_out.is_file(), f"Missing json output: {json_out}"
 
     payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["max_run_age_days"] is None
     assert payload["download_retries"] == 2
     assert payload["download_retry_delay_sec"] == 0
     assert payload["downloaded_count"] == 1
@@ -645,6 +648,7 @@ raise SystemExit(2)
     assert "`STRICT_GATE_CI_777`" not in out
 
     payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["max_run_age_days"] is None
     assert payload["clean_download_dir"] is True
     assert payload["downloaded_count"] == 1
     assert payload["skipped_count"] == 0
@@ -695,6 +699,105 @@ raise SystemExit(9)
     )
     assert cp.returncode == 2, cp.stdout + "\n" + cp.stderr
     assert "ERROR: refusing to clean unsafe --download-dir:" in cp.stderr
+
+
+def test_strict_gate_perf_download_and_trend_with_max_run_age_days_filter(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(parents=True, exist_ok=True)
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env python3
+import json
+import sys
+from pathlib import Path
+
+args = sys.argv[1:]
+
+if args[:2] == ["auth", "status"]:
+    raise SystemExit(0)
+
+if len(args) >= 2 and args[0] == "run" and args[1] == "list":
+    rows = [
+        {"databaseId": 880, "status": "completed", "conclusion": "success", "createdAt": "2000-01-01T00:00:00Z"},
+        {"databaseId": 881, "status": "completed", "conclusion": "success", "createdAt": "2099-01-01T00:00:00Z"},
+    ]
+    print(json.dumps(rows))
+    raise SystemExit(0)
+
+if len(args) >= 3 and args[0] == "run" and args[1] == "download":
+    run_id = args[2]
+    out_dir = "."
+    i = 3
+    while i < len(args):
+        if args[i] == "-D" and i + 1 < len(args):
+            out_dir = args[i + 1]
+            i += 2
+            continue
+        i += 1
+    p = Path(out_dir) / "docs" / "DAILY_REPORTS"
+    p.mkdir(parents=True, exist_ok=True)
+    report = "\\n".join(
+        [
+            "## Perf Smoke Summary",
+            "",
+            "| Metric | Status | p95 (ms) | Threshold (ms) | Samples | Source |",
+            "| --- | --- | --- | --- | --- | --- |",
+            f"| release_orchestration.plan | {'PASS' if run_id == '881' else 'FAIL'} | 100.000 | 1800.000 | 5 | `dummy` |",
+            "",
+        ]
+    )
+    (p / f"STRICT_GATE_CI_{run_id}_PERF.md").write_text(report, encoding="utf-8")
+    raise SystemExit(0)
+
+raise SystemExit(2)
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+
+    download_dir = tmp_path / "downloaded"
+    trend_out = download_dir / "STRICT_GATE_PERF_TREND.md"
+    json_out = download_dir / "strict_gate_perf_download.json"
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env.get('PATH', '')}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--limit",
+            "2",
+            "--max-run-age-days",
+            "7",
+            "--download-dir",
+            str(download_dir),
+            "--trend-out",
+            str(trend_out),
+            "--json-out",
+            str(json_out),
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert "Downloaded artifacts: 1" in cp.stdout
+    assert "max_run_age_days=7" in cp.stdout
+    out = trend_out.read_text(encoding="utf-8", errors="replace")
+    assert "`STRICT_GATE_CI_881`" in out
+    assert "`STRICT_GATE_CI_880`" not in out
+
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["max_run_age_days"] == 7
+    assert payload["downloaded_count"] == 1
+    assert payload["skipped_count"] == 0
+    assert payload["selected_run_ids"] == ["881"]
 
 
 def test_strict_gate_perf_download_and_trend_fail_if_none_downloaded(tmp_path: Path) -> None:
@@ -762,6 +865,7 @@ raise SystemExit(2)
     assert json_out.is_file(), f"Missing json output: {json_out}"
 
     payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["max_run_age_days"] is None
     assert payload["download_retries"] == 1
     assert payload["download_retry_delay_sec"] == 1
     assert payload["downloaded_count"] == 0

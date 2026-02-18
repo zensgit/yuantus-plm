@@ -130,6 +130,7 @@ def test_strict_gate_perf_download_and_trend_script_has_help() -> None:
     assert "--limit" in out
     assert "--run-id" in out
     assert "--conclusion" in out
+    assert "--max-run-age-days" in out
     assert "--artifact-name" in out
     assert "--download-retries" in out
     assert "--download-retry-delay-sec" in out
