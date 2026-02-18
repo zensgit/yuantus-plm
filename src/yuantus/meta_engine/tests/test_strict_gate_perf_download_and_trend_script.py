@@ -800,6 +800,46 @@ raise SystemExit(2)
     assert payload["selected_run_ids"] == ["881"]
 
 
+def test_strict_gate_perf_download_and_trend_rejects_negative_max_run_age_days(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--max-run-age-days",
+            "-1",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode == 2, cp.stdout + "\n" + cp.stderr
+    assert "ERROR: --max-run-age-days must be a non-negative integer" in cp.stderr
+
+
+def test_strict_gate_perf_download_and_trend_rejects_non_numeric_max_run_age_days(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--max-run-age-days",
+            "abc",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode == 2, cp.stdout + "\n" + cp.stderr
+    assert "ERROR: --max-run-age-days must be a non-negative integer" in cp.stderr
+
+
 def test_strict_gate_perf_download_and_trend_fail_if_none_downloaded(tmp_path: Path) -> None:
     repo_root = _find_repo_root(Path(__file__))
     script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
