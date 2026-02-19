@@ -131,6 +131,7 @@ scripts/strict_gate_perf_download_and_trend.sh \
 - 若希望每次只基于最新下载结果生成趋势，可加 `--clean-download-dir` 先清空下载目录。
   - 安全保护：脚本会拒绝清理 `/` 或仓库根目录。
 - 若用于严格自动化门禁，可加 `--fail-if-none-downloaded`：当下载数为 0 时脚本会返回非 0。
+- 若需要把“部分下载失败”也视为门禁失败，可加 `--fail-if-skipped`：当 skipped 下载数大于 0 时脚本会返回非 0。
 - 若启用 `--json-out`，输出会包含 `run_results`（每个 run 的 `downloaded` 和 `attempts`）。
 
 - 只跑某个 Playwright spec：
