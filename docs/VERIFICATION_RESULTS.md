@@ -17005,3 +17005,39 @@ ALL CHECKS PASSED
 - 摘要：
   - `PASS: 42  FAIL: 0  SKIP: 19`
 - 证据：`tmp/verify_all_20260213-190341.log`
+
+## Run STRICT-GATE-CI-RECOVERY-20260219
+
+- 时间：`2026-02-19`（GitHub Actions，UTC）
+- 目标：恢复 `strict-gate` workflow 连续失败状态，并验证新增 recent perf audit 入口可用。
+
+### 失败复盘（修复前）
+
+- run `22185380294`（`2026-02-19T14:15:26Z`，`main@d32f30c`）：
+  - `Run strict gate report`: `FAIL`
+  - 子项失败：
+    - `pytest (DB)`：`test_ci_contracts_job_wiring.py` 报告 `.github/workflows/ci.yml` contracts step 缺少：
+      - `test_ci_contracts_strict_gate_report_perf_smokes.py`
+      - `test_ci_contracts_verify_all_perf_smokes.py`
+    - `verify_run_h_e2e`：被外层 `BASE_URL=http://127.0.0.1:7910` 污染，健康检查连错端口失败。
+- run `22185604514`（`2026-02-19T14:21:41Z`，`main@d32f30c`）：
+  - 失败现象与上面一致（尚未包含修复提交）。
+
+### 修复与提交
+
+- `5246770`:
+  - `scripts/strict_gate_report.sh`：执行 `verify_run_h_e2e` 时显式 `env -u BASE_URL -u PORT`，避免端口污染。
+  - `.github/workflows/ci.yml`：补齐 contracts step 缺失测试项。
+  - `src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py`：新增对应契约断言。
+- `cb2a545`:
+  - `.github/workflows/ci.yml`：按路径字典序修正 contracts step 测试列表，满足排序契约。
+
+### 修复后验证（通过）
+
+- run `22185931902`（`2026-02-19T14:30:26Z`，`main@cb2a545`）：
+  - 结论：`success`
+  - 关键步骤：
+    - `Run strict gate report`: `success`
+    - `Optional recent perf audit (download + trend)`: `success`
+    - `Upload strict gate recent perf audit`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22185931902`
