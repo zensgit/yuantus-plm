@@ -51,6 +51,8 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - validates `--clean-download-dir` safety guard rejects repo-root clean attempts
   - validates `--max-run-age-days` filters old runs in run-list mode
   - validates `--max-run-age-days` argument validation rejects invalid values
+  - validates `--download-retries` and `--download-retry-delay-sec` argument validation rejects invalid values
+  - validates `--run-id` mode explicitly logs ignored `--max-run-age-days`
   - validates `--fail-if-none-downloaded` exits with non-zero when all downloads fail
   - validates `--conclusion success` only keeps success runs
   - validates `--run-id` mode bypasses `run list` and downloads explicit run ids

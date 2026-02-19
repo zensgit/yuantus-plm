@@ -415,6 +415,10 @@ raise SystemExit(2)
             str(script),
             "--run-id",
             "888",
+            "--conclusion",
+            "success",
+            "--max-run-age-days",
+            "7",
             "--download-dir",
             str(download_dir),
             "--trend-out",
@@ -428,6 +432,8 @@ raise SystemExit(2)
     assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
     assert "Use explicit run ids: 888" in cp.stdout
     assert "Downloaded artifacts: 1" in cp.stdout
+    assert "--conclusion is ignored when --run-id is explicitly provided." in cp.stderr
+    assert "--max-run-age-days is ignored when --run-id is explicitly provided." in cp.stderr
     out = trend_out.read_text(encoding="utf-8", errors="replace")
     assert "`STRICT_GATE_CI_888`" in out
 
@@ -845,6 +851,66 @@ def test_strict_gate_perf_download_and_trend_rejects_non_numeric_max_run_age_day
     )
     assert cp.returncode == 2, cp.stdout + "\n" + cp.stderr
     assert "ERROR: --max-run-age-days must be a non-negative integer" in cp.stderr
+
+
+def test_strict_gate_perf_download_and_trend_rejects_zero_download_retries(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--download-retries",
+            "0",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode == 2, cp.stdout + "\n" + cp.stderr
+    assert "ERROR: --download-retries must be a positive integer" in cp.stderr
+
+
+def test_strict_gate_perf_download_and_trend_rejects_negative_download_retry_delay(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--download-retry-delay-sec",
+            "-1",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode == 2, cp.stdout + "\n" + cp.stderr
+    assert "ERROR: --download-retry-delay-sec must be a non-negative integer" in cp.stderr
+
+
+def test_strict_gate_perf_download_and_trend_rejects_non_numeric_download_retry_delay(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--download-retry-delay-sec",
+            "abc",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode == 2, cp.stdout + "\n" + cp.stderr
+    assert "ERROR: --download-retry-delay-sec must be a non-negative integer" in cp.stderr
 
 
 def test_strict_gate_perf_download_and_trend_fail_if_none_downloaded(tmp_path: Path) -> None:
