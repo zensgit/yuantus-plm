@@ -24,6 +24,7 @@ Options:
                          Delay between retry attempts in seconds (default: 1)
   --clean-download-dir   Remove download dir before fetching artifacts
   --fail-if-no-runs      Exit with non-zero when no run is selected
+  --fail-if-no-metrics   Exit with non-zero when selected runs have no metric tables
   --fail-if-skipped      Exit with non-zero when skipped download count > 0
   --fail-if-none-downloaded
                          Exit with non-zero when downloaded artifact count is 0
@@ -47,6 +48,7 @@ Examples:
   scripts/strict_gate_perf_download_and_trend.sh --download-retries 3 --download-retry-delay-sec 2
   scripts/strict_gate_perf_download_and_trend.sh --clean-download-dir --limit 10
   scripts/strict_gate_perf_download_and_trend.sh --fail-if-no-runs --limit 10
+  scripts/strict_gate_perf_download_and_trend.sh --fail-if-no-metrics --limit 10
   scripts/strict_gate_perf_download_and_trend.sh --fail-if-skipped --limit 10
   scripts/strict_gate_perf_download_and_trend.sh \
     --download-dir tmp/strict-gate-artifacts/perf \
@@ -69,6 +71,7 @@ DOWNLOAD_RETRIES=1
 DOWNLOAD_RETRY_DELAY_SEC=1
 CLEAN_DOWNLOAD_DIR=0
 FAIL_IF_NO_RUNS=0
+FAIL_IF_NO_METRICS=0
 FAIL_IF_SKIPPED=0
 FAIL_IF_NONE_DOWNLOADED=0
 DOWNLOAD_DIR="${REPO_ROOT}/tmp/strict-gate-artifacts/recent-perf"
@@ -121,6 +124,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --fail-if-no-runs)
       FAIL_IF_NO_RUNS=1
+      shift
+      ;;
+    --fail-if-no-metrics)
+      FAIL_IF_NO_METRICS=1
       shift
       ;;
     --fail-if-skipped)
@@ -374,6 +381,61 @@ fi
 echo "==> Generate trend report"
 python3 "${trend_args[@]}"
 
+selected_run_ids_csv="$(printf '%s,' "${selected_run_ids[@]}")"
+perf_counts="$(
+  python3 - "$summary_dir" "$selected_run_ids_csv" <<'PY'
+from pathlib import Path
+import sys
+
+TABLE_HEADER = "| Metric | Status | p95 (ms) | Threshold (ms) | Samples | Source |"
+
+
+def split_csv(s: str):
+    return [x for x in s.split(",") if x]
+
+
+def has_metric_rows(path: Path) -> bool:
+    text = path.read_text(encoding="utf-8", errors="replace")
+    lines = text.splitlines()
+    in_table = False
+    for line in lines:
+        if line.strip() == TABLE_HEADER:
+            in_table = True
+            continue
+        if not in_table:
+            continue
+        if not line.strip().startswith("|"):
+            break
+        if line.strip().startswith("| ---"):
+            continue
+        cols = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cols) >= 6 and cols[0]:
+            return True
+    return False
+
+
+summary_dir = Path(sys.argv[1])
+selected_run_ids = split_csv(sys.argv[2])
+
+perf_report_count = 0
+metric_report_count = 0
+no_metric_report_count = 0
+
+for run_id in selected_run_ids:
+    p = summary_dir / f"STRICT_GATE_CI_{run_id}_PERF.md"
+    if not p.is_file():
+        continue
+    perf_report_count += 1
+    if has_metric_rows(p):
+        metric_report_count += 1
+    else:
+        no_metric_report_count += 1
+
+print(f"{perf_report_count},{metric_report_count},{no_metric_report_count}")
+PY
+)"
+IFS=',' read -r PERF_REPORT_COUNT METRIC_REPORT_COUNT NO_METRIC_REPORT_COUNT <<< "$perf_counts"
+
 if [[ -n "$JSON_OUT" ]]; then
   python3 - "$JSON_OUT" \
     "$WORKFLOW" "$BRANCH" "$CONCLUSION" "$MAX_RUN_AGE_DAYS" "$ARTIFACT_NAME" \
@@ -381,12 +443,14 @@ if [[ -n "$JSON_OUT" ]]; then
     "$LIMIT" "$TREND_OUT" "$summary_dir" \
     "$downloaded" "$skipped" "$INCLUDE_EMPTY" "$RUN_IDS_RAW" \
     "$FAIL_IF_NONE_DOWNLOADED" "$CLEAN_DOWNLOAD_DIR" \
-    "$(printf '%s,' "${selected_run_ids[@]}")" \
+    "$selected_run_ids_csv" \
     "$(printf '%s,' "${downloaded_run_ids[@]}")" \
     "$(printf '%s,' "${skipped_run_ids[@]}")" \
     "$(printf '%s,' "${run_results[@]}")" \
+    "$PERF_REPORT_COUNT" "$METRIC_REPORT_COUNT" "$NO_METRIC_REPORT_COUNT" \
     "$FAIL_IF_SKIPPED" \
-    "$FAIL_IF_NO_RUNS" <<'PY'
+    "$FAIL_IF_NO_RUNS" \
+    "$FAIL_IF_NO_METRICS" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -442,10 +506,15 @@ payload = {
     "downloaded_run_ids": split_csv(sys.argv[19]),
     "skipped_run_ids": split_csv(sys.argv[20]),
     "run_results": parse_run_results(sys.argv[21]),
-    "fail_if_skipped": sys.argv[22] == "1",
-    "failed_due_to_skipped": (sys.argv[22] == "1") and (int(sys.argv[13]) > 0),
-    "fail_if_no_runs": sys.argv[23] == "1",
-    "failed_due_to_no_runs": (sys.argv[23] == "1") and (len(split_csv(sys.argv[18])) == 0),
+    "perf_report_count": int(sys.argv[22]),
+    "metric_report_count": int(sys.argv[23]),
+    "no_metric_report_count": int(sys.argv[24]),
+    "fail_if_skipped": sys.argv[25] == "1",
+    "failed_due_to_skipped": (sys.argv[25] == "1") and (int(sys.argv[13]) > 0),
+    "fail_if_no_runs": sys.argv[26] == "1",
+    "failed_due_to_no_runs": (sys.argv[26] == "1") and (len(split_csv(sys.argv[18])) == 0),
+    "fail_if_no_metrics": sys.argv[27] == "1",
+    "failed_due_to_no_metrics": (sys.argv[27] == "1") and (len(split_csv(sys.argv[18])) > 0) and (int(sys.argv[23]) == 0),
 }
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(payload, f, indent=2)
@@ -457,6 +526,7 @@ echo ""
 echo "Downloaded artifacts: ${downloaded}"
 echo "Skipped downloads: ${skipped}"
 echo "Selected runs: ${#selected_run_ids[@]}"
+echo "Perf reports: ${PERF_REPORT_COUNT} (with metrics: ${METRIC_REPORT_COUNT}, no metrics: ${NO_METRIC_REPORT_COUNT})"
 echo "Summary dir: ${summary_dir}"
 echo "Trend report: ${TREND_OUT}"
 if [[ -n "$JSON_OUT" ]]; then
@@ -464,6 +534,10 @@ if [[ -n "$JSON_OUT" ]]; then
 fi
 if [[ "$FAIL_IF_NO_RUNS" -eq 1 && "${#selected_run_ids[@]}" -eq 0 ]]; then
   echo "ERROR: no runs selected; failing due to --fail-if-no-runs." >&2
+  exit 1
+fi
+if [[ "$FAIL_IF_NO_METRICS" -eq 1 && "${#selected_run_ids[@]}" -gt 0 && "$METRIC_REPORT_COUNT" -eq 0 ]]; then
+  echo "ERROR: selected runs contain no perf metrics; failing due to --fail-if-no-metrics." >&2
   exit 1
 fi
 if [[ "$FAIL_IF_SKIPPED" -eq 1 && "$skipped" -gt 0 ]]; then

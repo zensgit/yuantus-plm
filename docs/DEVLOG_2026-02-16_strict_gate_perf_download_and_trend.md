@@ -23,6 +23,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - `--download-retry-delay-sec` (default `1`; retry delay in seconds)
   - `--clean-download-dir` (optional; clear download dir before downloading)
   - `--fail-if-no-runs` (optional; exit non-zero when selected run count is 0)
+  - `--fail-if-no-metrics` (optional; exit non-zero when selected runs have no metrics table)
   - `--fail-if-skipped` (optional; exit non-zero when skipped download count is greater than 0)
   - `--fail-if-none-downloaded` (optional; exit non-zero when downloaded count is 0)
   - `--download-dir` (default `tmp/strict-gate-artifacts/recent-perf`)
@@ -58,6 +59,9 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - validates `--run-id` mode explicitly logs ignored `--max-run-age-days`
   - validates `--fail-if-no-runs` exits with non-zero when run-list selection is empty
   - validates JSON flags `fail_if_no_runs` and `failed_due_to_no_runs`
+  - validates `--fail-if-no-metrics` exits with non-zero when selected runs have no metrics table
+  - validates JSON fields `perf_report_count`/`metric_report_count`/`no_metric_report_count`
+  - validates JSON flags `fail_if_no_metrics` and `failed_due_to_no_metrics`
   - validates `--fail-if-skipped` exits with non-zero when any selected run download is skipped
   - validates JSON flags `fail_if_skipped` and `failed_due_to_skipped`
   - validates `--fail-if-none-downloaded` exits with non-zero when all downloads fail
@@ -66,6 +70,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - validates `--json-out` output fields (counts + selected/downloaded/skipped ids)
 - Updated `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`:
   - runbook token now requires `strict_gate_perf_download_and_trend.sh`
+  - workflow dispatch now supports optional recent perf audit inputs and gate toggles
 
 ## Verification
 

@@ -32,6 +32,12 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     assert 'cron: "0 4 * * 1"' in wf_text
     assert "run_demo:" in wf_text
     assert "run_perf_smokes:" in wf_text
+    assert "run_recent_perf_audit:" in wf_text
+    assert "recent_perf_audit_limit:" in wf_text
+    assert "recent_perf_fail_if_no_runs:" in wf_text
+    assert "recent_perf_fail_if_skipped:" in wf_text
+    assert "recent_perf_fail_if_none_downloaded:" in wf_text
+    assert "recent_perf_fail_if_no_metrics:" in wf_text
     assert 'default: "false"' in wf_text
 
     # Concurrency contract (must cancel in-progress runs on same ref).
@@ -43,6 +49,9 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     assert "bash scripts/strict_gate_report.sh" in wf_text
     assert "python3 scripts/strict_gate_perf_summary.py" in wf_text
     assert "python3 scripts/strict_gate_perf_trend.py" in wf_text
+    assert "bash scripts/strict_gate_perf_download_and_trend.sh" in wf_text
+    assert "--fail-if-no-metrics" in wf_text
+    assert "python -m pip install -e . pytest" in wf_text
     assert "OUT_DIR: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}" in wf_text
     assert "REPORT_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md" in wf_text
     assert "PERF_SUMMARY_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md" in wf_text
@@ -63,6 +72,8 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF_TREND.md",
         "name: strict-gate-logs",
         "path: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}",
+        "name: strict-gate-recent-perf-audit",
+        "path: tmp/strict-gate-artifacts/recent-perf-audit/${{ github.run_id }}",
     ):
         assert needle in wf_text, f"strict-gate workflow missing: {needle!r}"
 
@@ -90,12 +101,16 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "RUN_ESIGN_PERF=1",
         "RUN_REPORTS_PERF=1",
         "run_perf_smokes=true",
+        "run_recent_perf_audit=true",
+        "recent_perf_fail_if_no_metrics=true",
         "每周一 `04:00 UTC`",
         "strict_gate_perf_summary.py",
         "strict_gate_perf_trend.py",
         "strict_gate_perf_download_and_trend.sh",
+        "--fail-if-no-metrics",
         "--run-id <run_id>",
         "strict_gate_perf_download.json",
         "STRICT_GATE_PERF_TREND.md",
+        "strict-gate-recent-perf-audit",
     ):
         assert token in runbook_text, f"strict-gate runbook missing: {token!r}"

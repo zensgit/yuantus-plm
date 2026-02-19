@@ -136,6 +136,7 @@ def test_strict_gate_perf_download_and_trend_script_has_help() -> None:
     assert "--download-retry-delay-sec" in out
     assert "--clean-download-dir" in out
     assert "--fail-if-no-runs" in out
+    assert "--fail-if-no-metrics" in out
     assert "--fail-if-skipped" in out
     assert "--fail-if-none-downloaded" in out
     assert "--json-out" in out

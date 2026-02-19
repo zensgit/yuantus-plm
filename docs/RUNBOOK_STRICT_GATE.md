@@ -131,9 +131,10 @@ scripts/strict_gate_perf_download_and_trend.sh \
 - 若希望每次只基于最新下载结果生成趋势，可加 `--clean-download-dir` 先清空下载目录。
   - 安全保护：脚本会拒绝清理 `/` 或仓库根目录。
 - 若希望“筛选后无 run”直接失败，可加 `--fail-if-no-runs`：当 selected runs 为 0 时脚本会返回非 0。
+- 若希望“选中的 run 没有任何 metrics 表”直接失败，可加 `--fail-if-no-metrics`：当 selected runs > 0 且 metrics 数为 0 时脚本会返回非 0。
 - 若用于严格自动化门禁，可加 `--fail-if-none-downloaded`：当下载数为 0 时脚本会返回非 0。
 - 若需要把“部分下载失败”也视为门禁失败，可加 `--fail-if-skipped`：当 skipped 下载数大于 0 时脚本会返回非 0。
-- 若启用 `--json-out`，输出会包含 `run_results`（每个 run 的 `downloaded` 和 `attempts`）。
+- 若启用 `--json-out`，输出会包含 `run_results`（每个 run 的 `downloaded` 和 `attempts`）以及 `perf_report_count/metric_report_count/no_metric_report_count`。
 
 - 只跑某个 Playwright spec：
 
@@ -150,7 +151,9 @@ Workflow: `.github/workflows/strict-gate.yml`
   - schedule:
     - 每天 `03:00 UTC`（core strict gate，默认不跑 perf-smokes）
     - 每周一 `04:00 UTC`（自动开启 perf-smokes）
-  - workflow_dispatch: 手动触发（可选 `run_demo=true`、`run_perf_smokes=true`）
+- workflow_dispatch: 手动触发（可选 `run_demo=true`、`run_perf_smokes=true`）
+  - 可选 recent perf audit：`run_recent_perf_audit=true`
+  - 可选门禁输入：`recent_perf_fail_if_no_runs=true|false`、`recent_perf_fail_if_skipped=true|false`、`recent_perf_fail_if_none_downloaded=true|false`、`recent_perf_fail_if_no_metrics=true|false`
 
 Outputs:
 
@@ -160,6 +163,7 @@ Outputs:
   - `strict-gate-perf-summary`：perf-smoke 摘要 Markdown（无 perf 数据时会显示 skipped/missing 说明）
   - `strict-gate-perf-trend`：perf 趋势 Markdown（聚合可见的 `*_PERF.md`）
   - `strict-gate-logs`：`tmp/strict-gate/...` 的日志目录
+  - `strict-gate-recent-perf-audit`：可选 recent perf audit 产物（仅 `run_recent_perf_audit=true` 时生成）
 
 ### Trigger From CLI (Recommended)
 
@@ -174,6 +178,12 @@ gh workflow run strict-gate --ref <branch> -f run_demo=true -f run_perf_smokes=f
 
 # 跑 perf smoke（仍保持 demo 关闭）
 gh workflow run strict-gate --ref <branch> -f run_demo=false -f run_perf_smokes=true
+
+# 触发 recent perf audit，并启用“无 metrics 即失败”门禁
+gh workflow run strict-gate --ref <branch> \
+  -f run_recent_perf_audit=true \
+  -f recent_perf_audit_limit=10 \
+  -f recent_perf_fail_if_no_metrics=true
 ```
 
 找到对应的 workflow run（run id 会被用于报告文件名）：
@@ -193,6 +203,7 @@ gh run download "$RUN_ID" -n strict-gate-report -D "$OUT_DIR"
 gh run download "$RUN_ID" -n strict-gate-perf-summary -D "$OUT_DIR"
 gh run download "$RUN_ID" -n strict-gate-perf-trend -D "$OUT_DIR"
 gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"
+gh run download "$RUN_ID" -n strict-gate-recent-perf-audit -D "$OUT_DIR"
 ```
 
 说明：
@@ -201,6 +212,7 @@ gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"
 - `strict-gate-perf-summary` 解压后会包含类似路径：`docs/DAILY_REPORTS/STRICT_GATE_CI_<run_id>_PERF.md`
 - `strict-gate-perf-trend` 解压后会包含类似路径：`docs/DAILY_REPORTS/STRICT_GATE_CI_<run_id>_PERF_TREND.md`
 - `strict-gate-logs` 解压后会包含类似路径：`tmp/strict-gate/STRICT_GATE_CI_<run_id>/*.log`
+- `strict-gate-recent-perf-audit` 解压后会包含类似路径：`tmp/strict-gate-artifacts/recent-perf-audit/<run_id>/strict_gate_perf_download.json`
 
 ## How To Triage A Failure
 
@@ -214,6 +226,7 @@ gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"
 3) 常见定位线索：
 
 - `pytest (DB)` 失败：通常与 migrations/DB fixture/事务隔离有关
+- 若日志出现 `ERROR: pytest not found at .../.venv/bin/pytest`：说明 runner venv 未安装 pytest，可检查 workflow 安装步骤是否包含 `python -m pip install -e . pytest`
 - `playwright` 失败：通常是 API 响应契约变化、权限变化或导出文件名变化
 - `demo_plm_closed_loop` 失败：查看 demo log 的最后 160 行，通常会包含 HTTP code + body 路径
 - `verify_*_perf_smoke` 失败：先看对应步骤的 p95 报错与阈值，再看同目录下 `server.log` 与 `*_summary.json`

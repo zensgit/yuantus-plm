@@ -11,6 +11,30 @@ on:
         description: "Run optional perf-smoke steps (release-orch/esign/reports)"
         required: false
         default: "false"
+      run_recent_perf_audit:
+        description: "Run helper to download recent strict-gate perf artifacts and gate optional conditions"
+        required: false
+        default: "false"
+      recent_perf_audit_limit:
+        description: "Recent perf audit run-list limit"
+        required: false
+        default: "10"
+      recent_perf_fail_if_no_runs:
+        description: "Recent perf audit gate: fail when selected runs == 0"
+        required: false
+        default: "false"
+      recent_perf_fail_if_skipped:
+        description: "Recent perf audit gate: fail when skipped downloads > 0"
+        required: false
+        default: "false"
+      recent_perf_fail_if_none_downloaded:
+        description: "Recent perf audit gate: fail when downloaded artifacts == 0"
+        required: false
+        default: "false"
+      recent_perf_fail_if_no_metrics:
+        description: "Recent perf audit gate: fail when selected runs have zero metrics"
+        required: false
+        default: "false"
   schedule:
     # Daily 03:00 UTC (core strict gate; no perf-smokes by default)
     - cron: "0 3 * * *"
@@ -51,7 +75,7 @@ jobs:
           python -m venv .venv
           . .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install -e .
+          python -m pip install -e . pytest
 
       - name: Install Node deps
         run: npm ci
@@ -110,16 +134,56 @@ jobs:
             cat "${PERF_TREND_PATH}" >> "$GITHUB_STEP_SUMMARY"
           fi
 
+      - name: Optional recent perf audit (download + trend)
+        if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.run_recent_perf_audit == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUDIT_DIR: tmp/strict-gate-artifacts/recent-perf-audit/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          args=(
+            --workflow strict-gate
+            --branch "${{ github.ref_name }}"
+            --limit "${{ github.event.inputs.recent_perf_audit_limit }}"
+            --artifact-name strict-gate-perf-summary
+            --download-dir "${AUDIT_DIR}"
+            --trend-out "${AUDIT_DIR}/STRICT_GATE_PERF_TREND.md"
+            --json-out "${AUDIT_DIR}/strict_gate_perf_download.json"
+            --include-empty
+          )
+          if [[ "${{ github.event.inputs.recent_perf_fail_if_no_runs }}" == "true" ]]; then
+            args+=(--fail-if-no-runs)
+          fi
+          if [[ "${{ github.event.inputs.recent_perf_fail_if_skipped }}" == "true" ]]; then
+            args+=(--fail-if-skipped)
+          fi
+          if [[ "${{ github.event.inputs.recent_perf_fail_if_none_downloaded }}" == "true" ]]; then
+            args+=(--fail-if-none-downloaded)
+          fi
+          if [[ "${{ github.event.inputs.recent_perf_fail_if_no_metrics }}" == "true" ]]; then
+            args+=(--fail-if-no-metrics)
+          fi
+          bash scripts/strict_gate_perf_download_and_trend.sh "${args[@]}"
+          if [[ -f "${AUDIT_DIR}/STRICT_GATE_PERF_TREND.md" ]]; then
+            {
+              echo ""
+              echo "## Recent Perf Audit Trend"
+              cat "${AUDIT_DIR}/STRICT_GATE_PERF_TREND.md"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Download artifacts hints
         if: always()
         run: |
           set -euo pipefail
           MODE_DEMO="false"
           MODE_PERF="false"
+          MODE_RECENT_PERF_AUDIT="false"
           MODE_REASON="default"
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             MODE_DEMO="${{ github.event.inputs.run_demo }}"
             MODE_PERF="${{ github.event.inputs.run_perf_smokes }}"
+            MODE_RECENT_PERF_AUDIT="${{ github.event.inputs.run_recent_perf_audit }}"
             MODE_REASON="workflow_dispatch"
           fi
           if [[ "${{ github.event_name }}" == "schedule" && "${{ github.event.schedule }}" == "0 4 * * 1" ]]; then
@@ -131,7 +195,7 @@ jobs:
             echo ""
             echo "Run ID: \`${{ github.run_id }}\`"
             echo "Trigger: \`${{ github.event_name }}\`"
-            echo "Mode: demo=\`${MODE_DEMO}\`, perf_smokes=\`${MODE_PERF}\` (\`${MODE_REASON}\`)"
+            echo "Mode: demo=\`${MODE_DEMO}\`, perf_smokes=\`${MODE_PERF}\`, recent_perf_audit=\`${MODE_RECENT_PERF_AUDIT}\` (\`${MODE_REASON}\`)"
             echo ""
             echo '```bash'
             echo "RUN_ID=${{ github.run_id }}"
@@ -141,6 +205,7 @@ jobs:
             echo 'gh run download "$RUN_ID" -n strict-gate-perf-summary -D "$OUT_DIR"'
             echo 'gh run download "$RUN_ID" -n strict-gate-perf-trend -D "$OUT_DIR"'
             echo 'gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"'
+            echo 'gh run download "$RUN_ID" -n strict-gate-recent-perf-audit -D "$OUT_DIR"'
             echo '```'
             echo ""
             echo "Report path (inside artifact): \`docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md\`"
@@ -187,3 +252,10 @@ jobs:
         with:
           name: strict-gate-logs
           path: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}
+
+      - name: Upload strict gate recent perf audit
+        if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.run_recent_perf_audit == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: strict-gate-recent-perf-audit
+          path: tmp/strict-gate-artifacts/recent-perf-audit/${{ github.run_id }}
