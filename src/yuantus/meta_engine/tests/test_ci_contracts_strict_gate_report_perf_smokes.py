@@ -48,6 +48,7 @@ def test_strict_gate_report_wires_perf_smokes_into_results_and_failure_tails() -
         "log_release_orch_perf=",
         "log_esign_perf=",
         "log_reports_perf=",
+        "env -u BASE_URL -u PORT OUT_DIR=\"${OUT_DIR}/verify-run-h-e2e\" bash \"${REPO_ROOT}/scripts/verify_run_h_e2e.sh\"",
         "verify_release_orchestration_perf_smoke",
         "verify_esign_perf_smoke",
         "verify_reports_perf_smoke",

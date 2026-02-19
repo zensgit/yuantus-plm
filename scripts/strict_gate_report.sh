@@ -181,7 +181,7 @@ step "pytest (DB)" "$log_db" status_db dur_db_s \
 
 if [[ "${RUN_RUN_H_E2E:-}" == "1" || "${RUN_RUN_H_E2E:-}" == "true" || "${RUN_RUN_H_E2E:-}" == "yes" ]]; then
   step "verify_run_h_e2e" "$log_run_h_e2e" status_run_h_e2e dur_run_h_e2e_s \
-    env OUT_DIR="${OUT_DIR}/verify-run-h-e2e" bash "${REPO_ROOT}/scripts/verify_run_h_e2e.sh"
+    env -u BASE_URL -u PORT OUT_DIR="${OUT_DIR}/verify-run-h-e2e" bash "${REPO_ROOT}/scripts/verify_run_h_e2e.sh"
 else
   echo "==> verify_run_h_e2e: SKIP (RUN_RUN_H_E2E not set)"
 fi

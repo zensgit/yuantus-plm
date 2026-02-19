@@ -247,6 +247,8 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_verify_all_health_http_code.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_verify_all_is_truthy_order.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_verify_all_mt_skip_db_placeholder.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_verify_all_perf_smokes.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_verify_all_stack_reuse_on_start_conflict.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_verify_mbom_convert_db_url_fallback.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_version_file_binding_viewer_uniqueness.py \
