@@ -140,6 +140,8 @@ raise SystemExit(2)
     assert payload["run_id_mode"] is False
     assert payload["fail_if_skipped"] is False
     assert payload["failed_due_to_skipped"] is False
+    assert payload["fail_if_no_runs"] is False
+    assert payload["failed_due_to_no_runs"] is False
     assert payload["fail_if_none_downloaded"] is False
     assert payload["failed_due_to_zero_downloads"] is False
     assert payload["clean_download_dir"] is False
@@ -257,6 +259,8 @@ raise SystemExit(2)
     assert payload["skipped_count"] == 0
     assert payload["fail_if_skipped"] is False
     assert payload["failed_due_to_skipped"] is False
+    assert payload["fail_if_no_runs"] is False
+    assert payload["failed_due_to_no_runs"] is False
     assert payload["fail_if_none_downloaded"] is False
     assert payload["failed_due_to_zero_downloads"] is False
     assert payload["clean_download_dir"] is False
@@ -554,6 +558,8 @@ raise SystemExit(2)
     assert payload["skipped_count"] == 0
     assert payload["fail_if_skipped"] is False
     assert payload["failed_due_to_skipped"] is False
+    assert payload["fail_if_no_runs"] is False
+    assert payload["failed_due_to_no_runs"] is False
     assert payload["clean_download_dir"] is False
     assert payload["downloaded_run_ids"] == ["901"]
     assert payload["run_results"] == [{"run_id": "901", "downloaded": True, "attempts": 2}]
@@ -672,6 +678,8 @@ raise SystemExit(2)
     assert payload["skipped_count"] == 0
     assert payload["fail_if_skipped"] is False
     assert payload["failed_due_to_skipped"] is False
+    assert payload["fail_if_no_runs"] is False
+    assert payload["failed_due_to_no_runs"] is False
     assert payload["selected_run_ids"] == ["990"]
 
 
@@ -823,6 +831,8 @@ raise SystemExit(2)
     assert payload["skipped_count"] == 0
     assert payload["fail_if_skipped"] is False
     assert payload["failed_due_to_skipped"] is False
+    assert payload["fail_if_no_runs"] is False
+    assert payload["failed_due_to_no_runs"] is False
     assert payload["selected_run_ids"] == ["881"]
     assert payload["run_results"] == [{"run_id": "881", "downloaded": True, "attempts": 1}]
 
@@ -999,6 +1009,8 @@ raise SystemExit(2)
     assert payload["skipped_count"] == 1
     assert payload["fail_if_skipped"] is False
     assert payload["failed_due_to_skipped"] is False
+    assert payload["fail_if_no_runs"] is False
+    assert payload["failed_due_to_no_runs"] is False
     assert payload["fail_if_none_downloaded"] is True
     assert payload["failed_due_to_zero_downloads"] is True
     assert payload["clean_download_dir"] is False
@@ -1077,7 +1089,90 @@ raise SystemExit(2)
     assert payload["skipped_count"] == 1
     assert payload["fail_if_skipped"] is True
     assert payload["failed_due_to_skipped"] is True
+    assert payload["fail_if_no_runs"] is False
+    assert payload["failed_due_to_no_runs"] is False
     assert payload["fail_if_none_downloaded"] is False
     assert payload["failed_due_to_zero_downloads"] is False
     assert payload["clean_download_dir"] is False
     assert payload["run_results"] == [{"run_id": "701", "downloaded": False, "attempts": 1}]
+
+
+def test_strict_gate_perf_download_and_trend_fail_if_no_runs(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(parents=True, exist_ok=True)
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env python3
+import json
+import sys
+
+args = sys.argv[1:]
+
+if args[:2] == ["auth", "status"]:
+    raise SystemExit(0)
+
+if len(args) >= 2 and args[0] == "run" and args[1] == "list":
+    print(json.dumps([]))
+    raise SystemExit(0)
+
+if len(args) >= 3 and args[0] == "run" and args[1] == "download":
+    raise SystemExit(9)
+
+raise SystemExit(2)
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+
+    download_dir = tmp_path / "downloaded"
+    trend_out = download_dir / "STRICT_GATE_PERF_TREND.md"
+    json_out = download_dir / "strict_gate_perf_download.json"
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env.get('PATH', '')}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--limit",
+            "1",
+            "--fail-if-no-runs",
+            "--download-dir",
+            str(download_dir),
+            "--trend-out",
+            str(trend_out),
+            "--json-out",
+            str(json_out),
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode == 1, cp.stdout + "\n" + cp.stderr
+    assert "Selected runs: 0" in cp.stdout
+    assert "ERROR: no runs selected; failing due to --fail-if-no-runs." in cp.stderr
+    assert trend_out.is_file(), f"Missing trend output: {trend_out}"
+    assert json_out.is_file(), f"Missing json output: {json_out}"
+
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["max_run_age_days"] is None
+    assert payload["download_retries"] == 1
+    assert payload["download_retry_delay_sec"] == 1
+    assert payload["downloaded_count"] == 0
+    assert payload["skipped_count"] == 0
+    assert payload["selected_run_ids"] == []
+    assert payload["downloaded_run_ids"] == []
+    assert payload["skipped_run_ids"] == []
+    assert payload["run_results"] == []
+    assert payload["fail_if_no_runs"] is True
+    assert payload["failed_due_to_no_runs"] is True
+    assert payload["fail_if_skipped"] is False
+    assert payload["failed_due_to_skipped"] is False
+    assert payload["fail_if_none_downloaded"] is False
+    assert payload["failed_due_to_zero_downloads"] is False

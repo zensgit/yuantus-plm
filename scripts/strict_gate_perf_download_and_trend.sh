@@ -23,6 +23,7 @@ Options:
   --download-retry-delay-sec <n>
                          Delay between retry attempts in seconds (default: 1)
   --clean-download-dir   Remove download dir before fetching artifacts
+  --fail-if-no-runs      Exit with non-zero when no run is selected
   --fail-if-skipped      Exit with non-zero when skipped download count > 0
   --fail-if-none-downloaded
                          Exit with non-zero when downloaded artifact count is 0
@@ -45,6 +46,7 @@ Examples:
   scripts/strict_gate_perf_download_and_trend.sh --artifact-name strict-gate-perf-summary
   scripts/strict_gate_perf_download_and_trend.sh --download-retries 3 --download-retry-delay-sec 2
   scripts/strict_gate_perf_download_and_trend.sh --clean-download-dir --limit 10
+  scripts/strict_gate_perf_download_and_trend.sh --fail-if-no-runs --limit 10
   scripts/strict_gate_perf_download_and_trend.sh --fail-if-skipped --limit 10
   scripts/strict_gate_perf_download_and_trend.sh \
     --download-dir tmp/strict-gate-artifacts/perf \
@@ -66,6 +68,7 @@ ARTIFACT_NAME="strict-gate-perf-summary"
 DOWNLOAD_RETRIES=1
 DOWNLOAD_RETRY_DELAY_SEC=1
 CLEAN_DOWNLOAD_DIR=0
+FAIL_IF_NO_RUNS=0
 FAIL_IF_SKIPPED=0
 FAIL_IF_NONE_DOWNLOADED=0
 DOWNLOAD_DIR="${REPO_ROOT}/tmp/strict-gate-artifacts/recent-perf"
@@ -114,6 +117,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --clean-download-dir)
       CLEAN_DOWNLOAD_DIR=1
+      shift
+      ;;
+    --fail-if-no-runs)
+      FAIL_IF_NO_RUNS=1
       shift
       ;;
     --fail-if-skipped)
@@ -378,7 +385,8 @@ if [[ -n "$JSON_OUT" ]]; then
     "$(printf '%s,' "${downloaded_run_ids[@]}")" \
     "$(printf '%s,' "${skipped_run_ids[@]}")" \
     "$(printf '%s,' "${run_results[@]}")" \
-    "$FAIL_IF_SKIPPED" <<'PY'
+    "$FAIL_IF_SKIPPED" \
+    "$FAIL_IF_NO_RUNS" <<'PY'
 import json
 import sys
 from datetime import datetime, timezone
@@ -436,6 +444,8 @@ payload = {
     "run_results": parse_run_results(sys.argv[21]),
     "fail_if_skipped": sys.argv[22] == "1",
     "failed_due_to_skipped": (sys.argv[22] == "1") and (int(sys.argv[13]) > 0),
+    "fail_if_no_runs": sys.argv[23] == "1",
+    "failed_due_to_no_runs": (sys.argv[23] == "1") and (len(split_csv(sys.argv[18])) == 0),
 }
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(payload, f, indent=2)
@@ -446,10 +456,15 @@ fi
 echo ""
 echo "Downloaded artifacts: ${downloaded}"
 echo "Skipped downloads: ${skipped}"
+echo "Selected runs: ${#selected_run_ids[@]}"
 echo "Summary dir: ${summary_dir}"
 echo "Trend report: ${TREND_OUT}"
 if [[ -n "$JSON_OUT" ]]; then
   echo "JSON summary: ${JSON_OUT}"
+fi
+if [[ "$FAIL_IF_NO_RUNS" -eq 1 && "${#selected_run_ids[@]}" -eq 0 ]]; then
+  echo "ERROR: no runs selected; failing due to --fail-if-no-runs." >&2
+  exit 1
 fi
 if [[ "$FAIL_IF_SKIPPED" -eq 1 && "$skipped" -gt 0 ]]; then
   echo "ERROR: skipped downloads detected; failing due to --fail-if-skipped." >&2

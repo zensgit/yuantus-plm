@@ -22,6 +22,7 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - `--download-retries` (default `1`; retry attempts per run download)
   - `--download-retry-delay-sec` (default `1`; retry delay in seconds)
   - `--clean-download-dir` (optional; clear download dir before downloading)
+  - `--fail-if-no-runs` (optional; exit non-zero when selected run count is 0)
   - `--fail-if-skipped` (optional; exit non-zero when skipped download count is greater than 0)
   - `--fail-if-none-downloaded` (optional; exit non-zero when downloaded count is 0)
   - `--download-dir` (default `tmp/strict-gate-artifacts/recent-perf`)
@@ -55,6 +56,8 @@ Add a CLI helper that pulls recent strict-gate perf summary artifacts via `gh` a
   - validates `--max-run-age-days` argument validation rejects invalid values
   - validates `--download-retries` and `--download-retry-delay-sec` argument validation rejects invalid values
   - validates `--run-id` mode explicitly logs ignored `--max-run-age-days`
+  - validates `--fail-if-no-runs` exits with non-zero when run-list selection is empty
+  - validates JSON flags `fail_if_no_runs` and `failed_due_to_no_runs`
   - validates `--fail-if-skipped` exits with non-zero when any selected run download is skipped
   - validates JSON flags `fail_if_skipped` and `failed_due_to_skipped`
   - validates `--fail-if-none-downloaded` exits with non-zero when all downloads fail
