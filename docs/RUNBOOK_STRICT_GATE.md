@@ -125,6 +125,7 @@ scripts/strict_gate_perf_download_and_trend.sh \
 说明：
 - `--run-id` 模式会跳过 `gh run list`；此时 `--conclusion` 过滤不会生效。
 - 可选 `--max-run-age-days <n>`：只处理最近 N 天创建的 run（仅对 run list 模式生效）。
+  - 当启用该过滤时，`createdAt` 缺失或不可解析的 run 会被跳过。
 - 默认 artifact 名称是 `strict-gate-perf-summary`；若 workflow 里更改过 artifact 名，可改为 `--artifact-name <name>`。
 - 网络不稳定时可设置 `--download-retries <n>` 与 `--download-retry-delay-sec <n>`（例如 `3` 和 `2`）。
 - 若希望每次只基于最新下载结果生成趋势，可加 `--clean-download-dir` 先清空下载目录。

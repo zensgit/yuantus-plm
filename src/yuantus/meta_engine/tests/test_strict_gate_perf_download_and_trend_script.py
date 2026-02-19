@@ -736,6 +736,8 @@ if len(args) >= 2 and args[0] == "run" and args[1] == "list":
     rows = [
         {"databaseId": 880, "status": "completed", "conclusion": "success", "createdAt": "2000-01-01T00:00:00Z"},
         {"databaseId": 881, "status": "completed", "conclusion": "success", "createdAt": "2099-01-01T00:00:00Z"},
+        {"databaseId": 882, "status": "completed", "conclusion": "success"},
+        {"databaseId": 883, "status": "completed", "conclusion": "success", "createdAt": "bad-ts"},
     ]
     print(json.dumps(rows))
     raise SystemExit(0)
@@ -804,6 +806,8 @@ raise SystemExit(2)
     out = trend_out.read_text(encoding="utf-8", errors="replace")
     assert "`STRICT_GATE_CI_881`" in out
     assert "`STRICT_GATE_CI_880`" not in out
+    assert "`STRICT_GATE_CI_882`" not in out
+    assert "`STRICT_GATE_CI_883`" not in out
 
     payload = json.loads(json_out.read_text(encoding="utf-8"))
     assert payload["max_run_age_days"] == 7
