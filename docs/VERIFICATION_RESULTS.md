@@ -17207,3 +17207,52 @@ ALL CHECKS PASSED
     - `metric_report_count: 3`
     - `no_metric_report_count: 7`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22209454502`
+
+## Run STRICT-GATE-RECENT-PERF-CONCLUSION-AND-DEFAULT-NO-METRICS-20260220
+
+- 时间：`2026-02-20`（GitHub Actions + 本机）
+- 目标（1+2）：
+  - 将 workflow recent perf audit 的 `recent_perf_fail_if_no_metrics` 默认值提升为 `true`。
+  - 新增 workflow 输入 `recent_perf_conclusion=any|success|failure` 并接线到下载脚本 `--conclusion`。
+
+### 变更
+
+- commit `b217d29`：
+  - `.github/workflows/strict-gate.yml`
+    - 新增 input：`recent_perf_conclusion`（默认 `any`）
+    - 在 optional recent perf audit step 增加：
+      - `--conclusion "${{ github.event.inputs.recent_perf_conclusion }}"`
+    - `recent_perf_fail_if_no_metrics` 默认值从 `false` 调整为 `true`
+  - `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`
+    - 增加新输入与参数接线契约断言
+    - 增加默认值契约断言（`recent_perf_conclusion=any`、`recent_perf_fail_if_no_metrics=true`）
+  - `docs/RUNBOOK_STRICT_GATE.md`
+    - 补充 `recent_perf_conclusion` 输入说明
+    - 明确 `recent_perf_fail_if_no_metrics` 默认值为 `true`
+
+### 本地验证
+
+- `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py`
+  - 结果：`3 passed`
+
+### 远端回归（通过）
+
+- run `22225250586`（`2026-02-20T13:05:34Z`，`main@b217d29`）：
+  - 触发参数：
+    - `run_perf_smokes=true`
+    - `run_recent_perf_audit=true`
+    - `recent_perf_audit_limit=10`
+    - `recent_perf_conclusion=success`
+    - `recent_perf_fail_if_no_runs=true`
+    - `recent_perf_fail_if_skipped=true`
+    - `recent_perf_fail_if_none_downloaded=true`
+    - `recent_perf_fail_if_no_metrics` 未显式传递（验证默认值）
+  - 结论：`success`
+  - recent audit JSON 关键值：
+    - `conclusion: "success"`
+    - `max_run_age_days: 1`
+    - `skipped_count: 0`
+    - `metric_report_count: 4`
+    - `fail_if_no_metrics: true`
+    - `failed_due_to_no_metrics: false`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22225250586`
