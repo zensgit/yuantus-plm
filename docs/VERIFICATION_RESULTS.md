@@ -17294,3 +17294,48 @@ ALL CHECKS PASSED
     - `fail_if_no_metrics: true`
     - `failed_due_to_no_metrics: false`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22226474669`
+
+## Run STRICT-GATE-DISPATCH-TYPED-INPUTS-20260220
+
+- 时间：`2026-02-20`（GitHub Actions + 本机）
+- 目标：将 `workflow_dispatch` recent perf audit 输入类型化（`boolean`/`choice`），降低手工输入错误。
+
+### 变更
+
+- commit `67ab194`：
+  - `.github/workflows/strict-gate.yml`
+    - `run_demo/run_perf_smokes/run_recent_perf_audit` 及各 `recent_perf_fail_if_*` 改为 `type: boolean`
+    - `recent_perf_conclusion` 改为 `type: choice`，`options: any|success|failure`
+    - `recent_perf_audit_limit` 与 `recent_perf_max_run_age_days` 显式标注 `type: string`
+  - `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`
+    - 增加 type/choice/options 契约断言
+  - `docs/RUNBOOK_STRICT_GATE.md`
+    - 增补“输入类型已收口”说明
+
+### 本地验证
+
+- `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py`
+  - 结果：`3 passed`
+
+### 远端验证（对照）
+
+- run `22226675285`（`2026-02-20T13:51:01Z`）：
+  - 输入：`recent_perf_conclusion=failure`，其余门禁开启（含默认 `fail_if_no_metrics=true`）
+  - 结果：`failure`（符合预期）
+  - 关键原因：`Optional recent perf audit` 命中 `selected runs contain no perf metrics; failing due to --fail-if-no-metrics`
+  - 同时确认：
+    - `Validate recent perf audit inputs`: `success`
+    - 说明输入类型化与前置校验步骤均生效
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22226675285`
+
+- run `22226781788`（`2026-02-20T13:54:16Z`）：
+  - 输入：`recent_perf_conclusion=success`，其余门禁开启
+  - 结果：`success`
+  - recent audit JSON 关键值：
+    - `conclusion: "success"`
+    - `max_run_age_days: 1`
+    - `skipped_count: 0`
+    - `metric_report_count: 6`
+    - `fail_if_no_metrics: true`
+    - `failed_due_to_no_metrics: false`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22226781788`
