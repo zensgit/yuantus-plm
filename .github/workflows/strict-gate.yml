@@ -122,9 +122,17 @@ jobs:
             echo "ERROR: recent_perf_audit_limit must be a positive integer (got: $limit)" >&2
             exit 2
           fi
+          if [[ "$limit" -gt 100 ]]; then
+            echo "ERROR: recent_perf_audit_limit must be <= 100 (got: $limit)" >&2
+            exit 2
+          fi
 
           if ! [[ "$max_age" =~ ^[0-9]+$ ]]; then
             echo "ERROR: recent_perf_max_run_age_days must be a non-negative integer (got: $max_age)" >&2
+            exit 2
+          fi
+          if [[ "$max_age" -gt 100 ]]; then
+            echo "ERROR: recent_perf_max_run_age_days must be <= 100 (got: $max_age)" >&2
             exit 2
           fi
 
