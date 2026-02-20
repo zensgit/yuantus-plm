@@ -22,7 +22,7 @@ on:
       recent_perf_max_run_age_days:
         description: "Recent perf audit run-list max age in days (run-list mode)"
         required: false
-        default: "14"
+        default: "1"
       recent_perf_fail_if_no_runs:
         description: "Recent perf audit gate: fail when selected runs == 0"
         required: false

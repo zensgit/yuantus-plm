@@ -17086,3 +17086,51 @@ ALL CHECKS PASSED
     - `Build strict gate perf summary`: `success`
     - `Build strict gate perf trend`: `success`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22208971533`
+
+## Run STRICT-GATE-RECENT-PERF-MAX-AGE-INPUT-20260220
+
+- 时间：`2026-02-20`（GitHub Actions，UTC）
+- 目标：为 recent perf audit 增加 workflow dispatch 的 run 年龄过滤输入，并验证在严格门禁下可稳定通过。
+
+### 变更
+
+- commit `1b3e701`：
+  - `.github/workflows/strict-gate.yml`：
+    - 新增 input：`recent_perf_max_run_age_days`，并接线到：
+      - `scripts/strict_gate_perf_download_and_trend.sh --max-run-age-days ...`
+    - 默认值后续收口为 `1` 天（降低旧 run 干扰）。
+  - `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`：
+    - 增加 workflow 与 runbook 对应 token 断言。
+  - `docs/RUNBOOK_STRICT_GATE.md`：
+    - 增加输入说明与 CLI 示例。
+
+### 本地验证
+
+- `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py`
+  - 结果：`3 passed`
+- `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`
+  - 结果：`1 passed`
+
+### 远端回归（通过）
+
+- run `22209240423`（`2026-02-20T02:46:35Z`）：
+  - 触发参数：
+    - `run_perf_smokes=true`
+    - `run_recent_perf_audit=true`
+    - `recent_perf_audit_limit=10`
+    - `recent_perf_max_run_age_days=1`
+    - `recent_perf_fail_if_no_runs=true`
+    - `recent_perf_fail_if_skipped=true`
+    - `recent_perf_fail_if_none_downloaded=true`
+    - `recent_perf_fail_if_no_metrics=false`
+  - 结论：`success`
+  - 关键步骤：
+    - `Run strict gate report`: `success`
+    - `Optional recent perf audit (download + trend)`: `success`
+    - `Upload strict gate recent perf audit`: `success`
+  - 审计 JSON 摘要关键值：
+    - `max_run_age_days: 1`
+    - `downloaded_count: 8`
+    - `skipped_count: 0`
+    - `failed_due_to_skipped: false`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22209240423`
