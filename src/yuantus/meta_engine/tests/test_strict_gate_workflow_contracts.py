@@ -55,6 +55,7 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
 
     # Evidence output wiring (report path + logs dir + artifacts).
     assert "name: Validate recent perf audit inputs" in wf_text
+    assert "id: validate_recent_perf_inputs" in wf_text
     assert "recent_perf_conclusion must be one of any|success|failure" in wf_text
     assert "recent_perf_audit_limit must be a positive integer" in wf_text
     assert "recent_perf_audit_limit must be <= 100" in wf_text
@@ -72,6 +73,8 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     assert "REPORT_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md" in wf_text
     assert "PERF_SUMMARY_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md" in wf_text
     assert "PERF_TREND_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF_TREND.md" in wf_text
+    assert "steps.validate_recent_perf_inputs.outcome == 'success'" in wf_text
+    assert wf_text.count("steps.validate_recent_perf_inputs.outcome == 'success'") >= 2
     assert "github.event.inputs.run_perf_smokes" in wf_text
     assert "github.event.schedule" in wf_text
     assert "export RUN_RELEASE_ORCH_PERF=1" in wf_text

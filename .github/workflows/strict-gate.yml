@@ -103,6 +103,7 @@ jobs:
         run: npm ci
 
       - name: Validate recent perf audit inputs
+        id: validate_recent_perf_inputs
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_recent_perf_audit == 'true'
         run: |
           set -euo pipefail
@@ -193,7 +194,7 @@ jobs:
           fi
 
       - name: Optional recent perf audit (download + trend)
-        if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.run_recent_perf_audit == 'true'
+        if: always() && steps.validate_recent_perf_inputs.outcome == 'success' && github.event_name == 'workflow_dispatch' && github.event.inputs.run_recent_perf_audit == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           AUDIT_DIR: tmp/strict-gate-artifacts/recent-perf-audit/${{ github.run_id }}
@@ -314,7 +315,7 @@ jobs:
           path: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}
 
       - name: Upload strict gate recent perf audit
-        if: always() && github.event_name == 'workflow_dispatch' && github.event.inputs.run_recent_perf_audit == 'true'
+        if: always() && steps.validate_recent_perf_inputs.outcome == 'success' && github.event_name == 'workflow_dispatch' && github.event.inputs.run_recent_perf_audit == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: strict-gate-recent-perf-audit
