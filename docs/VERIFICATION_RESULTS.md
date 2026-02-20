@@ -17339,3 +17339,62 @@ ALL CHECKS PASSED
     - `fail_if_no_metrics: true`
     - `failed_due_to_no_metrics: false`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22226781788`
+
+## Run STRICT-GATE-RECENT-PERF-BOUND-CHECKS-AND-TYPE-MATRIX-CONTRACTS-20260220
+
+- 时间：`2026-02-20`（GitHub Actions + 本机）
+- 目标（1+2）：
+  - recent perf 输入增加更严格上限校验（`recent_perf_audit_limit <= 100`，`recent_perf_max_run_age_days <= 100`）。
+  - 新增独立 workflow dispatch 输入类型矩阵契约测试，防止 `boolean/choice/string` 类型回退。
+
+### 变更
+
+- commit `51b96d0`：
+  - `.github/workflows/strict-gate.yml`
+    - 在 `Validate recent perf audit inputs` 中新增：
+      - `recent_perf_audit_limit <= 100`
+      - `recent_perf_max_run_age_days <= 100`
+  - 新增测试：`src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py`
+    - 专门锁定 `workflow_dispatch` 输入类型矩阵：
+      - boolean：`run_demo/run_perf_smokes/run_recent_perf_audit/recent_perf_fail_if_*`
+      - choice：`recent_perf_conclusion`（`any|success|failure`）
+      - string：`recent_perf_audit_limit/recent_perf_max_run_age_days`
+  - `.github/workflows/ci.yml`
+    - contracts step 增加上述新测试，并保持路径排序
+  - `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`
+    - 增加上限校验提示文案契约断言
+  - `docs/RUNBOOK_STRICT_GATE.md`
+    - recent perf 输入范围说明更新为：
+      - `recent_perf_audit_limit: 1..100`
+      - `recent_perf_max_run_age_days: 0..100`
+
+### 本地验证
+
+- `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py`
+  - 结果：`4 passed`
+
+### 远端验证（对照）
+
+- run `22227001429`（`2026-02-20T14:00:55Z`）：
+  - 输入：`run_recent_perf_audit=true`，`recent_perf_audit_limit=101`
+  - 结果：`failure`（符合预期）
+  - 关键步骤：
+    - `Validate recent perf audit inputs`: `failure`
+  - 关键错误：
+    - `ERROR: recent_perf_audit_limit must be <= 100 (got: 101)`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22227001429`
+
+- run `22227054135`（`2026-02-20T14:02:29Z`）：
+  - 输入：`run_recent_perf_audit=true`，`recent_perf_audit_limit=10`，`recent_perf_conclusion=success`
+  - 结果：`success`
+  - 关键步骤：
+    - `Validate recent perf audit inputs`: `success`
+    - `Optional recent perf audit (download + trend)`: `success`
+  - recent audit JSON 关键值：
+    - `conclusion: "success"`
+    - `max_run_age_days: 1`
+    - `skipped_count: 0`
+    - `metric_report_count: 7`
+    - `fail_if_no_metrics: true`
+    - `failed_due_to_no_metrics: false`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22227054135`
