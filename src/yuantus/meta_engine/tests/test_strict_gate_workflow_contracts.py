@@ -34,6 +34,7 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     assert "run_perf_smokes:" in wf_text
     assert "run_recent_perf_audit:" in wf_text
     assert "recent_perf_audit_limit:" in wf_text
+    assert "recent_perf_max_run_age_days:" in wf_text
     assert "recent_perf_fail_if_no_runs:" in wf_text
     assert "recent_perf_fail_if_skipped:" in wf_text
     assert "recent_perf_fail_if_none_downloaded:" in wf_text
@@ -51,6 +52,7 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     assert "python3 scripts/strict_gate_perf_trend.py" in wf_text
     assert "bash scripts/strict_gate_perf_download_and_trend.sh" in wf_text
     assert "--fail-if-no-metrics" in wf_text
+    assert "--max-run-age-days" in wf_text
     assert "python -m pip install -e . pytest" in wf_text
     assert "OUT_DIR: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}" in wf_text
     assert "REPORT_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md" in wf_text
@@ -102,12 +104,14 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "RUN_REPORTS_PERF=1",
         "run_perf_smokes=true",
         "run_recent_perf_audit=true",
+        "recent_perf_max_run_age_days=",
         "recent_perf_fail_if_no_metrics=true",
         "每周一 `04:00 UTC`",
         "strict_gate_perf_summary.py",
         "strict_gate_perf_trend.py",
         "strict_gate_perf_download_and_trend.sh",
         "--fail-if-no-metrics",
+        "--max-run-age-days",
         "--run-id <run_id>",
         "strict_gate_perf_download.json",
         "STRICT_GATE_PERF_TREND.md",

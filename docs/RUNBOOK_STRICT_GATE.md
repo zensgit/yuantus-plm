@@ -153,7 +153,13 @@ Workflow: `.github/workflows/strict-gate.yml`
     - 每周一 `04:00 UTC`（自动开启 perf-smokes）
 - workflow_dispatch: 手动触发（可选 `run_demo=true`、`run_perf_smokes=true`）
   - 可选 recent perf audit：`run_recent_perf_audit=true`
-  - 可选门禁输入：`recent_perf_fail_if_no_runs=true|false`、`recent_perf_fail_if_skipped=true|false`、`recent_perf_fail_if_none_downloaded=true|false`、`recent_perf_fail_if_no_metrics=true|false`
+  - 可选筛选/门禁输入：
+    - `recent_perf_audit_limit=<n>`
+    - `recent_perf_max_run_age_days=<n>`（默认 `14`，仅 run list 模式生效）
+    - `recent_perf_fail_if_no_runs=true|false`
+    - `recent_perf_fail_if_skipped=true|false`
+    - `recent_perf_fail_if_none_downloaded=true|false`
+    - `recent_perf_fail_if_no_metrics=true|false`
 
 Outputs:
 
@@ -183,6 +189,7 @@ gh workflow run strict-gate --ref <branch> -f run_demo=false -f run_perf_smokes=
 gh workflow run strict-gate --ref <branch> \
   -f run_recent_perf_audit=true \
   -f recent_perf_audit_limit=10 \
+  -f recent_perf_max_run_age_days=14 \
   -f recent_perf_fail_if_no_metrics=true
 ```
 

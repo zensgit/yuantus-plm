@@ -19,6 +19,10 @@ on:
         description: "Recent perf audit run-list limit"
         required: false
         default: "10"
+      recent_perf_max_run_age_days:
+        description: "Recent perf audit run-list max age in days (run-list mode)"
+        required: false
+        default: "14"
       recent_perf_fail_if_no_runs:
         description: "Recent perf audit gate: fail when selected runs == 0"
         required: false
@@ -145,6 +149,7 @@ jobs:
             --workflow strict-gate
             --branch "${{ github.ref_name }}"
             --limit "${{ github.event.inputs.recent_perf_audit_limit }}"
+            --max-run-age-days "${{ github.event.inputs.recent_perf_max_run_age_days }}"
             --artifact-name strict-gate-perf-summary
             --download-dir "${AUDIT_DIR}"
             --trend-out "${AUDIT_DIR}/STRICT_GATE_PERF_TREND.md"
