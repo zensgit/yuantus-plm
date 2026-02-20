@@ -17256,3 +17256,41 @@ ALL CHECKS PASSED
     - `fail_if_no_metrics: true`
     - `failed_due_to_no_metrics: false`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22225250586`
+
+## Run STRICT-GATE-RECENT-PERF-INPUT-VALIDATION-20260220
+
+- 时间：`2026-02-20`（GitHub Actions + 本机）
+- 目标：将 recent perf audit 输入校验前移，避免参数错误在长流程末尾才失败。
+
+### 变更
+
+- commit `0c102f1`：
+  - `.github/workflows/strict-gate.yml`
+    - 新增步骤：`Validate recent perf audit inputs`（仅 `run_recent_perf_audit=true` 时执行）
+    - 校验项：
+      - `recent_perf_conclusion` 必须是 `any|success|failure`
+      - `recent_perf_audit_limit` 必须为正整数
+      - `recent_perf_max_run_age_days` 必须为非负整数
+  - `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`
+    - 增加上述新步骤与错误提示文本契约断言
+
+### 本地验证
+
+- `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py`
+  - 结果：`3 passed`
+
+### 远端回归（通过）
+
+- run `22226474669`（`2026-02-20T13:44:53Z`，`main@0c102f1`）：
+  - 结论：`success`
+  - 关键步骤：
+    - `Validate recent perf audit inputs`: `success`
+    - `Optional recent perf audit (download + trend)`: `success`
+  - recent audit JSON 关键值：
+    - `conclusion: "success"`
+    - `max_run_age_days: 1`
+    - `skipped_count: 0`
+    - `metric_report_count: 5`
+    - `fail_if_no_metrics: true`
+    - `failed_due_to_no_metrics: false`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22226474669`
