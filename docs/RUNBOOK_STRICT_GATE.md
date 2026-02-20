@@ -230,3 +230,6 @@ gh run download "$RUN_ID" -n strict-gate-recent-perf-audit -D "$OUT_DIR"
 - `playwright` 失败：通常是 API 响应契约变化、权限变化或导出文件名变化
 - `demo_plm_closed_loop` 失败：查看 demo log 的最后 160 行，通常会包含 HTTP code + body 路径
 - `verify_*_perf_smoke` 失败：先看对应步骤的 p95 报错与阈值，再看同目录下 `server.log` 与 `*_summary.json`
+- 若 `verify_*_perf_smoke` 日志出现 `Start API server (base=http://127.0.0.1:7910)` 且 health connect failed：
+  - 常见原因是 workflow/job 的全局 `BASE_URL`/`PORT` 环境变量污染了自包含 perf-smoke 脚本。
+  - `scripts/strict_gate_report.sh` 应通过 `env -u BASE_URL -u PORT` 调用三条 perf-smoke 脚本，确保脚本使用自身随机端口。

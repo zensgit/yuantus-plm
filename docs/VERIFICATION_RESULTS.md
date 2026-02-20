@@ -17041,3 +17041,48 @@ ALL CHECKS PASSED
     - `Optional recent perf audit (download + trend)`: `success`
     - `Upload strict gate recent perf audit`: `success`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22185931902`
+
+## Run STRICT-GATE-PERF-ENV-LEAK-RECOVERY-20260220
+
+- 时间：`2026-02-20`（GitHub Actions + 本机，UTC）
+- 目标：修复 strict-gate perf-smoke 子脚本被全局 `BASE_URL/PORT` 污染导致的端口错误。
+
+### 失败复盘（修复前）
+
+- run `22208674424`（`2026-02-20T02:19:37Z`，`main@1b35112`）：
+  - `Run strict gate report`: `FAIL`
+  - `verify_release_orchestration_perf_smoke`/`verify_esign_perf_smoke`/`verify_reports_perf_smoke` 全部失败：
+    - 日志显示 `Start API server (base=http://127.0.0.1:7910)`，随后 health connect failed。
+- run `22208834619`（`2026-02-20T02:27:14Z`，`main@1b35112`）：
+  - 同样失败现象（该 run 触发时修复提交尚未推送到 `main`）。
+
+### 修复与提交
+
+- `6da6594`:
+  - `scripts/strict_gate_report.sh`：
+    - 执行 `verify_release_orchestration_perf_smoke.sh` / `verify_esign_perf_smoke.sh` / `verify_reports_perf_smoke.sh` 时统一改为：
+      - `env -u BASE_URL -u PORT ...`
+  - `src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py`：
+    - 增加三条 perf-smoke `env -u BASE_URL -u PORT` 契约断言，防回归。
+
+### 本地验证（通过）
+
+- 语法 + 契约：
+  - `bash -n scripts/strict_gate_report.sh`
+  - `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py`
+  - 结果：`6 passed`
+- 污染场景快速回归（显式设置 `BASE_URL/PORT`，再通过 `env -u` 执行）：
+  - `BASE_URL=http://127.0.0.1:7910 PORT=7910 PERF_RELEASE_ORCH_SAMPLES=1 env -u BASE_URL -u PORT ... verify_release_orchestration_perf_smoke.sh`
+  - `BASE_URL=http://127.0.0.1:7910 PORT=7910 PERF_ESIGN_SAMPLES=1 env -u BASE_URL -u PORT ... verify_esign_perf_smoke.sh`
+  - `BASE_URL=http://127.0.0.1:7910 PORT=7910 PERF_REPORTS_SAMPLES=1 PERF_REPORTS_PART_COUNT=5 env -u BASE_URL -u PORT ... verify_reports_perf_smoke.sh`
+  - 结果：三条脚本全部 `ALL CHECKS PASSED`。
+
+### 修复后 CI 回归（通过）
+
+- run `22208971533`（`2026-02-20T02:33:45Z`，`main@6da6594`）：
+  - 结论：`success`
+  - 关键步骤：
+    - `Run strict gate report`: `success`
+    - `Build strict gate perf summary`: `success`
+    - `Build strict gate perf trend`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22208971533`
