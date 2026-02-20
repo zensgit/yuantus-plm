@@ -17152,3 +17152,36 @@ ALL CHECKS PASSED
     - `skipped_count: 0`
     - `failed_due_to_skipped: false`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22209317987`
+
+## Run STRICT-GATE-PERF-REPORT-DISCOVERY-FIX-20260220
+
+- 时间：`2026-02-20`（本机）
+- 目标：修复 recent perf audit 在 artifact 解压路径为“平铺布局”时 `perf_report_count=0` 的统计错误。
+
+### 变更
+
+- `scripts/strict_gate_perf_download_and_trend.sh`：
+  - 新增递归发现逻辑：在 `download-dir` 下搜索 `STRICT_GATE_CI_*_PERF.md`。
+  - 新增归一化步骤：将发现到的报告统一拷贝到 `summary_dir=.../docs/DAILY_REPORTS`。
+  - trend 与 metrics 统计统一基于归一化目录，避免受 artifact 展开路径差异影响。
+  - 新增 JSON 字段：
+    - `discovered_perf_files`
+    - `normalized_perf_files`
+- `src/yuantus/meta_engine/tests/test_strict_gate_perf_download_and_trend_script.py`：
+  - 新增平铺 artifact 布局契约测试，锁定修复行为。
+
+### 验证
+
+- `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_strict_gate_perf_download_and_trend_script.py`
+  - 结果：`18 passed`
+- `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`
+  - 结果：`5 passed`
+- 真实 run-id 冒烟：
+  - 命令：
+    - `bash scripts/strict_gate_perf_download_and_trend.sh --run-id 22209317987 --download-dir tmp/strict-gate-artifacts/recent-perf-fix-smoke --trend-out tmp/strict-gate-artifacts/recent-perf-fix-smoke/STRICT_GATE_PERF_TREND.md --json-out tmp/strict-gate-artifacts/recent-perf-fix-smoke/strict_gate_perf_download.json --include-empty`
+  - 结果：
+    - `downloaded_count: 1`
+    - `discovered_perf_files: 1`
+    - `normalized_perf_files: 1`
+    - `perf_report_count: 1`
+    - `metric_report_count: 1`

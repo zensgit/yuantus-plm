@@ -279,6 +279,105 @@ raise SystemExit(2)
     assert payload["run_results"] == [{"run_id": "501", "downloaded": True, "attempts": 1}]
 
 
+def test_strict_gate_perf_download_and_trend_normalizes_flat_artifact_layout(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(parents=True, exist_ok=True)
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env python3
+import json
+import sys
+from pathlib import Path
+
+args = sys.argv[1:]
+
+if args[:2] == ["auth", "status"]:
+    raise SystemExit(0)
+
+if len(args) >= 2 and args[0] == "run" and args[1] == "list":
+    print(json.dumps([{"databaseId": 777, "status": "completed", "conclusion": "success"}]))
+    raise SystemExit(0)
+
+if len(args) >= 3 and args[0] == "run" and args[1] == "download":
+    out_dir = "."
+    i = 3
+    while i < len(args):
+        if args[i] == "-D" and i + 1 < len(args):
+            out_dir = args[i + 1]
+            i += 2
+            continue
+        i += 1
+
+    # Flat layout (no docs/DAILY_REPORTS nesting), as observed with some artifacts.
+    p = Path(out_dir)
+    p.mkdir(parents=True, exist_ok=True)
+    report = "\\n".join(
+        [
+            "## Perf Smoke Summary",
+            "",
+            "| Metric | Status | p95 (ms) | Threshold (ms) | Samples | Source |",
+            "| --- | --- | --- | --- | --- | --- |",
+            "| release_orchestration.plan | PASS | 100.000 | 1800.000 | 5 | `dummy` |",
+            "",
+        ]
+    )
+    (p / "STRICT_GATE_CI_777_PERF.md").write_text(report, encoding="utf-8")
+    raise SystemExit(0)
+
+raise SystemExit(2)
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+
+    download_dir = tmp_path / "downloaded"
+    trend_out = download_dir / "STRICT_GATE_PERF_TREND.md"
+    json_out = download_dir / "strict_gate_perf_download.json"
+
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env.get('PATH', '')}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--limit",
+            "1",
+            "--download-dir",
+            str(download_dir),
+            "--trend-out",
+            str(trend_out),
+            "--json-out",
+            str(json_out),
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert "Downloaded artifacts: 1" in cp.stdout
+    assert "Discovered perf files: 1 (normalized copies: 1)" in cp.stdout
+    assert trend_out.is_file(), f"Missing trend output: {trend_out}"
+    assert json_out.is_file(), f"Missing json output: {json_out}"
+
+    normalized = download_dir / "docs" / "DAILY_REPORTS" / "STRICT_GATE_CI_777_PERF.md"
+    assert normalized.is_file(), f"Missing normalized perf report: {normalized}"
+
+    payload = json.loads(json_out.read_text(encoding="utf-8"))
+    assert payload["discovered_perf_files"] == 1
+    assert payload["normalized_perf_files"] == 1
+    assert payload["perf_report_count"] == 1
+    assert payload["metric_report_count"] == 1
+    assert payload["no_metric_report_count"] == 0
+    assert payload["selected_run_ids"] == ["777"]
+    assert payload["downloaded_run_ids"] == ["777"]
+
+
 def test_strict_gate_perf_download_and_trend_with_conclusion_filter(tmp_path: Path) -> None:
     repo_root = _find_repo_root(Path(__file__))
     script = repo_root / "scripts" / "strict_gate_perf_download_and_trend.sh"

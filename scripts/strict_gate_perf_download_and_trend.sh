@@ -367,6 +367,36 @@ if [[ -n "$JSON_OUT" ]]; then
   mkdir -p "$(dirname "$JSON_OUT")"
 fi
 
+# gh run download may place report files either under docs/DAILY_REPORTS/ or
+# directly under the download root depending on artifact layout. Normalize all
+# discovered STRICT_GATE_*_PERF.md files into summary_dir for stable trend/count logic.
+normalize_counts="$(
+  python3 - "$DOWNLOAD_DIR" "$summary_dir" <<'PY'
+from pathlib import Path
+import shutil
+import sys
+
+download_dir = Path(sys.argv[1]).resolve()
+summary_dir = Path(sys.argv[2]).resolve()
+summary_dir.mkdir(parents=True, exist_ok=True)
+
+discovered = 0
+normalized = 0
+for p in sorted(download_dir.rglob("STRICT_GATE_CI_*_PERF.md")):
+    if not p.is_file():
+        continue
+    discovered += 1
+    dst = summary_dir / p.name
+    if p.resolve() == dst.resolve():
+        continue
+    shutil.copy2(p, dst)
+    normalized += 1
+
+print(f"{discovered},{normalized}")
+PY
+)"
+IFS=',' read -r DISCOVERED_PERF_FILES NORMALIZED_PERF_FILES <<< "$normalize_counts"
+
 trend_args=(
   "$trend_script"
   --dir "$summary_dir"
@@ -447,6 +477,7 @@ if [[ -n "$JSON_OUT" ]]; then
     "$(printf '%s,' "${downloaded_run_ids[@]}")" \
     "$(printf '%s,' "${skipped_run_ids[@]}")" \
     "$(printf '%s,' "${run_results[@]}")" \
+    "$DISCOVERED_PERF_FILES" "$NORMALIZED_PERF_FILES" \
     "$PERF_REPORT_COUNT" "$METRIC_REPORT_COUNT" "$NO_METRIC_REPORT_COUNT" \
     "$FAIL_IF_SKIPPED" \
     "$FAIL_IF_NO_RUNS" \
@@ -506,15 +537,17 @@ payload = {
     "downloaded_run_ids": split_csv(sys.argv[19]),
     "skipped_run_ids": split_csv(sys.argv[20]),
     "run_results": parse_run_results(sys.argv[21]),
-    "perf_report_count": int(sys.argv[22]),
-    "metric_report_count": int(sys.argv[23]),
-    "no_metric_report_count": int(sys.argv[24]),
-    "fail_if_skipped": sys.argv[25] == "1",
-    "failed_due_to_skipped": (sys.argv[25] == "1") and (int(sys.argv[13]) > 0),
-    "fail_if_no_runs": sys.argv[26] == "1",
-    "failed_due_to_no_runs": (sys.argv[26] == "1") and (len(split_csv(sys.argv[18])) == 0),
-    "fail_if_no_metrics": sys.argv[27] == "1",
-    "failed_due_to_no_metrics": (sys.argv[27] == "1") and (len(split_csv(sys.argv[18])) > 0) and (int(sys.argv[23]) == 0),
+    "discovered_perf_files": int(sys.argv[22]),
+    "normalized_perf_files": int(sys.argv[23]),
+    "perf_report_count": int(sys.argv[24]),
+    "metric_report_count": int(sys.argv[25]),
+    "no_metric_report_count": int(sys.argv[26]),
+    "fail_if_skipped": sys.argv[27] == "1",
+    "failed_due_to_skipped": (sys.argv[27] == "1") and (int(sys.argv[13]) > 0),
+    "fail_if_no_runs": sys.argv[28] == "1",
+    "failed_due_to_no_runs": (sys.argv[28] == "1") and (len(split_csv(sys.argv[18])) == 0),
+    "fail_if_no_metrics": sys.argv[29] == "1",
+    "failed_due_to_no_metrics": (sys.argv[29] == "1") and (len(split_csv(sys.argv[18])) > 0) and (int(sys.argv[25]) == 0),
 }
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump(payload, f, indent=2)
@@ -526,6 +559,7 @@ echo ""
 echo "Downloaded artifacts: ${downloaded}"
 echo "Skipped downloads: ${skipped}"
 echo "Selected runs: ${#selected_run_ids[@]}"
+echo "Discovered perf files: ${DISCOVERED_PERF_FILES} (normalized copies: ${NORMALIZED_PERF_FILES})"
 echo "Perf reports: ${PERF_REPORT_COUNT} (with metrics: ${METRIC_REPORT_COUNT}, no metrics: ${NO_METRIC_REPORT_COUNT})"
 echo "Summary dir: ${summary_dir}"
 echo "Trend report: ${TREND_OUT}"
