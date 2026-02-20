@@ -17134,3 +17134,21 @@ ALL CHECKS PASSED
     - `skipped_count: 0`
     - `failed_due_to_skipped: false`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22209240423`
+
+- run `22209317987`（`2026-02-20T02:50:50Z`）：
+  - 目的：验证“不显式传 `recent_perf_max_run_age_days` 时，workflow 默认值 `1` 生效”。
+  - 触发参数（未传 `recent_perf_max_run_age_days`）：
+    - `run_perf_smokes=true`
+    - `run_recent_perf_audit=true`
+    - `recent_perf_audit_limit=10`
+    - `recent_perf_fail_if_no_runs=true`
+    - `recent_perf_fail_if_skipped=true`
+    - `recent_perf_fail_if_none_downloaded=true`
+    - `recent_perf_fail_if_no_metrics=false`
+  - 结论：`success`
+  - recent audit JSON 关键值：
+    - `max_run_age_days: 1`
+    - `downloaded_count: 9`
+    - `skipped_count: 0`
+    - `failed_due_to_skipped: false`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22209317987`
