@@ -5,44 +5,58 @@ on:
     inputs:
       run_demo:
         description: "Run demo_plm_closed_loop step (DEMO_SCRIPT=1)"
+        type: boolean
         required: false
-        default: "false"
+        default: false
       run_perf_smokes:
         description: "Run optional perf-smoke steps (release-orch/esign/reports)"
+        type: boolean
         required: false
-        default: "false"
+        default: false
       run_recent_perf_audit:
         description: "Run helper to download recent strict-gate perf artifacts and gate optional conditions"
+        type: boolean
         required: false
-        default: "false"
+        default: false
       recent_perf_audit_limit:
         description: "Recent perf audit run-list limit"
+        type: string
         required: false
         default: "10"
       recent_perf_max_run_age_days:
         description: "Recent perf audit run-list max age in days (run-list mode)"
+        type: string
         required: false
         default: "1"
       recent_perf_conclusion:
         description: "Recent perf audit run-list conclusion filter: any|success|failure"
+        type: choice
+        options:
+          - any
+          - success
+          - failure
         required: false
         default: "any"
       recent_perf_fail_if_no_runs:
         description: "Recent perf audit gate: fail when selected runs == 0"
+        type: boolean
         required: false
-        default: "false"
+        default: false
       recent_perf_fail_if_skipped:
         description: "Recent perf audit gate: fail when skipped downloads > 0"
+        type: boolean
         required: false
-        default: "false"
+        default: false
       recent_perf_fail_if_none_downloaded:
         description: "Recent perf audit gate: fail when downloaded artifacts == 0"
+        type: boolean
         required: false
-        default: "false"
+        default: false
       recent_perf_fail_if_no_metrics:
         description: "Recent perf audit gate: fail when selected runs have zero metrics"
+        type: boolean
         required: false
-        default: "true"
+        default: true
   schedule:
     # Daily 03:00 UTC (core strict gate; no perf-smokes by default)
     - cron: "0 3 * * *"

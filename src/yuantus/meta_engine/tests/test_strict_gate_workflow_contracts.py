@@ -40,9 +40,13 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     assert "recent_perf_fail_if_skipped:" in wf_text
     assert "recent_perf_fail_if_none_downloaded:" in wf_text
     assert "recent_perf_fail_if_no_metrics:" in wf_text
-    assert 'recent_perf_conclusion:\n        description: "Recent perf audit run-list conclusion filter: any|success|failure"\n        required: false\n        default: "any"' in wf_text
-    assert 'recent_perf_fail_if_no_metrics:\n        description: "Recent perf audit gate: fail when selected runs have zero metrics"\n        required: false\n        default: "true"' in wf_text
-    assert 'default: "false"' in wf_text
+    assert "type: boolean" in wf_text
+    assert "type: choice" in wf_text
+    assert "type: string" in wf_text
+    assert "options:" in wf_text
+    assert "\n          - any\n          - success\n          - failure\n" in wf_text
+    assert "run_demo:\n        description:" in wf_text and "\n        type: boolean\n        required: false\n        default: false\n" in wf_text
+    assert "recent_perf_fail_if_no_metrics:\n        description:" in wf_text and "\n        type: boolean\n        required: false\n        default: true\n" in wf_text
 
     # Concurrency contract (must cancel in-progress runs on same ref).
     assert "concurrency:" in wf_text

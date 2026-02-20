@@ -152,6 +152,7 @@ Workflow: `.github/workflows/strict-gate.yml`
     - 每天 `03:00 UTC`（core strict gate，默认不跑 perf-smokes）
     - 每周一 `04:00 UTC`（自动开启 perf-smokes）
 - workflow_dispatch: 手动触发（可选 `run_demo=true`、`run_perf_smokes=true`）
+  - 输入类型已收口：布尔开关为 `boolean`，`recent_perf_conclusion` 为下拉 `choice`（`any|success|failure`）
   - 可选 recent perf audit：`run_recent_perf_audit=true`
   - 可选筛选/门禁输入：
     - `recent_perf_audit_limit=<n>`
