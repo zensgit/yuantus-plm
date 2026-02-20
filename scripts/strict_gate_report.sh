@@ -195,21 +195,21 @@ fi
 
 if [[ "${RUN_RELEASE_ORCH_PERF:-}" == "1" || "${RUN_RELEASE_ORCH_PERF:-}" == "true" || "${RUN_RELEASE_ORCH_PERF:-}" == "yes" ]]; then
   step "verify_release_orchestration_perf_smoke" "$log_release_orch_perf" status_release_orch_perf dur_release_orch_perf_s \
-    env OUT_DIR="${OUT_DIR}/verify-release-orchestration-perf" bash "${REPO_ROOT}/scripts/verify_release_orchestration_perf_smoke.sh"
+    env -u BASE_URL -u PORT OUT_DIR="${OUT_DIR}/verify-release-orchestration-perf" bash "${REPO_ROOT}/scripts/verify_release_orchestration_perf_smoke.sh"
 else
   echo "==> verify_release_orchestration_perf_smoke: SKIP (RUN_RELEASE_ORCH_PERF not set)"
 fi
 
 if [[ "${RUN_ESIGN_PERF:-}" == "1" || "${RUN_ESIGN_PERF:-}" == "true" || "${RUN_ESIGN_PERF:-}" == "yes" ]]; then
   step "verify_esign_perf_smoke" "$log_esign_perf" status_esign_perf dur_esign_perf_s \
-    env OUT_DIR="${OUT_DIR}/verify-esign-perf" bash "${REPO_ROOT}/scripts/verify_esign_perf_smoke.sh"
+    env -u BASE_URL -u PORT OUT_DIR="${OUT_DIR}/verify-esign-perf" bash "${REPO_ROOT}/scripts/verify_esign_perf_smoke.sh"
 else
   echo "==> verify_esign_perf_smoke: SKIP (RUN_ESIGN_PERF not set)"
 fi
 
 if [[ "${RUN_REPORTS_PERF:-}" == "1" || "${RUN_REPORTS_PERF:-}" == "true" || "${RUN_REPORTS_PERF:-}" == "yes" ]]; then
   step "verify_reports_perf_smoke" "$log_reports_perf" status_reports_perf dur_reports_perf_s \
-    env OUT_DIR="${OUT_DIR}/verify-reports-perf" bash "${REPO_ROOT}/scripts/verify_reports_perf_smoke.sh"
+    env -u BASE_URL -u PORT OUT_DIR="${OUT_DIR}/verify-reports-perf" bash "${REPO_ROOT}/scripts/verify_reports_perf_smoke.sh"
 else
   echo "==> verify_reports_perf_smoke: SKIP (RUN_REPORTS_PERF not set)"
 fi
