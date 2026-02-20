@@ -50,6 +50,10 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     assert "cancel-in-progress: true" in wf_text
 
     # Evidence output wiring (report path + logs dir + artifacts).
+    assert "name: Validate recent perf audit inputs" in wf_text
+    assert "recent_perf_conclusion must be one of any|success|failure" in wf_text
+    assert "recent_perf_audit_limit must be a positive integer" in wf_text
+    assert "recent_perf_max_run_age_days must be a non-negative integer" in wf_text
     assert "bash scripts/strict_gate_report.sh" in wf_text
     assert "python3 scripts/strict_gate_perf_summary.py" in wf_text
     assert "python3 scripts/strict_gate_perf_trend.py" in wf_text

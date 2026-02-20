@@ -88,6 +88,34 @@ jobs:
       - name: Install Node deps
         run: npm ci
 
+      - name: Validate recent perf audit inputs
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.run_recent_perf_audit == 'true'
+        run: |
+          set -euo pipefail
+          conclusion="${{ github.event.inputs.recent_perf_conclusion }}"
+          limit="${{ github.event.inputs.recent_perf_audit_limit }}"
+          max_age="${{ github.event.inputs.recent_perf_max_run_age_days }}"
+
+          case "$conclusion" in
+            any|success|failure) ;;
+            *)
+              echo "ERROR: recent_perf_conclusion must be one of any|success|failure (got: $conclusion)" >&2
+              exit 2
+              ;;
+          esac
+
+          if ! [[ "$limit" =~ ^[0-9]+$ ]] || [[ "$limit" -lt 1 ]]; then
+            echo "ERROR: recent_perf_audit_limit must be a positive integer (got: $limit)" >&2
+            exit 2
+          fi
+
+          if ! [[ "$max_age" =~ ^[0-9]+$ ]]; then
+            echo "ERROR: recent_perf_max_run_age_days must be a non-negative integer (got: $max_age)" >&2
+            exit 2
+          fi
+
+          echo "recent perf audit inputs validated: conclusion=${conclusion} limit=${limit} max_age_days=${max_age}"
+
       - name: Run strict gate report
         env:
           RUN_ID: STRICT_GATE_CI_${{ github.run_id }}
