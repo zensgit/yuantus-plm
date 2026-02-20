@@ -17185,3 +17185,25 @@ ALL CHECKS PASSED
     - `normalized_perf_files: 1`
     - `perf_report_count: 1`
     - `metric_report_count: 1`
+
+### 远端回归（通过）
+
+- run `22209454502`（`2026-02-20T02:57:40Z`）：
+  - 触发参数：
+    - `run_perf_smokes=true`
+    - `run_recent_perf_audit=true`
+    - `recent_perf_audit_limit=10`
+    - `recent_perf_fail_if_no_runs=true`
+    - `recent_perf_fail_if_skipped=true`
+    - `recent_perf_fail_if_none_downloaded=true`
+    - `recent_perf_fail_if_no_metrics=false`
+  - 结论：`success`
+  - recent audit JSON 关键值（修复后）：
+    - `downloaded_count: 10`
+    - `skipped_count: 0`
+    - `discovered_perf_files: 10`
+    - `normalized_perf_files: 10`
+    - `perf_report_count: 10`
+    - `metric_report_count: 3`
+    - `no_metric_report_count: 7`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22209454502`
