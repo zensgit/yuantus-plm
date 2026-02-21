@@ -17719,6 +17719,55 @@ ALL CHECKS PASSED
     - `strict-gate-logs`
     - `strict-gate-recent-perf-audit`
 
+## Run STRICT-GATE-RECENT-PERF-REGRESSION-WORKFLOW-RETRY-CONTROLS-20260221
+
+- 时间：`2026-02-21`（GitHub Actions + 本机）
+- 目标：为 `strict-gate-recent-perf-regression` workflow 增加重试/退避控制，降低瞬时失败造成的误报。
+
+### 变更
+
+- commit `27c748b`：
+  - `.github/workflows/strict-gate-recent-perf-regression.yml`
+    - 新增 dispatch 输入：
+      - `regression_attempts`（默认 `2`，限制 `1..3`）
+      - `regression_retry_delay_sec`（默认 `15`，非负整数）
+    - `Run strict-gate recent perf audit regression` 步骤新增循环重试：
+      - 每次尝试输出到 `attempt-<n>/`
+      - 成功时复制 `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md/json` 到根目录
+      - 全部失败则显式报错退出
+  - 更新：
+    - `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py`
+    - `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`
+    - `docs/RUNBOOK_STRICT_GATE.md`
+
+### 本地验证
+
+- 命令：
+  - `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
+- 结果：`18 passed`
+
+### 远端验证
+
+- workflow run `22257919949`（`main@27c748b`）：
+  - 触发参数：`regression_attempts=2`, `regression_retry_delay_sec=3`
+  - 结果：`success`
+  - 关键步骤：
+    - `Run strict-gate recent perf audit regression`: `success`
+    - `Upload strict-gate recent perf regression evidence`: `success`
+    - `Upload strict-gate recent perf regression raw outputs`: `success`
+  - artifact：
+    - `strict-gate-recent-perf-regression`
+    - `strict-gate-recent-perf-regression-raw`
+  - 日志关键线：
+    - `==> strict-gate recent perf regression attempt 1/2`
+    - `summary_json=.../attempt-1/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+  - 证据 JSON（下载 artifact）关键值：
+    - `invalid_case.run_id: 22257921114`
+    - `invalid_case.artifact_count: 0`
+    - `valid_case.run_id: 22257931736`
+    - `valid_case.artifacts` 包含五项（report/perf-summary/perf-trend/logs/recent-perf-audit）
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22257919949`
+
 ## Run STRICT-GATE-RECENT-PERF-SCRIPT-BEHAVIOR-CONTRACTS-20260221
 
 - 时间：`2026-02-21`（本机）

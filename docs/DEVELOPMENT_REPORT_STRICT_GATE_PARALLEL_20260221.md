@@ -96,6 +96,20 @@ Detailed verification evidence is recorded in:
   - First workflow run `22256989310` failed at script step due missing `rg`.
   - After fix commit, workflow run `22257019598` succeeded end-to-end and uploaded both expected artifacts.
 
+## Regression Workflow Retry Controls
+
+- Added retry/backoff controls to `.github/workflows/strict-gate-recent-perf-regression.yml`:
+  - `regression_attempts` (default `2`, range `1..3`)
+  - `regression_retry_delay_sec` (default `15`, non-negative integer)
+- Execution model:
+  - workflow runs script under `attempt-<n>/` directories
+  - on success, MD/JSON are copied to root output directory for stable artifact paths
+  - on repeated failures, job fails with explicit attempts message
+
+- Validation:
+  - workflow run `22257919949` succeeded with retry controls enabled
+  - run log confirms attempt execution and summary outputs under `attempt-1`
+
 ## Script Behavior Test Depth Upgrade
 
 - Added behavior-level fake-gh test:
