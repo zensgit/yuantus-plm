@@ -95,6 +95,16 @@ jobs:
             exit 2
           fi
 
+          mkdir -p "${OUTPUT_ROOT}"
+          {
+            echo "run_id=${{ github.run_id }}"
+            echo "target_ref=${TARGET_REF}"
+            echo "attempts=${attempts}"
+            echo "retry_delay_sec=${retry_delay_sec}"
+            echo "poll_interval_sec=${poll_interval}"
+            echo "max_wait_sec=${max_wait}"
+          } > "${OUTPUT_ROOT}/REGRESSION_RUN_CONTEXT.txt"
+
           success=0
           for attempt in $(seq 1 "${attempts}"); do
             attempt_dir="${OUTPUT_ROOT}/attempt-${attempt}"
@@ -108,8 +118,19 @@ jobs:
               --max-wait-sec "${max_wait}" \
               --out-dir "${attempt_dir}" \
               --summary-json "${attempt_dir}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json"; then
+              attempt_rc=0
+            else
+              attempt_rc=$?
+            fi
+
+            if [[ -f "${attempt_dir}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md" ]]; then
               cp -f "${attempt_dir}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md" "${OUTPUT_ROOT}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md"
+            fi
+            if [[ -f "${attempt_dir}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json" ]]; then
               cp -f "${attempt_dir}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json" "${OUTPUT_ROOT}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json"
+            fi
+
+            if [[ "${attempt_rc}" -eq 0 ]]; then
               success=1
               break
             fi

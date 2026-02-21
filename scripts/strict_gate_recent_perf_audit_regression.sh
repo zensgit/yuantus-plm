@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run two strict-gate workflow_dispatch checks and assert recent perf audit gating behavior.
-set -euo pipefail
+set -Eeuo pipefail
 
 usage() {
   cat <<'USAGE'
@@ -16,6 +16,8 @@ Options:
   --success-limit <n>               Valid case recent_perf_audit_limit value (default: 10)
   --success-max-run-age-days <n>    Valid case recent_perf_max_run_age_days value (default: 1)
   --success-conclusion <value>      Valid case recent_perf_conclusion (default: success)
+  --success-fail-if-no-metrics <bool>
+                                    Valid case recent_perf_fail_if_no_metrics (default: false)
   --summary-json <path>             Optional JSON summary output path
                                     (default: <out-dir>/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json)
   --out-dir <path>                  Output directory for downloaded evidence
@@ -47,6 +49,7 @@ MAX_WAIT_SEC=1800
 SUCCESS_LIMIT=10
 SUCCESS_MAX_RUN_AGE_DAYS=1
 SUCCESS_CONCLUSION="success"
+SUCCESS_FAIL_IF_NO_METRICS="false"
 OUT_DIR="${REPO_ROOT}/tmp/strict-gate-artifacts/recent-perf-regression/$(date +%Y%m%d-%H%M%S)"
 SUMMARY_JSON=""
 
@@ -82,6 +85,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --success-conclusion)
       SUCCESS_CONCLUSION="${2:-}"
+      shift 2
+      ;;
+    --success-fail-if-no-metrics)
+      SUCCESS_FAIL_IF_NO_METRICS="${2:-}"
       shift 2
       ;;
     --summary-json)
@@ -124,6 +131,10 @@ if [[ "$SUCCESS_CONCLUSION" != "any" && "$SUCCESS_CONCLUSION" != "success" && "$
   echo "ERROR: --success-conclusion must be one of any|success|failure (got: $SUCCESS_CONCLUSION)" >&2
   exit 2
 fi
+if [[ "$SUCCESS_FAIL_IF_NO_METRICS" != "true" && "$SUCCESS_FAIL_IF_NO_METRICS" != "false" ]]; then
+  echo "ERROR: --success-fail-if-no-metrics must be true|false (got: $SUCCESS_FAIL_IF_NO_METRICS)" >&2
+  exit 2
+fi
 if [[ -z "$OUT_DIR" ]]; then
   echo "ERROR: --out-dir must not be empty." >&2
   exit 2
@@ -164,13 +175,38 @@ log() {
   printf '[strict-gate-recent-perf-regression] %s\n' "$*"
 }
 
+RUN_RESULT="in_progress"
+FAILURE_REASON=""
+invalid_run_id=""
+invalid_conclusion=""
+invalid_validate=""
+invalid_optional=""
+invalid_upload=""
+invalid_url=""
+invalid_artifact_count="0"
+valid_run_id=""
+valid_conclusion=""
+valid_validate=""
+valid_optional=""
+valid_upload=""
+valid_url=""
+valid_artifact_names=""
+json_file=""
+summary_md="${OUT_DIR}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md"
+
+set_failure() {
+  local message="$1"
+  FAILURE_REASON="$message"
+  echo "ERROR: ${message}" >&2
+}
+
 assert_equals() {
   local actual="$1"
   local expected="$2"
   local label="$3"
   if [[ "$actual" != "$expected" ]]; then
-    echo "ERROR: ${label} expected '${expected}' but got '${actual}'" >&2
-    exit 1
+    set_failure "${label} expected '${expected}' but got '${actual}'"
+    return 1
   fi
 }
 
@@ -179,9 +215,136 @@ assert_contains() {
   local needle="$2"
   local label="$3"
   if ! grep -qx "$needle" <<<"$haystack"; then
-    echo "ERROR: ${label} missing expected entry: ${needle}" >&2
-    exit 1
+    set_failure "${label} missing expected entry: ${needle}"
+    return 1
   fi
+}
+
+write_summary() {
+  mkdir -p "$OUT_DIR"
+  mkdir -p "$(dirname "$SUMMARY_JSON")"
+
+  local artifacts_md
+  artifacts_md="$(printf '%s\n' "$valid_artifact_names" | sed '/^$/d' | sed 's/^/- /')"
+  if [[ -z "$artifacts_md" ]]; then
+    artifacts_md="- (none)"
+  fi
+
+  cat > "$summary_md" <<SUMMARY
+# Strict Gate Recent Perf Audit Regression
+
+- workflow: ${WORKFLOW}
+- ref: ${REF}
+- head_sha: ${HEAD_SHA}
+- result: ${RUN_RESULT}
+- failure_reason: ${FAILURE_REASON:-none}
+
+## Invalid Input Case (expected failure)
+
+- run_id: ${invalid_run_id}
+- url: ${invalid_url}
+- run conclusion: ${invalid_conclusion}
+- Validate recent perf audit inputs: ${invalid_validate}
+- Optional recent perf audit (download + trend): ${invalid_optional}
+- Upload strict gate recent perf audit: ${invalid_upload}
+- artifact_count: ${invalid_artifact_count}
+
+## Valid Input Case (expected success)
+
+- run_id: ${valid_run_id}
+- url: ${valid_url}
+- run conclusion: ${valid_conclusion}
+- Validate recent perf audit inputs: ${valid_validate}
+- Optional recent perf audit (download + trend): ${valid_optional}
+- Upload strict gate recent perf audit: ${valid_upload}
+- requested recent_perf_fail_if_no_metrics: ${SUCCESS_FAIL_IF_NO_METRICS}
+- artifacts:
+${artifacts_md}
+- recent audit json: ${json_file}
+SUMMARY
+
+  WORKFLOW_VALUE="$WORKFLOW" \
+  REF_VALUE="$REF" \
+  HEAD_SHA_VALUE="$HEAD_SHA" \
+  REPO_VALUE="$REPO_NAME_WITH_OWNER" \
+  RUN_RESULT_VALUE="$RUN_RESULT" \
+  FAILURE_REASON_VALUE="$FAILURE_REASON" \
+  INVALID_RUN_ID_VALUE="$invalid_run_id" \
+  INVALID_URL_VALUE="$invalid_url" \
+  INVALID_CONCLUSION_VALUE="$invalid_conclusion" \
+  INVALID_VALIDATE_VALUE="$invalid_validate" \
+  INVALID_OPTIONAL_VALUE="$invalid_optional" \
+  INVALID_UPLOAD_VALUE="$invalid_upload" \
+  INVALID_ARTIFACT_COUNT_VALUE="$invalid_artifact_count" \
+  VALID_RUN_ID_VALUE="$valid_run_id" \
+  VALID_URL_VALUE="$valid_url" \
+  VALID_CONCLUSION_VALUE="$valid_conclusion" \
+  VALID_VALIDATE_VALUE="$valid_validate" \
+  VALID_OPTIONAL_VALUE="$valid_optional" \
+  VALID_UPLOAD_VALUE="$valid_upload" \
+  VALID_ARTIFACT_NAMES_VALUE="$valid_artifact_names" \
+  VALID_JSON_PATH_VALUE="$json_file" \
+  SUMMARY_MD_VALUE="$summary_md" \
+  SUCCESS_FAIL_IF_NO_METRICS_VALUE="$SUCCESS_FAIL_IF_NO_METRICS" \
+  SUMMARY_JSON_VALUE="$SUMMARY_JSON" \
+  python3 - <<'PY'
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+payload = {
+    "workflow": os.environ["WORKFLOW_VALUE"],
+    "ref": os.environ["REF_VALUE"],
+    "head_sha": os.environ["HEAD_SHA_VALUE"],
+    "repo": os.environ["REPO_VALUE"],
+    "result": os.environ["RUN_RESULT_VALUE"],
+    "failure_reason": os.environ["FAILURE_REASON_VALUE"],
+    "invalid_case": {
+        "run_id": os.environ["INVALID_RUN_ID_VALUE"],
+        "url": os.environ["INVALID_URL_VALUE"],
+        "conclusion": os.environ["INVALID_CONCLUSION_VALUE"],
+        "validate_recent_perf_audit_inputs": os.environ["INVALID_VALIDATE_VALUE"],
+        "optional_recent_perf_audit": os.environ["INVALID_OPTIONAL_VALUE"],
+        "upload_recent_perf_audit": os.environ["INVALID_UPLOAD_VALUE"],
+        "artifact_count": int(os.environ["INVALID_ARTIFACT_COUNT_VALUE"] or 0),
+    },
+    "valid_case": {
+        "run_id": os.environ["VALID_RUN_ID_VALUE"],
+        "url": os.environ["VALID_URL_VALUE"],
+        "conclusion": os.environ["VALID_CONCLUSION_VALUE"],
+        "validate_recent_perf_audit_inputs": os.environ["VALID_VALIDATE_VALUE"],
+        "optional_recent_perf_audit": os.environ["VALID_OPTIONAL_VALUE"],
+        "upload_recent_perf_audit": os.environ["VALID_UPLOAD_VALUE"],
+        "requested_fail_if_no_metrics": os.environ["SUCCESS_FAIL_IF_NO_METRICS_VALUE"] == "true",
+        "artifacts": [
+            line for line in os.environ["VALID_ARTIFACT_NAMES_VALUE"].splitlines() if line.strip()
+        ],
+        "recent_audit_json_path": os.environ["VALID_JSON_PATH_VALUE"],
+    },
+    "summary_markdown": os.environ["SUMMARY_MD_VALUE"],
+}
+
+out = Path(os.environ["SUMMARY_JSON_VALUE"])
+out.write_text(json.dumps(payload, ensure_ascii=True, indent=2) + "\n", encoding="utf-8")
+print(f"summary_json={out}")
+PY
+}
+
+on_error() {
+  local exit_code="$?"
+  local line="$1"
+  local command="$2"
+  trap - ERR
+  if [[ -z "$FAILURE_REASON" ]]; then
+    FAILURE_REASON="command failed at line ${line}: ${command} (exit ${exit_code})"
+  fi
+  RUN_RESULT="failure"
+  write_summary || true
+  log "summary_md=${summary_md}"
+  log "summary_json=${SUMMARY_JSON}"
+  exit "$exit_code"
 }
 
 capture_known_ids() {
@@ -231,8 +394,8 @@ wait_for_completion() {
       break
     fi
     if [[ "$elapsed" -ge "$MAX_WAIT_SEC" ]]; then
-      echo "ERROR: timeout waiting run completion: $run_id" >&2
-      exit 1
+      set_failure "timeout waiting run completion: $run_id"
+      return 1
     fi
     sleep "$POLL_INTERVAL_SEC"
     elapsed=$((elapsed + POLL_INTERVAL_SEC))
@@ -278,8 +441,8 @@ trigger_dispatch_and_resolve_run() {
 
   local run_id
   run_id="$(find_new_run_id "$known_ids_text")" || {
-    echo "ERROR: failed to discover newly triggered workflow_dispatch run." >&2
-    exit 1
+    set_failure "failed to discover newly triggered workflow_dispatch run."
+    return 1
   }
   echo "$run_id"
 }
@@ -291,6 +454,7 @@ get_artifact_names() {
 }
 
 mkdir -p "$OUT_DIR"
+trap 'on_error "$LINENO" "$BASH_COMMAND"' ERR
 log "repo_root=${REPO_ROOT}"
 log "workflow=${WORKFLOW} ref=${REF} head_sha=${HEAD_SHA}"
 log "out_dir=${OUT_DIR}"
@@ -318,13 +482,13 @@ assert_equals "$invalid_upload" "skipped" "invalid case recent audit upload step
 
 if command -v rg >/dev/null 2>&1; then
   if ! "${GH_BASE[@]}" run view "$invalid_run_id" --log-failed | rg -q "ERROR: recent_perf_audit_limit must be <= 100"; then
-    echo "ERROR: invalid case missing expected limit validation error in failed logs" >&2
-    exit 1
+    set_failure "invalid case missing expected limit validation error in failed logs"
+    false
   fi
 else
   if ! "${GH_BASE[@]}" run view "$invalid_run_id" --log-failed | grep -q "ERROR: recent_perf_audit_limit must be <= 100"; then
-    echo "ERROR: invalid case missing expected limit validation error in failed logs" >&2
-    exit 1
+    set_failure "invalid case missing expected limit validation error in failed logs"
+    false
   fi
 fi
 
@@ -340,7 +504,7 @@ valid_run_id="$(trigger_dispatch_and_resolve_run "$valid_known_ids" \
   -f recent_perf_audit_limit="${SUCCESS_LIMIT}" \
   -f recent_perf_max_run_age_days="${SUCCESS_MAX_RUN_AGE_DAYS}" \
   -f recent_perf_conclusion="${SUCCESS_CONCLUSION}" \
-  -f recent_perf_fail_if_no_metrics=true)"
+  -f recent_perf_fail_if_no_metrics="${SUCCESS_FAIL_IF_NO_METRICS}")"
 log "case=valid_inputs run_id=${valid_run_id}"
 
 wait_for_completion "$valid_run_id"
@@ -372,11 +536,11 @@ mkdir -p "$valid_artifact_dir"
 
 json_file="$(find "$valid_artifact_dir" -type f -name strict_gate_perf_download.json | head -n 1)"
 if [[ -z "$json_file" ]]; then
-  echo "ERROR: strict_gate_perf_download.json not found under ${valid_artifact_dir}" >&2
-  exit 1
+  set_failure "strict_gate_perf_download.json not found under ${valid_artifact_dir}"
+  false
 fi
 
-python3 - "$json_file" "$SUCCESS_CONCLUSION" "$SUCCESS_MAX_RUN_AGE_DAYS" <<'PY'
+python3 - "$json_file" "$SUCCESS_CONCLUSION" "$SUCCESS_MAX_RUN_AGE_DAYS" "$SUCCESS_FAIL_IF_NO_METRICS" <<'PY'
 from __future__ import annotations
 
 import json
@@ -386,6 +550,7 @@ from pathlib import Path
 json_path = Path(sys.argv[1])
 expected_conclusion = sys.argv[2]
 expected_max_age = int(sys.argv[3])
+expected_fail_if_no_metrics = sys.argv[4].strip().lower() == "true"
 
 payload = json.loads(json_path.read_text(encoding="utf-8"))
 if payload.get("conclusion") != expected_conclusion:
@@ -396,82 +561,18 @@ if payload.get("max_run_age_days") != expected_max_age:
     raise SystemExit(
         f"ERROR: json max_run_age_days expected {expected_max_age}, got {payload.get('max_run_age_days')}"
     )
-if payload.get("fail_if_no_metrics") is not True:
-    raise SystemExit("ERROR: json fail_if_no_metrics expected true")
+if payload.get("fail_if_no_metrics") is not expected_fail_if_no_metrics:
+    raise SystemExit(
+        f"ERROR: json fail_if_no_metrics expected {expected_fail_if_no_metrics}, "
+        f"got {payload.get('fail_if_no_metrics')}"
+    )
 if int(payload.get("downloaded_count", 0)) <= 0:
     raise SystemExit("ERROR: json downloaded_count expected > 0")
 print("json_assertions=ok")
 PY
 
-summary_md="${OUT_DIR}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md"
-cat > "$summary_md" <<SUMMARY
-# Strict Gate Recent Perf Audit Regression
-
-- workflow: ${WORKFLOW}
-- ref: ${REF}
-- head_sha: ${HEAD_SHA}
-
-## Invalid Input Case (expected failure)
-
-- run_id: ${invalid_run_id}
-- url: ${invalid_url}
-- run conclusion: ${invalid_conclusion}
-- Validate recent perf audit inputs: ${invalid_validate}
-- Optional recent perf audit (download + trend): ${invalid_optional}
-- Upload strict gate recent perf audit: ${invalid_upload}
-- artifact_count: ${invalid_artifact_count}
-
-## Valid Input Case (expected success)
-
-- run_id: ${valid_run_id}
-- url: ${valid_url}
-- run conclusion: ${valid_conclusion}
-- Validate recent perf audit inputs: ${valid_validate}
-- Optional recent perf audit (download + trend): ${valid_optional}
-- Upload strict gate recent perf audit: ${valid_upload}
-- artifacts:
-$(printf '%s\n' "$valid_artifact_names" | sed '/^$/d' | sed 's/^/- /')
-- recent audit json: ${json_file}
-SUMMARY
-
-mkdir -p "$(dirname "$SUMMARY_JSON")"
-python3 - "$SUMMARY_JSON" <<PY
-from __future__ import annotations
-
-import json
-from pathlib import Path
-
-payload = {
-    "workflow": "${WORKFLOW}",
-    "ref": "${REF}",
-    "head_sha": "${HEAD_SHA}",
-    "repo": "${REPO_NAME_WITH_OWNER}",
-    "invalid_case": {
-        "run_id": "${invalid_run_id}",
-        "url": "${invalid_url}",
-        "conclusion": "${invalid_conclusion}",
-        "validate_recent_perf_audit_inputs": "${invalid_validate}",
-        "optional_recent_perf_audit": "${invalid_optional}",
-        "upload_recent_perf_audit": "${invalid_upload}",
-        "artifact_count": int("${invalid_artifact_count}"),
-    },
-    "valid_case": {
-        "run_id": "${valid_run_id}",
-        "url": "${valid_url}",
-        "conclusion": "${valid_conclusion}",
-        "validate_recent_perf_audit_inputs": "${valid_validate}",
-        "optional_recent_perf_audit": "${valid_optional}",
-        "upload_recent_perf_audit": "${valid_upload}",
-        "artifacts": [line for line in """${valid_artifact_names}""".splitlines() if line.strip()],
-        "recent_audit_json_path": "${json_file}",
-    },
-    "summary_markdown": "${summary_md}",
-}
-
-out = Path("${SUMMARY_JSON}")
-out.write_text(json.dumps(payload, ensure_ascii=True, indent=2) + "\\n", encoding="utf-8")
-print(f"summary_json={out}")
-PY
+RUN_RESULT="success"
+write_summary
 
 log "summary_md=${summary_md}"
 log "summary_json=${SUMMARY_JSON}"

@@ -34,6 +34,7 @@ def test_recent_perf_audit_regression_script_contracts() -> None:
         "--success-limit",
         "--success-max-run-age-days",
         "--success-conclusion",
+        "--success-fail-if-no-metrics",
         "--summary-json",
         "--out-dir",
     ):
@@ -51,8 +52,11 @@ def test_recent_perf_audit_regression_script_contracts() -> None:
         "assert_equals \"$valid_conclusion\" \"success\"",
         "assert_equals \"$valid_optional\" \"success\"",
         "assert_equals \"$valid_upload\" \"success\"",
+        "recent_perf_fail_if_no_metrics=\"${SUCCESS_FAIL_IF_NO_METRICS}\"",
         "command -v rg",
         "grep -q \"ERROR: recent_perf_audit_limit must be <= 100\"",
+        "set_failure",
+        "trap 'on_error \"$LINENO\" \"$BASH_COMMAND\"' ERR",
     ):
         assert token in text, f"regression script missing behavior token: {token}"
 
@@ -74,6 +78,9 @@ def test_recent_perf_audit_regression_script_contracts() -> None:
     for token in (
         "STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md",
         "STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json",
+        "\"result\": os.environ[\"RUN_RESULT_VALUE\"]",
+        "\"failure_reason\": os.environ[\"FAILURE_REASON_VALUE\"]",
+        "requested recent_perf_fail_if_no_metrics",
         "summary_md=",
         "summary_json=",
     ):
