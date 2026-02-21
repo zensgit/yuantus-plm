@@ -95,3 +95,16 @@ Detailed verification evidence is recorded in:
 - Verification:
   - First workflow run `22256989310` failed at script step due missing `rg`.
   - After fix commit, workflow run `22257019598` succeeded end-to-end and uploaded both expected artifacts.
+
+## Script Behavior Test Depth Upgrade
+
+- Added behavior-level fake-gh test:
+  - `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py`
+  - The test executes `scripts/strict_gate_recent_perf_audit_regression.sh` end-to-end with a deterministic fake `gh` binary and validates:
+    - invalid/valid run detection flow
+    - fallback path when `rg` is unavailable
+    - artifact assertions (`invalid=0`, `valid=5`)
+    - MD/JSON summary outputs
+
+- CI contracts integration:
+  - Added test path into `.github/workflows/ci.yml` contracts step.

@@ -17718,3 +17718,31 @@ ALL CHECKS PASSED
     - `strict-gate-perf-trend`
     - `strict-gate-logs`
     - `strict-gate-recent-perf-audit`
+
+## Run STRICT-GATE-RECENT-PERF-SCRIPT-BEHAVIOR-CONTRACTS-20260221
+
+- 时间：`2026-02-21`（本机）
+- 目标：将 recent perf regression 脚本的测试从“字符串合同”提升为“可执行行为合同”（fake-gh 端到端）。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py`
+  - 关键覆盖：
+    - fake `gh` 驱动脚本完整流程（invalid + valid）
+    - `PATH` 去除 `rg`，验证脚本 `grep` 回退路径
+    - 验证 JSON/Markdown summary 落盘
+    - 验证 artifact 断言逻辑（invalid=0, valid=5）
+- 更新：
+  - `.github/workflows/ci.yml` contracts step 增加上述测试
+  - `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py` 增补 `get_artifact_names` 合同 token
+
+### 本地验证
+
+- 命令：
+  - `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py`
+- 结果：`13 passed`
+
+- 文档索引回归：
+  - `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
+- 结果：`5 passed`

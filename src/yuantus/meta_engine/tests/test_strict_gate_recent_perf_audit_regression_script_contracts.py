@@ -60,6 +60,7 @@ def test_recent_perf_audit_regression_script_contracts() -> None:
     for token in (
         "invalid_artifact_count",
         "assert_equals \"$invalid_artifact_count\" \"0\"",
+        "get_artifact_names",
         "strict-gate-report",
         "strict-gate-perf-summary",
         "strict-gate-perf-trend",
