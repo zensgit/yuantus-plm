@@ -51,6 +51,8 @@ def test_recent_perf_audit_regression_script_contracts() -> None:
         "assert_equals \"$valid_conclusion\" \"success\"",
         "assert_equals \"$valid_optional\" \"success\"",
         "assert_equals \"$valid_upload\" \"success\"",
+        "command -v rg",
+        "grep -q \"ERROR: recent_perf_audit_limit must be <= 100\"",
     ):
         assert token in text, f"regression script missing behavior token: {token}"
 

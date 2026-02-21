@@ -316,9 +316,16 @@ assert_equals "$invalid_validate" "failure" "invalid case validate step"
 assert_equals "$invalid_optional" "skipped" "invalid case optional audit step"
 assert_equals "$invalid_upload" "skipped" "invalid case recent audit upload step"
 
-if ! "${GH_BASE[@]}" run view "$invalid_run_id" --log-failed | rg -q "ERROR: recent_perf_audit_limit must be <= 100"; then
-  echo "ERROR: invalid case missing expected limit validation error in failed logs" >&2
-  exit 1
+if command -v rg >/dev/null 2>&1; then
+  if ! "${GH_BASE[@]}" run view "$invalid_run_id" --log-failed | rg -q "ERROR: recent_perf_audit_limit must be <= 100"; then
+    echo "ERROR: invalid case missing expected limit validation error in failed logs" >&2
+    exit 1
+  fi
+else
+  if ! "${GH_BASE[@]}" run view "$invalid_run_id" --log-failed | grep -q "ERROR: recent_perf_audit_limit must be <= 100"; then
+    echo "ERROR: invalid case missing expected limit validation error in failed logs" >&2
+    exit 1
+  fi
 fi
 
 invalid_url="$(get_run_url "$invalid_run_id")"
