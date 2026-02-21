@@ -17641,3 +17641,80 @@ ALL CHECKS PASSED
     - `fail_if_no_metrics: true`
     - `failed_due_to_no_metrics: false`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22256807700`
+
+## Run STRICT-GATE-RECENT-PERF-REGRESSION-WORKFLOW-20260221
+
+- 时间：`2026-02-21`（GitHub Actions + 本机）
+- 目标：新增独立 workflow 自动执行 recent perf regression 脚本，并产出标准化 MD/JSON 证据 artifact。
+
+### 变更
+
+- commit `c0a944d`：
+  - 新增 workflow：`.github/workflows/strict-gate-recent-perf-regression.yml`
+    - `workflow_dispatch` 输入：`ref/poll_interval_sec/max_wait_sec`
+    - schedule：每周二 `05:00 UTC`
+    - 权限：`actions: write`、`contents: read`
+    - 调用脚本：`scripts/strict_gate_recent_perf_audit_regression.sh`
+    - 上传 artifacts：
+      - `strict-gate-recent-perf-regression`
+      - `strict-gate-recent-perf-regression-raw`
+  - 新增测试：`src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py`
+  - 更新：
+    - `src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py`
+    - `.github/workflows/ci.yml` contracts 测试列表
+    - `docs/RUNBOOK_STRICT_GATE.md`
+
+- commit `3a06e18`：
+  - 修复 runner 兼容性：
+    - `scripts/strict_gate_recent_perf_audit_regression.sh` 增加 `rg` 不可用时的 `grep` 回退
+  - 更新合同：
+    - `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py`
+
+### 本地验证
+
+- 在 `c0a944d` 阶段：
+  - 结果：`17 passed`
+- 在 `3a06e18` 修复阶段（聚焦回归）：
+  - 结果：`11 passed`
+
+### 远端验证
+
+- 首次运行（暴露问题）：
+  - workflow run `22256989310`（`main@c0a944d`）结论：`failure`
+  - 失败点：`Run strict-gate recent perf audit regression`
+  - 根因：runner 环境缺少 `rg`（日志：`rg: command not found`）
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22256989310`
+
+- 修复后重跑（通过）：
+  - workflow run `22257019598`（`main@3a06e18`）结论：`success`
+  - 关键步骤：
+    - `Resolve target ref`: `success`
+    - `Run strict-gate recent perf audit regression`: `success`
+    - `Write regression summary to job summary`: `success`
+    - `Upload strict-gate recent perf regression evidence`: `success`
+    - `Upload strict-gate recent perf regression raw outputs`: `success`
+  - 产物：
+    - `strict-gate-recent-perf-regression`
+    - `strict-gate-recent-perf-regression-raw`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22257019598`
+
+### Workflow 内部脚本证据（来自 run `22257019598` artifact JSON）
+
+- `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json` 关键字段：
+  - `invalid_case.run_id: 22257021451`
+  - `invalid_case.conclusion: failure`
+  - `invalid_case.validate_recent_perf_audit_inputs: failure`
+  - `invalid_case.optional_recent_perf_audit: skipped`
+  - `invalid_case.upload_recent_perf_audit: skipped`
+  - `invalid_case.artifact_count: 0`
+  - `valid_case.run_id: 22257031443`
+  - `valid_case.conclusion: success`
+  - `valid_case.validate_recent_perf_audit_inputs: success`
+  - `valid_case.optional_recent_perf_audit: success`
+  - `valid_case.upload_recent_perf_audit: success`
+  - `valid_case.artifacts` 包含：
+    - `strict-gate-report`
+    - `strict-gate-perf-summary`
+    - `strict-gate-perf-trend`
+    - `strict-gate-logs`
+    - `strict-gate-recent-perf-audit`

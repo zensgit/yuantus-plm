@@ -70,3 +70,28 @@ Detailed verification evidence is recorded in:
   - valid case run `22256807700`: success + full artifact set
   - output directory:
     - `tmp/strict-gate-artifacts/recent-perf-regression/20260221-202649/`
+
+## New Workflow Automation
+
+- Added workflow: `.github/workflows/strict-gate-recent-perf-regression.yml`
+  - Triggers:
+    - `workflow_dispatch` (`ref/poll_interval_sec/max_wait_sec`)
+    - weekly schedule `Tue 05:00 UTC`
+  - Permissions:
+    - `actions: write` (required to dispatch strict-gate runs)
+    - `contents: read`
+  - Artifacts:
+    - `strict-gate-recent-perf-regression` (MD + JSON summary)
+    - `strict-gate-recent-perf-regression-raw` (full raw output directory)
+
+- Workflow contracts and CI wiring:
+  - Added: `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py`
+  - Updated: `src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py`
+  - Updated CI contracts list: `.github/workflows/ci.yml`
+
+- Runner compatibility fix:
+  - `scripts/strict_gate_recent_perf_audit_regression.sh` now falls back to `grep` when `rg` is unavailable on runner.
+
+- Verification:
+  - First workflow run `22256989310` failed at script step due missing `rg`.
+  - After fix commit, workflow run `22257019598` succeeded end-to-end and uploaded both expected artifacts.
