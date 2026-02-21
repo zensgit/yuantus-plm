@@ -195,6 +195,18 @@ Outputs:
   - `strict-gate-report` / `strict-gate-perf-summary` / `strict-gate-perf-trend` / `strict-gate-logs` 不会生成；
   - Job Summary 会输出 `Recent perf audit skipped reason` 与 artifact 可用性说明。
 
+自动化回归 workflow：`.github/workflows/strict-gate-recent-perf-regression.yml`
+
+- 触发：
+  - 每周二 `05:00 UTC` 定时运行（自动调用 regression 脚本）
+  - `workflow_dispatch` 手动运行（可覆盖 `ref/poll_interval_sec/max_wait_sec`）
+- 产物：
+  - `strict-gate-recent-perf-regression`
+    - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+    - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+  - `strict-gate-recent-perf-regression-raw`
+    - 全量原始输出目录（含下载的 recent perf audit artifact）
+
 ### Trigger From CLI (Recommended)
 
 用 `gh` 直接触发（避免点网页）：

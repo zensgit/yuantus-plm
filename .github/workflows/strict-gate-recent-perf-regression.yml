@@ -1,0 +1,110 @@
+name: strict-gate-recent-perf-regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref used for strict-gate dispatch and regression checks"
+        type: string
+        required: false
+        default: "main"
+      poll_interval_sec:
+        description: "Polling interval in seconds while waiting strict-gate runs"
+        type: string
+        required: false
+        default: "8"
+      max_wait_sec:
+        description: "Max wait time per strict-gate run in seconds"
+        type: string
+        required: false
+        default: "1800"
+  schedule:
+    # Weekly Tue 05:00 UTC: regression health check for strict-gate recent perf audit path.
+    - cron: "0 5 * * 2"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  recent_perf_regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      OUTPUT_ROOT: tmp/strict-gate-artifacts/recent-perf-regression/${{ github.run_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve target ref
+        id: target_ref
+        run: |
+          set -euo pipefail
+          TARGET_REF="${{ github.ref_name }}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            TARGET_REF="${{ github.event.inputs.ref }}"
+          fi
+          if [[ -z "${TARGET_REF}" ]]; then
+            echo "ERROR: target ref is empty" >&2
+            exit 2
+          fi
+          echo "target_ref=${TARGET_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Run strict-gate recent perf audit regression
+        env:
+          TARGET_REF: ${{ steps.target_ref.outputs.target_ref }}
+        run: |
+          set -euo pipefail
+          poll_interval="${{ github.event.inputs.poll_interval_sec }}"
+          max_wait="${{ github.event.inputs.max_wait_sec }}"
+          if [[ -z "${poll_interval}" ]]; then
+            poll_interval="8"
+          fi
+          if [[ -z "${max_wait}" ]]; then
+            max_wait="1800"
+          fi
+          bash scripts/strict_gate_recent_perf_audit_regression.sh \
+            --workflow strict-gate.yml \
+            --repo "${{ github.repository }}" \
+            --ref "${TARGET_REF}" \
+            --poll-interval-sec "${poll_interval}" \
+            --max-wait-sec "${max_wait}" \
+            --out-dir "${OUTPUT_ROOT}" \
+            --summary-json "${OUTPUT_ROOT}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json"
+
+      - name: Write regression summary to job summary
+        if: always()
+        run: |
+          set -euo pipefail
+          md="${OUTPUT_ROOT}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md"
+          json="${OUTPUT_ROOT}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json"
+          if [[ -f "${md}" ]]; then
+            cat "${md}" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "strict-gate regression markdown missing: ${md}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -f "${json}" ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "JSON summary: \`${json}\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload strict-gate recent perf regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strict-gate-recent-perf-regression
+          path: |
+            tmp/strict-gate-artifacts/recent-perf-regression/${{ github.run_id }}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md
+            tmp/strict-gate-artifacts/recent-perf-regression/${{ github.run_id }}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json
+
+      - name: Upload strict-gate recent perf regression raw outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: strict-gate-recent-perf-regression-raw
+          path: tmp/strict-gate-artifacts/recent-perf-regression/${{ github.run_id }}

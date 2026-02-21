@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def _find_repo_root(start: Path) -> Path:
+    cur = start.resolve()
+    for _ in range(12):
+        if (cur / "pyproject.toml").is_file() and (cur / ".github").is_dir():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    raise AssertionError("Could not locate repo root (expected pyproject.toml + .github/)")
+
+
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def test_strict_gate_recent_perf_regression_workflow_contracts() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    wf = repo_root / ".github" / "workflows" / "strict-gate-recent-perf-regression.yml"
+    assert wf.is_file(), f"Missing workflow: {wf}"
+    wf_text = _read(wf)
+
+    for token in (
+        "name: strict-gate-recent-perf-regression",
+        "workflow_dispatch:",
+        "schedule:",
+        'cron: "0 5 * * 2"',
+        "permissions:",
+        "actions: write",
+        "contents: read",
+        "concurrency:",
+        "cancel-in-progress: true",
+        "github.ref",
+    ):
+        assert token in wf_text, f"workflow missing token: {token}"
+
+    # Dispatch input contract.
+    for token in (
+        "ref:",
+        "poll_interval_sec:",
+        "max_wait_sec:",
+        "type: string",
+        "default: \"main\"",
+        "default: \"8\"",
+        "default: \"1800\"",
+    ):
+        assert token in wf_text, f"workflow missing dispatch input token: {token}"
+
+    # Script execution + summary output contract.
+    for token in (
+        "Run strict-gate recent perf audit regression",
+        "scripts/strict_gate_recent_perf_audit_regression.sh",
+        "--workflow strict-gate.yml",
+        "--repo \"${{ github.repository }}\"",
+        "--summary-json",
+        "Write regression summary to job summary",
+        "STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md",
+        "STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json",
+        "JSON summary:",
+    ):
+        assert token in wf_text, f"workflow missing execution/summary token: {token}"
+
+    # Artifact contract.
+    for token in (
+        "Upload strict-gate recent perf regression evidence",
+        "name: strict-gate-recent-perf-regression",
+        "Upload strict-gate recent perf regression raw outputs",
+        "name: strict-gate-recent-perf-regression-raw",
+        "tmp/strict-gate-artifacts/recent-perf-regression/${{ github.run_id }}",
+    ):
+        assert token in wf_text, f"workflow missing artifact token: {token}"

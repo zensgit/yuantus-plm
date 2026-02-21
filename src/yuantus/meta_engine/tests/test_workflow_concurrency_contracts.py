@@ -31,13 +31,17 @@ def test_key_workflows_define_concurrency_to_avoid_wasted_ci_minutes() -> None:
 
     ci = workflows / "ci.yml"
     strict_gate = workflows / "strict-gate.yml"
+    strict_gate_recent_perf_regression = workflows / "strict-gate-recent-perf-regression.yml"
     regression = workflows / "regression.yml"
     perf_p5 = workflows / "perf-p5-reports.yml"
     perf_roadmap = workflows / "perf-roadmap-9-3.yml"
 
     _assert_has_concurrency(name=str(ci), text=_read(ci))
     _assert_has_concurrency(name=str(strict_gate), text=_read(strict_gate))
+    _assert_has_concurrency(
+        name=str(strict_gate_recent_perf_regression),
+        text=_read(strict_gate_recent_perf_regression),
+    )
     _assert_has_concurrency(name=str(regression), text=_read(regression))
     _assert_has_concurrency(name=str(perf_p5), text=_read(perf_p5))
     _assert_has_concurrency(name=str(perf_roadmap), text=_read(perf_roadmap))
-
