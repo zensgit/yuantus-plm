@@ -17795,3 +17795,58 @@ ALL CHECKS PASSED
 - 文档索引回归：
   - `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
 - 结果：`5 passed`
+
+## Run STRICT-GATE-RECENT-PERF-FAILURE-EVIDENCE-PERSISTENCE-20260221
+
+- 时间：`2026-02-21`（本机 + GitHub Actions）
+- 目标：修复 regression workflow 在失败路径无可下载 evidence 的问题，并降低 valid case 因 `no metrics` 导致的误失败。
+
+### 变更
+
+- commit `82a6843`：
+  - `scripts/strict_gate_recent_perf_audit_regression.sh`
+    - 新增参数：`--success-fail-if-no-metrics true|false`（默认 `false`）
+    - 新增失败路径 summary 持久化：
+      - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+      - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+    - JSON 增加字段：`result`、`failure_reason`、`valid_case.requested_fail_if_no_metrics`
+    - 引入 `ERR` trap，确保断言/命令失败时也写 summary
+  - `.github/workflows/strict-gate-recent-perf-regression.yml`
+    - 增加 `REGRESSION_RUN_CONTEXT.txt`
+    - 每个 attempt 结束后若存在 MD/JSON 则复制到 `<run_id>/` 根目录（成功/失败均尝试）
+  - 测试增强：
+    - `test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py` 新增失败路径 summary 行为用例
+    - 更新脚本/workflow 合同测试
+
+### 本地验证
+
+- 命令：
+  - `pytest -q src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py`
+- 结果：`20 passed`
+
+### 远端验证
+
+- workflow run `22258508018`（`main@82a6843`）：
+  - 结果：`success`
+  - 关键步骤：
+    - `Run strict-gate recent perf audit regression`: `success`
+    - `Upload strict-gate recent perf regression evidence`: `success`
+    - `Upload strict-gate recent perf regression raw outputs`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22258508018`
+
+- 下载校验（本机）：
+  - evidence artifact：
+    - `tmp/strict-gate-artifacts/regression-runs/22258508018/evidence/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+    - `tmp/strict-gate-artifacts/regression-runs/22258508018/evidence/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+  - raw artifact：
+    - `tmp/strict-gate-artifacts/regression-runs/22258508018/raw/REGRESSION_RUN_CONTEXT.txt`
+    - `tmp/strict-gate-artifacts/regression-runs/22258508018/raw/attempt-1/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+    - `tmp/strict-gate-artifacts/regression-runs/22258508018/raw/attempt-1/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+
+- evidence JSON 关键字段：
+  - `result: "success"`
+  - `failure_reason: ""`
+  - `invalid_case.run_id: "22258509811"`
+  - `invalid_case.artifact_count: 0`
+  - `valid_case.run_id: "22258522354"`
+  - `valid_case.requested_fail_if_no_metrics: false`

@@ -138,7 +138,10 @@ scripts/strict_gate_recent_perf_audit_regression.sh --ref <branch>
 - 输出目录默认在 `tmp/strict-gate-artifacts/recent-perf-regression/<timestamp>/`，并生成汇总：
   - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
   - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+- 有效输入 case 默认使用 `recent_perf_fail_if_no_metrics=false`，避免环境中暂时无 metrics 时误判回归脚本失败。
+- 可选 `--success-fail-if-no-metrics true|false`：覆盖有效输入 case 的 `recent_perf_fail_if_no_metrics`。
 - 可选 `--summary-json <path>`：自定义 JSON 汇总输出路径，便于外部自动采集。
+- 失败路径也会落盘 MD/JSON（`result=failure` + `failure_reason`），用于 CI artifact 排障。
 
 说明：
 - `--run-id` 模式会跳过 `gh run list`；此时 `--conclusion` 过滤不会生效。
@@ -209,9 +212,11 @@ Outputs:
 - 重试策略：
   - `regression_attempts`：脚本失败时的重试次数（默认 `2`，允许 `1..3`）
   - `regression_retry_delay_sec`：重试间隔秒数（默认 `15`，非负整数）
+  - workflow 会先写入 `REGRESSION_RUN_CONTEXT.txt`（记录 run/ref/attempts 等上下文）
   - 每次尝试会写入：
     - `tmp/strict-gate-artifacts/recent-perf-regression/<run_id>/attempt-<n>/...`
-  - 成功尝试会把 MD/JSON 复制到 `<run_id>/` 根目录，供 evidence artifact 固定路径上传。
+  - 每次尝试结束后都会尝试把该次 MD/JSON 复制到 `<run_id>/` 根目录（即使该次失败也会尽量保留）
+  - 成功时保留最后一次成功 summary；全部失败时仍保留最后一次失败 summary，供 evidence artifact 固定路径上传。
 
 ### Trigger From CLI (Recommended)
 

@@ -122,3 +122,42 @@ Detailed verification evidence is recorded in:
 
 - CI contracts integration:
   - Added test path into `.github/workflows/ci.yml` contracts step.
+
+## Failure-Evidence Persistence And Stable Valid-Case Gate
+
+- Commit: `82a6843` (`main`)
+- Changed files:
+  - `.github/workflows/strict-gate-recent-perf-regression.yml`
+  - `scripts/strict_gate_recent_perf_audit_regression.sh`
+  - `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py`
+  - `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py`
+  - `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py`
+
+- Key updates:
+  - `strict_gate_recent_perf_audit_regression.sh`
+    - Added `--success-fail-if-no-metrics true|false` (default `false`) for valid case stability.
+    - Added failure-safe summary writing (`STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md/json`) with:
+      - `result`
+      - `failure_reason`
+      - `requested_fail_if_no_metrics`
+    - Added `ERR` trap to persist summary on assertion/command failures.
+  - `strict-gate-recent-perf-regression.yml`
+    - Writes `REGRESSION_RUN_CONTEXT.txt` at run root.
+    - Copies per-attempt summary MD/JSON back to root whenever available (success or failure), avoiding empty evidence artifacts.
+  - Added executable behavior test for failure path summary persistence.
+
+- Local validation:
+  - `pytest -q ...` strict-gate/recent-perf/contracts/doc-index focused suite
+  - Result: `20 passed`
+
+- Remote validation:
+  - Workflow run: `22258508018` (`main@82a6843`) -> `success`
+  - Link: `https://github.com/zensgit/yuantus-plm/actions/runs/22258508018`
+  - Artifacts (download-verified):
+    - `strict-gate-recent-perf-regression` (MD + JSON)
+    - `strict-gate-recent-perf-regression-raw` (includes `REGRESSION_RUN_CONTEXT.txt`, `attempt-1/`)
+  - Summary JSON key values:
+    - `result: "success"`
+    - `invalid_case.run_id: "22258509811"` (`failure`, `artifact_count=0`)
+    - `valid_case.run_id: "22258522354"` (`success`)
+    - `valid_case.requested_fail_if_no_metrics: false`
