@@ -199,13 +199,19 @@ Outputs:
 
 - 触发：
   - 每周二 `05:00 UTC` 定时运行（自动调用 regression 脚本）
-  - `workflow_dispatch` 手动运行（可覆盖 `ref/poll_interval_sec/max_wait_sec`）
+  - `workflow_dispatch` 手动运行（可覆盖 `ref/poll_interval_sec/max_wait_sec/regression_attempts/regression_retry_delay_sec`）
 - 产物：
   - `strict-gate-recent-perf-regression`
     - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
     - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
   - `strict-gate-recent-perf-regression-raw`
     - 全量原始输出目录（含下载的 recent perf audit artifact）
+- 重试策略：
+  - `regression_attempts`：脚本失败时的重试次数（默认 `2`，允许 `1..3`）
+  - `regression_retry_delay_sec`：重试间隔秒数（默认 `15`，非负整数）
+  - 每次尝试会写入：
+    - `tmp/strict-gate-artifacts/recent-perf-regression/<run_id>/attempt-<n>/...`
+  - 成功尝试会把 MD/JSON 复制到 `<run_id>/` 根目录，供 evidence artifact 固定路径上传。
 
 ### Trigger From CLI (Recommended)
 
