@@ -161,3 +161,12 @@ Detailed verification evidence is recorded in:
     - `invalid_case.run_id: "22258509811"` (`failure`, `artifact_count=0`)
     - `valid_case.run_id: "22258522354"` (`success`)
     - `valid_case.requested_fail_if_no_metrics: false`
+  - Failure-path proof (forced timeout inputs):
+    - Workflow run: `22258609718` (`main@7ad11ea`) -> `failure`
+    - Dispatch inputs: `poll_interval_sec=2`, `max_wait_sec=10`, `regression_attempts=1`, `regression_retry_delay_sec=0`
+    - Both upload steps still `success`; downloadable artifacts include:
+      - evidence: `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md/json`
+      - raw: `REGRESSION_RUN_CONTEXT.txt`, `attempt-1/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md/json`
+    - failure summary JSON key fields:
+      - `result: "failure"`
+      - `failure_reason: "timeout waiting run completion: 22258612100"`

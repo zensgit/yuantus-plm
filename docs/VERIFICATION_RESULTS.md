@@ -17850,3 +17850,27 @@ ALL CHECKS PASSED
   - `invalid_case.artifact_count: 0`
   - `valid_case.run_id: "22258522354"`
   - `valid_case.requested_fail_if_no_metrics: false`
+
+- workflow run `22258609718`（`main@7ad11ea`，故意失败场景验证）：
+  - 触发参数：
+    - `poll_interval_sec=2`
+    - `max_wait_sec=10`
+    - `regression_attempts=1`
+    - `regression_retry_delay_sec=0`
+  - 结果：`failure`（预期）
+  - 关键步骤：
+    - `Run strict-gate recent perf audit regression`: `failure`
+    - `Upload strict-gate recent perf regression evidence`: `success`
+    - `Upload strict-gate recent perf regression raw outputs`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22258609718`
+  - 下载校验：
+    - evidence:
+      - `tmp/strict-gate-artifacts/regression-runs/22258609718/evidence/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+      - `tmp/strict-gate-artifacts/regression-runs/22258609718/evidence/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+    - raw:
+      - `tmp/strict-gate-artifacts/regression-runs/22258609718/raw/REGRESSION_RUN_CONTEXT.txt`
+      - `tmp/strict-gate-artifacts/regression-runs/22258609718/raw/attempt-1/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+      - `tmp/strict-gate-artifacts/regression-runs/22258609718/raw/attempt-1/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+  - evidence JSON 关键值：
+    - `result: "failure"`
+    - `failure_reason: "timeout waiting run completion: 22258612100"`
