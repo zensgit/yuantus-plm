@@ -33,6 +33,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "ci_change_scope_debug.sh",
         scripts_dir / "strict_gate_report.sh",
         scripts_dir / "strict_gate_perf_download_and_trend.sh",
+        scripts_dir / "strict_gate_recent_perf_audit_regression.sh",
         scripts_dir / "demo_plm_closed_loop.sh",
         scripts_dir / "release_orchestration.sh",
         scripts_dir / "mt_pg_bootstrap.sh",
@@ -141,3 +142,28 @@ def test_strict_gate_perf_download_and_trend_script_has_help() -> None:
     assert "--fail-if-none-downloaded" in out
     assert "--json-out" in out
     assert "--trend-out" in out
+
+
+def test_strict_gate_recent_perf_audit_regression_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate_recent_perf_audit_regression.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    assert "Usage:" in out
+    assert "strict_gate_recent_perf_audit_regression.sh" in out
+    assert "--workflow" in out
+    assert "--ref" in out
+    assert "--repo" in out
+    assert "--poll-interval-sec" in out
+    assert "--max-wait-sec" in out
+    assert "--success-limit" in out
+    assert "--success-max-run-age-days" in out
+    assert "--success-conclusion" in out
+    assert "--out-dir" in out

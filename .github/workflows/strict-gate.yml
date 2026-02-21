@@ -140,6 +140,7 @@ jobs:
           echo "recent perf audit inputs validated: conclusion=${conclusion} limit=${limit} max_age_days=${max_age}"
 
       - name: Run strict gate report
+        id: strict_gate_report
         env:
           RUN_ID: STRICT_GATE_CI_${{ github.run_id }}
           OUT_DIR: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}
@@ -164,7 +165,7 @@ jobs:
           bash scripts/strict_gate_report.sh
 
       - name: Build strict gate perf summary
-        if: always()
+        if: always() && steps.strict_gate_report.outcome != 'skipped'
         env:
           OUT_DIR: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}
           PERF_SUMMARY_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md
@@ -178,7 +179,7 @@ jobs:
           fi
 
       - name: Build strict gate perf trend
-        if: always()
+        if: always() && steps.strict_gate_report.outcome != 'skipped'
         env:
           PERF_TREND_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF_TREND.md
         run: |
@@ -241,15 +242,34 @@ jobs:
           MODE_PERF="false"
           MODE_RECENT_PERF_AUDIT="false"
           MODE_REASON="default"
+          RECENT_PERF_VALIDATE_OUTCOME="not_requested"
+          REPORT_STEP_OUTCOME="${{ steps.strict_gate_report.outcome }}"
+          if [[ -z "${REPORT_STEP_OUTCOME}" ]]; then
+            REPORT_STEP_OUTCOME="unknown"
+          fi
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             MODE_DEMO="${{ github.event.inputs.run_demo }}"
             MODE_PERF="${{ github.event.inputs.run_perf_smokes }}"
             MODE_RECENT_PERF_AUDIT="${{ github.event.inputs.run_recent_perf_audit }}"
             MODE_REASON="workflow_dispatch"
+            if [[ "${MODE_RECENT_PERF_AUDIT}" == "true" ]]; then
+              RECENT_PERF_VALIDATE_OUTCOME="${{ steps.validate_recent_perf_inputs.outcome }}"
+              if [[ -z "${RECENT_PERF_VALIDATE_OUTCOME}" ]]; then
+                RECENT_PERF_VALIDATE_OUTCOME="unknown"
+              fi
+            fi
           fi
           if [[ "${{ github.event_name }}" == "schedule" && "${{ github.event.schedule }}" == "0 4 * * 1" ]]; then
             MODE_PERF="true"
             MODE_REASON="weekly_schedule_perf"
+          fi
+          REPORT_ARTIFACTS_READY="false"
+          if [[ "${REPORT_STEP_OUTCOME}" != "skipped" ]]; then
+            REPORT_ARTIFACTS_READY="true"
+          fi
+          RECENT_PERF_AUDIT_ARTIFACT_READY="false"
+          if [[ "${MODE_RECENT_PERF_AUDIT}" == "true" && "${RECENT_PERF_VALIDATE_OUTCOME}" == "success" ]]; then
+            RECENT_PERF_AUDIT_ARTIFACT_READY="true"
           fi
           {
             echo "## Strict Gate Artifacts"
@@ -257,16 +277,30 @@ jobs:
             echo "Run ID: \`${{ github.run_id }}\`"
             echo "Trigger: \`${{ github.event_name }}\`"
             echo "Mode: demo=\`${MODE_DEMO}\`, perf_smokes=\`${MODE_PERF}\`, recent_perf_audit=\`${MODE_RECENT_PERF_AUDIT}\` (\`${MODE_REASON}\`)"
+            echo "Report step outcome: \`${REPORT_STEP_OUTCOME}\`"
+            echo "Recent perf validate outcome: \`${RECENT_PERF_VALIDATE_OUTCOME}\`"
+            if [[ "${MODE_RECENT_PERF_AUDIT}" == "true" && "${RECENT_PERF_VALIDATE_OUTCOME}" != "success" ]]; then
+              echo "Recent perf audit skipped reason: \`Validate recent perf audit inputs=${RECENT_PERF_VALIDATE_OUTCOME}\`"
+            fi
+            echo "Artifact availability: report/perf-summary/perf-trend/logs=\`${REPORT_ARTIFACTS_READY}\`, recent-perf-audit=\`${RECENT_PERF_AUDIT_ARTIFACT_READY}\`"
             echo ""
             echo '```bash'
             echo "RUN_ID=${{ github.run_id }}"
             echo 'OUT_DIR=tmp/strict-gate-artifacts/$RUN_ID'
             echo 'mkdir -p "$OUT_DIR"'
-            echo 'gh run download "$RUN_ID" -n strict-gate-report -D "$OUT_DIR"'
-            echo 'gh run download "$RUN_ID" -n strict-gate-perf-summary -D "$OUT_DIR"'
-            echo 'gh run download "$RUN_ID" -n strict-gate-perf-trend -D "$OUT_DIR"'
-            echo 'gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"'
-            echo 'gh run download "$RUN_ID" -n strict-gate-recent-perf-audit -D "$OUT_DIR"'
+            if [[ "${REPORT_ARTIFACTS_READY}" == "true" ]]; then
+              echo 'gh run download "$RUN_ID" -n strict-gate-report -D "$OUT_DIR"'
+              echo 'gh run download "$RUN_ID" -n strict-gate-perf-summary -D "$OUT_DIR"'
+              echo 'gh run download "$RUN_ID" -n strict-gate-perf-trend -D "$OUT_DIR"'
+              echo 'gh run download "$RUN_ID" -n strict-gate-logs   -D "$OUT_DIR"'
+            else
+              echo '# strict-gate report/perf/log artifacts not generated (report step skipped)'
+            fi
+            if [[ "${RECENT_PERF_AUDIT_ARTIFACT_READY}" == "true" ]]; then
+              echo 'gh run download "$RUN_ID" -n strict-gate-recent-perf-audit -D "$OUT_DIR"'
+            else
+              echo '# strict-gate-recent-perf-audit artifact not generated'
+            fi
             echo '```'
             echo ""
             echo "Report path (inside artifact): \`docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md\`"
@@ -276,7 +310,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Write report to job summary
-        if: always()
+        if: always() && steps.strict_gate_report.outcome != 'skipped'
         env:
           REPORT_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md
         run: |
@@ -287,28 +321,28 @@ jobs:
           fi
 
       - name: Upload strict gate report
-        if: always()
+        if: always() && steps.strict_gate_report.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: strict-gate-report
           path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md
 
       - name: Upload strict gate perf summary
-        if: always()
+        if: always() && steps.strict_gate_report.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: strict-gate-perf-summary
           path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md
 
       - name: Upload strict gate perf trend
-        if: always()
+        if: always() && steps.strict_gate_report.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: strict-gate-perf-trend
           path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF_TREND.md
 
       - name: Upload strict gate logs
-        if: always()
+        if: always() && steps.strict_gate_report.outcome != 'skipped'
         uses: actions/upload-artifact@v4
         with:
           name: strict-gate-logs

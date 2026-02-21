@@ -56,6 +56,7 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     # Evidence output wiring (report path + logs dir + artifacts).
     assert "name: Validate recent perf audit inputs" in wf_text
     assert "id: validate_recent_perf_inputs" in wf_text
+    assert "id: strict_gate_report" in wf_text
     assert "recent_perf_conclusion must be one of any|success|failure" in wf_text
     assert "recent_perf_audit_limit must be a positive integer" in wf_text
     assert "recent_perf_audit_limit must be <= 100" in wf_text
@@ -75,6 +76,13 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
     assert "PERF_TREND_PATH: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF_TREND.md" in wf_text
     assert "steps.validate_recent_perf_inputs.outcome == 'success'" in wf_text
     assert wf_text.count("steps.validate_recent_perf_inputs.outcome == 'success'") >= 2
+    assert "steps.strict_gate_report.outcome != 'skipped'" in wf_text
+    assert wf_text.count("steps.strict_gate_report.outcome != 'skipped'") >= 7
+    assert "Recent perf audit skipped reason" in wf_text
+    assert "Validate recent perf audit inputs=${RECENT_PERF_VALIDATE_OUTCOME}" in wf_text
+    assert "Artifact availability: report/perf-summary/perf-trend/logs=" in wf_text
+    assert "strict-gate report/perf/log artifacts not generated (report step skipped)" in wf_text
+    assert "strict-gate-recent-perf-audit artifact not generated" in wf_text
     assert "github.event.inputs.run_perf_smokes" in wf_text
     assert "github.event.schedule" in wf_text
     assert "export RUN_RELEASE_ORCH_PERF=1" in wf_text
@@ -128,12 +136,15 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "strict_gate_perf_summary.py",
         "strict_gate_perf_trend.py",
         "strict_gate_perf_download_and_trend.sh",
+        "strict_gate_recent_perf_audit_regression.sh",
         "--fail-if-no-metrics",
         "--conclusion",
         "--max-run-age-days",
         "--run-id <run_id>",
         "strict_gate_perf_download.json",
         "STRICT_GATE_PERF_TREND.md",
+        "STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md",
+        "Recent perf audit skipped reason",
         "strict-gate-recent-perf-audit",
     ):
         assert token in runbook_text, f"strict-gate runbook missing: {token!r}"

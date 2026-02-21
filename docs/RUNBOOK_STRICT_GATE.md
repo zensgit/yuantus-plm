@@ -5,6 +5,7 @@
 ## Where It Is Used
 
 - Script: `scripts/strict_gate_report.sh`
+- Regression script: `scripts/strict_gate_recent_perf_audit_regression.sh`
 - CI workflow: `.github/workflows/strict-gate.yml`
 - Evidence outputs:
   - Report: `docs/DAILY_REPORTS/STRICT_GATE_*.md`
@@ -122,6 +123,21 @@ scripts/strict_gate_perf_download_and_trend.sh \
   --include-empty
 ```
 
+- 一键执行 recent perf audit 门禁回归（自动触发 1 次无效输入 + 1 次有效输入）：
+
+```bash
+scripts/strict_gate_recent_perf_audit_regression.sh --ref <branch>
+```
+
+`strict_gate_recent_perf_audit_regression.sh` 说明：
+- 需要先完成 `gh auth login`。
+- 脚本会校验关键步骤结论：
+  - 无效输入 run：`Validate recent perf audit inputs=failure`，且 recent perf audit 及其上传步骤均为 `skipped`。
+  - 有效输入 run：上述三步均为 `success`。
+- 脚本会下载有效 run 的 `strict-gate-recent-perf-audit` artifact，并校验 `strict_gate_perf_download.json`（含 `conclusion/max_run_age_days/fail_if_no_metrics/downloaded_count`）。
+- 输出目录默认在 `tmp/strict-gate-artifacts/recent-perf-regression/<timestamp>/`，并生成汇总：
+  - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+
 说明：
 - `--run-id` 模式会跳过 `gh run list`；此时 `--conclusion` 过滤不会生效。
 - 可选 `--max-run-age-days <n>`：只处理最近 N 天创建的 run（仅对 run list 模式生效）。
@@ -171,7 +187,11 @@ Outputs:
   - `strict-gate-perf-summary`：perf-smoke 摘要 Markdown（无 perf 数据时会显示 skipped/missing 说明）
   - `strict-gate-perf-trend`：perf 趋势 Markdown（聚合可见的 `*_PERF.md`）
   - `strict-gate-logs`：`tmp/strict-gate/...` 的日志目录
-  - `strict-gate-recent-perf-audit`：可选 recent perf audit 产物（仅 `run_recent_perf_audit=true` 时生成）
+  - `strict-gate-recent-perf-audit`：可选 recent perf audit 产物（仅 `run_recent_perf_audit=true` 且输入校验通过时生成）
+- 当 `Validate recent perf audit inputs` 失败时：
+  - `Run strict gate report` 会被跳过；
+  - `strict-gate-report` / `strict-gate-perf-summary` / `strict-gate-perf-trend` / `strict-gate-logs` 不会生成；
+  - Job Summary 会输出 `Recent perf audit skipped reason` 与 artifact 可用性说明。
 
 ### Trigger From CLI (Recommended)
 
