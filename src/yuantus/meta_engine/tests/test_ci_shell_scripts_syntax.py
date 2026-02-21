@@ -166,4 +166,5 @@ def test_strict_gate_recent_perf_audit_regression_script_has_help() -> None:
     assert "--success-limit" in out
     assert "--success-max-run-age-days" in out
     assert "--success-conclusion" in out
+    assert "--summary-json" in out
     assert "--out-dir" in out

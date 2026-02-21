@@ -42,3 +42,31 @@
 Detailed verification evidence is recorded in:
 
 - `docs/VERIFICATION_RESULTS.md` (`Run STRICT-GATE-PARALLEL-AUTOMATION-AND-SKIP-REDUCTION-20260221`)
+
+## Follow-up Hardening (Same Day)
+
+- Script hardening: `scripts/strict_gate_recent_perf_audit_regression.sh`
+  - Added invalid-case artifact assertion (`artifact_count == 0`)
+  - Added valid-case full artifact set assertion:
+    - `strict-gate-report`
+    - `strict-gate-perf-summary`
+    - `strict-gate-perf-trend`
+    - `strict-gate-logs`
+    - `strict-gate-recent-perf-audit`
+  - Added `--summary-json <path>` and default JSON output:
+    - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+
+- Contracts expanded:
+  - Added `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py`
+  - Updated `src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py` (`--summary-json` help contract)
+  - Updated CI contracts list in `.github/workflows/ci.yml`
+  - Updated runbook tokens in `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`
+
+- Local regression:
+  - selected suite result: `15 passed`
+
+- Remote regression (script re-run):
+  - invalid case run `22256796464`: failure + skip matrix + `artifact_count=0`
+  - valid case run `22256807700`: success + full artifact set
+  - output directory:
+    - `tmp/strict-gate-artifacts/recent-perf-regression/20260221-202649/`

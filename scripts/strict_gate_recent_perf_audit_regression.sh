@@ -16,6 +16,8 @@ Options:
   --success-limit <n>               Valid case recent_perf_audit_limit value (default: 10)
   --success-max-run-age-days <n>    Valid case recent_perf_max_run_age_days value (default: 1)
   --success-conclusion <value>      Valid case recent_perf_conclusion (default: success)
+  --summary-json <path>             Optional JSON summary output path
+                                    (default: <out-dir>/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json)
   --out-dir <path>                  Output directory for downloaded evidence
                                     (default: tmp/strict-gate-artifacts/recent-perf-regression/<timestamp>)
   -h, --help                        Show help
@@ -46,6 +48,7 @@ SUCCESS_LIMIT=10
 SUCCESS_MAX_RUN_AGE_DAYS=1
 SUCCESS_CONCLUSION="success"
 OUT_DIR="${REPO_ROOT}/tmp/strict-gate-artifacts/recent-perf-regression/$(date +%Y%m%d-%H%M%S)"
+SUMMARY_JSON=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -79,6 +82,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --success-conclusion)
       SUCCESS_CONCLUSION="${2:-}"
+      shift 2
+      ;;
+    --summary-json)
+      SUMMARY_JSON="${2:-}"
       shift 2
       ;;
     --out-dir)
@@ -117,6 +124,10 @@ if [[ "$SUCCESS_CONCLUSION" != "any" && "$SUCCESS_CONCLUSION" != "success" && "$
   echo "ERROR: --success-conclusion must be one of any|success|failure (got: $SUCCESS_CONCLUSION)" >&2
   exit 2
 fi
+if [[ -z "$OUT_DIR" ]]; then
+  echo "ERROR: --out-dir must not be empty." >&2
+  exit 2
+fi
 
 if ! command -v gh >/dev/null 2>&1; then
   echo "ERROR: gh CLI not found in PATH." >&2
@@ -135,11 +146,18 @@ GH_BASE=(gh)
 if [[ -n "$REPO" ]]; then
   GH_BASE+=("-R" "$REPO")
 fi
+REPO_NAME_WITH_OWNER="$REPO"
+if [[ -z "$REPO_NAME_WITH_OWNER" ]]; then
+  REPO_NAME_WITH_OWNER="$("${GH_BASE[@]}" repo view --json nameWithOwner --jq .nameWithOwner)"
+fi
 
 HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse "$REF" 2>/dev/null || true)"
 if [[ -z "$HEAD_SHA" ]]; then
   echo "ERROR: failed to resolve git sha for ref: $REF" >&2
   exit 2
+fi
+if [[ -z "$SUMMARY_JSON" ]]; then
+  SUMMARY_JSON="${OUT_DIR}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json"
 fi
 
 log() {
@@ -152,6 +170,16 @@ assert_equals() {
   local label="$3"
   if [[ "$actual" != "$expected" ]]; then
     echo "ERROR: ${label} expected '${expected}' but got '${actual}'" >&2
+    exit 1
+  fi
+}
+
+assert_contains() {
+  local haystack="$1"
+  local needle="$2"
+  local label="$3"
+  if ! grep -qx "$needle" <<<"$haystack"; then
+    echo "ERROR: ${label} missing expected entry: ${needle}" >&2
     exit 1
   fi
 }
@@ -256,6 +284,12 @@ trigger_dispatch_and_resolve_run() {
   echo "$run_id"
 }
 
+get_artifact_names() {
+  local run_id="$1"
+  gh api "repos/${REPO_NAME_WITH_OWNER}/actions/runs/${run_id}/artifacts" \
+    --jq '.artifacts[]?.name'
+}
+
 mkdir -p "$OUT_DIR"
 log "repo_root=${REPO_ROOT}"
 log "workflow=${WORKFLOW} ref=${REF} head_sha=${HEAD_SHA}"
@@ -288,6 +322,9 @@ if ! "${GH_BASE[@]}" run view "$invalid_run_id" --log-failed | rg -q "ERROR: rec
 fi
 
 invalid_url="$(get_run_url "$invalid_run_id")"
+invalid_artifact_names="$(get_artifact_names "$invalid_run_id" || true)"
+invalid_artifact_count="$(printf '%s\n' "$invalid_artifact_names" | sed '/^$/d' | wc -l | tr -d ' ')"
+assert_equals "$invalid_artifact_count" "0" "invalid case artifact count"
 
 log "case=valid_inputs trigger dispatch"
 valid_known_ids="$(capture_known_ids || true)"
@@ -311,6 +348,16 @@ assert_equals "$valid_optional" "success" "valid case optional audit step"
 assert_equals "$valid_upload" "success" "valid case recent audit upload step"
 
 valid_url="$(get_run_url "$valid_run_id")"
+valid_artifact_names="$(get_artifact_names "$valid_run_id" || true)"
+for expected_artifact in \
+  "strict-gate-report" \
+  "strict-gate-perf-summary" \
+  "strict-gate-perf-trend" \
+  "strict-gate-logs" \
+  "strict-gate-recent-perf-audit"
+do
+  assert_contains "$valid_artifact_names" "$expected_artifact" "valid case artifact list"
+done
 
 valid_artifact_dir="${OUT_DIR}/run-${valid_run_id}-recent-perf-audit"
 mkdir -p "$valid_artifact_dir"
@@ -365,6 +412,7 @@ cat > "$summary_md" <<SUMMARY
 - Validate recent perf audit inputs: ${invalid_validate}
 - Optional recent perf audit (download + trend): ${invalid_optional}
 - Upload strict gate recent perf audit: ${invalid_upload}
+- artifact_count: ${invalid_artifact_count}
 
 ## Valid Input Case (expected success)
 
@@ -374,8 +422,50 @@ cat > "$summary_md" <<SUMMARY
 - Validate recent perf audit inputs: ${valid_validate}
 - Optional recent perf audit (download + trend): ${valid_optional}
 - Upload strict gate recent perf audit: ${valid_upload}
+- artifacts:
+$(printf '%s\n' "$valid_artifact_names" | sed '/^$/d' | sed 's/^/- /')
 - recent audit json: ${json_file}
 SUMMARY
 
+mkdir -p "$(dirname "$SUMMARY_JSON")"
+python3 - "$SUMMARY_JSON" <<PY
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+payload = {
+    "workflow": "${WORKFLOW}",
+    "ref": "${REF}",
+    "head_sha": "${HEAD_SHA}",
+    "repo": "${REPO_NAME_WITH_OWNER}",
+    "invalid_case": {
+        "run_id": "${invalid_run_id}",
+        "url": "${invalid_url}",
+        "conclusion": "${invalid_conclusion}",
+        "validate_recent_perf_audit_inputs": "${invalid_validate}",
+        "optional_recent_perf_audit": "${invalid_optional}",
+        "upload_recent_perf_audit": "${invalid_upload}",
+        "artifact_count": int("${invalid_artifact_count}"),
+    },
+    "valid_case": {
+        "run_id": "${valid_run_id}",
+        "url": "${valid_url}",
+        "conclusion": "${valid_conclusion}",
+        "validate_recent_perf_audit_inputs": "${valid_validate}",
+        "optional_recent_perf_audit": "${valid_optional}",
+        "upload_recent_perf_audit": "${valid_upload}",
+        "artifacts": [line for line in """${valid_artifact_names}""".splitlines() if line.strip()],
+        "recent_audit_json_path": "${json_file}",
+    },
+    "summary_markdown": "${summary_md}",
+}
+
+out = Path("${SUMMARY_JSON}")
+out.write_text(json.dumps(payload, ensure_ascii=True, indent=2) + "\\n", encoding="utf-8")
+print(f"summary_json={out}")
+PY
+
 log "summary_md=${summary_md}"
+log "summary_json=${SUMMARY_JSON}"
 log "done"

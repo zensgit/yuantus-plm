@@ -17553,3 +17553,91 @@ ALL CHECKS PASSED
     - `fail_if_no_metrics: true`
     - `failed_due_to_no_metrics: false`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22249064587`
+
+## Run STRICT-GATE-RECENT-PERF-REGRESSION-SCRIPT-HARDENING-20260221
+
+- 时间：`2026-02-21`（GitHub Actions + 本机）
+- 目标：硬化 `strict_gate_recent_perf_audit_regression.sh`，将 artifact 断言与 JSON 汇总纳入脚本内建能力，并完成二次远端回归。
+
+### 变更
+
+- 代码变更（见本次提交）：
+  - `scripts/strict_gate_recent_perf_audit_regression.sh`
+    - 新增参数：`--summary-json <path>`
+    - invalid case 增加 artifact 断言：`artifact_count == 0`
+    - valid case 增加完整 artifact 集合断言：
+      - `strict-gate-report`
+      - `strict-gate-perf-summary`
+      - `strict-gate-perf-trend`
+      - `strict-gate-logs`
+      - `strict-gate-recent-perf-audit`
+    - 输出新增：
+      - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+  - `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py`
+    - 新增脚本合同测试
+  - `src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py`
+    - 增加 `--summary-json` help 契约
+  - `.github/workflows/ci.yml`
+    - contracts step 接入新合同测试
+  - `docs/RUNBOOK_STRICT_GATE.md`
+    - 补充 `--summary-json` 用法与 JSON 输出说明
+
+### 本地验证
+
+- 命令：
+  - `.venv/bin/pytest -q src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
+- 结果：`15 passed`
+
+### 远端验证（自动脚本）
+
+- 执行命令：
+  - `scripts/strict_gate_recent_perf_audit_regression.sh --ref main`
+- 输出目录：
+  - `tmp/strict-gate-artifacts/recent-perf-regression/20260221-202649/`
+  - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+  - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+
+- run `22256796464`（`2026-02-21T12:26:56Z`）：
+  - 结果：`failure`（符合预期）
+  - 关键步骤：
+    - `Validate recent perf audit inputs`: `failure`
+    - `Run strict gate report`: `skipped`
+    - `Build strict gate perf summary`: `skipped`
+    - `Build strict gate perf trend`: `skipped`
+    - `Optional recent perf audit (download + trend)`: `skipped`
+    - `Upload strict gate report`: `skipped`
+    - `Upload strict gate perf summary`: `skipped`
+    - `Upload strict gate perf trend`: `skipped`
+    - `Upload strict gate logs`: `skipped`
+    - `Upload strict gate recent perf audit`: `skipped`
+  - 脚本内建断言：
+    - `invalid_case.artifact_count == 0`（通过）
+  - 关键日志：
+    - `ERROR: recent_perf_audit_limit must be <= 100 (got: 101)`
+    - `Recent perf audit skipped reason: Validate recent perf audit inputs=failure`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22256796464`
+
+- run `22256807700`（`2026-02-21T12:27:49Z`）：
+  - 结果：`success`（符合预期）
+  - 关键步骤：
+    - `Validate recent perf audit inputs`: `success`
+    - `Run strict gate report`: `success`
+    - `Build strict gate perf summary`: `success`
+    - `Build strict gate perf trend`: `success`
+    - `Optional recent perf audit (download + trend)`: `success`
+    - `Upload strict gate report`: `success`
+    - `Upload strict gate perf summary`: `success`
+    - `Upload strict gate perf trend`: `success`
+    - `Upload strict gate logs`: `success`
+    - `Upload strict gate recent perf audit`: `success`
+  - 脚本内建断言：
+    - valid case artifact 全集存在（5/5 通过）
+  - recent audit JSON 关键值：
+    - `conclusion: "success"`
+    - `max_run_age_days: 1`
+    - `downloaded_count: 7`
+    - `skipped_count: 0`
+    - `metric_report_count: 3`
+    - `fail_if_no_metrics: true`
+    - `failed_due_to_no_metrics: false`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22256807700`

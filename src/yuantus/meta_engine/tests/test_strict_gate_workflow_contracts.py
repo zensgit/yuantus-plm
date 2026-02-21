@@ -144,6 +144,7 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "strict_gate_perf_download.json",
         "STRICT_GATE_PERF_TREND.md",
         "STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md",
+        "STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json",
         "Recent perf audit skipped reason",
         "strict-gate-recent-perf-audit",
     ):

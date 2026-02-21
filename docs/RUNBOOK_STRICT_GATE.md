@@ -137,6 +137,8 @@ scripts/strict_gate_recent_perf_audit_regression.sh --ref <branch>
 - 脚本会下载有效 run 的 `strict-gate-recent-perf-audit` artifact，并校验 `strict_gate_perf_download.json`（含 `conclusion/max_run_age_days/fail_if_no_metrics/downloaded_count`）。
 - 输出目录默认在 `tmp/strict-gate-artifacts/recent-perf-regression/<timestamp>/`，并生成汇总：
   - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+  - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+- 可选 `--summary-json <path>`：自定义 JSON 汇总输出路径，便于外部自动采集。
 
 说明：
 - `--run-id` 模式会跳过 `gh run list`；此时 `--conclusion` 过滤不会生效。
