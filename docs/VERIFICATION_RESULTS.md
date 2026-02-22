@@ -17874,3 +17874,50 @@ ALL CHECKS PASSED
   - evidence JSON 关键值：
     - `result: "failure"`
     - `failure_reason: "timeout waiting run completion: 22258612100"`
+
+## Run STRICT-GATE-RECENT-PERF-DISPATCH-INPUT-EXPOSURE-20260222
+
+- 时间：`2026-02-22`（本机 + GitHub Actions）
+- 目标：把 `success_fail_if_no_metrics` 暴露到 regression workflow 的 `workflow_dispatch`，并验证输入可透传到脚本层。
+
+### 变更
+
+- commit `881512d`：
+  - `.github/workflows/strict-gate-recent-perf-regression.yml`
+    - 新增 dispatch 输入 `success_fail_if_no_metrics`（默认 `false`）
+    - 新增输入校验：`success_fail_if_no_metrics must be true|false`
+    - 将值写入 `REGRESSION_RUN_CONTEXT.txt`
+    - 调用脚本时透传 `--success-fail-if-no-metrics "${success_fail_if_no_metrics}"`
+  - `docs/RUNBOOK_STRICT_GATE.md`
+    - 补充该 workflow dispatch 输入说明
+  - 合同测试更新：
+    - `test_strict_gate_recent_perf_regression_workflow_contracts.py`
+    - `test_strict_gate_workflow_contracts.py`
+
+### 本地验证
+
+- 命令：
+  - `pytest -q src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
+- 结果：`22 passed`
+
+### 远端验证（输入透传）
+
+- workflow run `22267857288`（`main@881512d`）：
+  - 触发参数：
+    - `poll_interval_sec=2`
+    - `max_wait_sec=10`
+    - `regression_attempts=1`
+    - `regression_retry_delay_sec=0`
+    - `success_fail_if_no_metrics=true`
+  - 结果：`failure`（故意超短等待）
+  - 关键步骤：
+    - `Run strict-gate recent perf audit regression`: `failure`
+    - `Upload strict-gate recent perf regression evidence`: `success`
+    - `Upload strict-gate recent perf regression raw outputs`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22267857288`
+
+- 下载校验：
+  - `tmp/strict-gate-artifacts/regression-runs/22267857288/raw/REGRESSION_RUN_CONTEXT.txt`
+    - `success_fail_if_no_metrics=true`
+  - `tmp/strict-gate-artifacts/regression-runs/22267857288/evidence/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+    - `requested recent_perf_fail_if_no_metrics: true`

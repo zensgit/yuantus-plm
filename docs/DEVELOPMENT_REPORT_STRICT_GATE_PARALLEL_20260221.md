@@ -170,3 +170,39 @@ Detailed verification evidence is recorded in:
     - failure summary JSON key fields:
       - `result: "failure"`
       - `failure_reason: "timeout waiting run completion: 22258612100"`
+
+## Dispatch Input Exposure: success_fail_if_no_metrics
+
+- Commit: `881512d` (`main`)
+- Changed files:
+  - `.github/workflows/strict-gate-recent-perf-regression.yml`
+  - `docs/RUNBOOK_STRICT_GATE.md`
+  - `src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py`
+  - `src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py`
+
+- Key updates:
+  - Regression workflow `workflow_dispatch` adds:
+    - `success_fail_if_no_metrics` (default `false`)
+  - Runtime validations add:
+    - `success_fail_if_no_metrics must be true|false`
+  - Value is:
+    - recorded in `REGRESSION_RUN_CONTEXT.txt`
+    - forwarded to script via `--success-fail-if-no-metrics`.
+  - Runbook updated to document the new dispatch input.
+
+- Local validation:
+  - strict-gate/contracts/doc-index focused suite
+  - Result: `22 passed`
+
+- Remote validation (input wiring proof):
+  - Workflow run: `22267857288` (`main@881512d`) -> `failure` (forced timeout config)
+  - Dispatch inputs:
+    - `poll_interval_sec=2`
+    - `max_wait_sec=10`
+    - `regression_attempts=1`
+    - `regression_retry_delay_sec=0`
+    - `success_fail_if_no_metrics=true`
+  - Downloaded raw context confirms input propagation:
+    - `success_fail_if_no_metrics=true`
+  - Summary markdown confirms script-level view:
+    - `requested recent_perf_fail_if_no_metrics: true`
