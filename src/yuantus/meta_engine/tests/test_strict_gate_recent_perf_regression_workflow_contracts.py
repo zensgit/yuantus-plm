@@ -45,12 +45,14 @@ def test_strict_gate_recent_perf_regression_workflow_contracts() -> None:
         "max_wait_sec:",
         "regression_attempts:",
         "regression_retry_delay_sec:",
+        "success_fail_if_no_metrics:",
         "type: string",
         "default: \"main\"",
         "default: \"8\"",
         "default: \"1800\"",
         "default: \"2\"",
         "default: \"15\"",
+        "default: \"false\"",
     ):
         assert token in wf_text, f"workflow missing dispatch input token: {token}"
 
@@ -65,9 +67,12 @@ def test_strict_gate_recent_perf_regression_workflow_contracts() -> None:
         "seq 1 \"${attempts}\"",
         "regression_attempts must be an integer in [1,3]",
         "regression_retry_delay_sec must be a non-negative integer",
+        "success_fail_if_no_metrics must be true|false",
         "strict-gate recent perf regression failed after ${attempts} attempts",
         "sleep \"${retry_delay_sec}\"",
         "REGRESSION_RUN_CONTEXT.txt",
+        "success_fail_if_no_metrics=${success_fail_if_no_metrics}",
+        "--success-fail-if-no-metrics \"${success_fail_if_no_metrics}\"",
         "attempt_rc=0",
         "if [[ -f \"${attempt_dir}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md\" ]]",
         "if [[ -f \"${attempt_dir}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json\" ]]",

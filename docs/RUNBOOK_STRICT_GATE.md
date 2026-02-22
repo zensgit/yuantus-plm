@@ -202,7 +202,7 @@ Outputs:
 
 - 触发：
   - 每周二 `05:00 UTC` 定时运行（自动调用 regression 脚本）
-  - `workflow_dispatch` 手动运行（可覆盖 `ref/poll_interval_sec/max_wait_sec/regression_attempts/regression_retry_delay_sec`）
+  - `workflow_dispatch` 手动运行（可覆盖 `ref/poll_interval_sec/max_wait_sec/regression_attempts/regression_retry_delay_sec/success_fail_if_no_metrics`）
 - 产物：
   - `strict-gate-recent-perf-regression`
     - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
@@ -212,6 +212,7 @@ Outputs:
 - 重试策略：
   - `regression_attempts`：脚本失败时的重试次数（默认 `2`，允许 `1..3`）
   - `regression_retry_delay_sec`：重试间隔秒数（默认 `15`，非负整数）
+  - `success_fail_if_no_metrics`：透传给脚本的有效输入门禁（默认 `false`，允许 `true|false`）
   - workflow 会先写入 `REGRESSION_RUN_CONTEXT.txt`（记录 run/ref/attempts 等上下文）
   - 每次尝试会写入：
     - `tmp/strict-gate-artifacts/recent-perf-regression/<run_id>/attempt-<n>/...`

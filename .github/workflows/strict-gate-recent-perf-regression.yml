@@ -28,6 +28,11 @@ on:
         type: string
         required: false
         default: "15"
+      success_fail_if_no_metrics:
+        description: "Valid-case recent_perf_fail_if_no_metrics for regression script (true|false)"
+        type: string
+        required: false
+        default: "false"
   schedule:
     # Weekly Tue 05:00 UTC: regression health check for strict-gate recent perf audit path.
     - cron: "0 5 * * 2"
@@ -80,11 +85,15 @@ jobs:
           fi
           attempts="${{ github.event.inputs.regression_attempts }}"
           retry_delay_sec="${{ github.event.inputs.regression_retry_delay_sec }}"
+          success_fail_if_no_metrics="${{ github.event.inputs.success_fail_if_no_metrics }}"
           if [[ -z "${attempts}" ]]; then
             attempts="2"
           fi
           if [[ -z "${retry_delay_sec}" ]]; then
             retry_delay_sec="15"
+          fi
+          if [[ -z "${success_fail_if_no_metrics}" ]]; then
+            success_fail_if_no_metrics="false"
           fi
           if ! [[ "${attempts}" =~ ^[0-9]+$ ]] || [[ "${attempts}" -lt 1 ]] || [[ "${attempts}" -gt 3 ]]; then
             echo "ERROR: regression_attempts must be an integer in [1,3] (got: ${attempts})" >&2
@@ -92,6 +101,10 @@ jobs:
           fi
           if ! [[ "${retry_delay_sec}" =~ ^[0-9]+$ ]] || [[ "${retry_delay_sec}" -lt 0 ]]; then
             echo "ERROR: regression_retry_delay_sec must be a non-negative integer (got: ${retry_delay_sec})" >&2
+            exit 2
+          fi
+          if [[ "${success_fail_if_no_metrics}" != "true" && "${success_fail_if_no_metrics}" != "false" ]]; then
+            echo "ERROR: success_fail_if_no_metrics must be true|false (got: ${success_fail_if_no_metrics})" >&2
             exit 2
           fi
 
@@ -103,6 +116,7 @@ jobs:
             echo "retry_delay_sec=${retry_delay_sec}"
             echo "poll_interval_sec=${poll_interval}"
             echo "max_wait_sec=${max_wait}"
+            echo "success_fail_if_no_metrics=${success_fail_if_no_metrics}"
           } > "${OUTPUT_ROOT}/REGRESSION_RUN_CONTEXT.txt"
 
           success=0
@@ -116,6 +130,7 @@ jobs:
               --ref "${TARGET_REF}" \
               --poll-interval-sec "${poll_interval}" \
               --max-wait-sec "${max_wait}" \
+              --success-fail-if-no-metrics "${success_fail_if_no_metrics}" \
               --out-dir "${attempt_dir}" \
               --summary-json "${attempt_dir}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json"; then
               attempt_rc=0

@@ -143,6 +143,8 @@ def test_strict_gate_workflow_wiring_and_runbook_are_stable() -> None:
         "每周二 `05:00 UTC`",
         "regression_attempts",
         "regression_retry_delay_sec",
+        "success_fail_if_no_metrics",
+        "--success-fail-if-no-metrics",
         "attempt-<n>",
         "--fail-if-no-metrics",
         "--conclusion",
