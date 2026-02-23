@@ -318,3 +318,22 @@ Detailed verification evidence is recorded in:
   - CI run `22308729532` (`main@e992f60`) `success`
   - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
   - CI run `22308784174` (`main@7015780`) `success`
+
+## Workflow Trigger Paths Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_trigger_paths_contracts.py` (new)
+  - `.github/workflows/ci.yml` (contracts list updated)
+  - `.github/workflows/perf-roadmap-9-3.yml` (fixed stale trigger path)
+
+- Key updates:
+  - Added workflow trigger-path contract:
+    - scans `on.*.paths` / `on.*.paths-ignore`
+    - for non-glob literal paths, asserts target exists in repository
+  - New guard immediately found a stale path in `perf-roadmap-9-3` trigger list:
+    - from `src/yuantus/settings.py` (missing)
+    - to `src/yuantus/config/settings.py` (existing)
+
+- Local validation:
+  - `pytest -q src/yuantus/meta_engine/tests/test_workflow_trigger_paths_contracts.py src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_playwright_esign_retry.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
+  - Result: `29 passed`

@@ -17,7 +17,7 @@ on:
       - "src/yuantus/meta_engine/bootstrap.py"
       - "src/yuantus/database.py"
       - "src/yuantus/security/rbac/**"
-      - "src/yuantus/settings.py"
+      - "src/yuantus/config/settings.py"
       - "src/yuantus/meta_engine/dedup/models.py"
       - "src/yuantus/meta_engine/dedup/service.py"
       - "src/yuantus/meta_engine/esign/models.py"
