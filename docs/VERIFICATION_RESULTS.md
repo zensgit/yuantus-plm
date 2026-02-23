@@ -18096,6 +18096,13 @@ ALL CHECKS PASSED
     - `playwright-esign`: `success`
     - `plugin-tests`: `success`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22308784174`
+- CI run `22310525549`（`main@1982de7`）：
+  - 结果：`success`
+  - 关键 job：
+    - `contracts`: `success`
+    - `playwright-esign`: `success`
+    - `plugin-tests`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22310525549`
 
 ### 说明
 
@@ -18113,6 +18120,7 @@ ALL CHECKS PASSED
   - 覆盖：
     - 递归扫描 workflow `on.*.paths` / `on.*.paths-ignore`
     - 对非 glob 的显式路径执行存在性校验
+    - 对 glob 路径执行“至少匹配一个仓库目标”校验
 - CI 接入：
   - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
 
@@ -18127,4 +18135,14 @@ ALL CHECKS PASSED
 
 - 命令：
   - `pytest -q src/yuantus/meta_engine/tests/test_workflow_trigger_paths_contracts.py src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_playwright_esign_retry.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
-- 结果：`29 passed`
+- 结果：`30 passed`
+
+### 远端验证（glob guard 增强后）
+
+- CI run `22310652454`（`main@4708ebe`）：
+  - 结果：`success`
+  - 关键 job：
+    - `contracts`: `success`
+    - `playwright-esign`: `success`
+    - `plugin-tests`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22310652454`

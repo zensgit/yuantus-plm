@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import glob
 from pathlib import Path
 from typing import Any
 
@@ -66,6 +67,39 @@ def _extract_paths_entries(node: Any) -> list[str]:
     return entries
 
 
+def _normalize_glob_path(raw: str) -> str | None:
+    path = raw.strip().strip("'\"")
+    if not path:
+        return None
+    if path.startswith("!"):
+        return None
+    if "${{" in path or "}}" in path:
+        return None
+    # GitHub/minimatch-only constructs are skipped to avoid false negatives.
+    if "{" in path or "}" in path:
+        return None
+    if not _is_glob_pattern(path):
+        return None
+    return path
+
+
+def _extract_glob_entries(node: Any) -> list[str]:
+    entries: list[str] = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if str(key) in {"paths", "paths-ignore"} and isinstance(value, list):
+                for item in value:
+                    if isinstance(item, str):
+                        normalized = _normalize_glob_path(item)
+                        if normalized:
+                            entries.append(normalized)
+            entries.extend(_extract_glob_entries(value))
+    elif isinstance(node, list):
+        for item in node:
+            entries.extend(_extract_glob_entries(item))
+    return entries
+
+
 def test_workflow_trigger_literal_paths_exist() -> None:
     repo_root = _find_repo_root(Path(__file__))
     workflows = sorted((repo_root / ".github" / "workflows").glob("*.yml"))
@@ -89,3 +123,29 @@ def test_workflow_trigger_literal_paths_exist() -> None:
 
     assert checked > 0, "No literal trigger paths found in workflow on.*.paths/paths-ignore"
     assert not missing, "Workflow trigger paths reference missing targets:\n" + "\n".join(missing)
+
+
+def test_workflow_trigger_glob_paths_match_repo_targets() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    workflows = sorted((repo_root / ".github" / "workflows").glob("*.yml"))
+    assert workflows, "No workflow files found under .github/workflows"
+
+    checked = 0
+    unmatched: list[str] = []
+
+    for workflow in workflows:
+        payload = _load_yaml(workflow)
+        on_block = _workflow_on_block(payload)
+        if on_block is None:
+            continue
+
+        glob_paths = _extract_glob_entries(on_block)
+        for pattern in glob_paths:
+            checked += 1
+            absolute_pattern = (repo_root / pattern).as_posix()
+            matches = glob.glob(absolute_pattern, recursive=True)
+            if not matches:
+                unmatched.append(f"{workflow.relative_to(repo_root).as_posix()} -> {pattern}")
+
+    assert checked > 0, "No glob trigger paths found in workflow on.*.paths/paths-ignore"
+    assert not unmatched, "Workflow trigger globs do not match any repository target:\n" + "\n".join(unmatched)
