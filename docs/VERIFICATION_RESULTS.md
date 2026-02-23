@@ -17996,16 +17996,14 @@ ALL CHECKS PASSED
 ## Run CI-WORKFLOW-INLINE-SHELL-SYNTAX-GUARD-20260223
 
 - 时间：`2026-02-23`（本机）
-- 目标：对 strict-gate 系 workflow 的内联 `run:` 脚本增加 `bash -n` 语法护栏，提前拦截 shell 语法回归。
+- 目标：对仓库 workflow（ubuntu jobs）内联 `run:` 脚本增加 `bash -n` 语法护栏，提前拦截 shell 语法回归。
 
 ### 变更
 
 - 新增测试：
   - `src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py`
-    - 读取：
-      - `.github/workflows/strict-gate.yml`
-      - `.github/workflows/strict-gate-recent-perf-regression.yml`
-    - 对每个 `run:` 脚本：
+    - 读取：`.github/workflows/*.yml`
+    - 对 ubuntu jobs 的每个 `run:` 脚本：
       - 将 `${{ ... }}` 替换为占位符
       - 本地执行 `bash -n`
 - CI 接入：

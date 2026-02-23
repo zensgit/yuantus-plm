@@ -43,12 +43,10 @@ def _bash_n(script: str, label: str) -> None:
     assert cp.returncode == 0, f"{label}\n{cp.stdout}\n{cp.stderr}"
 
 
-def test_strict_gate_workflow_inline_run_scripts_are_bash_syntax_valid() -> None:
+def test_all_workflow_inline_run_scripts_are_bash_syntax_valid_on_ubuntu_jobs() -> None:
     repo_root = _find_repo_root(Path(__file__))
-    workflows = (
-        repo_root / ".github" / "workflows" / "strict-gate.yml",
-        repo_root / ".github" / "workflows" / "strict-gate-recent-perf-regression.yml",
-    )
+    workflows = sorted((repo_root / ".github" / "workflows").glob("*.yml"))
+    assert workflows, "No workflow files found under .github/workflows"
 
     for wf in workflows:
         assert wf.is_file(), f"Missing workflow: {wf}"
@@ -58,7 +56,15 @@ def test_strict_gate_workflow_inline_run_scripts_are_bash_syntax_valid() -> None
 
         run_steps_checked = 0
         for job_name, job in jobs.items():
-            steps = job.get("steps") if isinstance(job, dict) else None
+            if not isinstance(job, dict):
+                continue
+            # Keep this contract aligned with repo reality: all CI jobs run on ubuntu
+            # and default shell is bash. If non-ubuntu jobs are introduced, skip them.
+            runs_on = str(job.get("runs-on", ""))
+            if "ubuntu" not in runs_on:
+                continue
+
+            steps = job.get("steps")
             if not isinstance(steps, list):
                 continue
             for idx, step in enumerate(steps):
@@ -66,6 +72,9 @@ def test_strict_gate_workflow_inline_run_scripts_are_bash_syntax_valid() -> None
                     continue
                 run_script = step.get("run")
                 if not isinstance(run_script, str):
+                    continue
+                shell = str(step.get("shell", "")).strip().lower()
+                if shell and "bash" not in shell:
                     continue
                 normalized = _normalize_github_exprs(run_script)
                 label = f"{wf}:{job_name}:step#{idx + 1}:{step.get('name', '(unnamed)')}"

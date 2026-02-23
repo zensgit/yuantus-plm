@@ -264,10 +264,8 @@ Detailed verification evidence is recorded in:
   - `.github/workflows/ci.yml` (contracts list updated)
 
 - Key updates:
-  - Added a contract test that loads:
-    - `.github/workflows/strict-gate.yml`
-    - `.github/workflows/strict-gate-recent-perf-regression.yml`
-  - For each inline `run:` step:
+  - Added a contract test that loads all `.github/workflows/*.yml`.
+  - For each inline `run:` step in ubuntu jobs:
     - normalizes GitHub expressions (`${{ ... }}`) to placeholders
     - runs `bash -n` on the normalized script
   - This catches inline shell syntax regressions before remote Actions execution.
