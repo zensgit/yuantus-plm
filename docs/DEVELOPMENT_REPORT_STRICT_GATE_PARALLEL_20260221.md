@@ -293,3 +293,21 @@ Detailed verification evidence is recorded in:
 - Local validation:
   - strict-gate/contracts/doc-index focused suite + new playwright retry contract
   - Result: `25 passed`
+
+## Workflow Script Reference Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py` (new)
+  - `.github/workflows/ci.yml` (contracts list updated)
+
+- Key updates:
+  - Added a workflow contract that scans:
+    - inline `run:` commands using `bash|python|python3 scripts/...`
+    - explicit workflow `on.*.paths` entries under `scripts/*.sh|*.py`
+  - Enforces referenced script files exist in repository.
+  - Runs `bash -n` over all workflow-referenced local shell scripts.
+  - Kept matching scoped to interpreter-based invocations to avoid false positives for external checkouts (for example `cd CADGameFusion && ./scripts/...`).
+
+- Local validation:
+  - `pytest -q src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py`
+  - Result: `9 passed`

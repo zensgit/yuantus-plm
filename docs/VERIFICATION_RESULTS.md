@@ -18052,3 +18052,30 @@ ALL CHECKS PASSED
 - 命令：
   - `pytest -q src/yuantus/meta_engine/tests/test_ci_contracts_playwright_esign_retry.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
 - 结果：`25 passed`
+
+## Run CI-WORKFLOW-SCRIPT-REFERENCE-GUARD-20260223
+
+- 时间：`2026-02-23`（本机）
+- 目标：防止 workflow 内脚本路径拼写/删除回归，保证被 workflow 调用的本地 shell 脚本具备基本语法正确性。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py`
+  - 覆盖：
+    - `run:` 中 `bash|python|python3 scripts/...` 的引用提取
+    - workflow `on.*.paths` 中 `scripts/*.sh|*.py` 的显式路径提取
+    - 文件存在性校验
+    - 对 workflow 引用到的 `.sh` 执行 `bash -n`
+- CI 接入：
+  - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
+
+### 本地验证
+
+- 命令：
+  - `pytest -q src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py`
+- 结果：`9 passed`
+
+### 说明
+
+- 合同匹配范围刻意限制为解释器显式调用（`bash|python|python3 scripts/...`），避免把 `cd` 到外部仓库后的 `./scripts/...` 误判为本仓库脚本（例如 `CADGameFusion` checkout 场景）。
