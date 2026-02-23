@@ -214,6 +214,7 @@ Outputs:
   - `regression_retry_delay_sec`：重试间隔秒数（默认 `15`，非负整数）
   - `success_fail_if_no_metrics`：透传给脚本的有效输入门禁（默认 `false`，允许 `true|false`）
   - workflow 会先写入 `REGRESSION_RUN_CONTEXT.txt`（记录 run/ref/attempts 等上下文）
+  - 若 dispatch 输入校验失败（如 `success_fail_if_no_metrics=maybe`），workflow 仍会生成 failure summary（MD/JSON），保证 evidence artifact 可下载。
   - 每次尝试会写入：
     - `tmp/strict-gate-artifacts/recent-perf-regression/<run_id>/attempt-<n>/...`
   - 每次尝试结束后都会尝试把该次 MD/JSON 复制到 `<run_id>/` 根目录（即使该次失败也会尽量保留）
