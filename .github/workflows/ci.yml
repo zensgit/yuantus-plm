@@ -280,7 +280,8 @@ jobs:
             src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py \
             src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py \
-            src/yuantus/meta_engine/tests/test_workflow_label_override_contracts.py
+            src/yuantus/meta_engine/tests/test_workflow_label_override_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py
 
   plugin-tests:
     needs: detect_changes_ci

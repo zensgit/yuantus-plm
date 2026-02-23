@@ -17970,3 +17970,25 @@ ALL CHECKS PASSED
   - `result: "failure"`
   - `failure_reason: "success_fail_if_no_metrics must be true|false (got: maybe)"`
   - `valid_case.requested_fail_if_no_metrics: null`（校验在调用脚本前失败，符合预期）
+
+## Run CI-WORKFLOW-YAML-PARSEABILITY-GUARD-20260223
+
+- 时间：`2026-02-23`（本机）
+- 目标：新增仓库级 workflow YAML 解析合同，防止 run 脚本缩进等错误导致 workflow 触发器失效。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py`
+    - 遍历 `.github/workflows/*.yml`
+    - 使用 `yaml.safe_load` 解析
+    - 断言存在核心结构：`name` / `on` / `jobs`
+    - 兼容 PyYAML 将 `on` 解析为 `True` 的行为
+- CI 接入：
+  - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
+
+### 本地验证
+
+- 命令：
+  - `pytest -q src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
+- 结果：`23 passed`

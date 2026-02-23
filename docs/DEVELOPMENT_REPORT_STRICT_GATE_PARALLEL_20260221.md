@@ -239,3 +239,20 @@ Detailed verification evidence is recorded in:
   - Evidence verification:
     - JSON: `result="failure"`, `failure_reason="success_fail_if_no_metrics must be true|false (got: maybe)"`
     - Raw context includes: `success_fail_if_no_metrics=maybe`
+
+## Workflow YAML Parseability Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py` (new)
+  - `.github/workflows/ci.yml` (contracts list updated)
+
+- Key updates:
+  - Added repository-wide workflow parseability contract:
+    - Loads every `.github/workflows/*.yml` with `yaml.safe_load`.
+    - Asserts core keys exist (`name`, `on` trigger, non-empty `jobs`).
+    - Handles PyYAML YAML 1.1 `on -> True` behavior safely.
+  - Added the new test into CI contracts step (sorted order preserved).
+
+- Local validation:
+  - strict-gate/contracts/doc-index focused suite + parseability contract
+  - Result: `23 passed`
