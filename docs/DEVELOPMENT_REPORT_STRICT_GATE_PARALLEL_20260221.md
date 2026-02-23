@@ -311,3 +311,6 @@ Detailed verification evidence is recorded in:
 - Local validation:
   - `pytest -q src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py`
   - Result: `9 passed`
+- Remote validation:
+  - CI run `22308729532` (`main@e992f60`) `success`
+  - contracts job `Contract checks (perf workflows + delivery doc index)` `success`

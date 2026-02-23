@@ -18076,6 +18076,16 @@ ALL CHECKS PASSED
   - `pytest -q src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py`
 - 结果：`9 passed`
 
+### 远端验证
+
+- CI run `22308729532`（`main@e992f60`）：
+  - 结果：`success`
+  - 关键 job：
+    - `contracts`: `success`
+    - `playwright-esign`: `success`
+    - `plugin-tests`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22308729532`
+
 ### 说明
 
 - 合同匹配范围刻意限制为解释器显式调用（`bash|python|python3 scripts/...`），避免把 `cd` 到外部仓库后的 `./scripts/...` 误判为本仓库脚本（例如 `CADGameFusion` checkout 场景）。
