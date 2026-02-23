@@ -98,91 +98,91 @@ jobs:
 
           mkdir -p "${OUTPUT_ROOT}"
           write_validation_failure_summary() {
-            local reason="$1"
-            local md="${OUTPUT_ROOT}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md"
-            local json="${OUTPUT_ROOT}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json"
-            cat > "${md}" <<SUMMARY
-# Strict Gate Recent Perf Audit Regression
-
-- workflow: strict-gate.yml
-- ref: ${TARGET_REF}
-- head_sha: ${{ github.sha }}
-- result: failure
-- failure_reason: ${reason}
-
-## Invalid Input Case (expected failure)
-
-- run_id:
-- url:
-- run conclusion:
-- Validate recent perf audit inputs:
-- Optional recent perf audit (download + trend):
-- Upload strict gate recent perf audit:
-- artifact_count: 0
-
-## Valid Input Case (expected success)
-
-- run_id:
-- url:
-- run conclusion:
-- Validate recent perf audit inputs:
-- Optional recent perf audit (download + trend):
-- Upload strict gate recent perf audit:
-- requested recent_perf_fail_if_no_metrics: ${success_fail_if_no_metrics}
-- artifacts:
-- (none)
-- recent audit json:
-SUMMARY
-
-            REASON_VALUE="${reason}" \
-            TARGET_REF_VALUE="${TARGET_REF}" \
-            HEAD_SHA_VALUE="${{ github.sha }}" \
-            REPO_VALUE="${{ github.repository }}" \
-            SUCCESS_FAIL_IF_NO_METRICS_VALUE="${success_fail_if_no_metrics}" \
-            SUMMARY_MARKDOWN_VALUE="${md}" \
-            SUMMARY_JSON_VALUE="${json}" \
-              python3 - <<'PY'
-from __future__ import annotations
-
-import json
-import os
-from pathlib import Path
-
-payload = {
-    "workflow": "strict-gate.yml",
-    "ref": os.environ["TARGET_REF_VALUE"],
-    "head_sha": os.environ["HEAD_SHA_VALUE"],
-    "repo": os.environ["REPO_VALUE"],
-    "result": "failure",
-    "failure_reason": os.environ["REASON_VALUE"],
-    "invalid_case": {
-        "run_id": "",
-        "url": "",
-        "conclusion": "",
-        "validate_recent_perf_audit_inputs": "",
-        "optional_recent_perf_audit": "",
-        "upload_recent_perf_audit": "",
-        "artifact_count": 0,
-    },
-    "valid_case": {
-        "run_id": "",
-        "url": "",
-        "conclusion": "",
-        "validate_recent_perf_audit_inputs": "",
-        "optional_recent_perf_audit": "",
-        "upload_recent_perf_audit": "",
-        "requested_fail_if_no_metrics": os.environ["SUCCESS_FAIL_IF_NO_METRICS_VALUE"] == "true",
-        "artifacts": [],
-        "recent_audit_json_path": "",
-    },
-    "summary_markdown": os.environ["SUMMARY_MARKDOWN_VALUE"],
-}
-
-Path(os.environ["SUMMARY_JSON_VALUE"]).write_text(
-    json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
-    encoding="utf-8",
-)
-PY
+                    local reason="$1"
+                    local md="${OUTPUT_ROOT}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md"
+                    local json="${OUTPUT_ROOT}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json"
+                    cat > "${md}" <<SUMMARY
+          # Strict Gate Recent Perf Audit Regression
+          
+          - workflow: strict-gate.yml
+          - ref: ${TARGET_REF}
+          - head_sha: ${{ github.sha }}
+          - result: failure
+          - failure_reason: ${reason}
+          
+          ## Invalid Input Case (expected failure)
+          
+          - run_id:
+          - url:
+          - run conclusion:
+          - Validate recent perf audit inputs:
+          - Optional recent perf audit (download + trend):
+          - Upload strict gate recent perf audit:
+          - artifact_count: 0
+          
+          ## Valid Input Case (expected success)
+          
+          - run_id:
+          - url:
+          - run conclusion:
+          - Validate recent perf audit inputs:
+          - Optional recent perf audit (download + trend):
+          - Upload strict gate recent perf audit:
+          - requested recent_perf_fail_if_no_metrics: ${success_fail_if_no_metrics}
+          - artifacts:
+          - (none)
+          - recent audit json:
+          SUMMARY
+          
+                    REASON_VALUE="${reason}" \
+                    TARGET_REF_VALUE="${TARGET_REF}" \
+                    HEAD_SHA_VALUE="${{ github.sha }}" \
+                    REPO_VALUE="${{ github.repository }}" \
+                    SUCCESS_FAIL_IF_NO_METRICS_VALUE="${success_fail_if_no_metrics}" \
+                    SUMMARY_MARKDOWN_VALUE="${md}" \
+                    SUMMARY_JSON_VALUE="${json}" \
+                    python3 - <<'PY'
+          from __future__ import annotations
+          
+          import json
+          import os
+          from pathlib import Path
+          
+          payload = {
+              "workflow": "strict-gate.yml",
+              "ref": os.environ["TARGET_REF_VALUE"],
+              "head_sha": os.environ["HEAD_SHA_VALUE"],
+              "repo": os.environ["REPO_VALUE"],
+              "result": "failure",
+              "failure_reason": os.environ["REASON_VALUE"],
+              "invalid_case": {
+                  "run_id": "",
+                  "url": "",
+                  "conclusion": "",
+                  "validate_recent_perf_audit_inputs": "",
+                  "optional_recent_perf_audit": "",
+                  "upload_recent_perf_audit": "",
+                  "artifact_count": 0,
+              },
+              "valid_case": {
+                  "run_id": "",
+                  "url": "",
+                  "conclusion": "",
+                  "validate_recent_perf_audit_inputs": "",
+                  "optional_recent_perf_audit": "",
+                  "upload_recent_perf_audit": "",
+                  "requested_fail_if_no_metrics": os.environ["SUCCESS_FAIL_IF_NO_METRICS_VALUE"] == "true",
+                  "artifacts": [],
+                  "recent_audit_json_path": "",
+              },
+              "summary_markdown": os.environ["SUMMARY_MARKDOWN_VALUE"],
+          }
+          
+          Path(os.environ["SUMMARY_JSON_VALUE"]).write_text(
+              json.dumps(payload, ensure_ascii=True, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
           }
           fail_validation() {
             local reason="$1"
