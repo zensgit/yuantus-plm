@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +109,15 @@ def _bash_n(script: Path) -> None:
     assert cp.returncode == 0, f"{script}\n{cp.stdout}\n{cp.stderr}"
 
 
+def _py_compile(script: Path) -> None:
+    cp = subprocess.run(  # noqa: S603,S607
+        [sys.executable, "-m", "py_compile", str(script)],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, f"{script}\n{cp.stdout}\n{cp.stderr}"
+
+
 def test_workflow_script_references_point_to_existing_files() -> None:
     repo_root = _find_repo_root(Path(__file__))
     refs_by_workflow = _collect_workflow_script_refs(repo_root)
@@ -134,3 +144,15 @@ def test_workflow_referenced_shell_scripts_are_bash_syntax_valid() -> None:
         script = repo_root / ref
         assert script.is_file(), f"Missing script: {script}"
         _bash_n(script)
+
+
+def test_workflow_referenced_python_scripts_are_syntax_valid() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    refs_by_workflow = _collect_workflow_script_refs(repo_root)
+    py_refs = sorted({ref for refs in refs_by_workflow.values() for ref in refs if ref.endswith(".py")})
+    assert py_refs, "No python scripts discovered from workflow references"
+
+    for ref in py_refs:
+        script = repo_root / ref
+        assert script.is_file(), f"Missing script: {script}"
+        _py_compile(script)
