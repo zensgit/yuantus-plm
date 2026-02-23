@@ -275,3 +275,6 @@ Detailed verification evidence is recorded in:
 - Local validation:
   - strict-gate/contracts/doc-index focused suite + inline syntax contract
   - Result: `24 passed`
+- Remote validation:
+  - CI run `22307910218` (`main@e658d01`) `success`
+  - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
