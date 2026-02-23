@@ -18027,3 +18027,28 @@ ALL CHECKS PASSED
     - `Validate workflow YAML`: `success`
     - `Contract checks (perf workflows + delivery doc index)`: `success`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22308245213`
+
+## Run CI-PLAYWRIGHT-ESIGN-RETRY-HARDENING-20260223
+
+- 时间：`2026-02-23`（本机）
+- 目标：降低 `playwright-esign` job 的瞬时失败噪音，保持失败可见但减少误红。
+
+### 变更
+
+- `.github/workflows/ci.yml`
+  - `Playwright e-sign smoke` 改为重试模型：
+    - `attempts=2`
+    - `retry_delay_sec=5`
+    - 失败重试日志：`Playwright e-sign smoke failed on attempt ...`
+    - 终止错误：`ERROR: Playwright e-sign smoke failed after ... attempts`
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_ci_contracts_playwright_esign_retry.py`
+  - 合同锁定上述关键 token
+- CI contracts 列表更新：
+  - `.github/workflows/ci.yml` contracts step 增加该测试文件
+
+### 本地验证
+
+- 命令：
+  - `pytest -q src/yuantus/meta_engine/tests/test_ci_contracts_playwright_esign_retry.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
+- 结果：`25 passed`

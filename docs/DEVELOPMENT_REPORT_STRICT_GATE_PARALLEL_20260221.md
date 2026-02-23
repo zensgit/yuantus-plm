@@ -276,3 +276,20 @@ Detailed verification evidence is recorded in:
 - Remote validation:
   - CI run `22308245213` (`main@786b357`) `success`
   - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
+
+## Playwright E-sign Retry Hardening
+
+- Changed files:
+  - `.github/workflows/ci.yml`
+  - `src/yuantus/meta_engine/tests/test_ci_contracts_playwright_esign_retry.py` (new)
+
+- Key updates:
+  - `playwright-esign` job `Playwright e-sign smoke` step now uses bounded retry:
+    - attempts: `2`
+    - retry delay: `5s`
+    - final explicit failure message after retries exhausted
+  - Added CI contract test to lock retry behavior tokens and prevent accidental removal.
+
+- Local validation:
+  - strict-gate/contracts/doc-index focused suite + new playwright retry contract
+  - Result: `25 passed`
