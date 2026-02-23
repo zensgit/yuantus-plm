@@ -256,3 +256,22 @@ Detailed verification evidence is recorded in:
 - Local validation:
   - strict-gate/contracts/doc-index focused suite + parseability contract
   - Result: `23 passed`
+
+## Workflow Inline Shell Syntax Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py` (new)
+  - `.github/workflows/ci.yml` (contracts list updated)
+
+- Key updates:
+  - Added a contract test that loads:
+    - `.github/workflows/strict-gate.yml`
+    - `.github/workflows/strict-gate-recent-perf-regression.yml`
+  - For each inline `run:` step:
+    - normalizes GitHub expressions (`${{ ... }}`) to placeholders
+    - runs `bash -n` on the normalized script
+  - This catches inline shell syntax regressions before remote Actions execution.
+
+- Local validation:
+  - strict-gate/contracts/doc-index focused suite + inline syntax contract
+  - Result: `24 passed`
