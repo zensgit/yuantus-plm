@@ -18017,7 +18017,7 @@ ALL CHECKS PASSED
 
 ### 远端验证
 
-- CI run `22307910218`（`main@e658d01`）：
+- CI run `22308245213`（`main@786b357`）：
   - 结果：`success`
   - 关键 job：
     - `contracts`: `success`
@@ -18026,4 +18026,4 @@ ALL CHECKS PASSED
   - 关键步骤（contracts）：
     - `Validate workflow YAML`: `success`
     - `Contract checks (perf workflows + delivery doc index)`: `success`
-  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22307910218`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22308245213`
