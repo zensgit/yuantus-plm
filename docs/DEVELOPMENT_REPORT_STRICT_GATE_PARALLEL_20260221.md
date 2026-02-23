@@ -206,3 +206,36 @@ Detailed verification evidence is recorded in:
     - `success_fail_if_no_metrics=true`
   - Summary markdown confirms script-level view:
     - `requested recent_perf_fail_if_no_metrics: true`
+
+## Validation-Failure Summary On Dispatch Input Errors
+
+- Commit: `1462137` (`main`)
+- Changed file:
+  - `.github/workflows/strict-gate-recent-perf-regression.yml`
+
+- Key updates:
+  - In `Run strict-gate recent perf audit regression` step:
+    - Added `write_validation_failure_summary` and `fail_validation` helpers.
+    - Invalid dispatch inputs now generate:
+      - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md`
+      - `STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json`
+    - `REGRESSION_RUN_CONTEXT.txt` is written before validation checks, preserving raw input values.
+  - This removes prior “input校验失败时 evidence 为空”缺口。
+
+- Local validation:
+  - strict-gate/contracts/doc-index focused suite
+  - Result: `22 passed`
+
+- Remote validation (invalid input hard proof):
+  - Workflow run: `22306786190` (`main@1462137`) -> `failure`
+  - Dispatch inputs:
+    - `success_fail_if_no_metrics=maybe`
+    - `regression_attempts=1`
+    - `regression_retry_delay_sec=0`
+  - Key steps:
+    - `Run strict-gate recent perf audit regression`: `failure`
+    - `Upload strict-gate recent perf regression evidence`: `success`
+    - `Upload strict-gate recent perf regression raw outputs`: `success`
+  - Evidence verification:
+    - JSON: `result="failure"`, `failure_reason="success_fail_if_no_metrics must be true|false (got: maybe)"`
+    - Raw context includes: `success_fail_if_no_metrics=maybe`
