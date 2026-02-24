@@ -18350,3 +18350,41 @@ ALL CHECKS PASSED
     - `detect_changes (regression)`: `success`
     - `regression`: `success`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22339012511`
+
+## Run CI-WORKFLOW-RUNNER-POLICY-GUARD-20260224
+
+- 时间：`2026-02-24`（本机）
+- 目标：限制 workflow job 可用 runner 白名单，避免误用非预期 runner 带来安全与稳定性偏差。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_workflow_runner_policy_contracts.py`
+  - 覆盖：
+    - 扫描 `.github/workflows/*.yml` 的全部 jobs
+    - 强制每个 job 必须声明 `runs-on`
+    - 强制 `runs-on` 仅允许白名单值（当前为 `ubuntu-latest`）
+- CI 接入：
+  - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
+
+### 本地验证
+
+- 命令：
+  - `pytest -q src/yuantus/meta_engine/tests/test_workflow_runner_policy_contracts.py src/yuantus/meta_engine/tests/test_workflow_job_timeout_contracts.py src/yuantus/meta_engine/tests/test_workflow_upload_artifact_retention_contracts.py src/yuantus/meta_engine/tests/test_workflow_permissions_contracts.py src/yuantus/meta_engine/tests/test_workflow_action_uses_refs_contracts.py src/yuantus/meta_engine/tests/test_workflow_schedule_cron_contracts.py src/yuantus/meta_engine/tests/test_workflow_trigger_paths_contracts.py src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_playwright_esign_retry.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
+- 结果：`36 passed`
+
+### 远端验证
+
+- CI run `22339862634`（`main@64f0797`）：
+  - 结果：`success`
+  - 关键 job：
+    - `contracts`: `success`
+    - `playwright-esign`: `success`
+    - `plugin-tests`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22339862634`
+- regression run `22339862640`（`main@64f0797`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (regression)`: `success`
+    - `regression`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22339862640`
