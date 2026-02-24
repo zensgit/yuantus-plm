@@ -63,6 +63,10 @@ on:
     # Weekly Monday 04:00 UTC (enable perf-smokes)
     - cron: "0 4 * * 1"
 
+permissions:
+  contents: read
+  actions: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
