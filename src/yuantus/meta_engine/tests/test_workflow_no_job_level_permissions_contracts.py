@@ -1,0 +1,42 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+
+
+def _find_repo_root(start: Path) -> Path:
+    cur = start.resolve()
+    for _ in range(12):
+        if (cur / "pyproject.toml").is_file() and (cur / ".github").is_dir():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    raise AssertionError("Could not locate repo root (expected pyproject.toml + .github/)")
+
+
+def _load_yaml(path: Path) -> dict:
+    payload = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
+    assert isinstance(payload, dict), f"workflow did not parse as mapping: {path}"
+    return payload
+
+
+def test_workflow_jobs_must_not_override_top_level_permissions() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    workflows = sorted((repo_root / ".github" / "workflows").glob("*.yml"))
+    assert workflows, "No workflow files found under .github/workflows"
+
+    for workflow in workflows:
+        rel = workflow.relative_to(repo_root).as_posix()
+        payload = _load_yaml(workflow)
+        jobs = payload.get("jobs")
+        assert isinstance(jobs, dict), f"{rel} must declare jobs mapping"
+        assert jobs, f"{rel} must declare at least one job"
+
+        for job_id, job_payload in jobs.items():
+            assert isinstance(job_payload, dict), f"{rel} job '{job_id}' must be a mapping"
+            assert "permissions" not in job_payload, (
+                f"{rel} job '{job_id}' must not declare job-level permissions; "
+                "use workflow top-level permissions baseline instead"
+            )
