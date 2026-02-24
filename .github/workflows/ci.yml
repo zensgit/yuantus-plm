@@ -292,6 +292,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_schedule_cron_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_trigger_paths_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_upload_artifact_retention_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py
 
   plugin-tests:

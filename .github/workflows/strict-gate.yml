@@ -330,6 +330,7 @@ jobs:
         with:
           name: strict-gate-report
           path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md
+          retention-days: 14
 
       - name: Upload strict gate perf summary
         if: always() && steps.strict_gate_report.outcome != 'skipped'
@@ -337,6 +338,7 @@ jobs:
         with:
           name: strict-gate-perf-summary
           path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md
+          retention-days: 14
 
       - name: Upload strict gate perf trend
         if: always() && steps.strict_gate_report.outcome != 'skipped'
@@ -344,6 +346,7 @@ jobs:
         with:
           name: strict-gate-perf-trend
           path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF_TREND.md
+          retention-days: 14
 
       - name: Upload strict gate logs
         if: always() && steps.strict_gate_report.outcome != 'skipped'
@@ -351,6 +354,7 @@ jobs:
         with:
           name: strict-gate-logs
           path: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}
+          retention-days: 14
 
       - name: Upload strict gate recent perf audit
         if: always() && steps.validate_recent_perf_inputs.outcome == 'success' && github.event_name == 'workflow_dispatch' && github.event.inputs.run_recent_perf_audit == 'true'
@@ -358,3 +362,4 @@ jobs:
         with:
           name: strict-gate-recent-perf-audit
           path: tmp/strict-gate-artifacts/recent-perf-audit/${{ github.run_id }}
+          retention-days: 14

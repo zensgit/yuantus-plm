@@ -276,6 +276,7 @@ jobs:
           path: |
             tmp/strict-gate-artifacts/recent-perf-regression/${{ github.run_id }}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.md
             tmp/strict-gate-artifacts/recent-perf-regression/${{ github.run_id }}/STRICT_GATE_RECENT_PERF_AUDIT_REGRESSION.json
+          retention-days: 14
 
       - name: Upload strict-gate recent perf regression raw outputs
         if: always()
@@ -283,3 +284,4 @@ jobs:
         with:
           name: strict-gate-recent-perf-regression-raw
           path: tmp/strict-gate-artifacts/recent-perf-regression/${{ github.run_id }}
+          retention-days: 14
