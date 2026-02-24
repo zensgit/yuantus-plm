@@ -291,6 +291,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_concurrency_all_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_concurrency_group_template_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_dispatch_input_default_type_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_dispatch_inputs_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_dispatch_inputs_metadata_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py \
