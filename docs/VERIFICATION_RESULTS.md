@@ -18546,3 +18546,47 @@ ALL CHECKS PASSED
     - `detect_changes (regression)`: `success`
     - `regression`: `success`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22343717293`
+
+## Run CI-WORKFLOW-JOB-NAMING-BASELINE-GUARD-20260224
+
+- 时间：`2026-02-24`（本机）
+- 目标：为全部 workflow jobs 建立统一可读名称基线，提升 Actions 运行视图可读性，并防止后续新增 job 缺失展示名。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_workflow_job_name_contracts.py`
+  - 覆盖：
+    - 扫描 `.github/workflows/*.yml` 全部 jobs
+    - 强制每个 job 声明非空字符串 `name`
+- CI 接入：
+  - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
+- workflow 修正：
+  - `.github/workflows/ci.yml`：为 `contracts`、`plugin-tests`、`playwright-esign` 增加 `name`
+  - `.github/workflows/regression.yml`：为 `regression`、`cad_ml_quick`、`cadgf_preview` 增加 `name`
+  - `.github/workflows/strict-gate.yml`：为 `strict_gate` 增加 `name`
+  - `.github/workflows/strict-gate-recent-perf-regression.yml`：为 `recent_perf_regression` 增加 `name`
+  - `.github/workflows/perf-p5-reports.yml`：为 `perf_p5_reports` 增加 `name`
+  - `.github/workflows/perf-roadmap-9-3.yml`：为 `perf_roadmap_9_3` 增加 `name`
+
+### 本地验证
+
+- 命令：
+  - `pytest -q src/yuantus/meta_engine/tests/test_workflow_job_name_contracts.py src/yuantus/meta_engine/tests/test_workflow_dispatch_inputs_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_all_contracts.py src/yuantus/meta_engine/tests/test_workflow_permissions_least_privilege_contracts.py src/yuantus/meta_engine/tests/test_workflow_upload_artifact_name_contracts.py src/yuantus/meta_engine/tests/test_workflow_runner_policy_contracts.py src/yuantus/meta_engine/tests/test_workflow_job_timeout_contracts.py src/yuantus/meta_engine/tests/test_workflow_upload_artifact_retention_contracts.py src/yuantus/meta_engine/tests/test_workflow_permissions_contracts.py src/yuantus/meta_engine/tests/test_workflow_action_uses_refs_contracts.py src/yuantus/meta_engine/tests/test_workflow_schedule_cron_contracts.py src/yuantus/meta_engine/tests/test_workflow_trigger_paths_contracts.py src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_playwright_esign_retry.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
+- 结果：`41 passed`
+
+### 远端验证
+
+- CI run `22343978622`（`main@f16ae59`）：
+  - 结果：`success`
+  - 关键 job：
+    - `contracts`: `success`
+    - `playwright-esign`: `success`
+    - `plugin-tests`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22343978622`
+- regression run `22343978637`（`main@f16ae59`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (regression)`: `success`
+    - `regression`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22343978637`
