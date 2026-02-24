@@ -441,3 +441,31 @@ Detailed verification evidence is recorded in:
 - Remote validation:
   - CI run `22338842810` (`main@602674a`) `success`
   - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
+
+## Workflow Job Timeout Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_job_timeout_contracts.py` (new)
+  - `.github/workflows/ci.yml` (contracts list updated; missing timeout-minutes added)
+  - `.github/workflows/regression.yml` (missing timeout-minutes added)
+
+- Key updates:
+  - Added workflow job timeout contract:
+    - scans all workflow jobs under `.github/workflows/*.yml`
+    - requires `timeout-minutes` on each job
+    - constrains timeout to integer range `[1, 120]`
+  - Hardened workflows with explicit bounded timeouts for previously uncovered jobs:
+    - `ci.detect_changes_ci`: `10`
+    - `ci.contracts`: `20`
+    - `ci.plugin-tests`: `30`
+    - `ci.playwright-esign`: `30`
+    - `regression.detect_changes_regression`: `10`
+
+- Local validation:
+  - `pytest -q src/yuantus/meta_engine/tests/test_workflow_job_timeout_contracts.py src/yuantus/meta_engine/tests/test_workflow_upload_artifact_retention_contracts.py src/yuantus/meta_engine/tests/test_workflow_permissions_contracts.py src/yuantus/meta_engine/tests/test_workflow_action_uses_refs_contracts.py src/yuantus/meta_engine/tests/test_workflow_schedule_cron_contracts.py src/yuantus/meta_engine/tests/test_workflow_trigger_paths_contracts.py src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_playwright_esign_retry.py src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py src/yuantus/meta_engine/tests/test_ci_contracts_strict_gate_report_perf_smokes.py src/yuantus/meta_engine/tests/test_readme_runbook_references.py src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py src/yuantus/meta_engine/tests/test_runbook_index_completeness.py src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py`
+  - Result: `35 passed`
+
+- Remote validation:
+  - CI run `22339012501` (`main@70b2bed`) `success`
+  - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
+  - regression run `22339012511` (`main@70b2bed`) `success`
