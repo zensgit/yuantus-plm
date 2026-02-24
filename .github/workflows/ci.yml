@@ -295,6 +295,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_job_name_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_job_timeout_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_label_override_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_name_uniqueness_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_permissions_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_permissions_least_privilege_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_runner_policy_contracts.py \
