@@ -26,6 +26,7 @@ concurrency:
 
 jobs:
   perf_p5_reports:
+    name: perf-p5-reports
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

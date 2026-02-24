@@ -194,6 +194,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   contracts:
+    name: contracts
     needs: detect_changes_ci
     if: needs.detect_changes_ci.outputs.run_contracts == 'true'
     runs-on: ubuntu-latest
@@ -291,6 +292,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_dispatch_inputs_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_job_name_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_job_timeout_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_label_override_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_permissions_contracts.py \
@@ -304,6 +306,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py
 
   plugin-tests:
+    name: plugin-tests
     needs: detect_changes_ci
     if: needs.detect_changes_ci.outputs.run_plugin_tests == 'true'
     runs-on: ubuntu-latest
@@ -338,6 +341,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_plugin_bom_compare.py
 
   playwright-esign:
+    name: playwright-esign
     needs: detect_changes_ci
     if: needs.detect_changes_ci.outputs.run_playwright == 'true'
     runs-on: ubuntu-latest

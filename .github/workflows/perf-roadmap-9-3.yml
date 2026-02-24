@@ -43,6 +43,7 @@ concurrency:
 
 jobs:
   perf_roadmap_9_3:
+    name: perf-roadmap-9-3
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:

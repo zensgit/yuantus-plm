@@ -47,6 +47,7 @@ permissions:
 
 jobs:
   recent_perf_regression:
+    name: recent_perf_regression
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
