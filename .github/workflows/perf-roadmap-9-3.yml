@@ -193,6 +193,7 @@ jobs:
         with:
           name: perf-roadmap-9-3-report
           path: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_CI_${{ github.run_id }}.md
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload perf report (Postgres)
@@ -201,6 +202,7 @@ jobs:
         with:
           name: perf-roadmap-9-3-report-pg
           path: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_PG_CI_${{ github.run_id }}.md
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload perf trend snapshot
@@ -209,4 +211,5 @@ jobs:
         with:
           name: perf-roadmap-9-3-trend
           path: docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND_CI_${{ github.run_id }}.md
+          if-no-files-found: warn
           retention-days: 14

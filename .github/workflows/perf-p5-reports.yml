@@ -196,6 +196,7 @@ jobs:
         with:
           name: perf-p5-reports-report
           path: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_CI_${{ github.run_id }}.md
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload perf report (Postgres)
@@ -204,6 +205,7 @@ jobs:
         with:
           name: perf-p5-reports-report-pg
           path: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_PG_CI_${{ github.run_id }}.md
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload perf trend snapshot
@@ -212,4 +214,5 @@ jobs:
         with:
           name: perf-p5-reports-trend
           path: docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND_CI_${{ github.run_id }}.md
+          if-no-files-found: warn
           retention-days: 14

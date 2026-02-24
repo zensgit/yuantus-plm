@@ -331,6 +331,7 @@ jobs:
         with:
           name: strict-gate-report
           path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}.md
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload strict gate perf summary
@@ -339,6 +340,7 @@ jobs:
         with:
           name: strict-gate-perf-summary
           path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF.md
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload strict gate perf trend
@@ -347,6 +349,7 @@ jobs:
         with:
           name: strict-gate-perf-trend
           path: docs/DAILY_REPORTS/STRICT_GATE_CI_${{ github.run_id }}_PERF_TREND.md
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload strict gate logs
@@ -355,6 +358,7 @@ jobs:
         with:
           name: strict-gate-logs
           path: tmp/strict-gate/STRICT_GATE_CI_${{ github.run_id }}
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload strict gate recent perf audit
@@ -363,4 +367,5 @@ jobs:
         with:
           name: strict-gate-recent-perf-audit
           path: tmp/strict-gate-artifacts/recent-perf-audit/${{ github.run_id }}
+          if-no-files-found: warn
           retention-days: 14

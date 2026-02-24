@@ -319,6 +319,7 @@ jobs:
         with:
           name: regression-log
           path: regression.log
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload regression summary
@@ -327,6 +328,7 @@ jobs:
         with:
           name: regression-summary
           path: regression-summary.md
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload compose log
@@ -335,6 +337,7 @@ jobs:
         with:
           name: compose-log
           path: compose.log
+          if-no-files-found: warn
           retention-days: 14
 
   cad_ml_quick:
@@ -408,6 +411,7 @@ jobs:
         with:
           name: cad-ml-quick-log
           path: cad-ml-quick.log
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Upload compose log (cad-ml quick)
@@ -416,6 +420,7 @@ jobs:
         with:
           name: compose-quick-log
           path: compose-quick.log
+          if-no-files-found: warn
           retention-days: 14
 
   cadgf_preview:
@@ -569,6 +574,7 @@ jobs:
         with:
           name: cadgf-preview-summary
           path: cadgf-preview-summary.md
+          if-no-files-found: warn
           retention-days: 14
 
       - name: Capture compose logs
@@ -582,4 +588,5 @@ jobs:
         with:
           name: cadgf-preview-compose-log
           path: compose.log
+          if-no-files-found: warn
           retention-days: 14
