@@ -58,25 +58,23 @@ def test_workflow_permissions_follow_contracts() -> None:
         assert "permissions: read-all" not in raw_text, f"{rel} must not use read-all"
 
         permissions = payload.get("permissions")
-        if permissions is not None:
-            assert isinstance(permissions, dict), f"{rel} permissions must be a mapping"
-            assert "contents" in permissions, f"{rel} permissions must declare contents scope"
-            for scope, value in permissions.items():
-                assert isinstance(value, str), f"{rel} permission {scope} must be a string"
-                assert value in _ALLOWED_PERMISSION_VALUES, (
-                    f"{rel} permission {scope} has unsupported value {value!r}; "
-                    f"allowed={sorted(_ALLOWED_PERMISSION_VALUES)}"
-                )
+        assert isinstance(permissions, dict), f"{rel} must declare top-level permissions mapping"
+        assert "contents" in permissions, f"{rel} permissions must declare contents scope"
+        assert "actions" in permissions, f"{rel} permissions must declare actions scope"
+        for scope, value in permissions.items():
+            assert isinstance(value, str), f"{rel} permission {scope} must be a string"
+            assert value in _ALLOWED_PERMISSION_VALUES, (
+                f"{rel} permission {scope} has unsupported value {value!r}; "
+                f"allowed={sorted(_ALLOWED_PERMISSION_VALUES)}"
+            )
 
         if _requires_actions_write(raw_text):
-            assert isinstance(permissions, dict), f"{rel} must declare explicit permissions for actions write use"
             assert permissions.get("actions") == "write", (
                 f"{rel} requires actions: write (dispatch/rerun), "
                 f"got actions={permissions.get('actions')!r}"
             )
 
         if _uses_repo_token(raw_text):
-            assert isinstance(permissions, dict), f"{rel} exposes github.token and must declare permissions"
             assert permissions.get("actions") in {"read", "write"}, (
                 f"{rel} exposes github.token and must set actions to read/write"
             )
