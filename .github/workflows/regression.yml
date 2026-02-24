@@ -27,6 +27,7 @@ jobs:
   detect_changes_regression:
     name: detect_changes (regression)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       cadgf_changed: ${{ steps.change_flags.outputs.cadgf }}
       regression_needed: ${{ steps.change_flags.outputs.regression }}

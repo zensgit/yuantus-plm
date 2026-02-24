@@ -19,6 +19,7 @@ jobs:
   detect_changes_ci:
     name: detect_changes (CI)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       run_plugin_tests: ${{ steps.change_flags.outputs.run_plugin_tests }}
       run_playwright: ${{ steps.change_flags.outputs.run_playwright }}
@@ -196,6 +197,7 @@ jobs:
     needs: detect_changes_ci
     if: needs.detect_changes_ci.outputs.run_contracts == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -287,6 +289,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_action_uses_refs_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_job_timeout_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_label_override_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_permissions_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_schedule_cron_contracts.py \
@@ -299,6 +302,7 @@ jobs:
     needs: detect_changes_ci
     if: needs.detect_changes_ci.outputs.run_plugin_tests == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -332,6 +336,7 @@ jobs:
     needs: detect_changes_ci
     if: needs.detect_changes_ci.outputs.run_playwright == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
       BASE_URL: "http://127.0.0.1:7910"
