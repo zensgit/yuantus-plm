@@ -5,6 +5,7 @@ on:
     inputs:
       run_cad_ml:
         description: "Start cad-ml docker for regression"
+        type: string
         required: false
         default: "false"
   schedule:
