@@ -18225,12 +18225,19 @@ ALL CHECKS PASSED
   - 覆盖：
     - 禁止 `permissions: write-all` / `permissions: read-all`
     - 权限值仅允许 `read|write|none`
-    - 声明 `permissions` 时必须包含 `contents`
+    - 所有 workflow 必须声明顶层 `permissions`
+    - `permissions` 必须同时包含 `contents` 与 `actions`
     - 涉及 workflow dispatch/rerun 的流程必须 `actions: write`
     - 暴露 `${{ github.token }}` 到 `GH_TOKEN`/`GITHUB_TOKEN` 的流程必须声明显式权限
 - CI 接入：
   - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
 - workflow 硬化：
+  - `.github/workflows/ci.yml` 增加显式最小权限：
+    - `contents: read`
+    - `actions: read`
+  - `.github/workflows/regression.yml` 增加显式最小权限：
+    - `contents: read`
+    - `actions: read`
   - `.github/workflows/strict-gate.yml` 增加显式最小权限：
     - `contents: read`
     - `actions: read`
@@ -18250,3 +18257,10 @@ ALL CHECKS PASSED
     - `playwright-esign`: `success`
     - `plugin-tests`: `success`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22337410927`
+- CI run `22337960488`（`main@a98c284`）：
+  - 结果：`success`
+  - 关键 job：
+    - `contracts`: `success`
+    - `playwright-esign`: `success`
+    - `plugin-tests`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22337960488`
