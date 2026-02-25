@@ -977,3 +977,26 @@ Detailed verification evidence is recorded in:
   - CI run `22401346569` (`main@f9f26e0`) `success`
   - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
   - regression run `22401346562` (`main@f9f26e0`) `success`
+
+## Workflow Dispatch Input Type Allowlist Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_dispatch_input_type_allowlist_contracts.py` (new)
+  - `.github/workflows/ci.yml` (contracts list updated)
+
+- Key updates:
+  - Added workflow_dispatch input type allowlist contract:
+    - scans all `.github/workflows/*.yml`
+    - inspects every `on.workflow_dispatch.inputs.*.type`
+    - enforces allowed set: `boolean|choice|string|number|environment`
+    - rejects missing/empty/unknown input types
+  - This prevents unsupported dispatch input type drift and keeps trigger schema stable.
+
+- Local validation:
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY` (extracts contracts test list from `.github/workflows/ci.yml` and executes it)
+  - Result: `141 passed, 1 skipped`
+
+- Remote validation:
+  - CI run `22401513387` (`main@6ec236c`) `success`
+  - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
+  - regression run `22401513408` (`main@6ec236c`) `success`

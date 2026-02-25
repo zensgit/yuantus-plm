@@ -19232,3 +19232,45 @@ ALL CHECKS PASSED
     - `cad_ml_quick`: `skipped`
     - `cadgf_preview`: `skipped`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22401346562`
+
+## Run CI-WORKFLOW-DISPATCH-INPUT-TYPE-ALLOWLIST-GUARD-20260225
+
+- 时间：`2026-02-25`（本机）
+- 目标：统一 `workflow_dispatch.inputs.type` 可用集合，避免不受支持类型进入 workflow 输入契约。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_workflow_dispatch_input_type_allowlist_contracts.py`
+  - 覆盖：
+    - 扫描 `.github/workflows/*.yml`
+    - 校验 `on.workflow_dispatch.inputs.*.type`
+    - 强制 type 落在 allowlist：`boolean|choice|string|number|environment`
+    - 拒绝缺失、空值和未知类型
+- CI 接入：
+  - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
+
+### 本地验证
+
+- 命令：
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY`（从 `.github/workflows/ci.yml` 提取 contracts 测试列表并执行）
+- 结果：`141 passed, 1 skipped`
+
+### 远端验证
+
+- CI run `22401513387`（`main@6ec236c`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (CI)`: `success`
+    - `contracts`: `success`
+    - `plugin-tests`: `success`
+    - `playwright-esign`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22401513387`
+- regression run `22401513408`（`main@6ec236c`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (regression)`: `success`
+    - `regression`: `skipped`
+    - `cad_ml_quick`: `skipped`
+    - `cadgf_preview`: `skipped`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22401513408`
