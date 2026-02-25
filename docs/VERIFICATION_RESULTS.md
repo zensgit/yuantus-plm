@@ -19274,3 +19274,52 @@ ALL CHECKS PASSED
     - `cad_ml_quick`: `skipped`
     - `cadgf_preview`: `skipped`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22401513408`
+
+## Run CI-WORKFLOW-CHECKOUT-FETCH-DEPTH-EXPLICIT-GUARD-20260225
+
+- 时间：`2026-02-25`（本机）
+- 目标：显式固定所有 checkout 深度，避免 workflow 依赖隐式默认克隆策略。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_workflow_checkout_fetch_depth_contracts.py`
+  - 覆盖：
+    - 扫描 `.github/workflows/*.yml` jobs/steps
+    - 识别 `actions/checkout@...`
+    - 强制 `with.fetch-depth` 必填
+    - 强制值在 `0|1`
+- workflow 规范化：
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/perf-p5-reports.yml`
+  - `.github/workflows/perf-roadmap-9-3.yml`
+  - `.github/workflows/regression.yml`
+  - `.github/workflows/strict-gate-recent-perf-regression.yml`
+  - `.github/workflows/strict-gate.yml`
+- CI 接入：
+  - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
+
+### 本地验证
+
+- 命令：
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY`（从 `.github/workflows/ci.yml` 提取 contracts 测试列表并执行）
+- 结果：`142 passed, 1 skipped`
+
+### 远端验证
+
+- CI run `22402324193`（`main@ea69051`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (CI)`: `success`
+    - `contracts`: `success`
+    - `plugin-tests`: `success`
+    - `playwright-esign`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22402324193`
+- regression run `22402324107`（`main@ea69051`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (regression)`: `success`
+    - `regression`: `success`
+    - `cad_ml_quick`: `skipped`
+    - `cadgf_preview`: `skipped`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22402324107`

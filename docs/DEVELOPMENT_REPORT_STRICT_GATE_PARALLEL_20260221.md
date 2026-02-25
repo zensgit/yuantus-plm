@@ -1000,3 +1000,32 @@ Detailed verification evidence is recorded in:
   - CI run `22401513387` (`main@6ec236c`) `success`
   - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
   - regression run `22401513408` (`main@6ec236c`) `success`
+
+## Workflow Checkout Fetch-Depth Explicit Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_checkout_fetch_depth_contracts.py` (new)
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/perf-p5-reports.yml`
+  - `.github/workflows/perf-roadmap-9-3.yml`
+  - `.github/workflows/regression.yml`
+  - `.github/workflows/strict-gate-recent-perf-regression.yml`
+  - `.github/workflows/strict-gate.yml`
+
+- Key updates:
+  - Added checkout fetch-depth explicit contract:
+    - scans all `.github/workflows/*.yml` jobs/steps
+    - checks every `actions/checkout@...` step
+    - requires `with.fetch-depth` to be explicitly declared
+    - enforces bounded values: `0|1`
+  - Normalized all workflow checkout steps to explicit depth declarations.
+  - This removes implicit checkout defaults and stabilizes clone behavior across workflows.
+
+- Local validation:
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY` (extracts contracts test list from `.github/workflows/ci.yml` and executes it)
+  - Result: `142 passed, 1 skipped`
+
+- Remote validation:
+  - CI run `22402324193` (`main@ea69051`) `success`
+  - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
+  - regression run `22402324107` (`main@ea69051`) `success`
