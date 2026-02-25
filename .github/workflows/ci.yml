@@ -295,6 +295,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_dispatch_input_name_style_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_dispatch_inputs_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_dispatch_inputs_metadata_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_git_diff_fetch_depth_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_inline_shell_syntax_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_job_name_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_job_timeout_contracts.py \
