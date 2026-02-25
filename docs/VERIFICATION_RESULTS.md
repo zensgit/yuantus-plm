@@ -19190,3 +19190,45 @@ ALL CHECKS PASSED
     - `cad_ml_quick`: `skipped`
     - `cadgf_preview`: `skipped`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22396585745`
+
+## Run CI-WORKFLOW-SCHEDULE-FREQUENCY-FLOOR-GUARD-20260225
+
+- 时间：`2026-02-25`（本机）
+- 目标：给 `schedule` 增加触发频率下限，防止 cron 被误配置为分钟级高频执行。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_workflow_schedule_frequency_floor_contracts.py`
+  - 覆盖：
+    - 扫描 `.github/workflows/*.yml`
+    - 提取 `on.schedule[].cron`
+    - 强制 cron 分钟位为固定数字字面量 `0-59`
+    - 拒绝 `*`、列表、范围、步长等分钟位写法（避免分钟级 cadence）
+- CI 接入：
+  - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
+
+### 本地验证
+
+- 命令：
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY`（从 `.github/workflows/ci.yml` 提取 contracts 测试列表并执行）
+- 结果：`140 passed, 1 skipped`
+
+### 远端验证
+
+- CI run `22401346569`（`main@f9f26e0`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (CI)`: `success`
+    - `contracts`: `success`
+    - `plugin-tests`: `success`
+    - `playwright-esign`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22401346569`
+- regression run `22401346562`（`main@f9f26e0`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (regression)`: `success`
+    - `regression`: `skipped`
+    - `cad_ml_quick`: `skipped`
+    - `cadgf_preview`: `skipped`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22401346562`

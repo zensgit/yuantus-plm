@@ -954,3 +954,26 @@ Detailed verification evidence is recorded in:
   - CI run `22396585721` (`main@b6d2bfb`) `success`
   - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
   - regression run `22396585745` (`main@b6d2bfb`) `success`
+
+## Workflow Schedule Frequency Floor Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_schedule_frequency_floor_contracts.py` (new)
+  - `.github/workflows/ci.yml` (contracts list updated)
+
+- Key updates:
+  - Added schedule frequency floor contract:
+    - scans all `.github/workflows/*.yml`
+    - extracts every `on.schedule[].cron` expression
+    - enforces cron minute field to be a fixed numeric literal (`0-59`)
+    - rejects wildcard/list/range/step minute forms that can produce minute-level cadence
+  - This keeps scheduled workflows at hourly-or-slower cadence and prevents accidental high-frequency trigger spikes.
+
+- Local validation:
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY` (extracts contracts test list from `.github/workflows/ci.yml` and executes it)
+  - Result: `140 passed, 1 skipped`
+
+- Remote validation:
+  - CI run `22401346569` (`main@f9f26e0`) `success`
+  - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
+  - regression run `22401346562` (`main@f9f26e0`) `success`
