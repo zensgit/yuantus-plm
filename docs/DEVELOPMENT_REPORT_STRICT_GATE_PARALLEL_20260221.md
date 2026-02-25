@@ -930,3 +930,27 @@ Detailed verification evidence is recorded in:
   - CI run `22394016044` (`main@7f2bea7`) `success`
   - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
   - regression run `22394016027` (`main@7f2bea7`) `success`
+
+## Workflow Push Branch Allowlist Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_push_branch_allowlist_contracts.py` (new)
+  - `.github/workflows/ci.yml` (contracts list updated)
+
+- Key updates:
+  - Added push-branch allowlist contract:
+    - scans all `.github/workflows/*.yml`
+    - for workflows that declare `on.push`, requires explicit `on.push.branches`
+    - enforces branch values to stay in allowlist `main|master`
+    - requires `main` to be present
+    - rejects `branches-ignore` and duplicate branch entries
+  - This prevents accidental push-trigger fanout to unreviewed branches.
+
+- Local validation:
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY` (extracts contracts test list from `.github/workflows/ci.yml` and executes it)
+  - Result: `139 passed, 1 skipped`
+
+- Remote validation:
+  - CI run `22396585721` (`main@b6d2bfb`) `success`
+  - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
+  - regression run `22396585745` (`main@b6d2bfb`) `success`

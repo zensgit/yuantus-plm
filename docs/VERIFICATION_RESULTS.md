@@ -19147,3 +19147,46 @@ ALL CHECKS PASSED
     - `cad_ml_quick`: `skipped`
     - `cadgf_preview`: `skipped`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22394016027`
+
+## Run CI-WORKFLOW-PUSH-BRANCH-ALLOWLIST-GUARD-20260225
+
+- 时间：`2026-02-25`（本机）
+- 目标：收敛 `on.push` 触发分支范围，防止 workflow 在非预期分支被误触发。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_workflow_push_branch_allowlist_contracts.py`
+  - 覆盖：
+    - 扫描 `.github/workflows/*.yml`
+    - 对声明 `on.push` 的 workflow 强制要求 `on.push.branches`
+    - 强制分支值仅允许 `main|master`
+    - 强制包含 `main`
+    - 禁止 `branches-ignore` 与重复分支项
+- CI 接入：
+  - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
+
+### 本地验证
+
+- 命令：
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY`（从 `.github/workflows/ci.yml` 提取 contracts 测试列表并执行）
+- 结果：`139 passed, 1 skipped`
+
+### 远端验证
+
+- CI run `22396585721`（`main@b6d2bfb`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (CI)`: `success`
+    - `contracts`: `success`
+    - `playwright-esign`: `success`
+    - `plugin-tests`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22396585721`
+- regression run `22396585745`（`main@b6d2bfb`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (regression)`: `success`
+    - `regression`: `skipped`
+    - `cad_ml_quick`: `skipped`
+    - `cadgf_preview`: `skipped`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22396585745`
