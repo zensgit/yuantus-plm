@@ -298,6 +298,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_job_name_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_job_timeout_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_label_override_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_manual_dispatch_presence_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_name_uniqueness_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_needs_integrity_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_no_job_level_permissions_contracts.py \
