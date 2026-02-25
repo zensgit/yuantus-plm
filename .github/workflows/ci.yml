@@ -201,6 +201,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -288,6 +290,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py \
             src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_action_uses_refs_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_checkout_fetch_depth_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_concurrency_all_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_concurrency_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_concurrency_group_template_contracts.py \
@@ -330,6 +333,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -368,6 +373,8 @@ jobs:
       BASE_URL: "http://127.0.0.1:7910"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

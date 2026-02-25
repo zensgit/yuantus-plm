@@ -207,6 +207,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -231,6 +233,7 @@ jobs:
         with:
           repository: zensgit/cad-ml-platform
           path: cad-ml-platform
+          fetch-depth: 1
 
       - name: Install CLI
         run: |
@@ -356,6 +359,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -368,6 +373,7 @@ jobs:
         with:
           repository: zensgit/cad-ml-platform
           path: cad-ml-platform
+          fetch-depth: 1
 
       - name: Install CLI
         run: |
@@ -445,12 +451,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Checkout CADGameFusion
         uses: actions/checkout@v4
         with:
           repository: zensgit/CADGameFusion
           path: CADGameFusion
+          fetch-depth: 1
 
       - name: Build CADGameFusion (core + plugin)
         run: |
