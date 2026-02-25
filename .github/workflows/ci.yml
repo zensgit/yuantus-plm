@@ -307,6 +307,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_permissions_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_permissions_least_privilege_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_permissions_scope_allowlist_contracts.py \
+            src/yuantus/meta_engine/tests/test_workflow_push_branch_allowlist_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_runner_policy_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_schedule_cron_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_script_reference_contracts.py \
