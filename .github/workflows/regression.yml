@@ -232,6 +232,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: zensgit/cad-ml-platform
+          ref: main
           path: cad-ml-platform
           fetch-depth: 1
 
@@ -372,6 +373,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: zensgit/cad-ml-platform
+          ref: main
           path: cad-ml-platform
           fetch-depth: 1
 
@@ -458,6 +460,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: zensgit/CADGameFusion
+          ref: main
           path: CADGameFusion
           fetch-depth: 1
 
