@@ -19367,3 +19367,45 @@ ALL CHECKS PASSED
     - `cad_ml_quick`: `skipped`
     - `cadgf_preview`: `skipped`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22426651584`
+
+## Run CI-WORKFLOW-EXTERNAL-CHECKOUT-PATH-GUARD-20260226
+
+- 时间：`2026-02-26`（本机）
+- 目标：要求外部仓库 checkout 显式使用安全相对路径，避免检出到不受控位置。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_workflow_checkout_external_path_contracts.py`
+  - 覆盖：
+    - 扫描 `.github/workflows/*.yml` jobs/steps
+    - 识别 `actions/checkout@...` 且 `with.repository` 存在的外部 checkout
+    - 强制 `with.path` 为字符串
+    - 强制 `with.path` 为安全相对路径（非空、非绝对、无 `.`/`..` 段）
+- CI 接入：
+  - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
+
+### 本地验证
+
+- 命令：
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY`（从 `.github/workflows/ci.yml` 提取 contracts 测试列表并执行）
+- 结果：`144 passed, 1 skipped`
+
+### 远端验证
+
+- CI run `22426785372`（`main@9adf8ce`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (CI)`: `success`
+    - `contracts`: `success`
+    - `plugin-tests`: `success`
+    - `playwright-esign`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22426785372`
+- regression run `22426785368`（`main@9adf8ce`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (regression)`: `success`
+    - `regression`: `skipped`
+    - `cad_ml_quick`: `skipped`
+    - `cadgf_preview`: `skipped`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22426785368`
