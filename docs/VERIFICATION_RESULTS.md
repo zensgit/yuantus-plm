@@ -19323,3 +19323,47 @@ ALL CHECKS PASSED
     - `cad_ml_quick`: `skipped`
     - `cadgf_preview`: `skipped`
   - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22402324107`
+
+## Run CI-WORKFLOW-EXTERNAL-CHECKOUT-REF-GUARD-20260226
+
+- 时间：`2026-02-26`（本机）
+- 目标：要求跨仓库 checkout 显式固定 `ref`，避免依赖外部仓库默认分支隐式行为。
+
+### 变更
+
+- 新增测试：
+  - `src/yuantus/meta_engine/tests/test_workflow_checkout_external_ref_contracts.py`
+  - 覆盖：
+    - 扫描 `.github/workflows/*.yml` jobs/steps
+    - 识别 `actions/checkout@...` 且 `with.repository` 存在的外部 checkout
+    - 强制 `with.ref` 为非空字符串
+- workflow 规范化：
+  - `.github/workflows/regression.yml`
+  - 外部 checkout 增加显式 `ref: main`（`zensgit/cad-ml-platform`、`zensgit/CADGameFusion`）
+- CI 接入：
+  - `.github/workflows/ci.yml` contracts step 增加该测试路径（保持排序）
+
+### 本地验证
+
+- 命令：
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY`（从 `.github/workflows/ci.yml` 提取 contracts 测试列表并执行）
+- 结果：`143 passed, 1 skipped`
+
+### 远端验证
+
+- CI run `22426651591`（`main@5e00eb4`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (CI)`: `success`
+    - `contracts`: `success`
+    - `plugin-tests`: `success`
+    - `playwright-esign`: `success`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22426651591`
+- regression run `22426651584`（`main@5e00eb4`）：
+  - 结果：`success`
+  - 关键 job：
+    - `detect_changes (regression)`: `success`
+    - `regression`: `success`
+    - `cad_ml_quick`: `skipped`
+    - `cadgf_preview`: `skipped`
+  - 链接：`https://github.com/zensgit/yuantus-plm/actions/runs/22426651584`

@@ -1029,3 +1029,27 @@ Detailed verification evidence is recorded in:
   - CI run `22402324193` (`main@ea69051`) `success`
   - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
   - regression run `22402324107` (`main@ea69051`) `success`
+
+## Workflow External Checkout Ref Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_checkout_external_ref_contracts.py` (new)
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/regression.yml`
+
+- Key updates:
+  - Added external checkout ref contract:
+    - scans all `.github/workflows/*.yml` jobs/steps
+    - checks `actions/checkout@...` steps with `with.repository`
+    - requires explicit non-empty `with.ref`
+  - Normalized current external checkout steps in `regression.yml` to `ref: main`.
+  - This removes implicit default-branch dependency for cross-repo checkouts.
+
+- Local validation:
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY` (extracts contracts test list from `.github/workflows/ci.yml` and executes it)
+  - Result: `143 passed, 1 skipped`
+
+- Remote validation:
+  - CI run `22426651591` (`main@5e00eb4`) `success`
+  - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
+  - regression run `22426651584` (`main@5e00eb4`) `success`
