@@ -20,6 +20,8 @@ _ALLOWLIST_NO_DB = {
     "src/yuantus/meta_engine/tests/test_item_cockpit_router.py",
     "src/yuantus/meta_engine/tests/test_product_detail_cockpit_extensions.py",
     "src/yuantus/meta_engine/tests/test_release_orchestration_router.py",
+    "src/yuantus/meta_engine/tests/test_parallel_tasks_services.py",
+    "src/yuantus/meta_engine/tests/test_bom_delta_preview.py",
 }
 
 _DB_DEPENDENT_PATHS = (

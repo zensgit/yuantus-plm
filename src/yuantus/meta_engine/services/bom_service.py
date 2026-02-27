@@ -1,5 +1,7 @@
 from typing import List, Dict, Any, Optional
 import json
+import csv
+import io
 from datetime import datetime
 import re
 from decimal import Decimal, InvalidOperation
@@ -864,6 +866,140 @@ class BOMService:
             "removed": removed,
             "changed": changed,
         }
+
+    def build_delta_preview(self, compare_result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert compare output into a read-only delta patch preview payload.
+        """
+        added = compare_result.get("added") or []
+        removed = compare_result.get("removed") or []
+        changed = compare_result.get("changed") or []
+
+        operations: List[Dict[str, Any]] = []
+
+        for entry in added:
+            operations.append(
+                {
+                    "op": "add",
+                    "line_key": entry.get("line_key"),
+                    "parent_id": entry.get("parent_id"),
+                    "child_id": entry.get("child_id"),
+                    "relationship_id": entry.get("relationship_id"),
+                    "properties": entry.get("properties") or {},
+                }
+            )
+
+        for entry in removed:
+            operations.append(
+                {
+                    "op": "remove",
+                    "line_key": entry.get("line_key"),
+                    "parent_id": entry.get("parent_id"),
+                    "child_id": entry.get("child_id"),
+                    "relationship_id": entry.get("relationship_id"),
+                    "properties": entry.get("properties") or {},
+                }
+            )
+
+        for entry in changed:
+            field_changes = []
+            for field_diff in entry.get("changes") or []:
+                field_changes.append(
+                    {
+                        "field": field_diff.get("field"),
+                        "before": field_diff.get("left"),
+                        "after": field_diff.get("right"),
+                        "severity": field_diff.get("severity") or "info",
+                    }
+                )
+            operations.append(
+                {
+                    "op": "update",
+                    "line_key": entry.get("line_key"),
+                    "parent_id": entry.get("parent_id"),
+                    "child_id": entry.get("child_id"),
+                    "relationship_id": entry.get("relationship_id"),
+                    "severity": entry.get("severity") or "info",
+                    "changes": field_changes,
+                }
+            )
+
+        summary = {
+            "total_ops": len(operations),
+            "adds": len(added),
+            "removes": len(removed),
+            "updates": len(changed),
+        }
+        return {"summary": summary, "operations": operations}
+
+    def export_delta_csv(self, delta_preview: Dict[str, Any]) -> str:
+        """
+        Export delta preview operations as CSV text.
+        """
+        output = io.StringIO()
+        writer = csv.DictWriter(
+            output,
+            fieldnames=[
+                "op",
+                "line_key",
+                "parent_id",
+                "child_id",
+                "relationship_id",
+                "severity",
+                "field",
+                "before",
+                "after",
+            ],
+        )
+        writer.writeheader()
+
+        for op in delta_preview.get("operations") or []:
+            base = {
+                "op": op.get("op"),
+                "line_key": op.get("line_key"),
+                "parent_id": op.get("parent_id"),
+                "child_id": op.get("child_id"),
+                "relationship_id": op.get("relationship_id"),
+                "severity": op.get("severity") or "",
+            }
+            if op.get("op") != "update":
+                writer.writerow(
+                    {
+                        **base,
+                        "field": "",
+                        "before": "",
+                        "after": "",
+                    }
+                )
+                continue
+
+            changes = op.get("changes") or []
+            if not changes:
+                writer.writerow(
+                    {
+                        **base,
+                        "field": "",
+                        "before": "",
+                        "after": "",
+                    }
+                )
+                continue
+
+            for change in changes:
+                writer.writerow(
+                    {
+                        **base,
+                        "field": change.get("field"),
+                        "before": json.dumps(
+                            change.get("before"), ensure_ascii=False
+                        ),
+                        "after": json.dumps(
+                            change.get("after"), ensure_ascii=False
+                        ),
+                    }
+                )
+
+        return output.getvalue()
 
     def _flatten_tree(
         self,

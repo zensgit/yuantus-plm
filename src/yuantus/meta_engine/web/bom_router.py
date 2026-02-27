@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional, List
 import json
+import io
 from datetime import datetime
 from pydantic import BaseModel, Field
 from yuantus.database import get_db
@@ -1189,6 +1190,117 @@ async def compare_bom(
         include_effectivity=include_effectivity,
         aggregate_quantities=aggregate_quantities,
     )
+
+
+@bom_router.get(
+    "/compare/delta/preview",
+    summary="Preview BOM delta patch",
+    description="Generate read-only delta operations from BOM compare result.",
+)
+async def compare_bom_delta_preview(
+    left_type: str = Query(..., description="item or version"),
+    left_id: str = Query(..., description="Left item/version ID"),
+    right_type: str = Query(..., description="item or version"),
+    right_id: str = Query(..., description="Right item/version ID"),
+    max_levels: int = Query(10, description="Explosion depth (-1 for unlimited)"),
+    effective_at: Optional[datetime] = Query(None, description="Effectivity filter date"),
+    include_child_fields: bool = Query(False, description="Include parent/child fields"),
+    include_relationship_props: Optional[List[str]] = Query(
+        None, description="Comma-separated relationship property whitelist"
+    ),
+    line_key: str = Query("child_config", description="Line key strategy"),
+    compare_mode: Optional[str] = Query(
+        None, description="Optional compare mode: only_product, summarized, num_qty, by_position, by_reference"
+    ),
+    include_substitutes: bool = Query(False),
+    include_effectivity: bool = Query(False),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    compare_result = await compare_bom(
+        left_type=left_type,
+        left_id=left_id,
+        right_type=right_type,
+        right_id=right_id,
+        max_levels=max_levels,
+        effective_at=effective_at,
+        include_child_fields=include_child_fields,
+        include_relationship_props=include_relationship_props,
+        line_key=line_key,
+        compare_mode=compare_mode,
+        include_substitutes=include_substitutes,
+        include_effectivity=include_effectivity,
+        user=user,
+        db=db,
+    )
+    service = BOMService(db)
+    delta = service.build_delta_preview(compare_result)
+    delta["compare_summary"] = compare_result.get("summary") or {}
+    return delta
+
+
+@bom_router.get(
+    "/compare/delta/export",
+    summary="Export BOM delta patch",
+    description="Export delta preview as json or csv.",
+)
+async def compare_bom_delta_export(
+    left_type: str = Query(..., description="item or version"),
+    left_id: str = Query(..., description="Left item/version ID"),
+    right_type: str = Query(..., description="item or version"),
+    right_id: str = Query(..., description="Right item/version ID"),
+    max_levels: int = Query(10, description="Explosion depth (-1 for unlimited)"),
+    effective_at: Optional[datetime] = Query(None, description="Effectivity filter date"),
+    include_child_fields: bool = Query(False, description="Include parent/child fields"),
+    include_relationship_props: Optional[List[str]] = Query(
+        None, description="Comma-separated relationship property whitelist"
+    ),
+    line_key: str = Query("child_config", description="Line key strategy"),
+    compare_mode: Optional[str] = Query(
+        None, description="Optional compare mode: only_product, summarized, num_qty, by_position, by_reference"
+    ),
+    include_substitutes: bool = Query(False),
+    include_effectivity: bool = Query(False),
+    export_format: str = Query("json", description="json|csv"),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    compare_result = await compare_bom(
+        left_type=left_type,
+        left_id=left_id,
+        right_type=right_type,
+        right_id=right_id,
+        max_levels=max_levels,
+        effective_at=effective_at,
+        include_child_fields=include_child_fields,
+        include_relationship_props=include_relationship_props,
+        line_key=line_key,
+        compare_mode=compare_mode,
+        include_substitutes=include_substitutes,
+        include_effectivity=include_effectivity,
+        user=user,
+        db=db,
+    )
+    service = BOMService(db)
+    delta = service.build_delta_preview(compare_result)
+    delta["compare_summary"] = compare_result.get("summary") or {}
+
+    normalized = (export_format or "json").strip().lower()
+    if normalized == "json":
+        payload = json.dumps(delta, ensure_ascii=False, indent=2).encode("utf-8")
+        return StreamingResponse(
+            io.BytesIO(payload),
+            media_type="application/json",
+            headers={"Content-Disposition": 'attachment; filename="bom-delta-preview.json"'},
+        )
+    if normalized == "csv":
+        csv_text = service.export_delta_csv(delta)
+        return StreamingResponse(
+            io.BytesIO(csv_text.encode("utf-8")),
+            media_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="bom-delta-preview.csv"'},
+        )
+    raise HTTPException(status_code=400, detail="export_format must be json or csv")
 
 
 @bom_router.get(
