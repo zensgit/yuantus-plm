@@ -1100,3 +1100,25 @@ Detailed verification evidence is recorded in:
   - CI run `22486418887` (`main@7eae094`) `success`
   - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
   - regression run `22486418877` (`main@7eae094`) `success`
+
+## Workflow Checkout Version Baseline Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_checkout_version_baseline_contracts.py` (new)
+  - `.github/workflows/ci.yml`
+
+- Key updates:
+  - Added checkout version baseline contract:
+    - scans all `.github/workflows/*.yml` jobs/steps
+    - checks each `actions/checkout@...` step
+    - enforces `uses` to start with `actions/checkout@v4`
+  - This prevents silent drift to older checkout action majors.
+
+- Local validation:
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY` (extracts contracts test list from `.github/workflows/ci.yml` and executes it)
+  - Result: `146 passed, 1 skipped`
+
+- Remote validation:
+  - CI run `22486532864` (`main@8030f8e`) `success`
+  - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
+  - regression run `22486532849` (`main@8030f8e`) `success`
