@@ -1076,3 +1076,27 @@ Detailed verification evidence is recorded in:
   - CI run `22426785372` (`main@9adf8ce`) `success`
   - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
   - regression run `22426785368` (`main@9adf8ce`) `success`
+
+## Workflow External Checkout Repository Allowlist Guard
+
+- Changed files:
+  - `src/yuantus/meta_engine/tests/test_workflow_checkout_external_repository_allowlist_contracts.py` (new)
+  - `.github/workflows/ci.yml`
+
+- Key updates:
+  - Added external checkout repository allowlist contract:
+    - scans all `.github/workflows/*.yml` jobs/steps
+    - checks `actions/checkout@...` steps with `with.repository`
+    - enforces repository to stay in explicit allowlist:
+      - `zensgit/cad-ml-platform`
+      - `zensgit/CADGameFusion`
+  - This prevents accidental introduction of unreviewed third-party checkout sources in workflows.
+
+- Local validation:
+  - `python3 - <<'PY' ... subprocess.run(['pytest', '-q', *paths], check=True) ... PY` (extracts contracts test list from `.github/workflows/ci.yml` and executes it)
+  - Result: `145 passed, 1 skipped`
+
+- Remote validation:
+  - CI run `22486418887` (`main@7eae094`) `success`
+  - contracts job `Contract checks (perf workflows + delivery doc index)` `success`
+  - regression run `22486418877` (`main@7eae094`) `success`
