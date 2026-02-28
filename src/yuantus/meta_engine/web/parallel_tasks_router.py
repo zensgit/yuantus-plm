@@ -17,6 +17,7 @@ from yuantus.meta_engine.services.parallel_tasks_service import (
     ConsumptionPlanService,
     DocumentMultiSiteService,
     ECOActivityValidationService,
+    ParallelOpsOverviewService,
     ThreeDOverlayService,
     WorkflowCustomActionService,
     WorkorderDocumentPackService,
@@ -1564,4 +1565,42 @@ async def resolve_overlay_component(
         raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return result
+
+
+# ---------------------------
+# P3-I Parallel Ops Overview
+# ---------------------------
+
+
+@parallel_tasks_router.get("/parallel-ops/summary")
+async def get_parallel_ops_summary(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    site_id: Optional[str] = Query(None),
+    target_object: Optional[str] = Query(None),
+    template_key: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.summary(
+            window_days=window_days,
+            site_id=site_id,
+            target_object=target_object,
+            template_key=template_key,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "site_id": site_id,
+                "target_object": target_object,
+                "template_key": template_key,
+            },
+        )
+    result["operator_id"] = int(user.id)
     return result

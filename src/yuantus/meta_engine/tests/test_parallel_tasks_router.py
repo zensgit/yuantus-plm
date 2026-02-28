@@ -472,3 +472,51 @@ def test_3d_overlay_cache_stats_endpoint_returns_payload():
     assert body["entries"] == 2
     assert body["hits"] == 9
     assert body["ttl_seconds"] == 60
+
+
+def test_parallel_ops_summary_returns_payload():
+    user = SimpleNamespace(id=15, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.summary.return_value = {
+            "generated_at": "2026-02-28T00:00:00",
+            "window_days": 7,
+            "window_since": "2026-02-21T00:00:00",
+            "doc_sync": {"total": 3, "dead_letter_total": 1},
+            "workflow_actions": {"total": 5},
+            "breakages": {"total": 2},
+            "consumption_templates": {"versions_total": 4},
+            "overlay_cache": {"hits": 5, "misses": 2, "requests": 7},
+            "slo_hints": [],
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/summary?window_days=7&site_id=site-1&target_object=ECO&template_key=tpl-1"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["window_days"] == 7
+    assert body["doc_sync"]["dead_letter_total"] == 1
+    assert body["overlay_cache"]["requests"] == 7
+    assert body["operator_id"] == 15
+
+
+def test_parallel_ops_summary_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=15, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.summary.side_effect = ValueError(
+            "window_days must be one of: 1, 7, 14, 30, 90"
+        )
+        resp = client.get("/api/v1/parallel-ops/summary?window_days=10")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("window_days") == 10

@@ -1997,3 +1997,259 @@ class ThreeDOverlayService:
             "results": rows,
             "cache": self.cache_stats(),
         }
+
+
+class ParallelOpsOverviewService:
+    _ALLOWED_WINDOW_DAYS = {1, 7, 14, 30, 90}
+
+    def __init__(self, session: Session):
+        self.session = session
+
+    def _normalize_window_days(self, window_days: int) -> int:
+        try:
+            value = int(window_days)
+        except Exception as exc:
+            raise ValueError("window_days must be one of: 1, 7, 14, 30, 90") from exc
+        if value not in self._ALLOWED_WINDOW_DAYS:
+            raise ValueError("window_days must be one of: 1, 7, 14, 30, 90")
+        return value
+
+    def _window_since(self, window_days: int) -> datetime:
+        return _utcnow() - timedelta(days=window_days)
+
+    def _safe_ratio(self, numerator: int, denominator: int) -> Optional[float]:
+        return (float(numerator) / float(denominator)) if denominator > 0 else None
+
+    def _doc_sync_summary(
+        self,
+        *,
+        since: datetime,
+        site_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type.like("document_sync_%"))
+            .filter(ConversionJob.created_at >= since)
+            .order_by(ConversionJob.created_at.desc())
+            .all()
+        )
+        filtered: List[ConversionJob] = []
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            if site_id and str(payload.get("site_id") or "").strip() != str(site_id).strip():
+                continue
+            filtered.append(job)
+
+        by_status = Counter(str(job.status or "unknown").lower() for job in filtered)
+        dead_letter = [
+            job
+            for job in filtered
+            if str(job.status or "").lower() == JobStatus.FAILED.value
+            and int(job.max_attempts or 0) > 0
+            and int(job.attempt_count or 0) >= int(job.max_attempts or 0)
+        ]
+        success_count = int(by_status.get(JobStatus.COMPLETED.value, 0))
+        total = len(filtered)
+        avg_attempts = (
+            sum(int(job.attempt_count or 0) for job in filtered) / float(total)
+            if total > 0
+            else 0.0
+        )
+        return {
+            "total": total,
+            "by_status": dict(by_status),
+            "success_rate": self._safe_ratio(success_count, total),
+            "dead_letter_total": len(dead_letter),
+            "dead_letter_rate": self._safe_ratio(len(dead_letter), total),
+            "avg_attempt_count": round(avg_attempts, 4),
+            "site_filter": site_id,
+        }
+
+    def _workflow_summary(
+        self,
+        *,
+        since: datetime,
+        target_object: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        query = self.session.query(WorkflowCustomActionRun).filter(
+            WorkflowCustomActionRun.created_at >= since
+        )
+        if target_object:
+            query = query.filter(WorkflowCustomActionRun.target_object == target_object)
+        runs = query.order_by(WorkflowCustomActionRun.created_at.desc()).all()
+
+        by_status = Counter(str(run.status or "unknown").lower() for run in runs)
+        by_result_code = Counter(
+            str((run.result or {}).get("result_code") or "UNKNOWN")
+            for run in runs
+            if isinstance(run.result, dict)
+        )
+        failed_count = int(by_status.get("failed", 0))
+        warning_count = int(by_status.get("warning", 0))
+        total = len(runs)
+        return {
+            "total": total,
+            "by_status": dict(by_status),
+            "by_result_code": dict(by_result_code),
+            "failed_rate": self._safe_ratio(failed_count, total),
+            "warning_rate": self._safe_ratio(warning_count, total),
+            "target_object_filter": target_object,
+        }
+
+    def _breakage_summary(self, *, since: datetime) -> Dict[str, Any]:
+        incidents = (
+            self.session.query(BreakageIncident)
+            .filter(BreakageIncident.created_at >= since)
+            .order_by(BreakageIncident.created_at.desc())
+            .all()
+        )
+        total = len(incidents)
+        by_status = Counter(str(row.status or "unknown").lower() for row in incidents)
+        by_severity = Counter(str(row.severity or "unknown").lower() for row in incidents)
+        by_responsibility = Counter(
+            str(row.responsibility or "unassigned") for row in incidents
+        )
+        open_total = int(by_status.get("open", 0))
+        descriptions = Counter(str(row.description or "").strip().lower() for row in incidents)
+        repeated_total = sum(
+            count
+            for key, count in descriptions.items()
+            if key and count > 1
+        )
+        return {
+            "total": total,
+            "by_status": dict(by_status),
+            "by_severity": dict(by_severity),
+            "by_responsibility": dict(by_responsibility),
+            "open_total": open_total,
+            "open_rate": self._safe_ratio(open_total, total),
+            "repeated_total": repeated_total,
+            "repeated_rate": self._safe_ratio(repeated_total, total),
+        }
+
+    def _consumption_template_summary(
+        self, *, template_key: Optional[str] = None
+    ) -> Dict[str, Any]:
+        plans = (
+            self.session.query(ConsumptionPlan)
+            .order_by(ConsumptionPlan.created_at.desc())
+            .all()
+        )
+        template_rows: List[ConsumptionPlan] = []
+        for plan in plans:
+            props = plan.properties if isinstance(plan.properties, dict) else {}
+            template = props.get("template")
+            if not isinstance(template, dict):
+                continue
+            if not bool(template.get("is_template_version")):
+                continue
+            key = str(template.get("key") or "").strip()
+            if not key:
+                continue
+            if template_key and key != str(template_key).strip():
+                continue
+            template_rows.append(plan)
+
+        active_by_key: Counter = Counter()
+        all_keys = set()
+        for row in template_rows:
+            props = row.properties if isinstance(row.properties, dict) else {}
+            template = props.get("template")
+            if not isinstance(template, dict):
+                continue
+            key = str(template.get("key") or "").strip()
+            if not key:
+                continue
+            all_keys.add(key)
+            if bool(template.get("is_active")):
+                active_by_key[key] += 1
+
+        invalid_templates = [key for key, count in active_by_key.items() if count != 1]
+        templates_without_active = [key for key in all_keys if active_by_key.get(key, 0) == 0]
+
+        return {
+            "versions_total": len(template_rows),
+            "templates_total": len(all_keys),
+            "active_versions_total": int(sum(active_by_key.values())),
+            "invalid_active_templates": sorted(invalid_templates),
+            "templates_without_active": sorted(templates_without_active),
+            "template_key_filter": template_key,
+        }
+
+    def _overlay_cache_summary(self) -> Dict[str, Any]:
+        cache = ThreeDOverlayService.cache_stats()
+        requests = int(cache.get("hits") or 0) + int(cache.get("misses") or 0)
+        hit_rate = self._safe_ratio(int(cache.get("hits") or 0), requests)
+        return {
+            **cache,
+            "requests": requests,
+            "hit_rate": hit_rate,
+        }
+
+    def summary(
+        self,
+        *,
+        window_days: int = 7,
+        site_id: Optional[str] = None,
+        target_object: Optional[str] = None,
+        template_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        since = self._window_since(normalized_window)
+
+        doc_sync = self._doc_sync_summary(since=since, site_id=site_id)
+        workflow = self._workflow_summary(since=since, target_object=target_object)
+        breakages = self._breakage_summary(since=since)
+        consumption_templates = self._consumption_template_summary(
+            template_key=template_key
+        )
+        overlay_cache = self._overlay_cache_summary()
+
+        hints: List[Dict[str, Any]] = []
+        if (
+            overlay_cache.get("requests", 0) >= 10
+            and (overlay_cache.get("hit_rate") or 0.0) < 0.8
+        ):
+            hints.append(
+                {
+                    "code": "overlay_cache_hit_rate_low",
+                    "level": "warn",
+                    "message": "Overlay cache hit rate is below 0.8 in current process window",
+                }
+            )
+        if (doc_sync.get("dead_letter_rate") or 0.0) > 0.05:
+            hints.append(
+                {
+                    "code": "doc_sync_dead_letter_rate_high",
+                    "level": "warn",
+                    "message": "Document sync dead-letter rate is above 5%",
+                }
+            )
+        if (workflow.get("failed_rate") or 0.0) > 0.02:
+            hints.append(
+                {
+                    "code": "workflow_action_failed_rate_high",
+                    "level": "warn",
+                    "message": "Workflow custom action failed rate is above 2%",
+                }
+            )
+        if (breakages.get("open_rate") or 0.0) > 0.5:
+            hints.append(
+                {
+                    "code": "breakage_open_rate_high",
+                    "level": "warn",
+                    "message": "Open breakage ratio is above 50%",
+                }
+            )
+
+        return {
+            "generated_at": _utcnow().isoformat(),
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "doc_sync": doc_sync,
+            "workflow_actions": workflow,
+            "breakages": breakages,
+            "consumption_templates": consumption_templates,
+            "overlay_cache": overlay_cache,
+            "slo_hints": hints,
+        }

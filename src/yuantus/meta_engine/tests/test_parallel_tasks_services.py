@@ -27,6 +27,7 @@ from yuantus.meta_engine.services.parallel_tasks_service import (
     ConsumptionPlanService,
     DocumentMultiSiteService,
     ECOActivityValidationService,
+    ParallelOpsOverviewService,
     ThreeDOverlayService,
     WorkflowCustomActionService,
     WorkorderDocumentPackService,
@@ -611,3 +612,138 @@ def test_3d_overlay_batch_resolve_and_cache_stats(session):
             component_refs=["C-001"],
             user_roles=["viewer"],
         )
+
+
+def test_parallel_ops_overview_summary_and_window_validation(session):
+    ThreeDOverlayService.reset_cache_for_tests()
+    overlay_service = ThreeDOverlayService(session)
+    overlay_service.upsert_overlay(
+        document_item_id="doc-ops-1",
+        visibility_role="engineer",
+        part_refs=[{"component_ref": "X-1", "item_id": "i-1"}],
+    )
+    session.commit()
+
+    _ = overlay_service.get_overlay(document_item_id="doc-ops-1", user_roles=["engineer"])
+    _ = overlay_service.get_overlay(document_item_id="doc-ops-1", user_roles=["engineer"])
+
+    now = datetime.utcnow()
+    session.add_all(
+        [
+            ConversionJob(
+                id="job-sync-ok",
+                task_type="document_sync_push",
+                status="completed",
+                payload={"site_id": "site-1"},
+                attempt_count=1,
+                max_attempts=3,
+                created_at=now - timedelta(days=1),
+            ),
+            ConversionJob(
+                id="job-sync-dead",
+                task_type="document_sync_pull",
+                status="failed",
+                payload={"site_id": "site-1"},
+                attempt_count=3,
+                max_attempts=3,
+                created_at=now - timedelta(days=1),
+            ),
+            ConversionJob(
+                id="job-sync-other-site",
+                task_type="document_sync_push",
+                status="completed",
+                payload={"site_id": "site-2"},
+                attempt_count=1,
+                max_attempts=3,
+                created_at=now - timedelta(days=1),
+            ),
+        ]
+    )
+    session.add_all(
+        [
+            WorkflowCustomActionRun(
+                id="wf-run-ok",
+                rule_id="r-1",
+                object_id="eco-1",
+                target_object="ECO",
+                from_state="draft",
+                to_state="progress",
+                trigger_phase="before",
+                status="completed",
+                attempts=1,
+                result={"result_code": "OK"},
+                created_at=now - timedelta(days=1),
+            ),
+            WorkflowCustomActionRun(
+                id="wf-run-failed",
+                rule_id="r-2",
+                object_id="eco-2",
+                target_object="ECO",
+                from_state="draft",
+                to_state="progress",
+                trigger_phase="before",
+                status="failed",
+                attempts=3,
+                result={"result_code": "RETRY_EXHAUSTED"},
+                created_at=now - timedelta(days=1),
+            ),
+        ]
+    )
+
+    breakage_service = BreakageIncidentService(session)
+    breakage_service.create_incident(
+        description="bearing crack",
+        severity="high",
+        status="open",
+        responsibility="supplier-a",
+    )
+    breakage_service.create_incident(
+        description="bearing crack",
+        severity="high",
+        status="open",
+        responsibility="supplier-a",
+    )
+
+    consumption_service = ConsumptionPlanService(session)
+    _ = consumption_service.create_template_version(
+        template_key="tpl-ops",
+        name="ops-v1",
+        planned_quantity=10.0,
+        version_label="v1",
+        activate=True,
+    )
+    _ = consumption_service.create_template_version(
+        template_key="tpl-ops",
+        name="ops-v2",
+        planned_quantity=12.0,
+        version_label="v2",
+        activate=True,
+    )
+    session.commit()
+
+    ops = ParallelOpsOverviewService(session)
+    result = ops.summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+    )
+    assert result["window_days"] == 7
+    assert result["doc_sync"]["total"] == 2
+    assert result["doc_sync"]["dead_letter_total"] == 1
+    assert result["workflow_actions"]["total"] == 2
+    assert result["workflow_actions"]["by_result_code"]["OK"] == 1
+    assert result["workflow_actions"]["by_result_code"]["RETRY_EXHAUSTED"] == 1
+    assert result["breakages"]["total"] == 2
+    assert result["breakages"]["open_total"] == 2
+    assert result["consumption_templates"]["versions_total"] == 2
+    assert result["consumption_templates"]["templates_total"] == 1
+    assert result["overlay_cache"]["requests"] >= 2
+
+    hint_codes = {row["code"] for row in (result.get("slo_hints") or [])}
+    assert "doc_sync_dead_letter_rate_high" in hint_codes
+    assert "workflow_action_failed_rate_high" in hint_codes
+    assert "breakage_open_rate_high" in hint_codes
+
+    with pytest.raises(ValueError, match="window_days"):
+        ops.summary(window_days=10)
