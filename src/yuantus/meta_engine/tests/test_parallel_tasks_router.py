@@ -129,6 +129,104 @@ def test_doc_sync_create_job_maps_missing_site_to_404():
         )
 
     assert resp.status_code == 404
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "remote_site_not_found"
+    assert detail.get("context", {}).get("site_id") == "s-404"
+
+
+def test_doc_sync_list_jobs_invalid_datetime_maps_contract_error():
+    user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+    resp = client.get(
+        "/api/v1/doc-sync/jobs?created_from=not-a-datetime"
+    )
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "invalid_datetime"
+    assert detail.get("context", {}).get("field") == "created_from"
+
+
+def test_doc_sync_list_jobs_includes_reliability_view_fields():
+    user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+    ) as service_cls:
+        service_cls.return_value.list_sync_jobs.return_value = [SimpleNamespace(id="job-1")]
+        service_cls.return_value.build_sync_job_view.return_value = {
+            "id": "job-1",
+            "task_type": "document_sync_push",
+            "status": "failed",
+            "attempt_count": 3,
+            "max_attempts": 3,
+            "retry_budget": {"attempt_count": 3, "max_attempts": 3, "remaining_attempts": 0},
+            "is_dead_letter": True,
+            "sync_trace": {"trace_id": "t-1", "origin_site": "A", "payload_hash": "h-1"},
+        }
+        resp = client.get("/api/v1/doc-sync/jobs?status=failed")
+
+    assert resp.status_code == 200
+    rows = resp.json().get("jobs") or []
+    assert len(rows) == 1
+    assert rows[0]["is_dead_letter"] is True
+    assert rows[0]["retry_budget"]["remaining_attempts"] == 0
+    assert rows[0]["sync_trace"]["trace_id"] == "t-1"
+
+
+def test_workflow_rule_invalid_payload_returns_contract_error():
+    user = SimpleNamespace(id=9, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.WorkflowCustomActionService"
+    ) as service_cls:
+        service_cls.return_value.create_rule.side_effect = ValueError(
+            "max_retries must be between 1 and 5 for retry strategy"
+        )
+        resp = client.post(
+            "/api/v1/workflow-actions/rules",
+            json={
+                "name": "r1",
+                "target_object": "ECO",
+                "trigger_phase": "before",
+                "action_type": "emit_event",
+                "fail_strategy": "retry",
+                "action_params": {"max_retries": 9},
+            },
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "invalid_workflow_rule"
+    assert detail.get("context", {}).get("name") == "r1"
+
+
+def test_workflow_execute_failure_returns_contract_error():
+    user = SimpleNamespace(id=9, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.WorkflowCustomActionService"
+    ) as service_cls:
+        service_cls.return_value.evaluate_transition.side_effect = ValueError(
+            "[BLOCK] workflow custom action failed"
+        )
+        resp = client.post(
+            "/api/v1/workflow-actions/execute",
+            json={
+                "object_id": "eco-1",
+                "target_object": "ECO",
+                "from_state": "draft",
+                "to_state": "progress",
+                "trigger_phase": "before",
+            },
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "workflow_action_execution_failed"
+    assert detail.get("context", {}).get("object_id") == "eco-1"
 
 
 def test_3d_overlay_component_permission_denied_maps_403():

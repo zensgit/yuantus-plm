@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import io
 import json
 from typing import Any, Dict, List, Optional
@@ -26,6 +27,53 @@ parallel_tasks_router = APIRouter(tags=["ParallelTasks"])
 
 def _as_roles(user: CurrentUser) -> List[str]:
     return [str(role) for role in (getattr(user, "roles", []) or [])]
+
+
+def _error_detail(
+    code: str,
+    message: str,
+    *,
+    context: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    return {
+        "code": str(code),
+        "message": str(message),
+        "context": context or {},
+    }
+
+
+def _raise_api_error(
+    *,
+    status_code: int,
+    code: str,
+    message: str,
+    context: Optional[Dict[str, Any]] = None,
+) -> None:
+    raise HTTPException(
+        status_code=status_code,
+        detail=_error_detail(code, message, context=context),
+    )
+
+
+def _parse_utc_datetime(raw: Optional[str], *, field_name: str) -> Optional[datetime]:
+    if raw is None:
+        return None
+    value = str(raw).strip()
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        _raise_api_error(
+            status_code=400,
+            code="invalid_datetime",
+            message=f"{field_name} must be an ISO-8601 datetime",
+            context={"field": field_name, "value": raw},
+        )
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed
 
 
 def _manifest_to_pdf_bytes(manifest: Dict[str, Any]) -> bytes:
@@ -140,7 +188,12 @@ async def upsert_remote_site(
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="remote_site_upsert_failed",
+            message=str(exc),
+            context={"name": payload.name},
+        )
     return {
         "id": site.id,
         "name": site.name,
@@ -198,10 +251,20 @@ async def check_remote_site_health(
         result = service.probe_remote_site(site_id, timeout_s=timeout_s)
         db.commit()
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            code="remote_site_not_found",
+            message=str(exc),
+            context={"site_id": site_id},
+        )
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="remote_site_probe_failed",
+            message=str(exc),
+            context={"site_id": site_id},
+        )
     result["operator_id"] = int(user.id)
     return result
 
@@ -226,12 +289,35 @@ async def create_sync_job(
     except ValueError as exc:
         db.rollback()
         detail = str(exc)
-        status = 404 if "not found" in detail.lower() else 400
-        raise HTTPException(status_code=status, detail=detail) from exc
+        lowered = detail.lower()
+        if "not found" in lowered:
+            _raise_api_error(
+                status_code=404,
+                code="remote_site_not_found",
+                message=detail,
+                context={"site_id": payload.site_id},
+            )
+        if "inactive" in lowered:
+            _raise_api_error(
+                status_code=409,
+                code="remote_site_inactive",
+                message=detail,
+                context={"site_id": payload.site_id},
+            )
+        _raise_api_error(
+            status_code=400,
+            code="doc_sync_job_invalid",
+            message=detail,
+            context={
+                "site_id": payload.site_id,
+                "direction": payload.direction,
+            },
+        )
     return {
         "job_id": job.id,
         "task_type": job.task_type,
         "status": job.status,
+        "dedupe_key": job.dedupe_key,
         "created_at": job.created_at.isoformat() if job.created_at else None,
     }
 
@@ -239,31 +325,39 @@ async def create_sync_job(
 @parallel_tasks_router.get("/doc-sync/jobs")
 async def list_sync_jobs(
     site_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    created_from: Optional[str] = Query(None, description="ISO-8601 datetime"),
+    created_to: Optional[str] = Query(None, description="ISO-8601 datetime"),
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
     service = DocumentMultiSiteService(db)
-    jobs = service.list_sync_jobs(site_id=site_id, limit=limit)
+    from_dt = _parse_utc_datetime(created_from, field_name="created_from")
+    to_dt = _parse_utc_datetime(created_to, field_name="created_to")
+    try:
+        jobs = service.list_sync_jobs(
+            site_id=site_id,
+            status=status,
+            created_from=from_dt,
+            created_to=to_dt,
+            limit=limit,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="doc_sync_filter_invalid",
+            message=str(exc),
+            context={
+                "site_id": site_id,
+                "status": status,
+                "created_from": created_from,
+                "created_to": created_to,
+            },
+        )
     return {
         "total": len(jobs),
-        "jobs": [
-            {
-                "id": job.id,
-                "task_type": job.task_type,
-                "status": job.status,
-                "attempt_count": int(job.attempt_count or 0),
-                "max_attempts": int(job.max_attempts or 0),
-                "last_error": job.last_error,
-                "payload": job.payload if isinstance(job.payload, dict) else {},
-                "created_at": job.created_at.isoformat() if job.created_at else None,
-                "started_at": job.started_at.isoformat() if job.started_at else None,
-                "completed_at": (
-                    job.completed_at.isoformat() if job.completed_at else None
-                ),
-            }
-            for job in jobs
-        ],
+        "jobs": [service.build_sync_job_view(job) for job in jobs],
         "operator_id": int(user.id),
     }
 
@@ -277,20 +371,15 @@ async def get_sync_job(
     service = DocumentMultiSiteService(db)
     job = service.get_sync_job(job_id)
     if not job:
-        raise HTTPException(status_code=404, detail=f"Sync job not found: {job_id}")
-    return {
-        "id": job.id,
-        "task_type": job.task_type,
-        "status": job.status,
-        "attempt_count": int(job.attempt_count or 0),
-        "max_attempts": int(job.max_attempts or 0),
-        "last_error": job.last_error,
-        "payload": job.payload if isinstance(job.payload, dict) else {},
-        "created_at": job.created_at.isoformat() if job.created_at else None,
-        "started_at": job.started_at.isoformat() if job.started_at else None,
-        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
-        "operator_id": int(user.id),
-    }
+        _raise_api_error(
+            status_code=404,
+            code="doc_sync_job_not_found",
+            message=f"Sync job not found: {job_id}",
+            context={"job_id": job_id},
+        )
+    result = service.build_sync_job_view(job)
+    result["operator_id"] = int(user.id)
+    return result
 
 
 @parallel_tasks_router.post("/doc-sync/jobs/{job_id}/replay")
@@ -304,14 +393,25 @@ async def replay_sync_job(
         new_job = service.replay_sync_job(job_id, user_id=int(user.id))
         db.commit()
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            code="doc_sync_job_not_found",
+            message=str(exc),
+            context={"job_id": job_id},
+        )
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="doc_sync_replay_failed",
+            message=str(exc),
+            context={"job_id": job_id},
+        )
     return {
         "job_id": new_job.id,
         "task_type": new_job.task_type,
         "status": new_job.status,
+        "dedupe_key": new_job.dedupe_key,
         "replay_of": job_id,
     }
 
@@ -517,7 +617,20 @@ async def upsert_workflow_action_rule(
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="invalid_workflow_rule",
+            message=str(exc),
+            context={
+                "name": payload.name,
+                "trigger_phase": payload.trigger_phase,
+                "action_type": payload.action_type,
+            },
+        )
+    params = rule.action_params if isinstance(rule.action_params, dict) else {}
+    conflict_scope = params.get("conflict_scope")
+    if not isinstance(conflict_scope, dict):
+        conflict_scope = {}
     return {
         "id": rule.id,
         "name": rule.name,
@@ -527,6 +640,10 @@ async def upsert_workflow_action_rule(
         "trigger_phase": rule.trigger_phase,
         "action_type": rule.action_type,
         "fail_strategy": rule.fail_strategy,
+        "execution_priority": int(params.get("priority") or 100),
+        "timeout_s": float(params.get("timeout_s") or 5.0),
+        "max_retries": int(params.get("max_retries") or 0),
+        "conflict_count": int(conflict_scope.get("count") or 0),
         "is_enabled": bool(rule.is_enabled),
         "operator_id": int(user.id),
     }
@@ -541,9 +658,13 @@ async def list_workflow_action_rules(
 ):
     service = WorkflowCustomActionService(db)
     rules = service.list_rules(target_object=target_object, enabled_only=enabled_only)
-    return {
-        "total": len(rules),
-        "rules": [
+    rows = []
+    for rule in rules:
+        params = rule.action_params if isinstance(rule.action_params, dict) else {}
+        conflict_scope = params.get("conflict_scope")
+        if not isinstance(conflict_scope, dict):
+            conflict_scope = {}
+        rows.append(
             {
                 "id": rule.id,
                 "name": rule.name,
@@ -553,12 +674,18 @@ async def list_workflow_action_rules(
                 "to_state": rule.to_state,
                 "trigger_phase": rule.trigger_phase,
                 "action_type": rule.action_type,
-                "action_params": rule.action_params or {},
+                "action_params": params,
                 "fail_strategy": rule.fail_strategy,
+                "execution_priority": int(params.get("priority") or 100),
+                "timeout_s": float(params.get("timeout_s") or 5.0),
+                "max_retries": int(params.get("max_retries") or 0),
+                "conflict_count": int(conflict_scope.get("count") or 0),
                 "is_enabled": bool(rule.is_enabled),
             }
-            for rule in rules
-        ],
+        )
+    return {
+        "total": len(rules),
+        "rules": rows,
         "operator_id": int(user.id),
     }
 
@@ -582,7 +709,28 @@ async def execute_workflow_actions(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="workflow_action_execution_failed",
+            message=str(exc),
+            context={
+                "object_id": payload.object_id,
+                "target_object": payload.target_object,
+                "trigger_phase": payload.trigger_phase,
+            },
+        )
+    except Exception as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="workflow_action_execution_failed",
+            message=str(exc),
+            context={
+                "object_id": payload.object_id,
+                "target_object": payload.target_object,
+                "trigger_phase": payload.trigger_phase,
+            },
+        )
     return {
         "total": len(runs),
         "runs": [
@@ -590,6 +738,11 @@ async def execute_workflow_actions(
                 "id": run.id,
                 "rule_id": run.rule_id,
                 "status": run.status,
+                "result_code": (
+                    ((run.result or {}).get("result_code"))
+                    if isinstance(run.result, dict)
+                    else None
+                ),
                 "attempts": int(run.attempts or 0),
                 "last_error": run.last_error,
                 "result": run.result or {},

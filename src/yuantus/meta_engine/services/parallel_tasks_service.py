@@ -5,6 +5,7 @@ import csv
 import hashlib
 import io
 import json
+import time
 import uuid
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -16,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from yuantus.config import get_settings
 from yuantus.meta_engine.models.eco import ECO
-from yuantus.meta_engine.models.job import ConversionJob
+from yuantus.meta_engine.models.job import ConversionJob, JobStatus
 from yuantus.meta_engine.models.parallel_tasks import (
     BreakageIncident,
     ConsumptionPlan,
@@ -57,6 +58,13 @@ def _stable_hash(values: Iterable[str]) -> str:
 class DocumentMultiSiteService:
     TASK_PREFIX = "document_sync_"
     _ALLOWED_DIRECTIONS = {"push", "pull"}
+    _ALLOWED_JOB_STATUS = {
+        JobStatus.PENDING.value,
+        JobStatus.PROCESSING.value,
+        JobStatus.COMPLETED.value,
+        JobStatus.FAILED.value,
+        JobStatus.CANCELLED.value,
+    }
 
     def __init__(self, session: Session):
         self.session = session
@@ -81,6 +89,28 @@ class DocumentMultiSiteService:
             return plain.decode("utf-8")
         except Exception:
             return None
+
+    def _normalize_job_status(self, status: str) -> str:
+        normalized = (status or "").strip().lower()
+        if normalized not in self._ALLOWED_JOB_STATUS:
+            allowed = ", ".join(sorted(self._ALLOWED_JOB_STATUS))
+            raise ValueError(f"status must be one of: {allowed}")
+        return normalized
+
+    def _resolve_retry_attempts(self, metadata_json: Optional[Dict[str, Any]]) -> int:
+        default_attempts = max(1, int(get_settings().JOB_MAX_ATTEMPTS_DEFAULT or 1))
+        if not isinstance(metadata_json, dict):
+            return default_attempts
+        configured = metadata_json.get("retry_max_attempts")
+        if configured is None:
+            return default_attempts
+        try:
+            attempts = int(configured)
+        except Exception as exc:
+            raise ValueError("retry_max_attempts must be an integer between 1 and 10") from exc
+        if attempts < 1 or attempts > 10:
+            raise ValueError("retry_max_attempts must be between 1 and 10")
+        return attempts
 
     def upsert_remote_site(
         self,
@@ -180,11 +210,54 @@ class DocumentMultiSiteService:
         if not normalized_docs:
             raise ValueError("document_ids must not be empty")
 
+        metadata = metadata_json if isinstance(metadata_json, dict) else {}
         dedupe_key = idempotency_key
         if not dedupe_key:
             dedupe_key = (
                 f"doc-sync:{site_id}:{normalized_direction}:{_stable_hash(normalized_docs)}"
             )
+        retry_attempts = self._resolve_retry_attempts(metadata)
+        payload_hash = _stable_hash(
+            [
+                site_id,
+                normalized_direction,
+                ",".join(normalized_docs),
+                json.dumps(metadata, ensure_ascii=False, sort_keys=True),
+            ]
+        )
+        trace_id = _uuid()
+        now_iso = _utcnow().isoformat()
+
+        existing = (
+            self.session.query(ConversionJob)
+            .filter(
+                ConversionJob.task_type == f"{self.TASK_PREFIX}{normalized_direction}",
+                ConversionJob.dedupe_key == dedupe_key,
+                ConversionJob.status.in_(
+                    [JobStatus.PENDING.value, JobStatus.PROCESSING.value]
+                ),
+            )
+            .order_by(ConversionJob.created_at.desc())
+            .first()
+        )
+        if existing:
+            existing_payload = (
+                dict(existing.payload) if isinstance(existing.payload, dict) else {}
+            )
+            existing_payload["idempotency_conflicts"] = int(
+                existing_payload.get("idempotency_conflicts") or 0
+            ) + 1
+            existing_payload["idempotency_last_seen_at"] = now_iso
+            existing_payload["idempotency_last_request"] = {
+                "site_id": site_id,
+                "direction": normalized_direction,
+                "document_ids": normalized_docs,
+                "trace_id": trace_id,
+                "payload_hash": payload_hash,
+            }
+            existing.payload = existing_payload
+            self.session.flush()
+            return existing
 
         payload = {
             "site_id": site_id,
@@ -192,12 +265,21 @@ class DocumentMultiSiteService:
             "endpoint": site.endpoint,
             "direction": normalized_direction,
             "document_ids": normalized_docs,
-            "metadata": metadata_json or {},
+            "metadata": metadata,
+            "sync_trace": {
+                "trace_id": trace_id,
+                "origin_site": site.name,
+                "payload_hash": payload_hash,
+                "created_at": now_iso,
+            },
+            "retry_policy": {"max_attempts": retry_attempts},
+            "idempotency_conflicts": 0,
         }
         return self._job_service.create_job(
             task_type=f"{self.TASK_PREFIX}{normalized_direction}",
             payload=payload,
             user_id=user_id,
+            max_attempts=retry_attempts,
             dedupe=True,
             dedupe_key=dedupe_key,
         )
@@ -211,7 +293,13 @@ class DocumentMultiSiteService:
         return job
 
     def list_sync_jobs(
-        self, *, site_id: Optional[str] = None, limit: int = 100
+        self,
+        *,
+        site_id: Optional[str] = None,
+        status: Optional[str] = None,
+        created_from: Optional[datetime] = None,
+        created_to: Optional[datetime] = None,
+        limit: int = 100,
     ) -> List[ConversionJob]:
         cap = max(1, min(limit, 500))
         query = (
@@ -219,6 +307,14 @@ class DocumentMultiSiteService:
             .filter(ConversionJob.task_type.like(f"{self.TASK_PREFIX}%"))
             .order_by(ConversionJob.created_at.desc())
         )
+        if status:
+            query = query.filter(
+                ConversionJob.status == self._normalize_job_status(status)
+            )
+        if created_from:
+            query = query.filter(ConversionJob.created_at >= created_from)
+        if created_to:
+            query = query.filter(ConversionJob.created_at <= created_to)
         jobs = query.limit(cap).all()
         if not site_id:
             return jobs
@@ -230,6 +326,58 @@ class DocumentMultiSiteService:
             if isinstance(payload, dict) and str(payload.get("site_id") or "") == target:
                 filtered.append(job)
         return filtered
+
+    def build_sync_job_view(self, job: ConversionJob) -> Dict[str, Any]:
+        payload = job.payload if isinstance(job.payload, dict) else {}
+        trace = payload.get("sync_trace")
+        if not isinstance(trace, dict):
+            trace = {}
+        retry_policy = payload.get("retry_policy")
+        if not isinstance(retry_policy, dict):
+            retry_policy = {}
+        attempt_count = int(job.attempt_count or 0)
+        max_attempts = int(job.max_attempts or retry_policy.get("max_attempts") or 0)
+        remaining_attempts = (
+            max(max_attempts - attempt_count, 0) if max_attempts > 0 else None
+        )
+        dead_letter = payload.get("dead_letter")
+        if not isinstance(dead_letter, dict):
+            dead_letter = {}
+        is_dead_letter = bool(dead_letter.get("is_dead_letter")) or (
+            str(job.status or "").lower() == JobStatus.FAILED.value
+            and max_attempts > 0
+            and attempt_count >= max_attempts
+        )
+        dead_letter_reason = (
+            dead_letter.get("reason") if dead_letter.get("reason") else None
+        ) or (job.last_error if is_dead_letter else None)
+
+        return {
+            "id": job.id,
+            "task_type": job.task_type,
+            "status": job.status,
+            "attempt_count": attempt_count,
+            "max_attempts": max_attempts,
+            "last_error": job.last_error,
+            "payload": payload,
+            "dedupe_key": job.dedupe_key,
+            "sync_trace": {
+                "trace_id": trace.get("trace_id"),
+                "origin_site": trace.get("origin_site"),
+                "payload_hash": trace.get("payload_hash"),
+            },
+            "idempotency_conflicts": int(payload.get("idempotency_conflicts") or 0),
+            "retry_budget": {
+                "attempt_count": attempt_count,
+                "max_attempts": max_attempts,
+                "remaining_attempts": remaining_attempts,
+            },
+            "is_dead_letter": is_dead_letter,
+            "dead_letter_reason": dead_letter_reason,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        }
 
     def replay_sync_job(
         self, job_id: str, *, user_id: Optional[int] = None
@@ -437,10 +585,100 @@ class WorkflowCustomActionService:
     _ALLOWED_TYPES = {"emit_event", "create_job", "set_eco_priority"}
     _ALLOWED_PHASES = {"before", "after"}
     _ALLOWED_FAIL = {"block", "warn", "retry"}
+    _RESULT_OK = "OK"
+    _RESULT_WARN = "WARN"
+    _RESULT_BLOCK = "BLOCK"
+    _RESULT_RETRY_EXHAUSTED = "RETRY_EXHAUSTED"
 
     def __init__(self, session: Session):
         self.session = session
         self._job_service = JobService(session)
+
+    def _normalize_retry_max(self, fail_strategy: str, params: Dict[str, Any]) -> int:
+        if fail_strategy != "retry":
+            return 0
+        raw = params.get("max_retries", 1)
+        try:
+            value = int(raw)
+        except Exception as exc:
+            raise ValueError("max_retries must be an integer between 1 and 5") from exc
+        if value < 1 or value > 5:
+            raise ValueError("max_retries must be between 1 and 5 for retry strategy")
+        return value
+
+    def _normalize_priority(self, params: Dict[str, Any]) -> int:
+        raw = params.get("priority", 100)
+        try:
+            value = int(raw)
+        except Exception as exc:
+            raise ValueError("priority must be an integer between 0 and 1000") from exc
+        if value < 0 or value > 1000:
+            raise ValueError("priority must be between 0 and 1000")
+        return value
+
+    def _normalize_timeout_s(self, params: Dict[str, Any]) -> float:
+        raw = params.get("timeout_s", 5.0)
+        try:
+            value = float(raw)
+        except Exception as exc:
+            raise ValueError("timeout_s must be a number between 0.01 and 60") from exc
+        if value < 0.01 or value > 60:
+            raise ValueError("timeout_s must be between 0.01 and 60")
+        return value
+
+    def _normalize_action_params(
+        self, params: Optional[Dict[str, Any]], fail_strategy: str
+    ) -> Dict[str, Any]:
+        normalized = dict(params or {})
+        normalized["priority"] = self._normalize_priority(normalized)
+        normalized["timeout_s"] = self._normalize_timeout_s(normalized)
+        normalized["max_retries"] = self._normalize_retry_max(fail_strategy, normalized)
+        return normalized
+
+    def _rule_priority(self, rule: WorkflowCustomActionRule) -> int:
+        params = rule.action_params if isinstance(rule.action_params, dict) else {}
+        try:
+            return int(params.get("priority") or 100)
+        except Exception:
+            return 100
+
+    def _rule_timeout(self, rule: WorkflowCustomActionRule) -> float:
+        params = rule.action_params if isinstance(rule.action_params, dict) else {}
+        value = params.get("timeout_s", 5.0)
+        try:
+            return float(value)
+        except Exception:
+            return 5.0
+
+    def _rule_max_retries(self, rule: WorkflowCustomActionRule) -> int:
+        params = rule.action_params if isinstance(rule.action_params, dict) else {}
+        try:
+            return int(params.get("max_retries") or 0)
+        except Exception:
+            return 0
+
+    def _find_scope_conflicts(
+        self,
+        *,
+        target_object: str,
+        trigger_phase: str,
+        from_state: Optional[str],
+        to_state: Optional[str],
+        workflow_map_id: Optional[str],
+        exclude_rule_id: Optional[str] = None,
+    ) -> List[WorkflowCustomActionRule]:
+        query = self.session.query(WorkflowCustomActionRule).filter(
+            WorkflowCustomActionRule.is_enabled.is_(True),
+            WorkflowCustomActionRule.target_object == target_object,
+            WorkflowCustomActionRule.trigger_phase == trigger_phase,
+            WorkflowCustomActionRule.from_state == from_state,
+            WorkflowCustomActionRule.to_state == to_state,
+            WorkflowCustomActionRule.workflow_map_id == workflow_map_id,
+        )
+        rules = query.order_by(WorkflowCustomActionRule.name.asc()).all()
+        if not exclude_rule_id:
+            return rules
+        return [rule for rule in rules if str(rule.id) != str(exclude_rule_id)]
 
     def create_rule(
         self,
@@ -467,6 +705,7 @@ class WorkflowCustomActionService:
         normalized_fail = (fail_strategy or "block").strip().lower()
         if normalized_fail not in self._ALLOWED_FAIL:
             raise ValueError("fail_strategy must be one of: block, warn, retry")
+        normalized_params = self._normalize_action_params(action_params, normalized_fail)
 
         existing = (
             self.session.query(WorkflowCustomActionRule)
@@ -485,7 +724,22 @@ class WorkflowCustomActionService:
         rule.to_state = to_state
         rule.trigger_phase = normalized_phase
         rule.action_type = normalized_action
-        rule.action_params = action_params or {}
+        conflicts = self._find_scope_conflicts(
+            target_object=(target_object or "ECO").strip().upper(),
+            trigger_phase=normalized_phase,
+            from_state=from_state,
+            to_state=to_state,
+            workflow_map_id=workflow_map_id,
+            exclude_rule_id=rule.id,
+        )
+        if conflicts:
+            normalized_params["conflict_scope"] = {
+                "count": len(conflicts),
+                "rule_ids": [entry.id for entry in conflicts[:20]],
+            }
+        else:
+            normalized_params.pop("conflict_scope", None)
+        rule.action_params = normalized_params
         rule.fail_strategy = normalized_fail
         rule.is_enabled = bool(is_enabled)
         rule.updated_at = _utcnow()
@@ -530,12 +784,23 @@ class WorkflowCustomActionService:
             WorkflowCustomActionRule.trigger_phase == normalized_phase,
         )
         rules = query.order_by(WorkflowCustomActionRule.name.asc()).all()
-        runs: List[WorkflowCustomActionRun] = []
+        matched: List[WorkflowCustomActionRule] = []
         for rule in rules:
             if rule.from_state and str(rule.from_state) != str(from_state):
                 continue
             if rule.to_state and str(rule.to_state) != str(to_state):
                 continue
+            matched.append(rule)
+
+        matched.sort(
+            key=lambda rule: (
+                self._rule_priority(rule),
+                str(rule.name or ""),
+                str(rule.id or ""),
+            )
+        )
+        runs: List[WorkflowCustomActionRun] = []
+        for idx, rule in enumerate(matched, start=1):
             run = self._execute_rule(
                 rule=rule,
                 object_id=object_id,
@@ -544,6 +809,7 @@ class WorkflowCustomActionService:
                 to_state=to_state,
                 trigger_phase=normalized_phase,
                 context=context or {},
+                execution_order=idx,
             )
             runs.append(run)
         return runs
@@ -558,15 +824,20 @@ class WorkflowCustomActionService:
         to_state: Optional[str],
         trigger_phase: str,
         context: Dict[str, Any],
+        execution_order: int,
     ) -> WorkflowCustomActionRun:
-        max_attempts = 2 if rule.fail_strategy == "retry" else 1
+        max_retries = self._rule_max_retries(rule)
+        max_attempts = 1 + max_retries if rule.fail_strategy == "retry" else 1
+        timeout_s = self._rule_timeout(rule)
         attempts = 0
         status = "completed"
         last_error = None
         result: Dict[str, Any] = {}
+        result_code = self._RESULT_OK
 
         while attempts < max_attempts:
             attempts += 1
+            started = time.monotonic()
             try:
                 result = self._run_action(
                     rule=rule,
@@ -576,8 +847,14 @@ class WorkflowCustomActionService:
                     to_state=to_state,
                     context=context,
                 )
+                elapsed_s = time.monotonic() - started
+                if elapsed_s > timeout_s:
+                    raise TimeoutError(
+                        f"workflow custom action timeout: {elapsed_s:.3f}s > {timeout_s:.3f}s"
+                    )
                 status = "completed"
                 last_error = None
+                result_code = self._RESULT_OK
                 break
             except Exception as exc:
                 last_error = str(exc)
@@ -585,8 +862,25 @@ class WorkflowCustomActionService:
                     continue
                 if rule.fail_strategy == "warn":
                     status = "warning"
+                    result_code = self._RESULT_WARN
+                elif rule.fail_strategy == "retry":
+                    status = "failed"
+                    result_code = self._RESULT_RETRY_EXHAUSTED
                 else:
                     status = "failed"
+                    result_code = self._RESULT_BLOCK
+
+        if not isinstance(result, dict):
+            result = {"value": result}
+        result["result_code"] = result_code
+        result["execution"] = {
+            "order": int(execution_order),
+            "priority": int(self._rule_priority(rule)),
+            "timeout_s": float(timeout_s),
+            "max_retries": int(max_retries),
+        }
+        if last_error:
+            result["error"] = last_error
 
         run = WorkflowCustomActionRun(
             id=_uuid(),
@@ -605,7 +899,9 @@ class WorkflowCustomActionService:
         self.session.flush()
 
         if status == "failed" and rule.fail_strategy == "block":
-            raise ValueError(last_error or "workflow custom action failed")
+            raise ValueError(
+                f"[{result_code}] {last_error or 'workflow custom action failed'}"
+            )
 
         return run
 

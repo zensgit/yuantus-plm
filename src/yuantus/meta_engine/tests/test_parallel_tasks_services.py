@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+from datetime import datetime, timedelta
+from unittest.mock import patch
 from zipfile import ZipFile
 
 import pytest
@@ -108,6 +110,66 @@ def test_document_multi_site_service_can_upsert_and_replay_jobs(session):
     assert replay.payload.get("replay_of") == push_job.id
 
 
+def test_document_multi_site_service_idempotency_filters_and_dead_letter_view(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-filter",
+        endpoint="https://example-filter.test/plm",
+        auth_secret="secret-token",
+    )
+    session.commit()
+
+    first = service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=["doc-1"],
+        idempotency_key="sync-k-1",
+        metadata_json={"retry_max_attempts": 4},
+    )
+    second = service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=["doc-1"],
+        idempotency_key="sync-k-1",
+        metadata_json={"retry_max_attempts": 4},
+    )
+    session.commit()
+
+    assert first.id == second.id
+    assert first.payload["idempotency_conflicts"] == 1
+    assert first.payload["sync_trace"]["trace_id"]
+    assert first.payload["sync_trace"]["payload_hash"]
+    assert first.max_attempts == 4
+
+    first.status = "failed"
+    first.attempt_count = 4
+    first.max_attempts = 4
+    first.last_error = "network timeout"
+    session.flush()
+
+    view = service.build_sync_job_view(first)
+    assert view["is_dead_letter"] is True
+    assert view["dead_letter_reason"] == "network timeout"
+    assert view["retry_budget"]["remaining_attempts"] == 0
+
+    third = service.enqueue_sync(
+        site_id=site.id,
+        direction="pull",
+        document_ids=["doc-2"],
+        idempotency_key="sync-k-2",
+    )
+    third.status = "completed"
+    third.created_at = datetime.utcnow() + timedelta(seconds=1)
+    session.commit()
+
+    pending = service.list_sync_jobs(site_id=site.id, status="failed", limit=10)
+    assert len(pending) == 1
+    assert pending[0].id == first.id
+
+    with pytest.raises(ValueError, match="status must be one of"):
+        service.list_sync_jobs(status="deadletter")
+
+
 def test_eco_activity_validation_enforces_dependency_gate(session):
     service = ECOActivityValidationService(session)
     a1 = service.create_activity(eco_id="eco-1", name="design review")
@@ -170,6 +232,113 @@ def test_workflow_custom_actions_emit_event_and_create_job(session):
     jobs = session.query(ConversionJob).all()
     assert len(jobs) == 1
     assert jobs[0].task_type == "workflow_notify"
+
+
+def test_workflow_custom_actions_order_conflicts_and_result_codes(session):
+    service = WorkflowCustomActionService(session)
+    low = service.create_rule(
+        name="rule-z-low",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"event": "z", "priority": 50},
+        fail_strategy="warn",
+    )
+    high = service.create_rule(
+        name="rule-a-high",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"event": "a", "priority": 10},
+        fail_strategy="warn",
+    )
+    session.commit()
+
+    assert isinstance(high.action_params, dict)
+    assert int(high.action_params.get("priority") or 0) == 10
+    assert int((high.action_params.get("conflict_scope") or {}).get("count") or 0) >= 1
+
+    runs = service.evaluate_transition(
+        object_id="eco-order-1",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        context={"source": "order-test"},
+    )
+    session.commit()
+
+    assert [run.rule_id for run in runs] == [high.id, low.id]
+    assert all((run.result or {}).get("result_code") == "OK" for run in runs)
+    assert (runs[0].result or {}).get("execution", {}).get("order") == 1
+    assert (runs[1].result or {}).get("execution", {}).get("order") == 2
+
+    retry_rule = service.create_rule(
+        name="rule-retry-fail",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"priority": 5, "max_retries": 2},
+        fail_strategy="retry",
+    )
+    session.commit()
+
+    with patch.object(service, "_run_action", side_effect=RuntimeError("boom")):
+        runs = service.evaluate_transition(
+            object_id="eco-order-2",
+            target_object="ECO",
+            from_state="draft",
+            to_state="progress",
+            trigger_phase="before",
+            context={"source": "retry-test"},
+        )
+    session.commit()
+
+    target_run = [run for run in runs if run.rule_id == retry_rule.id][0]
+    assert target_run.status == "failed"
+    assert target_run.attempts == 3
+    assert (target_run.result or {}).get("result_code") == "RETRY_EXHAUSTED"
+
+
+def test_workflow_custom_actions_timeout_is_enforced(session):
+    service = WorkflowCustomActionService(session)
+    service.create_rule(
+        name="rule-timeout-warn",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"priority": 1, "timeout_s": 0.01},
+        fail_strategy="warn",
+    )
+    session.commit()
+
+    def _slow_action(**kwargs):
+        _ = kwargs
+        return {"ok": True}
+
+    with patch("time.monotonic", side_effect=[0.0, 0.02]):
+        with patch.object(service, "_run_action", side_effect=_slow_action):
+            runs = service.evaluate_transition(
+                object_id="eco-timeout-1",
+                target_object="ECO",
+                from_state="draft",
+                to_state="progress",
+                trigger_phase="before",
+                context={"source": "timeout-test"},
+            )
+    session.commit()
+
+    assert len(runs) == 1
+    assert runs[0].status == "warning"
+    assert (runs[0].result or {}).get("result_code") == "WARN"
 
 
 def test_consumption_plan_variance_dashboard(session):
