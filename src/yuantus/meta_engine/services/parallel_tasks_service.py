@@ -777,6 +777,7 @@ class ConsumptionPlanService:
 class BreakageIncidentService:
     def __init__(self, session: Session):
         self.session = session
+        self._job_service = JobService(session)
 
     def create_incident(
         self,
@@ -884,6 +885,37 @@ class BreakageIncidentService:
             "by_severity": dict(by_severity),
             "hotspot_components": hotspot_components,
         }
+
+    def enqueue_helpdesk_stub_sync(
+        self,
+        incident_id: str,
+        *,
+        user_id: Optional[int] = None,
+        metadata_json: Optional[Dict[str, Any]] = None,
+    ) -> ConversionJob:
+        incident = self.session.get(BreakageIncident, incident_id)
+        if not incident:
+            raise ValueError(f"Breakage incident not found: {incident_id}")
+
+        payload = {
+            "incident_id": incident.id,
+            "description": incident.description,
+            "severity": incident.severity,
+            "status": incident.status,
+            "product_item_id": incident.product_item_id,
+            "batch_code": incident.batch_code,
+            "customer_name": incident.customer_name,
+            "metadata": metadata_json or {},
+            "mode": "helpdesk_stub",
+        }
+        dedupe_key = f"breakage-helpdesk:{incident.id}:{incident.updated_at.isoformat() if incident.updated_at else ''}"
+        return self._job_service.create_job(
+            task_type="breakage_helpdesk_sync_stub",
+            payload=payload,
+            user_id=user_id,
+            dedupe=True,
+            dedupe_key=dedupe_key,
+        )
 
 
 class WorkorderDocumentPackService:

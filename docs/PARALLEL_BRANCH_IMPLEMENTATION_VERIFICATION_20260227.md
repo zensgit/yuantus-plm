@@ -40,6 +40,19 @@ pytest -q \
 pytest -q src/yuantus/meta_engine/tests
 ```
 
+6. 补齐 helpdesk stub + 双向同步样例后验证
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_services.py \
+  src/yuantus/meta_engine/tests/test_eco_parallel_flow_hooks.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_preview.py
+```
+
+7. 最终主测试集回归
+```bash
+pytest -q src/yuantus/meta_engine/tests
+```
+
 ## 2. 验证结果
 
 1. 新增测试
@@ -64,6 +77,15 @@ pytest -q src/yuantus/meta_engine/tests
 - 耗时：`8.33s`
 - 备注：warnings 类型与此前一致，无新增失败
 
+6. 补齐 helpdesk stub + 双向同步样例后验证
+- 结果：`12 passed`
+- 结论：新增联动接口与双向样例测试通过
+
+7. 最终主测试集
+- 结果：`68 passed, 0 failed`
+- 耗时：`7.71s`
+- 备注：warnings 类型与此前一致，无新增失败
+
 ## 3. 关键落地项核对
 
 1. Schema 与迁移
@@ -74,10 +96,12 @@ pytest -q src/yuantus/meta_engine/tests
 2. 服务层
 - `src/yuantus/meta_engine/services/parallel_tasks_service.py`
 - 覆盖：doc-sync / eco-activity / workflow-actions / consumption / breakage / workorder-doc / 3d-overlay
+- 补充：breakage -> helpdesk stub 联动异步任务
 
 3. API 层
 - 新路由：`src/yuantus/meta_engine/web/parallel_tasks_router.py`
 - 主应用接入：`src/yuantus/api/app.py`
+- 补充：`/breakages/{incident_id}/helpdesk-sync`
 
 4. BOM 增强
 - `src/yuantus/meta_engine/services/bom_service.py`

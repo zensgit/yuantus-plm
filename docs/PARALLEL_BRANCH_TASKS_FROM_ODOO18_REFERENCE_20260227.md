@@ -202,3 +202,16 @@
    - 三条支线联调与失败路径验证
 4. Day 9-10
    - 文档、回归、合并准备（按风险从低到高分批合并）
+
+## 九、完成状态（已落地）
+
+- [x] P0-A 多站点文档同步（含 A->B push / B->A pull 样例验证）
+- [x] P0-B ECO 活动网关（阻塞校验 + 事件追踪）
+- [x] P0-C 工作流自定义动作（before/after hooks + 执行记录）
+- [x] P1-D BOM 差异补丁预览与导出（JSON/CSV）
+- [x] P1-E 消耗计划（计划/实际/偏差/看板）
+- [x] P1-F 质量异常闭环（指标 + helpdesk stub 联动）
+- [x] P2-G 工单文档包（继承规则 + ZIP 导出）
+- [x] P2-H 3D 元数据叠加（角色可见 + 组件回查）
+
+最终验证：`pytest -q src/yuantus/meta_engine/tests` -> `68 passed`。

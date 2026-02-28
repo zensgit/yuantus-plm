@@ -84,6 +84,7 @@
 - 同步任务入队（push/pull，幂等 key）
 - 同步任务查询与 replay
 - 密钥以轻量对称加密密文存储（避免明文持久化）
+- 支持 A->B push / B->A pull 双向样例流程验证
 
 2. `ECOActivityValidationService`
 - 活动创建、依赖阻塞校验
@@ -109,6 +110,7 @@
 5. `BreakageIncidentService`
 - 异常创建/查询/状态更新
 - 指标计算：重复故障率、热点部件
+- helpdesk 联动 stub：通过异步任务 `breakage_helpdesk_sync_stub` 对接外部工单
 
 6. `WorkorderDocumentPackService`
 - 文档链接 upsert
@@ -144,6 +146,7 @@
 
 5. `/api/v1/breakages/*`
 - 异常事件与指标
+- `POST /api/v1/breakages/{incident_id}/helpdesk-sync`（stub 联动）
 
 6. `/api/v1/workorder-docs/*`
 - 链接维护、文档包导出

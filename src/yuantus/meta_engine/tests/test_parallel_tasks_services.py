@@ -64,32 +64,48 @@ def session():
 def test_document_multi_site_service_can_upsert_and_replay_jobs(session):
     service = DocumentMultiSiteService(session)
 
-    site = service.upsert_remote_site(
+    site_a = service.upsert_remote_site(
         name="site-a",
         endpoint="https://example.test/plm",
         auth_secret="secret-token",
     )
+    site_b = service.upsert_remote_site(
+        name="site-b",
+        endpoint="https://example-b.test/plm",
+        auth_secret="secret-token-b",
+    )
     session.commit()
 
-    assert site.name == "site-a"
-    assert site.auth_secret_ciphertext and "secret-token" not in site.auth_secret_ciphertext
+    assert site_a.name == "site-a"
+    assert site_b.name == "site-b"
+    assert site_a.auth_secret_ciphertext and "secret-token" not in site_a.auth_secret_ciphertext
 
-    job = service.enqueue_sync(
-        site_id=site.id,
+    # A -> B push sample
+    push_job = service.enqueue_sync(
+        site_id=site_a.id,
         direction="push",
         document_ids=["doc-b", "doc-a", "doc-a"],
         user_id=7,
     )
-    assert job.task_type == "document_sync_push"
-    assert job.payload["document_ids"] == ["doc-a", "doc-b"]
+    assert push_job.task_type == "document_sync_push"
+    assert push_job.payload["document_ids"] == ["doc-a", "doc-b"]
 
-    jobs = service.list_sync_jobs(site_id=site.id, limit=10)
+    # B -> A pull sample
+    pull_job = service.enqueue_sync(
+        site_id=site_b.id,
+        direction="pull",
+        document_ids=["doc-x"],
+        user_id=7,
+    )
+    assert pull_job.task_type == "document_sync_pull"
+
+    jobs = service.list_sync_jobs(site_id=site_a.id, limit=10)
     assert len(jobs) == 1
-    assert jobs[0].id == job.id
+    assert jobs[0].id == push_job.id
 
-    replay = service.replay_sync_job(job.id, user_id=7)
-    assert replay.id != job.id
-    assert replay.payload.get("replay_of") == job.id
+    replay = service.replay_sync_job(push_job.id, user_id=7)
+    assert replay.id != push_job.id
+    assert replay.payload.get("replay_of") == push_job.id
 
 
 def test_eco_activity_validation_enforces_dependency_gate(session):
@@ -201,6 +217,28 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
     assert metrics["repeated_event_count"] == 2
     assert metrics["repeated_failure_rate"] > 0
     assert metrics["hotspot_components"][0]["bom_line_item_id"] == "bom-1"
+
+
+def test_breakage_helpdesk_stub_sync_enqueue(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="sensor drift",
+        product_item_id="p-3",
+        bom_line_item_id="bom-3",
+        severity="low",
+    )
+    session.commit()
+
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=11,
+        metadata_json={"channel": "qa"},
+    )
+    session.commit()
+
+    assert job.task_type == "breakage_helpdesk_sync_stub"
+    assert job.payload["incident_id"] == incident.id
+    assert job.payload["metadata"]["channel"] == "qa"
 
 
 def test_workorder_doc_pack_supports_inherited_links_and_zip_export(session):

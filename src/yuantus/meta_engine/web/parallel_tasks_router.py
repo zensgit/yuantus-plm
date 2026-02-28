@@ -694,6 +694,10 @@ class BreakageStatusUpdateRequest(BaseModel):
     status: str
 
 
+class BreakageHelpdeskSyncRequest(BaseModel):
+    metadata_json: Optional[Dict[str, Any]] = None
+
+
 @parallel_tasks_router.get("/breakages/metrics")
 async def get_breakage_metrics(
     db: Session = Depends(get_db),
@@ -807,6 +811,36 @@ async def update_breakage_status(
         "status": incident.status,
         "updated_at": incident.updated_at.isoformat() if incident.updated_at else None,
         "operator_id": int(user.id),
+    }
+
+
+@parallel_tasks_router.post("/breakages/{incident_id}/helpdesk-sync")
+async def sync_breakage_to_helpdesk_stub(
+    incident_id: str,
+    payload: BreakageHelpdeskSyncRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        job = service.enqueue_helpdesk_stub_sync(
+            incident_id,
+            user_id=int(user.id),
+            metadata_json=payload.metadata_json,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "incident_id": incident_id,
+        "job_id": job.id,
+        "task_type": job.task_type,
+        "status": job.status,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
     }
 
 
