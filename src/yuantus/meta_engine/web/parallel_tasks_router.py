@@ -85,17 +85,34 @@ def _manifest_to_pdf_bytes(manifest: Dict[str, Any]) -> bytes:
             .replace(")", "\\)")
         )
 
+    export_meta = manifest.get("export_meta") if isinstance(manifest, dict) else {}
+    if not isinstance(export_meta, dict):
+        export_meta = {}
+    scope_summary = manifest.get("scope_summary") if isinstance(manifest, dict) else {}
+    if not isinstance(scope_summary, dict):
+        scope_summary = {}
+
     lines = [
         "Workorder Document Pack",
+        "=== Export Metadata ===",
         f"routing_id: {manifest.get('routing_id') or ''}",
         f"operation_id: {manifest.get('operation_id') or ''}",
-        f"count: {manifest.get('count') or 0}",
+        f"job_no: {export_meta.get('job_no') or ''}",
+        f"operator_id: {export_meta.get('operator_id') or ''}",
+        f"operator_name: {export_meta.get('operator_name') or ''}",
+        f"exported_by: {export_meta.get('exported_by') or ''}",
         f"generated_at: {manifest.get('generated_at') or ''}",
+        "=== Document Summary ===",
+        f"total_documents: {manifest.get('count') or 0}",
+        f"routing_scope_docs: {scope_summary.get('routing') or 0}",
+        f"operation_scope_docs: {scope_summary.get('operation') or 0}",
+        "=== Documents ===",
     ]
     for idx, row in enumerate(manifest.get("documents") or [], start=1):
         lines.append(
             f"{idx}. doc={row.get('document_item_id')} "
             f"op={row.get('operation_id') or '-'} "
+            f"scope={row.get('document_scope') or '-'} "
             f"inherit={row.get('inherit_to_children')} "
             f"visible={row.get('visible_in_production')}"
         )
@@ -924,11 +941,45 @@ class BreakageHelpdeskSyncRequest(BaseModel):
 
 @parallel_tasks_router.get("/breakages/metrics")
 async def get_breakage_metrics(
+    status: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    product_item_id: Optional[str] = Query(None),
+    batch_code: Optional[str] = Query(None),
+    responsibility: Optional[str] = Query(None),
+    trend_window_days: int = Query(14, description="7|14|30"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
     service = BreakageIncidentService(db)
-    result = service.metrics()
+    try:
+        result = service.metrics(
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
+            trend_window_days=trend_window_days,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="breakage_metrics_invalid_request",
+            message=str(exc),
+            context={
+                "status": status,
+                "severity": severity,
+                "product_item_id": product_item_id,
+                "batch_code": batch_code,
+                "responsibility": responsibility,
+                "trend_window_days": trend_window_days,
+                "page": page,
+                "page_size": page_size,
+            },
+        )
     result["operator_id"] = int(user.id)
     return result
 
@@ -975,6 +1026,7 @@ async def list_breakage_incidents(
     severity: Optional[str] = Query(None),
     product_item_id: Optional[str] = Query(None),
     batch_code: Optional[str] = Query(None),
+    responsibility: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -984,6 +1036,7 @@ async def list_breakage_incidents(
         severity=severity,
         product_item_id=product_item_id,
         batch_code=batch_code,
+        responsibility=responsibility,
     )
     return {
         "total": len(incidents),
@@ -1150,6 +1203,8 @@ async def export_workorder_doc_pack(
     operation_id: Optional[str] = Query(None),
     include_inherited: bool = Query(True),
     export_format: str = Query("zip", description="zip|json|pdf"),
+    job_no: Optional[str] = Query(None),
+    operator_name: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -1158,6 +1213,12 @@ async def export_workorder_doc_pack(
         routing_id=routing_id,
         operation_id=operation_id,
         include_inherited=include_inherited,
+        export_meta={
+            "job_no": job_no,
+            "operator_id": int(user.id),
+            "operator_name": operator_name,
+            "exported_by": str(getattr(user, "email", "") or getattr(user, "id", "")),
+        },
     )
     manifest = result["manifest"]
     normalized = (export_format or "zip").strip().lower()
@@ -1180,7 +1241,12 @@ async def export_workorder_doc_pack(
             },
         )
     if normalized != "zip":
-        raise HTTPException(status_code=400, detail="export_format must be zip, json or pdf")
+        _raise_api_error(
+            status_code=400,
+            code="workorder_export_invalid_format",
+            message="export_format must be zip, json or pdf",
+            context={"export_format": export_format},
+        )
     return StreamingResponse(
         io.BytesIO(result["zip_bytes"]),
         media_type="application/zip",

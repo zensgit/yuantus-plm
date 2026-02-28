@@ -41,10 +41,18 @@ def test_workorder_doc_export_pdf_returns_pdf_payload():
                 "routing_id": "r-1",
                 "operation_id": "op-1",
                 "count": 1,
+                "scope_summary": {"operation": 1, "routing": 0},
+                "export_meta": {
+                    "job_no": "wo-1",
+                    "operator_id": 1,
+                    "operator_name": "Alice",
+                    "exported_by": "alice@example.com",
+                },
                 "documents": [
                     {
                         "document_item_id": "doc-1",
                         "operation_id": "op-1",
+                        "document_scope": "operation",
                         "inherit_to_children": True,
                         "visible_in_production": True,
                     }
@@ -80,7 +88,43 @@ def test_workorder_doc_export_rejects_unknown_format():
         )
 
     assert resp.status_code == 400
-    assert "export_format" in (resp.json().get("detail") or "")
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "workorder_export_invalid_format"
+    assert detail.get("context", {}).get("export_format") == "xlsx"
+
+
+def test_workorder_doc_export_json_includes_export_meta():
+    user = SimpleNamespace(id=2, roles=["admin"], is_superuser=False, email="u2@example.com")
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.WorkorderDocumentPackService"
+    ) as service_cls:
+        service_cls.return_value.export_pack.return_value = {
+            "manifest": {
+                "generated_at": "2026-02-28T00:00:00Z",
+                "routing_id": "r-1",
+                "operation_id": "op-1",
+                "count": 1,
+                "scope_summary": {"operation": 1, "routing": 0},
+                "export_meta": {
+                    "job_no": "wo-1",
+                    "operator_id": 2,
+                    "operator_name": "Bob",
+                    "exported_by": "u2@example.com",
+                },
+                "documents": [],
+            },
+            "zip_bytes": b"PK\x03\x04",
+        }
+        resp = client.get(
+            "/api/v1/workorder-docs/export?routing_id=r-1&operation_id=op-1&export_format=json&job_no=wo-1&operator_name=Bob"
+        )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["export_meta"]["job_no"] == "wo-1"
+    assert data["scope_summary"]["operation"] == 1
 
 
 def test_breakage_helpdesk_sync_endpoint_returns_job():
@@ -107,6 +151,24 @@ def test_breakage_helpdesk_sync_endpoint_returns_job():
     assert data["job_id"] == "job-1"
     assert data["task_type"] == "breakage_helpdesk_sync_stub"
     assert db.commit.called
+
+
+def test_breakage_metrics_invalid_window_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.metrics.side_effect = ValueError(
+            "trend_window_days must be one of: 7, 14, 30"
+        )
+        resp = client.get("/api/v1/breakages/metrics?trend_window_days=10")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "breakage_metrics_invalid_request"
+    assert detail.get("context", {}).get("trend_window_days") == 10
 
 
 def test_doc_sync_create_job_maps_missing_site_to_404():

@@ -366,26 +366,49 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
         product_item_id="p-1",
         bom_line_item_id="bom-1",
         severity="high",
+        responsibility="supplier-a",
     )
     service.create_incident(
         description="bearing crack",
         product_item_id="p-1",
         bom_line_item_id="bom-1",
         severity="high",
+        responsibility="supplier-a",
     )
     service.create_incident(
         description="wire short",
         product_item_id="p-2",
         bom_line_item_id="bom-2",
         severity="medium",
+        responsibility="line-b",
     )
     session.commit()
 
-    metrics = service.metrics()
-    assert metrics["total"] == 3
+    metrics = service.metrics(
+        product_item_id="p-1",
+        responsibility="supplier-a",
+        trend_window_days=14,
+        page=1,
+        page_size=1,
+    )
+    assert metrics["filters"]["product_item_id"] == "p-1"
+    assert metrics["filters"]["responsibility"] == "supplier-a"
+    assert metrics["pagination"]["page_size"] == 1
+    assert metrics["pagination"]["total"] == 2
+    assert len(metrics["incidents"]) == 1
+    assert metrics["trend_window_days"] == 14
+    assert len(metrics["trend"]) == 14
+    assert metrics["total"] == 2
     assert metrics["repeated_event_count"] == 2
     assert metrics["repeated_failure_rate"] > 0
     assert metrics["hotspot_components"][0]["bom_line_item_id"] == "bom-1"
+    assert metrics["by_responsibility"]["supplier-a"] == 2
+
+
+def test_breakage_metrics_rejects_invalid_trend_window(session):
+    service = BreakageIncidentService(session)
+    with pytest.raises(ValueError, match="trend_window_days"):
+        service.metrics(trend_window_days=10)
 
 
 def test_breakage_helpdesk_stub_sync_enqueue(session):
@@ -428,8 +451,21 @@ def test_workorder_doc_pack_supports_inherited_links_and_zip_export(session):
     )
     assert {doc.document_item_id for doc in docs} == {"doc-routing", "doc-op"}
 
-    pack = service.export_pack(routing_id="r-1", operation_id="op-10")
+    pack = service.export_pack(
+        routing_id="r-1",
+        operation_id="op-10",
+        export_meta={
+            "job_no": "wo-20260228-001",
+            "operator_id": 7,
+            "operator_name": "Alice",
+            "exported_by": "alice@example.com",
+        },
+    )
     assert pack["manifest"]["count"] == 2
+    assert pack["manifest"]["scope_summary"]["routing"] == 1
+    assert pack["manifest"]["scope_summary"]["operation"] == 1
+    assert pack["manifest"]["export_meta"]["job_no"] == "wo-20260228-001"
+    assert pack["manifest"]["export_meta"]["operator_id"] == 7
     zf = ZipFile(io.BytesIO(pack["zip_bytes"]))
     names = set(zf.namelist())
     assert "manifest.json" in names

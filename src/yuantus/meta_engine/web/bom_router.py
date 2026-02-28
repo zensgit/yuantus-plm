@@ -1214,6 +1214,13 @@ async def compare_bom_delta_preview(
     ),
     include_substitutes: bool = Query(False),
     include_effectivity: bool = Query(False),
+    fields: Optional[List[str]] = Query(
+        None,
+        description=(
+            "Optional exported fields: op,line_key,parent_id,child_id,relationship_id,"
+            "severity,risk_level,change_count,field,before,after,properties"
+        ),
+    ),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1236,7 +1243,10 @@ async def compare_bom_delta_preview(
     service = BOMService(db)
     delta = service.build_delta_preview(compare_result)
     delta["compare_summary"] = compare_result.get("summary") or {}
-    return delta
+    try:
+        return service.filter_delta_preview_fields(delta, fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @bom_router.get(
@@ -1261,6 +1271,13 @@ async def compare_bom_delta_export(
     ),
     include_substitutes: bool = Query(False),
     include_effectivity: bool = Query(False),
+    fields: Optional[List[str]] = Query(
+        None,
+        description=(
+            "Optional exported fields: op,line_key,parent_id,child_id,relationship_id,"
+            "severity,risk_level,change_count,field,before,after,properties"
+        ),
+    ),
     export_format: str = Query("json", description="json|csv"),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -1284,17 +1301,21 @@ async def compare_bom_delta_export(
     service = BOMService(db)
     delta = service.build_delta_preview(compare_result)
     delta["compare_summary"] = compare_result.get("summary") or {}
+    try:
+        delta_filtered = service.filter_delta_preview_fields(delta, fields)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     normalized = (export_format or "json").strip().lower()
     if normalized == "json":
-        payload = json.dumps(delta, ensure_ascii=False, indent=2).encode("utf-8")
+        payload = json.dumps(delta_filtered, ensure_ascii=False, indent=2).encode("utf-8")
         return StreamingResponse(
             io.BytesIO(payload),
             media_type="application/json",
             headers={"Content-Disposition": 'attachment; filename="bom-delta-preview.json"'},
         )
     if normalized == "csv":
-        csv_text = service.export_delta_csv(delta)
+        csv_text = service.export_delta_csv(delta, fields=fields)
         return StreamingResponse(
             io.BytesIO(csv_text.encode("utf-8")),
             media_type="text/csv",

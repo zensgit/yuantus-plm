@@ -8,7 +8,7 @@ import json
 import time
 import uuid
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, Iterable, List, Optional
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -1075,6 +1075,59 @@ class BreakageIncidentService:
         self.session = session
         self._job_service = JobService(session)
 
+    def _normalize_trend_window_days(self, window_days: int) -> int:
+        allowed = {7, 14, 30}
+        try:
+            value = int(window_days)
+        except Exception as exc:
+            raise ValueError("trend_window_days must be one of: 7, 14, 30") from exc
+        if value not in allowed:
+            raise ValueError("trend_window_days must be one of: 7, 14, 30")
+        return value
+
+    def _normalize_page(self, page: int) -> int:
+        value = int(page or 1)
+        return 1 if value < 1 else value
+
+    def _normalize_page_size(self, page_size: int) -> int:
+        value = int(page_size or 20)
+        if value < 1:
+            value = 1
+        if value > 200:
+            value = 200
+        return value
+
+    def _apply_incident_filters(
+        self,
+        incidents: List[BreakageIncident],
+        *,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        product_item_id: Optional[str] = None,
+        batch_code: Optional[str] = None,
+        responsibility: Optional[str] = None,
+    ) -> List[BreakageIncident]:
+        filtered: List[BreakageIncident] = []
+        normalized_status = (status or "").strip().lower()
+        normalized_severity = (severity or "").strip().lower()
+        normalized_product = str(product_item_id or "").strip()
+        normalized_batch = str(batch_code or "").strip()
+        normalized_resp = str(responsibility or "").strip().lower()
+
+        for incident in incidents:
+            if normalized_status and str(incident.status or "").lower() != normalized_status:
+                continue
+            if normalized_severity and str(incident.severity or "").lower() != normalized_severity:
+                continue
+            if normalized_product and str(incident.product_item_id or "") != normalized_product:
+                continue
+            if normalized_batch and str(incident.batch_code or "") != normalized_batch:
+                continue
+            if normalized_resp and str(incident.responsibility or "").strip().lower() != normalized_resp:
+                continue
+            filtered.append(incident)
+        return filtered
+
     def create_incident(
         self,
         *,
@@ -1118,19 +1171,21 @@ class BreakageIncidentService:
         severity: Optional[str] = None,
         product_item_id: Optional[str] = None,
         batch_code: Optional[str] = None,
+        responsibility: Optional[str] = None,
     ) -> List[BreakageIncident]:
-        query = self.session.query(BreakageIncident).order_by(
-            BreakageIncident.created_at.desc()
+        incidents = (
+            self.session.query(BreakageIncident)
+            .order_by(BreakageIncident.created_at.desc())
+            .all()
         )
-        if status:
-            query = query.filter(BreakageIncident.status == status)
-        if severity:
-            query = query.filter(BreakageIncident.severity == severity)
-        if product_item_id:
-            query = query.filter(BreakageIncident.product_item_id == product_item_id)
-        if batch_code:
-            query = query.filter(BreakageIncident.batch_code == batch_code)
-        return query.all()
+        return self._apply_incident_filters(
+            incidents,
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
+        )
 
     def update_status(self, incident_id: str, *, status: str) -> BreakageIncident:
         incident = self.session.get(BreakageIncident, incident_id)
@@ -1141,11 +1196,33 @@ class BreakageIncidentService:
         self.session.flush()
         return incident
 
-    def metrics(self) -> Dict[str, Any]:
-        incidents = (
+    def metrics(
+        self,
+        *,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        product_item_id: Optional[str] = None,
+        batch_code: Optional[str] = None,
+        responsibility: Optional[str] = None,
+        trend_window_days: int = 14,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
+        window_days = self._normalize_trend_window_days(trend_window_days)
+        current_page = self._normalize_page(page)
+        current_page_size = self._normalize_page_size(page_size)
+        incidents_all = (
             self.session.query(BreakageIncident)
             .order_by(BreakageIncident.created_at.desc())
             .all()
+        )
+        incidents = self._apply_incident_filters(
+            incidents_all,
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
         )
         by_signature = defaultdict(int)
         for incident in incidents:
@@ -1173,13 +1250,73 @@ class BreakageIncidentService:
         by_severity = Counter(
             str(incident.severity or "unknown") for incident in incidents
         )
+        by_responsibility = Counter(
+            str(incident.responsibility or "unknown") for incident in incidents
+        )
+
+        now = _utcnow()
+        start_day = (now - timedelta(days=window_days - 1)).date()
+        day_keys = [
+            (start_day + timedelta(days=offset)).isoformat()
+            for offset in range(window_days)
+        ]
+        trend_counter = {day: 0 for day in day_keys}
+        for incident in incidents:
+            created_at = incident.created_at or incident.updated_at
+            if not created_at:
+                continue
+            day = created_at.date().isoformat()
+            if day in trend_counter:
+                trend_counter[day] += 1
+        trend = [{"date": day, "count": trend_counter[day]} for day in day_keys]
+
+        total = len(incidents)
+        total_pages = max(1, (total + current_page_size - 1) // current_page_size)
+        if current_page > total_pages:
+            current_page = total_pages
+        offset = (current_page - 1) * current_page_size
+        page_rows = incidents[offset : offset + current_page_size]
+
+        incidents_page = [
+            {
+                "id": incident.id,
+                "description": incident.description,
+                "status": incident.status,
+                "severity": incident.severity,
+                "product_item_id": incident.product_item_id,
+                "bom_line_item_id": incident.bom_line_item_id,
+                "batch_code": incident.batch_code,
+                "responsibility": incident.responsibility,
+                "created_at": incident.created_at.isoformat() if incident.created_at else None,
+                "updated_at": incident.updated_at.isoformat() if incident.updated_at else None,
+            }
+            for incident in page_rows
+        ]
+
         return {
             "total": total,
             "repeated_failure_rate": repeated_rate,
             "repeated_event_count": repeated_events,
             "by_status": dict(by_status),
             "by_severity": dict(by_severity),
+            "by_responsibility": dict(by_responsibility),
             "hotspot_components": hotspot_components,
+            "trend_window_days": window_days,
+            "trend": trend,
+            "filters": {
+                "status": status,
+                "severity": severity,
+                "product_item_id": product_item_id,
+                "batch_code": batch_code,
+                "responsibility": responsibility,
+            },
+            "pagination": {
+                "page": current_page,
+                "page_size": current_page_size,
+                "pages": total_pages,
+                "total": total,
+            },
+            "incidents": incidents_page,
         }
 
     def enqueue_helpdesk_stub_sync(
@@ -1289,12 +1426,28 @@ class WorkorderDocumentPackService:
         routing_id: str,
         operation_id: Optional[str] = None,
         include_inherited: bool = True,
+        export_meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         links = self.list_links(
             routing_id=routing_id,
             operation_id=operation_id,
             include_inherited=include_inherited,
         )
+        generated_at = _utcnow().isoformat()
+        normalized_meta = export_meta if isinstance(export_meta, dict) else {}
+        operator_id = normalized_meta.get("operator_id")
+        try:
+            operator_id = int(operator_id) if operator_id is not None else None
+        except Exception:
+            operator_id = None
+        export_context = {
+            "generated_at": generated_at,
+            "job_no": str(normalized_meta.get("job_no") or "").strip() or None,
+            "operator_id": operator_id,
+            "operator_name": str(normalized_meta.get("operator_name") or "").strip() or None,
+            "exported_by": str(normalized_meta.get("exported_by") or "").strip() or None,
+            "format_version": "workorder-doc-pack.v2",
+        }
         docs = [
             {
                 "link_id": link.id,
@@ -1303,15 +1456,22 @@ class WorkorderDocumentPackService:
                 "document_item_id": link.document_item_id,
                 "inherit_to_children": bool(link.inherit_to_children),
                 "visible_in_production": bool(link.visible_in_production),
+                "document_scope": "routing" if link.operation_id is None else "operation",
                 "created_at": link.created_at.isoformat() if link.created_at else None,
             }
             for link in links
         ]
+        scope_counter = Counter(
+            str(row.get("document_scope") or "unknown")
+            for row in docs
+        )
         manifest = {
-            "generated_at": _utcnow().isoformat(),
+            "generated_at": generated_at,
             "routing_id": routing_id,
             "operation_id": operation_id,
             "count": len(docs),
+            "scope_summary": dict(scope_counter),
+            "export_meta": export_context,
             "documents": docs,
         }
 
@@ -1323,6 +1483,7 @@ class WorkorderDocumentPackService:
                 "routing_id",
                 "operation_id",
                 "document_item_id",
+                "document_scope",
                 "inherit_to_children",
                 "visible_in_production",
                 "created_at",

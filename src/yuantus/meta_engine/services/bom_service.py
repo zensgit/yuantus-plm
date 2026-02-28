@@ -113,6 +113,20 @@ class BOMService:
         "include_substitutes": False,
         "include_effectivity": False,
     }
+    DELTA_EXPORT_FIELDS = (
+        "op",
+        "line_key",
+        "parent_id",
+        "child_id",
+        "relationship_id",
+        "severity",
+        "risk_level",
+        "change_count",
+        "field",
+        "before",
+        "after",
+        "properties",
+    )
 
     def __init__(self, session: Session):
         self.session = session
@@ -903,15 +917,23 @@ class BOMService:
 
         for entry in changed:
             field_changes = []
+            field_severity_counts = {"major": 0, "minor": 0, "info": 0}
             for field_diff in entry.get("changes") or []:
+                severity = field_diff.get("severity") or "info"
+                if severity not in field_severity_counts:
+                    severity = "info"
+                field_severity_counts[severity] += 1
                 field_changes.append(
                     {
                         "field": field_diff.get("field"),
                         "before": field_diff.get("left"),
                         "after": field_diff.get("right"),
-                        "severity": field_diff.get("severity") or "info",
+                        "severity": severity,
                     }
                 )
+            op_severity = entry.get("severity") or "info"
+            if op_severity not in {"major", "minor", "info"}:
+                op_severity = "info"
             operations.append(
                 {
                     "op": "update",
@@ -919,37 +941,148 @@ class BOMService:
                     "parent_id": entry.get("parent_id"),
                     "child_id": entry.get("child_id"),
                     "relationship_id": entry.get("relationship_id"),
-                    "severity": entry.get("severity") or "info",
+                    "severity": op_severity,
+                    "risk_level": (
+                        "high"
+                        if op_severity == "major"
+                        else "medium"
+                        if op_severity == "minor"
+                        else "low"
+                    ),
                     "changes": field_changes,
+                    "change_count": len(field_changes),
+                    "field_severity_counts": field_severity_counts,
                 }
             )
 
+        severity_counts = {"major": 0, "minor": 0, "info": 0}
+        for op in operations:
+            severity = str(op.get("severity") or "info").lower()
+            if severity not in severity_counts:
+                severity = "info"
+            severity_counts[severity] += 1
+
+        structural_ops = len(added) + len(removed)
+        update_ops = len(changed)
+        if severity_counts["major"] > 0 and structural_ops >= 10:
+            risk_level = "critical"
+        elif severity_counts["major"] > 0 or structural_ops >= 8:
+            risk_level = "high"
+        elif severity_counts["minor"] > 0 or update_ops > 0:
+            risk_level = "medium"
+        elif structural_ops > 0:
+            risk_level = "low"
+        else:
+            risk_level = "none"
+
+        change_summary = {
+            "ops": {
+                "adds": len(added),
+                "removes": len(removed),
+                "updates": len(changed),
+                "structural": structural_ops,
+            },
+            "severity": severity_counts,
+            "risk_level": risk_level,
+        }
         summary = {
             "total_ops": len(operations),
             "adds": len(added),
             "removes": len(removed),
             "updates": len(changed),
+            "risk_level": risk_level,
         }
-        return {"summary": summary, "operations": operations}
+        return {
+            "summary": summary,
+            "change_summary": change_summary,
+            "operations": operations,
+        }
 
-    def export_delta_csv(self, delta_preview: Dict[str, Any]) -> str:
+    @classmethod
+    def normalize_delta_export_fields(
+        cls, fields: Optional[List[str]]
+    ) -> List[str]:
+        if not fields:
+            return list(cls.DELTA_EXPORT_FIELDS)
+        normalized: List[str] = []
+        allowed = set(cls.DELTA_EXPORT_FIELDS)
+        for field in fields:
+            key = str(field or "").strip()
+            if not key:
+                continue
+            if key not in allowed:
+                allowed_text = ", ".join(cls.DELTA_EXPORT_FIELDS)
+                raise ValueError(f"fields contains unsupported key '{key}'. Allowed: {allowed_text}")
+            if key not in normalized:
+                normalized.append(key)
+        if not normalized:
+            return list(cls.DELTA_EXPORT_FIELDS)
+        return normalized
+
+    def filter_delta_preview_fields(
+        self, delta_preview: Dict[str, Any], fields: Optional[List[str]]
+    ) -> Dict[str, Any]:
+        selected = self.normalize_delta_export_fields(fields)
+        selected_set = set(selected)
+        operations = []
+        for op in delta_preview.get("operations") or []:
+            if not isinstance(op, dict):
+                continue
+            row: Dict[str, Any] = {}
+            for key in selected:
+                if key in {"field", "before", "after"}:
+                    continue
+                if key == "change_count":
+                    row["change_count"] = int(
+                        op.get("change_count")
+                        if op.get("change_count") is not None
+                        else len(op.get("changes") or [])
+                    )
+                    continue
+                row[key] = op.get(key)
+            if "field" in selected_set or "before" in selected_set or "after" in selected_set:
+                changes = op.get("changes") or []
+                if not changes:
+                    entry = dict(row)
+                    if "field" in selected_set:
+                        entry["field"] = None
+                    if "before" in selected_set:
+                        entry["before"] = None
+                    if "after" in selected_set:
+                        entry["after"] = None
+                    operations.append(entry)
+                else:
+                    for change in changes:
+                        if not isinstance(change, dict):
+                            continue
+                        entry = dict(row)
+                        if "field" in selected_set:
+                            entry["field"] = change.get("field")
+                        if "before" in selected_set:
+                            entry["before"] = change.get("before")
+                        if "after" in selected_set:
+                            entry["after"] = change.get("after")
+                        operations.append(entry)
+            else:
+                operations.append(row)
+
+        result = dict(delta_preview)
+        result["selected_fields"] = selected
+        result["operations"] = operations
+        return result
+
+    def export_delta_csv(
+        self, delta_preview: Dict[str, Any], fields: Optional[List[str]] = None
+    ) -> str:
         """
         Export delta preview operations as CSV text.
         """
+        selected_fields = self.normalize_delta_export_fields(fields)
+        selected = set(selected_fields)
         output = io.StringIO()
         writer = csv.DictWriter(
             output,
-            fieldnames=[
-                "op",
-                "line_key",
-                "parent_id",
-                "child_id",
-                "relationship_id",
-                "severity",
-                "field",
-                "before",
-                "after",
-            ],
+            fieldnames=selected_fields,
         )
         writer.writeheader()
 
@@ -961,14 +1094,23 @@ class BOMService:
                 "child_id": op.get("child_id"),
                 "relationship_id": op.get("relationship_id"),
                 "severity": op.get("severity") or "",
+                "risk_level": op.get("risk_level") or "",
+                "change_count": int(
+                    op.get("change_count")
+                    if op.get("change_count") is not None
+                    else len(op.get("changes") or [])
+                ),
+                "properties": json.dumps(op.get("properties") or {}, ensure_ascii=False),
             }
             if op.get("op") != "update":
                 writer.writerow(
                     {
-                        **base,
-                        "field": "",
-                        "before": "",
-                        "after": "",
+                        key: (
+                            ""
+                            if key in {"field", "before", "after"} and key in selected
+                            else base.get(key, "")
+                        )
+                        for key in selected_fields
                     }
                 )
                 continue
@@ -977,27 +1119,22 @@ class BOMService:
             if not changes:
                 writer.writerow(
                     {
-                        **base,
-                        "field": "",
-                        "before": "",
-                        "after": "",
+                        key: (
+                            ""
+                            if key in {"field", "before", "after"} and key in selected
+                            else base.get(key, "")
+                        )
+                        for key in selected_fields
                     }
                 )
                 continue
 
             for change in changes:
-                writer.writerow(
-                    {
-                        **base,
-                        "field": change.get("field"),
-                        "before": json.dumps(
-                            change.get("before"), ensure_ascii=False
-                        ),
-                        "after": json.dumps(
-                            change.get("after"), ensure_ascii=False
-                        ),
-                    }
-                )
+                row = dict(base)
+                row["field"] = change.get("field")
+                row["before"] = json.dumps(change.get("before"), ensure_ascii=False)
+                row["after"] = json.dumps(change.get("after"), ensure_ascii=False)
+                writer.writerow({key: row.get(key, "") for key in selected_fields})
 
         return output.getvalue()
 
