@@ -1545,6 +1545,165 @@ class BreakageIncidentService:
             "incidents": incidents_page,
         }
 
+    def _metrics_export_rows(self, metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
+        filters = metrics.get("filters") if isinstance(metrics.get("filters"), dict) else {}
+        trend = metrics.get("trend") if isinstance(metrics.get("trend"), list) else []
+        rows: List[Dict[str, Any]] = []
+        for point in trend:
+            if not isinstance(point, dict):
+                continue
+            rows.append(
+                {
+                    "date": point.get("date"),
+                    "count": point.get("count"),
+                    "total": metrics.get("total"),
+                    "repeated_event_count": metrics.get("repeated_event_count"),
+                    "repeated_failure_rate": metrics.get("repeated_failure_rate"),
+                    "trend_window_days": metrics.get("trend_window_days"),
+                    "status_filter": filters.get("status"),
+                    "severity_filter": filters.get("severity"),
+                    "product_item_id_filter": filters.get("product_item_id"),
+                    "batch_code_filter": filters.get("batch_code"),
+                    "responsibility_filter": filters.get("responsibility"),
+                }
+            )
+        if rows:
+            return rows
+        return [
+            {
+                "date": None,
+                "count": 0,
+                "total": metrics.get("total"),
+                "repeated_event_count": metrics.get("repeated_event_count"),
+                "repeated_failure_rate": metrics.get("repeated_failure_rate"),
+                "trend_window_days": metrics.get("trend_window_days"),
+                "status_filter": filters.get("status"),
+                "severity_filter": filters.get("severity"),
+                "product_item_id_filter": filters.get("product_item_id"),
+                "batch_code_filter": filters.get("batch_code"),
+                "responsibility_filter": filters.get("responsibility"),
+            }
+        ]
+
+    def export_metrics(
+        self,
+        *,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        product_item_id: Optional[str] = None,
+        batch_code: Optional[str] = None,
+        responsibility: Optional[str] = None,
+        trend_window_days: int = 14,
+        page: int = 1,
+        page_size: int = 20,
+        export_format: str = "json",
+    ) -> Dict[str, Any]:
+        metrics = self.metrics(
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
+            trend_window_days=trend_window_days,
+            page=page,
+            page_size=page_size,
+        )
+        normalized = str(export_format or "json").strip().lower()
+        if normalized == "json":
+            content = json.dumps(metrics, ensure_ascii=False, indent=2).encode("utf-8")
+            return {
+                "content": content,
+                "media_type": "application/json",
+                "filename": "breakage-metrics.json",
+            }
+
+        rows = self._metrics_export_rows(metrics)
+        if normalized == "csv":
+            csv_io = io.StringIO()
+            writer = csv.DictWriter(
+                csv_io,
+                fieldnames=[
+                    "date",
+                    "count",
+                    "total",
+                    "repeated_event_count",
+                    "repeated_failure_rate",
+                    "trend_window_days",
+                    "status_filter",
+                    "severity_filter",
+                    "product_item_id_filter",
+                    "batch_code_filter",
+                    "responsibility_filter",
+                ],
+            )
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+            return {
+                "content": csv_io.getvalue().encode("utf-8"),
+                "media_type": "text/csv",
+                "filename": "breakage-metrics.csv",
+            }
+
+        if normalized == "md":
+            by_status = (
+                metrics.get("by_status")
+                if isinstance(metrics.get("by_status"), dict)
+                else {}
+            )
+            by_severity = (
+                metrics.get("by_severity")
+                if isinstance(metrics.get("by_severity"), dict)
+                else {}
+            )
+            by_responsibility = (
+                metrics.get("by_responsibility")
+                if isinstance(metrics.get("by_responsibility"), dict)
+                else {}
+            )
+            hotspots = (
+                metrics.get("hotspot_components")
+                if isinstance(metrics.get("hotspot_components"), list)
+                else []
+            )
+            lines = [
+                "# Breakage Metrics",
+                "",
+                f"- total: {metrics.get('total') or 0}",
+                (
+                    f"- repeated_event_count: "
+                    f"{metrics.get('repeated_event_count') or 0}"
+                ),
+                (
+                    f"- repeated_failure_rate: "
+                    f"{metrics.get('repeated_failure_rate') or 0}"
+                ),
+                f"- trend_window_days: {metrics.get('trend_window_days') or ''}",
+                "",
+                f"- by_status: {json.dumps(by_status, ensure_ascii=False)}",
+                f"- by_severity: {json.dumps(by_severity, ensure_ascii=False)}",
+                (
+                    f"- by_responsibility: "
+                    f"{json.dumps(by_responsibility, ensure_ascii=False)}"
+                ),
+                (
+                    f"- hotspot_components: "
+                    f"{json.dumps(hotspots, ensure_ascii=False)}"
+                ),
+                "",
+                "| Date | Count |",
+                "| --- | --- |",
+            ]
+            for row in rows:
+                lines.append(f"| {row['date'] or ''} | {row['count'] or 0} |")
+            return {
+                "content": ("\n".join(lines) + "\n").encode("utf-8"),
+                "media_type": "text/markdown",
+                "filename": "breakage-metrics.md",
+            }
+
+        raise ValueError("export_format must be json, csv or md")
+
     def enqueue_helpdesk_stub_sync(
         self,
         incident_id: str,

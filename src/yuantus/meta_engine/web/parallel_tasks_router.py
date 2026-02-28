@@ -1220,6 +1220,62 @@ async def get_breakage_metrics(
     return result
 
 
+@parallel_tasks_router.get("/breakages/metrics/export")
+async def export_breakage_metrics(
+    status: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    product_item_id: Optional[str] = Query(None),
+    batch_code: Optional[str] = Query(None),
+    responsibility: Optional[str] = Query(None),
+    trend_window_days: int = Query(14, description="7|14|30"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    export_format: str = Query("json", description="json|csv|md"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        exported = service.export_metrics(
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
+            trend_window_days=trend_window_days,
+            page=page,
+            page_size=page_size,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="breakage_metrics_invalid_request",
+            message=str(exc),
+            context={
+                "status": status,
+                "severity": severity,
+                "product_item_id": product_item_id,
+                "batch_code": batch_code,
+                "responsibility": responsibility,
+                "trend_window_days": trend_window_days,
+                "page": page,
+                "page_size": page_size,
+                "export_format": export_format,
+            },
+        )
+    return StreamingResponse(
+        io.BytesIO(exported["content"]),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "breakage-metrics.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
+
+
 @parallel_tasks_router.post("/breakages")
 async def create_breakage_incident(
     payload: BreakageCreateRequest,

@@ -147,6 +147,16 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     )
     db.commit()
 
+    breakage_metrics_export_csv_resp = client.get(
+        "/api/v1/breakages/metrics/export?trend_window_days=14&responsibility=supplier-e2e&export_format=csv"
+    )
+    assert breakage_metrics_export_csv_resp.status_code == 200
+    assert breakage_metrics_export_csv_resp.headers.get("content-type", "").startswith(
+        "text/csv"
+    )
+    assert breakage_metrics_export_csv_resp.headers.get("x-operator-id") == "21"
+    assert "responsibility_filter" in breakage_metrics_export_csv_resp.text
+
     summary_resp = client.get(
         "/api/v1/parallel-ops/summary?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e"
     )

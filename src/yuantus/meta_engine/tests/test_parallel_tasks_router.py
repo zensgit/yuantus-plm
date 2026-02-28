@@ -171,6 +171,51 @@ def test_breakage_metrics_invalid_window_maps_contract_error():
     assert detail.get("context", {}).get("trend_window_days") == 10
 
 
+def test_breakage_metrics_export_returns_download_response():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.export_metrics.return_value = {
+            "content": b"date,count,total\n2026-02-28,1,1\n",
+            "media_type": "text/csv",
+            "filename": "breakage-metrics.csv",
+        }
+        resp = client.get(
+            "/api/v1/breakages/metrics/export?trend_window_days=14&export_format=csv"
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="breakage-metrics.csv"' in (
+        resp.headers.get("content-disposition", "")
+    )
+    assert resp.headers.get("x-operator-id") == "3"
+    assert "date,count,total" in resp.text
+
+
+def test_breakage_metrics_export_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.export_metrics.side_effect = ValueError(
+            "export_format must be json, csv or md"
+        )
+        resp = client.get(
+            "/api/v1/breakages/metrics/export?trend_window_days=14&export_format=xlsx"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "breakage_metrics_invalid_request"
+    assert detail.get("context", {}).get("export_format") == "xlsx"
+
+
 def test_doc_sync_create_job_maps_missing_site_to_404():
     user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)

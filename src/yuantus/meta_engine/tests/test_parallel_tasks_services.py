@@ -459,6 +459,58 @@ def test_breakage_metrics_rejects_invalid_trend_window(session):
         service.metrics(trend_window_days=10)
 
 
+def test_breakage_metrics_export_json_csv_md(session):
+    service = BreakageIncidentService(session)
+    service.create_incident(
+        description="export-bearing-crack",
+        product_item_id="p-exp-1",
+        bom_line_item_id="bom-exp-1",
+        severity="high",
+        responsibility="supplier-exp",
+    )
+    session.commit()
+
+    exported_json = service.export_metrics(
+        product_item_id="p-exp-1",
+        responsibility="supplier-exp",
+        trend_window_days=14,
+        export_format="json",
+    )
+    assert exported_json["media_type"] == "application/json"
+    assert exported_json["filename"] == "breakage-metrics.json"
+    assert '"total": 1' in exported_json["content"].decode("utf-8")
+
+    exported_csv = service.export_metrics(
+        product_item_id="p-exp-1",
+        responsibility="supplier-exp",
+        trend_window_days=14,
+        export_format="csv",
+    )
+    csv_text = exported_csv["content"].decode("utf-8")
+    assert exported_csv["media_type"] == "text/csv"
+    assert exported_csv["filename"] == "breakage-metrics.csv"
+    assert "date,count,total,repeated_event_count,repeated_failure_rate" in csv_text
+    assert "supplier-exp" in csv_text
+
+    exported_md = service.export_metrics(
+        product_item_id="p-exp-1",
+        responsibility="supplier-exp",
+        trend_window_days=14,
+        export_format="md",
+    )
+    md_text = exported_md["content"].decode("utf-8")
+    assert exported_md["media_type"] == "text/markdown"
+    assert exported_md["filename"] == "breakage-metrics.md"
+    assert md_text.startswith("# Breakage Metrics")
+    assert "| Date | Count |" in md_text
+
+
+def test_breakage_metrics_export_rejects_invalid_format(session):
+    service = BreakageIncidentService(session)
+    with pytest.raises(ValueError, match="export_format must be json, csv or md"):
+        service.export_metrics(export_format="xlsx")
+
+
 def test_breakage_helpdesk_stub_sync_enqueue(session):
     service = BreakageIncidentService(session)
     incident = service.create_incident(
