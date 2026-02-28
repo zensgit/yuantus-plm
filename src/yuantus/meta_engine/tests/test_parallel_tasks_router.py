@@ -520,3 +520,99 @@ def test_parallel_ops_summary_invalid_request_maps_contract_error():
     detail = resp.json().get("detail") or {}
     assert detail.get("code") == "parallel_ops_invalid_request"
     assert detail.get("context", {}).get("window_days") == 10
+
+
+def test_parallel_ops_doc_sync_failures_returns_payload():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.doc_sync_failures.return_value = {
+            "window_days": 7,
+            "window_since": "2026-02-21T00:00:00",
+            "site_filter": "site-1",
+            "total": 1,
+            "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+            "jobs": [
+                {
+                    "id": "job-1",
+                    "task_type": "document_sync_push",
+                    "status": "failed",
+                    "site_id": "site-1",
+                }
+            ],
+        }
+        resp = client.get("/api/v1/parallel-ops/doc-sync/failures?window_days=7&site_id=site-1")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["jobs"][0]["status"] == "failed"
+    assert body["operator_id"] == 16
+
+
+def test_parallel_ops_workflow_failures_returns_payload():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.workflow_failures.return_value = {
+            "window_days": 7,
+            "window_since": "2026-02-21T00:00:00",
+            "target_object_filter": "ECO",
+            "total": 1,
+            "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+            "runs": [
+                {"id": "run-1", "status": "failed", "result_code": "RETRY_EXHAUSTED"}
+            ],
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/workflow/failures?window_days=7&target_object=ECO"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["runs"][0]["result_code"] == "RETRY_EXHAUSTED"
+    assert body["operator_id"] == 16
+
+
+def test_parallel_ops_metrics_returns_prometheus_text():
+    user = SimpleNamespace(id=17, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.prometheus_metrics.return_value = (
+            "# HELP yuantus_parallel_doc_sync_jobs_total ...\n"
+            "yuantus_parallel_doc_sync_jobs_total{window_days=\"7\"} 3\n"
+        )
+        resp = client.get("/api/v1/parallel-ops/metrics?window_days=7")
+
+    assert resp.status_code == 200
+    assert resp.text.startswith("# HELP yuantus_parallel_doc_sync_jobs_total")
+    assert "yuantus_parallel_doc_sync_jobs_total" in resp.text
+    assert resp.headers.get("x-operator-id") == "17"
+    assert resp.headers.get("content-type", "").startswith("text/plain")
+
+
+def test_parallel_ops_doc_sync_failures_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.doc_sync_failures.side_effect = ValueError(
+            "page_size must be between 1 and 200"
+        )
+        resp = client.get("/api/v1/parallel-ops/doc-sync/failures?window_days=10")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"

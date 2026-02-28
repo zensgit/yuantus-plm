@@ -745,5 +745,39 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert "workflow_action_failed_rate_high" in hint_codes
     assert "breakage_open_rate_high" in hint_codes
 
+    doc_sync_failures = ops.doc_sync_failures(
+        window_days=7,
+        site_id="site-1",
+        page=1,
+        page_size=1,
+    )
+    assert doc_sync_failures["total"] == 1
+    assert doc_sync_failures["pagination"]["pages"] == 1
+    assert len(doc_sync_failures["jobs"]) == 1
+    assert doc_sync_failures["jobs"][0]["status"] == "failed"
+    assert doc_sync_failures["jobs"][0]["site_id"] == "site-1"
+
+    workflow_failures = ops.workflow_failures(
+        window_days=7,
+        target_object="ECO",
+        page=1,
+        page_size=10,
+    )
+    assert workflow_failures["total"] == 1
+    assert workflow_failures["runs"][0]["result_code"] == "RETRY_EXHAUSTED"
+
+    metrics = ops.prometheus_metrics(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+    )
+    assert "yuantus_parallel_doc_sync_jobs_total" in metrics
+    assert "yuantus_parallel_workflow_runs_total" in metrics
+    assert "yuantus_parallel_slo_hints_total" in metrics
+    assert 'site_id="site-1"' in metrics
+
     with pytest.raises(ValueError, match="window_days"):
         ops.summary(window_days=10)
+    with pytest.raises(ValueError, match="page_size"):
+        ops.doc_sync_failures(window_days=7, page_size=500)

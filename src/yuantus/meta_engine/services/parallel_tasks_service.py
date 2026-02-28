@@ -2020,6 +2020,38 @@ class ParallelOpsOverviewService:
     def _safe_ratio(self, numerator: int, denominator: int) -> Optional[float]:
         return (float(numerator) / float(denominator)) if denominator > 0 else None
 
+    def _normalize_page(self, page: int) -> int:
+        try:
+            value = int(page or 1)
+        except Exception as exc:
+            raise ValueError("page must be >= 1") from exc
+        if value < 1:
+            raise ValueError("page must be >= 1")
+        return value
+
+    def _normalize_page_size(self, page_size: int) -> int:
+        try:
+            value = int(page_size or 20)
+        except Exception as exc:
+            raise ValueError("page_size must be between 1 and 200") from exc
+        if value < 1 or value > 200:
+            raise ValueError("page_size must be between 1 and 200")
+        return value
+
+    def _paginate(
+        self, rows: List[Dict[str, Any]], *, page: int, page_size: int
+    ) -> Dict[str, Any]:
+        total = len(rows)
+        start = (page - 1) * page_size
+        end = start + page_size
+        return {
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "pages": ((total + page_size - 1) // page_size) if page_size else 0,
+            "rows": rows[start:end],
+        }
+
     def _doc_sync_summary(
         self,
         *,
@@ -2253,3 +2285,266 @@ class ParallelOpsOverviewService:
             "overlay_cache": overlay_cache,
             "slo_hints": hints,
         }
+
+    def doc_sync_failures(
+        self,
+        *,
+        window_days: int = 7,
+        site_id: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        normalized_page = self._normalize_page(page)
+        normalized_page_size = self._normalize_page_size(page_size)
+        since = self._window_since(normalized_window)
+
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type.like("document_sync_%"))
+            .filter(ConversionJob.status == JobStatus.FAILED.value)
+            .filter(ConversionJob.created_at >= since)
+            .order_by(ConversionJob.created_at.desc())
+            .all()
+        )
+        rows: List[Dict[str, Any]] = []
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            row_site_id = str(payload.get("site_id") or "").strip() or None
+            if site_id and row_site_id != str(site_id).strip():
+                continue
+            rows.append(
+                {
+                    "id": job.id,
+                    "task_type": job.task_type,
+                    "status": job.status,
+                    "attempt_count": int(job.attempt_count or 0),
+                    "max_attempts": int(job.max_attempts or 0),
+                    "last_error": job.last_error,
+                    "dedupe_key": job.dedupe_key,
+                    "site_id": row_site_id,
+                    "created_at": job.created_at.isoformat() if job.created_at else None,
+                }
+            )
+
+        paged = self._paginate(rows, page=normalized_page, page_size=normalized_page_size)
+        return {
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "site_filter": site_id,
+            "total": paged["total"],
+            "pagination": {
+                "page": paged["page"],
+                "page_size": paged["page_size"],
+                "pages": paged["pages"],
+                "total": paged["total"],
+            },
+            "jobs": paged["rows"],
+        }
+
+    def workflow_failures(
+        self,
+        *,
+        window_days: int = 7,
+        target_object: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        normalized_page = self._normalize_page(page)
+        normalized_page_size = self._normalize_page_size(page_size)
+        since = self._window_since(normalized_window)
+
+        query = (
+            self.session.query(WorkflowCustomActionRun)
+            .filter(WorkflowCustomActionRun.status == "failed")
+            .filter(WorkflowCustomActionRun.created_at >= since)
+        )
+        if target_object:
+            query = query.filter(WorkflowCustomActionRun.target_object == target_object)
+        runs = query.order_by(WorkflowCustomActionRun.created_at.desc()).all()
+
+        rows: List[Dict[str, Any]] = []
+        for run in runs:
+            result = run.result if isinstance(run.result, dict) else {}
+            rows.append(
+                {
+                    "id": run.id,
+                    "rule_id": run.rule_id,
+                    "object_id": run.object_id,
+                    "target_object": run.target_object,
+                    "from_state": run.from_state,
+                    "to_state": run.to_state,
+                    "trigger_phase": run.trigger_phase,
+                    "status": run.status,
+                    "attempts": int(run.attempts or 0),
+                    "result_code": result.get("result_code"),
+                    "last_error": run.last_error,
+                    "created_at": run.created_at.isoformat() if run.created_at else None,
+                }
+            )
+
+        paged = self._paginate(rows, page=normalized_page, page_size=normalized_page_size)
+        return {
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "target_object_filter": target_object,
+            "total": paged["total"],
+            "pagination": {
+                "page": paged["page"],
+                "page_size": paged["page_size"],
+                "pages": paged["pages"],
+                "total": paged["total"],
+            },
+            "runs": paged["rows"],
+        }
+
+    def _prometheus_escape(self, value: Any) -> str:
+        return (
+            str(value)
+            .replace("\\", "\\\\")
+            .replace("\n", "\\n")
+            .replace('"', '\\"')
+        )
+
+    def _prometheus_line(
+        self,
+        name: str,
+        value: Optional[float],
+        *,
+        labels: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        metric_value = float(value) if value is not None else 0.0
+        label_rows = []
+        for key, raw in sorted((labels or {}).items()):
+            if raw is None:
+                continue
+            label_rows.append(f'{key}="{self._prometheus_escape(raw)}"')
+        if label_rows:
+            return f"{name}{{{','.join(label_rows)}}} {metric_value}"
+        return f"{name} {metric_value}"
+
+    def prometheus_metrics(
+        self,
+        *,
+        window_days: int = 7,
+        site_id: Optional[str] = None,
+        target_object: Optional[str] = None,
+        template_key: Optional[str] = None,
+    ) -> str:
+        summary = self.summary(
+            window_days=window_days,
+            site_id=site_id,
+            target_object=target_object,
+            template_key=template_key,
+        )
+        common_labels = {
+            "window_days": int(summary.get("window_days") or 0),
+            "site_id": site_id,
+            "target_object": target_object,
+            "template_key": template_key,
+        }
+
+        lines: List[str] = [
+            "# HELP yuantus_parallel_doc_sync_jobs_total Document sync jobs in selected window.",
+            "# TYPE yuantus_parallel_doc_sync_jobs_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_doc_sync_jobs_total",
+                summary.get("doc_sync", {}).get("total"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_doc_sync_dead_letter_total Doc sync dead-letter jobs in selected window.",
+            "# TYPE yuantus_parallel_doc_sync_dead_letter_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_doc_sync_dead_letter_total",
+                summary.get("doc_sync", {}).get("dead_letter_total"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_doc_sync_success_rate Doc sync success rate in selected window.",
+            "# TYPE yuantus_parallel_doc_sync_success_rate gauge",
+            self._prometheus_line(
+                "yuantus_parallel_doc_sync_success_rate",
+                summary.get("doc_sync", {}).get("success_rate"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_workflow_runs_total Workflow custom action runs in selected window.",
+            "# TYPE yuantus_parallel_workflow_runs_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_workflow_runs_total",
+                summary.get("workflow_actions", {}).get("total"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_workflow_failed_rate Workflow custom action failed rate in selected window.",
+            "# TYPE yuantus_parallel_workflow_failed_rate gauge",
+            self._prometheus_line(
+                "yuantus_parallel_workflow_failed_rate",
+                summary.get("workflow_actions", {}).get("failed_rate"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_total Breakage incidents in selected window.",
+            "# TYPE yuantus_parallel_breakage_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_total",
+                summary.get("breakages", {}).get("total"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_open_total Open breakage incidents in selected window.",
+            "# TYPE yuantus_parallel_breakage_open_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_open_total",
+                summary.get("breakages", {}).get("open_total"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_consumption_template_versions_total Consumption template versions tracked.",
+            "# TYPE yuantus_parallel_consumption_template_versions_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_consumption_template_versions_total",
+                summary.get("consumption_templates", {}).get("versions_total"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_overlay_cache_requests Overlay cache requests in current process.",
+            "# TYPE yuantus_parallel_overlay_cache_requests gauge",
+            self._prometheus_line(
+                "yuantus_parallel_overlay_cache_requests",
+                summary.get("overlay_cache", {}).get("requests"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_overlay_cache_hit_rate Overlay cache hit rate in current process.",
+            "# TYPE yuantus_parallel_overlay_cache_hit_rate gauge",
+            self._prometheus_line(
+                "yuantus_parallel_overlay_cache_hit_rate",
+                summary.get("overlay_cache", {}).get("hit_rate"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_slo_hints_total Number of active SLO warning hints.",
+            "# TYPE yuantus_parallel_slo_hints_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_slo_hints_total",
+                len(summary.get("slo_hints") or []),
+                labels=common_labels,
+            ),
+        ]
+
+        by_status = summary.get("doc_sync", {}).get("by_status") or {}
+        for status, count in sorted(by_status.items()):
+            labels = {**common_labels, "status": status}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_doc_sync_by_status",
+                    count,
+                    labels=labels,
+                )
+            )
+
+        by_result_code = summary.get("workflow_actions", {}).get("by_result_code") or {}
+        for result_code, count in sorted(by_result_code.items()):
+            labels = {**common_labels, "result_code": result_code}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_workflow_by_result_code",
+                    count,
+                    labels=labels,
+                )
+            )
+
+        return "\n".join(lines) + "\n"

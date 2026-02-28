@@ -1,4 +1,4 @@
-# 设计文档：并行支线 P3（Parallel Ops Overview API）
+# 设计文档：并行支线 P3（Parallel Ops Overview + Failure Details + Prometheus）
 
 - 日期：2026-02-28
 - 仓库：`/Users/huazhou/Downloads/Github/Yuantus`
@@ -8,7 +8,8 @@
 
 1. 提供单一 API 汇总并行支线关键运行指标，降低值班排障成本。
 2. 统一输出窗口统计（1/7/14/30/90 天）与基础 SLO 提示。
-3. 在不新增迁移的前提下，复用现有模型与服务数据。
+3. 提供失败明细分页接口与 Prometheus 采集接口，便于看板和告警系统接入。
+4. 在不新增迁移的前提下，复用现有模型与服务数据。
 
 ## 2. 方案
 
@@ -17,7 +18,7 @@
 文件：
 - `/Users/huazhou/Downloads/Github/Yuantus/src/yuantus/meta_engine/services/parallel_tasks_service.py`
 
-新增 `ParallelOpsOverviewService`：
+新增/增强 `ParallelOpsOverviewService`：
 
 1. 参数标准化
 - `window_days` 只允许：`1, 7, 14, 30, 90`。
@@ -36,6 +37,21 @@
 - `workflow_action_failed_rate_high`
 - `breakage_open_rate_high`
 
+4. 失败明细分页能力
+- `doc_sync_failures(window_days, site_id, page, page_size)`
+- `workflow_failures(window_days, target_object, page, page_size)`
+- 分页统一输出：`pagination.page/page_size/pages/total`
+
+5. Prometheus 文本导出
+- `prometheus_metrics(window_days, site_id, target_object, template_key)`
+- 输出 `text/plain; version=0.0.4` 格式，指标覆盖：
+  - doc-sync 总量/状态分布/成功率/dead-letter
+  - workflow 总量/失败率/result_code 分布
+  - breakage 总量/开放量
+  - consumption template 版本总量
+  - overlay cache 请求量/命中率
+  - slo hints 总量
+
 ## 2.2 API 层
 
 文件：
@@ -43,6 +59,9 @@
 
 新增接口：
 - `GET /api/v1/parallel-ops/summary`
+- `GET /api/v1/parallel-ops/doc-sync/failures`
+- `GET /api/v1/parallel-ops/workflow/failures`
+- `GET /api/v1/parallel-ops/metrics`
 
 查询参数：
 - `window_days`（默认 7）
@@ -61,7 +80,7 @@
 
 ## 4. 风险与回滚
 
-1. 风险：聚合逻辑在大窗口下查询量上升。
+1. 风险：聚合与失败明细在大窗口下查询量上升。
 - 缓解：窗口离散化 + 按需过滤参数。
 
 2. 风险：overlay 缓存统计是进程内维度，不是全局值。

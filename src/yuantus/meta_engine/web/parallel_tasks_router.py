@@ -6,7 +6,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -1604,3 +1604,105 @@ async def get_parallel_ops_summary(
         )
     result["operator_id"] = int(user.id)
     return result
+
+
+@parallel_tasks_router.get("/parallel-ops/doc-sync/failures")
+async def get_parallel_ops_doc_sync_failures(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    site_id: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.doc_sync_failures(
+            window_days=window_days,
+            site_id=site_id,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "site_id": site_id,
+                "page": page,
+                "page_size": page_size,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/workflow/failures")
+async def get_parallel_ops_workflow_failures(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    target_object: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.workflow_failures(
+            window_days=window_days,
+            target_object=target_object,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "target_object": target_object,
+                "page": page,
+                "page_size": page_size,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/metrics")
+async def get_parallel_ops_metrics(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    site_id: Optional[str] = Query(None),
+    target_object: Optional[str] = Query(None),
+    template_key: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        content = service.prometheus_metrics(
+            window_days=window_days,
+            site_id=site_id,
+            target_object=target_object,
+            template_key=template_key,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "site_id": site_id,
+                "target_object": target_object,
+                "template_key": template_key,
+            },
+        )
+    return PlainTextResponse(
+        content=content,
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+        headers={"X-Operator-Id": str(int(user.id))},
+    )
