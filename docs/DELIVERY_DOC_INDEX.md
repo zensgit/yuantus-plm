@@ -133,8 +133,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Phase 4/5/6 Hardening: `docs/DEV_AND_VERIFICATION_P4_P5_P6_HARDENING_20260207.md`
 - P5 Reports/Search Performance Harness: `docs/DEV_AND_VERIFICATION_P5_REPORTS_PERF_20260208.md`
 - Phase 6 E-Signatures: `docs/DEV_AND_VERIFICATION_P6_ESIGN_20260201.md`
-- Parallel P0 Reliability + Error Contract: `docs/DEV_AND_VERIFICATION_PARALLEL_P0_RELIABILITY_AND_ERROR_CONTRACT_20260228.md`
 - Parallel P0 Error Contract Unification Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P0_ERROR_CONTRACT_UNIFICATION_EXT_20260228.md`
+- Parallel P0 Reliability + Error Contract: `docs/DEV_AND_VERIFICATION_PARALLEL_P0_RELIABILITY_AND_ERROR_CONTRACT_20260228.md`
 - Parallel P1 Export + Breakage Analytics: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_EXPORT_AND_BREAKAGE_ANALYTICS_20260228.md`
 - Parallel P2 Overlay Cache + Template + Runbook: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_OVERLAY_CACHE_TEMPLATE_RUNBOOK_20260228.md`
 - Parallel P3 Ops Overview API: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_OPS_OVERVIEW_API_20260228.md`
