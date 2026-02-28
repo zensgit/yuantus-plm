@@ -46,6 +46,9 @@ pytest -q src/yuantus/meta_engine/tests
 
 1. 目标回归：`43 passed`
 2. 全量回归：`104 passed, 0 failed`
+3. GitHub Actions（`origin/main@02d1256`）：
+- CI：`22519670465`（success）
+- regression：`22519670477`（success）
 
 ## 5. 结论
 
