@@ -236,6 +236,51 @@ def test_doc_sync_list_jobs_includes_reliability_view_fields():
     assert rows[0]["sync_trace"]["trace_id"] == "t-1"
 
 
+def test_eco_activity_create_invalid_maps_contract_error():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.create_activity.side_effect = ValueError("eco not found")
+        resp = client.post(
+            "/api/v1/eco-activities",
+            json={
+                "eco_id": "eco-404",
+                "name": "A1",
+                "depends_on_activity_ids": [],
+                "is_blocking": True,
+            },
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "eco_activity_invalid_request"
+    assert detail.get("context", {}).get("eco_id") == "eco-404"
+
+
+def test_eco_activity_transition_blocked_maps_contract_error():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.transition_activity.side_effect = ValueError(
+            "Blocking dependencies not satisfied"
+        )
+        resp = client.post(
+            "/api/v1/eco-activities/activity/act-1/transition",
+            json={"to_status": "done"},
+        )
+
+    assert resp.status_code == 409
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "eco_activity_blocked"
+    assert detail.get("context", {}).get("activity_id") == "act-1"
+
+
 def test_workflow_rule_invalid_payload_returns_contract_error():
     user = SimpleNamespace(id=9, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
@@ -306,6 +351,26 @@ def test_3d_overlay_component_permission_denied_maps_403():
         )
 
     assert resp.status_code == 403
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "overlay_access_denied"
+    assert detail.get("context", {}).get("document_item_id") == "doc-1"
+    assert detail.get("context", {}).get("component_ref") == "C-001"
+
+
+def test_3d_overlay_get_not_found_maps_contract_error():
+    user = SimpleNamespace(id=8, roles=["viewer"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ThreeDOverlayService"
+    ) as service_cls:
+        service_cls.return_value.get_overlay.return_value = None
+        resp = client.get("/api/v1/cad-3d/overlays/doc-404")
+
+    assert resp.status_code == 404
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "overlay_not_found"
+    assert detail.get("context", {}).get("document_item_id") == "doc-404"
 
 
 def test_consumption_template_create_version_success():
@@ -412,6 +477,89 @@ def test_consumption_template_impact_preview_returns_payload():
     body = resp.json()
     assert body["template_key"] == "tpl-1"
     assert body["summary"]["delta_quantity"] == 10.0
+
+
+def test_consumption_actual_plan_not_found_maps_contract_error():
+    user = SimpleNamespace(id=12, roles=["planner"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+    ) as service_cls:
+        service_cls.return_value.add_actual.side_effect = ValueError(
+            "Consumption plan not found: p-404"
+        )
+        resp = client.post(
+            "/api/v1/consumption/plans/p-404/actuals",
+            json={"actual_quantity": 1.0},
+        )
+
+    assert resp.status_code == 404
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "consumption_plan_not_found"
+    assert detail.get("context", {}).get("plan_id") == "p-404"
+
+
+def test_consumption_variance_plan_not_found_maps_contract_error():
+    user = SimpleNamespace(id=12, roles=["planner"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+    ) as service_cls:
+        service_cls.return_value.variance.side_effect = ValueError(
+            "Consumption plan not found: p-404"
+        )
+        resp = client.get("/api/v1/consumption/plans/p-404/variance")
+
+    assert resp.status_code == 404
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "consumption_plan_not_found"
+    assert detail.get("context", {}).get("plan_id") == "p-404"
+
+
+def test_breakage_status_not_found_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.update_status.side_effect = ValueError(
+            "Breakage incident not found: inc-404"
+        )
+        resp = client.post(
+            "/api/v1/breakages/inc-404/status",
+            json={"status": "closed"},
+        )
+
+    assert resp.status_code == 404
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "breakage_not_found"
+    assert detail.get("context", {}).get("incident_id") == "inc-404"
+
+
+def test_workorder_doc_link_invalid_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.WorkorderDocumentPackService"
+    ) as service_cls:
+        service_cls.return_value.upsert_link.side_effect = ValueError("document invalid")
+        resp = client.post(
+            "/api/v1/workorder-docs/links",
+            json={
+                "routing_id": "r-1",
+                "operation_id": "op-1",
+                "document_item_id": "doc-1",
+            },
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "workorder_doc_link_invalid"
+    assert detail.get("context", {}).get("routing_id") == "r-1"
 
 
 def test_3d_overlay_batch_resolve_endpoint_returns_rows():

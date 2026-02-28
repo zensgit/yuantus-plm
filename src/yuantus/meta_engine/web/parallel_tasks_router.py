@@ -472,7 +472,15 @@ async def create_eco_activity(
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="eco_activity_invalid_request",
+            message=str(exc),
+            context={
+                "eco_id": payload.eco_id,
+                "name": payload.name,
+            },
+        )
     return {
         "id": activity.id,
         "eco_id": activity.eco_id,
@@ -532,10 +540,31 @@ async def transition_eco_activity(
         db.rollback()
         message = str(exc)
         if "not found" in message.lower():
-            raise HTTPException(status_code=404, detail=message) from exc
+            _raise_api_error(
+                status_code=404,
+                code="eco_activity_not_found",
+                message=message,
+                context={"activity_id": activity_id},
+            )
         if "blocking dependencies" in message.lower():
-            raise HTTPException(status_code=409, detail=message) from exc
-        raise HTTPException(status_code=400, detail=message) from exc
+            _raise_api_error(
+                status_code=409,
+                code="eco_activity_blocked",
+                message=message,
+                context={
+                    "activity_id": activity_id,
+                    "to_status": payload.to_status,
+                },
+            )
+        _raise_api_error(
+            status_code=400,
+            code="eco_activity_transition_invalid",
+            message=message,
+            context={
+                "activity_id": activity_id,
+                "to_status": payload.to_status,
+            },
+        )
     return {
         "id": activity.id,
         "eco_id": activity.eco_id,
@@ -836,7 +865,15 @@ async def create_consumption_plan(
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="consumption_plan_invalid_request",
+            message=str(exc),
+            context={
+                "name": payload.name,
+                "item_id": payload.item_id,
+            },
+        )
     return {
         "id": plan.id,
         "name": plan.name,
@@ -1056,10 +1093,20 @@ async def add_consumption_actual(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            code="consumption_plan_not_found",
+            message=str(exc),
+            context={"plan_id": plan_id},
+        )
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="consumption_actual_invalid_request",
+            message=str(exc),
+            context={"plan_id": plan_id},
+        )
     return {
         "id": record.id,
         "plan_id": record.plan_id,
@@ -1080,7 +1127,12 @@ async def get_consumption_variance(
     try:
         result = service.variance(plan_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            code="consumption_plan_not_found",
+            message=str(exc),
+            context={"plan_id": plan_id},
+        )
     result["operator_id"] = int(user.id)
     return result
 
@@ -1192,7 +1244,16 @@ async def create_breakage_incident(
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="breakage_invalid_request",
+            message=str(exc),
+            context={
+                "severity": payload.severity,
+                "status": payload.status,
+                "product_item_id": payload.product_item_id,
+            },
+        )
     return {
         "id": incident.id,
         "description": incident.description,
@@ -1263,10 +1324,23 @@ async def update_breakage_status(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            code="breakage_not_found",
+            message=str(exc),
+            context={"incident_id": incident_id},
+        )
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="breakage_status_invalid",
+            message=str(exc),
+            context={
+                "incident_id": incident_id,
+                "status": payload.status,
+            },
+        )
     return {
         "id": incident.id,
         "status": incident.status,
@@ -1292,10 +1366,20 @@ async def sync_breakage_to_helpdesk_stub(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            code="breakage_not_found",
+            message=str(exc),
+            context={"incident_id": incident_id},
+        )
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="breakage_helpdesk_sync_invalid",
+            message=str(exc),
+            context={"incident_id": incident_id},
+        )
     return {
         "incident_id": incident_id,
         "job_id": job.id,
@@ -1336,7 +1420,16 @@ async def upsert_workorder_doc_link(
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="workorder_doc_link_invalid",
+            message=str(exc),
+            context={
+                "routing_id": payload.routing_id,
+                "operation_id": payload.operation_id,
+                "document_item_id": payload.document_item_id,
+            },
+        )
     return {
         "id": link.id,
         "routing_id": link.routing_id,
@@ -1476,7 +1569,15 @@ async def upsert_3d_overlay(
         db.commit()
     except Exception as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=400,
+            code="overlay_upsert_invalid",
+            message=str(exc),
+            context={
+                "document_item_id": payload.document_item_id,
+                "visibility_role": payload.visibility_role,
+            },
+        )
     return {
         "id": overlay.id,
         "document_item_id": overlay.document_item_id,
@@ -1510,9 +1611,19 @@ async def get_3d_overlay(
             document_item_id=document_item_id, user_roles=_as_roles(user)
         )
     except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=403,
+            code="overlay_access_denied",
+            message=str(exc),
+            context={"document_item_id": document_item_id},
+        )
     if not overlay:
-        raise HTTPException(status_code=404, detail=f"Overlay not found: {document_item_id}")
+        _raise_api_error(
+            status_code=404,
+            code="overlay_not_found",
+            message=f"Overlay not found: {document_item_id}",
+            context={"document_item_id": document_item_id},
+        )
     return {
         "id": overlay.id,
         "document_item_id": overlay.document_item_id,
@@ -1540,9 +1651,19 @@ async def resolve_overlay_components_batch(
             include_missing=payload.include_missing,
         )
     except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=403,
+            code="overlay_access_denied",
+            message=str(exc),
+            context={"document_item_id": document_item_id},
+        )
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            code="overlay_not_found",
+            message=str(exc),
+            context={"document_item_id": document_item_id},
+        )
     result["operator_id"] = int(user.id)
     return result
 
@@ -1562,9 +1683,25 @@ async def resolve_overlay_component(
             user_roles=_as_roles(user),
         )
     except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=403,
+            code="overlay_access_denied",
+            message=str(exc),
+            context={
+                "document_item_id": document_item_id,
+                "component_ref": component_ref,
+            },
+        )
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        _raise_api_error(
+            status_code=404,
+            code="overlay_not_found",
+            message=str(exc),
+            context={
+                "document_item_id": document_item_id,
+                "component_ref": component_ref,
+            },
+        )
     return result
 
 
