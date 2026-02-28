@@ -158,6 +158,19 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert summary["consumption_templates"]["versions_total"] == 1
     assert summary["operator_id"] == 21
 
+    trends_resp = client.get(
+        "/api/v1/parallel-ops/trends?window_days=7&bucket_days=1&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e"
+    )
+    assert trends_resp.status_code == 200
+    trends = trends_resp.json()
+    assert trends["bucket_days"] == 1
+    assert trends["aggregates"]["doc_sync_total"] == 2
+    assert trends["aggregates"]["doc_sync_failed_total"] == 1
+    assert trends["aggregates"]["workflow_total"] == 1
+    assert trends["aggregates"]["breakages_total"] == 1
+    assert len(trends["points"]) >= 1
+    assert trends["operator_id"] == 21
+
     alerts_resp = client.get(
         "/api/v1/parallel-ops/alerts?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e&level=warn"
     )

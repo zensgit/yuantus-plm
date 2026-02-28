@@ -1606,6 +1606,42 @@ async def get_parallel_ops_summary(
     return result
 
 
+@parallel_tasks_router.get("/parallel-ops/trends")
+async def get_parallel_ops_trends(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    bucket_days: int = Query(1, description="1|7|14|30"),
+    site_id: Optional[str] = Query(None),
+    target_object: Optional[str] = Query(None),
+    template_key: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.trends(
+            window_days=window_days,
+            bucket_days=bucket_days,
+            site_id=site_id,
+            target_object=target_object,
+            template_key=template_key,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "bucket_days": bucket_days,
+                "site_id": site_id,
+                "target_object": target_object,
+                "template_key": template_key,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
 @parallel_tasks_router.get("/parallel-ops/alerts")
 async def get_parallel_ops_alerts(
     window_days: int = Query(7, description="1|7|14|30|90"),

@@ -2001,6 +2001,7 @@ class ThreeDOverlayService:
 
 class ParallelOpsOverviewService:
     _ALLOWED_WINDOW_DAYS = {1, 7, 14, 30, 90}
+    _ALLOWED_BUCKET_DAYS = {1, 7, 14, 30}
 
     def __init__(self, session: Session):
         self.session = session
@@ -2036,6 +2037,15 @@ class ParallelOpsOverviewService:
             raise ValueError("page_size must be between 1 and 200") from exc
         if value < 1 or value > 200:
             raise ValueError("page_size must be between 1 and 200")
+        return value
+
+    def _normalize_bucket_days(self, bucket_days: int) -> int:
+        try:
+            value = int(bucket_days or 1)
+        except Exception as exc:
+            raise ValueError("bucket_days must be one of: 1, 7, 14, 30") from exc
+        if value not in self._ALLOWED_BUCKET_DAYS:
+            raise ValueError("bucket_days must be one of: 1, 7, 14, 30")
         return value
 
     def _paginate(
@@ -2284,6 +2294,203 @@ class ParallelOpsOverviewService:
             "consumption_templates": consumption_templates,
             "overlay_cache": overlay_cache,
             "slo_hints": hints,
+        }
+
+    def trends(
+        self,
+        *,
+        window_days: int = 7,
+        bucket_days: int = 1,
+        site_id: Optional[str] = None,
+        target_object: Optional[str] = None,
+        template_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        normalized_bucket = self._normalize_bucket_days(bucket_days)
+        if normalized_bucket > normalized_window:
+            raise ValueError("bucket_days must be <= window_days")
+
+        since = self._window_since(normalized_window)
+        now = _utcnow()
+        bucket_span = timedelta(days=normalized_bucket)
+
+        points: List[Dict[str, Any]] = []
+        cursor = since
+        while cursor < now:
+            bucket_end = min(cursor + bucket_span, now)
+            points.append(
+                {
+                    "bucket_start": cursor.isoformat(),
+                    "bucket_end": bucket_end.isoformat(),
+                    "doc_sync": {
+                        "total": 0,
+                        "failed_total": 0,
+                        "dead_letter_total": 0,
+                    },
+                    "workflow_actions": {
+                        "total": 0,
+                        "failed_total": 0,
+                    },
+                    "breakages": {
+                        "total": 0,
+                        "open_total": 0,
+                    },
+                    "_doc_sync_success_total": 0,
+                }
+            )
+            cursor = bucket_end
+
+        if not points:
+            points.append(
+                {
+                    "bucket_start": since.isoformat(),
+                    "bucket_end": now.isoformat(),
+                    "doc_sync": {
+                        "total": 0,
+                        "failed_total": 0,
+                        "dead_letter_total": 0,
+                    },
+                    "workflow_actions": {
+                        "total": 0,
+                        "failed_total": 0,
+                    },
+                    "breakages": {
+                        "total": 0,
+                        "open_total": 0,
+                    },
+                    "_doc_sync_success_total": 0,
+                }
+            )
+
+        bucket_seconds = float(bucket_span.total_seconds())
+
+        def bucket_index(created_at: Optional[datetime]) -> Optional[int]:
+            if created_at is None:
+                return None
+            delta = (created_at - since).total_seconds()
+            if delta < 0:
+                return None
+            idx = int(delta // bucket_seconds) if bucket_seconds > 0 else 0
+            if idx < 0:
+                return None
+            if idx >= len(points):
+                return len(points) - 1
+            return idx
+
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type.like("document_sync_%"))
+            .filter(ConversionJob.created_at >= since)
+            .all()
+        )
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            row_site_id = str(payload.get("site_id") or "").strip()
+            if site_id and row_site_id != str(site_id).strip():
+                continue
+            idx = bucket_index(job.created_at)
+            if idx is None:
+                continue
+            row = points[idx]
+            doc_sync = row["doc_sync"]
+            doc_sync["total"] += 1
+            status = str(job.status or "").lower()
+            if status == JobStatus.COMPLETED.value:
+                row["_doc_sync_success_total"] += 1
+            if status == JobStatus.FAILED.value:
+                doc_sync["failed_total"] += 1
+                max_attempts = int(job.max_attempts or 0)
+                attempt_count = int(job.attempt_count or 0)
+                if max_attempts > 0 and attempt_count >= max_attempts:
+                    doc_sync["dead_letter_total"] += 1
+
+        workflow_query = self.session.query(WorkflowCustomActionRun).filter(
+            WorkflowCustomActionRun.created_at >= since
+        )
+        if target_object:
+            workflow_query = workflow_query.filter(
+                WorkflowCustomActionRun.target_object == target_object
+            )
+        for run in workflow_query.all():
+            idx = bucket_index(run.created_at)
+            if idx is None:
+                continue
+            row = points[idx]
+            workflow = row["workflow_actions"]
+            workflow["total"] += 1
+            if str(run.status or "").lower() == "failed":
+                workflow["failed_total"] += 1
+
+        incidents = (
+            self.session.query(BreakageIncident)
+            .filter(BreakageIncident.created_at >= since)
+            .all()
+        )
+        for incident in incidents:
+            idx = bucket_index(incident.created_at)
+            if idx is None:
+                continue
+            row = points[idx]
+            breakages = row["breakages"]
+            breakages["total"] += 1
+            if str(incident.status or "").lower() == "open":
+                breakages["open_total"] += 1
+
+        for row in points:
+            doc_sync = row["doc_sync"]
+            success_total = int(row.pop("_doc_sync_success_total", 0))
+            doc_sync["success_rate"] = self._safe_ratio(success_total, doc_sync["total"])
+            doc_sync["dead_letter_rate"] = self._safe_ratio(
+                doc_sync["dead_letter_total"],
+                doc_sync["total"],
+            )
+
+            workflow = row["workflow_actions"]
+            workflow["failed_rate"] = self._safe_ratio(
+                workflow["failed_total"],
+                workflow["total"],
+            )
+
+            breakages = row["breakages"]
+            breakages["open_rate"] = self._safe_ratio(
+                breakages["open_total"],
+                breakages["total"],
+            )
+
+        return {
+            "generated_at": now.isoformat(),
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "bucket_days": normalized_bucket,
+            "filters": {
+                "site_id": site_id,
+                "target_object": target_object,
+                "template_key": template_key,
+            },
+            "points": points,
+            "aggregates": {
+                "doc_sync_total": int(sum((row["doc_sync"]["total"] or 0) for row in points)),
+                "doc_sync_failed_total": int(
+                    sum((row["doc_sync"]["failed_total"] or 0) for row in points)
+                ),
+                "doc_sync_dead_letter_total": int(
+                    sum((row["doc_sync"]["dead_letter_total"] or 0) for row in points)
+                ),
+                "workflow_total": int(
+                    sum((row["workflow_actions"]["total"] or 0) for row in points)
+                ),
+                "workflow_failed_total": int(
+                    sum((row["workflow_actions"]["failed_total"] or 0) for row in points)
+                ),
+                "breakages_total": int(sum((row["breakages"]["total"] or 0) for row in points)),
+                "breakages_open_total": int(
+                    sum((row["breakages"]["open_total"] or 0) for row in points)
+                ),
+            },
+            "consumption_templates": self._consumption_template_summary(
+                template_key=template_key
+            ),
+            "overlay_cache": self._overlay_cache_summary(),
         }
 
     def doc_sync_failures(

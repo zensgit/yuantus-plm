@@ -1,4 +1,4 @@
-# 设计文档：并行支线 P3（Parallel Ops Overview + Alerts + Summary Export + Failure Details + Prometheus）
+# 设计文档：并行支线 P3（Parallel Ops Overview + Trends + Alerts + Summary Export + Failure Details + Prometheus）
 
 - 日期：2026-02-28
 - 仓库：`/Users/huazhou/Downloads/Github/Yuantus`
@@ -10,6 +10,7 @@
 2. 统一输出窗口统计（1/7/14/30/90 天）与基础 SLO 提示。
 3. 提供失败明细分页接口、告警视图与 Prometheus 采集接口，便于看板和告警系统接入。
 4. 提供 JSON/CSV/Markdown 总览导出，便于日报与归档场景。
+5. 提供时间桶趋势 API，用于值班看板观察指标变化轨迹。
 4. 在不新增迁移的前提下，复用现有模型与服务数据。
 
 ## 2. 方案
@@ -43,17 +44,22 @@
 - `workflow_failures(window_days, target_object, page, page_size)`
 - 分页统一输出：`pagination.page/page_size/pages/total`
 
-5. 告警视图
+5. 趋势能力
+- `trends(window_days, bucket_days, site_id, target_object, template_key)`
+- `bucket_days` 允许：`1|7|14|30`，且必须 `<= window_days`
+- 输出：按 bucket 的 `doc_sync/workflow_actions/breakages` 计数与比率，附带聚合 totals。
+
+6. 告警视图
 - `alerts(window_days, site_id, target_object, template_key, level)`
 - 从 `summary.slo_hints` 生成告警聚合：`status/total/by_code/hints`
 - `level` 允许：`warn|critical|info`
 
-6. Summary 导出
+7. Summary 导出
 - `export_summary(window_days, site_id, target_object, template_key, export_format)`
 - `export_format` 允许：`json|csv|md`
 - 输出内容 + `media_type` + `filename`，由路由层统一下载响应。
 
-7. Prometheus 文本导出
+8. Prometheus 文本导出
 - `prometheus_metrics(window_days, site_id, target_object, template_key)`
 - 输出 `text/plain; version=0.0.4` 格式，指标覆盖：
   - doc-sync 总量/状态分布/成功率/dead-letter
@@ -70,6 +76,7 @@
 
 新增接口：
 - `GET /api/v1/parallel-ops/summary`
+- `GET /api/v1/parallel-ops/trends`
 - `GET /api/v1/parallel-ops/alerts`
 - `GET /api/v1/parallel-ops/summary/export`
 - `GET /api/v1/parallel-ops/doc-sync/failures`
@@ -81,6 +88,7 @@
 - `site_id`（可选）
 - `target_object`（可选）
 - `template_key`（可选）
+- `bucket_days`（仅 trends，默认 `1`）
 - `level`（仅 alerts，可选）
 - `export_format`（仅 summary/export，默认 `json`）
 
@@ -111,3 +119,4 @@
 3. 服务与路由测试覆盖成功路径和异常路径。
 4. `alerts` 支持等级筛选并输出按 code 聚合。
 5. `summary/export` 支持 `json/csv/md`，非法格式返回结构化错误合同。
+6. `trends` 支持按 bucket 输出时序点，非法 `bucket_days` 返回结构化错误合同。

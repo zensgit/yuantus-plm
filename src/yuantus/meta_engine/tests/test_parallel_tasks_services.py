@@ -745,6 +745,25 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert "workflow_action_failed_rate_high" in hint_codes
     assert "breakage_open_rate_high" in hint_codes
 
+    trends = ops.trends(
+        window_days=7,
+        bucket_days=1,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+    )
+    assert trends["window_days"] == 7
+    assert trends["bucket_days"] == 1
+    assert len(trends["points"]) >= 1
+    assert trends["aggregates"]["doc_sync_total"] == 2
+    assert trends["aggregates"]["doc_sync_failed_total"] == 1
+    assert trends["aggregates"]["doc_sync_dead_letter_total"] == 1
+    assert trends["aggregates"]["workflow_total"] == 2
+    assert trends["aggregates"]["workflow_failed_total"] == 1
+    assert trends["aggregates"]["breakages_total"] == 2
+    assert trends["aggregates"]["breakages_open_total"] == 2
+    assert trends["consumption_templates"]["versions_total"] == 2
+
     doc_sync_failures = ops.doc_sync_failures(
         window_days=7,
         site_id="site-1",
@@ -828,6 +847,10 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
 
     with pytest.raises(ValueError, match="window_days"):
         ops.summary(window_days=10)
+    with pytest.raises(ValueError, match="bucket_days must be one of"):
+        ops.trends(window_days=7, bucket_days=2)
+    with pytest.raises(ValueError, match="bucket_days must be <= window_days"):
+        ops.trends(window_days=7, bucket_days=14)
     with pytest.raises(ValueError, match="page_size"):
         ops.doc_sync_failures(window_days=7, page_size=500)
     with pytest.raises(ValueError, match="level must be one of"):

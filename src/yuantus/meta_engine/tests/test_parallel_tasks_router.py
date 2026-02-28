@@ -522,6 +522,69 @@ def test_parallel_ops_summary_invalid_request_maps_contract_error():
     assert detail.get("context", {}).get("window_days") == 10
 
 
+def test_parallel_ops_trends_returns_payload():
+    user = SimpleNamespace(id=18, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.trends.return_value = {
+            "generated_at": "2026-02-28T00:00:00",
+            "window_days": 7,
+            "window_since": "2026-02-21T00:00:00",
+            "bucket_days": 1,
+            "filters": {"site_id": "site-1", "target_object": "ECO", "template_key": "tpl-1"},
+            "points": [
+                {
+                    "bucket_start": "2026-02-27T00:00:00",
+                    "bucket_end": "2026-02-28T00:00:00",
+                    "doc_sync": {"total": 2, "failed_total": 1, "dead_letter_total": 1, "success_rate": 0.5, "dead_letter_rate": 0.5},
+                    "workflow_actions": {"total": 1, "failed_total": 1, "failed_rate": 1.0},
+                    "breakages": {"total": 1, "open_total": 1, "open_rate": 1.0},
+                }
+            ],
+            "aggregates": {
+                "doc_sync_total": 2,
+                "doc_sync_failed_total": 1,
+                "doc_sync_dead_letter_total": 1,
+                "workflow_total": 1,
+                "workflow_failed_total": 1,
+                "breakages_total": 1,
+                "breakages_open_total": 1,
+            },
+            "consumption_templates": {"versions_total": 1},
+            "overlay_cache": {"requests": 2, "hit_rate": 0.5},
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/trends?window_days=7&bucket_days=1&site_id=site-1&target_object=ECO&template_key=tpl-1"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["bucket_days"] == 1
+    assert body["aggregates"]["doc_sync_total"] == 2
+    assert body["operator_id"] == 18
+
+
+def test_parallel_ops_trends_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=18, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.trends.side_effect = ValueError(
+            "bucket_days must be <= window_days"
+        )
+        resp = client.get("/api/v1/parallel-ops/trends?window_days=7&bucket_days=14")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("bucket_days") == 14
+
+
 def test_parallel_ops_alerts_returns_payload():
     user = SimpleNamespace(id=18, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
