@@ -169,7 +169,24 @@
 - `GET /api/v1/bom/compare/delta/preview`
 - `GET /api/v1/bom/compare/delta/export?export_format=json|csv`
 
-## 7. 兼容性与风险控制
+## 7. 主流程接入补充（继续开发阶段）
+
+为避免并行能力“只可单独调用”，本轮将关键能力接入 ECO 主流程：
+
+1. 接入点
+- 文件：`src/yuantus/meta_engine/services/eco_service.py`
+- 方法：`move_to_stage`、`action_apply`
+
+2. 接入规则
+- 在关键状态迁移前执行活动网关阻塞校验（`_ensure_activity_gate_ready`）。
+- 在状态迁移前后执行自定义动作引擎（`_run_custom_actions`，before/after）。
+
+3. 运行语义
+- 若活动阻塞未解除，迁移被拒绝并返回明确 blocker 信息。
+- 若自定义动作规则 `fail_strategy=block` 且失败，迁移中止并回滚。
+- `warn/retry` 按规则降级执行，不阻塞主流程。
+
+## 8. 兼容性与风险控制
 
 1. 不修改既有核心表语义，仅新增表与路由。
 2. 新增功能默认按需调用，不影响现有主链路执行。

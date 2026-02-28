@@ -111,6 +111,56 @@ class ECOService:
             recipients=recipients,
         )
 
+    def _ensure_activity_gate_ready(self, eco_id: str) -> None:
+        """
+        Block critical ECO transitions when activity gate reports unresolved blockers.
+        """
+        from yuantus.meta_engine.services.parallel_tasks_service import (
+            ECOActivityValidationService,
+        )
+
+        blockers = ECOActivityValidationService(self.session).blockers_for_eco(eco_id)
+        if int(blockers.get("total") or 0) <= 0:
+            return
+
+        blocker_ids = [
+            str(entry.get("activity_id"))
+            for entry in (blockers.get("blockers") or [])
+            if entry.get("activity_id")
+        ]
+        joined = ", ".join(blocker_ids[:10])
+        if len(blocker_ids) > 10:
+            joined = f"{joined}, ..."
+        raise ValueError(f"ECO activity blockers detected: {joined}")
+
+    def _run_custom_actions(
+        self,
+        *,
+        eco: ECO,
+        from_state: Optional[str],
+        to_state: Optional[str],
+        trigger_phase: str,
+    ) -> None:
+        """
+        Execute workflow custom actions bound to ECO state transition hooks.
+        """
+        from yuantus.meta_engine.services.parallel_tasks_service import (
+            WorkflowCustomActionService,
+        )
+
+        WorkflowCustomActionService(self.session).evaluate_transition(
+            object_id=eco.id,
+            target_object="ECO",
+            from_state=from_state,
+            to_state=to_state,
+            trigger_phase=trigger_phase,
+            context={
+                "source": "eco_service",
+                "eco_id": eco.id,
+                "stage_id": eco.stage_id,
+            },
+        )
+
     def _summarize_impact_scope(self, impact_count: int) -> str:
         if impact_count <= 0:
             return "isolated"
@@ -459,6 +509,18 @@ class ECOService:
         if not stage:
             raise ValueError(f"ECO Stage {stage_id} not found")
 
+        self._ensure_activity_gate_ready(eco_id)
+        from_state = eco.state
+        to_state = (
+            ECOState.PROGRESS.value if stage.approval_type != "none" else eco.state
+        )
+        self._run_custom_actions(
+            eco=eco,
+            from_state=from_state,
+            to_state=to_state,
+            trigger_phase="before",
+        )
+
         # Update ECO stage
         eco.stage_id = stage_id
         if stage.approval_type != "none":
@@ -470,6 +532,12 @@ class ECOService:
 
         self._enqueue_eco_updated(
             eco, changes={"stage_id": eco.stage_id, "state": eco.state}
+        )
+        self._run_custom_actions(
+            eco=eco,
+            from_state=from_state,
+            to_state=eco.state,
+            trigger_phase="after",
         )
         return eco
 
@@ -983,6 +1051,15 @@ class ECOService:
                 "ECO is missing product_id or target_version_id for application."
             )
 
+        self._ensure_activity_gate_ready(eco_id)
+        from_state = eco.state
+        self._run_custom_actions(
+            eco=eco,
+            from_state=from_state,
+            to_state=ECOState.DONE.value,
+            trigger_phase="before",
+        )
+
         # If rebase is needed, it must be resolved manually (i.e., conflicts list should be empty)
         if (
             not ignore_conflicts
@@ -1039,6 +1116,12 @@ class ECOService:
                 "state": eco.state,
                 "product_version_after": eco.product_version_after,
             },
+        )
+        self._run_custom_actions(
+            eco=eco,
+            from_state=from_state,
+            to_state=eco.state,
+            trigger_phase="after",
         )
         return True
 

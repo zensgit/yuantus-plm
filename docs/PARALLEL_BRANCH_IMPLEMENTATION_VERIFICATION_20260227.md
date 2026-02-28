@@ -27,6 +27,19 @@ pytest -q \
 pytest -q src/yuantus/meta_engine/tests
 ```
 
+4. ECO 主流程接入补充验证
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_eco_parallel_flow_hooks.py \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_services.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_preview.py
+```
+
+5. 接入补充后的主测试集回归
+```bash
+pytest -q src/yuantus/meta_engine/tests
+```
+
 ## 2. 验证结果
 
 1. 新增测试
@@ -41,6 +54,15 @@ pytest -q src/yuantus/meta_engine/tests
 - 结果：`65 passed, 0 failed`
 - 耗时：`10.62s`
 - 备注：存在历史 warning（FastAPI on_event、Pydantic v2 config、httpx app shortcut 等），本次无新增失败
+
+4. ECO 主流程接入补充验证
+- 结果：`11 passed`
+- 结论：`move_to_stage` / `action_apply` 已接入活动网关与自定义动作 hooks，行为符合预期
+
+5. 接入补充后主测试集
+- 结果：`67 passed, 0 failed`
+- 耗时：`8.33s`
+- 备注：warnings 类型与此前一致，无新增失败
 
 ## 3. 关键落地项核对
 
@@ -65,6 +87,7 @@ pytest -q src/yuantus/meta_engine/tests
 5. 新增测试
 - `src/yuantus/meta_engine/tests/test_parallel_tasks_services.py`
 - `src/yuantus/meta_engine/tests/test_bom_delta_preview.py`
+- `src/yuantus/meta_engine/tests/test_eco_parallel_flow_hooks.py`
 
 ## 4. 结论
 
