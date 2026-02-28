@@ -2002,6 +2002,13 @@ class ThreeDOverlayService:
 class ParallelOpsOverviewService:
     _ALLOWED_WINDOW_DAYS = {1, 7, 14, 30, 90}
     _ALLOWED_BUCKET_DAYS = {1, 7, 14, 30}
+    _DEFAULT_SLO_THRESHOLDS = {
+        "overlay_cache_hit_rate_warn": 0.8,
+        "overlay_cache_min_requests_warn": 10,
+        "doc_sync_dead_letter_rate_warn": 0.05,
+        "workflow_failed_rate_warn": 0.02,
+        "breakage_open_rate_warn": 0.5,
+    }
 
     def __init__(self, session: Session):
         self.session = session
@@ -2020,6 +2027,28 @@ class ParallelOpsOverviewService:
 
     def _safe_ratio(self, numerator: int, denominator: int) -> Optional[float]:
         return (float(numerator) / float(denominator)) if denominator > 0 else None
+
+    def _normalize_rate_threshold(self, value: Optional[float], *, field: str) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            normalized = float(value)
+        except Exception as exc:
+            raise ValueError(f"{field} must be between 0 and 1") from exc
+        if normalized < 0.0 or normalized > 1.0:
+            raise ValueError(f"{field} must be between 0 and 1")
+        return normalized
+
+    def _normalize_non_negative_int(self, value: Optional[int], *, field: str) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            normalized = int(value)
+        except Exception as exc:
+            raise ValueError(f"{field} must be >= 0") from exc
+        if normalized < 0:
+            raise ValueError(f"{field} must be >= 0")
+        return normalized
 
     def _normalize_page(self, page: int) -> int:
         try:
@@ -2235,9 +2264,56 @@ class ParallelOpsOverviewService:
         site_id: Optional[str] = None,
         target_object: Optional[str] = None,
         template_key: Optional[str] = None,
+        overlay_cache_hit_rate_warn: Optional[float] = None,
+        overlay_cache_min_requests_warn: Optional[int] = None,
+        doc_sync_dead_letter_rate_warn: Optional[float] = None,
+        workflow_failed_rate_warn: Optional[float] = None,
+        breakage_open_rate_warn: Optional[float] = None,
     ) -> Dict[str, Any]:
         normalized_window = self._normalize_window_days(window_days)
         since = self._window_since(normalized_window)
+        thresholds = {
+            "overlay_cache_hit_rate_warn": (
+                self._normalize_rate_threshold(
+                    overlay_cache_hit_rate_warn,
+                    field="overlay_cache_hit_rate_warn",
+                )
+                if overlay_cache_hit_rate_warn is not None
+                else float(self._DEFAULT_SLO_THRESHOLDS["overlay_cache_hit_rate_warn"])
+            ),
+            "overlay_cache_min_requests_warn": (
+                self._normalize_non_negative_int(
+                    overlay_cache_min_requests_warn,
+                    field="overlay_cache_min_requests_warn",
+                )
+                if overlay_cache_min_requests_warn is not None
+                else int(self._DEFAULT_SLO_THRESHOLDS["overlay_cache_min_requests_warn"])
+            ),
+            "doc_sync_dead_letter_rate_warn": (
+                self._normalize_rate_threshold(
+                    doc_sync_dead_letter_rate_warn,
+                    field="doc_sync_dead_letter_rate_warn",
+                )
+                if doc_sync_dead_letter_rate_warn is not None
+                else float(self._DEFAULT_SLO_THRESHOLDS["doc_sync_dead_letter_rate_warn"])
+            ),
+            "workflow_failed_rate_warn": (
+                self._normalize_rate_threshold(
+                    workflow_failed_rate_warn,
+                    field="workflow_failed_rate_warn",
+                )
+                if workflow_failed_rate_warn is not None
+                else float(self._DEFAULT_SLO_THRESHOLDS["workflow_failed_rate_warn"])
+            ),
+            "breakage_open_rate_warn": (
+                self._normalize_rate_threshold(
+                    breakage_open_rate_warn,
+                    field="breakage_open_rate_warn",
+                )
+                if breakage_open_rate_warn is not None
+                else float(self._DEFAULT_SLO_THRESHOLDS["breakage_open_rate_warn"])
+            ),
+        }
 
         doc_sync = self._doc_sync_summary(since=since, site_id=site_id)
         workflow = self._workflow_summary(since=since, target_object=target_object)
@@ -2249,38 +2325,59 @@ class ParallelOpsOverviewService:
 
         hints: List[Dict[str, Any]] = []
         if (
-            overlay_cache.get("requests", 0) >= 10
-            and (overlay_cache.get("hit_rate") or 0.0) < 0.8
+            overlay_cache.get("requests", 0)
+            >= int(thresholds["overlay_cache_min_requests_warn"])
+            and (overlay_cache.get("hit_rate") or 0.0)
+            < float(thresholds["overlay_cache_hit_rate_warn"])
         ):
             hints.append(
                 {
                     "code": "overlay_cache_hit_rate_low",
                     "level": "warn",
-                    "message": "Overlay cache hit rate is below 0.8 in current process window",
+                    "message": (
+                        "Overlay cache hit rate is below "
+                        f"{float(thresholds['overlay_cache_hit_rate_warn']):.4f} "
+                        "in current process window"
+                    ),
                 }
             )
-        if (doc_sync.get("dead_letter_rate") or 0.0) > 0.05:
+        if (doc_sync.get("dead_letter_rate") or 0.0) > float(
+            thresholds["doc_sync_dead_letter_rate_warn"]
+        ):
             hints.append(
                 {
                     "code": "doc_sync_dead_letter_rate_high",
                     "level": "warn",
-                    "message": "Document sync dead-letter rate is above 5%",
+                    "message": (
+                        "Document sync dead-letter rate is above "
+                        f"{float(thresholds['doc_sync_dead_letter_rate_warn']):.4f}"
+                    ),
                 }
             )
-        if (workflow.get("failed_rate") or 0.0) > 0.02:
+        if (workflow.get("failed_rate") or 0.0) > float(
+            thresholds["workflow_failed_rate_warn"]
+        ):
             hints.append(
                 {
                     "code": "workflow_action_failed_rate_high",
                     "level": "warn",
-                    "message": "Workflow custom action failed rate is above 2%",
+                    "message": (
+                        "Workflow custom action failed rate is above "
+                        f"{float(thresholds['workflow_failed_rate_warn']):.4f}"
+                    ),
                 }
             )
-        if (breakages.get("open_rate") or 0.0) > 0.5:
+        if (breakages.get("open_rate") or 0.0) > float(
+            thresholds["breakage_open_rate_warn"]
+        ):
             hints.append(
                 {
                     "code": "breakage_open_rate_high",
                     "level": "warn",
-                    "message": "Open breakage ratio is above 50%",
+                    "message": (
+                        "Open breakage ratio is above "
+                        f"{float(thresholds['breakage_open_rate_warn']):.4f}"
+                    ),
                 }
             )
 
@@ -2294,6 +2391,7 @@ class ParallelOpsOverviewService:
             "consumption_templates": consumption_templates,
             "overlay_cache": overlay_cache,
             "slo_hints": hints,
+            "slo_thresholds": thresholds,
         }
 
     def trends(
@@ -2638,12 +2736,22 @@ class ParallelOpsOverviewService:
         site_id: Optional[str] = None,
         target_object: Optional[str] = None,
         template_key: Optional[str] = None,
+        overlay_cache_hit_rate_warn: Optional[float] = None,
+        overlay_cache_min_requests_warn: Optional[int] = None,
+        doc_sync_dead_letter_rate_warn: Optional[float] = None,
+        workflow_failed_rate_warn: Optional[float] = None,
+        breakage_open_rate_warn: Optional[float] = None,
     ) -> str:
         summary = self.summary(
             window_days=window_days,
             site_id=site_id,
             target_object=target_object,
             template_key=template_key,
+            overlay_cache_hit_rate_warn=overlay_cache_hit_rate_warn,
+            overlay_cache_min_requests_warn=overlay_cache_min_requests_warn,
+            doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
+            workflow_failed_rate_warn=workflow_failed_rate_warn,
+            breakage_open_rate_warn=breakage_open_rate_warn,
         )
         common_labels = {
             "window_days": int(summary.get("window_days") or 0),
@@ -2764,6 +2872,11 @@ class ParallelOpsOverviewService:
         target_object: Optional[str] = None,
         template_key: Optional[str] = None,
         level: Optional[str] = None,
+        overlay_cache_hit_rate_warn: Optional[float] = None,
+        overlay_cache_min_requests_warn: Optional[int] = None,
+        doc_sync_dead_letter_rate_warn: Optional[float] = None,
+        workflow_failed_rate_warn: Optional[float] = None,
+        breakage_open_rate_warn: Optional[float] = None,
     ) -> Dict[str, Any]:
         normalized_level = str(level or "").strip().lower() or None
         if normalized_level and normalized_level not in {"warn", "critical", "info"}:
@@ -2774,6 +2887,11 @@ class ParallelOpsOverviewService:
             site_id=site_id,
             target_object=target_object,
             template_key=template_key,
+            overlay_cache_hit_rate_warn=overlay_cache_hit_rate_warn,
+            overlay_cache_min_requests_warn=overlay_cache_min_requests_warn,
+            doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
+            workflow_failed_rate_warn=workflow_failed_rate_warn,
+            breakage_open_rate_warn=breakage_open_rate_warn,
         )
         hints = summary.get("slo_hints") or []
         if normalized_level:
@@ -2794,6 +2912,7 @@ class ParallelOpsOverviewService:
                 "template_key": template_key,
                 "level": normalized_level,
             },
+            "slo_thresholds": summary.get("slo_thresholds") or {},
             "status": "warning" if hints else "ok",
             "total": len(hints),
             "by_code": dict(code_counter),
@@ -2856,12 +2975,22 @@ class ParallelOpsOverviewService:
         target_object: Optional[str] = None,
         template_key: Optional[str] = None,
         export_format: str = "json",
+        overlay_cache_hit_rate_warn: Optional[float] = None,
+        overlay_cache_min_requests_warn: Optional[int] = None,
+        doc_sync_dead_letter_rate_warn: Optional[float] = None,
+        workflow_failed_rate_warn: Optional[float] = None,
+        breakage_open_rate_warn: Optional[float] = None,
     ) -> Dict[str, Any]:
         summary = self.summary(
             window_days=window_days,
             site_id=site_id,
             target_object=target_object,
             template_key=template_key,
+            overlay_cache_hit_rate_warn=overlay_cache_hit_rate_warn,
+            overlay_cache_min_requests_warn=overlay_cache_min_requests_warn,
+            doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
+            workflow_failed_rate_warn=workflow_failed_rate_warn,
+            breakage_open_rate_warn=breakage_open_rate_warn,
         )
         normalized = str(export_format or "json").strip().lower()
         if normalized == "json":
@@ -2902,6 +3031,126 @@ class ParallelOpsOverviewService:
                 "content": ("\n".join(lines) + "\n").encode("utf-8"),
                 "media_type": "text/markdown",
                 "filename": "parallel-ops-summary.md",
+            }
+
+        raise ValueError("export_format must be json, csv or md")
+
+    def _trend_export_rows(self, trends: Dict[str, Any]) -> List[Dict[str, Any]]:
+        rows: List[Dict[str, Any]] = []
+        for row in trends.get("points") or []:
+            if not isinstance(row, dict):
+                continue
+            doc_sync = row.get("doc_sync") if isinstance(row.get("doc_sync"), dict) else {}
+            workflow = (
+                row.get("workflow_actions")
+                if isinstance(row.get("workflow_actions"), dict)
+                else {}
+            )
+            breakages = row.get("breakages") if isinstance(row.get("breakages"), dict) else {}
+            rows.append(
+                {
+                    "bucket_start": row.get("bucket_start"),
+                    "bucket_end": row.get("bucket_end"),
+                    "doc_sync_total": doc_sync.get("total"),
+                    "doc_sync_failed_total": doc_sync.get("failed_total"),
+                    "doc_sync_dead_letter_total": doc_sync.get("dead_letter_total"),
+                    "doc_sync_success_rate": doc_sync.get("success_rate"),
+                    "doc_sync_dead_letter_rate": doc_sync.get("dead_letter_rate"),
+                    "workflow_total": workflow.get("total"),
+                    "workflow_failed_total": workflow.get("failed_total"),
+                    "workflow_failed_rate": workflow.get("failed_rate"),
+                    "breakages_total": breakages.get("total"),
+                    "breakages_open_total": breakages.get("open_total"),
+                    "breakages_open_rate": breakages.get("open_rate"),
+                }
+            )
+        return rows
+
+    def export_trends(
+        self,
+        *,
+        window_days: int = 7,
+        bucket_days: int = 1,
+        site_id: Optional[str] = None,
+        target_object: Optional[str] = None,
+        template_key: Optional[str] = None,
+        export_format: str = "json",
+    ) -> Dict[str, Any]:
+        trends = self.trends(
+            window_days=window_days,
+            bucket_days=bucket_days,
+            site_id=site_id,
+            target_object=target_object,
+            template_key=template_key,
+        )
+        normalized = str(export_format or "json").strip().lower()
+        if normalized == "json":
+            content = json.dumps(trends, ensure_ascii=False, indent=2).encode("utf-8")
+            return {
+                "content": content,
+                "media_type": "application/json",
+                "filename": "parallel-ops-trends.json",
+            }
+
+        rows = self._trend_export_rows(trends)
+        if normalized == "csv":
+            csv_io = io.StringIO()
+            writer = csv.DictWriter(
+                csv_io,
+                fieldnames=[
+                    "bucket_start",
+                    "bucket_end",
+                    "doc_sync_total",
+                    "doc_sync_failed_total",
+                    "doc_sync_dead_letter_total",
+                    "doc_sync_success_rate",
+                    "doc_sync_dead_letter_rate",
+                    "workflow_total",
+                    "workflow_failed_total",
+                    "workflow_failed_rate",
+                    "breakages_total",
+                    "breakages_open_total",
+                    "breakages_open_rate",
+                ],
+            )
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+            return {
+                "content": csv_io.getvalue().encode("utf-8"),
+                "media_type": "text/csv",
+                "filename": "parallel-ops-trends.csv",
+            }
+
+        if normalized == "md":
+            lines = [
+                "# Parallel Ops Trends",
+                "",
+                f"- generated_at: {trends.get('generated_at') or ''}",
+                f"- window_days: {trends.get('window_days') or ''}",
+                f"- bucket_days: {trends.get('bucket_days') or ''}",
+                f"- window_since: {trends.get('window_since') or ''}",
+                "",
+                "| Bucket Start | Bucket End | DocSync Total | DocSync Failed | DocSync DeadLetter | Workflow Total | Workflow Failed | Breakages Total | Breakages Open |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+            ]
+            for row in rows:
+                lines.append(
+                    "| "
+                    f"{row['bucket_start']} | "
+                    f"{row['bucket_end']} | "
+                    f"{row['doc_sync_total']} | "
+                    f"{row['doc_sync_failed_total']} | "
+                    f"{row['doc_sync_dead_letter_total']} | "
+                    f"{row['workflow_total']} | "
+                    f"{row['workflow_failed_total']} | "
+                    f"{row['breakages_total']} | "
+                    f"{row['breakages_open_total']} |"
+                )
+            return {
+                "content": ("\n".join(lines) + "\n").encode("utf-8"),
+                "media_type": "text/markdown",
+                "filename": "parallel-ops-trends.md",
             }
 
         raise ValueError("export_format must be json, csv or md")

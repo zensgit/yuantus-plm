@@ -1,4 +1,4 @@
-# 开发与验证：并行支线 P3（Parallel Ops Overview + Trends + Alerts + Summary Export + Failure Details + Prometheus）
+# 开发与验证：并行支线 P3（Parallel Ops Overview + Trends + Trends Export + Alerts + Configurable SLO + Summary Export + Failure Details + Prometheus）
 
 - 日期：2026-02-28
 - 仓库：`/Users/huazhou/Downloads/Github/Yuantus`
@@ -6,16 +6,17 @@
 
 ## 1. 本轮开发范围
 
-1. 新增/增强 `ParallelOpsOverviewService` 聚合指标、趋势视图、告警视图、失败明细分页能力。
+1. 新增/增强 `ParallelOpsOverviewService` 聚合指标、趋势视图、告警视图、失败明细分页能力，并支持 SLO 阈值请求级覆盖。
 2. 新增路由：
 - `GET /api/v1/parallel-ops/summary`
 - `GET /api/v1/parallel-ops/trends`
+- `GET /api/v1/parallel-ops/trends/export`
 - `GET /api/v1/parallel-ops/alerts`
 - `GET /api/v1/parallel-ops/summary/export`
 - `GET /api/v1/parallel-ops/doc-sync/failures`
 - `GET /api/v1/parallel-ops/workflow/failures`
 - `GET /api/v1/parallel-ops/metrics`
-3. 新增 trends 时序接口、summary 导出（`json/csv/md`）与 Prometheus 文本指标导出。
+3. 新增 trends 时序接口、trends 导出、summary 导出（`json/csv/md`）与 Prometheus 文本指标导出。
 4. 新增服务层、路由层与真实服务路径 E2E API 测试覆盖（包含新路由）。
 
 ## 2. 变更文件
@@ -45,12 +46,12 @@ pytest -q src/yuantus/meta_engine/tests
 
 ## 4. 验证结果
 
-1. 目标回归：`45 passed`
-2. 全量回归：`106 passed, 0 failed`
+1. 目标回归：`49 passed`
+2. 全量回归：`110 passed, 0 failed`
 3. GitHub Actions（`origin/main@88f6a41`）：
 - CI：`22520240198`（success）
 - regression：`22520240190`（success）
 
 ## 5. 结论
 
-P3 并行运维总览/趋势视图/告警视图/summary 导出/失败明细/Prometheus 指标与测试已完成并通过全量回归，可合入主线。
+P3 并行运维总览/趋势视图/趋势导出/告警视图/可配置 SLO/summary 导出/失败明细/Prometheus 指标与测试已完成并通过全量回归，可合入主线。

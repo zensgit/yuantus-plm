@@ -1579,6 +1579,11 @@ async def get_parallel_ops_summary(
     site_id: Optional[str] = Query(None),
     target_object: Optional[str] = Query(None),
     template_key: Optional[str] = Query(None),
+    overlay_cache_hit_rate_warn: Optional[float] = Query(None),
+    overlay_cache_min_requests_warn: Optional[int] = Query(None),
+    doc_sync_dead_letter_rate_warn: Optional[float] = Query(None),
+    workflow_failed_rate_warn: Optional[float] = Query(None),
+    breakage_open_rate_warn: Optional[float] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -1589,6 +1594,11 @@ async def get_parallel_ops_summary(
             site_id=site_id,
             target_object=target_object,
             template_key=template_key,
+            overlay_cache_hit_rate_warn=overlay_cache_hit_rate_warn,
+            overlay_cache_min_requests_warn=overlay_cache_min_requests_warn,
+            doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
+            workflow_failed_rate_warn=workflow_failed_rate_warn,
+            breakage_open_rate_warn=breakage_open_rate_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -1600,6 +1610,11 @@ async def get_parallel_ops_summary(
                 "site_id": site_id,
                 "target_object": target_object,
                 "template_key": template_key,
+                "overlay_cache_hit_rate_warn": overlay_cache_hit_rate_warn,
+                "overlay_cache_min_requests_warn": overlay_cache_min_requests_warn,
+                "doc_sync_dead_letter_rate_warn": doc_sync_dead_letter_rate_warn,
+                "workflow_failed_rate_warn": workflow_failed_rate_warn,
+                "breakage_open_rate_warn": breakage_open_rate_warn,
             },
         )
     result["operator_id"] = int(user.id)
@@ -1649,6 +1664,11 @@ async def get_parallel_ops_alerts(
     target_object: Optional[str] = Query(None),
     template_key: Optional[str] = Query(None),
     level: Optional[str] = Query(None, description="warn|critical|info"),
+    overlay_cache_hit_rate_warn: Optional[float] = Query(None),
+    overlay_cache_min_requests_warn: Optional[int] = Query(None),
+    doc_sync_dead_letter_rate_warn: Optional[float] = Query(None),
+    workflow_failed_rate_warn: Optional[float] = Query(None),
+    breakage_open_rate_warn: Optional[float] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -1660,6 +1680,11 @@ async def get_parallel_ops_alerts(
             target_object=target_object,
             template_key=template_key,
             level=level,
+            overlay_cache_hit_rate_warn=overlay_cache_hit_rate_warn,
+            overlay_cache_min_requests_warn=overlay_cache_min_requests_warn,
+            doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
+            workflow_failed_rate_warn=workflow_failed_rate_warn,
+            breakage_open_rate_warn=breakage_open_rate_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -1672,6 +1697,11 @@ async def get_parallel_ops_alerts(
                 "target_object": target_object,
                 "template_key": template_key,
                 "level": level,
+                "overlay_cache_hit_rate_warn": overlay_cache_hit_rate_warn,
+                "overlay_cache_min_requests_warn": overlay_cache_min_requests_warn,
+                "doc_sync_dead_letter_rate_warn": doc_sync_dead_letter_rate_warn,
+                "workflow_failed_rate_warn": workflow_failed_rate_warn,
+                "breakage_open_rate_warn": breakage_open_rate_warn,
             },
         )
     result["operator_id"] = int(user.id)
@@ -1685,6 +1715,11 @@ async def export_parallel_ops_summary(
     target_object: Optional[str] = Query(None),
     template_key: Optional[str] = Query(None),
     export_format: str = Query("json", description="json|csv|md"),
+    overlay_cache_hit_rate_warn: Optional[float] = Query(None),
+    overlay_cache_min_requests_warn: Optional[int] = Query(None),
+    doc_sync_dead_letter_rate_warn: Optional[float] = Query(None),
+    workflow_failed_rate_warn: Optional[float] = Query(None),
+    breakage_open_rate_warn: Optional[float] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -1696,6 +1731,11 @@ async def export_parallel_ops_summary(
             target_object=target_object,
             template_key=template_key,
             export_format=export_format,
+            overlay_cache_hit_rate_warn=overlay_cache_hit_rate_warn,
+            overlay_cache_min_requests_warn=overlay_cache_min_requests_warn,
+            doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
+            workflow_failed_rate_warn=workflow_failed_rate_warn,
+            breakage_open_rate_warn=breakage_open_rate_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -1708,6 +1748,11 @@ async def export_parallel_ops_summary(
                 "target_object": target_object,
                 "template_key": template_key,
                 "export_format": export_format,
+                "overlay_cache_hit_rate_warn": overlay_cache_hit_rate_warn,
+                "overlay_cache_min_requests_warn": overlay_cache_min_requests_warn,
+                "doc_sync_dead_letter_rate_warn": doc_sync_dead_letter_rate_warn,
+                "workflow_failed_rate_warn": workflow_failed_rate_warn,
+                "breakage_open_rate_warn": breakage_open_rate_warn,
             },
         )
     return StreamingResponse(
@@ -1716,6 +1761,53 @@ async def export_parallel_ops_summary(
         headers={
             "Content-Disposition": (
                 f'attachment; filename="{exported.get("filename") or "parallel-ops-summary.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
+
+
+@parallel_tasks_router.get("/parallel-ops/trends/export")
+async def export_parallel_ops_trends(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    bucket_days: int = Query(1, description="1|7|14|30"),
+    site_id: Optional[str] = Query(None),
+    target_object: Optional[str] = Query(None),
+    template_key: Optional[str] = Query(None),
+    export_format: str = Query("json", description="json|csv|md"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        exported = service.export_trends(
+            window_days=window_days,
+            bucket_days=bucket_days,
+            site_id=site_id,
+            target_object=target_object,
+            template_key=template_key,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "bucket_days": bucket_days,
+                "site_id": site_id,
+                "target_object": target_object,
+                "template_key": template_key,
+                "export_format": export_format,
+            },
+        )
+    return StreamingResponse(
+        io.BytesIO(exported.get("content") or b""),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "parallel-ops-trends.bin"}"'
             ),
             "X-Operator-Id": str(int(user.id)),
         },
@@ -1794,6 +1886,11 @@ async def get_parallel_ops_metrics(
     site_id: Optional[str] = Query(None),
     target_object: Optional[str] = Query(None),
     template_key: Optional[str] = Query(None),
+    overlay_cache_hit_rate_warn: Optional[float] = Query(None),
+    overlay_cache_min_requests_warn: Optional[int] = Query(None),
+    doc_sync_dead_letter_rate_warn: Optional[float] = Query(None),
+    workflow_failed_rate_warn: Optional[float] = Query(None),
+    breakage_open_rate_warn: Optional[float] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -1804,6 +1901,11 @@ async def get_parallel_ops_metrics(
             site_id=site_id,
             target_object=target_object,
             template_key=template_key,
+            overlay_cache_hit_rate_warn=overlay_cache_hit_rate_warn,
+            overlay_cache_min_requests_warn=overlay_cache_min_requests_warn,
+            doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
+            workflow_failed_rate_warn=workflow_failed_rate_warn,
+            breakage_open_rate_warn=breakage_open_rate_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -1815,6 +1917,11 @@ async def get_parallel_ops_metrics(
                 "site_id": site_id,
                 "target_object": target_object,
                 "template_key": template_key,
+                "overlay_cache_hit_rate_warn": overlay_cache_hit_rate_warn,
+                "overlay_cache_min_requests_warn": overlay_cache_min_requests_warn,
+                "doc_sync_dead_letter_rate_warn": doc_sync_dead_letter_rate_warn,
+                "workflow_failed_rate_warn": workflow_failed_rate_warn,
+                "breakage_open_rate_warn": breakage_open_rate_warn,
             },
         )
     return PlainTextResponse(

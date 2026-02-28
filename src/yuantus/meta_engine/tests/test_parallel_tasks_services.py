@@ -745,6 +745,22 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert "workflow_action_failed_rate_high" in hint_codes
     assert "breakage_open_rate_high" in hint_codes
 
+    relaxed = ops.summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        overlay_cache_hit_rate_warn=0.1,
+        overlay_cache_min_requests_warn=999,
+        doc_sync_dead_letter_rate_warn=1.0,
+        workflow_failed_rate_warn=1.0,
+        breakage_open_rate_warn=1.0,
+    )
+    assert relaxed["slo_hints"] == []
+    assert relaxed["slo_thresholds"]["doc_sync_dead_letter_rate_warn"] == 1.0
+    assert relaxed["slo_thresholds"]["workflow_failed_rate_warn"] == 1.0
+    assert relaxed["slo_thresholds"]["breakage_open_rate_warn"] == 1.0
+
     trends = ops.trends(
         window_days=7,
         bucket_days=1,
@@ -763,6 +779,44 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert trends["aggregates"]["breakages_total"] == 2
     assert trends["aggregates"]["breakages_open_total"] == 2
     assert trends["consumption_templates"]["versions_total"] == 2
+
+    trends_export_json = ops.export_trends(
+        window_days=7,
+        bucket_days=1,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        export_format="json",
+    )
+    assert trends_export_json["media_type"] == "application/json"
+    assert trends_export_json["filename"] == "parallel-ops-trends.json"
+    assert b'"bucket_days": 1' in trends_export_json["content"]
+
+    trends_export_csv = ops.export_trends(
+        window_days=7,
+        bucket_days=1,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        export_format="csv",
+    )
+    assert trends_export_csv["media_type"] == "text/csv"
+    assert trends_export_csv["filename"] == "parallel-ops-trends.csv"
+    trends_csv_text = trends_export_csv["content"].decode("utf-8")
+    assert "bucket_start,bucket_end,doc_sync_total" in trends_csv_text
+
+    trends_export_md = ops.export_trends(
+        window_days=7,
+        bucket_days=1,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        export_format="md",
+    )
+    assert trends_export_md["media_type"] == "text/markdown"
+    assert trends_export_md["filename"] == "parallel-ops-trends.md"
+    trends_md_text = trends_export_md["content"].decode("utf-8")
+    assert trends_md_text.startswith("# Parallel Ops Trends")
 
     doc_sync_failures = ops.doc_sync_failures(
         window_days=7,
@@ -808,6 +862,21 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert all(row.get("level") == "warn" for row in (alerts.get("hints") or []))
     assert alerts["by_code"].get("doc_sync_dead_letter_rate_high", 0) >= 1
 
+    relaxed_alerts = ops.alerts(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        level="warn",
+        overlay_cache_hit_rate_warn=0.1,
+        overlay_cache_min_requests_warn=999,
+        doc_sync_dead_letter_rate_warn=1.0,
+        workflow_failed_rate_warn=1.0,
+        breakage_open_rate_warn=1.0,
+    )
+    assert relaxed_alerts["status"] == "ok"
+    assert relaxed_alerts["total"] == 0
+
     export_json = ops.export_summary(
         window_days=7,
         site_id="site-1",
@@ -851,9 +920,15 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
         ops.trends(window_days=7, bucket_days=2)
     with pytest.raises(ValueError, match="bucket_days must be <= window_days"):
         ops.trends(window_days=7, bucket_days=14)
+    with pytest.raises(ValueError, match="doc_sync_dead_letter_rate_warn must be between 0 and 1"):
+        ops.summary(window_days=7, doc_sync_dead_letter_rate_warn=1.2)
+    with pytest.raises(ValueError, match="overlay_cache_min_requests_warn must be >= 0"):
+        ops.summary(window_days=7, overlay_cache_min_requests_warn=-1)
     with pytest.raises(ValueError, match="page_size"):
         ops.doc_sync_failures(window_days=7, page_size=500)
     with pytest.raises(ValueError, match="level must be one of"):
         ops.alerts(window_days=7, level="oops")
     with pytest.raises(ValueError, match="export_format must be json, csv or md"):
         ops.export_summary(window_days=7, export_format="xlsx")
+    with pytest.raises(ValueError, match="export_format must be json, csv or md"):
+        ops.export_trends(window_days=7, bucket_days=1, export_format="xlsx")

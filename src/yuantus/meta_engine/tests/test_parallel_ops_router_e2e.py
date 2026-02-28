@@ -158,6 +158,13 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert summary["consumption_templates"]["versions_total"] == 1
     assert summary["operator_id"] == 21
 
+    relaxed_summary_resp = client.get(
+        "/api/v1/parallel-ops/summary?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e&overlay_cache_hit_rate_warn=0.1&overlay_cache_min_requests_warn=999&doc_sync_dead_letter_rate_warn=1.0&workflow_failed_rate_warn=1.0&breakage_open_rate_warn=1.0"
+    )
+    assert relaxed_summary_resp.status_code == 200
+    relaxed_summary = relaxed_summary_resp.json()
+    assert relaxed_summary.get("slo_hints") == []
+
     trends_resp = client.get(
         "/api/v1/parallel-ops/trends?window_days=7&bucket_days=1&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e"
     )
@@ -171,6 +178,14 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert len(trends["points"]) >= 1
     assert trends["operator_id"] == 21
 
+    trends_export_csv_resp = client.get(
+        "/api/v1/parallel-ops/trends/export?window_days=7&bucket_days=1&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e&export_format=csv"
+    )
+    assert trends_export_csv_resp.status_code == 200
+    assert trends_export_csv_resp.headers.get("content-type", "").startswith("text/csv")
+    assert trends_export_csv_resp.headers.get("x-operator-id") == "21"
+    assert "doc_sync_total" in trends_export_csv_resp.text
+
     alerts_resp = client.get(
         "/api/v1/parallel-ops/alerts?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e&level=warn"
     )
@@ -179,6 +194,14 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert alerts["status"] == "warning"
     assert alerts["total"] >= 1
     assert alerts["operator_id"] == 21
+
+    relaxed_alerts_resp = client.get(
+        "/api/v1/parallel-ops/alerts?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e&level=warn&overlay_cache_hit_rate_warn=0.1&overlay_cache_min_requests_warn=999&doc_sync_dead_letter_rate_warn=1.0&workflow_failed_rate_warn=1.0&breakage_open_rate_warn=1.0"
+    )
+    assert relaxed_alerts_resp.status_code == 200
+    relaxed_alerts = relaxed_alerts_resp.json()
+    assert relaxed_alerts["status"] == "ok"
+    assert relaxed_alerts["total"] == 0
 
     summary_export_json_resp = client.get(
         "/api/v1/parallel-ops/summary/export?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e&export_format=json"

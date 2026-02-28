@@ -1,4 +1,4 @@
-# 设计文档：并行支线 P3（Parallel Ops Overview + Trends + Alerts + Summary Export + Failure Details + Prometheus）
+# 设计文档：并行支线 P3（Parallel Ops Overview + Trends + Trends Export + Alerts + Configurable SLO + Summary Export + Failure Details + Prometheus）
 
 - 日期：2026-02-28
 - 仓库：`/Users/huazhou/Downloads/Github/Yuantus`
@@ -11,7 +11,8 @@
 3. 提供失败明细分页接口、告警视图与 Prometheus 采集接口，便于看板和告警系统接入。
 4. 提供 JSON/CSV/Markdown 总览导出，便于日报与归档场景。
 5. 提供时间桶趋势 API，用于值班看板观察指标变化轨迹。
-4. 在不新增迁移的前提下，复用现有模型与服务数据。
+6. 支持 SLO 阈值按请求覆盖，满足不同值班场景灵敏度调节。
+7. 在不新增迁移的前提下，复用现有模型与服务数据。
 
 ## 2. 方案
 
@@ -38,6 +39,13 @@
 - `doc_sync_dead_letter_rate_high`
 - `workflow_action_failed_rate_high`
 - `breakage_open_rate_high`
+- 默认阈值：
+  - `overlay_cache_hit_rate_warn=0.8`
+  - `overlay_cache_min_requests_warn=10`
+  - `doc_sync_dead_letter_rate_warn=0.05`
+  - `workflow_failed_rate_warn=0.02`
+  - `breakage_open_rate_warn=0.5`
+- 支持 query 参数覆盖，服务层做范围校验（比例 0~1，计数 >=0）。
 
 4. 失败明细分页能力
 - `doc_sync_failures(window_days, site_id, page, page_size)`
@@ -49,17 +57,23 @@
 - `bucket_days` 允许：`1|7|14|30`，且必须 `<= window_days`
 - 输出：按 bucket 的 `doc_sync/workflow_actions/breakages` 计数与比率，附带聚合 totals。
 
-6. 告警视图
+6. 趋势导出
+- `export_trends(window_days, bucket_days, site_id, target_object, template_key, export_format)`
+- `export_format` 允许：`json|csv|md`
+- 输出内容 + `media_type` + `filename`。
+
+7. 告警视图
 - `alerts(window_days, site_id, target_object, template_key, level)`
 - 从 `summary.slo_hints` 生成告警聚合：`status/total/by_code/hints`
 - `level` 允许：`warn|critical|info`
+- 继承 `summary` 的可配置阈值参数。
 
-7. Summary 导出
+8. Summary 导出
 - `export_summary(window_days, site_id, target_object, template_key, export_format)`
 - `export_format` 允许：`json|csv|md`
 - 输出内容 + `media_type` + `filename`，由路由层统一下载响应。
 
-8. Prometheus 文本导出
+9. Prometheus 文本导出
 - `prometheus_metrics(window_days, site_id, target_object, template_key)`
 - 输出 `text/plain; version=0.0.4` 格式，指标覆盖：
   - doc-sync 总量/状态分布/成功率/dead-letter
@@ -77,6 +91,7 @@
 新增接口：
 - `GET /api/v1/parallel-ops/summary`
 - `GET /api/v1/parallel-ops/trends`
+- `GET /api/v1/parallel-ops/trends/export`
 - `GET /api/v1/parallel-ops/alerts`
 - `GET /api/v1/parallel-ops/summary/export`
 - `GET /api/v1/parallel-ops/doc-sync/failures`
@@ -91,6 +106,11 @@
 - `bucket_days`（仅 trends，默认 `1`）
 - `level`（仅 alerts，可选）
 - `export_format`（仅 summary/export，默认 `json`）
+- `overlay_cache_hit_rate_warn`（可选，0~1）
+- `overlay_cache_min_requests_warn`（可选，>=0）
+- `doc_sync_dead_letter_rate_warn`（可选，0~1）
+- `workflow_failed_rate_warn`（可选，0~1）
+- `breakage_open_rate_warn`（可选，0~1）
 
 错误合同：
 - `parallel_ops_invalid_request`
@@ -120,3 +140,5 @@
 4. `alerts` 支持等级筛选并输出按 code 聚合。
 5. `summary/export` 支持 `json/csv/md`，非法格式返回结构化错误合同。
 6. `trends` 支持按 bucket 输出时序点，非法 `bucket_days` 返回结构化错误合同。
+7. `trends/export` 支持 `json/csv/md`，非法格式返回结构化错误合同。
+8. SLO 阈值支持请求级覆盖，非法阈值返回结构化错误合同。

@@ -585,6 +585,51 @@ def test_parallel_ops_trends_invalid_request_maps_contract_error():
     assert detail.get("context", {}).get("bucket_days") == 14
 
 
+def test_parallel_ops_trends_export_returns_download_response():
+    user = SimpleNamespace(id=18, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_trends.return_value = {
+            "content": b"bucket_start,bucket_end,doc_sync_total\n2026-02-27,2026-02-28,2\n",
+            "media_type": "text/csv",
+            "filename": "parallel-ops-trends.csv",
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/trends/export?window_days=7&bucket_days=1&export_format=csv"
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="parallel-ops-trends.csv"' in (
+        resp.headers.get("content-disposition", "")
+    )
+    assert resp.headers.get("x-operator-id") == "18"
+    assert "doc_sync_total" in resp.text
+
+
+def test_parallel_ops_trends_export_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=18, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_trends.side_effect = ValueError(
+            "export_format must be json, csv or md"
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/trends/export?window_days=7&bucket_days=1&export_format=xlsx"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("export_format") == "xlsx"
+
+
 def test_parallel_ops_alerts_returns_payload():
     user = SimpleNamespace(id=18, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
@@ -686,6 +731,60 @@ def test_parallel_ops_summary_export_invalid_request_maps_contract_error():
     detail = resp.json().get("detail") or {}
     assert detail.get("code") == "parallel_ops_invalid_request"
     assert detail.get("context", {}).get("export_format") == "xlsx"
+
+
+def test_parallel_ops_summary_accepts_threshold_overrides():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.summary.return_value = {
+            "generated_at": "2026-02-28T00:00:00",
+            "window_days": 7,
+            "window_since": "2026-02-21T00:00:00",
+            "doc_sync": {"total": 2, "dead_letter_total": 1},
+            "workflow_actions": {"total": 1},
+            "breakages": {"total": 1},
+            "consumption_templates": {"versions_total": 1},
+            "overlay_cache": {"requests": 7, "hit_rate": 0.3},
+            "slo_hints": [],
+            "slo_thresholds": {
+                "overlay_cache_hit_rate_warn": 0.2,
+                "overlay_cache_min_requests_warn": 20,
+                "doc_sync_dead_letter_rate_warn": 0.9,
+                "workflow_failed_rate_warn": 0.9,
+                "breakage_open_rate_warn": 0.9,
+            },
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/summary?window_days=7&overlay_cache_hit_rate_warn=0.2&overlay_cache_min_requests_warn=20&doc_sync_dead_letter_rate_warn=0.9&workflow_failed_rate_warn=0.9&breakage_open_rate_warn=0.9"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["slo_thresholds"]["doc_sync_dead_letter_rate_warn"] == 0.9
+
+
+def test_parallel_ops_summary_invalid_threshold_maps_contract_error():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.summary.side_effect = ValueError(
+            "doc_sync_dead_letter_rate_warn must be between 0 and 1"
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/summary?window_days=7&doc_sync_dead_letter_rate_warn=1.2"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("doc_sync_dead_letter_rate_warn") == 1.2
 
 
 def test_parallel_ops_doc_sync_failures_returns_payload():
