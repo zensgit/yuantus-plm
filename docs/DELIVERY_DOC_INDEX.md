@@ -132,6 +132,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Phase 4/5/6 Hardening: `docs/DEV_AND_VERIFICATION_P4_P5_P6_HARDENING_20260207.md`
 - P5 Reports/Search Performance Harness: `docs/DEV_AND_VERIFICATION_P5_REPORTS_PERF_20260208.md`
 - Phase 6 E-Signatures: `docs/DEV_AND_VERIFICATION_P6_ESIGN_20260201.md`
+- Parallel P0 Reliability + Error Contract: `docs/DEV_AND_VERIFICATION_PARALLEL_P0_RELIABILITY_AND_ERROR_CONTRACT_20260228.md`
 - Perf CI Refactor (Config + Baselines + Concurrency): `docs/DEV_AND_VERIFICATION_PERF_CI_REFACTOR_20260209.md`
 - Perf Gate (Generic) - Dev Plan & Verification: `docs/DEV_AND_VERIFICATION_PERF_GATE_20260209.md`
 - Plan Execution (2026-02-02): `docs/DEV_AND_VERIFICATION_PLAN_20260202.md`
