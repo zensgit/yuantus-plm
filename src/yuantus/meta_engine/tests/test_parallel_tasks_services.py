@@ -777,7 +777,60 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert "yuantus_parallel_slo_hints_total" in metrics
     assert 'site_id="site-1"' in metrics
 
+    alerts = ops.alerts(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        level="warn",
+    )
+    assert alerts["status"] == "warning"
+    assert alerts["total"] >= 1
+    assert all(row.get("level") == "warn" for row in (alerts.get("hints") or []))
+    assert alerts["by_code"].get("doc_sync_dead_letter_rate_high", 0) >= 1
+
+    export_json = ops.export_summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        export_format="json",
+    )
+    assert export_json["media_type"] == "application/json"
+    assert export_json["filename"] == "parallel-ops-summary.json"
+    assert b'"window_days": 7' in export_json["content"]
+
+    export_csv = ops.export_summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        export_format="csv",
+    )
+    assert export_csv["media_type"] == "text/csv"
+    assert export_csv["filename"] == "parallel-ops-summary.csv"
+    csv_text = export_csv["content"].decode("utf-8")
+    assert "metric,value" in csv_text
+    assert "doc_sync.total,2" in csv_text
+
+    export_md = ops.export_summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        export_format="md",
+    )
+    assert export_md["media_type"] == "text/markdown"
+    assert export_md["filename"] == "parallel-ops-summary.md"
+    md_text = export_md["content"].decode("utf-8")
+    assert md_text.startswith("# Parallel Ops Summary")
+    assert "| doc_sync.total | 2 |" in md_text
+
     with pytest.raises(ValueError, match="window_days"):
         ops.summary(window_days=10)
     with pytest.raises(ValueError, match="page_size"):
         ops.doc_sync_failures(window_days=7, page_size=500)
+    with pytest.raises(ValueError, match="level must be one of"):
+        ops.alerts(window_days=7, level="oops")
+    with pytest.raises(ValueError, match="export_format must be json, csv or md"):
+        ops.export_summary(window_days=7, export_format="xlsx")

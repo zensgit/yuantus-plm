@@ -158,6 +158,42 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert summary["consumption_templates"]["versions_total"] == 1
     assert summary["operator_id"] == 21
 
+    alerts_resp = client.get(
+        "/api/v1/parallel-ops/alerts?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e&level=warn"
+    )
+    assert alerts_resp.status_code == 200
+    alerts = alerts_resp.json()
+    assert alerts["status"] == "warning"
+    assert alerts["total"] >= 1
+    assert alerts["operator_id"] == 21
+
+    summary_export_json_resp = client.get(
+        "/api/v1/parallel-ops/summary/export?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e&export_format=json"
+    )
+    assert summary_export_json_resp.status_code == 200
+    assert summary_export_json_resp.headers.get("content-type", "").startswith(
+        "application/json"
+    )
+    assert summary_export_json_resp.headers.get("x-operator-id") == "21"
+    assert '"doc_sync"' in summary_export_json_resp.text
+
+    summary_export_csv_resp = client.get(
+        "/api/v1/parallel-ops/summary/export?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e&export_format=csv"
+    )
+    assert summary_export_csv_resp.status_code == 200
+    assert summary_export_csv_resp.headers.get("content-type", "").startswith("text/csv")
+    assert "metric,value" in summary_export_csv_resp.text
+    assert "doc_sync.total,2" in summary_export_csv_resp.text
+
+    summary_export_md_resp = client.get(
+        "/api/v1/parallel-ops/summary/export?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e&export_format=md"
+    )
+    assert summary_export_md_resp.status_code == 200
+    assert summary_export_md_resp.headers.get("content-type", "").startswith(
+        "text/markdown"
+    )
+    assert summary_export_md_resp.text.startswith("# Parallel Ops Summary")
+
     doc_sync_failures_resp = client.get(
         "/api/v1/parallel-ops/doc-sync/failures?window_days=7&site_id=site-e2e&page=1&page_size=10"
     )

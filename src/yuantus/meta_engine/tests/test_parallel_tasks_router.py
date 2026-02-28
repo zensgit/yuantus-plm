@@ -522,6 +522,109 @@ def test_parallel_ops_summary_invalid_request_maps_contract_error():
     assert detail.get("context", {}).get("window_days") == 10
 
 
+def test_parallel_ops_alerts_returns_payload():
+    user = SimpleNamespace(id=18, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.alerts.return_value = {
+            "generated_at": "2026-02-28T00:00:00",
+            "window_days": 7,
+            "window_since": "2026-02-21T00:00:00",
+            "filters": {
+                "site_id": "site-1",
+                "target_object": "ECO",
+                "template_key": "tpl-1",
+                "level": "warn",
+            },
+            "status": "warning",
+            "total": 1,
+            "by_code": {"doc_sync_dead_letter_rate_high": 1},
+            "hints": [
+                {
+                    "level": "warn",
+                    "code": "doc_sync_dead_letter_rate_high",
+                    "message": "doc sync dead-letter rate high",
+                }
+            ],
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/alerts?window_days=7&site_id=site-1&target_object=ECO&template_key=tpl-1&level=warn"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "warning"
+    assert body["total"] == 1
+    assert body["by_code"]["doc_sync_dead_letter_rate_high"] == 1
+    assert body["operator_id"] == 18
+
+
+def test_parallel_ops_alerts_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=18, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.alerts.side_effect = ValueError(
+            "level must be one of: warn, critical, info"
+        )
+        resp = client.get("/api/v1/parallel-ops/alerts?window_days=7&level=oops")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("level") == "oops"
+
+
+def test_parallel_ops_summary_export_returns_download_response():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_summary.return_value = {
+            "content": b'{"window_days": 7}',
+            "media_type": "application/json",
+            "filename": "parallel-ops-summary.json",
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/summary/export?window_days=7&export_format=json"
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("application/json")
+    assert 'filename="parallel-ops-summary.json"' in (
+        resp.headers.get("content-disposition", "")
+    )
+    assert resp.headers.get("x-operator-id") == "19"
+    assert '"window_days": 7' in resp.text
+
+
+def test_parallel_ops_summary_export_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_summary.side_effect = ValueError(
+            "export_format must be json, csv or md"
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/summary/export?window_days=7&export_format=xlsx"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("export_format") == "xlsx"
+
+
 def test_parallel_ops_doc_sync_failures_returns_payload():
     user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)

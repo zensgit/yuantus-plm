@@ -2548,3 +2548,153 @@ class ParallelOpsOverviewService:
             )
 
         return "\n".join(lines) + "\n"
+
+    def alerts(
+        self,
+        *,
+        window_days: int = 7,
+        site_id: Optional[str] = None,
+        target_object: Optional[str] = None,
+        template_key: Optional[str] = None,
+        level: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        normalized_level = str(level or "").strip().lower() or None
+        if normalized_level and normalized_level not in {"warn", "critical", "info"}:
+            raise ValueError("level must be one of: warn, critical, info")
+
+        summary = self.summary(
+            window_days=window_days,
+            site_id=site_id,
+            target_object=target_object,
+            template_key=template_key,
+        )
+        hints = summary.get("slo_hints") or []
+        if normalized_level:
+            hints = [
+                row
+                for row in hints
+                if str((row or {}).get("level") or "").strip().lower() == normalized_level
+            ]
+
+        code_counter = Counter(str((row or {}).get("code") or "unknown") for row in hints)
+        return {
+            "generated_at": summary.get("generated_at"),
+            "window_days": summary.get("window_days"),
+            "window_since": summary.get("window_since"),
+            "filters": {
+                "site_id": site_id,
+                "target_object": target_object,
+                "template_key": template_key,
+                "level": normalized_level,
+            },
+            "status": "warning" if hints else "ok",
+            "total": len(hints),
+            "by_code": dict(code_counter),
+            "hints": hints,
+        }
+
+    def _summary_export_rows(self, summary: Dict[str, Any]) -> List[Dict[str, Any]]:
+        rows: List[Dict[str, Any]] = []
+
+        def push(metric: str, value: Any) -> None:
+            rows.append({"metric": metric, "value": value})
+
+        push("window_days", summary.get("window_days"))
+        push("doc_sync.total", (summary.get("doc_sync") or {}).get("total"))
+        push(
+            "doc_sync.dead_letter_total",
+            (summary.get("doc_sync") or {}).get("dead_letter_total"),
+        )
+        push(
+            "doc_sync.success_rate",
+            (summary.get("doc_sync") or {}).get("success_rate"),
+        )
+        push(
+            "workflow_actions.total",
+            (summary.get("workflow_actions") or {}).get("total"),
+        )
+        push(
+            "workflow_actions.failed_rate",
+            (summary.get("workflow_actions") or {}).get("failed_rate"),
+        )
+        push("breakages.total", (summary.get("breakages") or {}).get("total"))
+        push("breakages.open_total", (summary.get("breakages") or {}).get("open_total"))
+        push(
+            "consumption_templates.versions_total",
+            (summary.get("consumption_templates") or {}).get("versions_total"),
+        )
+        push(
+            "overlay_cache.requests",
+            (summary.get("overlay_cache") or {}).get("requests"),
+        )
+        push(
+            "overlay_cache.hit_rate",
+            (summary.get("overlay_cache") or {}).get("hit_rate"),
+        )
+        push("slo_hints.total", len(summary.get("slo_hints") or []))
+
+        for status, count in sorted(((summary.get("doc_sync") or {}).get("by_status") or {}).items()):
+            push(f"doc_sync.by_status.{status}", count)
+        for code, count in sorted(
+            ((summary.get("workflow_actions") or {}).get("by_result_code") or {}).items()
+        ):
+            push(f"workflow_actions.by_result_code.{code}", count)
+        return rows
+
+    def export_summary(
+        self,
+        *,
+        window_days: int = 7,
+        site_id: Optional[str] = None,
+        target_object: Optional[str] = None,
+        template_key: Optional[str] = None,
+        export_format: str = "json",
+    ) -> Dict[str, Any]:
+        summary = self.summary(
+            window_days=window_days,
+            site_id=site_id,
+            target_object=target_object,
+            template_key=template_key,
+        )
+        normalized = str(export_format or "json").strip().lower()
+        if normalized == "json":
+            content = json.dumps(summary, ensure_ascii=False, indent=2).encode("utf-8")
+            return {
+                "content": content,
+                "media_type": "application/json",
+                "filename": "parallel-ops-summary.json",
+            }
+
+        rows = self._summary_export_rows(summary)
+        if normalized == "csv":
+            csv_io = io.StringIO()
+            writer = csv.DictWriter(csv_io, fieldnames=["metric", "value"])
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+            return {
+                "content": csv_io.getvalue().encode("utf-8"),
+                "media_type": "text/csv",
+                "filename": "parallel-ops-summary.csv",
+            }
+
+        if normalized == "md":
+            lines = [
+                "# Parallel Ops Summary",
+                "",
+                f"- generated_at: {summary.get('generated_at') or ''}",
+                f"- window_days: {summary.get('window_days') or ''}",
+                f"- window_since: {summary.get('window_since') or ''}",
+                "",
+                "| Metric | Value |",
+                "| --- | --- |",
+            ]
+            for row in rows:
+                lines.append(f"| {row['metric']} | {row['value']} |")
+            return {
+                "content": ("\n".join(lines) + "\n").encode("utf-8"),
+                "media_type": "text/markdown",
+                "filename": "parallel-ops-summary.md",
+            }
+
+        raise ValueError("export_format must be json, csv or md")

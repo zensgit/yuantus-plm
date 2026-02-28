@@ -1606,6 +1606,86 @@ async def get_parallel_ops_summary(
     return result
 
 
+@parallel_tasks_router.get("/parallel-ops/alerts")
+async def get_parallel_ops_alerts(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    site_id: Optional[str] = Query(None),
+    target_object: Optional[str] = Query(None),
+    template_key: Optional[str] = Query(None),
+    level: Optional[str] = Query(None, description="warn|critical|info"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.alerts(
+            window_days=window_days,
+            site_id=site_id,
+            target_object=target_object,
+            template_key=template_key,
+            level=level,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "site_id": site_id,
+                "target_object": target_object,
+                "template_key": template_key,
+                "level": level,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/summary/export")
+async def export_parallel_ops_summary(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    site_id: Optional[str] = Query(None),
+    target_object: Optional[str] = Query(None),
+    template_key: Optional[str] = Query(None),
+    export_format: str = Query("json", description="json|csv|md"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        exported = service.export_summary(
+            window_days=window_days,
+            site_id=site_id,
+            target_object=target_object,
+            template_key=template_key,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "site_id": site_id,
+                "target_object": target_object,
+                "template_key": template_key,
+                "export_format": export_format,
+            },
+        )
+    return StreamingResponse(
+        io.BytesIO(exported.get("content") or b""),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "parallel-ops-summary.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
+
+
 @parallel_tasks_router.get("/parallel-ops/doc-sync/failures")
 async def get_parallel_ops_doc_sync_failures(
     window_days: int = Query(7, description="1|7|14|30|90"),
