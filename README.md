@@ -100,6 +100,7 @@ RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
 - `docs/RUNBOOK_BACKUP_RESTORE.md` (Backup/restore)
 - `docs/RUNBOOK_CI_CHANGE_SCOPE.md` (CI/regression skip rules + force full runs)
 - `docs/RUNBOOK_JOBS_DIAG.md` (Jobs/CAD failure diagnostics)
+- `docs/RUNBOOK_PARALLEL_BRANCH_OBSERVABILITY_20260228.md` (Parallel branch observability and incident handling)
 - `docs/RUNBOOK_PERF_GATE_CONFIG.md` (Perf CI gate config)
 - `docs/RUNBOOK_RELATIONSHIP_ITEM_MIGRATION.md` (Relationship item migration)
 - `docs/RUNBOOK_RELEASE_ORCHESTRATION.md` (Release orchestration)

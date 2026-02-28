@@ -51,6 +51,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Backup & Restore Runbook: `docs/RUNBOOK_BACKUP_RESTORE.md`
 - CI/Regression Change Scope Runbook: `docs/RUNBOOK_CI_CHANGE_SCOPE.md`
 - Jobs Diagnostics Runbook: `docs/RUNBOOK_JOBS_DIAG.md`
+- Parallel Branch Observability Runbook: `docs/RUNBOOK_PARALLEL_BRANCH_OBSERVABILITY_20260228.md`
 - Perf Gate Config Runbook: `docs/RUNBOOK_PERF_GATE_CONFIG.md`
 - Relationship Item Migration Runbook: `docs/RUNBOOK_RELATIONSHIP_ITEM_MIGRATION.md`
 - Release Orchestration Runbook: `docs/RUNBOOK_RELEASE_ORCHESTRATION.md`
@@ -134,6 +135,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Phase 6 E-Signatures: `docs/DEV_AND_VERIFICATION_P6_ESIGN_20260201.md`
 - Parallel P0 Reliability + Error Contract: `docs/DEV_AND_VERIFICATION_PARALLEL_P0_RELIABILITY_AND_ERROR_CONTRACT_20260228.md`
 - Parallel P1 Export + Breakage Analytics: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_EXPORT_AND_BREAKAGE_ANALYTICS_20260228.md`
+- Parallel P2 Overlay Cache + Template + Runbook: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_OVERLAY_CACHE_TEMPLATE_RUNBOOK_20260228.md`
 - Perf CI Refactor (Config + Baselines + Concurrency): `docs/DEV_AND_VERIFICATION_PERF_CI_REFACTOR_20260209.md`
 - Perf Gate (Generic) - Dev Plan & Verification: `docs/DEV_AND_VERIFICATION_PERF_GATE_20260209.md`
 - Plan Execution (2026-02-02): `docs/DEV_AND_VERIFICATION_PLAN_20260202.md`

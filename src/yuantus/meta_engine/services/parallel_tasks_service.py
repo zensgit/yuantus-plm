@@ -9,6 +9,8 @@ import time
 import uuid
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
+from threading import Lock
+from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -970,6 +972,42 @@ class ConsumptionPlanService:
     def __init__(self, session: Session):
         self.session = session
 
+    def _template_key_from_plan(self, plan: ConsumptionPlan) -> Optional[str]:
+        props = plan.properties if isinstance(plan.properties, dict) else {}
+        template = props.get("template")
+        if not isinstance(template, dict):
+            return None
+        key = str(template.get("key") or "").strip()
+        return key or None
+
+    def _template_meta_from_plan(self, plan: ConsumptionPlan) -> Dict[str, Any]:
+        props = plan.properties if isinstance(plan.properties, dict) else {}
+        template = props.get("template")
+        if not isinstance(template, dict):
+            template = {}
+        return {
+            "key": str(template.get("key") or "").strip() or None,
+            "version": str(template.get("version") or "").strip() or None,
+            "is_template_version": bool(template.get("is_template_version")),
+            "is_active": bool(template.get("is_active")),
+        }
+
+    def _plans_for_template(self, template_key: str) -> List[ConsumptionPlan]:
+        key = str(template_key or "").strip()
+        if not key:
+            return []
+        plans = (
+            self.session.query(ConsumptionPlan)
+            .order_by(ConsumptionPlan.created_at.desc())
+            .all()
+        )
+        return [
+            plan
+            for plan in plans
+            if self._template_key_from_plan(plan) == key
+            and bool(self._template_meta_from_plan(plan).get("is_template_version"))
+        ]
+
     def create_plan(
         self,
         *,
@@ -982,10 +1020,12 @@ class ConsumptionPlanService:
         period_end: Optional[datetime] = None,
         created_by_id: Optional[int] = None,
         properties: Optional[Dict[str, Any]] = None,
+        state: str = "active",
     ) -> ConsumptionPlan:
         plan = ConsumptionPlan(
             id=_uuid(),
             name=name,
+            state=(state or "active").strip().lower(),
             planned_quantity=float(planned_quantity),
             uom=(uom or "EA").strip().upper(),
             period_unit=(period_unit or "week").strip().lower(),
@@ -998,6 +1038,192 @@ class ConsumptionPlanService:
         self.session.add(plan)
         self.session.flush()
         return plan
+
+    def create_template_version(
+        self,
+        *,
+        template_key: str,
+        name: str,
+        planned_quantity: float,
+        version_label: Optional[str] = None,
+        uom: str = "EA",
+        period_unit: str = "week",
+        item_id: Optional[str] = None,
+        activate: bool = True,
+        created_by_id: Optional[int] = None,
+        properties: Optional[Dict[str, Any]] = None,
+    ) -> ConsumptionPlan:
+        key = str(template_key or "").strip()
+        if not key:
+            raise ValueError("template_key must not be empty")
+
+        existing = self._plans_for_template(key)
+        if version_label:
+            normalized_version = str(version_label).strip()
+        else:
+            normalized_version = f"v{len(existing) + 1}"
+
+        props = dict(properties or {})
+        template_props = props.get("template")
+        if not isinstance(template_props, dict):
+            template_props = {}
+        template_props.update(
+            {
+                "key": key,
+                "version": normalized_version,
+                "is_template_version": True,
+                "is_active": bool(activate),
+            }
+        )
+        props["template"] = template_props
+
+        plan = self.create_plan(
+            name=name,
+            planned_quantity=planned_quantity,
+            uom=uom,
+            period_unit=period_unit,
+            item_id=item_id,
+            created_by_id=created_by_id,
+            properties=props,
+            state="active" if activate else "inactive",
+        )
+        if activate:
+            for other in existing:
+                if other.id == plan.id:
+                    continue
+                other_props = (
+                    dict(other.properties) if isinstance(other.properties, dict) else {}
+                )
+                other_template = other_props.get("template")
+                if not isinstance(other_template, dict):
+                    other_template = {}
+                other_template["is_active"] = False
+                other_props["template"] = other_template
+                other.properties = other_props
+                other.state = "inactive"
+                other.updated_at = _utcnow()
+                self.session.add(other)
+        self.session.flush()
+        return plan
+
+    def list_template_versions(
+        self, template_key: str, *, include_inactive: bool = True
+    ) -> List[Dict[str, Any]]:
+        plans = self._plans_for_template(template_key)
+        rows: List[Dict[str, Any]] = []
+        for plan in plans:
+            meta = self._template_meta_from_plan(plan)
+            if not include_inactive and not meta.get("is_active"):
+                continue
+            rows.append(
+                {
+                    "id": plan.id,
+                    "name": plan.name,
+                    "state": plan.state,
+                    "planned_quantity": float(plan.planned_quantity or 0.0),
+                    "uom": plan.uom,
+                    "period_unit": plan.period_unit,
+                    "item_id": plan.item_id,
+                    "template": meta,
+                    "created_at": plan.created_at.isoformat() if plan.created_at else None,
+                    "updated_at": plan.updated_at.isoformat() if plan.updated_at else None,
+                }
+            )
+        return rows
+
+    def set_template_version_state(
+        self,
+        plan_id: str,
+        *,
+        activate: bool,
+    ) -> ConsumptionPlan:
+        plan = self.session.get(ConsumptionPlan, plan_id)
+        if not plan:
+            raise ValueError(f"Consumption plan not found: {plan_id}")
+        meta = self._template_meta_from_plan(plan)
+        key = meta.get("key")
+        if not key or not meta.get("is_template_version"):
+            raise ValueError("plan is not a template version")
+
+        props = dict(plan.properties or {})
+        template = props.get("template")
+        if not isinstance(template, dict):
+            template = {}
+        template["is_active"] = bool(activate)
+        props["template"] = template
+        plan.properties = props
+        plan.state = "active" if activate else "inactive"
+        plan.updated_at = _utcnow()
+        self.session.add(plan)
+
+        if activate:
+            for other in self._plans_for_template(str(key)):
+                if other.id == plan.id:
+                    continue
+                other_props = (
+                    dict(other.properties) if isinstance(other.properties, dict) else {}
+                )
+                other_template = other_props.get("template")
+                if not isinstance(other_template, dict):
+                    other_template = {}
+                other_template["is_active"] = False
+                other_props["template"] = other_template
+                other.properties = other_props
+                other.state = "inactive"
+                other.updated_at = _utcnow()
+                self.session.add(other)
+        self.session.flush()
+        return plan
+
+    def preview_template_impact(
+        self,
+        *,
+        template_key: str,
+        planned_quantity: float,
+        uom: Optional[str] = None,
+        period_unit: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        versions = self.list_template_versions(template_key, include_inactive=True)
+        active = next(
+            (row for row in versions if bool((row.get("template") or {}).get("is_active"))),
+            None,
+        )
+        candidate_qty = float(planned_quantity)
+        baseline_qty = float(active.get("planned_quantity") or 0.0) if active else 0.0
+        delta_qty = candidate_qty - baseline_qty
+
+        impacts = []
+        for row in versions:
+            row_qty = float(row.get("planned_quantity") or 0.0)
+            impacts.append(
+                {
+                    "plan_id": row.get("id"),
+                    "name": row.get("name"),
+                    "template_version": (row.get("template") or {}).get("version"),
+                    "is_active": bool((row.get("template") or {}).get("is_active")),
+                    "current_quantity": row_qty,
+                    "candidate_quantity": candidate_qty,
+                    "delta_quantity": candidate_qty - row_qty,
+                }
+            )
+
+        return {
+            "template_key": str(template_key),
+            "candidate": {
+                "planned_quantity": candidate_qty,
+                "uom": (uom or (active.get("uom") if active else "EA")),
+                "period_unit": (period_unit or (active.get("period_unit") if active else "week")),
+            },
+            "active_version": active,
+            "summary": {
+                "versions_total": len(versions),
+                "impacted_versions": len(impacts),
+                "baseline_quantity": baseline_qty,
+                "candidate_quantity": candidate_qty,
+                "delta_quantity": delta_qty,
+            },
+            "impacts": impacts,
+        }
 
     def list_plans(
         self, *, state: Optional[str] = None, item_id: Optional[str] = None
@@ -1502,8 +1728,137 @@ class WorkorderDocumentPackService:
 
 
 class ThreeDOverlayService:
+    _CACHE_TTL_SECONDS = 60
+    _CACHE_MAX_ENTRIES = 500
+    _CACHE_LOCK = Lock()
+    _CACHE: Dict[str, Dict[str, Any]] = {}
+    _CACHE_HITS = 0
+    _CACHE_MISSES = 0
+    _CACHE_EVICTIONS = 0
+
     def __init__(self, session: Session):
         self.session = session
+
+    @classmethod
+    def _cache_now(cls) -> float:
+        return time.monotonic()
+
+    @classmethod
+    def _cache_key(cls, document_item_id: str) -> str:
+        return str(document_item_id or "").strip()
+
+    @classmethod
+    def _prune_cache_locked(cls, *, now: Optional[float] = None) -> None:
+        ts = cls._cache_now() if now is None else float(now)
+        expired = [
+            key
+            for key, row in cls._CACHE.items()
+            if float((row or {}).get("expires_at") or 0.0) <= ts
+        ]
+        for key in expired:
+            cls._CACHE.pop(key, None)
+
+        overflow = len(cls._CACHE) - int(cls._CACHE_MAX_ENTRIES)
+        if overflow <= 0:
+            return
+
+        rows = sorted(
+            cls._CACHE.items(),
+            key=lambda pair: float((pair[1] or {}).get("stored_at") or 0.0),
+        )
+        for key, _ in rows[:overflow]:
+            cls._CACHE.pop(key, None)
+            cls._CACHE_EVICTIONS += 1
+
+    @classmethod
+    def reset_cache_for_tests(cls) -> None:
+        with cls._CACHE_LOCK:
+            cls._CACHE = {}
+            cls._CACHE_HITS = 0
+            cls._CACHE_MISSES = 0
+            cls._CACHE_EVICTIONS = 0
+
+    @classmethod
+    def cache_stats(cls) -> Dict[str, Any]:
+        with cls._CACHE_LOCK:
+            cls._prune_cache_locked()
+            return {
+                "entries": len(cls._CACHE),
+                "hits": int(cls._CACHE_HITS),
+                "misses": int(cls._CACHE_MISSES),
+                "evictions": int(cls._CACHE_EVICTIONS),
+                "ttl_seconds": int(cls._CACHE_TTL_SECONDS),
+                "max_entries": int(cls._CACHE_MAX_ENTRIES),
+            }
+
+    def _cache_get(self, document_item_id: str) -> Optional[Dict[str, Any]]:
+        cls = type(self)
+        key = self._cache_key(document_item_id)
+        if not key:
+            return None
+        now = self._cache_now()
+        with cls._CACHE_LOCK:
+            cls._prune_cache_locked(now=now)
+            row = cls._CACHE.get(key)
+            if not row:
+                cls._CACHE_MISSES += 1
+                return None
+            cls._CACHE_HITS += 1
+            payload = row.get("payload")
+            return dict(payload) if isinstance(payload, dict) else None
+
+    def _cache_set(self, document_item_id: str, payload: Dict[str, Any]) -> None:
+        cls = type(self)
+        key = self._cache_key(document_item_id)
+        if not key:
+            return
+        now = self._cache_now()
+        row = {
+            "payload": dict(payload),
+            "stored_at": now,
+            "expires_at": now + float(cls._CACHE_TTL_SECONDS),
+        }
+        with cls._CACHE_LOCK:
+            cls._CACHE[key] = row
+            cls._prune_cache_locked(now=now)
+
+    def _cache_invalidate(self, document_item_id: str) -> None:
+        cls = type(self)
+        key = self._cache_key(document_item_id)
+        if not key:
+            return
+        with cls._CACHE_LOCK:
+            cls._CACHE.pop(key, None)
+
+    def _serialize_overlay(self, overlay: ThreeDOverlay) -> Dict[str, Any]:
+        part_refs = overlay.part_refs if isinstance(overlay.part_refs, list) else []
+        properties = overlay.properties if isinstance(overlay.properties, dict) else {}
+        return {
+            "id": overlay.id,
+            "document_item_id": overlay.document_item_id,
+            "version_label": overlay.version_label,
+            "status": overlay.status,
+            "visibility_role": overlay.visibility_role,
+            "part_refs": list(part_refs),
+            "properties": dict(properties),
+            "created_at": overlay.created_at,
+            "updated_at": overlay.updated_at,
+        }
+
+    def _overlay_from_payload(self, payload: Dict[str, Any]) -> SimpleNamespace:
+        part_refs = payload.get("part_refs")
+        properties = payload.get("properties")
+        return SimpleNamespace(
+            id=payload.get("id"),
+            document_item_id=payload.get("document_item_id"),
+            version_label=payload.get("version_label"),
+            status=payload.get("status"),
+            visibility_role=payload.get("visibility_role"),
+            part_refs=list(part_refs) if isinstance(part_refs, list) else [],
+            properties=dict(properties) if isinstance(properties, dict) else {},
+            created_at=payload.get("created_at"),
+            updated_at=payload.get("updated_at"),
+        )
 
     def upsert_overlay(
         self,
@@ -1531,26 +1886,32 @@ class ThreeDOverlayService:
         overlay.properties = properties or {}
         overlay.updated_at = _utcnow()
         self.session.flush()
+        self._cache_invalidate(document_item_id)
+        self._cache_set(document_item_id, self._serialize_overlay(overlay))
         return overlay
 
     def get_overlay(
         self, *, document_item_id: str, user_roles: Optional[List[str]] = None
-    ) -> Optional[ThreeDOverlay]:
-        overlay = (
-            self.session.query(ThreeDOverlay)
-            .filter(ThreeDOverlay.document_item_id == document_item_id)
-            .first()
-        )
-        if not overlay:
-            return None
+    ) -> Optional[SimpleNamespace]:
+        payload = self._cache_get(document_item_id)
+        if payload is None:
+            overlay = (
+                self.session.query(ThreeDOverlay)
+                .filter(ThreeDOverlay.document_item_id == document_item_id)
+                .first()
+            )
+            if not overlay:
+                return None
+            payload = self._serialize_overlay(overlay)
+            self._cache_set(document_item_id, payload)
 
-        required_role = (overlay.visibility_role or "").strip().lower()
+        required_role = str(payload.get("visibility_role") or "").strip().lower()
         if required_role:
             actual_roles = {str(role).strip().lower() for role in (user_roles or [])}
             if required_role not in actual_roles:
                 raise PermissionError("Overlay is not visible for current roles")
 
-        return overlay
+        return self._overlay_from_payload(payload)
 
     def resolve_component(
         self,
@@ -1578,3 +1939,61 @@ class ThreeDOverlayService:
                     "hit": row,
                 }
         raise ValueError(f"Component not found: {component_ref}")
+
+    def resolve_components(
+        self,
+        *,
+        document_item_id: str,
+        component_refs: List[str],
+        user_roles: Optional[List[str]] = None,
+        include_missing: bool = True,
+    ) -> Dict[str, Any]:
+        overlay = self.get_overlay(document_item_id=document_item_id, user_roles=user_roles)
+        if not overlay:
+            raise ValueError(f"Overlay not found: {document_item_id}")
+
+        refs = overlay.part_refs or []
+        if not isinstance(refs, list):
+            refs = []
+        index: Dict[str, Dict[str, Any]] = {}
+        for row in refs:
+            if not isinstance(row, dict):
+                continue
+            key = str(row.get("component_ref") or "").strip().lower()
+            if key and key not in index:
+                index[key] = row
+
+        normalized_refs = [str(ref).strip() for ref in (component_refs or []) if str(ref).strip()]
+        rows: List[Dict[str, Any]] = []
+        hit_count = 0
+        for ref in normalized_refs:
+            hit = index.get(ref.lower())
+            if hit is not None:
+                hit_count += 1
+                rows.append(
+                    {
+                        "component_ref": ref,
+                        "found": True,
+                        "hit": hit,
+                    }
+                )
+                continue
+            if include_missing:
+                rows.append(
+                    {
+                        "component_ref": ref,
+                        "found": False,
+                        "hit": None,
+                    }
+                )
+
+        return {
+            "document_item_id": document_item_id,
+            "requested": len(normalized_refs),
+            "returned": len(rows),
+            "hits": hit_count,
+            "misses": len(normalized_refs) - hit_count,
+            "include_missing": bool(include_missing),
+            "results": rows,
+            "cache": self.cache_stats(),
+        }

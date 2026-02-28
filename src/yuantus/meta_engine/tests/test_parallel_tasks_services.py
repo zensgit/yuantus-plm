@@ -359,6 +359,53 @@ def test_consumption_plan_variance_dashboard(session):
     assert dashboard["plans"][0]["plan_id"] == plan.id
 
 
+def test_consumption_template_versioning_activation_and_impact_preview(session):
+    service = ConsumptionPlanService(session)
+    version_v1 = service.create_template_version(
+        template_key="tpl-motor",
+        name="motor-plan-v1",
+        planned_quantity=10.0,
+        version_label="v1",
+        activate=True,
+    )
+    version_v2 = service.create_template_version(
+        template_key="tpl-motor",
+        name="motor-plan-v2",
+        planned_quantity=12.0,
+        version_label="v2",
+        activate=True,
+    )
+    session.commit()
+
+    rows = service.list_template_versions("tpl-motor")
+    assert len(rows) == 2
+    active_rows = [row for row in rows if (row.get("template") or {}).get("is_active")]
+    assert len(active_rows) == 1
+    assert active_rows[0]["id"] == version_v2.id
+
+    switched = service.set_template_version_state(version_v1.id, activate=True)
+    session.commit()
+    assert switched.state == "active"
+
+    refreshed = service.list_template_versions("tpl-motor")
+    active_rows = [row for row in refreshed if (row.get("template") or {}).get("is_active")]
+    assert len(active_rows) == 1
+    assert active_rows[0]["id"] == version_v1.id
+
+    impact = service.preview_template_impact(
+        template_key="tpl-motor",
+        planned_quantity=15.0,
+    )
+    assert impact["summary"]["versions_total"] == 2
+    assert impact["summary"]["baseline_quantity"] == 10.0
+    assert impact["summary"]["delta_quantity"] == 5.0
+    assert impact["active_version"]["id"] == version_v1.id
+
+    plain = service.create_plan(name="plain-plan", planned_quantity=5.0)
+    with pytest.raises(ValueError, match="not a template version"):
+        service.set_template_version_state(plain.id, activate=True)
+
+
 def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
     service = BreakageIncidentService(session)
     service.create_incident(
@@ -474,6 +521,7 @@ def test_workorder_doc_pack_supports_inherited_links_and_zip_export(session):
 
 def test_3d_overlay_role_gate_and_component_lookup(session):
     service = ThreeDOverlayService(session)
+    service.reset_cache_for_tests()
     service.upsert_overlay(
         document_item_id="doc-3d-1",
         status="released",
@@ -503,4 +551,63 @@ def test_3d_overlay_role_gate_and_component_lookup(session):
             document_item_id="doc-3d-1",
             component_ref="C-999",
             user_roles=["engineer"],
+        )
+
+
+def test_3d_overlay_batch_resolve_and_cache_stats(session):
+    service = ThreeDOverlayService(session)
+    service.reset_cache_for_tests()
+    service.upsert_overlay(
+        document_item_id="doc-3d-cache",
+        status="released",
+        visibility_role="engineer",
+        part_refs=[
+            {"component_ref": "C-001", "item_id": "item-1", "name": "motor"},
+            {"component_ref": "C-002", "item_id": "item-2", "name": "housing"},
+        ],
+    )
+    session.commit()
+
+    service.reset_cache_for_tests()
+    overlay = service.get_overlay(document_item_id="doc-3d-cache", user_roles=["engineer"])
+    assert overlay is not None
+    stats_after_miss = service.cache_stats()
+    assert stats_after_miss["misses"] == 1
+    assert stats_after_miss["hits"] == 0
+    assert stats_after_miss["entries"] == 1
+
+    _ = service.get_overlay(document_item_id="doc-3d-cache", user_roles=["engineer"])
+    stats_after_hit = service.cache_stats()
+    assert stats_after_hit["hits"] == 1
+    assert stats_after_hit["entries"] == 1
+
+    batch = service.resolve_components(
+        document_item_id="doc-3d-cache",
+        component_refs=["C-002", "C-404"],
+        user_roles=["engineer"],
+        include_missing=True,
+    )
+    assert batch["requested"] == 2
+    assert batch["hits"] == 1
+    assert batch["misses"] == 1
+    assert batch["results"][0]["component_ref"] == "C-002"
+    assert batch["results"][0]["found"] is True
+    assert batch["results"][0]["hit"]["item_id"] == "item-2"
+    assert batch["results"][1]["component_ref"] == "C-404"
+    assert batch["results"][1]["found"] is False
+
+    found_only = service.resolve_components(
+        document_item_id="doc-3d-cache",
+        component_refs=["C-002", "C-404"],
+        user_roles=["engineer"],
+        include_missing=False,
+    )
+    assert found_only["returned"] == 1
+    assert found_only["hits"] == 1
+
+    with pytest.raises(PermissionError):
+        service.resolve_components(
+            document_item_id="doc-3d-cache",
+            component_refs=["C-001"],
+            user_roles=["viewer"],
         )

@@ -306,3 +306,169 @@ def test_3d_overlay_component_permission_denied_maps_403():
         )
 
     assert resp.status_code == 403
+
+
+def test_consumption_template_create_version_success():
+    user = SimpleNamespace(id=12, roles=["planner"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+    ) as service_cls:
+        service_cls.return_value.create_template_version.return_value = SimpleNamespace(
+            id="plan-v1",
+            name="template-v1",
+            state="active",
+            planned_quantity=10.0,
+            uom="EA",
+            period_unit="week",
+            item_id="item-1",
+            properties={
+                "template": {
+                    "key": "tpl-1",
+                    "version": "v1",
+                    "is_template_version": True,
+                    "is_active": True,
+                }
+            },
+        )
+        resp = client.post(
+            "/api/v1/consumption/templates/tpl-1/versions",
+            json={
+                "name": "template-v1",
+                "planned_quantity": 10.0,
+                "version_label": "v1",
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"] == "plan-v1"
+    assert body["template"]["key"] == "tpl-1"
+    assert body["template"]["is_active"] is True
+    assert db.commit.called
+
+
+def test_consumption_template_create_version_invalid_maps_contract_error():
+    user = SimpleNamespace(id=12, roles=["planner"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+    ) as service_cls:
+        service_cls.return_value.create_template_version.side_effect = ValueError(
+            "template_key must not be empty"
+        )
+        resp = client.post(
+            "/api/v1/consumption/templates/%20/versions",
+            json={"name": "invalid", "planned_quantity": 10.0},
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "consumption_template_version_invalid"
+
+
+def test_consumption_template_state_not_found_maps_404_contract_error():
+    user = SimpleNamespace(id=12, roles=["planner"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+    ) as service_cls:
+        service_cls.return_value.set_template_version_state.side_effect = ValueError(
+            "Consumption plan not found: p-404"
+        )
+        resp = client.post(
+            "/api/v1/consumption/templates/versions/p-404/state",
+            json={"activate": True},
+        )
+
+    assert resp.status_code == 404
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "consumption_template_version_not_found"
+    assert detail.get("context", {}).get("plan_id") == "p-404"
+
+
+def test_consumption_template_impact_preview_returns_payload():
+    user = SimpleNamespace(id=12, roles=["planner"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+    ) as service_cls:
+        service_cls.return_value.preview_template_impact.return_value = {
+            "template_key": "tpl-1",
+            "candidate": {"planned_quantity": 20.0, "uom": "EA", "period_unit": "week"},
+            "summary": {"versions_total": 2, "baseline_quantity": 10.0, "delta_quantity": 10.0},
+            "impacts": [],
+        }
+        resp = client.post(
+            "/api/v1/consumption/templates/tpl-1/impact-preview",
+            json={"planned_quantity": 20.0},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["template_key"] == "tpl-1"
+    assert body["summary"]["delta_quantity"] == 10.0
+
+
+def test_3d_overlay_batch_resolve_endpoint_returns_rows():
+    user = SimpleNamespace(id=13, roles=["engineer"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ThreeDOverlayService"
+    ) as service_cls:
+        service_cls.return_value.resolve_components.return_value = {
+            "document_item_id": "doc-1",
+            "requested": 2,
+            "returned": 2,
+            "hits": 1,
+            "misses": 1,
+            "include_missing": True,
+            "results": [
+                {
+                    "component_ref": "C-001",
+                    "found": True,
+                    "hit": {"component_ref": "C-001", "item_id": "item-1"},
+                },
+                {"component_ref": "C-999", "found": False, "hit": None},
+            ],
+            "cache": {"entries": 1, "hits": 10, "misses": 2, "evictions": 0},
+        }
+        resp = client.post(
+            "/api/v1/cad-3d/overlays/doc-1/components/resolve-batch",
+            json={"component_refs": ["C-001", "C-999"], "include_missing": True},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["requested"] == 2
+    assert body["hits"] == 1
+    assert body["results"][1]["found"] is False
+
+
+def test_3d_overlay_cache_stats_endpoint_returns_payload():
+    user = SimpleNamespace(id=14, roles=["engineer"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ThreeDOverlayService"
+    ) as service_cls:
+        service_cls.return_value.cache_stats.return_value = {
+            "entries": 2,
+            "hits": 9,
+            "misses": 3,
+            "evictions": 1,
+            "ttl_seconds": 60,
+            "max_entries": 500,
+        }
+        resp = client.get("/api/v1/cad-3d/overlays/cache/stats")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["entries"] == 2
+    assert body["hits"] == 9
+    assert body["ttl_seconds"] == 60

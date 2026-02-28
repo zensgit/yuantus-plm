@@ -794,6 +794,27 @@ class ConsumptionActualRequest(BaseModel):
     properties: Optional[Dict[str, Any]] = None
 
 
+class ConsumptionTemplateVersionCreateRequest(BaseModel):
+    name: str
+    planned_quantity: float = Field(..., gt=0)
+    version_label: Optional[str] = None
+    uom: str = "EA"
+    period_unit: str = "week"
+    item_id: Optional[str] = None
+    activate: bool = True
+    properties: Optional[Dict[str, Any]] = None
+
+
+class ConsumptionTemplateVersionStateRequest(BaseModel):
+    activate: bool = True
+
+
+class ConsumptionTemplateImpactPreviewRequest(BaseModel):
+    planned_quantity: float = Field(..., gt=0)
+    uom: Optional[str] = None
+    period_unit: Optional[str] = None
+
+
 @parallel_tasks_router.post("/consumption/plans")
 async def create_consumption_plan(
     payload: ConsumptionPlanCreateRequest,
@@ -851,6 +872,168 @@ async def list_consumption_plans(
         ],
         "operator_id": int(user.id),
     }
+
+
+@parallel_tasks_router.post("/consumption/templates/{template_key}/versions")
+async def create_consumption_template_version(
+    template_key: str,
+    payload: ConsumptionTemplateVersionCreateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ConsumptionPlanService(db)
+    try:
+        plan = service.create_template_version(
+            template_key=template_key,
+            name=payload.name,
+            planned_quantity=payload.planned_quantity,
+            version_label=payload.version_label,
+            uom=payload.uom,
+            period_unit=payload.period_unit,
+            item_id=payload.item_id,
+            activate=payload.activate,
+            created_by_id=int(user.id),
+            properties=payload.properties,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="consumption_template_version_invalid",
+            message=str(exc),
+            context={"template_key": template_key},
+        )
+    except Exception as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="consumption_template_version_invalid",
+            message=str(exc),
+            context={"template_key": template_key},
+        )
+
+    template = (plan.properties or {}).get("template") if isinstance(plan.properties, dict) else {}
+    if not isinstance(template, dict):
+        template = {}
+    return {
+        "id": plan.id,
+        "name": plan.name,
+        "state": plan.state,
+        "planned_quantity": float(plan.planned_quantity or 0.0),
+        "uom": plan.uom,
+        "period_unit": plan.period_unit,
+        "item_id": plan.item_id,
+        "template": {
+            "key": template.get("key"),
+            "version": template.get("version"),
+            "is_template_version": bool(template.get("is_template_version")),
+            "is_active": bool(template.get("is_active")),
+        },
+        "operator_id": int(user.id),
+    }
+
+
+@parallel_tasks_router.get("/consumption/templates/{template_key}/versions")
+async def list_consumption_template_versions(
+    template_key: str,
+    include_inactive: bool = Query(True),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ConsumptionPlanService(db)
+    versions = service.list_template_versions(
+        template_key=template_key,
+        include_inactive=include_inactive,
+    )
+    return {
+        "template_key": template_key,
+        "total": len(versions),
+        "versions": versions,
+        "operator_id": int(user.id),
+    }
+
+
+@parallel_tasks_router.post("/consumption/templates/versions/{plan_id}/state")
+async def set_consumption_template_version_state(
+    plan_id: str,
+    payload: ConsumptionTemplateVersionStateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ConsumptionPlanService(db)
+    try:
+        plan = service.set_template_version_state(
+            plan_id=plan_id,
+            activate=payload.activate,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        message = str(exc)
+        lowered = message.lower()
+        if "not found" in lowered:
+            _raise_api_error(
+                status_code=404,
+                code="consumption_template_version_not_found",
+                message=message,
+                context={"plan_id": plan_id},
+            )
+        _raise_api_error(
+            status_code=400,
+            code="consumption_template_version_invalid",
+            message=message,
+            context={"plan_id": plan_id},
+        )
+    except Exception as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="consumption_template_version_invalid",
+            message=str(exc),
+            context={"plan_id": plan_id},
+        )
+
+    template = (plan.properties or {}).get("template") if isinstance(plan.properties, dict) else {}
+    if not isinstance(template, dict):
+        template = {}
+    return {
+        "id": plan.id,
+        "state": plan.state,
+        "template": {
+            "key": template.get("key"),
+            "version": template.get("version"),
+            "is_template_version": bool(template.get("is_template_version")),
+            "is_active": bool(template.get("is_active")),
+        },
+        "operator_id": int(user.id),
+    }
+
+
+@parallel_tasks_router.post("/consumption/templates/{template_key}/impact-preview")
+async def preview_consumption_template_impact(
+    template_key: str,
+    payload: ConsumptionTemplateImpactPreviewRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ConsumptionPlanService(db)
+    try:
+        result = service.preview_template_impact(
+            template_key=template_key,
+            planned_quantity=payload.planned_quantity,
+            uom=payload.uom,
+            period_unit=payload.period_unit,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="consumption_template_preview_invalid",
+            message=str(exc),
+            context={"template_key": template_key},
+        )
+    result["operator_id"] = int(user.id)
+    return result
 
 
 @parallel_tasks_router.post("/consumption/plans/{plan_id}/actuals")
@@ -1268,6 +1451,11 @@ class ThreeDOverlayUpsertRequest(BaseModel):
     properties: Optional[Dict[str, Any]] = None
 
 
+class ThreeDOverlayBatchResolveRequest(BaseModel):
+    component_refs: List[str] = Field(..., min_length=1)
+    include_missing: bool = True
+
+
 @parallel_tasks_router.post("/cad-3d/overlays")
 async def upsert_3d_overlay(
     payload: ThreeDOverlayUpsertRequest,
@@ -1298,6 +1486,17 @@ async def upsert_3d_overlay(
     }
 
 
+@parallel_tasks_router.get("/cad-3d/overlays/cache/stats")
+async def get_3d_overlay_cache_stats(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ThreeDOverlayService(db)
+    result = service.cache_stats()
+    result["operator_id"] = int(user.id)
+    return result
+
+
 @parallel_tasks_router.get("/cad-3d/overlays/{document_item_id}")
 async def get_3d_overlay(
     document_item_id: str,
@@ -1322,6 +1521,29 @@ async def get_3d_overlay(
         "part_refs": overlay.part_refs or [],
         "properties": overlay.properties or {},
     }
+
+
+@parallel_tasks_router.post("/cad-3d/overlays/{document_item_id}/components/resolve-batch")
+async def resolve_overlay_components_batch(
+    document_item_id: str,
+    payload: ThreeDOverlayBatchResolveRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ThreeDOverlayService(db)
+    try:
+        result = service.resolve_components(
+            document_item_id=document_item_id,
+            component_refs=payload.component_refs,
+            user_roles=_as_roles(user),
+            include_missing=payload.include_missing,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    result["operator_id"] = int(user.id)
+    return result
 
 
 @parallel_tasks_router.get("/cad-3d/overlays/{document_item_id}/components/{component_ref}")
