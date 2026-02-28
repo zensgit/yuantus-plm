@@ -28,6 +28,77 @@ def _as_roles(user: CurrentUser) -> List[str]:
     return [str(role) for role in (getattr(user, "roles", []) or [])]
 
 
+def _manifest_to_pdf_bytes(manifest: Dict[str, Any]) -> bytes:
+    def esc(text: str) -> str:
+        return (
+            str(text)
+            .replace("\\", "\\\\")
+            .replace("(", "\\(")
+            .replace(")", "\\)")
+        )
+
+    lines = [
+        "Workorder Document Pack",
+        f"routing_id: {manifest.get('routing_id') or ''}",
+        f"operation_id: {manifest.get('operation_id') or ''}",
+        f"count: {manifest.get('count') or 0}",
+        f"generated_at: {manifest.get('generated_at') or ''}",
+    ]
+    for idx, row in enumerate(manifest.get("documents") or [], start=1):
+        lines.append(
+            f"{idx}. doc={row.get('document_item_id')} "
+            f"op={row.get('operation_id') or '-'} "
+            f"inherit={row.get('inherit_to_children')} "
+            f"visible={row.get('visible_in_production')}"
+        )
+
+    y = 800
+    text_ops: List[str] = []
+    for line in lines:
+        text_ops.append(f"1 0 0 1 40 {y} Tm ({esc(line)}) Tj")
+        y -= 14
+        if y < 40:
+            break
+
+    stream = "BT\n/F1 10 Tf\n" + "\n".join(text_ops) + "\nET\n"
+    stream_bytes = stream.encode("latin-1", errors="replace")
+
+    objects = [
+        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+        (
+            b"3 0 obj\n"
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+            b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\n"
+            b"endobj\n"
+        ),
+        b"4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+        (
+            f"5 0 obj\n<< /Length {len(stream_bytes)} >>\nstream\n".encode("latin-1")
+            + stream_bytes
+            + b"endstream\nendobj\n"
+        ),
+    ]
+
+    pdf = b"%PDF-1.4\n"
+    offsets = [0]
+    for obj in objects:
+        offsets.append(len(pdf))
+        pdf += obj
+
+    xref_start = len(pdf)
+    pdf += f"xref\n0 {len(objects) + 1}\n".encode("latin-1")
+    pdf += b"0000000000 65535 f \n"
+    for offset in offsets[1:]:
+        pdf += f"{offset:010d} 00000 n \n".encode("latin-1")
+
+    pdf += (
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+        f"startxref\n{xref_start}\n%%EOF\n"
+    ).encode("latin-1")
+    return pdf
+
+
 # ---------------------------
 # P0-A Document Multi-Site
 # ---------------------------
@@ -925,7 +996,7 @@ async def export_workorder_doc_pack(
     routing_id: str = Query(...),
     operation_id: Optional[str] = Query(None),
     include_inherited: bool = Query(True),
-    export_format: str = Query("zip", description="zip|json"),
+    export_format: str = Query("zip", description="zip|json|pdf"),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -936,7 +1007,8 @@ async def export_workorder_doc_pack(
         include_inherited=include_inherited,
     )
     manifest = result["manifest"]
-    if export_format == "json":
+    normalized = (export_format or "zip").strip().lower()
+    if normalized == "json":
         content = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
         return StreamingResponse(
             io.BytesIO(content),
@@ -945,8 +1017,17 @@ async def export_workorder_doc_pack(
                 "Content-Disposition": 'attachment; filename="workorder-doc-pack.json"'
             },
         )
-    if export_format != "zip":
-        raise HTTPException(status_code=400, detail="export_format must be zip or json")
+    if normalized == "pdf":
+        content = _manifest_to_pdf_bytes(manifest)
+        return StreamingResponse(
+            io.BytesIO(content),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": 'attachment; filename="workorder-doc-pack.pdf"'
+            },
+        )
+    if normalized != "zip":
+        raise HTTPException(status_code=400, detail="export_format must be zip, json or pdf")
     return StreamingResponse(
         io.BytesIO(result["zip_bytes"]),
         media_type="application/zip",

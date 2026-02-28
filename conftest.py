@@ -23,6 +23,7 @@ _ALLOWLIST_NO_DB = {
     "src/yuantus/meta_engine/tests/test_parallel_tasks_services.py",
     "src/yuantus/meta_engine/tests/test_bom_delta_preview.py",
     "src/yuantus/meta_engine/tests/test_eco_parallel_flow_hooks.py",
+    "src/yuantus/meta_engine/tests/test_parallel_tasks_router.py",
 }
 
 _DB_DEPENDENT_PATHS = (

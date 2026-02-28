@@ -115,7 +115,7 @@
 6. `WorkorderDocumentPackService`
 - 文档链接 upsert
 - 继承逻辑查询（routing 级继承到 operation）
-- 文档包导出（manifest + csv -> zip）
+- 文档包导出（manifest + csv -> zip，额外支持 PDF 摘要导出）
 
 7. `ThreeDOverlayService`
 - overlay upsert/get
@@ -150,6 +150,7 @@
 
 6. `/api/v1/workorder-docs/*`
 - 链接维护、文档包导出
+- `export_format` 支持 `zip/json/pdf`
 
 7. `/api/v1/cad-3d/overlays/*`
 - overlay 管理与组件回查

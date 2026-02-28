@@ -53,6 +53,20 @@ pytest -q \
 pytest -q src/yuantus/meta_engine/tests
 ```
 
+8. API 级回归（新增 router + pdf 导出）
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_router.py \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_services.py \
+  src/yuantus/meta_engine/tests/test_eco_parallel_flow_hooks.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_preview.py
+```
+
+9. 最终全量回归（含 API 新增测试）
+```bash
+pytest -q src/yuantus/meta_engine/tests
+```
+
 ## 2. 验证结果
 
 1. 新增测试
@@ -86,6 +100,15 @@ pytest -q src/yuantus/meta_engine/tests
 - 耗时：`7.71s`
 - 备注：warnings 类型与此前一致，无新增失败
 
+8. API 级回归（新增 router + pdf 导出）
+- 结果：`17 passed`
+- 结论：并行支线路由接口（含 workorder `pdf` 导出）行为稳定
+
+9. 最终全量回归（含 API 新增测试）
+- 结果：`73 passed, 0 failed`
+- 耗时：`7.88s`
+- 备注：warnings 类型与此前一致，无新增失败
+
 ## 3. 关键落地项核对
 
 1. Schema 与迁移
@@ -112,6 +135,7 @@ pytest -q src/yuantus/meta_engine/tests
 - `src/yuantus/meta_engine/tests/test_parallel_tasks_services.py`
 - `src/yuantus/meta_engine/tests/test_bom_delta_preview.py`
 - `src/yuantus/meta_engine/tests/test_eco_parallel_flow_hooks.py`
+- `src/yuantus/meta_engine/tests/test_parallel_tasks_router.py`
 
 ## 4. 结论
 

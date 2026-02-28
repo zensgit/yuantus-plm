@@ -211,7 +211,7 @@
 - [x] P1-D BOM 差异补丁预览与导出（JSON/CSV）
 - [x] P1-E 消耗计划（计划/实际/偏差/看板）
 - [x] P1-F 质量异常闭环（指标 + helpdesk stub 联动）
-- [x] P2-G 工单文档包（继承规则 + ZIP 导出）
+- [x] P2-G 工单文档包（继承规则 + PDF/ZIP 导出）
 - [x] P2-H 3D 元数据叠加（角色可见 + 组件回查）
 
-最终验证：`pytest -q src/yuantus/meta_engine/tests` -> `68 passed`。
+最终验证：`pytest -q src/yuantus/meta_engine/tests` -> `73 passed`。
