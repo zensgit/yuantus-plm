@@ -1303,6 +1303,7 @@ class BreakageIncidentService:
         self._group_by_fields = {
             "product_item_id": "product_item_id",
             "batch_code": "batch_code",
+            "bom_line_item_id": "bom_line_item_id",
             "responsibility": "responsibility",
         }
 

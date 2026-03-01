@@ -1222,7 +1222,10 @@ async def get_breakage_metrics(
 
 @parallel_tasks_router.get("/breakages/metrics/groups")
 async def get_breakage_metrics_groups(
-    group_by: str = Query("responsibility", description="product_item_id|batch_code|responsibility"),
+    group_by: str = Query(
+        "responsibility",
+        description="product_item_id|batch_code|bom_line_item_id|responsibility",
+    ),
     status: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
     product_item_id: Optional[str] = Query(None),
@@ -1326,7 +1329,10 @@ async def export_breakage_metrics(
 
 @parallel_tasks_router.get("/breakages/metrics/groups/export")
 async def export_breakage_metrics_groups(
-    group_by: str = Query("responsibility", description="product_item_id|batch_code|responsibility"),
+    group_by: str = Query(
+        "responsibility",
+        description="product_item_id|batch_code|bom_line_item_id|responsibility",
+    ),
     status: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
     product_item_id: Optional[str] = Query(None),

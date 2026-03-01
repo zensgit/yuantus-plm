@@ -237,6 +237,34 @@ def test_breakage_metrics_groups_returns_payload():
     assert body["operator_id"] == 3
 
 
+def test_breakage_metrics_groups_supports_bom_line_item_dimension():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.metrics_groups.return_value = {
+            "group_by": "bom_line_item_id",
+            "total_groups": 1,
+            "groups": [
+                {"group_by": "bom_line_item_id", "group_value": "bom-1", "count": 2},
+            ],
+            "trend_window_days": 14,
+            "filters": {},
+            "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+        }
+        resp = client.get(
+            "/api/v1/breakages/metrics/groups?group_by=bom_line_item_id&trend_window_days=14"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["group_by"] == "bom_line_item_id"
+    assert body["groups"][0]["group_value"] == "bom-1"
+    assert body["operator_id"] == 3
+
+
 def test_breakage_metrics_groups_invalid_request_maps_contract_error():
     user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
@@ -245,7 +273,7 @@ def test_breakage_metrics_groups_invalid_request_maps_contract_error():
         "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.metrics_groups.side_effect = ValueError(
-            "group_by must be one of: batch_code, product_item_id, responsibility"
+            "group_by must be one of: batch_code, bom_line_item_id, product_item_id, responsibility"
         )
         resp = client.get(
             "/api/v1/breakages/metrics/groups?group_by=oops&trend_window_days=14"

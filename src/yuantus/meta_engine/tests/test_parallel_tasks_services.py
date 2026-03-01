@@ -471,18 +471,21 @@ def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
     service.create_incident(
         description="group-a-1",
         product_item_id="p-g-1",
+        bom_line_item_id="bom-g-1",
         batch_code="b-g-1",
         responsibility="supplier-a",
     )
     service.create_incident(
         description="group-a-2",
         product_item_id="p-g-1",
+        bom_line_item_id="bom-g-1",
         batch_code="b-g-1",
         responsibility="supplier-a",
     )
     service.create_incident(
         description="group-b-1",
         product_item_id="p-g-2",
+        bom_line_item_id="bom-g-2",
         batch_code="b-g-2",
         responsibility="supplier-b",
     )
@@ -505,6 +508,10 @@ def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
     groups_batch = service.metrics_groups(group_by="batch_code")
     assert groups_batch["groups"][0]["group_value"] == "b-g-1"
     assert groups_batch["groups"][0]["count"] == 2
+
+    groups_bom_line = service.metrics_groups(group_by="bom_line_item_id")
+    assert groups_bom_line["groups"][0]["group_value"] == "bom-g-1"
+    assert groups_bom_line["groups"][0]["count"] == 2
 
 
 def test_breakage_metrics_groups_rejects_invalid_group_by(session):
@@ -574,12 +581,14 @@ def test_breakage_metrics_groups_export_json_csv_md(session):
     service.create_incident(
         description="group-export-a",
         product_item_id="p-g-exp-1",
+        bom_line_item_id="bom-g-exp-1",
         batch_code="b-g-exp-1",
         responsibility="supplier-g-exp",
     )
     service.create_incident(
         description="group-export-b",
         product_item_id="p-g-exp-1",
+        bom_line_item_id="bom-g-exp-1",
         batch_code="b-g-exp-1",
         responsibility="supplier-g-exp",
     )
@@ -621,6 +630,16 @@ def test_breakage_metrics_groups_export_json_csv_md(session):
     assert "| Group By | Group Value | Count |" in md_text
     assert "product_item_id" in md_text
     assert "p-g-exp-1" in md_text
+
+    exported_bom_line_json = service.export_metrics_groups(
+        group_by="bom_line_item_id",
+        responsibility="supplier-g-exp",
+        trend_window_days=14,
+        export_format="json",
+    )
+    assert '"group_by": "bom_line_item_id"' in exported_bom_line_json["content"].decode(
+        "utf-8"
+    )
 
 
 def test_breakage_metrics_groups_export_rejects_invalid_format(session):

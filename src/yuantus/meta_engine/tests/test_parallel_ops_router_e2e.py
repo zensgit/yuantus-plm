@@ -135,6 +135,7 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
         severity="high",
         status="open",
         product_item_id="prod-e2e-1",
+        bom_line_item_id="bom-e2e-1",
         batch_code="batch-e2e-1",
         responsibility="supplier-e2e",
     )
@@ -180,6 +181,16 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert breakage_groups["groups"][0]["group_value"] == "supplier-e2e"
     assert breakage_groups["groups"][0]["count"] == 1
     assert breakage_groups["operator_id"] == 21
+
+    breakage_groups_bom_line_resp = client.get(
+        "/api/v1/breakages/metrics/groups?group_by=bom_line_item_id&trend_window_days=14&page=1&page_size=10"
+    )
+    assert breakage_groups_bom_line_resp.status_code == 200
+    breakage_groups_bom_line = breakage_groups_bom_line_resp.json()
+    assert breakage_groups_bom_line["group_by"] == "bom_line_item_id"
+    assert breakage_groups_bom_line["groups"][0]["group_value"] == "bom-e2e-1"
+    assert breakage_groups_bom_line["groups"][0]["count"] == 1
+    assert breakage_groups_bom_line["operator_id"] == 21
 
     breakage_groups_export_md_resp = client.get(
         "/api/v1/breakages/metrics/groups/export?group_by=responsibility&trend_window_days=14&responsibility=supplier-e2e&export_format=md"
