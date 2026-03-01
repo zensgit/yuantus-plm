@@ -466,6 +466,53 @@ def test_breakage_metrics_rejects_invalid_trend_window(session):
         service.metrics(trend_window_days=10)
 
 
+def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
+    service = BreakageIncidentService(session)
+    service.create_incident(
+        description="group-a-1",
+        product_item_id="p-g-1",
+        batch_code="b-g-1",
+        responsibility="supplier-a",
+    )
+    service.create_incident(
+        description="group-a-2",
+        product_item_id="p-g-1",
+        batch_code="b-g-1",
+        responsibility="supplier-a",
+    )
+    service.create_incident(
+        description="group-b-1",
+        product_item_id="p-g-2",
+        batch_code="b-g-2",
+        responsibility="supplier-b",
+    )
+    session.commit()
+
+    groups = service.metrics_groups(
+        group_by="product_item_id",
+        trend_window_days=14,
+        page=1,
+        page_size=1,
+    )
+    assert groups["group_by"] == "product_item_id"
+    assert groups["total_groups"] == 2
+    assert groups["pagination"]["page_size"] == 1
+    assert groups["pagination"]["total"] == 2
+    assert len(groups["groups"]) == 1
+    assert groups["groups"][0]["group_value"] == "p-g-1"
+    assert groups["groups"][0]["count"] == 2
+
+    groups_batch = service.metrics_groups(group_by="batch_code")
+    assert groups_batch["groups"][0]["group_value"] == "b-g-1"
+    assert groups_batch["groups"][0]["count"] == 2
+
+
+def test_breakage_metrics_groups_rejects_invalid_group_by(session):
+    service = BreakageIncidentService(session)
+    with pytest.raises(ValueError, match="group_by must be one of"):
+        service.metrics_groups(group_by="invalid")
+
+
 def test_breakage_metrics_export_json_csv_md(session):
     service = BreakageIncidentService(session)
     service.create_incident(

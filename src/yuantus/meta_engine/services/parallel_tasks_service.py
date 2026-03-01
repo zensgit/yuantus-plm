@@ -1300,6 +1300,11 @@ class BreakageIncidentService:
     def __init__(self, session: Session):
         self.session = session
         self._job_service = JobService(session)
+        self._group_by_fields = {
+            "product_item_id": "product_item_id",
+            "batch_code": "batch_code",
+            "responsibility": "responsibility",
+        }
 
     def _normalize_trend_window_days(self, window_days: int) -> int:
         allowed = {7, 14, 30}
@@ -1321,6 +1326,13 @@ class BreakageIncidentService:
             value = 1
         if value > 200:
             value = 200
+        return value
+
+    def _normalize_group_by(self, group_by: str) -> str:
+        value = str(group_by or "").strip().lower()
+        if value not in self._group_by_fields:
+            allowed = ", ".join(sorted(self._group_by_fields.keys()))
+            raise ValueError(f"group_by must be one of: {allowed}")
         return value
 
     def _apply_incident_filters(
@@ -1565,6 +1577,81 @@ class BreakageIncidentService:
                 "total": total,
             },
             "incidents": incidents_page,
+        }
+
+    def metrics_groups(
+        self,
+        *,
+        group_by: str = "responsibility",
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        product_item_id: Optional[str] = None,
+        batch_code: Optional[str] = None,
+        responsibility: Optional[str] = None,
+        trend_window_days: int = 14,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
+        normalized_group_by = self._normalize_group_by(group_by)
+        window_days = self._normalize_trend_window_days(trend_window_days)
+        current_page = self._normalize_page(page)
+        current_page_size = self._normalize_page_size(page_size)
+        incidents_all = (
+            self.session.query(BreakageIncident)
+            .order_by(BreakageIncident.created_at.desc())
+            .all()
+        )
+        incidents = self._apply_incident_filters(
+            incidents_all,
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
+        )
+
+        attr_name = self._group_by_fields[normalized_group_by]
+        counter = Counter()
+        for incident in incidents:
+            raw = getattr(incident, attr_name, None)
+            value = str(raw or "").strip()
+            if not value:
+                continue
+            counter[value] += 1
+
+        groups_all = [
+            {
+                "group_by": normalized_group_by,
+                "group_value": group_value,
+                "count": count,
+            }
+            for group_value, count in counter.most_common()
+        ]
+        total_groups = len(groups_all)
+        total_pages = max(1, (total_groups + current_page_size - 1) // current_page_size)
+        if current_page > total_pages:
+            current_page = total_pages
+        offset = (current_page - 1) * current_page_size
+        groups_page = groups_all[offset : offset + current_page_size]
+
+        return {
+            "group_by": normalized_group_by,
+            "total_groups": total_groups,
+            "groups": groups_page,
+            "trend_window_days": window_days,
+            "filters": {
+                "status": status,
+                "severity": severity,
+                "product_item_id": product_item_id,
+                "batch_code": batch_code,
+                "responsibility": responsibility,
+            },
+            "pagination": {
+                "page": current_page,
+                "page_size": current_page_size,
+                "pages": total_pages,
+                "total": total_groups,
+            },
         }
 
     def _metrics_export_rows(self, metrics: Dict[str, Any]) -> List[Dict[str, Any]]:

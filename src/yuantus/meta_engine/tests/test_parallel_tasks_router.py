@@ -207,6 +207,56 @@ def test_breakage_metrics_returns_dimension_aggregates():
     assert body["operator_id"] == 3
 
 
+def test_breakage_metrics_groups_returns_payload():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.metrics_groups.return_value = {
+            "group_by": "product_item_id",
+            "total_groups": 2,
+            "groups": [
+                {"group_by": "product_item_id", "group_value": "p-1", "count": 2},
+                {"group_by": "product_item_id", "group_value": "p-2", "count": 1},
+            ],
+            "trend_window_days": 14,
+            "filters": {},
+            "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 2},
+        }
+        resp = client.get(
+            "/api/v1/breakages/metrics/groups?group_by=product_item_id&trend_window_days=14"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["group_by"] == "product_item_id"
+    assert body["total_groups"] == 2
+    assert body["groups"][0]["group_value"] == "p-1"
+    assert body["operator_id"] == 3
+
+
+def test_breakage_metrics_groups_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.metrics_groups.side_effect = ValueError(
+            "group_by must be one of: batch_code, product_item_id, responsibility"
+        )
+        resp = client.get(
+            "/api/v1/breakages/metrics/groups?group_by=oops&trend_window_days=14"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "breakage_metrics_invalid_request"
+    assert detail.get("context", {}).get("group_by") == "oops"
+
+
 def test_breakage_metrics_export_returns_download_response():
     user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)

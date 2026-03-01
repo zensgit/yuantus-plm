@@ -137,6 +137,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Parallel P0 Reliability + Error Contract: `docs/DEV_AND_VERIFICATION_PARALLEL_P0_RELIABILITY_AND_ERROR_CONTRACT_20260228.md`
 - Parallel P1 Breakage Metrics Dimension Aggregation Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_BREAKAGE_METRICS_DIMENSION_AGG_EXT_20260301.md`
 - Parallel P1 Breakage Metrics Export Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_BREAKAGE_METRICS_EXPORT_EXT_20260228.md`
+- Parallel P1 Breakage Metrics Groups Query Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_BREAKAGE_METRICS_GROUPS_QUERY_EXT_20260301.md`
 - Parallel P1 Export + Breakage Analytics: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_EXPORT_AND_BREAKAGE_ANALYTICS_20260228.md`
 - Parallel P2 Overlay Cache + Template + Runbook: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_OVERLAY_CACHE_TEMPLATE_RUNBOOK_20260228.md`
 - Parallel P3 Ops Overview API: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_OPS_OVERVIEW_API_20260228.md`
