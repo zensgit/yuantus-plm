@@ -1252,7 +1252,7 @@ async def compare_bom_delta_preview(
 @bom_router.get(
     "/compare/delta/export",
     summary="Export BOM delta patch",
-    description="Export delta preview as json or csv.",
+    description="Export delta preview as json, csv or md.",
 )
 async def compare_bom_delta_export(
     left_type: str = Query(..., description="item or version"),
@@ -1278,7 +1278,7 @@ async def compare_bom_delta_export(
             "severity,risk_level,change_count,field,before,after,properties"
         ),
     ),
-    export_format: str = Query("json", description="json|csv"),
+    export_format: str = Query("json", description="json|csv|md"),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1321,7 +1321,14 @@ async def compare_bom_delta_export(
             media_type="text/csv",
             headers={"Content-Disposition": 'attachment; filename="bom-delta-preview.csv"'},
         )
-    raise HTTPException(status_code=400, detail="export_format must be json or csv")
+    if normalized == "md":
+        md_text = service.export_delta_markdown(delta_filtered, fields=fields)
+        return StreamingResponse(
+            io.BytesIO(md_text.encode("utf-8")),
+            media_type="text/markdown",
+            headers={"Content-Disposition": 'attachment; filename="bom-delta-preview.md"'},
+        )
+    raise HTTPException(status_code=400, detail="export_format must be json, csv or md")
 
 
 @bom_router.get(

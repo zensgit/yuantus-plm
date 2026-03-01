@@ -1148,6 +1148,87 @@ class BOMService:
 
         return output.getvalue()
 
+    def export_delta_markdown(
+        self, delta_preview: Dict[str, Any], fields: Optional[List[str]] = None
+    ) -> str:
+        """
+        Export delta preview operations as Markdown text with summary.
+        """
+        filtered = (
+            dict(delta_preview)
+            if isinstance(delta_preview.get("selected_fields"), list)
+            else self.filter_delta_preview_fields(delta_preview, fields)
+        )
+        selected_fields = filtered.get("selected_fields")
+        if not isinstance(selected_fields, list) or not selected_fields:
+            selected_fields = self.normalize_delta_export_fields(fields)
+        operations = filtered.get("operations")
+        if not isinstance(operations, list):
+            operations = []
+
+        summary = filtered.get("summary") if isinstance(filtered.get("summary"), dict) else {}
+        change_summary = (
+            filtered.get("change_summary")
+            if isinstance(filtered.get("change_summary"), dict)
+            else {}
+        )
+        compare_summary = (
+            filtered.get("compare_summary")
+            if isinstance(filtered.get("compare_summary"), dict)
+            else {}
+        )
+
+        def _as_cell(value: Any) -> str:
+            if value is None:
+                return ""
+            if isinstance(value, (dict, list)):
+                return json.dumps(value, ensure_ascii=False)
+            return str(value)
+
+        lines = [
+            "# BOM Delta Preview",
+            "",
+            "## Summary",
+            f"- total_ops: {summary.get('total_ops') or 0}",
+            f"- adds: {summary.get('adds') or 0}",
+            f"- removes: {summary.get('removes') or 0}",
+            f"- updates: {summary.get('updates') or 0}",
+            f"- risk_level: {summary.get('risk_level') or 'none'}",
+            (
+                f"- risk_distribution: "
+                f"{json.dumps(summary.get('risk_distribution') or {}, ensure_ascii=False)}"
+            ),
+            (
+                f"- change_summary: "
+                f"{json.dumps(change_summary, ensure_ascii=False)}"
+            ),
+            (
+                f"- compare_summary: "
+                f"{json.dumps(compare_summary, ensure_ascii=False)}"
+            ),
+            "",
+            "## Operations",
+        ]
+
+        if not operations:
+            lines.append("")
+            lines.append("_No operations_")
+            lines.append("")
+            return "\n".join(lines)
+
+        header = "| " + " | ".join(selected_fields) + " |"
+        sep = "| " + " | ".join("---" for _ in selected_fields) + " |"
+        lines.extend(["", header, sep])
+
+        for op in operations:
+            if not isinstance(op, dict):
+                continue
+            row = "| " + " | ".join(_as_cell(op.get(key)) for key in selected_fields) + " |"
+            lines.append(row)
+
+        lines.append("")
+        return "\n".join(lines)
+
     def _flatten_tree(
         self,
         tree: Dict[str, Any],
