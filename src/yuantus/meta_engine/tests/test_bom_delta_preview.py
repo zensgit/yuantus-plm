@@ -55,10 +55,18 @@ def test_build_delta_preview_converts_compare_payload_to_patch_operations():
     assert delta["summary"]["removes"] == 1
     assert delta["summary"]["updates"] == 1
     assert delta["summary"]["risk_level"] in {"high", "critical", "medium", "low", "none"}
+    assert delta["summary"]["risk_distribution"]["medium"] == 2
+    assert delta["summary"]["risk_distribution"]["high"] == 1
     assert delta["change_summary"]["ops"]["updates"] == 1
     assert delta["change_summary"]["severity"]["major"] == 1
+    assert delta["change_summary"]["risk_distribution"]["medium"] == 2
+    assert delta["change_summary"]["risk_distribution"]["high"] == 1
     ops = delta["operations"]
     assert {op["op"] for op in ops} == {"add", "remove", "update"}
+    add_op = [op for op in ops if op["op"] == "add"][0]
+    remove_op = [op for op in ops if op["op"] == "remove"][0]
+    assert add_op["risk_level"] == "medium"
+    assert remove_op["risk_level"] == "medium"
     update_op = [op for op in ops if op["op"] == "update"][0]
     assert update_op["changes"][0]["field"] == "quantity"
     assert update_op["changes"][0]["before"] == 2

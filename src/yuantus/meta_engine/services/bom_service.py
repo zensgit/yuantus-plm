@@ -899,6 +899,7 @@ class BOMService:
                     "parent_id": entry.get("parent_id"),
                     "child_id": entry.get("child_id"),
                     "relationship_id": entry.get("relationship_id"),
+                    "risk_level": "medium",
                     "properties": entry.get("properties") or {},
                 }
             )
@@ -911,6 +912,7 @@ class BOMService:
                     "parent_id": entry.get("parent_id"),
                     "child_id": entry.get("child_id"),
                     "relationship_id": entry.get("relationship_id"),
+                    "risk_level": "medium",
                     "properties": entry.get("properties") or {},
                 }
             )
@@ -961,6 +963,12 @@ class BOMService:
             if severity not in severity_counts:
                 severity = "info"
             severity_counts[severity] += 1
+        risk_distribution = {"critical": 0, "high": 0, "medium": 0, "low": 0, "none": 0}
+        for op in operations:
+            risk = str(op.get("risk_level") or "none").lower()
+            if risk not in risk_distribution:
+                risk = "none"
+            risk_distribution[risk] += 1
 
         structural_ops = len(added) + len(removed)
         update_ops = len(changed)
@@ -984,6 +992,7 @@ class BOMService:
             },
             "severity": severity_counts,
             "risk_level": risk_level,
+            "risk_distribution": risk_distribution,
         }
         summary = {
             "total_ops": len(operations),
@@ -991,6 +1000,7 @@ class BOMService:
             "removes": len(removed),
             "updates": len(changed),
             "risk_level": risk_level,
+            "risk_distribution": risk_distribution,
         }
         return {
             "summary": summary,
