@@ -414,6 +414,7 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
         product_item_id="p-1",
         bom_line_item_id="bom-1",
         severity="high",
+        batch_code="b-1",
         responsibility="supplier-a",
     )
     service.create_incident(
@@ -421,6 +422,7 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
         product_item_id="p-1",
         bom_line_item_id="bom-1",
         severity="high",
+        batch_code="b-1",
         responsibility="supplier-a",
     )
     service.create_incident(
@@ -428,6 +430,7 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
         product_item_id="p-2",
         bom_line_item_id="bom-2",
         severity="medium",
+        batch_code="b-2",
         responsibility="line-b",
     )
     session.commit()
@@ -451,6 +454,10 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
     assert metrics["repeated_failure_rate"] > 0
     assert metrics["hotspot_components"][0]["bom_line_item_id"] == "bom-1"
     assert metrics["by_responsibility"]["supplier-a"] == 2
+    assert metrics["by_product_item"]["p-1"] == 2
+    assert metrics["by_batch_code"]["b-1"] == 2
+    assert metrics["top_product_items"][0]["product_item_id"] == "p-1"
+    assert metrics["top_batch_codes"][0]["batch_code"] == "b-1"
 
 
 def test_breakage_metrics_rejects_invalid_trend_window(session):
@@ -466,6 +473,7 @@ def test_breakage_metrics_export_json_csv_md(session):
         product_item_id="p-exp-1",
         bom_line_item_id="bom-exp-1",
         severity="high",
+        batch_code="batch-exp-1",
         responsibility="supplier-exp",
     )
     session.commit()
@@ -479,6 +487,7 @@ def test_breakage_metrics_export_json_csv_md(session):
     assert exported_json["media_type"] == "application/json"
     assert exported_json["filename"] == "breakage-metrics.json"
     assert '"total": 1' in exported_json["content"].decode("utf-8")
+    assert '"by_product_item": {' in exported_json["content"].decode("utf-8")
 
     exported_csv = service.export_metrics(
         product_item_id="p-exp-1",
@@ -503,6 +512,8 @@ def test_breakage_metrics_export_json_csv_md(session):
     assert exported_md["filename"] == "breakage-metrics.md"
     assert md_text.startswith("# Breakage Metrics")
     assert "| Date | Count |" in md_text
+    assert "top_product_items" in md_text
+    assert "top_batch_codes" in md_text
 
 
 def test_breakage_metrics_export_rejects_invalid_format(session):

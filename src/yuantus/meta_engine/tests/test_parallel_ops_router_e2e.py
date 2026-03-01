@@ -134,6 +134,8 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
         description="e2e-bearing-crack",
         severity="high",
         status="open",
+        product_item_id="prod-e2e-1",
+        batch_code="batch-e2e-1",
         responsibility="supplier-e2e",
     )
 
@@ -156,6 +158,17 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     )
     assert breakage_metrics_export_csv_resp.headers.get("x-operator-id") == "21"
     assert "responsibility_filter" in breakage_metrics_export_csv_resp.text
+
+    breakage_metrics_resp = client.get(
+        "/api/v1/breakages/metrics?trend_window_days=14&responsibility=supplier-e2e"
+    )
+    assert breakage_metrics_resp.status_code == 200
+    breakage_metrics = breakage_metrics_resp.json()
+    assert breakage_metrics["by_product_item"]["prod-e2e-1"] == 1
+    assert breakage_metrics["by_batch_code"]["batch-e2e-1"] == 1
+    assert breakage_metrics["top_product_items"][0]["product_item_id"] == "prod-e2e-1"
+    assert breakage_metrics["top_batch_codes"][0]["batch_code"] == "batch-e2e-1"
+    assert breakage_metrics["operator_id"] == 21
 
     summary_resp = client.get(
         "/api/v1/parallel-ops/summary?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e"

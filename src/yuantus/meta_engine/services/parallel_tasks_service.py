@@ -1479,6 +1479,24 @@ class BreakageIncidentService:
         by_responsibility = Counter(
             str(incident.responsibility or "unknown") for incident in incidents
         )
+        by_product_item = Counter(
+            str(incident.product_item_id)
+            for incident in incidents
+            if incident.product_item_id
+        )
+        by_batch_code = Counter(
+            str(incident.batch_code)
+            for incident in incidents
+            if incident.batch_code
+        )
+        top_product_items = [
+            {"product_item_id": item_id, "count": count}
+            for item_id, count in by_product_item.most_common(10)
+        ]
+        top_batch_codes = [
+            {"batch_code": batch_code, "count": count}
+            for batch_code, count in by_batch_code.most_common(10)
+        ]
 
         now = _utcnow()
         start_day = (now - timedelta(days=window_days - 1)).date()
@@ -1526,6 +1544,10 @@ class BreakageIncidentService:
             "by_status": dict(by_status),
             "by_severity": dict(by_severity),
             "by_responsibility": dict(by_responsibility),
+            "by_product_item": dict(by_product_item),
+            "by_batch_code": dict(by_batch_code),
+            "top_product_items": top_product_items,
+            "top_batch_codes": top_batch_codes,
             "hotspot_components": hotspot_components,
             "trend_window_days": window_days,
             "trend": trend,
@@ -1661,6 +1683,26 @@ class BreakageIncidentService:
                 if isinstance(metrics.get("by_responsibility"), dict)
                 else {}
             )
+            by_product_item = (
+                metrics.get("by_product_item")
+                if isinstance(metrics.get("by_product_item"), dict)
+                else {}
+            )
+            by_batch_code = (
+                metrics.get("by_batch_code")
+                if isinstance(metrics.get("by_batch_code"), dict)
+                else {}
+            )
+            top_product_items = (
+                metrics.get("top_product_items")
+                if isinstance(metrics.get("top_product_items"), list)
+                else []
+            )
+            top_batch_codes = (
+                metrics.get("top_batch_codes")
+                if isinstance(metrics.get("top_batch_codes"), list)
+                else []
+            )
             hotspots = (
                 metrics.get("hotspot_components")
                 if isinstance(metrics.get("hotspot_components"), list)
@@ -1685,6 +1727,16 @@ class BreakageIncidentService:
                 (
                     f"- by_responsibility: "
                     f"{json.dumps(by_responsibility, ensure_ascii=False)}"
+                ),
+                f"- by_product_item: {json.dumps(by_product_item, ensure_ascii=False)}",
+                f"- by_batch_code: {json.dumps(by_batch_code, ensure_ascii=False)}",
+                (
+                    f"- top_product_items: "
+                    f"{json.dumps(top_product_items, ensure_ascii=False)}"
+                ),
+                (
+                    f"- top_batch_codes: "
+                    f"{json.dumps(top_batch_codes, ensure_ascii=False)}"
                 ),
                 (
                     f"- hotspot_components: "

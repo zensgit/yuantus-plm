@@ -171,6 +171,42 @@ def test_breakage_metrics_invalid_window_maps_contract_error():
     assert detail.get("context", {}).get("trend_window_days") == 10
 
 
+def test_breakage_metrics_returns_dimension_aggregates():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.metrics.return_value = {
+            "total": 2,
+            "repeated_failure_rate": 0.5,
+            "repeated_event_count": 1,
+            "by_status": {"open": 2},
+            "by_severity": {"high": 2},
+            "by_responsibility": {"supplier-a": 2},
+            "by_product_item": {"p-1": 2},
+            "by_batch_code": {"b-1": 2},
+            "top_product_items": [{"product_item_id": "p-1", "count": 2}],
+            "top_batch_codes": [{"batch_code": "b-1", "count": 2}],
+            "hotspot_components": [{"bom_line_item_id": "bom-1", "count": 2}],
+            "trend_window_days": 14,
+            "trend": [{"date": "2026-03-01", "count": 2}],
+            "filters": {"product_item_id": "p-1", "batch_code": "b-1"},
+            "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 2},
+            "incidents": [],
+        }
+        resp = client.get("/api/v1/breakages/metrics?trend_window_days=14")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["by_product_item"]["p-1"] == 2
+    assert body["by_batch_code"]["b-1"] == 2
+    assert body["top_product_items"][0]["product_item_id"] == "p-1"
+    assert body["top_batch_codes"][0]["batch_code"] == "b-1"
+    assert body["operator_id"] == 3
+
+
 def test_breakage_metrics_export_returns_download_response():
     user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
