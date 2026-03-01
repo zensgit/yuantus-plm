@@ -458,8 +458,10 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
     assert metrics["by_responsibility"]["supplier-a"] == 2
     assert metrics["by_product_item"]["p-1"] == 2
     assert metrics["by_batch_code"]["b-1"] == 2
+    assert metrics["by_bom_line_item"]["bom-1"] == 2
     assert metrics["top_product_items"][0]["product_item_id"] == "p-1"
     assert metrics["top_batch_codes"][0]["batch_code"] == "b-1"
+    assert metrics["top_bom_line_items"][0]["bom_line_item_id"] == "bom-1"
 
 
 def test_breakage_metrics_rejects_invalid_trend_window(session):
@@ -583,6 +585,7 @@ def test_breakage_metrics_export_json_csv_md(session):
     assert "| Date | Count |" in md_text
     assert "top_product_items" in md_text
     assert "top_batch_codes" in md_text
+    assert "top_bom_line_items" in md_text
 
 
 def test_breakage_metrics_export_rejects_invalid_format(session):
@@ -663,6 +666,69 @@ def test_breakage_metrics_groups_export_rejects_invalid_format(session):
         service.export_metrics_groups(export_format="xlsx")
 
 
+def test_breakage_incidents_export_supports_bom_line_filter_and_formats(session):
+    service = BreakageIncidentService(session)
+    incident_a = service.create_incident(
+        description="incident-a",
+        product_item_id="p-list-1",
+        bom_line_item_id="bom-list-1",
+        batch_code="batch-list-1",
+        responsibility="supplier-list",
+    )
+    service.create_incident(
+        description="incident-b",
+        product_item_id="p-list-2",
+        bom_line_item_id="bom-list-2",
+        batch_code="batch-list-2",
+        responsibility="supplier-list",
+    )
+    session.commit()
+
+    listed = service.list_incidents(bom_line_item_id="bom-list-1")
+    assert len(listed) == 1
+    assert listed[0].id == incident_a.id
+
+    exported_json = service.export_incidents(
+        bom_line_item_id="bom-list-1",
+        page=1,
+        page_size=10,
+        export_format="json",
+    )
+    assert exported_json["media_type"] == "application/json"
+    assert exported_json["filename"] == "breakage-incidents.json"
+    assert '"bom_line_item_id": "bom-list-1"' in exported_json["content"].decode("utf-8")
+
+    exported_csv = service.export_incidents(
+        bom_line_item_id="bom-list-1",
+        page=1,
+        page_size=10,
+        export_format="csv",
+    )
+    csv_text = exported_csv["content"].decode("utf-8")
+    assert exported_csv["media_type"] == "text/csv"
+    assert exported_csv["filename"] == "breakage-incidents.csv"
+    assert "bom_line_item_id_filter" in csv_text
+    assert "bom-list-1" in csv_text
+
+    exported_md = service.export_incidents(
+        bom_line_item_id="bom-list-1",
+        page=1,
+        page_size=10,
+        export_format="md",
+    )
+    md_text = exported_md["content"].decode("utf-8")
+    assert exported_md["media_type"] == "text/markdown"
+    assert exported_md["filename"] == "breakage-incidents.md"
+    assert md_text.startswith("# Breakage Incidents")
+    assert "bom-list-1" in md_text
+
+
+def test_breakage_incidents_export_rejects_invalid_format(session):
+    service = BreakageIncidentService(session)
+    with pytest.raises(ValueError, match="export_format must be json, csv or md"):
+        service.export_incidents(export_format="xlsx")
+
+
 def test_breakage_helpdesk_stub_sync_enqueue(session):
     service = BreakageIncidentService(session)
     incident = service.create_incident(
@@ -683,6 +749,60 @@ def test_breakage_helpdesk_stub_sync_enqueue(session):
     assert job.task_type == "breakage_helpdesk_sync_stub"
     assert job.payload["incident_id"] == incident.id
     assert job.payload["metadata"]["channel"] == "qa"
+
+
+def test_breakage_helpdesk_sync_status_and_result_flow(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="connector melt",
+        product_item_id="p-hd-1",
+        bom_line_item_id="bom-hd-1",
+    )
+    session.commit()
+
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=15,
+        metadata_json={"channel": "ops"},
+    )
+    session.commit()
+
+    pending = service.get_helpdesk_sync_status(incident.id)
+    assert pending["incident_id"] == incident.id
+    assert pending["sync_status"] in {"queued", "pending"}
+    assert pending["last_job"]["id"] == job.id
+    assert pending["last_job"]["retry_budget"]["max_attempts"] >= 1
+
+    updated = service.record_helpdesk_sync_result(
+        incident.id,
+        sync_status="completed",
+        job_id=job.id,
+        external_ticket_id="HD-1001",
+        metadata_json={"channel": "ops"},
+        user_id=15,
+    )
+    session.commit()
+    assert updated["sync_status"] == "completed"
+    assert updated["external_ticket_id"] == "HD-1001"
+    assert updated["last_job"]["status"] == "completed"
+
+    completed = service.get_helpdesk_sync_status(incident.id)
+    assert completed["sync_status"] == "completed"
+    assert completed["external_ticket_id"] == "HD-1001"
+
+
+def test_breakage_helpdesk_sync_result_rejects_invalid_sync_status(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(description="invalid-sync-status")
+    session.commit()
+    service.enqueue_helpdesk_stub_sync(incident.id, user_id=1)
+    session.commit()
+
+    with pytest.raises(ValueError, match="sync_status must be one of: completed, failed"):
+        service.record_helpdesk_sync_result(
+            incident.id,
+            sync_status="queued",
+        )
 
 
 def test_workorder_doc_pack_supports_inherited_links_and_zip_export(session):

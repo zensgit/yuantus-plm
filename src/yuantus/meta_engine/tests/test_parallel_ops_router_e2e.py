@@ -130,7 +130,7 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     )
 
     breakage_service = BreakageIncidentService(db)
-    breakage_service.create_incident(
+    breakage_incident = breakage_service.create_incident(
         description="e2e-bearing-crack",
         severity="high",
         status="open",
@@ -169,10 +169,29 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     breakage_metrics = breakage_metrics_resp.json()
     assert breakage_metrics["by_product_item"]["prod-e2e-1"] == 1
     assert breakage_metrics["by_batch_code"]["batch-e2e-1"] == 1
+    assert breakage_metrics["by_bom_line_item"]["bom-e2e-1"] == 1
     assert breakage_metrics["top_product_items"][0]["product_item_id"] == "prod-e2e-1"
     assert breakage_metrics["top_batch_codes"][0]["batch_code"] == "batch-e2e-1"
+    assert breakage_metrics["top_bom_line_items"][0]["bom_line_item_id"] == "bom-e2e-1"
     assert breakage_metrics["filters"]["bom_line_item_id"] == "bom-e2e-1"
     assert breakage_metrics["operator_id"] == 21
+
+    breakage_list_resp = client.get("/api/v1/breakages?bom_line_item_id=bom-e2e-1")
+    assert breakage_list_resp.status_code == 200
+    breakage_list = breakage_list_resp.json()
+    assert breakage_list["total"] == 1
+    assert breakage_list["incidents"][0]["id"] == breakage_incident.id
+    assert breakage_list["incidents"][0]["bom_line_item_id"] == "bom-e2e-1"
+    assert breakage_list["operator_id"] == 21
+
+    breakage_export_csv_resp = client.get(
+        "/api/v1/breakages/export?bom_line_item_id=bom-e2e-1&export_format=csv&page=1&page_size=10"
+    )
+    assert breakage_export_csv_resp.status_code == 200
+    assert breakage_export_csv_resp.headers.get("content-type", "").startswith("text/csv")
+    assert breakage_export_csv_resp.headers.get("x-operator-id") == "21"
+    assert "bom_line_item_id_filter" in breakage_export_csv_resp.text
+    assert "bom-e2e-1" in breakage_export_csv_resp.text
 
     breakage_groups_resp = client.get(
         "/api/v1/breakages/metrics/groups?group_by=responsibility&trend_window_days=14&bom_line_item_id=bom-e2e-1&page=1&page_size=10"
@@ -207,6 +226,48 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert "# Breakage Metrics Groups" in breakage_groups_export_md_resp.text
     assert "bom_line_item_id" in breakage_groups_export_md_resp.text
     assert "supplier-e2e" in breakage_groups_export_md_resp.text
+
+    helpdesk_sync_resp = client.post(
+        f"/api/v1/breakages/{breakage_incident.id}/helpdesk-sync",
+        json={"metadata_json": {"channel": "e2e"}},
+    )
+    assert helpdesk_sync_resp.status_code == 200
+    helpdesk_sync = helpdesk_sync_resp.json()
+    assert helpdesk_sync["incident_id"] == breakage_incident.id
+    assert helpdesk_sync["task_type"] == "breakage_helpdesk_sync_stub"
+
+    helpdesk_status_resp = client.get(
+        f"/api/v1/breakages/{breakage_incident.id}/helpdesk-sync/status"
+    )
+    assert helpdesk_status_resp.status_code == 200
+    helpdesk_status = helpdesk_status_resp.json()
+    assert helpdesk_status["incident_id"] == breakage_incident.id
+    assert helpdesk_status["sync_status"] in {"queued", "pending"}
+    assert helpdesk_status["operator_id"] == 21
+
+    helpdesk_result_resp = client.post(
+        f"/api/v1/breakages/{breakage_incident.id}/helpdesk-sync/result",
+        json={
+            "job_id": helpdesk_sync["job_id"],
+            "sync_status": "completed",
+            "external_ticket_id": "HD-E2E-1",
+        },
+    )
+    assert helpdesk_result_resp.status_code == 200
+    helpdesk_result = helpdesk_result_resp.json()
+    assert helpdesk_result["incident_id"] == breakage_incident.id
+    assert helpdesk_result["sync_status"] == "completed"
+    assert helpdesk_result["external_ticket_id"] == "HD-E2E-1"
+    assert helpdesk_result["operator_id"] == 21
+
+    helpdesk_status_done_resp = client.get(
+        f"/api/v1/breakages/{breakage_incident.id}/helpdesk-sync/status"
+    )
+    assert helpdesk_status_done_resp.status_code == 200
+    helpdesk_status_done = helpdesk_status_done_resp.json()
+    assert helpdesk_status_done["sync_status"] == "completed"
+    assert helpdesk_status_done["external_ticket_id"] == "HD-E2E-1"
+    assert helpdesk_status_done["operator_id"] == 21
 
     summary_resp = client.get(
         "/api/v1/parallel-ops/summary?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e"

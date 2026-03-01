@@ -1175,6 +1175,14 @@ class BreakageHelpdeskSyncRequest(BaseModel):
     metadata_json: Optional[Dict[str, Any]] = None
 
 
+class BreakageHelpdeskSyncResultRequest(BaseModel):
+    sync_status: str = Field(..., description="completed|failed")
+    job_id: Optional[str] = None
+    external_ticket_id: Optional[str] = None
+    error_message: Optional[str] = None
+    metadata_json: Optional[Dict[str, Any]] = None
+
+
 @parallel_tasks_router.get("/breakages/metrics")
 async def get_breakage_metrics(
     status: Optional[str] = Query(None),
@@ -1451,6 +1459,7 @@ async def list_breakage_incidents(
     status: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
     product_item_id: Optional[str] = Query(None),
+    bom_line_item_id: Optional[str] = Query(None),
     batch_code: Optional[str] = Query(None),
     responsibility: Optional[str] = Query(None),
     db: Session = Depends(get_db),
@@ -1461,6 +1470,7 @@ async def list_breakage_incidents(
         status=status,
         severity=severity,
         product_item_id=product_item_id,
+        bom_line_item_id=bom_line_item_id,
         batch_code=batch_code,
         responsibility=responsibility,
     )
@@ -1490,6 +1500,62 @@ async def list_breakage_incidents(
         ],
         "operator_id": int(user.id),
     }
+
+
+@parallel_tasks_router.get("/breakages/export")
+async def export_breakage_incidents(
+    status: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    product_item_id: Optional[str] = Query(None),
+    bom_line_item_id: Optional[str] = Query(None),
+    batch_code: Optional[str] = Query(None),
+    responsibility: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    export_format: str = Query("json", description="json|csv|md"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        exported = service.export_incidents(
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            bom_line_item_id=bom_line_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
+            page=page,
+            page_size=page_size,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="breakage_invalid_request",
+            message=str(exc),
+            context={
+                "status": status,
+                "severity": severity,
+                "product_item_id": product_item_id,
+                "bom_line_item_id": bom_line_item_id,
+                "batch_code": batch_code,
+                "responsibility": responsibility,
+                "page": page,
+                "page_size": page_size,
+                "export_format": export_format,
+            },
+        )
+    return StreamingResponse(
+        io.BytesIO(exported["content"]),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "breakage-incidents.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
 
 
 @parallel_tasks_router.post("/breakages/{incident_id}/status")
@@ -1568,6 +1634,68 @@ async def sync_breakage_to_helpdesk_stub(
         "status": job.status,
         "created_at": job.created_at.isoformat() if job.created_at else None,
     }
+
+
+@parallel_tasks_router.get("/breakages/{incident_id}/helpdesk-sync/status")
+async def get_breakage_helpdesk_sync_status(
+    incident_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        result = service.get_helpdesk_sync_status(incident_id)
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=404,
+            code="breakage_not_found",
+            message=str(exc),
+            context={"incident_id": incident_id},
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.post("/breakages/{incident_id}/helpdesk-sync/result")
+async def record_breakage_helpdesk_sync_result(
+    incident_id: str,
+    payload: BreakageHelpdeskSyncResultRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        result = service.record_helpdesk_sync_result(
+            incident_id,
+            sync_status=payload.sync_status,
+            job_id=payload.job_id,
+            external_ticket_id=payload.external_ticket_id,
+            error_message=payload.error_message,
+            metadata_json=payload.metadata_json,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        if "Breakage incident not found" in str(exc):
+            _raise_api_error(
+                status_code=404,
+                code="breakage_not_found",
+                message=str(exc),
+                context={"incident_id": incident_id},
+            )
+        _raise_api_error(
+            status_code=400,
+            code="breakage_helpdesk_sync_invalid",
+            message=str(exc),
+            context={
+                "incident_id": incident_id,
+                "sync_status": payload.sync_status,
+                "job_id": payload.job_id,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
 
 
 # ---------------------------

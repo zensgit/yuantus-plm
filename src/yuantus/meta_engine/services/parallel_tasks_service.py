@@ -1413,6 +1413,7 @@ class BreakageIncidentService:
         status: Optional[str] = None,
         severity: Optional[str] = None,
         product_item_id: Optional[str] = None,
+        bom_line_item_id: Optional[str] = None,
         batch_code: Optional[str] = None,
         responsibility: Optional[str] = None,
     ) -> List[BreakageIncident]:
@@ -1426,9 +1427,151 @@ class BreakageIncidentService:
             status=status,
             severity=severity,
             product_item_id=product_item_id,
+            bom_line_item_id=bom_line_item_id,
             batch_code=batch_code,
             responsibility=responsibility,
         )
+
+    def _serialize_incident(self, incident: BreakageIncident) -> Dict[str, Any]:
+        return {
+            "id": incident.id,
+            "description": incident.description,
+            "severity": incident.severity,
+            "status": incident.status,
+            "product_item_id": incident.product_item_id,
+            "bom_line_item_id": incident.bom_line_item_id,
+            "production_order_id": incident.production_order_id,
+            "version_id": incident.version_id,
+            "batch_code": incident.batch_code,
+            "customer_name": incident.customer_name,
+            "responsibility": incident.responsibility,
+            "created_at": incident.created_at.isoformat() if incident.created_at else None,
+            "updated_at": incident.updated_at.isoformat() if incident.updated_at else None,
+        }
+
+    def export_incidents(
+        self,
+        *,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        product_item_id: Optional[str] = None,
+        bom_line_item_id: Optional[str] = None,
+        batch_code: Optional[str] = None,
+        responsibility: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+        export_format: str = "json",
+    ) -> Dict[str, Any]:
+        incidents_all = self.list_incidents(
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            bom_line_item_id=bom_line_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
+        )
+        current_page = self._normalize_page(page)
+        current_page_size = self._normalize_page_size(page_size)
+        total = len(incidents_all)
+        total_pages = max(1, (total + current_page_size - 1) // current_page_size)
+        if current_page > total_pages:
+            current_page = total_pages
+        offset = (current_page - 1) * current_page_size
+        incidents_page = incidents_all[offset : offset + current_page_size]
+        serialized = [self._serialize_incident(incident) for incident in incidents_page]
+        exported = {
+            "total": total,
+            "filters": {
+                "status": status,
+                "severity": severity,
+                "product_item_id": product_item_id,
+                "bom_line_item_id": bom_line_item_id,
+                "batch_code": batch_code,
+                "responsibility": responsibility,
+            },
+            "pagination": {
+                "page": current_page,
+                "page_size": current_page_size,
+                "pages": total_pages,
+                "total": total,
+            },
+            "incidents": serialized,
+        }
+        normalized = str(export_format or "json").strip().lower()
+        if normalized == "json":
+            return {
+                "content": json.dumps(exported, ensure_ascii=False, indent=2).encode("utf-8"),
+                "media_type": "application/json",
+                "filename": "breakage-incidents.json",
+            }
+        if normalized == "csv":
+            csv_io = io.StringIO()
+            writer = csv.DictWriter(
+                csv_io,
+                fieldnames=[
+                    "id",
+                    "description",
+                    "severity",
+                    "status",
+                    "product_item_id",
+                    "bom_line_item_id",
+                    "production_order_id",
+                    "version_id",
+                    "batch_code",
+                    "customer_name",
+                    "responsibility",
+                    "created_at",
+                    "updated_at",
+                    "status_filter",
+                    "severity_filter",
+                    "product_item_id_filter",
+                    "bom_line_item_id_filter",
+                    "batch_code_filter",
+                    "responsibility_filter",
+                ],
+            )
+            writer.writeheader()
+            for row in serialized:
+                writer.writerow(
+                    {
+                        **row,
+                        "status_filter": status,
+                        "severity_filter": severity,
+                        "product_item_id_filter": product_item_id,
+                        "bom_line_item_id_filter": bom_line_item_id,
+                        "batch_code_filter": batch_code,
+                        "responsibility_filter": responsibility,
+                    }
+                )
+            return {
+                "content": csv_io.getvalue().encode("utf-8"),
+                "media_type": "text/csv",
+                "filename": "breakage-incidents.csv",
+            }
+        if normalized == "md":
+            lines = [
+                "# Breakage Incidents",
+                "",
+                f"- total: {total}",
+                f"- page: {current_page}",
+                f"- page_size: {current_page_size}",
+                f"- filters: {json.dumps(exported['filters'], ensure_ascii=False)}",
+                "",
+                "| ID | Status | Severity | Product | BOM Line | Batch | Responsibility |",
+                "| --- | --- | --- | --- | --- | --- | --- |",
+            ]
+            for row in serialized:
+                lines.append(
+                    f"| {row['id'] or ''} | {row['status'] or ''} | {row['severity'] or ''} | "
+                    f"{row['product_item_id'] or ''} | {row['bom_line_item_id'] or ''} | "
+                    f"{row['batch_code'] or ''} | {row['responsibility'] or ''} |"
+                )
+            return {
+                "content": ("\n".join(lines) + "\n").encode("utf-8"),
+                "media_type": "text/markdown",
+                "filename": "breakage-incidents.md",
+            }
+        raise ValueError("export_format must be json, csv or md")
 
     def update_status(self, incident_id: str, *, status: str) -> BreakageIncident:
         incident = self.session.get(BreakageIncident, incident_id)
@@ -1508,6 +1651,11 @@ class BreakageIncidentService:
             for incident in incidents
             if incident.batch_code
         )
+        by_bom_line_item = Counter(
+            str(incident.bom_line_item_id)
+            for incident in incidents
+            if incident.bom_line_item_id
+        )
         top_product_items = [
             {"product_item_id": item_id, "count": count}
             for item_id, count in by_product_item.most_common(10)
@@ -1515,6 +1663,10 @@ class BreakageIncidentService:
         top_batch_codes = [
             {"batch_code": batch_code, "count": count}
             for batch_code, count in by_batch_code.most_common(10)
+        ]
+        top_bom_line_items = [
+            {"bom_line_item_id": item_id, "count": count}
+            for item_id, count in by_bom_line_item.most_common(10)
         ]
 
         now = _utcnow()
@@ -1565,8 +1717,10 @@ class BreakageIncidentService:
             "by_responsibility": dict(by_responsibility),
             "by_product_item": dict(by_product_item),
             "by_batch_code": dict(by_batch_code),
+            "by_bom_line_item": dict(by_bom_line_item),
             "top_product_items": top_product_items,
             "top_batch_codes": top_batch_codes,
+            "top_bom_line_items": top_bom_line_items,
             "hotspot_components": hotspot_components,
             "trend_window_days": window_days,
             "trend": trend,
@@ -1846,6 +2000,11 @@ class BreakageIncidentService:
                 if isinstance(metrics.get("by_batch_code"), dict)
                 else {}
             )
+            by_bom_line_item = (
+                metrics.get("by_bom_line_item")
+                if isinstance(metrics.get("by_bom_line_item"), dict)
+                else {}
+            )
             top_product_items = (
                 metrics.get("top_product_items")
                 if isinstance(metrics.get("top_product_items"), list)
@@ -1854,6 +2013,11 @@ class BreakageIncidentService:
             top_batch_codes = (
                 metrics.get("top_batch_codes")
                 if isinstance(metrics.get("top_batch_codes"), list)
+                else []
+            )
+            top_bom_line_items = (
+                metrics.get("top_bom_line_items")
+                if isinstance(metrics.get("top_bom_line_items"), list)
                 else []
             )
             hotspots = (
@@ -1884,12 +2048,20 @@ class BreakageIncidentService:
                 f"- by_product_item: {json.dumps(by_product_item, ensure_ascii=False)}",
                 f"- by_batch_code: {json.dumps(by_batch_code, ensure_ascii=False)}",
                 (
+                    f"- by_bom_line_item: "
+                    f"{json.dumps(by_bom_line_item, ensure_ascii=False)}"
+                ),
+                (
                     f"- top_product_items: "
                     f"{json.dumps(top_product_items, ensure_ascii=False)}"
                 ),
                 (
                     f"- top_batch_codes: "
                     f"{json.dumps(top_batch_codes, ensure_ascii=False)}"
+                ),
+                (
+                    f"- top_bom_line_items: "
+                    f"{json.dumps(top_bom_line_items, ensure_ascii=False)}"
                 ),
                 (
                     f"- hotspot_components: "
@@ -2017,10 +2189,16 @@ class BreakageIncidentService:
             "severity": incident.severity,
             "status": incident.status,
             "product_item_id": incident.product_item_id,
+            "bom_line_item_id": incident.bom_line_item_id,
             "batch_code": incident.batch_code,
             "customer_name": incident.customer_name,
             "metadata": metadata_json or {},
             "mode": "helpdesk_stub",
+            "helpdesk_sync": {
+                "sync_status": "queued",
+                "updated_at": _utcnow().isoformat(),
+                "updated_by_id": user_id,
+            },
         }
         dedupe_key = f"breakage-helpdesk:{incident.id}:{incident.updated_at.isoformat() if incident.updated_at else ''}"
         return self._job_service.create_job(
@@ -2030,6 +2208,145 @@ class BreakageIncidentService:
             dedupe=True,
             dedupe_key=dedupe_key,
         )
+
+    def _list_helpdesk_sync_jobs_for_incident(self, incident_id: str) -> List[ConversionJob]:
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type == "breakage_helpdesk_sync_stub")
+            .order_by(ConversionJob.created_at.desc())
+            .all()
+        )
+        matched: List[ConversionJob] = []
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            if str(payload.get("incident_id") or "") == str(incident_id):
+                matched.append(job)
+        return matched
+
+    def _build_helpdesk_sync_job_view(self, job: ConversionJob) -> Dict[str, Any]:
+        payload = job.payload if isinstance(job.payload, dict) else {}
+        sync_info = payload.get("helpdesk_sync") if isinstance(payload.get("helpdesk_sync"), dict) else {}
+        result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        external_ticket_id = (
+            sync_info.get("external_ticket_id")
+            or result.get("external_ticket_id")
+            or payload.get("external_ticket_id")
+        )
+        sync_status = (
+            str(sync_info.get("sync_status") or result.get("sync_status") or "").strip().lower()
+            or str(job.status or "").strip().lower()
+        )
+        attempt_count = int(job.attempt_count or 0)
+        max_attempts = int(job.max_attempts or 0)
+        return {
+            "id": job.id,
+            "task_type": job.task_type,
+            "status": job.status,
+            "sync_status": sync_status,
+            "external_ticket_id": external_ticket_id,
+            "last_error": job.last_error,
+            "attempt_count": attempt_count,
+            "max_attempts": max_attempts,
+            "retry_budget": {
+                "attempt_count": attempt_count,
+                "max_attempts": max_attempts,
+                "remaining_attempts": max(max_attempts - attempt_count, 0),
+            },
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "scheduled_at": job.scheduled_at.isoformat() if job.scheduled_at else None,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        }
+
+    def get_helpdesk_sync_status(self, incident_id: str) -> Dict[str, Any]:
+        incident = self.session.get(BreakageIncident, incident_id)
+        if not incident:
+            raise ValueError(f"Breakage incident not found: {incident_id}")
+        jobs = self._list_helpdesk_sync_jobs_for_incident(incident_id)
+        job_views = [self._build_helpdesk_sync_job_view(job) for job in jobs]
+        latest = job_views[0] if job_views else None
+        return {
+            "incident_id": incident_id,
+            "sync_status": latest.get("sync_status") if latest else "not_started",
+            "external_ticket_id": latest.get("external_ticket_id") if latest else None,
+            "last_job": latest,
+            "jobs": job_views,
+        }
+
+    def record_helpdesk_sync_result(
+        self,
+        incident_id: str,
+        *,
+        sync_status: str,
+        job_id: Optional[str] = None,
+        external_ticket_id: Optional[str] = None,
+        error_message: Optional[str] = None,
+        metadata_json: Optional[Dict[str, Any]] = None,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        normalized_sync_status = str(sync_status or "").strip().lower()
+        if normalized_sync_status not in {"completed", "failed"}:
+            raise ValueError("sync_status must be one of: completed, failed")
+
+        incident = self.session.get(BreakageIncident, incident_id)
+        if not incident:
+            raise ValueError(f"Breakage incident not found: {incident_id}")
+
+        target_job: Optional[ConversionJob] = None
+        if job_id:
+            target_job = self.session.get(ConversionJob, job_id)
+            if (
+                not target_job
+                or str(target_job.task_type or "") != "breakage_helpdesk_sync_stub"
+            ):
+                raise ValueError(f"Helpdesk sync job not found: {job_id}")
+            payload = target_job.payload if isinstance(target_job.payload, dict) else {}
+            if str(payload.get("incident_id") or "") != str(incident_id):
+                raise ValueError(f"Helpdesk sync job does not belong to incident: {job_id}")
+        else:
+            jobs = self._list_helpdesk_sync_jobs_for_incident(incident_id)
+            if jobs:
+                target_job = jobs[0]
+            else:
+                raise ValueError(f"Helpdesk sync job not found for incident: {incident_id}")
+
+        now = _utcnow()
+        payload = target_job.payload if isinstance(target_job.payload, dict) else {}
+        updated_payload = dict(payload)
+        updated_payload["helpdesk_sync"] = {
+            "sync_status": normalized_sync_status,
+            "external_ticket_id": external_ticket_id,
+            "error_message": error_message,
+            "updated_at": now.isoformat(),
+            "updated_by_id": user_id,
+            "metadata": metadata_json or {},
+        }
+        if external_ticket_id:
+            updated_payload["external_ticket_id"] = external_ticket_id
+        result = updated_payload.get("result")
+        if not isinstance(result, dict):
+            result = {}
+        result.update(
+            {
+                "sync_status": normalized_sync_status,
+                "external_ticket_id": external_ticket_id,
+                "error_message": error_message,
+                "updated_at": now.isoformat(),
+            }
+        )
+        updated_payload["result"] = result
+
+        target_job.payload = updated_payload
+        target_job.completed_at = now
+        if normalized_sync_status == "completed":
+            target_job.status = JobStatus.COMPLETED.value
+            target_job.last_error = None
+        else:
+            target_job.status = JobStatus.FAILED.value
+            target_job.last_error = str(error_message or "helpdesk_sync_failed")
+        self.session.add(target_job)
+        self.session.flush()
+        return self.get_helpdesk_sync_status(incident_id)
 
 
 class WorkorderDocumentPackService:
