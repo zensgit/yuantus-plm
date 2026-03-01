@@ -257,6 +257,52 @@ def test_breakage_metrics_groups_invalid_request_maps_contract_error():
     assert detail.get("context", {}).get("group_by") == "oops"
 
 
+def test_breakage_metrics_groups_export_returns_download_response():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.export_metrics_groups.return_value = {
+            "content": b"group_by,group_value,count\nproduct_item_id,p-1,2\n",
+            "media_type": "text/csv",
+            "filename": "breakage-metrics-groups.csv",
+        }
+        resp = client.get(
+            "/api/v1/breakages/metrics/groups/export?group_by=product_item_id&trend_window_days=14&export_format=csv"
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="breakage-metrics-groups.csv"' in (
+        resp.headers.get("content-disposition", "")
+    )
+    assert resp.headers.get("x-operator-id") == "3"
+    assert "group_by,group_value,count" in resp.text
+
+
+def test_breakage_metrics_groups_export_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.export_metrics_groups.side_effect = ValueError(
+            "export_format must be json, csv or md"
+        )
+        resp = client.get(
+            "/api/v1/breakages/metrics/groups/export?group_by=product_item_id&trend_window_days=14&export_format=xlsx"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "breakage_metrics_invalid_request"
+    assert detail.get("context", {}).get("group_by") == "product_item_id"
+    assert detail.get("context", {}).get("export_format") == "xlsx"
+
+
 def test_breakage_metrics_export_returns_download_response():
     user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)

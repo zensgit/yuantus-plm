@@ -181,6 +181,17 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert breakage_groups["groups"][0]["count"] == 1
     assert breakage_groups["operator_id"] == 21
 
+    breakage_groups_export_md_resp = client.get(
+        "/api/v1/breakages/metrics/groups/export?group_by=responsibility&trend_window_days=14&responsibility=supplier-e2e&export_format=md"
+    )
+    assert breakage_groups_export_md_resp.status_code == 200
+    assert breakage_groups_export_md_resp.headers.get("content-type", "").startswith(
+        "text/markdown"
+    )
+    assert breakage_groups_export_md_resp.headers.get("x-operator-id") == "21"
+    assert "# Breakage Metrics Groups" in breakage_groups_export_md_resp.text
+    assert "supplier-e2e" in breakage_groups_export_md_resp.text
+
     summary_resp = client.get(
         "/api/v1/parallel-ops/summary?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e"
     )

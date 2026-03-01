@@ -569,6 +569,66 @@ def test_breakage_metrics_export_rejects_invalid_format(session):
         service.export_metrics(export_format="xlsx")
 
 
+def test_breakage_metrics_groups_export_json_csv_md(session):
+    service = BreakageIncidentService(session)
+    service.create_incident(
+        description="group-export-a",
+        product_item_id="p-g-exp-1",
+        batch_code="b-g-exp-1",
+        responsibility="supplier-g-exp",
+    )
+    service.create_incident(
+        description="group-export-b",
+        product_item_id="p-g-exp-1",
+        batch_code="b-g-exp-1",
+        responsibility="supplier-g-exp",
+    )
+    session.commit()
+
+    exported_json = service.export_metrics_groups(
+        group_by="product_item_id",
+        responsibility="supplier-g-exp",
+        trend_window_days=14,
+        export_format="json",
+    )
+    assert exported_json["media_type"] == "application/json"
+    assert exported_json["filename"] == "breakage-metrics-groups.json"
+    assert '"group_by": "product_item_id"' in exported_json["content"].decode("utf-8")
+    assert '"total_groups": 1' in exported_json["content"].decode("utf-8")
+
+    exported_csv = service.export_metrics_groups(
+        group_by="product_item_id",
+        responsibility="supplier-g-exp",
+        trend_window_days=14,
+        export_format="csv",
+    )
+    csv_text = exported_csv["content"].decode("utf-8")
+    assert exported_csv["media_type"] == "text/csv"
+    assert exported_csv["filename"] == "breakage-metrics-groups.csv"
+    assert "group_by,group_value,count,total_groups,trend_window_days" in csv_text
+    assert "p-g-exp-1,2,1,14" in csv_text
+
+    exported_md = service.export_metrics_groups(
+        group_by="product_item_id",
+        responsibility="supplier-g-exp",
+        trend_window_days=14,
+        export_format="md",
+    )
+    md_text = exported_md["content"].decode("utf-8")
+    assert exported_md["media_type"] == "text/markdown"
+    assert exported_md["filename"] == "breakage-metrics-groups.md"
+    assert md_text.startswith("# Breakage Metrics Groups")
+    assert "| Group By | Group Value | Count |" in md_text
+    assert "product_item_id" in md_text
+    assert "p-g-exp-1" in md_text
+
+
+def test_breakage_metrics_groups_export_rejects_invalid_format(session):
+    service = BreakageIncidentService(session)
+    with pytest.raises(ValueError, match="export_format must be json, csv or md"):
+        service.export_metrics_groups(export_format="xlsx")
+
+
 def test_breakage_helpdesk_stub_sync_enqueue(session):
     service = BreakageIncidentService(session)
     incident = service.create_incident(

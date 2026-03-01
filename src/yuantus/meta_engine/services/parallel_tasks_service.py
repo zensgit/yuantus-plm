@@ -1694,6 +1694,54 @@ class BreakageIncidentService:
             }
         ]
 
+    def _metrics_groups_export_rows(
+        self, metrics_groups: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        filters = (
+            metrics_groups.get("filters")
+            if isinstance(metrics_groups.get("filters"), dict)
+            else {}
+        )
+        groups = (
+            metrics_groups.get("groups")
+            if isinstance(metrics_groups.get("groups"), list)
+            else []
+        )
+        rows: List[Dict[str, Any]] = []
+        for row in groups:
+            if not isinstance(row, dict):
+                continue
+            rows.append(
+                {
+                    "group_by": metrics_groups.get("group_by"),
+                    "group_value": row.get("group_value"),
+                    "count": row.get("count"),
+                    "total_groups": metrics_groups.get("total_groups"),
+                    "trend_window_days": metrics_groups.get("trend_window_days"),
+                    "status_filter": filters.get("status"),
+                    "severity_filter": filters.get("severity"),
+                    "product_item_id_filter": filters.get("product_item_id"),
+                    "batch_code_filter": filters.get("batch_code"),
+                    "responsibility_filter": filters.get("responsibility"),
+                }
+            )
+        if rows:
+            return rows
+        return [
+            {
+                "group_by": metrics_groups.get("group_by"),
+                "group_value": None,
+                "count": 0,
+                "total_groups": metrics_groups.get("total_groups"),
+                "trend_window_days": metrics_groups.get("trend_window_days"),
+                "status_filter": filters.get("status"),
+                "severity_filter": filters.get("severity"),
+                "product_item_id_filter": filters.get("product_item_id"),
+                "batch_code_filter": filters.get("batch_code"),
+                "responsibility_filter": filters.get("responsibility"),
+            }
+        ]
+
     def export_metrics(
         self,
         *,
@@ -1839,6 +1887,94 @@ class BreakageIncidentService:
                 "content": ("\n".join(lines) + "\n").encode("utf-8"),
                 "media_type": "text/markdown",
                 "filename": "breakage-metrics.md",
+            }
+
+        raise ValueError("export_format must be json, csv or md")
+
+    def export_metrics_groups(
+        self,
+        *,
+        group_by: str = "responsibility",
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        product_item_id: Optional[str] = None,
+        batch_code: Optional[str] = None,
+        responsibility: Optional[str] = None,
+        trend_window_days: int = 14,
+        page: int = 1,
+        page_size: int = 20,
+        export_format: str = "json",
+    ) -> Dict[str, Any]:
+        metrics_groups = self.metrics_groups(
+            group_by=group_by,
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
+            trend_window_days=trend_window_days,
+            page=page,
+            page_size=page_size,
+        )
+        normalized = str(export_format or "json").strip().lower()
+        if normalized == "json":
+            content = json.dumps(metrics_groups, ensure_ascii=False, indent=2).encode("utf-8")
+            return {
+                "content": content,
+                "media_type": "application/json",
+                "filename": "breakage-metrics-groups.json",
+            }
+
+        rows = self._metrics_groups_export_rows(metrics_groups)
+        if normalized == "csv":
+            csv_io = io.StringIO()
+            writer = csv.DictWriter(
+                csv_io,
+                fieldnames=[
+                    "group_by",
+                    "group_value",
+                    "count",
+                    "total_groups",
+                    "trend_window_days",
+                    "status_filter",
+                    "severity_filter",
+                    "product_item_id_filter",
+                    "batch_code_filter",
+                    "responsibility_filter",
+                ],
+            )
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+            return {
+                "content": csv_io.getvalue().encode("utf-8"),
+                "media_type": "text/csv",
+                "filename": "breakage-metrics-groups.csv",
+            }
+
+        if normalized == "md":
+            lines = [
+                "# Breakage Metrics Groups",
+                "",
+                f"- group_by: {metrics_groups.get('group_by') or ''}",
+                f"- total_groups: {metrics_groups.get('total_groups') or 0}",
+                (
+                    f"- trend_window_days: "
+                    f"{metrics_groups.get('trend_window_days') or ''}"
+                ),
+                f"- filters: {json.dumps(metrics_groups.get('filters') or {}, ensure_ascii=False)}",
+                "",
+                "| Group By | Group Value | Count |",
+                "| --- | --- | --- |",
+            ]
+            for row in rows:
+                lines.append(
+                    f"| {row['group_by'] or ''} | {row['group_value'] or ''} | {row['count'] or 0} |"
+                )
+            return {
+                "content": ("\n".join(lines) + "\n").encode("utf-8"),
+                "media_type": "text/markdown",
+                "filename": "breakage-metrics-groups.md",
             }
 
         raise ValueError("export_format must be json, csv or md")
