@@ -193,6 +193,42 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert "bom_line_item_id_filter" in breakage_export_csv_resp.text
     assert "bom-e2e-1" in breakage_export_csv_resp.text
 
+    breakage_export_job_create_resp = client.post(
+        "/api/v1/breakages/export/jobs",
+        json={
+            "bom_line_item_id": "bom-e2e-1",
+            "page": 1,
+            "page_size": 10,
+            "export_format": "csv",
+            "execute_immediately": True,
+        },
+    )
+    assert breakage_export_job_create_resp.status_code == 200
+    breakage_export_job = breakage_export_job_create_resp.json()
+    assert breakage_export_job["job_id"]
+    assert breakage_export_job["download_ready"] is True
+    assert breakage_export_job["operator_id"] == 21
+
+    breakage_export_job_status_resp = client.get(
+        f"/api/v1/breakages/export/jobs/{breakage_export_job['job_id']}"
+    )
+    assert breakage_export_job_status_resp.status_code == 200
+    breakage_export_job_status = breakage_export_job_status_resp.json()
+    assert breakage_export_job_status["job_id"] == breakage_export_job["job_id"]
+    assert breakage_export_job_status["status"] == "completed"
+    assert breakage_export_job_status["operator_id"] == 21
+
+    breakage_export_job_download_resp = client.get(
+        f"/api/v1/breakages/export/jobs/{breakage_export_job['job_id']}/download"
+    )
+    assert breakage_export_job_download_resp.status_code == 200
+    assert breakage_export_job_download_resp.headers.get("content-type", "").startswith(
+        "text/csv"
+    )
+    assert breakage_export_job_download_resp.headers.get("x-operator-id") == "21"
+    assert "bom_line_item_id_filter" in breakage_export_job_download_resp.text
+    assert "bom-e2e-1" in breakage_export_job_download_resp.text
+
     breakage_groups_resp = client.get(
         "/api/v1/breakages/metrics/groups?group_by=responsibility&trend_window_days=14&bom_line_item_id=bom-e2e-1&page=1&page_size=10"
     )
@@ -245,6 +281,36 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert helpdesk_status["sync_status"] in {"queued", "pending"}
     assert helpdesk_status["operator_id"] == 21
 
+    helpdesk_execute_failed_resp = client.post(
+        f"/api/v1/breakages/{breakage_incident.id}/helpdesk-sync/execute",
+        json={
+            "job_id": helpdesk_sync["job_id"],
+            "simulate_status": "failed",
+            "error_code": "timeout",
+            "error_message": "upstream timeout",
+        },
+    )
+    assert helpdesk_execute_failed_resp.status_code == 200
+    helpdesk_execute_failed = helpdesk_execute_failed_resp.json()
+    assert helpdesk_execute_failed["incident_id"] == breakage_incident.id
+    assert helpdesk_execute_failed["sync_status"] == "failed"
+    assert helpdesk_execute_failed["last_job"]["failure_category"] == "transient"
+    assert helpdesk_execute_failed["operator_id"] == 21
+
+    helpdesk_execute_completed_resp = client.post(
+        f"/api/v1/breakages/{breakage_incident.id}/helpdesk-sync/execute",
+        json={
+            "job_id": helpdesk_sync["job_id"],
+            "simulate_status": "completed",
+            "external_ticket_id": "HD-E2E-1",
+        },
+    )
+    assert helpdesk_execute_completed_resp.status_code == 200
+    helpdesk_execute_completed = helpdesk_execute_completed_resp.json()
+    assert helpdesk_execute_completed["sync_status"] == "completed"
+    assert helpdesk_execute_completed["external_ticket_id"] == "HD-E2E-1"
+    assert helpdesk_execute_completed["operator_id"] == 21
+
     helpdesk_result_resp = client.post(
         f"/api/v1/breakages/{breakage_incident.id}/helpdesk-sync/result",
         json={
@@ -268,6 +334,26 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert helpdesk_status_done["sync_status"] == "completed"
     assert helpdesk_status_done["external_ticket_id"] == "HD-E2E-1"
     assert helpdesk_status_done["operator_id"] == 21
+
+    breakage_cockpit_resp = client.get(
+        "/api/v1/breakages/cockpit?trend_window_days=14&responsibility=supplier-e2e&page=1&page_size=10"
+    )
+    assert breakage_cockpit_resp.status_code == 200
+    breakage_cockpit = breakage_cockpit_resp.json()
+    assert breakage_cockpit["total"] >= 1
+    assert breakage_cockpit["metrics"]["by_responsibility"]["supplier-e2e"] >= 1
+    assert breakage_cockpit["helpdesk_sync_summary"]["total_jobs"] >= 1
+    assert breakage_cockpit["operator_id"] == 21
+
+    breakage_cockpit_export_md_resp = client.get(
+        "/api/v1/breakages/cockpit/export?trend_window_days=14&responsibility=supplier-e2e&page=1&page_size=10&export_format=md"
+    )
+    assert breakage_cockpit_export_md_resp.status_code == 200
+    assert breakage_cockpit_export_md_resp.headers.get("content-type", "").startswith(
+        "text/markdown"
+    )
+    assert breakage_cockpit_export_md_resp.headers.get("x-operator-id") == "21"
+    assert "# Breakage Cockpit" in breakage_cockpit_export_md_resp.text
 
     summary_resp = client.get(
         "/api/v1/parallel-ops/summary?window_days=7&site_id=site-e2e&target_object=ECO&template_key=tpl-e2e"

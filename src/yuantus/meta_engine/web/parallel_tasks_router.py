@@ -1173,14 +1173,40 @@ class BreakageStatusUpdateRequest(BaseModel):
 
 class BreakageHelpdeskSyncRequest(BaseModel):
     metadata_json: Optional[Dict[str, Any]] = None
+    provider: str = "stub"
+    idempotency_key: Optional[str] = None
+    retry_max_attempts: Optional[int] = Field(None, ge=1, le=10)
 
 
 class BreakageHelpdeskSyncResultRequest(BaseModel):
     sync_status: str = Field(..., description="completed|failed")
     job_id: Optional[str] = None
     external_ticket_id: Optional[str] = None
+    error_code: Optional[str] = None
     error_message: Optional[str] = None
     metadata_json: Optional[Dict[str, Any]] = None
+
+
+class BreakageHelpdeskSyncExecuteRequest(BaseModel):
+    simulate_status: str = Field("completed", description="completed|failed")
+    job_id: Optional[str] = None
+    external_ticket_id: Optional[str] = None
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+    metadata_json: Optional[Dict[str, Any]] = None
+
+
+class BreakageExportJobCreateRequest(BaseModel):
+    status: Optional[str] = None
+    severity: Optional[str] = None
+    product_item_id: Optional[str] = None
+    bom_line_item_id: Optional[str] = None
+    batch_code: Optional[str] = None
+    responsibility: Optional[str] = None
+    page: int = Field(1, ge=1)
+    page_size: int = Field(20, ge=1, le=200)
+    export_format: str = Field("json", description="json|csv|md")
+    execute_immediately: bool = True
 
 
 @parallel_tasks_router.get("/breakages/metrics")
@@ -1558,6 +1584,216 @@ async def export_breakage_incidents(
     )
 
 
+@parallel_tasks_router.get("/breakages/cockpit")
+async def get_breakage_cockpit(
+    status: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    product_item_id: Optional[str] = Query(None),
+    bom_line_item_id: Optional[str] = Query(None),
+    batch_code: Optional[str] = Query(None),
+    responsibility: Optional[str] = Query(None),
+    trend_window_days: int = Query(14, description="7|14|30"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        result = service.cockpit(
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            bom_line_item_id=bom_line_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
+            trend_window_days=trend_window_days,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="breakage_cockpit_invalid_request",
+            message=str(exc),
+            context={
+                "status": status,
+                "severity": severity,
+                "product_item_id": product_item_id,
+                "bom_line_item_id": bom_line_item_id,
+                "batch_code": batch_code,
+                "responsibility": responsibility,
+                "trend_window_days": trend_window_days,
+                "page": page,
+                "page_size": page_size,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/breakages/cockpit/export")
+async def export_breakage_cockpit(
+    status: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    product_item_id: Optional[str] = Query(None),
+    bom_line_item_id: Optional[str] = Query(None),
+    batch_code: Optional[str] = Query(None),
+    responsibility: Optional[str] = Query(None),
+    trend_window_days: int = Query(14, description="7|14|30"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    export_format: str = Query("json", description="json|csv|md"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        exported = service.export_cockpit(
+            status=status,
+            severity=severity,
+            product_item_id=product_item_id,
+            bom_line_item_id=bom_line_item_id,
+            batch_code=batch_code,
+            responsibility=responsibility,
+            trend_window_days=trend_window_days,
+            page=page,
+            page_size=page_size,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="breakage_cockpit_invalid_request",
+            message=str(exc),
+            context={
+                "status": status,
+                "severity": severity,
+                "product_item_id": product_item_id,
+                "bom_line_item_id": bom_line_item_id,
+                "batch_code": batch_code,
+                "responsibility": responsibility,
+                "trend_window_days": trend_window_days,
+                "page": page,
+                "page_size": page_size,
+                "export_format": export_format,
+            },
+        )
+    return StreamingResponse(
+        io.BytesIO(exported["content"]),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "breakage-cockpit.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
+
+
+@parallel_tasks_router.post("/breakages/export/jobs")
+async def create_breakage_incidents_export_job(
+    payload: BreakageExportJobCreateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        result = service.enqueue_incidents_export_job(
+            status=payload.status,
+            severity=payload.severity,
+            product_item_id=payload.product_item_id,
+            bom_line_item_id=payload.bom_line_item_id,
+            batch_code=payload.batch_code,
+            responsibility=payload.responsibility,
+            page=payload.page,
+            page_size=payload.page_size,
+            export_format=payload.export_format,
+            execute_immediately=payload.execute_immediately,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="breakage_export_job_invalid",
+            message=str(exc),
+            context={
+                "status": payload.status,
+                "severity": payload.severity,
+                "product_item_id": payload.product_item_id,
+                "bom_line_item_id": payload.bom_line_item_id,
+                "batch_code": payload.batch_code,
+                "responsibility": payload.responsibility,
+                "page": payload.page,
+                "page_size": payload.page_size,
+                "export_format": payload.export_format,
+                "execute_immediately": payload.execute_immediately,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/breakages/export/jobs/{job_id}")
+async def get_breakage_incidents_export_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        result = service.get_incidents_export_job(job_id)
+    except ValueError as exc:
+        code = "breakage_export_job_not_found"
+        status_code = 404
+        if "not found" not in str(exc).lower():
+            code = "breakage_export_job_invalid"
+            status_code = 400
+        _raise_api_error(
+            status_code=status_code,
+            code=code,
+            message=str(exc),
+            context={"job_id": job_id},
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/breakages/export/jobs/{job_id}/download")
+async def download_breakage_incidents_export_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        exported = service.download_incidents_export_job(job_id)
+    except ValueError as exc:
+        code = "breakage_export_job_not_found"
+        status_code = 404
+        if "not found" not in str(exc).lower():
+            code = "breakage_export_job_invalid"
+            status_code = 400
+        _raise_api_error(
+            status_code=status_code,
+            code=code,
+            message=str(exc),
+            context={"job_id": job_id},
+        )
+    return StreamingResponse(
+        io.BytesIO(exported["content"]),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "breakage-incidents.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
+
+
 @parallel_tasks_router.post("/breakages/{incident_id}/status")
 async def update_breakage_status(
     incident_id: str,
@@ -1609,6 +1845,9 @@ async def sync_breakage_to_helpdesk_stub(
             incident_id,
             user_id=int(user.id),
             metadata_json=payload.metadata_json,
+            provider=payload.provider,
+            idempotency_key=payload.idempotency_key,
+            retry_max_attempts=payload.retry_max_attempts,
         )
         db.commit()
     except ValueError as exc:
@@ -1656,6 +1895,49 @@ async def get_breakage_helpdesk_sync_status(
     return result
 
 
+@parallel_tasks_router.post("/breakages/{incident_id}/helpdesk-sync/execute")
+async def execute_breakage_helpdesk_sync(
+    incident_id: str,
+    payload: BreakageHelpdeskSyncExecuteRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        result = service.execute_helpdesk_sync(
+            incident_id,
+            simulate_status=payload.simulate_status,
+            job_id=payload.job_id,
+            external_ticket_id=payload.external_ticket_id,
+            error_code=payload.error_code,
+            error_message=payload.error_message,
+            metadata_json=payload.metadata_json,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        if "Breakage incident not found" in str(exc):
+            _raise_api_error(
+                status_code=404,
+                code="breakage_not_found",
+                message=str(exc),
+                context={"incident_id": incident_id},
+            )
+        _raise_api_error(
+            status_code=400,
+            code="breakage_helpdesk_sync_invalid",
+            message=str(exc),
+            context={
+                "incident_id": incident_id,
+                "simulate_status": payload.simulate_status,
+                "job_id": payload.job_id,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
 @parallel_tasks_router.post("/breakages/{incident_id}/helpdesk-sync/result")
 async def record_breakage_helpdesk_sync_result(
     incident_id: str,
@@ -1670,6 +1952,7 @@ async def record_breakage_helpdesk_sync_result(
             sync_status=payload.sync_status,
             job_id=payload.job_id,
             external_ticket_id=payload.external_ticket_id,
+            error_code=payload.error_code,
             error_message=payload.error_message,
             metadata_json=payload.metadata_json,
             user_id=int(user.id),

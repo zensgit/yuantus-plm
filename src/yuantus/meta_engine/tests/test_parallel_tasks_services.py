@@ -751,6 +751,44 @@ def test_breakage_helpdesk_stub_sync_enqueue(session):
     assert job.payload["metadata"]["channel"] == "qa"
 
 
+def test_breakage_helpdesk_stub_sync_enqueue_supports_provider_idempotency_retry(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="sensor drift idempotent",
+        product_item_id="p-3",
+        bom_line_item_id="bom-3",
+        severity="low",
+    )
+    session.commit()
+
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=11,
+        metadata_json={"channel": "qa"},
+        provider="zendesk",
+        idempotency_key="idem-qa-1",
+        retry_max_attempts=5,
+    )
+    session.commit()
+    duplicate = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=11,
+        metadata_json={"channel": "qa"},
+        provider="zendesk",
+        idempotency_key="idem-qa-1",
+        retry_max_attempts=5,
+    )
+    session.commit()
+
+    assert job.id == duplicate.id
+    assert job.task_type == "breakage_helpdesk_sync_stub"
+    assert job.max_attempts == 5
+    assert job.payload["integration"]["provider"] == "zendesk"
+    assert job.payload["integration"]["idempotency_key"] == "idem-qa-1"
+    assert job.payload["helpdesk_sync"]["provider"] == "zendesk"
+    assert job.payload["helpdesk_sync"]["idempotency_key"] == "idem-qa-1"
+
+
 def test_breakage_helpdesk_sync_status_and_result_flow(session):
     service = BreakageIncidentService(session)
     incident = service.create_incident(
@@ -791,6 +829,52 @@ def test_breakage_helpdesk_sync_status_and_result_flow(session):
     assert completed["external_ticket_id"] == "HD-1001"
 
 
+def test_breakage_helpdesk_execute_supports_failure_category_and_retry(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="connector melt execute",
+        product_item_id="p-hd-exec-1",
+        bom_line_item_id="bom-hd-exec-1",
+    )
+    session.commit()
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=15,
+        metadata_json={"channel": "ops"},
+        provider="jira",
+        idempotency_key="hd-exec-1",
+    )
+    session.commit()
+
+    failed = service.execute_helpdesk_sync(
+        incident.id,
+        simulate_status="failed",
+        job_id=job.id,
+        error_code="timeout",
+        error_message="upstream timeout",
+        user_id=15,
+    )
+    session.commit()
+    assert failed["sync_status"] == "failed"
+    assert failed["last_job"]["failure_category"] == "transient"
+    assert failed["last_job"]["status"] == "failed"
+    assert failed["last_job"]["attempt_count"] == 1
+
+    completed = service.execute_helpdesk_sync(
+        incident.id,
+        simulate_status="completed",
+        job_id=job.id,
+        external_ticket_id="HD-RETRY-1",
+        user_id=15,
+    )
+    session.commit()
+    assert completed["sync_status"] == "completed"
+    assert completed["external_ticket_id"] == "HD-RETRY-1"
+    assert completed["last_job"]["provider"] == "jira"
+    assert completed["last_job"]["idempotency_key"] == "hd-exec-1"
+    assert completed["last_job"]["attempt_count"] == 2
+
+
 def test_breakage_helpdesk_sync_result_rejects_invalid_sync_status(session):
     service = BreakageIncidentService(session)
     incident = service.create_incident(description="invalid-sync-status")
@@ -803,6 +887,130 @@ def test_breakage_helpdesk_sync_result_rejects_invalid_sync_status(session):
             incident.id,
             sync_status="queued",
         )
+
+
+def test_breakage_incidents_export_job_lifecycle_and_download(session):
+    service = BreakageIncidentService(session)
+    service.create_incident(
+        description="incident-export-job-a",
+        product_item_id="p-export-1",
+        bom_line_item_id="bom-export-1",
+        batch_code="batch-export-1",
+        responsibility="supplier-export",
+    )
+    session.commit()
+
+    enqueued = service.enqueue_incidents_export_job(
+        bom_line_item_id="bom-export-1",
+        page=1,
+        page_size=20,
+        export_format="csv",
+        execute_immediately=False,
+        user_id=9,
+    )
+    assert enqueued["job_id"]
+    assert enqueued["status"] in {"pending", "processing"}
+    assert enqueued["download_ready"] is False
+
+    executed = service.execute_incidents_export_job(enqueued["job_id"], user_id=9)
+    session.commit()
+    assert executed["status"] == "completed"
+    assert executed["download_ready"] is True
+    assert executed["filename"] == "breakage-incidents.csv"
+
+    status = service.get_incidents_export_job(enqueued["job_id"])
+    assert status["status"] == "completed"
+    assert status["download_ready"] is True
+
+    downloaded = service.download_incidents_export_job(enqueued["job_id"])
+    assert downloaded["media_type"] == "text/csv"
+    csv_text = downloaded["content"].decode("utf-8")
+    assert "bom_line_item_id_filter" in csv_text
+    assert "bom-export-1" in csv_text
+
+
+def test_breakage_cockpit_and_export_supports_formats(session):
+    service = BreakageIncidentService(session)
+    incident_a = service.create_incident(
+        description="cockpit-a",
+        severity="high",
+        status="open",
+        product_item_id="p-cockpit-1",
+        bom_line_item_id="bom-cockpit-1",
+        batch_code="batch-cockpit-1",
+        responsibility="supplier-cockpit",
+    )
+    incident_b = service.create_incident(
+        description="cockpit-b",
+        severity="medium",
+        status="closed",
+        product_item_id="p-cockpit-2",
+        bom_line_item_id="bom-cockpit-2",
+        batch_code="batch-cockpit-2",
+        responsibility="supplier-cockpit",
+    )
+    session.commit()
+    job_a = service.enqueue_helpdesk_stub_sync(incident_a.id, user_id=7)
+    job_b = service.enqueue_helpdesk_stub_sync(incident_b.id, user_id=7)
+    session.commit()
+    service.record_helpdesk_sync_result(
+        incident_a.id,
+        sync_status="completed",
+        job_id=job_a.id,
+        external_ticket_id="HD-CP-1",
+        user_id=7,
+    )
+    service.record_helpdesk_sync_result(
+        incident_b.id,
+        sync_status="failed",
+        job_id=job_b.id,
+        error_code="validation_error",
+        error_message="invalid payload",
+        user_id=7,
+    )
+    session.commit()
+
+    cockpit = service.cockpit(
+        responsibility="supplier-cockpit",
+        trend_window_days=14,
+        page=1,
+        page_size=20,
+    )
+    assert cockpit["total"] == 2
+    assert cockpit["metrics"]["by_responsibility"]["supplier-cockpit"] == 2
+    assert cockpit["helpdesk_sync_summary"]["total_jobs"] == 2
+    assert cockpit["helpdesk_sync_summary"]["failed_jobs"] == 1
+
+    exported_json = service.export_cockpit(
+        responsibility="supplier-cockpit",
+        trend_window_days=14,
+        export_format="json",
+    )
+    assert exported_json["media_type"] == "application/json"
+    assert exported_json["filename"] == "breakage-cockpit.json"
+    assert '"helpdesk_sync_summary"' in exported_json["content"].decode("utf-8")
+
+    exported_csv = service.export_cockpit(
+        responsibility="supplier-cockpit",
+        trend_window_days=14,
+        export_format="csv",
+    )
+    assert exported_csv["media_type"] == "text/csv"
+    assert exported_csv["filename"] == "breakage-cockpit.csv"
+    csv_text = exported_csv["content"].decode("utf-8")
+    assert "helpdesk_failed_jobs" in csv_text
+    assert "cockpit-a" in csv_text
+
+    exported_md = service.export_cockpit(
+        responsibility="supplier-cockpit",
+        trend_window_days=14,
+        export_format="md",
+    )
+    assert exported_md["media_type"] == "text/markdown"
+    assert exported_md["filename"] == "breakage-cockpit.md"
+    md_text = exported_md["content"].decode("utf-8")
+    assert md_text.startswith("# Breakage Cockpit")
+    assert "helpdesk_sync_summary" in md_text
 
 
 def test_workorder_doc_pack_supports_inherited_links_and_zip_export(session):

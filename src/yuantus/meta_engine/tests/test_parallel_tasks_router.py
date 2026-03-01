@@ -176,6 +176,66 @@ def test_breakage_helpdesk_sync_status_endpoint_returns_payload():
     assert body["operator_id"] == 3
 
 
+def test_breakage_helpdesk_sync_execute_endpoint_returns_payload():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.execute_helpdesk_sync.return_value = {
+            "incident_id": "inc-1",
+            "sync_status": "completed",
+            "external_ticket_id": "HD-2001",
+            "last_job": {"id": "job-1", "status": "completed"},
+            "jobs": [{"id": "job-1"}],
+        }
+        resp = client.post(
+            "/api/v1/breakages/inc-1/helpdesk-sync/execute",
+            json={"job_id": "job-1", "simulate_status": "completed"},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["incident_id"] == "inc-1"
+    assert body["sync_status"] == "completed"
+    assert body["external_ticket_id"] == "HD-2001"
+    assert body["operator_id"] == 3
+    assert db.commit.called
+    service_cls.return_value.execute_helpdesk_sync.assert_called_once_with(
+        "inc-1",
+        simulate_status="completed",
+        job_id="job-1",
+        external_ticket_id=None,
+        error_code=None,
+        error_message=None,
+        metadata_json=None,
+        user_id=3,
+    )
+
+
+def test_breakage_helpdesk_sync_execute_invalid_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.execute_helpdesk_sync.side_effect = ValueError(
+            "simulate_status must be one of: completed, failed"
+        )
+        resp = client.post(
+            "/api/v1/breakages/inc-1/helpdesk-sync/execute",
+            json={"simulate_status": "queued"},
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "breakage_helpdesk_sync_invalid"
+    assert detail.get("context", {}).get("incident_id") == "inc-1"
+    assert detail.get("context", {}).get("simulate_status") == "queued"
+
+
 def test_breakage_helpdesk_sync_result_endpoint_returns_payload():
     user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
     client, db = _client_with_user(user)
@@ -211,6 +271,7 @@ def test_breakage_helpdesk_sync_result_endpoint_returns_payload():
         sync_status="completed",
         job_id="job-1",
         external_ticket_id="HD-1",
+        error_code=None,
         error_message=None,
         metadata_json=None,
         user_id=3,
@@ -237,6 +298,158 @@ def test_breakage_helpdesk_sync_result_invalid_maps_contract_error():
     assert detail.get("code") == "breakage_helpdesk_sync_invalid"
     assert detail.get("context", {}).get("incident_id") == "inc-1"
     assert detail.get("context", {}).get("sync_status") == "queued"
+
+
+def test_breakage_cockpit_endpoint_returns_payload():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.cockpit.return_value = {
+            "total": 1,
+            "filters": {"bom_line_item_id": "bom-1"},
+            "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+            "kpis": {"incidents_total": 1, "open_incidents": 1},
+            "incidents": [
+                {
+                    "id": "inc-1",
+                    "status": "open",
+                    "severity": "high",
+                    "product_item_id": "p-1",
+                    "bom_line_item_id": "bom-1",
+                }
+            ],
+            "metrics": {"total": 1},
+            "helpdesk_sync_summary": {"total_jobs": 1, "failed_jobs": 0},
+        }
+        resp = client.get(
+            "/api/v1/breakages/cockpit?trend_window_days=14&bom_line_item_id=bom-1&page=1&page_size=20"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["filters"]["bom_line_item_id"] == "bom-1"
+    assert body["operator_id"] == 3
+    service_cls.return_value.cockpit.assert_called_once_with(
+        status=None,
+        severity=None,
+        product_item_id=None,
+        bom_line_item_id="bom-1",
+        batch_code=None,
+        responsibility=None,
+        trend_window_days=14,
+        page=1,
+        page_size=20,
+    )
+
+
+def test_breakage_cockpit_export_returns_download_response():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.export_cockpit.return_value = {
+            "content": b"id,status\ninc-1,open\n",
+            "media_type": "text/csv",
+            "filename": "breakage-cockpit.csv",
+        }
+        resp = client.get(
+            "/api/v1/breakages/cockpit/export?bom_line_item_id=bom-1&trend_window_days=14&export_format=csv&page=1&page_size=20"
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="breakage-cockpit.csv"' in (
+        resp.headers.get("content-disposition", "")
+    )
+    assert resp.headers.get("x-operator-id") == "3"
+    assert "inc-1" in resp.text
+    service_cls.return_value.export_cockpit.assert_called_once_with(
+        status=None,
+        severity=None,
+        product_item_id=None,
+        bom_line_item_id="bom-1",
+        batch_code=None,
+        responsibility=None,
+        trend_window_days=14,
+        page=1,
+        page_size=20,
+        export_format="csv",
+    )
+
+
+def test_breakage_export_job_create_status_and_download_endpoints():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.enqueue_incidents_export_job.return_value = {
+            "job_id": "job-exp-1",
+            "status": "completed",
+            "download_ready": True,
+        }
+        create_resp = client.post(
+            "/api/v1/breakages/export/jobs",
+            json={
+                "bom_line_item_id": "bom-1",
+                "page": 1,
+                "page_size": 20,
+                "export_format": "csv",
+                "execute_immediately": True,
+            },
+        )
+        service_cls.return_value.get_incidents_export_job.return_value = {
+            "job_id": "job-exp-1",
+            "status": "completed",
+            "download_ready": True,
+        }
+        status_resp = client.get("/api/v1/breakages/export/jobs/job-exp-1")
+        service_cls.return_value.download_incidents_export_job.return_value = {
+            "content": b"id,status\ninc-1,open\n",
+            "media_type": "text/csv",
+            "filename": "breakage-incidents.csv",
+        }
+        download_resp = client.get("/api/v1/breakages/export/jobs/job-exp-1/download")
+
+    assert create_resp.status_code == 200
+    assert create_resp.json()["job_id"] == "job-exp-1"
+    assert create_resp.json()["operator_id"] == 3
+    assert status_resp.status_code == 200
+    assert status_resp.json()["job_id"] == "job-exp-1"
+    assert status_resp.json()["operator_id"] == 3
+    assert download_resp.status_code == 200
+    assert download_resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="breakage-incidents.csv"' in (
+        download_resp.headers.get("content-disposition", "")
+    )
+    assert download_resp.headers.get("x-operator-id") == "3"
+    assert "inc-1" in download_resp.text
+    assert db.commit.called
+
+
+def test_breakage_export_job_not_found_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.get_incidents_export_job.side_effect = ValueError(
+            "Breakage incidents export job not found: job-missing"
+        )
+        resp = client.get("/api/v1/breakages/export/jobs/job-missing")
+
+    assert resp.status_code == 404
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "breakage_export_job_not_found"
+    assert detail.get("context", {}).get("job_id") == "job-missing"
 
 
 def test_breakage_metrics_invalid_window_maps_contract_error():
