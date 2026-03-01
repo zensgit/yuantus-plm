@@ -151,17 +151,19 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     db.commit()
 
     breakage_metrics_export_csv_resp = client.get(
-        "/api/v1/breakages/metrics/export?trend_window_days=14&responsibility=supplier-e2e&export_format=csv"
+        "/api/v1/breakages/metrics/export?trend_window_days=14&responsibility=supplier-e2e&bom_line_item_id=bom-e2e-1&export_format=csv"
     )
     assert breakage_metrics_export_csv_resp.status_code == 200
     assert breakage_metrics_export_csv_resp.headers.get("content-type", "").startswith(
         "text/csv"
     )
     assert breakage_metrics_export_csv_resp.headers.get("x-operator-id") == "21"
+    assert "bom_line_item_id_filter" in breakage_metrics_export_csv_resp.text
+    assert "bom-e2e-1" in breakage_metrics_export_csv_resp.text
     assert "responsibility_filter" in breakage_metrics_export_csv_resp.text
 
     breakage_metrics_resp = client.get(
-        "/api/v1/breakages/metrics?trend_window_days=14&responsibility=supplier-e2e"
+        "/api/v1/breakages/metrics?trend_window_days=14&responsibility=supplier-e2e&bom_line_item_id=bom-e2e-1"
     )
     assert breakage_metrics_resp.status_code == 200
     breakage_metrics = breakage_metrics_resp.json()
@@ -169,10 +171,11 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert breakage_metrics["by_batch_code"]["batch-e2e-1"] == 1
     assert breakage_metrics["top_product_items"][0]["product_item_id"] == "prod-e2e-1"
     assert breakage_metrics["top_batch_codes"][0]["batch_code"] == "batch-e2e-1"
+    assert breakage_metrics["filters"]["bom_line_item_id"] == "bom-e2e-1"
     assert breakage_metrics["operator_id"] == 21
 
     breakage_groups_resp = client.get(
-        "/api/v1/breakages/metrics/groups?group_by=responsibility&trend_window_days=14&page=1&page_size=10"
+        "/api/v1/breakages/metrics/groups?group_by=responsibility&trend_window_days=14&bom_line_item_id=bom-e2e-1&page=1&page_size=10"
     )
     assert breakage_groups_resp.status_code == 200
     breakage_groups = breakage_groups_resp.json()
@@ -180,6 +183,7 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert breakage_groups["total_groups"] >= 1
     assert breakage_groups["groups"][0]["group_value"] == "supplier-e2e"
     assert breakage_groups["groups"][0]["count"] == 1
+    assert breakage_groups["filters"]["bom_line_item_id"] == "bom-e2e-1"
     assert breakage_groups["operator_id"] == 21
 
     breakage_groups_bom_line_resp = client.get(
@@ -193,7 +197,7 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert breakage_groups_bom_line["operator_id"] == 21
 
     breakage_groups_export_md_resp = client.get(
-        "/api/v1/breakages/metrics/groups/export?group_by=responsibility&trend_window_days=14&responsibility=supplier-e2e&export_format=md"
+        "/api/v1/breakages/metrics/groups/export?group_by=responsibility&trend_window_days=14&responsibility=supplier-e2e&bom_line_item_id=bom-e2e-1&export_format=md"
     )
     assert breakage_groups_export_md_resp.status_code == 200
     assert breakage_groups_export_md_resp.headers.get("content-type", "").startswith(
@@ -201,6 +205,7 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     )
     assert breakage_groups_export_md_resp.headers.get("x-operator-id") == "21"
     assert "# Breakage Metrics Groups" in breakage_groups_export_md_resp.text
+    assert "bom_line_item_id" in breakage_groups_export_md_resp.text
     assert "supplier-e2e" in breakage_groups_export_md_resp.text
 
     summary_resp = client.get(

@@ -437,12 +437,14 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
 
     metrics = service.metrics(
         product_item_id="p-1",
+        bom_line_item_id="bom-1",
         responsibility="supplier-a",
         trend_window_days=14,
         page=1,
         page_size=1,
     )
     assert metrics["filters"]["product_item_id"] == "p-1"
+    assert metrics["filters"]["bom_line_item_id"] == "bom-1"
     assert metrics["filters"]["responsibility"] == "supplier-a"
     assert metrics["pagination"]["page_size"] == 1
     assert metrics["pagination"]["total"] == 2
@@ -513,6 +515,14 @@ def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
     assert groups_bom_line["groups"][0]["group_value"] == "bom-g-1"
     assert groups_bom_line["groups"][0]["count"] == 2
 
+    groups_filtered = service.metrics_groups(
+        group_by="product_item_id",
+        bom_line_item_id="bom-g-2",
+    )
+    assert groups_filtered["total_groups"] == 1
+    assert groups_filtered["groups"][0]["group_value"] == "p-g-2"
+    assert groups_filtered["filters"]["bom_line_item_id"] == "bom-g-2"
+
 
 def test_breakage_metrics_groups_rejects_invalid_group_by(session):
     service = BreakageIncidentService(session)
@@ -534,6 +544,7 @@ def test_breakage_metrics_export_json_csv_md(session):
 
     exported_json = service.export_metrics(
         product_item_id="p-exp-1",
+        bom_line_item_id="bom-exp-1",
         responsibility="supplier-exp",
         trend_window_days=14,
         export_format="json",
@@ -545,6 +556,7 @@ def test_breakage_metrics_export_json_csv_md(session):
 
     exported_csv = service.export_metrics(
         product_item_id="p-exp-1",
+        bom_line_item_id="bom-exp-1",
         responsibility="supplier-exp",
         trend_window_days=14,
         export_format="csv",
@@ -553,10 +565,13 @@ def test_breakage_metrics_export_json_csv_md(session):
     assert exported_csv["media_type"] == "text/csv"
     assert exported_csv["filename"] == "breakage-metrics.csv"
     assert "date,count,total,repeated_event_count,repeated_failure_rate" in csv_text
+    assert "bom_line_item_id_filter" in csv_text
+    assert "bom-exp-1" in csv_text
     assert "supplier-exp" in csv_text
 
     exported_md = service.export_metrics(
         product_item_id="p-exp-1",
+        bom_line_item_id="bom-exp-1",
         responsibility="supplier-exp",
         trend_window_days=14,
         export_format="md",

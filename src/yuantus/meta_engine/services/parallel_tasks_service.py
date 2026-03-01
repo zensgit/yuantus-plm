@@ -1343,6 +1343,7 @@ class BreakageIncidentService:
         status: Optional[str] = None,
         severity: Optional[str] = None,
         product_item_id: Optional[str] = None,
+        bom_line_item_id: Optional[str] = None,
         batch_code: Optional[str] = None,
         responsibility: Optional[str] = None,
     ) -> List[BreakageIncident]:
@@ -1350,6 +1351,7 @@ class BreakageIncidentService:
         normalized_status = (status or "").strip().lower()
         normalized_severity = (severity or "").strip().lower()
         normalized_product = str(product_item_id or "").strip()
+        normalized_bom_line = str(bom_line_item_id or "").strip()
         normalized_batch = str(batch_code or "").strip()
         normalized_resp = str(responsibility or "").strip().lower()
 
@@ -1359,6 +1361,8 @@ class BreakageIncidentService:
             if normalized_severity and str(incident.severity or "").lower() != normalized_severity:
                 continue
             if normalized_product and str(incident.product_item_id or "") != normalized_product:
+                continue
+            if normalized_bom_line and str(incident.bom_line_item_id or "") != normalized_bom_line:
                 continue
             if normalized_batch and str(incident.batch_code or "") != normalized_batch:
                 continue
@@ -1441,6 +1445,7 @@ class BreakageIncidentService:
         status: Optional[str] = None,
         severity: Optional[str] = None,
         product_item_id: Optional[str] = None,
+        bom_line_item_id: Optional[str] = None,
         batch_code: Optional[str] = None,
         responsibility: Optional[str] = None,
         trend_window_days: int = 14,
@@ -1460,6 +1465,7 @@ class BreakageIncidentService:
             status=status,
             severity=severity,
             product_item_id=product_item_id,
+            bom_line_item_id=bom_line_item_id,
             batch_code=batch_code,
             responsibility=responsibility,
         )
@@ -1568,6 +1574,7 @@ class BreakageIncidentService:
                 "status": status,
                 "severity": severity,
                 "product_item_id": product_item_id,
+                "bom_line_item_id": bom_line_item_id,
                 "batch_code": batch_code,
                 "responsibility": responsibility,
             },
@@ -1587,6 +1594,7 @@ class BreakageIncidentService:
         status: Optional[str] = None,
         severity: Optional[str] = None,
         product_item_id: Optional[str] = None,
+        bom_line_item_id: Optional[str] = None,
         batch_code: Optional[str] = None,
         responsibility: Optional[str] = None,
         trend_window_days: int = 14,
@@ -1607,6 +1615,7 @@ class BreakageIncidentService:
             status=status,
             severity=severity,
             product_item_id=product_item_id,
+            bom_line_item_id=bom_line_item_id,
             batch_code=batch_code,
             responsibility=responsibility,
         )
@@ -1644,6 +1653,7 @@ class BreakageIncidentService:
                 "status": status,
                 "severity": severity,
                 "product_item_id": product_item_id,
+                "bom_line_item_id": bom_line_item_id,
                 "batch_code": batch_code,
                 "responsibility": responsibility,
             },
@@ -1673,6 +1683,7 @@ class BreakageIncidentService:
                     "status_filter": filters.get("status"),
                     "severity_filter": filters.get("severity"),
                     "product_item_id_filter": filters.get("product_item_id"),
+                    "bom_line_item_id_filter": filters.get("bom_line_item_id"),
                     "batch_code_filter": filters.get("batch_code"),
                     "responsibility_filter": filters.get("responsibility"),
                 }
@@ -1690,6 +1701,7 @@ class BreakageIncidentService:
                 "status_filter": filters.get("status"),
                 "severity_filter": filters.get("severity"),
                 "product_item_id_filter": filters.get("product_item_id"),
+                "bom_line_item_id_filter": filters.get("bom_line_item_id"),
                 "batch_code_filter": filters.get("batch_code"),
                 "responsibility_filter": filters.get("responsibility"),
             }
@@ -1722,6 +1734,7 @@ class BreakageIncidentService:
                     "status_filter": filters.get("status"),
                     "severity_filter": filters.get("severity"),
                     "product_item_id_filter": filters.get("product_item_id"),
+                    "bom_line_item_id_filter": filters.get("bom_line_item_id"),
                     "batch_code_filter": filters.get("batch_code"),
                     "responsibility_filter": filters.get("responsibility"),
                 }
@@ -1738,6 +1751,7 @@ class BreakageIncidentService:
                 "status_filter": filters.get("status"),
                 "severity_filter": filters.get("severity"),
                 "product_item_id_filter": filters.get("product_item_id"),
+                "bom_line_item_id_filter": filters.get("bom_line_item_id"),
                 "batch_code_filter": filters.get("batch_code"),
                 "responsibility_filter": filters.get("responsibility"),
             }
@@ -1749,6 +1763,7 @@ class BreakageIncidentService:
         status: Optional[str] = None,
         severity: Optional[str] = None,
         product_item_id: Optional[str] = None,
+        bom_line_item_id: Optional[str] = None,
         batch_code: Optional[str] = None,
         responsibility: Optional[str] = None,
         trend_window_days: int = 14,
@@ -1760,6 +1775,7 @@ class BreakageIncidentService:
             status=status,
             severity=severity,
             product_item_id=product_item_id,
+            bom_line_item_id=bom_line_item_id,
             batch_code=batch_code,
             responsibility=responsibility,
             trend_window_days=trend_window_days,
@@ -1790,6 +1806,7 @@ class BreakageIncidentService:
                     "status_filter",
                     "severity_filter",
                     "product_item_id_filter",
+                    "bom_line_item_id_filter",
                     "batch_code_filter",
                     "responsibility_filter",
                 ],
@@ -1899,6 +1916,7 @@ class BreakageIncidentService:
         status: Optional[str] = None,
         severity: Optional[str] = None,
         product_item_id: Optional[str] = None,
+        bom_line_item_id: Optional[str] = None,
         batch_code: Optional[str] = None,
         responsibility: Optional[str] = None,
         trend_window_days: int = 14,
@@ -1911,6 +1929,7 @@ class BreakageIncidentService:
             status=status,
             severity=severity,
             product_item_id=product_item_id,
+            bom_line_item_id=bom_line_item_id,
             batch_code=batch_code,
             responsibility=responsibility,
             trend_window_days=trend_window_days,
@@ -1940,6 +1959,7 @@ class BreakageIncidentService:
                     "status_filter",
                     "severity_filter",
                     "product_item_id_filter",
+                    "bom_line_item_id_filter",
                     "batch_code_filter",
                     "responsibility_filter",
                 ],

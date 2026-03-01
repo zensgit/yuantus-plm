@@ -137,6 +137,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Parallel P0 Reliability + Error Contract: `docs/DEV_AND_VERIFICATION_PARALLEL_P0_RELIABILITY_AND_ERROR_CONTRACT_20260228.md`
 - Parallel P1 BOM Delta Markdown Export Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_BOM_DELTA_MARKDOWN_EXPORT_EXT_20260301.md`
 - Parallel P1 BOM Delta Risk Distribution Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_BOM_DELTA_RISK_DISTRIBUTION_EXT_20260301.md`
+- Parallel P1 Breakage Metrics BOM Line Filter Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_BREAKAGE_METRICS_BOM_LINE_FILTER_EXT_20260301.md`
 - Parallel P1 Breakage Metrics Dimension Aggregation Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_BREAKAGE_METRICS_DIMENSION_AGG_EXT_20260301.md`
 - Parallel P1 Breakage Metrics Export Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_BREAKAGE_METRICS_EXPORT_EXT_20260228.md`
 - Parallel P1 Breakage Metrics Groups BOM Line Dimension Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_BREAKAGE_METRICS_GROUPS_BOM_LINE_DIM_EXT_20260301.md`

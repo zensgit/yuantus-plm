@@ -163,12 +163,15 @@ def test_breakage_metrics_invalid_window_maps_contract_error():
         service_cls.return_value.metrics.side_effect = ValueError(
             "trend_window_days must be one of: 7, 14, 30"
         )
-        resp = client.get("/api/v1/breakages/metrics?trend_window_days=10")
+        resp = client.get(
+            "/api/v1/breakages/metrics?trend_window_days=10&bom_line_item_id=bom-x"
+        )
 
     assert resp.status_code == 400
     detail = resp.json().get("detail") or {}
     assert detail.get("code") == "breakage_metrics_invalid_request"
     assert detail.get("context", {}).get("trend_window_days") == 10
+    assert detail.get("context", {}).get("bom_line_item_id") == "bom-x"
 
 
 def test_breakage_metrics_returns_dimension_aggregates():
@@ -196,7 +199,9 @@ def test_breakage_metrics_returns_dimension_aggregates():
             "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 2},
             "incidents": [],
         }
-        resp = client.get("/api/v1/breakages/metrics?trend_window_days=14")
+        resp = client.get(
+            "/api/v1/breakages/metrics?trend_window_days=14&bom_line_item_id=bom-1"
+        )
 
     assert resp.status_code == 200
     body = resp.json()
@@ -205,6 +210,17 @@ def test_breakage_metrics_returns_dimension_aggregates():
     assert body["top_product_items"][0]["product_item_id"] == "p-1"
     assert body["top_batch_codes"][0]["batch_code"] == "b-1"
     assert body["operator_id"] == 3
+    service_cls.return_value.metrics.assert_called_once_with(
+        status=None,
+        severity=None,
+        product_item_id=None,
+        bom_line_item_id="bom-1",
+        batch_code=None,
+        responsibility=None,
+        trend_window_days=14,
+        page=1,
+        page_size=20,
+    )
 
 
 def test_breakage_metrics_groups_returns_payload():
@@ -226,7 +242,7 @@ def test_breakage_metrics_groups_returns_payload():
             "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 2},
         }
         resp = client.get(
-            "/api/v1/breakages/metrics/groups?group_by=product_item_id&trend_window_days=14"
+            "/api/v1/breakages/metrics/groups?group_by=product_item_id&trend_window_days=14&bom_line_item_id=bom-1"
         )
 
     assert resp.status_code == 200
@@ -235,6 +251,18 @@ def test_breakage_metrics_groups_returns_payload():
     assert body["total_groups"] == 2
     assert body["groups"][0]["group_value"] == "p-1"
     assert body["operator_id"] == 3
+    service_cls.return_value.metrics_groups.assert_called_once_with(
+        group_by="product_item_id",
+        status=None,
+        severity=None,
+        product_item_id=None,
+        bom_line_item_id="bom-1",
+        batch_code=None,
+        responsibility=None,
+        trend_window_days=14,
+        page=1,
+        page_size=20,
+    )
 
 
 def test_breakage_metrics_groups_supports_bom_line_item_dimension():
@@ -298,7 +326,7 @@ def test_breakage_metrics_groups_export_returns_download_response():
             "filename": "breakage-metrics-groups.csv",
         }
         resp = client.get(
-            "/api/v1/breakages/metrics/groups/export?group_by=product_item_id&trend_window_days=14&export_format=csv"
+            "/api/v1/breakages/metrics/groups/export?group_by=product_item_id&trend_window_days=14&bom_line_item_id=bom-1&export_format=csv"
         )
 
     assert resp.status_code == 200
@@ -308,6 +336,19 @@ def test_breakage_metrics_groups_export_returns_download_response():
     )
     assert resp.headers.get("x-operator-id") == "3"
     assert "group_by,group_value,count" in resp.text
+    service_cls.return_value.export_metrics_groups.assert_called_once_with(
+        group_by="product_item_id",
+        status=None,
+        severity=None,
+        product_item_id=None,
+        bom_line_item_id="bom-1",
+        batch_code=None,
+        responsibility=None,
+        trend_window_days=14,
+        page=1,
+        page_size=20,
+        export_format="csv",
+    )
 
 
 def test_breakage_metrics_groups_export_invalid_request_maps_contract_error():
@@ -344,7 +385,7 @@ def test_breakage_metrics_export_returns_download_response():
             "filename": "breakage-metrics.csv",
         }
         resp = client.get(
-            "/api/v1/breakages/metrics/export?trend_window_days=14&export_format=csv"
+            "/api/v1/breakages/metrics/export?trend_window_days=14&bom_line_item_id=bom-1&export_format=csv"
         )
 
     assert resp.status_code == 200
@@ -354,6 +395,18 @@ def test_breakage_metrics_export_returns_download_response():
     )
     assert resp.headers.get("x-operator-id") == "3"
     assert "date,count,total" in resp.text
+    service_cls.return_value.export_metrics.assert_called_once_with(
+        status=None,
+        severity=None,
+        product_item_id=None,
+        bom_line_item_id="bom-1",
+        batch_code=None,
+        responsibility=None,
+        trend_window_days=14,
+        page=1,
+        page_size=20,
+        export_format="csv",
+    )
 
 
 def test_breakage_metrics_export_invalid_request_maps_contract_error():
