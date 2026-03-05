@@ -492,3 +492,88 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert metrics_resp.headers.get("x-operator-id") == "21"
     assert "yuantus_parallel_doc_sync_jobs_total" in metrics_resp.text
     assert 'site_id="site-e2e"' in metrics_resp.text
+
+
+def test_eco_activity_sla_endpoint_e2e():
+    user = SimpleNamespace(id=31, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_real_db(user)
+    now = datetime(2026, 3, 5, 12, 0, 0)
+
+    create_overdue_resp = client.post(
+        "/api/v1/eco-activities",
+        json={
+            "eco_id": "eco-sla-e2e",
+            "name": "overdue-e2e",
+            "assignee_id": 100,
+            "properties": {"due_at": (now - timedelta(hours=1)).isoformat()},
+        },
+    )
+    assert create_overdue_resp.status_code == 200
+
+    create_due_soon_resp = client.post(
+        "/api/v1/eco-activities",
+        json={
+            "eco_id": "eco-sla-e2e",
+            "name": "due-soon-e2e",
+            "assignee_id": 100,
+            "properties": {"due_at": (now + timedelta(hours=2)).isoformat()},
+        },
+    )
+    assert create_due_soon_resp.status_code == 200
+
+    create_no_due_resp = client.post(
+        "/api/v1/eco-activities",
+        json={
+            "eco_id": "eco-sla-e2e",
+            "name": "no-due-e2e",
+            "assignee_id": 101,
+        },
+    )
+    assert create_no_due_resp.status_code == 200
+
+    create_closed_resp = client.post(
+        "/api/v1/eco-activities",
+        json={
+            "eco_id": "eco-sla-e2e",
+            "name": "closed-e2e",
+            "assignee_id": 100,
+            "properties": {"due_at": (now - timedelta(hours=3)).isoformat()},
+        },
+    )
+    assert create_closed_resp.status_code == 200
+    closed_id = create_closed_resp.json()["id"]
+    close_resp = client.post(
+        f"/api/v1/eco-activities/activity/{closed_id}/transition",
+        json={"to_status": "completed", "reason": "done"},
+    )
+    assert close_resp.status_code == 200
+
+    sla_resp = client.get(
+        "/api/v1/eco-activities/eco-sla-e2e/sla"
+        "?due_soon_hours=24&evaluated_at=2026-03-05T12:00:00Z"
+    )
+    assert sla_resp.status_code == 200
+    sla = sla_resp.json()
+    assert sla["operator_id"] == 31
+    assert sla["total"] == 3
+    assert sla["overdue_total"] == 1
+    assert sla["due_soon_total"] == 1
+    assert sla["no_due_date_total"] == 1
+    assert sla["closed_total"] == 0
+    assert [row["name"] for row in sla["activities"]][:2] == [
+        "overdue-e2e",
+        "due-soon-e2e",
+    ]
+
+    sla_assignee_closed_resp = client.get(
+        "/api/v1/eco-activities/eco-sla-e2e/sla"
+        "?due_soon_hours=24&assignee_id=100&include_closed=true"
+        "&evaluated_at=2026-03-05T12:00:00Z"
+    )
+    assert sla_assignee_closed_resp.status_code == 200
+    sla_assignee_closed = sla_assignee_closed_resp.json()
+    assert sla_assignee_closed["total"] == 3
+    assert sla_assignee_closed["closed_total"] == 1
+    names = [row["name"] for row in sla_assignee_closed["activities"]]
+    assert "no-due-e2e" not in names
+    assert "closed-e2e" in names

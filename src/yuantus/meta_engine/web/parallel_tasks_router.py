@@ -614,6 +614,45 @@ async def get_eco_activity_events(
     }
 
 
+@parallel_tasks_router.get("/eco-activities/{eco_id}/sla")
+async def get_eco_activity_sla(
+    eco_id: str,
+    due_soon_hours: int = Query(24),
+    include_closed: bool = Query(False),
+    assignee_id: Optional[int] = Query(None),
+    limit: int = Query(100),
+    evaluated_at: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ECOActivityValidationService(db)
+    now = _parse_utc_datetime(evaluated_at, field_name="evaluated_at")
+    try:
+        result = service.activity_sla(
+            eco_id,
+            now=now,
+            due_soon_hours=due_soon_hours,
+            include_closed=include_closed,
+            assignee_id=assignee_id,
+            limit=limit,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="eco_activity_sla_invalid",
+            message=str(exc),
+            context={
+                "eco_id": eco_id,
+                "due_soon_hours": due_soon_hours,
+                "include_closed": bool(include_closed),
+                "assignee_id": assignee_id,
+                "limit": limit,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
 # ---------------------------
 # P0-C Workflow Custom Actions
 # ---------------------------

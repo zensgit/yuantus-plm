@@ -8,7 +8,7 @@ import json
 import time
 import uuid
 from collections import Counter, defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from threading import Lock
 from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List, Optional
@@ -402,6 +402,7 @@ class DocumentMultiSiteService:
 
 class ECOActivityValidationService:
     _TERMINAL = {"completed", "canceled", "exception"}
+    _OPEN = {"pending", "active"}
     _VALID_STATUS = {"pending", "active", "completed", "canceled", "exception"}
 
     def __init__(self, session: Session):
@@ -558,6 +559,155 @@ class ECOActivityValidationService:
             .limit(cap)
             .all()
         )
+
+    def _normalize_due_soon_hours(self, due_soon_hours: int) -> int:
+        try:
+            normalized = int(due_soon_hours)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("due_soon_hours must be an integer between 1 and 720") from exc
+        if normalized < 1 or normalized > 720:
+            raise ValueError("due_soon_hours must be between 1 and 720")
+        return normalized
+
+    def _normalize_sla_limit(self, limit: int) -> int:
+        try:
+            normalized = int(limit)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("limit must be an integer between 1 and 500") from exc
+        if normalized < 1 or normalized > 500:
+            raise ValueError("limit must be between 1 and 500")
+        return normalized
+
+    def _activity_due_at(self, activity: ECOActivityGate) -> Optional[datetime]:
+        properties = activity.properties if isinstance(activity.properties, dict) else {}
+        raw = properties.get("due_at")
+        if isinstance(raw, datetime):
+            parsed = raw
+        else:
+            value = str(raw or "").strip()
+            if not value:
+                return None
+            try:
+                parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+        if parsed.tzinfo is not None:
+            return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
+
+    def activity_sla(
+        self,
+        eco_id: str,
+        *,
+        now: Optional[datetime] = None,
+        due_soon_hours: int = 24,
+        include_closed: bool = False,
+        assignee_id: Optional[int] = None,
+        limit: int = 100,
+    ) -> Dict[str, Any]:
+        window_hours = self._normalize_due_soon_hours(due_soon_hours)
+        cap = self._normalize_sla_limit(limit)
+        evaluated_at = now or _utcnow()
+        if evaluated_at.tzinfo is not None:
+            evaluated_at = evaluated_at.astimezone(timezone.utc).replace(tzinfo=None)
+        due_soon_deadline = evaluated_at + timedelta(hours=window_hours)
+
+        activities = self.list_activities(eco_id)
+        rows: List[Dict[str, Any]] = []
+        status_counts: Counter[str] = Counter()
+        overdue_total = 0
+        due_soon_total = 0
+        on_track_total = 0
+        no_due_date_total = 0
+        closed_total = 0
+
+        for activity in activities:
+            if assignee_id is not None and int(activity.assignee_id or 0) != int(assignee_id):
+                continue
+            status = str(activity.status or "pending").strip().lower() or "pending"
+            is_terminal = status in self._TERMINAL
+            if is_terminal and not include_closed:
+                continue
+            status_counts[status] += 1
+
+            due_at = self._activity_due_at(activity)
+            hours_to_due = None
+            if due_at is not None:
+                hours_to_due = round(
+                    (due_at - evaluated_at).total_seconds() / 3600.0,
+                    3,
+                )
+
+            if is_terminal:
+                classification = "closed"
+                closed_total += 1
+            elif due_at is None:
+                classification = "no_due_date"
+                no_due_date_total += 1
+            elif due_at < evaluated_at:
+                classification = "overdue"
+                overdue_total += 1
+            elif due_at <= due_soon_deadline:
+                classification = "due_soon"
+                due_soon_total += 1
+            else:
+                classification = "on_track"
+                on_track_total += 1
+
+            rows.append(
+                {
+                    "id": activity.id,
+                    "name": activity.name,
+                    "status": status,
+                    "is_blocking": bool(activity.is_blocking),
+                    "assignee_id": activity.assignee_id,
+                    "depends_on_activity_ids": self._dependency_ids(activity),
+                    "due_at": due_at.isoformat() if due_at else None,
+                    "classification": classification,
+                    "hours_to_due": hours_to_due,
+                    "closed_at": activity.closed_at.isoformat() if activity.closed_at else None,
+                    "updated_at": activity.updated_at.isoformat() if activity.updated_at else None,
+                }
+            )
+
+        order = {
+            "overdue": 0,
+            "due_soon": 1,
+            "on_track": 2,
+            "no_due_date": 3,
+            "closed": 4,
+        }
+        rows.sort(
+            key=lambda row: (
+                order.get(str(row.get("classification")), 99),
+                row.get("due_at") is None,
+                str(row.get("due_at") or ""),
+                str(row.get("id") or ""),
+            )
+        )
+
+        total = len(rows)
+        page = rows[:cap]
+        open_total = sum(status_counts.get(status, 0) for status in self._OPEN)
+
+        return {
+            "eco_id": eco_id,
+            "evaluated_at": evaluated_at.isoformat(),
+            "due_soon_hours": window_hours,
+            "due_soon_deadline": due_soon_deadline.isoformat(),
+            "include_closed": bool(include_closed),
+            "assignee_id": assignee_id,
+            "total": total,
+            "open_total": open_total,
+            "closed_total": closed_total,
+            "overdue_total": overdue_total,
+            "due_soon_total": due_soon_total,
+            "on_track_total": on_track_total,
+            "no_due_date_total": no_due_date_total,
+            "status_counts": dict(sorted(status_counts.items())),
+            "truncated": total > cap,
+            "activities": page,
+        }
 
     def _record_event(
         self,

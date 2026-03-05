@@ -194,6 +194,99 @@ def test_eco_activity_validation_enforces_dependency_gate(session):
     assert len(events) >= 4
 
 
+def test_eco_activity_sla_classification_and_filters(session):
+    service = ECOActivityValidationService(session)
+    now = datetime(2026, 3, 5, 12, 0, 0)
+
+    overdue = service.create_activity(
+        eco_id="eco-sla",
+        name="overdue-check",
+        assignee_id=11,
+        properties={"due_at": (now - timedelta(hours=2)).isoformat() + "Z"},
+    )
+    due_soon = service.create_activity(
+        eco_id="eco-sla",
+        name="due-soon-check",
+        assignee_id=11,
+        properties={"due_at": (now + timedelta(hours=3)).isoformat()},
+    )
+    on_track = service.create_activity(
+        eco_id="eco-sla",
+        name="on-track-check",
+        assignee_id=12,
+        properties={"due_at": (now + timedelta(hours=72)).isoformat()},
+    )
+    no_due = service.create_activity(
+        eco_id="eco-sla",
+        name="no-due-check",
+        assignee_id=11,
+    )
+    closed = service.create_activity(
+        eco_id="eco-sla",
+        name="closed-check",
+        assignee_id=11,
+        properties={"due_at": (now - timedelta(hours=5)).isoformat()},
+    )
+    service.transition_activity(activity_id=closed.id, to_status="completed", user_id=11)
+    session.commit()
+
+    overview = service.activity_sla(
+        "eco-sla",
+        now=now,
+        due_soon_hours=24,
+        include_closed=False,
+        limit=10,
+    )
+    assert overview["total"] == 4
+    assert overview["overdue_total"] == 1
+    assert overview["due_soon_total"] == 1
+    assert overview["on_track_total"] == 1
+    assert overview["no_due_date_total"] == 1
+    assert overview["closed_total"] == 0
+    assert overview["status_counts"] == {"pending": 4}
+    names = [row["name"] for row in overview["activities"]]
+    assert names[0] == "overdue-check"
+    assert names[1] == "due-soon-check"
+    assert "closed-check" not in names
+
+    assignee_view = service.activity_sla(
+        "eco-sla",
+        now=now,
+        due_soon_hours=24,
+        assignee_id=11,
+        include_closed=True,
+        limit=10,
+    )
+    assignee_names = [row["name"] for row in assignee_view["activities"]]
+    assert "on-track-check" not in assignee_names
+    assert "closed-check" in assignee_names
+    assert assignee_view["closed_total"] == 1
+
+    limit_view = service.activity_sla(
+        "eco-sla",
+        now=now,
+        due_soon_hours=24,
+        include_closed=True,
+        limit=2,
+    )
+    assert limit_view["total"] == 5
+    assert limit_view["truncated"] is True
+    assert len(limit_view["activities"]) == 2
+    assert overdue.id == limit_view["activities"][0]["id"]
+    assert due_soon.id == limit_view["activities"][1]["id"]
+
+
+def test_eco_activity_sla_validates_window_and_limit(session):
+    service = ECOActivityValidationService(session)
+    service.create_activity(eco_id="eco-1", name="a")
+    session.commit()
+
+    with pytest.raises(ValueError, match="due_soon_hours must be between 1 and 720"):
+        service.activity_sla("eco-1", due_soon_hours=0)
+    with pytest.raises(ValueError, match="limit must be between 1 and 500"):
+        service.activity_sla("eco-1", limit=0)
+
+
 def test_workflow_custom_actions_emit_event_and_create_job(session):
     service = WorkflowCustomActionService(session)
     service.create_rule(

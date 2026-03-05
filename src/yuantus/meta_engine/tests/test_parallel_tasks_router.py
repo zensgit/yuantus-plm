@@ -992,6 +992,66 @@ def test_eco_activity_transition_blocked_maps_contract_error():
     assert detail.get("context", {}).get("activity_id") == "act-1"
 
 
+def test_eco_activity_sla_returns_overview_with_operator_id():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.activity_sla.return_value = {
+            "eco_id": "eco-1",
+            "evaluated_at": "2026-03-05T12:00:00",
+            "due_soon_hours": 48,
+            "total": 1,
+            "overdue_total": 0,
+            "due_soon_total": 1,
+            "on_track_total": 0,
+            "no_due_date_total": 0,
+            "closed_total": 0,
+            "status_counts": {"pending": 1},
+            "truncated": False,
+            "activities": [{"id": "a-1", "name": "review", "classification": "due_soon"}],
+        }
+        resp = client.get(
+            "/api/v1/eco-activities/eco-1/sla"
+            "?due_soon_hours=48&include_closed=true&assignee_id=12&limit=30"
+            "&evaluated_at=2026-03-05T12:00:00Z"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["operator_id"] == 6
+    assert body["due_soon_hours"] == 48
+    assert body["activities"][0]["classification"] == "due_soon"
+    call = service_cls.return_value.activity_sla.call_args
+    assert call.args[0] == "eco-1"
+    assert call.kwargs["due_soon_hours"] == 48
+    assert call.kwargs["include_closed"] is True
+    assert call.kwargs["assignee_id"] == 12
+    assert call.kwargs["limit"] == 30
+    assert call.kwargs["now"] is not None
+
+
+def test_eco_activity_sla_invalid_maps_contract_error():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.activity_sla.side_effect = ValueError(
+            "due_soon_hours must be between 1 and 720"
+        )
+        resp = client.get("/api/v1/eco-activities/eco-1/sla?due_soon_hours=0")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "eco_activity_sla_invalid"
+    assert detail.get("context", {}).get("eco_id") == "eco-1"
+    assert detail.get("context", {}).get("due_soon_hours") == 0
+
+
 def test_workflow_rule_invalid_payload_returns_contract_error():
     user = SimpleNamespace(id=9, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
