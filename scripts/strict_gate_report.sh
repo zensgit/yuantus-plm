@@ -17,11 +17,11 @@ Usage:
 
 Environment:
   RUN_ID=<id>                Stable run id used in output folder naming.
-                             Default: STRICT_GATE_<timestamp>
+                             Default: STRICT_GATE_<timestamp>_<pid>
   OUT_DIR=<path>             Directory for logs.
                              Default: tmp/strict-gate/<run_id>
   REPORT_PATH=<path>         Markdown report output path.
-                             Default: docs/DAILY_REPORTS/STRICT_GATE_<timestamp>.md
+                             Default: docs/DAILY_REPORTS/<run_id>.md
 
   RUN_RUN_H_E2E=1            Optional. If set, runs `scripts/verify_run_h_e2e.sh`
                              as an evidence-grade, API-only shell E2E step.
@@ -37,7 +37,10 @@ Environment:
 
   TARGETED_PYTEST_ARGS=<arg> Optional. If set, runs an extra targeted pytest step.
   PYTEST_BIN=<path>          Optional. Default: .venv/bin/pytest
-  PLAYWRIGHT_CMD=<cmd>       Optional. Default: npx playwright test
+  PLAYWRIGHT_CMD=<cmd>       Optional. Default: npx playwright test --workers=1
+  PLAYWRIGHT_MAX_ATTEMPTS=<n> Optional. Default: 2
+  PLAYWRIGHT_RETRYABLE_PATTERN=<re> Optional. Passed through to playwright runner.
+  PLAYWRIGHT_KEEP_DB=1       Optional. If set, keeps Playwright sqlite files.
   DEMO_SCRIPT=1              Optional. If set, runs scripts/demo_plm_closed_loop.sh
 
 Examples:
@@ -68,12 +71,12 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export PYTHONPATH="${PYTHONPATH:-src}"
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
-run_id="${RUN_ID:-STRICT_GATE_${timestamp}}"
+run_id="${RUN_ID:-STRICT_GATE_${timestamp}_$$}"
 
 out_dir_default="${REPO_ROOT}/tmp/strict-gate/${run_id}"
 OUT_DIR="${OUT_DIR:-$out_dir_default}"
 
-report_default="${REPO_ROOT}/docs/DAILY_REPORTS/STRICT_GATE_${timestamp}.md"
+report_default="${REPO_ROOT}/docs/DAILY_REPORTS/${run_id}.md"
 REPORT_PATH="${REPORT_PATH:-$report_default}"
 
 mkdir -p "$OUT_DIR"
@@ -90,10 +93,34 @@ relpath() {
 }
 
 PYTEST_BIN="${PYTEST_BIN:-${REPO_ROOT}/.venv/bin/pytest}"
-PLAYWRIGHT_CMD="${PLAYWRIGHT_CMD:-npx playwright test}"
+PLAYWRIGHT_RUNNER="${PLAYWRIGHT_RUNNER:-${REPO_ROOT}/scripts/run_playwright_strict_gate.sh}"
+PLAYWRIGHT_CMD="${PLAYWRIGHT_CMD:-npx playwright test --workers=1}"
+PLAYWRIGHT_RETRYABLE_PATTERN="${PLAYWRIGHT_RETRYABLE_PATTERN:-}"
+PLAYWRIGHT_PORT="${PLAYWRIGHT_PORT:-}"
+PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:-}"
+PLAYWRIGHT_DB_PATH="${PLAYWRIGHT_DB_PATH:-}"
+PLAYWRIGHT_MAX_ATTEMPTS="${PLAYWRIGHT_MAX_ATTEMPTS:-2}"
+PLAYWRIGHT_KEEP_DB="${PLAYWRIGHT_KEEP_DB:-0}"
+
+if ! [[ "$PLAYWRIGHT_MAX_ATTEMPTS" =~ ^[0-9]+$ ]] || [[ "$PLAYWRIGHT_MAX_ATTEMPTS" -lt 1 ]]; then
+  echo "ERROR: PLAYWRIGHT_MAX_ATTEMPTS must be a positive integer, got: ${PLAYWRIGHT_MAX_ATTEMPTS}" >&2
+  exit 2
+fi
+if [[ -n "$PLAYWRIGHT_RETRYABLE_PATTERN" ]]; then
+  grep -Eq "$PLAYWRIGHT_RETRYABLE_PATTERN" <<<"" >/dev/null 2>&1
+  grep_rc=$?
+  if [[ "$grep_rc" -eq 2 ]]; then
+    echo "ERROR: PLAYWRIGHT_RETRYABLE_PATTERN is not a valid extended regex: ${PLAYWRIGHT_RETRYABLE_PATTERN}" >&2
+    exit 2
+  fi
+fi
 
 if [[ ! -x "$PYTEST_BIN" ]]; then
   echo "ERROR: pytest not found at $PYTEST_BIN" >&2
+  exit 2
+fi
+if [[ ! -x "$PLAYWRIGHT_RUNNER" ]]; then
+  echo "ERROR: playwright runner not found or not executable at $PLAYWRIGHT_RUNNER" >&2
   exit 2
 fi
 
@@ -225,7 +252,41 @@ else
 fi
 
 step "playwright" "$log_playwright" status_playwright dur_playwright_s \
-  bash -lc "$PLAYWRIGHT_CMD"
+  env \
+    PLAYWRIGHT_CMD="$PLAYWRIGHT_CMD" \
+    PLAYWRIGHT_RETRYABLE_PATTERN="$PLAYWRIGHT_RETRYABLE_PATTERN" \
+    PLAYWRIGHT_PORT="$PLAYWRIGHT_PORT" \
+    PLAYWRIGHT_BASE_URL="$PLAYWRIGHT_BASE_URL" \
+    YUANTUS_PLAYWRIGHT_DB_PATH="$PLAYWRIGHT_DB_PATH" \
+    PLAYWRIGHT_MAX_ATTEMPTS="$PLAYWRIGHT_MAX_ATTEMPTS" \
+    PLAYWRIGHT_KEEP_DB="$PLAYWRIGHT_KEEP_DB" \
+    "$PLAYWRIGHT_RUNNER"
+
+# Capture effective playwright runtime settings from runner logs.
+PLAYWRIGHT_EFFECTIVE_ATTEMPT_LAST="$(grep -E '^PLAYWRIGHT_ATTEMPT=' "$log_playwright" | tail -n 1 | cut -d= -f2- || true)"
+PLAYWRIGHT_EFFECTIVE_ATTEMPT_COUNT="$(grep -c -E '^PLAYWRIGHT_ATTEMPT=' "$log_playwright" || true)"
+PLAYWRIGHT_EFFECTIVE_PORT="$(grep -E '^PLAYWRIGHT_PORT=' "$log_playwright" | tail -n 1 | cut -d= -f2- || true)"
+PLAYWRIGHT_EFFECTIVE_BASE_URL="$(grep -E '^PLAYWRIGHT_BASE_URL=' "$log_playwright" | tail -n 1 | cut -d= -f2- || true)"
+PLAYWRIGHT_EFFECTIVE_DB_PATH="$(grep -E '^PLAYWRIGHT_DB_PATH=' "$log_playwright" | tail -n 1 | cut -d= -f2- || true)"
+PLAYWRIGHT_EFFECTIVE_MAX_ATTEMPTS="$(grep -E '^PLAYWRIGHT_MAX_ATTEMPTS=' "$log_playwright" | tail -n 1 | cut -d= -f2- || true)"
+PLAYWRIGHT_EFFECTIVE_KEEP_DB="$(grep -E '^PLAYWRIGHT_KEEP_DB=' "$log_playwright" | tail -n 1 | cut -d= -f2- || true)"
+PLAYWRIGHT_EFFECTIVE_RETRYABLE_PATTERN="$(grep -E '^PLAYWRIGHT_RETRYABLE_PATTERN=' "$log_playwright" | tail -n 1 | cut -d= -f2- || true)"
+PLAYWRIGHT_RETRIED="false"
+if [[ "$PLAYWRIGHT_EFFECTIVE_ATTEMPT_COUNT" =~ ^[0-9]+$ ]] && [[ "$PLAYWRIGHT_EFFECTIVE_ATTEMPT_COUNT" -gt 1 ]]; then
+  PLAYWRIGHT_RETRIED="true"
+fi
+
+# Backfill requested settings when caller leaves them unset.
+if [[ -z "${PLAYWRIGHT_PORT:-}" ]]; then
+  PLAYWRIGHT_PORT="$PLAYWRIGHT_EFFECTIVE_PORT"
+fi
+if [[ -z "${PLAYWRIGHT_BASE_URL:-}" ]]; then
+  PLAYWRIGHT_BASE_URL="$PLAYWRIGHT_EFFECTIVE_BASE_URL"
+fi
+if [[ -z "${PLAYWRIGHT_DB_PATH:-}" ]]; then
+  PLAYWRIGHT_DB_PATH="$PLAYWRIGHT_EFFECTIVE_DB_PATH"
+fi
+PLAYWRIGHT_ATTEMPT_LAST="$PLAYWRIGHT_EFFECTIVE_ATTEMPT_LAST"
 
 end_iso="$(date -Iseconds)"
 end_epoch="$(date +%s)"
@@ -266,7 +327,24 @@ cat >"$REPORT_PATH" <<EOF
 ## Notes
 
 - \`TARGETED_PYTEST_ARGS\`: \`${TARGETED_PYTEST_ARGS:-<unset>}\`
+- \`PLAYWRIGHT_RUNNER\`: \`${PLAYWRIGHT_RUNNER}\`
 - \`PLAYWRIGHT_CMD\`: \`${PLAYWRIGHT_CMD}\`
+- \`PLAYWRIGHT_MAX_ATTEMPTS\`: \`${PLAYWRIGHT_MAX_ATTEMPTS}\`
+- \`PLAYWRIGHT_RETRYABLE_PATTERN\`: \`${PLAYWRIGHT_RETRYABLE_PATTERN:-<unset>}\`
+- \`PLAYWRIGHT_ATTEMPT_LAST\`: \`${PLAYWRIGHT_ATTEMPT_LAST:-<unset>}\`
+- \`PLAYWRIGHT_KEEP_DB\`: \`${PLAYWRIGHT_KEEP_DB}\`
+- \`PLAYWRIGHT_PORT\`: \`${PLAYWRIGHT_PORT:-<unset>}\`
+- \`PLAYWRIGHT_BASE_URL\`: \`${PLAYWRIGHT_BASE_URL:-<unset>}\`
+- \`PLAYWRIGHT_DB_PATH\`: \`${PLAYWRIGHT_DB_PATH:-<unset>}\`
+- \`PLAYWRIGHT_EFFECTIVE_ATTEMPT_LAST\`: \`${PLAYWRIGHT_EFFECTIVE_ATTEMPT_LAST:-<unset>}\`
+- \`PLAYWRIGHT_EFFECTIVE_ATTEMPT_COUNT\`: \`${PLAYWRIGHT_EFFECTIVE_ATTEMPT_COUNT:-<unset>}\`
+- \`PLAYWRIGHT_RETRIED\`: \`${PLAYWRIGHT_RETRIED}\`
+- \`PLAYWRIGHT_EFFECTIVE_PORT\`: \`${PLAYWRIGHT_EFFECTIVE_PORT:-<unset>}\`
+- \`PLAYWRIGHT_EFFECTIVE_BASE_URL\`: \`${PLAYWRIGHT_EFFECTIVE_BASE_URL:-<unset>}\`
+- \`PLAYWRIGHT_EFFECTIVE_DB_PATH\`: \`${PLAYWRIGHT_EFFECTIVE_DB_PATH:-<unset>}\`
+- \`PLAYWRIGHT_EFFECTIVE_MAX_ATTEMPTS\`: \`${PLAYWRIGHT_EFFECTIVE_MAX_ATTEMPTS:-<unset>}\`
+- \`PLAYWRIGHT_EFFECTIVE_KEEP_DB\`: \`${PLAYWRIGHT_EFFECTIVE_KEEP_DB:-<unset>}\`
+- \`PLAYWRIGHT_EFFECTIVE_RETRYABLE_PATTERN\`: \`${PLAYWRIGHT_EFFECTIVE_RETRYABLE_PATTERN:-<unset>}\`
 - \`DEMO_SCRIPT\`: \`${DEMO_SCRIPT:-<unset>}\`
 - \`DEMO_REPORT_PATH\`: \`${demo_report_path:-<unset>}\`
 - \`RUN_RUN_H_E2E\`: \`${RUN_RUN_H_E2E:-<unset>}\`

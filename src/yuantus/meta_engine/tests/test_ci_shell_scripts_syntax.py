@@ -32,6 +32,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
     paths = [
         scripts_dir / "ci_change_scope_debug.sh",
         scripts_dir / "strict_gate_report.sh",
+        scripts_dir / "run_playwright_strict_gate.sh",
         scripts_dir / "strict_gate_perf_download_and_trend.sh",
         scripts_dir / "strict_gate_recent_perf_audit_regression.sh",
         scripts_dir / "demo_plm_closed_loop.sh",
@@ -112,6 +113,30 @@ def test_strict_gate_report_script_has_help() -> None:
     assert "strict_gate_report.sh" in out
     assert "OUT_DIR" in out
     assert "REPORT_PATH" in out
+    assert "Default: STRICT_GATE_<timestamp>_<pid>" in out
+    assert "Default: docs/DAILY_REPORTS/<run_id>.md" in out
+    assert "PLAYWRIGHT_KEEP_DB" in out
+    assert "PLAYWRIGHT_RETRYABLE_PATTERN" in out
+
+
+def test_strict_gate_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "strict_gate.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    assert "Usage:" in out
+    assert "strict_gate.sh" in out
+    assert "PLAYWRIGHT_RUNNER" in out
+    assert "PLAYWRIGHT_MAX_ATTEMPTS" in out
+    assert "PLAYWRIGHT_KEEP_DB" in out
+    assert "PLAYWRIGHT_RETRYABLE_PATTERN" in out
 
 
 def test_strict_gate_perf_download_and_trend_script_has_help() -> None:

@@ -148,6 +148,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Parallel P2 Breakage Helpdesk Executor + Export Job + Cockpit: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_BREAKAGE_HELPDESK_EXECUTOR_EXPORT_JOB_COCKPIT_20260302.md`
 - Parallel P2 Breakage Worker + Provider + TTL Cleanup: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_BREAKAGE_WORKER_PROVIDER_TTL_CLEANUP_20260305.md`
 - Parallel P2 Overlay Cache + Template + Runbook: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_OVERLAY_CACHE_TEMPLATE_RUNBOOK_20260228.md`
+- Parallel P2 Strict Gate Playwright Runner + Runtime Notes: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_STRICT_GATE_PLAYWRIGHT_RUNNER_RUNTIME_NOTES_20260305.md`
 - Parallel P3 Ops Overview API: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_OPS_OVERVIEW_API_20260228.md`
 - Perf CI Refactor (Config + Baselines + Concurrency): `docs/DEV_AND_VERIFICATION_PERF_CI_REFACTOR_20260209.md`
 - Perf Gate (Generic) - Dev Plan & Verification: `docs/DEV_AND_VERIFICATION_PERF_GATE_20260209.md`
