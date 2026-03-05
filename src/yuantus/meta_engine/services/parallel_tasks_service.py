@@ -114,6 +114,15 @@ class DocumentMultiSiteService:
             raise ValueError("retry_max_attempts must be between 1 and 10")
         return attempts
 
+    def _normalize_window_days(self, window_days: int) -> int:
+        try:
+            normalized = int(window_days)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("window_days must be an integer between 1 and 90") from exc
+        if normalized < 1 or normalized > 90:
+            raise ValueError("window_days must be between 1 and 90")
+        return normalized
+
     def upsert_remote_site(
         self,
         *,
@@ -379,6 +388,103 @@ class DocumentMultiSiteService:
             "created_at": job.created_at.isoformat() if job.created_at else None,
             "started_at": job.started_at.isoformat() if job.started_at else None,
             "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        }
+
+    def sync_summary(
+        self,
+        *,
+        site_id: Optional[str] = None,
+        window_days: int = 7,
+    ) -> Dict[str, Any]:
+        normalized_window_days = self._normalize_window_days(window_days)
+        since = _utcnow() - timedelta(days=normalized_window_days)
+        query = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type.like(f"{self.TASK_PREFIX}%"))
+            .filter(ConversionJob.created_at >= since)
+            .order_by(ConversionJob.created_at.desc())
+        )
+        jobs = query.all()
+        target_site_id = str(site_id).strip() if site_id is not None else None
+
+        overall_by_status: Counter[str] = Counter()
+        overall_dead_letter_total = 0
+        total_jobs = 0
+        buckets: Dict[str, Dict[str, Any]] = {}
+
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            current_site_id = str(payload.get("site_id") or "").strip() or "unknown"
+            if target_site_id and current_site_id != target_site_id:
+                continue
+            total_jobs += 1
+
+            bucket = buckets.get(current_site_id)
+            if not bucket:
+                bucket = {
+                    "site_id": current_site_id,
+                    "site_name": payload.get("site_name") or None,
+                    "total": 0,
+                    "by_status": {},
+                    "dead_letter_total": 0,
+                    "directions": {"push": 0, "pull": 0},
+                    "last_job_at": None,
+                    "_last_job_dt": None,
+                }
+                buckets[current_site_id] = bucket
+
+            status = str(job.status or "").strip().lower() or JobStatus.PENDING.value
+            bucket["total"] += 1
+            bucket["by_status"][status] = int(bucket["by_status"].get(status) or 0) + 1
+            overall_by_status[status] += 1
+
+            direction = str(payload.get("direction") or "").strip().lower()
+            if direction in {"push", "pull"}:
+                bucket["directions"][direction] = int(bucket["directions"].get(direction) or 0) + 1
+
+            attempt_count = int(job.attempt_count or 0)
+            max_attempts = int(job.max_attempts or 0)
+            is_dead_letter = (
+                status == JobStatus.FAILED.value
+                and max_attempts > 0
+                and attempt_count >= max_attempts
+            )
+            if is_dead_letter:
+                bucket["dead_letter_total"] = int(bucket["dead_letter_total"] or 0) + 1
+                overall_dead_letter_total += 1
+
+            if job.created_at:
+                previous_last_dt = bucket.get("_last_job_dt")
+                if not isinstance(previous_last_dt, datetime) or job.created_at > previous_last_dt:
+                    bucket["_last_job_dt"] = job.created_at
+                    bucket["last_job_at"] = job.created_at.isoformat()
+
+        sites: List[Dict[str, Any]] = []
+        for key in sorted(buckets):
+            bucket = buckets[key]
+            completed = int(bucket["by_status"].get(JobStatus.COMPLETED.value) or 0)
+            total = int(bucket["total"] or 0)
+            bucket["success_rate"] = (
+                round(completed / total, 4) if total > 0 else None
+            )
+            bucket["failure_rate"] = (
+                round(int(bucket["by_status"].get(JobStatus.FAILED.value) or 0) / total, 4)
+                if total > 0
+                else None
+            )
+            bucket["by_status"] = dict(sorted(bucket["by_status"].items()))
+            bucket.pop("_last_job_dt", None)
+            sites.append(bucket)
+
+        return {
+            "window_days": normalized_window_days,
+            "since": since.isoformat(),
+            "site_filter": target_site_id,
+            "total_jobs": total_jobs,
+            "total_sites": len(sites),
+            "overall_by_status": dict(sorted(overall_by_status.items())),
+            "overall_dead_letter_total": overall_dead_letter_total,
+            "sites": sites,
         }
 
     def replay_sync_job(

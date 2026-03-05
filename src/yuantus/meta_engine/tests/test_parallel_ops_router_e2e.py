@@ -577,3 +577,92 @@ def test_eco_activity_sla_endpoint_e2e():
     names = [row["name"] for row in sla_assignee_closed["activities"]]
     assert "no-due-e2e" not in names
     assert "closed-e2e" in names
+
+
+def test_doc_sync_summary_endpoint_e2e():
+    user = SimpleNamespace(id=32, roles=["admin"], is_superuser=False)
+    client, db = _client_with_real_db(user)
+    now = datetime.utcnow()
+
+    db.add_all(
+        [
+            ConversionJob(
+                id="sum-site-a-ok",
+                task_type="document_sync_push",
+                status="completed",
+                payload={
+                    "site_id": "site-a",
+                    "site_name": "Site A",
+                    "direction": "push",
+                },
+                attempt_count=1,
+                max_attempts=3,
+                created_at=now - timedelta(hours=1),
+            ),
+            ConversionJob(
+                id="sum-site-a-failed",
+                task_type="document_sync_pull",
+                status="failed",
+                payload={
+                    "site_id": "site-a",
+                    "site_name": "Site A",
+                    "direction": "pull",
+                },
+                attempt_count=3,
+                max_attempts=3,
+                created_at=now - timedelta(hours=2),
+            ),
+            ConversionJob(
+                id="sum-site-b-processing",
+                task_type="document_sync_push",
+                status="processing",
+                payload={
+                    "site_id": "site-b",
+                    "site_name": "Site B",
+                    "direction": "push",
+                },
+                attempt_count=1,
+                max_attempts=3,
+                created_at=now - timedelta(hours=3),
+            ),
+            ConversionJob(
+                id="sum-site-b-old",
+                task_type="document_sync_pull",
+                status="completed",
+                payload={
+                    "site_id": "site-b",
+                    "site_name": "Site B",
+                    "direction": "pull",
+                },
+                attempt_count=1,
+                max_attempts=3,
+                created_at=now - timedelta(days=20),
+            ),
+        ]
+    )
+    db.commit()
+
+    summary_resp = client.get("/api/v1/doc-sync/summary?window_days=7")
+    assert summary_resp.status_code == 200
+    summary = summary_resp.json()
+    assert summary["operator_id"] == 32
+    assert summary["total_jobs"] == 3
+    assert summary["total_sites"] == 2
+    assert summary["overall_by_status"]["completed"] == 1
+    assert summary["overall_by_status"]["failed"] == 1
+    assert summary["overall_by_status"]["processing"] == 1
+    assert summary["overall_dead_letter_total"] == 1
+
+    by_site = {row["site_id"]: row for row in summary["sites"]}
+    assert by_site["site-a"]["total"] == 2
+    assert by_site["site-a"]["dead_letter_total"] == 1
+    assert by_site["site-b"]["total"] == 1
+    assert by_site["site-b"]["by_status"] == {"processing": 1}
+
+    filtered_resp = client.get("/api/v1/doc-sync/summary?window_days=7&site_id=site-a")
+    assert filtered_resp.status_code == 200
+    filtered = filtered_resp.json()
+    assert filtered["site_filter"] == "site-a"
+    assert filtered["total_jobs"] == 2
+    assert filtered["total_sites"] == 1
+    assert filtered["sites"][0]["site_id"] == "site-a"

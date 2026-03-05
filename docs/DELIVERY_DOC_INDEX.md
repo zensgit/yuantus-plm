@@ -147,6 +147,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Parallel P1 Export + Breakage Analytics: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_EXPORT_AND_BREAKAGE_ANALYTICS_20260228.md`
 - Parallel P2 Breakage Helpdesk Executor + Export Job + Cockpit: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_BREAKAGE_HELPDESK_EXECUTOR_EXPORT_JOB_COCKPIT_20260302.md`
 - Parallel P2 Breakage Worker + Provider + TTL Cleanup: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_BREAKAGE_WORKER_PROVIDER_TTL_CLEANUP_20260305.md`
+- Parallel P2 Doc Sync Site Summary: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_DOC_SYNC_SITE_SUMMARY_20260305.md`
 - Parallel P2 ECO Activity SLA Overview: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_ECO_ACTIVITY_SLA_OVERVIEW_20260305.md`
 - Parallel P2 Overlay Cache + Template + Runbook: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_OVERLAY_CACHE_TEMPLATE_RUNBOOK_20260228.md`
 - Parallel P2 Strict Gate Playwright Runner + Runtime Notes: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_STRICT_GATE_PLAYWRIGHT_RUNNER_RUNTIME_NOTES_20260305.md`

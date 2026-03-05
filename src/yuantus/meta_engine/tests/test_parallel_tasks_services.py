@@ -171,6 +171,104 @@ def test_document_multi_site_service_idempotency_filters_and_dead_letter_view(se
         service.list_sync_jobs(status="deadletter")
 
 
+def test_document_multi_site_sync_summary_by_site_and_window(session):
+    service = DocumentMultiSiteService(session)
+    site_a = service.upsert_remote_site(
+        name="site-a-summary",
+        endpoint="https://summary-a.example.test/plm",
+        auth_secret="tok-a",
+    )
+    site_b = service.upsert_remote_site(
+        name="site-b-summary",
+        endpoint="https://summary-b.example.test/plm",
+        auth_secret="tok-b",
+    )
+    session.commit()
+
+    now = datetime.utcnow()
+    job_a_ok = service.enqueue_sync(
+        site_id=site_a.id,
+        direction="push",
+        document_ids=["doc-a-1"],
+        idempotency_key="sum-a-ok",
+    )
+    job_a_dead = service.enqueue_sync(
+        site_id=site_a.id,
+        direction="pull",
+        document_ids=["doc-a-2"],
+        idempotency_key="sum-a-dead",
+    )
+    job_b_processing = service.enqueue_sync(
+        site_id=site_b.id,
+        direction="push",
+        document_ids=["doc-b-1"],
+        idempotency_key="sum-b-processing",
+    )
+    job_b_old = service.enqueue_sync(
+        site_id=site_b.id,
+        direction="pull",
+        document_ids=["doc-b-2"],
+        idempotency_key="sum-b-old",
+    )
+
+    job_a_ok.status = "completed"
+    job_a_ok.attempt_count = 1
+    job_a_ok.max_attempts = 3
+    job_a_ok.created_at = now - timedelta(hours=1)
+
+    job_a_dead.status = "failed"
+    job_a_dead.attempt_count = 3
+    job_a_dead.max_attempts = 3
+    job_a_dead.last_error = "network timeout"
+    job_a_dead.created_at = now - timedelta(hours=2)
+
+    job_b_processing.status = "processing"
+    job_b_processing.attempt_count = 1
+    job_b_processing.max_attempts = 3
+    job_b_processing.created_at = now - timedelta(hours=3)
+
+    job_b_old.status = "completed"
+    job_b_old.attempt_count = 1
+    job_b_old.max_attempts = 3
+    job_b_old.created_at = now - timedelta(days=12)
+    session.commit()
+
+    summary = service.sync_summary(window_days=7)
+    assert summary["window_days"] == 7
+    assert summary["total_jobs"] == 3
+    assert summary["total_sites"] == 2
+    assert summary["overall_by_status"]["completed"] == 1
+    assert summary["overall_by_status"]["failed"] == 1
+    assert summary["overall_by_status"]["processing"] == 1
+    assert summary["overall_dead_letter_total"] == 1
+
+    by_site = {row["site_id"]: row for row in summary["sites"]}
+    site_a_summary = by_site[site_a.id]
+    assert site_a_summary["total"] == 2
+    assert site_a_summary["directions"]["push"] == 1
+    assert site_a_summary["directions"]["pull"] == 1
+    assert site_a_summary["dead_letter_total"] == 1
+    assert site_a_summary["success_rate"] == 0.5
+    assert site_a_summary["failure_rate"] == 0.5
+    assert site_a_summary["last_job_at"] is not None
+
+    site_b_summary = by_site[site_b.id]
+    assert site_b_summary["total"] == 1
+    assert site_b_summary["by_status"] == {"processing": 1}
+    assert site_b_summary["dead_letter_total"] == 0
+    assert site_b_summary["success_rate"] == 0.0
+    assert site_b_summary["failure_rate"] == 0.0
+
+    filtered = service.sync_summary(site_id=site_a.id, window_days=7)
+    assert filtered["site_filter"] == site_a.id
+    assert filtered["total_jobs"] == 2
+    assert filtered["total_sites"] == 1
+    assert filtered["sites"][0]["site_id"] == site_a.id
+
+    with pytest.raises(ValueError, match="window_days must be between 1 and 90"):
+        service.sync_summary(window_days=0)
+
+
 def test_eco_activity_validation_enforces_dependency_gate(session):
     service = ECOActivityValidationService(session)
     a1 = service.create_activity(eco_id="eco-1", name="design review")

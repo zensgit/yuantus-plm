@@ -380,6 +380,27 @@ async def list_sync_jobs(
     }
 
 
+@parallel_tasks_router.get("/doc-sync/summary")
+async def get_doc_sync_summary(
+    site_id: Optional[str] = Query(None),
+    window_days: int = Query(7),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentMultiSiteService(db)
+    try:
+        result = service.sync_summary(site_id=site_id, window_days=window_days)
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="doc_sync_summary_invalid",
+            message=str(exc),
+            context={"site_id": site_id, "window_days": window_days},
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
 @parallel_tasks_router.get("/doc-sync/jobs/{job_id}")
 async def get_sync_job(
     job_id: str,

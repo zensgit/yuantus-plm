@@ -947,6 +947,67 @@ def test_doc_sync_list_jobs_includes_reliability_view_fields():
     assert rows[0]["sync_trace"]["trace_id"] == "t-1"
 
 
+def test_doc_sync_summary_returns_operator_id_and_payload():
+    user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+    ) as service_cls:
+        service_cls.return_value.sync_summary.return_value = {
+            "window_days": 7,
+            "since": "2026-03-01T00:00:00",
+            "site_filter": None,
+            "total_jobs": 3,
+            "total_sites": 2,
+            "overall_by_status": {"completed": 1, "failed": 1, "processing": 1},
+            "overall_dead_letter_total": 1,
+            "sites": [
+                {
+                    "site_id": "site-1",
+                    "total": 2,
+                    "by_status": {"completed": 1, "failed": 1},
+                    "dead_letter_total": 1,
+                    "directions": {"push": 1, "pull": 1},
+                    "success_rate": 0.5,
+                    "failure_rate": 0.5,
+                    "last_job_at": "2026-03-05T12:00:00",
+                }
+            ],
+        }
+        resp = client.get("/api/v1/doc-sync/summary?window_days=7")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["operator_id"] == 5
+    assert body["total_jobs"] == 3
+    assert body["overall_dead_letter_total"] == 1
+    assert body["sites"][0]["site_id"] == "site-1"
+    service_cls.return_value.sync_summary.assert_called_once_with(
+        site_id=None,
+        window_days=7,
+    )
+
+
+def test_doc_sync_summary_invalid_maps_contract_error():
+    user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+    ) as service_cls:
+        service_cls.return_value.sync_summary.side_effect = ValueError(
+            "window_days must be between 1 and 90"
+        )
+        resp = client.get("/api/v1/doc-sync/summary?window_days=0&site_id=site-x")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "doc_sync_summary_invalid"
+    assert detail.get("context", {}).get("window_days") == 0
+    assert detail.get("context", {}).get("site_id") == "site-x"
+
+
 def test_eco_activity_create_invalid_maps_contract_error():
     user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
