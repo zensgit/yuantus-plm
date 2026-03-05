@@ -229,6 +229,36 @@ def test_parallel_ops_endpoints_e2e_with_real_service_data():
     assert "bom_line_item_id_filter" in breakage_export_job_download_resp.text
     assert "bom-e2e-1" in breakage_export_job_download_resp.text
 
+    export_job_row = db.get(ConversionJob, breakage_export_job["job_id"])
+    assert export_job_row is not None
+    export_job_row.completed_at = datetime.utcnow() - timedelta(hours=25)
+    db.add(export_job_row)
+    db.commit()
+
+    breakage_export_cleanup_resp = client.post(
+        "/api/v1/breakages/export/jobs/cleanup",
+        json={"ttl_hours": 24, "limit": 50},
+    )
+    assert breakage_export_cleanup_resp.status_code == 200
+    breakage_export_cleanup = breakage_export_cleanup_resp.json()
+    assert breakage_export_cleanup["expired_jobs"] >= 1
+    assert breakage_export_cleanup["operator_id"] == 21
+
+    breakage_export_job_status_after_cleanup_resp = client.get(
+        f"/api/v1/breakages/export/jobs/{breakage_export_job['job_id']}"
+    )
+    assert breakage_export_job_status_after_cleanup_resp.status_code == 200
+    breakage_export_job_status_after_cleanup = (
+        breakage_export_job_status_after_cleanup_resp.json()
+    )
+    assert breakage_export_job_status_after_cleanup["download_ready"] is False
+    assert breakage_export_job_status_after_cleanup["sync_status"] == "expired"
+
+    breakage_export_job_download_after_cleanup_resp = client.get(
+        f"/api/v1/breakages/export/jobs/{breakage_export_job['job_id']}/download"
+    )
+    assert breakage_export_job_download_after_cleanup_resp.status_code == 400
+
     breakage_groups_resp = client.get(
         "/api/v1/breakages/metrics/groups?group_by=responsibility&trend_window_days=14&bom_line_item_id=bom-e2e-1&page=1&page_size=10"
     )

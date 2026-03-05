@@ -1302,6 +1302,7 @@ class BreakageIncidentService:
         self._job_service = JobService(session)
         self._helpdesk_task_type = "breakage_helpdesk_sync_stub"
         self._incidents_export_task_type = "breakage_incidents_export"
+        self._incidents_export_cleanup_task_type = "breakage_incidents_export_cleanup"
         self._group_by_fields = {
             "product_item_id": "product_item_id",
             "batch_code": "batch_code",
@@ -1820,6 +1821,14 @@ class BreakageIncidentService:
         job = self._get_incidents_export_job(job_id)
         return self._build_incidents_export_job_view(job)
 
+    def run_incidents_export_job(
+        self,
+        job_id: str,
+        *,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        return self.execute_incidents_export_job(job_id, user_id=user_id)
+
     def download_incidents_export_job(self, job_id: str) -> Dict[str, Any]:
         job = self._get_incidents_export_job(job_id)
         if str(job.status or "") != JobStatus.COMPLETED.value:
@@ -1839,6 +1848,98 @@ class BreakageIncidentService:
             "content": decoded,
             "media_type": result.get("media_type") or "application/octet-stream",
             "filename": result.get("filename") or "breakage-incidents.bin",
+        }
+
+    def cleanup_expired_incidents_export_results(
+        self,
+        *,
+        ttl_hours: int = 24,
+        limit: int = 200,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        try:
+            normalized_ttl_hours = int(ttl_hours)
+        except Exception as exc:
+            raise ValueError("ttl_hours must be an integer between 1 and 720") from exc
+        if normalized_ttl_hours < 1 or normalized_ttl_hours > 720:
+            raise ValueError("ttl_hours must be between 1 and 720")
+        try:
+            normalized_limit = int(limit)
+        except Exception as exc:
+            raise ValueError("limit must be an integer between 1 and 1000") from exc
+        if normalized_limit < 1 or normalized_limit > 1000:
+            raise ValueError("limit must be between 1 and 1000")
+
+        now = _utcnow()
+        cutoff = now - timedelta(hours=normalized_ttl_hours)
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type == self._incidents_export_task_type)
+            .filter(ConversionJob.status == JobStatus.COMPLETED.value)
+            .filter(ConversionJob.completed_at.isnot(None))
+            .filter(ConversionJob.completed_at <= cutoff)
+            .order_by(ConversionJob.completed_at.asc())
+            .limit(normalized_limit)
+            .all()
+        )
+        expired_jobs = 0
+        skipped_jobs = 0
+        touched_job_ids: List[str] = []
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            result = (
+                payload.get("export_result")
+                if isinstance(payload.get("export_result"), dict)
+                else {}
+            )
+            if not result.get("content_b64"):
+                skipped_jobs += 1
+                continue
+
+            updated_payload = dict(payload)
+            updated_result = dict(result)
+            updated_result.pop("content_b64", None)
+            updated_result["content_expired_at"] = now.isoformat()
+            updated_result["content_ttl_hours"] = normalized_ttl_hours
+            updated_payload["export_result"] = updated_result
+
+            export_info = (
+                updated_payload.get("export")
+                if isinstance(updated_payload.get("export"), dict)
+                else {}
+            )
+            export_info = dict(export_info)
+            export_info["sync_status"] = "expired"
+            export_info["content_expired_at"] = now.isoformat()
+            export_info["content_ttl_hours"] = normalized_ttl_hours
+            export_info["updated_by_id"] = user_id
+            updated_payload["export"] = export_info
+
+            result_summary = (
+                updated_payload.get("result")
+                if isinstance(updated_payload.get("result"), dict)
+                else {}
+            )
+            result_summary = dict(result_summary)
+            result_summary["download_ready"] = False
+            result_summary["content_expired_at"] = now.isoformat()
+            updated_payload["result"] = result_summary
+
+            job.payload = updated_payload
+            self.session.add(job)
+            expired_jobs += 1
+            touched_job_ids.append(str(job.id))
+
+        self.session.flush()
+        return {
+            "ttl_hours": normalized_ttl_hours,
+            "limit": normalized_limit,
+            "cutoff_at": cutoff.isoformat(),
+            "scanned_jobs": len(jobs),
+            "expired_jobs": expired_jobs,
+            "skipped_jobs": skipped_jobs,
+            "job_ids": touched_job_ids,
+            "updated_at": now.isoformat(),
         }
 
     def _build_helpdesk_sync_summary(
@@ -2704,6 +2805,153 @@ class BreakageIncidentService:
 
         raise ValueError("export_format must be json, csv or md")
 
+    def _simulate_helpdesk_provider_dispatch(
+        self,
+        *,
+        provider: str,
+        incident: BreakageIncident,
+        attempt_count: int,
+        metadata_json: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        metadata = metadata_json if isinstance(metadata_json, dict) else {}
+        forced_error = str(metadata.get("force_error_code") or "").strip()
+        forced_message = str(metadata.get("force_error_message") or "").strip()
+        if forced_error:
+            raise RuntimeError(forced_message or forced_error)
+        normalized_provider = str(provider or "stub").strip().lower() or "stub"
+        normalized_attempt = max(int(attempt_count or 1), 1)
+        ticket_base = str(incident.id or "").replace("-", "").upper()[:8]
+        if normalized_provider == "stub":
+            return {"external_ticket_id": f"HD-{ticket_base}-{normalized_attempt}"}
+        if normalized_provider == "jira":
+            return {"external_ticket_id": f"JIRA-{ticket_base}-{normalized_attempt}"}
+        if normalized_provider == "zendesk":
+            return {"external_ticket_id": f"ZD-{ticket_base}-{normalized_attempt}"}
+        raise ValueError(f"unsupported helpdesk provider: {normalized_provider}")
+
+    def _map_helpdesk_provider_error(
+        self,
+        exc: Exception,
+    ) -> Dict[str, Any]:
+        text = str(exc or "").strip()
+        lowered = text.lower()
+        if "timeout" in lowered or "timed out" in lowered:
+            return {
+                "error_code": "provider_timeout",
+                "error_message": text or "provider timeout",
+            }
+        if "rate" in lowered or "429" in lowered:
+            return {
+                "error_code": "provider_rate_limited",
+                "error_message": text or "provider rate limited",
+            }
+        if "unauthorized" in lowered or "forbidden" in lowered:
+            return {
+                "error_code": "provider_auth_error",
+                "error_message": text or "provider auth error",
+            }
+        if "unsupported helpdesk provider" in lowered:
+            return {
+                "error_code": "provider_unsupported",
+                "error_message": text or "provider unsupported",
+            }
+        if isinstance(exc, ValueError):
+            return {
+                "error_code": "provider_invalid_request",
+                "error_message": text or "provider invalid request",
+            }
+        return {
+            "error_code": "provider_sync_failed",
+            "error_message": text or "provider sync failed",
+        }
+
+    def run_helpdesk_sync_job(
+        self,
+        job_id: str,
+        *,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        job = self.session.get(ConversionJob, job_id)
+        if not job or str(job.task_type or "") != self._helpdesk_task_type:
+            raise ValueError(f"Helpdesk sync job not found: {job_id}")
+        payload = job.payload if isinstance(job.payload, dict) else {}
+        incident_id = str(payload.get("incident_id") or "")
+        if not incident_id:
+            raise ValueError(f"Helpdesk sync job missing incident_id: {job_id}")
+        incident = self.session.get(BreakageIncident, incident_id)
+        if not incident:
+            raise ValueError(f"Breakage incident not found: {incident_id}")
+
+        sync_info = (
+            payload.get("helpdesk_sync")
+            if isinstance(payload.get("helpdesk_sync"), dict)
+            else {}
+        )
+        integration = (
+            payload.get("integration")
+            if isinstance(payload.get("integration"), dict)
+            else {}
+        )
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+        provider = (
+            str(
+                sync_info.get("provider")
+                or integration.get("provider")
+                or payload.get("provider")
+                or "stub"
+            )
+            .strip()
+            .lower()
+            or "stub"
+        )
+        simulate_status = str(metadata.get("simulate_status") or "").strip().lower()
+        if simulate_status == "failed":
+            error_code = str(metadata.get("error_code") or "provider_simulated_failed")
+            error_message = str(
+                metadata.get("error_message") or f"{provider} simulated failed"
+            )
+            return self.execute_helpdesk_sync(
+                incident_id,
+                simulate_status="failed",
+                job_id=job_id,
+                error_code=error_code,
+                error_message=error_message,
+                metadata_json=metadata,
+                user_id=user_id,
+            )
+
+        try:
+            dispatch_result = self._simulate_helpdesk_provider_dispatch(
+                provider=provider,
+                incident=incident,
+                attempt_count=int(job.attempt_count or 0) + 1,
+                metadata_json=metadata,
+            )
+            external_ticket_id = (
+                str(metadata.get("external_ticket_id") or "").strip()
+                or str(dispatch_result.get("external_ticket_id") or "").strip()
+                or None
+            )
+            return self.execute_helpdesk_sync(
+                incident_id,
+                simulate_status="completed",
+                job_id=job_id,
+                external_ticket_id=external_ticket_id,
+                metadata_json=metadata,
+                user_id=user_id,
+            )
+        except Exception as exc:
+            mapped = self._map_helpdesk_provider_error(exc)
+            return self.execute_helpdesk_sync(
+                incident_id,
+                simulate_status="failed",
+                job_id=job_id,
+                error_code=str(mapped.get("error_code") or "provider_sync_failed"),
+                error_message=str(mapped.get("error_message") or str(exc)),
+                metadata_json=metadata,
+                user_id=user_id,
+            )
+
     def enqueue_helpdesk_stub_sync(
         self,
         incident_id: str,
@@ -2837,6 +3085,8 @@ class BreakageIncidentService:
             "503",
             "busy",
             "retry",
+            "provider_timeout",
+            "provider_rate_limited",
         }
         permanent_tokens = {
             "invalid",
@@ -2852,6 +3102,9 @@ class BreakageIncidentService:
             "conflict",
             "409",
             "schema",
+            "provider_auth_error",
+            "provider_unsupported",
+            "provider_invalid_request",
         }
         if any(token in text for token in transient_tokens):
             return "transient"

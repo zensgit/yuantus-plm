@@ -875,6 +875,56 @@ def test_breakage_helpdesk_execute_supports_failure_category_and_retry(session):
     assert completed["last_job"]["attempt_count"] == 2
 
 
+def test_breakage_run_helpdesk_sync_job_provider_dispatch(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="provider-dispatch",
+        product_item_id="p-provider-1",
+        bom_line_item_id="bom-provider-1",
+    )
+    session.commit()
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=8,
+        provider="jira",
+        metadata_json={"channel": "worker"},
+    )
+    session.commit()
+
+    result = service.run_helpdesk_sync_job(job.id, user_id=8)
+    session.commit()
+
+    assert result["incident_id"] == incident.id
+    assert result["sync_status"] == "completed"
+    assert str(result["external_ticket_id"]).startswith("JIRA-")
+    assert result["last_job"]["provider"] == "jira"
+
+
+def test_breakage_run_helpdesk_sync_job_maps_provider_errors(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="provider-error-map",
+        product_item_id="p-provider-2",
+        bom_line_item_id="bom-provider-2",
+    )
+    session.commit()
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=8,
+        provider="zendesk",
+        metadata_json={"force_error_code": "timeout"},
+    )
+    session.commit()
+
+    result = service.run_helpdesk_sync_job(job.id, user_id=8)
+    session.commit()
+
+    assert result["incident_id"] == incident.id
+    assert result["sync_status"] == "failed"
+    assert result["last_job"]["failure_category"] == "transient"
+    assert "timeout" in str(result["last_job"]["last_error"]).lower()
+
+
 def test_breakage_helpdesk_sync_result_rejects_invalid_sync_status(session):
     service = BreakageIncidentService(session)
     incident = service.create_incident(description="invalid-sync-status")
@@ -927,6 +977,46 @@ def test_breakage_incidents_export_job_lifecycle_and_download(session):
     csv_text = downloaded["content"].decode("utf-8")
     assert "bom_line_item_id_filter" in csv_text
     assert "bom-export-1" in csv_text
+
+
+def test_breakage_incidents_export_job_cleanup_expires_download_payload(session):
+    service = BreakageIncidentService(session)
+    service.create_incident(
+        description="incident-export-cleanup",
+        product_item_id="p-export-cleanup",
+        bom_line_item_id="bom-export-cleanup",
+    )
+    session.commit()
+    enqueued = service.enqueue_incidents_export_job(
+        bom_line_item_id="bom-export-cleanup",
+        page=1,
+        page_size=20,
+        export_format="json",
+        execute_immediately=True,
+        user_id=9,
+    )
+    session.commit()
+    job_id = str(enqueued["job_id"])
+    job = session.get(ConversionJob, job_id)
+    assert job is not None
+    job.completed_at = datetime.utcnow() - timedelta(hours=25)
+    session.add(job)
+    session.commit()
+
+    cleanup = service.cleanup_expired_incidents_export_results(
+        ttl_hours=24,
+        limit=50,
+        user_id=9,
+    )
+    session.commit()
+    assert cleanup["expired_jobs"] >= 1
+    assert job_id in set(cleanup["job_ids"])
+
+    status = service.get_incidents_export_job(job_id)
+    assert status["download_ready"] is False
+    assert status["sync_status"] == "expired"
+    with pytest.raises(ValueError, match="Export content missing for job"):
+        service.download_incidents_export_job(job_id)
 
 
 def test_breakage_cockpit_and_export_supports_formats(session):

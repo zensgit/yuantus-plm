@@ -1209,6 +1209,11 @@ class BreakageExportJobCreateRequest(BaseModel):
     execute_immediately: bool = True
 
 
+class BreakageExportCleanupRequest(BaseModel):
+    ttl_hours: int = Field(24, ge=1, le=720)
+    limit: int = Field(200, ge=1, le=1000)
+
+
 @parallel_tasks_router.get("/breakages/metrics")
 async def get_breakage_metrics(
     status: Optional[str] = Query(None),
@@ -1730,6 +1735,35 @@ async def create_breakage_incidents_export_job(
                 "page_size": payload.page_size,
                 "export_format": payload.export_format,
                 "execute_immediately": payload.execute_immediately,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.post("/breakages/export/jobs/cleanup")
+async def cleanup_breakage_incidents_export_job_results(
+    payload: BreakageExportCleanupRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        result = service.cleanup_expired_incidents_export_results(
+            ttl_hours=payload.ttl_hours,
+            limit=payload.limit,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="breakage_export_job_invalid",
+            message=str(exc),
+            context={
+                "ttl_hours": payload.ttl_hours,
+                "limit": payload.limit,
             },
         )
     result["operator_id"] = int(user.id)

@@ -80,6 +80,11 @@ def worker(
         cad_bom,
     )
     from yuantus.meta_engine.tasks.system_tasks import quota_test
+    from yuantus.meta_engine.tasks.breakage_tasks import (
+        breakage_helpdesk_sync_stub,
+        breakage_incidents_export,
+        breakage_incidents_export_cleanup,
+    )
 
     import_all_models()
 
@@ -92,6 +97,12 @@ def worker(
     w.register_handler("cad_dedup_vision", cad_dedup_vision)
     w.register_handler("cad_ml_vision", cad_ml_vision)
     w.register_handler("quota_test", quota_test)
+    w.register_handler("breakage_helpdesk_sync_stub", breakage_helpdesk_sync_stub)
+    w.register_handler("breakage_incidents_export", breakage_incidents_export)
+    w.register_handler(
+        "breakage_incidents_export_cleanup",
+        breakage_incidents_export_cleanup,
+    )
     try:
         from yuantus.plugin_manager.worker import register_plugin_job_handlers
 

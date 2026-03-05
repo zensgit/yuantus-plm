@@ -452,6 +452,58 @@ def test_breakage_export_job_not_found_maps_contract_error():
     assert detail.get("context", {}).get("job_id") == "job-missing"
 
 
+def test_breakage_export_job_cleanup_endpoint_returns_payload():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.cleanup_expired_incidents_export_results.return_value = {
+            "ttl_hours": 24,
+            "limit": 200,
+            "expired_jobs": 2,
+            "job_ids": ["job-exp-1", "job-exp-2"],
+        }
+        resp = client.post(
+            "/api/v1/breakages/export/jobs/cleanup",
+            json={"ttl_hours": 24, "limit": 200},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ttl_hours"] == 24
+    assert body["expired_jobs"] == 2
+    assert body["operator_id"] == 3
+    assert db.commit.called
+    service_cls.return_value.cleanup_expired_incidents_export_results.assert_called_once_with(
+        ttl_hours=24,
+        limit=200,
+        user_id=3,
+    )
+
+
+def test_breakage_export_job_cleanup_invalid_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.cleanup_expired_incidents_export_results.side_effect = (
+            ValueError("ttl_hours must be between 1 and 720")
+        )
+        resp = client.post(
+            "/api/v1/breakages/export/jobs/cleanup",
+            json={"ttl_hours": 24, "limit": 200},
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "breakage_export_job_invalid"
+    assert detail.get("context", {}).get("ttl_hours") == 24
+
+
 def test_breakage_metrics_invalid_window_maps_contract_error():
     user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
