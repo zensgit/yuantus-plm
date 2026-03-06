@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
 
 
@@ -23,14 +23,13 @@ class GenericItem(BaseModel):
     id: Optional[str] = None
 
     # 动态属性 (Properties)
-    properties: Optional[Dict[str, Any]] = {}
+    properties: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
     # 嵌套关系 (Deep Insert/Update)
     # e.g. Creating a Part with its BOM in one request
-    relationships: Optional[List["GenericItem"]] = []
+    relationships: Optional[List["GenericItem"]] = Field(default_factory=list)
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class AMLQueryRequest(BaseModel):
@@ -76,8 +75,7 @@ class AMLQueryRequest(BaseModel):
         default=None, description="Sort fields, e.g. ['created_at:desc', 'name:asc']"
     )
 
-    class Config:
-        populate_by_name = True
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class AMLQueryResponse(BaseModel):

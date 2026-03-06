@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
@@ -52,8 +54,38 @@ from yuantus.plugin_manager.runtime import load_plugins
 from yuantus.security.auth.database import init_identity_db
 
 
+def _run_startup(app: FastAPI) -> None:
+    # Dev convenience: auto-create tables for the migrated Meta Engine kernel.
+    # Production environments should use migrations instead.
+    settings = get_settings()
+    if settings.ENVIRONMENT == "dev":
+        init_db(create_tables=True)
+        init_identity_db(create_tables=True)
+    from yuantus.meta_engine.services.search_indexer import (
+        register_search_index_handlers,
+    )
+
+    register_search_index_handlers()
+    load_plugins(app)
+
+
+def _run_shutdown(app: FastAPI) -> None:
+    manager = getattr(app.state, "plugin_manager", None)
+    if manager and hasattr(manager, "shutdown"):
+        manager.shutdown()
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    _run_startup(app)
+    try:
+        yield
+    finally:
+        _run_shutdown(app)
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="YuantusPLM", version=__version__)
+    app = FastAPI(title="YuantusPLM", version=__version__, lifespan=_lifespan)
     settings = get_settings()
     origins = [
         origin.strip()
@@ -106,27 +138,6 @@ def create_app() -> FastAPI:
     app.include_router(report_router, prefix="/api/v1")
     app.include_router(eco_router, prefix="/api/v1")
     app.include_router(parallel_tasks_router, prefix="/api/v1")
-
-    @app.on_event("startup")
-    def _startup() -> None:  # pragma: no cover
-        # Dev convenience: auto-create tables for the migrated Meta Engine kernel.
-        # Production environments should use migrations instead.
-        settings = get_settings()
-        if settings.ENVIRONMENT == "dev":
-            init_db(create_tables=True)
-            init_identity_db(create_tables=True)
-        from yuantus.meta_engine.services.search_indexer import (
-            register_search_index_handlers,
-        )
-
-        register_search_index_handlers()
-        load_plugins(app)
-
-    @app.on_event("shutdown")
-    def _shutdown() -> None:  # pragma: no cover
-        manager = getattr(app.state, "plugin_manager", None)
-        if manager and hasattr(manager, "shutdown"):
-            manager.shutdown()
 
     return app
 
