@@ -36,6 +36,10 @@ def test_cli_worker_registers_breakage_job_handlers() -> None:
     assert "breakage_incidents_export_cleanup" in text, (
         "Worker CLI should register breakage_incidents_export_cleanup handler."
     )
+    assert (
+        'w.register_handler("parallel_ops_breakage_helpdesk_failures_export", parallel_ops_breakage_helpdesk_failures_export)'
+        in text
+    ), "Worker CLI should register parallel_ops_breakage_helpdesk_failures_export handler."
 
 
 def test_breakage_tasks_module_exposes_worker_entrypoints() -> None:
@@ -54,3 +58,4 @@ def test_breakage_tasks_module_exposes_worker_entrypoints() -> None:
     assert "def breakage_helpdesk_sync_stub(" in text
     assert "def breakage_incidents_export(" in text
     assert "def breakage_incidents_export_cleanup(" in text
+    assert "def parallel_ops_breakage_helpdesk_failures_export(" in text

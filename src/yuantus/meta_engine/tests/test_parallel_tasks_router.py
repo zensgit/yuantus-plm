@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -142,7 +143,17 @@ def test_breakage_helpdesk_sync_endpoint_returns_job():
         )
         resp = client.post(
             "/api/v1/breakages/inc-1/helpdesk-sync",
-            json={"metadata_json": {"channel": "qa"}},
+            json={
+                "metadata_json": {"channel": "qa"},
+                "provider": "jira",
+                "integration_json": {
+                    "mode": "http",
+                    "base_url": "https://jira.example.test",
+                    "auth_type": "bearer",
+                    "token": "jira-token",
+                    "jira_project_key": "OPS",
+                },
+            },
         )
 
     assert resp.status_code == 200
@@ -151,6 +162,21 @@ def test_breakage_helpdesk_sync_endpoint_returns_job():
     assert data["job_id"] == "job-1"
     assert data["task_type"] == "breakage_helpdesk_sync_stub"
     assert db.commit.called
+    service_cls.return_value.enqueue_helpdesk_stub_sync.assert_called_once_with(
+        "inc-1",
+        user_id=3,
+        metadata_json={"channel": "qa"},
+        provider="jira",
+        integration_json={
+            "mode": "http",
+            "base_url": "https://jira.example.test",
+            "auth_type": "bearer",
+            "token": "jira-token",
+            "jira_project_key": "OPS",
+        },
+        idempotency_key=None,
+        retry_max_attempts=None,
+    )
 
 
 def test_breakage_helpdesk_sync_status_endpoint_returns_payload():
@@ -298,6 +324,101 @@ def test_breakage_helpdesk_sync_result_invalid_maps_contract_error():
     assert detail.get("code") == "breakage_helpdesk_sync_invalid"
     assert detail.get("context", {}).get("incident_id") == "inc-1"
     assert detail.get("context", {}).get("sync_status") == "queued"
+
+
+def test_breakage_helpdesk_ticket_update_endpoint_returns_payload():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.apply_helpdesk_ticket_update.return_value = {
+            "incident_id": "inc-1",
+            "incident_status": "in_progress",
+            "incident_responsibility": "ops-team",
+            "sync_status": "in_progress",
+            "external_ticket_id": "HD-1",
+            "event_id": "evt-1",
+            "idempotent_replay": False,
+            "last_job": {"id": "job-1", "status": "processing"},
+            "jobs": [{"id": "job-1"}],
+        }
+        resp = client.post(
+            "/api/v1/breakages/inc-1/helpdesk-sync/ticket-update",
+            json={
+                "job_id": "job-1",
+                "event_id": "evt-1",
+                "provider_ticket_status": "working",
+                "provider_updated_at": "2026-03-06T09:00:00+08:00",
+                "provider_assignee": "ops-team",
+                "provider_payload": {"source": "jira-webhook"},
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["incident_id"] == "inc-1"
+    assert body["incident_status"] == "in_progress"
+    assert body["sync_status"] == "in_progress"
+    assert body["event_id"] == "evt-1"
+    assert body["idempotent_replay"] is False
+    assert body["operator_id"] == 3
+    assert db.commit.called
+    service_cls.return_value.apply_helpdesk_ticket_update.assert_called_once_with(
+        "inc-1",
+        provider_ticket_status="working",
+        job_id="job-1",
+        event_id="evt-1",
+        external_ticket_id=None,
+        provider=None,
+        provider_updated_at=datetime(2026, 3, 6, 1, 0, 0),
+        provider_assignee="ops-team",
+        provider_payload={"source": "jira-webhook"},
+        incident_status=None,
+        incident_responsibility=None,
+        user_id=3,
+    )
+
+
+def test_breakage_helpdesk_ticket_update_invalid_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.apply_helpdesk_ticket_update.side_effect = ValueError(
+            "provider_ticket_status must not be empty"
+        )
+        resp = client.post(
+            "/api/v1/breakages/inc-1/helpdesk-sync/ticket-update",
+            json={"provider_ticket_status": "  "},
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "breakage_helpdesk_sync_invalid"
+    assert detail.get("context", {}).get("incident_id") == "inc-1"
+    assert detail.get("context", {}).get("provider_ticket_status") == "  "
+
+
+def test_breakage_helpdesk_ticket_update_invalid_datetime_maps_contract_error():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    resp = client.post(
+        "/api/v1/breakages/inc-1/helpdesk-sync/ticket-update",
+        json={
+            "provider_ticket_status": "in_progress",
+            "provider_updated_at": "not-a-datetime",
+        },
+    )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "invalid_datetime"
+    assert detail.get("context", {}).get("field") == "provider_updated_at"
 
 
 def test_breakage_cockpit_endpoint_returns_payload():
@@ -989,6 +1110,157 @@ def test_doc_sync_summary_returns_operator_id_and_payload():
     )
 
 
+def test_doc_sync_dead_letter_list_returns_operator_id_and_jobs():
+    user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+    ) as service_cls:
+        service_cls.return_value.list_dead_letter_sync_jobs.return_value = [
+            SimpleNamespace(id="job-dead-1")
+        ]
+        service_cls.return_value.build_sync_job_view.return_value = {
+            "id": "job-dead-1",
+            "status": "failed",
+            "is_dead_letter": True,
+        }
+        resp = client.get("/api/v1/doc-sync/jobs/dead-letter?window_days=7&limit=10")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["operator_id"] == 5
+    assert body["total"] == 1
+    assert body["jobs"][0]["id"] == "job-dead-1"
+    service_cls.return_value.list_dead_letter_sync_jobs.assert_called_once_with(
+        site_id=None,
+        window_days=7,
+        limit=10,
+    )
+
+
+def test_doc_sync_dead_letter_invalid_maps_contract_error():
+    user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+    ) as service_cls:
+        service_cls.return_value.list_dead_letter_sync_jobs.side_effect = ValueError(
+            "window_days must be between 1 and 90"
+        )
+        resp = client.get("/api/v1/doc-sync/jobs/dead-letter?window_days=0")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "doc_sync_dead_letter_invalid"
+    assert detail.get("context", {}).get("window_days") == 0
+
+
+def test_doc_sync_replay_batch_returns_operator_id_and_result():
+    user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+    ) as service_cls:
+        service_cls.return_value.replay_sync_jobs_batch.return_value = {
+            "source": "dead_letter",
+            "requested": 2,
+            "replayed": 2,
+            "failed": 0,
+            "failures": [],
+            "replayed_jobs": [
+                {"source_job_id": "j1", "replayed_job_id": "r1"},
+                {"source_job_id": "j2", "replayed_job_id": "r2"},
+            ],
+        }
+        resp = client.post(
+            "/api/v1/doc-sync/jobs/replay-batch",
+            json={
+                "site_id": "site-1",
+                "only_dead_letter": True,
+                "window_days": 7,
+                "limit": 20,
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["operator_id"] == 5
+    assert body["replayed"] == 2
+    service_cls.return_value.replay_sync_jobs_batch.assert_called_once_with(
+        job_ids=None,
+        site_id="site-1",
+        only_dead_letter=True,
+        window_days=7,
+        limit=20,
+        user_id=5,
+    )
+
+
+def test_doc_sync_replay_batch_invalid_maps_contract_error():
+    user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+    ) as service_cls:
+        service_cls.return_value.replay_sync_jobs_batch.side_effect = ValueError(
+            "limit must be between 1 and 500"
+        )
+        resp = client.post(
+            "/api/v1/doc-sync/jobs/replay-batch",
+            json={"site_id": "site-1", "limit": 0},
+        )
+
+    assert resp.status_code == 422
+
+
+def test_doc_sync_summary_export_streams_payload():
+    user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+    ) as service_cls:
+        service_cls.return_value.export_sync_summary.return_value = {
+            "content": b"scope,site_id,total\noverall,*,2\n",
+            "media_type": "text/csv",
+            "filename": "doc-sync-summary.csv",
+        }
+        resp = client.get("/api/v1/doc-sync/summary/export?window_days=7&export_format=csv")
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="doc-sync-summary.csv"' in (resp.headers.get("content-disposition", ""))
+    assert resp.headers.get("x-operator-id") == "5"
+    assert "scope,site_id,total" in resp.text
+    service_cls.return_value.export_sync_summary.assert_called_once_with(
+        site_id=None,
+        window_days=7,
+        export_format="csv",
+    )
+
+
+def test_doc_sync_summary_export_invalid_maps_contract_error():
+    user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+    ) as service_cls:
+        service_cls.return_value.export_sync_summary.side_effect = ValueError(
+            "export_format must be json, csv or md"
+        )
+        resp = client.get("/api/v1/doc-sync/summary/export?export_format=xlsx")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "doc_sync_summary_export_invalid"
+    assert detail.get("context", {}).get("export_format") == "xlsx"
+
+
 def test_doc_sync_summary_invalid_maps_contract_error():
     user = SimpleNamespace(id=5, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
@@ -1053,6 +1325,221 @@ def test_eco_activity_transition_blocked_maps_contract_error():
     assert detail.get("context", {}).get("activity_id") == "act-1"
 
 
+def test_eco_activity_transition_check_returns_decision_with_operator_id():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.evaluate_transition.return_value = {
+            "activity_id": "act-1",
+            "eco_id": "eco-1",
+            "name": "A1",
+            "from_status": "pending",
+            "to_status": "completed",
+            "requested_status": "done",
+            "allowed_targets": ["active", "completed", "pending"],
+            "can_transition": True,
+            "reason_code": "ok",
+            "blockers": [],
+        }
+        resp = client.get(
+            "/api/v1/eco-activities/activity/act-1/transition-check?to_status=done"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["activity_id"] == "act-1"
+    assert body["to_status"] == "completed"
+    assert body["can_transition"] is True
+    assert body["operator_id"] == 6
+    service_cls.return_value.evaluate_transition.assert_called_once_with(
+        activity_id="act-1",
+        to_status="done",
+    )
+
+
+def test_eco_activity_transition_check_invalid_maps_contract_error():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.evaluate_transition.side_effect = ValueError(
+            "to_status must be one of: active, canceled, cancel, completed"
+        )
+        resp = client.get(
+            "/api/v1/eco-activities/activity/act-1/transition-check?to_status=bad"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "eco_activity_transition_invalid"
+    assert detail.get("context", {}).get("activity_id") == "act-1"
+    assert detail.get("context", {}).get("to_status") == "bad"
+
+
+def test_eco_activity_bulk_transition_check_returns_decisions_with_operator_id():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.evaluate_transitions_bulk.return_value = {
+            "eco_id": "eco-1",
+            "to_status": "active",
+            "requested_status": "in_progress",
+            "include_terminal": False,
+            "include_non_blocking": True,
+            "selected_total": 2,
+            "total": 2,
+            "ready_total": 1,
+            "blocked_total": 1,
+            "invalid_total": 0,
+            "noop_total": 0,
+            "missing_total": 0,
+            "excluded_total": 0,
+            "missing_activity_ids": [],
+            "excluded_activity_ids": [],
+            "truncated": False,
+            "decisions": [
+                {"activity_id": "a-1", "can_transition": True},
+                {"activity_id": "a-2", "can_transition": False},
+            ],
+        }
+        resp = client.post(
+            "/api/v1/eco-activities/eco-1/transition-check/bulk",
+            json={
+                "to_status": "in_progress",
+                "activity_ids": ["a-1", "a-2"],
+                "include_terminal": False,
+                "include_non_blocking": True,
+                "limit": 50,
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["eco_id"] == "eco-1"
+    assert body["to_status"] == "active"
+    assert body["ready_total"] == 1
+    assert body["blocked_total"] == 1
+    assert body["operator_id"] == 6
+    service_cls.return_value.evaluate_transitions_bulk.assert_called_once_with(
+        "eco-1",
+        to_status="in_progress",
+        activity_ids=["a-1", "a-2"],
+        include_terminal=False,
+        include_non_blocking=True,
+        limit=50,
+    )
+
+
+def test_eco_activity_bulk_transition_check_invalid_maps_contract_error():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.evaluate_transitions_bulk.side_effect = ValueError(
+            "to_status must be one of: active, canceled, cancel, completed"
+        )
+        resp = client.post(
+            "/api/v1/eco-activities/eco-1/transition-check/bulk",
+            json={"to_status": "bad", "limit": 200},
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "eco_activity_transition_invalid"
+    assert detail.get("context", {}).get("eco_id") == "eco-1"
+    assert detail.get("context", {}).get("to_status") == "bad"
+
+
+def test_eco_activity_bulk_transition_endpoint_returns_decisions_with_operator_id():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.transition_activities_bulk.return_value = {
+            "eco_id": "eco-1",
+            "to_status": "completed",
+            "requested_status": "done",
+            "selected_total": 2,
+            "total": 2,
+            "executed_total": 2,
+            "noop_total": 0,
+            "blocked_total": 0,
+            "invalid_total": 0,
+            "missing_total": 0,
+            "excluded_total": 0,
+            "missing_activity_ids": [],
+            "excluded_activity_ids": [],
+            "decisions": [
+                {"activity_id": "a-1", "action": "executed"},
+                {"activity_id": "a-2", "action": "executed"},
+            ],
+        }
+        resp = client.post(
+            "/api/v1/eco-activities/eco-1/transition/bulk",
+            json={
+                "to_status": "done",
+                "activity_ids": ["a-1", "a-2"],
+                "include_terminal": False,
+                "include_non_blocking": True,
+                "limit": 50,
+                "reason": "bulk-router-test",
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["eco_id"] == "eco-1"
+    assert body["to_status"] == "completed"
+    assert body["executed_total"] == 2
+    assert body["operator_id"] == 6
+    assert db.commit.called
+    service_cls.return_value.transition_activities_bulk.assert_called_once_with(
+        "eco-1",
+        to_status="done",
+        activity_ids=["a-1", "a-2"],
+        include_terminal=False,
+        include_non_blocking=True,
+        limit=50,
+        user_id=6,
+        reason="bulk-router-test",
+    )
+
+
+def test_eco_activity_bulk_transition_invalid_maps_contract_error():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.transition_activities_bulk.side_effect = ValueError(
+            "bulk execution truncated by limit; increase limit and retry"
+        )
+        resp = client.post(
+            "/api/v1/eco-activities/eco-1/transition/bulk",
+            json={"to_status": "done", "limit": 1},
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "eco_activity_transition_invalid"
+    assert detail.get("context", {}).get("eco_id") == "eco-1"
+    assert detail.get("context", {}).get("to_status") == "done"
+    assert detail.get("context", {}).get("limit") == 1
+
+
 def test_eco_activity_sla_returns_overview_with_operator_id():
     user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
@@ -1111,6 +1598,112 @@ def test_eco_activity_sla_invalid_maps_contract_error():
     assert detail.get("code") == "eco_activity_sla_invalid"
     assert detail.get("context", {}).get("eco_id") == "eco-1"
     assert detail.get("context", {}).get("due_soon_hours") == 0
+
+
+def test_eco_activity_sla_alerts_returns_overview_with_operator_id():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.activity_sla_alerts.return_value = {
+            "eco_id": "eco-1",
+            "status": "warning",
+            "metrics": {"open_total": 3, "overdue_total": 1, "due_soon_total": 2},
+            "alerts": [
+                {
+                    "code": "eco_activity_sla_due_soon_count_high",
+                    "level": "warn",
+                    "current": 2,
+                    "threshold": 1,
+                }
+            ],
+        }
+        resp = client.get(
+            "/api/v1/eco-activities/eco-1/sla/alerts"
+            "?due_soon_hours=48&overdue_rate_warn=0.1&due_soon_count_warn=1&blocking_overdue_warn=0"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["operator_id"] == 6
+    assert body["status"] == "warning"
+    assert body["alerts"][0]["code"] == "eco_activity_sla_due_soon_count_high"
+    service_cls.return_value.activity_sla_alerts.assert_called_once_with(
+        "eco-1",
+        now=None,
+        due_soon_hours=48,
+        include_closed=False,
+        assignee_id=None,
+        limit=100,
+        overdue_rate_warn=0.1,
+        due_soon_count_warn=1,
+        blocking_overdue_warn=0,
+    )
+
+
+def test_eco_activity_sla_alerts_invalid_maps_contract_error():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.activity_sla_alerts.side_effect = ValueError(
+            "overdue_rate_warn must be between 0 and 1"
+        )
+        resp = client.get("/api/v1/eco-activities/eco-1/sla/alerts?overdue_rate_warn=1.2")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "eco_activity_sla_alerts_invalid"
+    assert detail.get("context", {}).get("overdue_rate_warn") == 1.2
+
+
+def test_eco_activity_sla_alerts_export_streams_payload():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.export_activity_sla_alerts.return_value = {
+            "content": b"eco_id,status,alert_code\neco-1,warning,eco_activity_sla_overdue_rate_high\n",
+            "media_type": "text/csv",
+            "filename": "eco-activity-sla-alerts.csv",
+        }
+        resp = client.get(
+            "/api/v1/eco-activities/eco-1/sla/alerts/export?export_format=csv"
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="eco-activity-sla-alerts.csv"' in (
+        resp.headers.get("content-disposition", "")
+    )
+    assert resp.headers.get("x-operator-id") == "6"
+    assert "alert_code" in resp.text
+
+
+def test_eco_activity_sla_alerts_export_invalid_maps_contract_error():
+    user = SimpleNamespace(id=6, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+    ) as service_cls:
+        service_cls.return_value.export_activity_sla_alerts.side_effect = ValueError(
+            "export_format must be json, csv or md"
+        )
+        resp = client.get(
+            "/api/v1/eco-activities/eco-1/sla/alerts/export?export_format=xlsx"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "eco_activity_sla_alerts_export_invalid"
+    assert detail.get("context", {}).get("export_format") == "xlsx"
 
 
 def test_workflow_rule_invalid_payload_returns_contract_error():
@@ -1736,15 +2329,36 @@ def test_parallel_ops_summary_accepts_threshold_overrides():
                 "doc_sync_dead_letter_rate_warn": 0.9,
                 "workflow_failed_rate_warn": 0.9,
                 "breakage_open_rate_warn": 0.9,
+                "breakage_helpdesk_failed_rate_warn": 0.8,
+                "breakage_helpdesk_failed_total_warn": 3,
+                "breakage_helpdesk_triage_coverage_warn": 0.5,
+                "breakage_helpdesk_export_failed_total_warn": 2,
+                "breakage_helpdesk_provider_failed_rate_warn": 0.7,
+                "breakage_helpdesk_provider_failed_min_jobs_warn": 4,
+                "breakage_helpdesk_provider_failed_rate_critical": 0.95,
+                "breakage_helpdesk_provider_failed_min_jobs_critical": 8,
+                "breakage_helpdesk_replay_failed_rate_warn": 0.6,
+                "breakage_helpdesk_replay_failed_total_warn": 2,
+                "breakage_helpdesk_replay_pending_total_warn": 6,
             },
         }
         resp = client.get(
-            "/api/v1/parallel-ops/summary?window_days=7&overlay_cache_hit_rate_warn=0.2&overlay_cache_min_requests_warn=20&doc_sync_dead_letter_rate_warn=0.9&workflow_failed_rate_warn=0.9&breakage_open_rate_warn=0.9"
+            "/api/v1/parallel-ops/summary?window_days=7&overlay_cache_hit_rate_warn=0.2&overlay_cache_min_requests_warn=20&doc_sync_dead_letter_rate_warn=0.9&workflow_failed_rate_warn=0.9&breakage_open_rate_warn=0.9&breakage_helpdesk_failed_rate_warn=0.8&breakage_helpdesk_failed_total_warn=3&breakage_helpdesk_triage_coverage_warn=0.5&breakage_helpdesk_export_failed_total_warn=2&breakage_helpdesk_provider_failed_rate_warn=0.7&breakage_helpdesk_provider_failed_min_jobs_warn=4&breakage_helpdesk_provider_failed_rate_critical=0.95&breakage_helpdesk_provider_failed_min_jobs_critical=8&breakage_helpdesk_replay_failed_rate_warn=0.6&breakage_helpdesk_replay_failed_total_warn=2&breakage_helpdesk_replay_pending_total_warn=6"
         )
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["slo_thresholds"]["doc_sync_dead_letter_rate_warn"] == 0.9
+    assert body["slo_thresholds"]["breakage_helpdesk_failed_total_warn"] == 3
+    assert body["slo_thresholds"]["breakage_helpdesk_triage_coverage_warn"] == 0.5
+    assert body["slo_thresholds"]["breakage_helpdesk_export_failed_total_warn"] == 2
+    assert body["slo_thresholds"]["breakage_helpdesk_provider_failed_rate_warn"] == 0.7
+    assert body["slo_thresholds"]["breakage_helpdesk_provider_failed_min_jobs_warn"] == 4
+    assert body["slo_thresholds"]["breakage_helpdesk_provider_failed_rate_critical"] == 0.95
+    assert body["slo_thresholds"]["breakage_helpdesk_provider_failed_min_jobs_critical"] == 8
+    assert body["slo_thresholds"]["breakage_helpdesk_replay_failed_rate_warn"] == 0.6
+    assert body["slo_thresholds"]["breakage_helpdesk_replay_failed_total_warn"] == 2
+    assert body["slo_thresholds"]["breakage_helpdesk_replay_pending_total_warn"] == 6
 
 
 def test_parallel_ops_summary_invalid_threshold_maps_contract_error():
@@ -1826,6 +2440,717 @@ def test_parallel_ops_workflow_failures_returns_payload():
     assert body["operator_id"] == 16
 
 
+def test_parallel_ops_breakage_helpdesk_failures_returns_payload():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.breakage_helpdesk_failures.return_value = {
+            "window_days": 7,
+            "window_since": "2026-02-21T00:00:00",
+            "provider_filter": "jira",
+            "failure_category_filter": "transient",
+            "provider_ticket_status_filter": "on_hold",
+            "total": 1,
+            "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+            "by_provider": {"jira": 1},
+            "by_failure_category": {"transient": 1},
+            "by_provider_ticket_status": {"on_hold": 1},
+            "jobs": [
+                {
+                    "id": "job-bh-1",
+                    "status": "failed",
+                    "provider": "jira",
+                    "failure_category": "transient",
+                    "provider_ticket_status": "on_hold",
+                }
+            ],
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures"
+            "?window_days=7&provider=jira&failure_category=transient&provider_ticket_status=on_hold"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["jobs"][0]["provider"] == "jira"
+    assert body["jobs"][0]["failure_category"] == "transient"
+    assert body["jobs"][0]["provider_ticket_status"] == "on_hold"
+    assert body["operator_id"] == 16
+
+
+def test_parallel_ops_breakage_helpdesk_failure_trends_returns_payload():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.breakage_helpdesk_failure_trends.return_value = {
+            "generated_at": "2026-03-06T10:00:00",
+            "window_days": 7,
+            "window_since": "2026-02-28T10:00:00",
+            "bucket_days": 1,
+            "filters": {
+                "provider": "zendesk",
+                "failure_category": "transient",
+                "provider_ticket_status": "on_hold",
+            },
+            "points": [
+                {
+                    "bucket_start": "2026-03-06T00:00:00",
+                    "bucket_end": "2026-03-06T23:59:59",
+                    "total_jobs": 1,
+                    "failed_jobs": 1,
+                    "failed_rate": 1.0,
+                    "by_failure_category": {"transient": 1},
+                }
+            ],
+            "aggregates": {"total_jobs": 1, "failed_jobs": 1, "failed_rate": 1.0},
+            "by_failure_category": {"transient": 1},
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/trends"
+            "?window_days=7&bucket_days=1&provider=zendesk&failure_category=transient&provider_ticket_status=on_hold"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["aggregates"]["failed_jobs"] == 1
+    assert body["points"][0]["failed_rate"] == 1.0
+    assert body["operator_id"] == 16
+
+
+def test_parallel_ops_breakage_helpdesk_failures_triage_returns_payload():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.breakage_helpdesk_failure_triage.return_value = {
+            "generated_at": "2026-03-06T10:00:00",
+            "window_days": 7,
+            "window_since": "2026-02-28T10:00:00",
+            "filters": {
+                "provider": "zendesk",
+                "failure_category": "transient",
+                "provider_ticket_status": "on_hold",
+            },
+            "top_n": 5,
+            "total_failed_jobs": 3,
+            "hotspots": {
+                "failure_categories": [{"key": "transient", "count": 2, "ratio": 0.6667}]
+            },
+            "replay_candidates_total": 2,
+            "replay_candidates": [{"id": "job-bh-1"}],
+            "triage_actions": [{"code": "retry_with_backoff"}],
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/triage"
+            "?window_days=7&provider=zendesk&failure_category=transient&provider_ticket_status=on_hold&top_n=5"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_failed_jobs"] == 3
+    assert body["replay_candidates_total"] == 2
+    assert body["triage_actions"][0]["code"] == "retry_with_backoff"
+    assert body["operator_id"] == 16
+
+
+def test_parallel_ops_breakage_helpdesk_failures_triage_apply_returns_payload():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.apply_breakage_helpdesk_failure_triage.return_value = {
+            "updated_total": 1,
+            "updated_jobs": [{"id": "job-bh-1", "triage_status": "in_progress"}],
+            "skipped_not_found_total": 0,
+        }
+        resp = client.post(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/triage/apply",
+            json={
+                "triage_status": "in_progress",
+                "job_ids": ["job-bh-1"],
+                "triage_owner": "ops-l2",
+                "root_cause": "provider_rate_limit",
+                "resolution": "retry_with_backoff",
+                "note": "triage note",
+                "tags": ["hot", "provider"],
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["updated_total"] == 1
+    assert body["updated_jobs"][0]["triage_status"] == "in_progress"
+    assert body["operator_id"] == 16
+    assert db.commit.called
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_enqueue_returns_payload():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.enqueue_breakage_helpdesk_failure_replay_jobs.return_value = {
+            "source": "job_ids",
+            "batch_id": "bh-replay-1",
+            "created_jobs_total": 1,
+            "created_jobs": [
+                {
+                    "batch_id": "bh-replay-1",
+                    "source_job_id": "job-bh-1",
+                    "job_id": "job-replay-1",
+                }
+            ],
+            "errors_total": 0,
+        }
+        resp = client.post(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/enqueue",
+            json={"job_ids": ["job-bh-1"], "limit": 10},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["created_jobs_total"] == 1
+    assert body["batch_id"] == "bh-replay-1"
+    assert body["created_jobs"][0]["job_id"] == "job-replay-1"
+    assert body["created_jobs"][0]["batch_id"] == "bh-replay-1"
+    assert body["operator_id"] == 16
+    assert db.commit.called
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_batch_returns_payload():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.get_breakage_helpdesk_failure_replay_batch.return_value = {
+            "generated_at": "2026-03-06T10:00:00",
+            "batch_id": "bh-replay-1",
+            "total": 1,
+            "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+            "requested_total": 1,
+            "requested_by_ids": [16],
+            "by_job_status": {"pending": 1},
+            "by_sync_status": {"queued": 1},
+            "by_provider": {"zendesk": 1},
+            "by_failure_category": {"transient": 1},
+            "jobs": [{"job_id": "job-replay-1", "source_job_id": "job-bh-1"}],
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/batches/bh-replay-1"
+            "?page=1&page_size=20"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["batch_id"] == "bh-replay-1"
+    assert body["total"] == 1
+    assert body["jobs"][0]["job_id"] == "job-replay-1"
+    assert body["operator_id"] == 16
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_batches_list_returns_payload():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.list_breakage_helpdesk_failure_replay_batches.return_value = {
+            "generated_at": "2026-03-06T10:00:00",
+            "window_days": 7,
+            "window_since": "2026-02-28T10:00:00",
+            "filters": {
+                "provider": "zendesk",
+                "job_status": None,
+                "sync_status": None,
+            },
+            "total_batches": 1,
+            "total_jobs": 1,
+            "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+            "by_job_status": {"pending": 1},
+            "by_sync_status": {"queued": 1},
+            "by_provider": {"zendesk": 1},
+            "by_failure_category": {"transient": 1},
+            "batches": [{"batch_id": "bh-replay-1", "jobs_total": 1}],
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/batches"
+            "?window_days=7&provider=zendesk&page=1&page_size=20"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_batches"] == 1
+    assert body["batches"][0]["batch_id"] == "bh-replay-1"
+    assert body["operator_id"] == 16
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_trends_returns_payload():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.breakage_helpdesk_replay_trends.return_value = {
+            "generated_at": "2026-03-06T10:00:00",
+            "window_days": 7,
+            "window_since": "2026-02-28T10:00:00",
+            "bucket_days": 1,
+            "filters": {
+                "provider": "zendesk",
+                "job_status": None,
+                "sync_status": None,
+            },
+            "points": [
+                {
+                    "bucket_start": "2026-03-05T00:00:00",
+                    "bucket_end": "2026-03-06T00:00:00",
+                    "total_jobs": 2,
+                    "failed_jobs": 1,
+                    "failed_rate": 0.5,
+                    "batches_total": 1,
+                    "by_provider": {"zendesk": 2},
+                    "by_job_status": {"failed": 1, "pending": 1},
+                    "by_sync_status": {"failed": 1, "queued": 1},
+                }
+            ],
+            "aggregates": {
+                "total_jobs": 2,
+                "failed_jobs": 1,
+                "failed_rate": 0.5,
+                "total_batches": 1,
+            },
+            "by_provider": {"zendesk": 2},
+            "by_job_status": {"failed": 1, "pending": 1},
+            "by_sync_status": {"failed": 1, "queued": 1},
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/trends"
+            "?window_days=7&bucket_days=1&provider=zendesk"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["aggregates"]["total_jobs"] == 2
+    assert body["aggregates"]["total_batches"] == 1
+    assert body["operator_id"] == 16
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_trends_invalid_maps_contract_error():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.breakage_helpdesk_replay_trends.side_effect = ValueError(
+            "bucket_days must be <= window_days"
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/trends"
+            "?window_days=7&bucket_days=14"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("bucket_days") == 14
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_trends_export_returns_download_response():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_breakage_helpdesk_replay_trends.return_value = {
+            "content": b"bucket_start,bucket_end,total_jobs,failed_jobs,failed_rate,batches_total\n",
+            "media_type": "text/csv",
+            "filename": "parallel-ops-breakage-helpdesk-replay-trends.csv",
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/trends/export"
+            "?window_days=7&bucket_days=1&provider=zendesk&export_format=csv"
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="parallel-ops-breakage-helpdesk-replay-trends.csv"' in (
+        resp.headers.get("content-disposition", "")
+    )
+    assert resp.headers.get("x-operator-id") == "19"
+    assert "bucket_start,bucket_end,total_jobs" in resp.text
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_trends_export_invalid_maps_contract_error():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_breakage_helpdesk_replay_trends.side_effect = (
+            ValueError("export_format must be json, csv or md")
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/trends/export"
+            "?window_days=7&bucket_days=1&export_format=xlsx"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("export_format") == "xlsx"
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_batch_export_returns_download_response():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_breakage_helpdesk_failure_replay_batch.return_value = {
+            "content": b'batch_id,job_id\\nbh-replay-1,job-replay-1\\n',
+            "media_type": "text/csv",
+            "filename": "parallel-ops-breakage-helpdesk-replay-batch-bh-replay-1.csv",
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/batches/bh-replay-1/export"
+            "?export_format=csv"
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="parallel-ops-breakage-helpdesk-replay-batch-bh-replay-1.csv"' in (
+        resp.headers.get("content-disposition", "")
+    )
+    assert resp.headers.get("x-operator-id") == "19"
+    assert "bh-replay-1" in resp.text
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_batch_not_found_maps_contract_error():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.get_breakage_helpdesk_failure_replay_batch.side_effect = (
+            ValueError("Replay batch not found: bh-replay-missing")
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/batches/bh-replay-missing"
+        )
+
+    assert resp.status_code == 404
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_replay_batch_not_found"
+    assert detail.get("context", {}).get("batch_id") == "bh-replay-missing"
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_batch_export_not_found_maps_contract_error():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_breakage_helpdesk_failure_replay_batch.side_effect = (
+            ValueError("Replay batch not found: bh-replay-missing")
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/batches/bh-replay-missing/export"
+            "?export_format=json"
+        )
+
+    assert resp.status_code == 404
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_replay_batch_not_found"
+    assert detail.get("context", {}).get("batch_id") == "bh-replay-missing"
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_batches_cleanup_returns_payload():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.cleanup_breakage_helpdesk_failure_replay_batches.return_value = {
+            "generated_at": "2026-03-06T12:00:00",
+            "ttl_hours": 24,
+            "limit": 200,
+            "dry_run": True,
+            "cutoff_at": "2026-03-05T12:00:00",
+            "archived_jobs": 2,
+            "archived_batches": 1,
+            "batch_ids": ["bh-replay-1"],
+            "job_ids": ["job-replay-1", "job-replay-2"],
+        }
+        resp = client.post(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/batches/cleanup",
+            json={"ttl_hours": 24, "limit": 200, "dry_run": True},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["archived_jobs"] == 2
+    assert body["dry_run"] is True
+    assert body["batch_ids"][0] == "bh-replay-1"
+    assert body["operator_id"] == 19
+    service_cls.return_value.cleanup_breakage_helpdesk_failure_replay_batches.assert_called_once_with(
+        ttl_hours=24,
+        limit=200,
+        dry_run=True,
+    )
+    assert db.commit.called
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_batches_cleanup_invalid_maps_contract_error():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.cleanup_breakage_helpdesk_failure_replay_batches.side_effect = (
+            ValueError("limit must be between 1 and 1000")
+        )
+        resp = client.post(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/batches/cleanup",
+            json={"ttl_hours": 24, "limit": 200, "dry_run": True},
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("ttl_hours") == 24
+    assert detail.get("context", {}).get("dry_run") is True
+    assert db.rollback.called
+
+
+def test_parallel_ops_breakage_helpdesk_failures_export_returns_download_response():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_breakage_helpdesk_failures.return_value = {
+            "content": b"id,provider,error_code\\njob-1,jira,provider_timeout\\n",
+            "media_type": "text/csv",
+            "filename": "parallel-ops-breakage-helpdesk-failures.csv",
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export"
+            "?window_days=7&provider=jira&failure_category=transient&provider_ticket_status=on_hold&export_format=csv"
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="parallel-ops-breakage-helpdesk-failures.csv"' in (
+        resp.headers.get("content-disposition", "")
+    )
+    assert resp.headers.get("x-operator-id") == "19"
+    assert "provider_timeout" in resp.text
+
+
+def test_parallel_ops_breakage_helpdesk_failures_export_zip_returns_download_response():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_breakage_helpdesk_failures.return_value = {
+            "content": b"PK\x03\x04",
+            "media_type": "application/zip",
+            "filename": "parallel-ops-breakage-helpdesk-failures.zip",
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export?window_days=7&export_format=zip"
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers.get("content-type", "").startswith("application/zip")
+    assert 'filename="parallel-ops-breakage-helpdesk-failures.zip"' in (
+        resp.headers.get("content-disposition", "")
+    )
+
+
+def test_parallel_ops_breakage_helpdesk_failures_export_job_create_run_status_download_endpoints():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.enqueue_breakage_helpdesk_failures_export_job.return_value = {
+            "job_id": "job-bh-exp-1",
+            "status": "pending",
+            "download_ready": False,
+        }
+        create_resp = client.post(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export/jobs",
+            json={
+                "window_days": 7,
+                "provider": "zendesk",
+                "failure_category": "transient",
+                "provider_ticket_status": "on_hold",
+                "export_format": "csv",
+                "execute_immediately": False,
+            },
+        )
+        service_cls.return_value.run_breakage_helpdesk_failures_export_job.return_value = {
+            "job_id": "job-bh-exp-1",
+            "status": "completed",
+            "download_ready": True,
+        }
+        run_resp = client.post(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export/jobs/job-bh-exp-1/run"
+        )
+        service_cls.return_value.get_breakage_helpdesk_failures_export_job.return_value = {
+            "job_id": "job-bh-exp-1",
+            "status": "completed",
+            "download_ready": True,
+        }
+        status_resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export/jobs/job-bh-exp-1"
+        )
+        service_cls.return_value.download_breakage_helpdesk_failures_export_job.return_value = {
+            "content": b"id,provider,error_code\\njob-bh-1,zendesk,provider_timeout\\n",
+            "media_type": "text/csv",
+            "filename": "parallel-ops-breakage-helpdesk-failures.csv",
+        }
+        download_resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export/jobs/job-bh-exp-1/download"
+        )
+        service_cls.return_value.cleanup_expired_breakage_helpdesk_failures_export_results.return_value = {
+            "ttl_hours": 24,
+            "limit": 200,
+            "expired_jobs": 1,
+            "job_ids": ["job-bh-exp-0"],
+        }
+        cleanup_resp = client.post(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export/jobs/cleanup",
+            json={"ttl_hours": 24, "limit": 200},
+        )
+
+    assert create_resp.status_code == 200
+    assert create_resp.json()["job_id"] == "job-bh-exp-1"
+    assert create_resp.json()["operator_id"] == 19
+    assert run_resp.status_code == 200
+    assert run_resp.json()["status"] == "completed"
+    assert status_resp.status_code == 200
+    assert status_resp.json()["download_ready"] is True
+    assert status_resp.json()["operator_id"] == 19
+    assert download_resp.status_code == 200
+    assert download_resp.headers.get("content-type", "").startswith("text/csv")
+    assert 'filename="parallel-ops-breakage-helpdesk-failures.csv"' in (
+        download_resp.headers.get("content-disposition", "")
+    )
+    assert download_resp.headers.get("x-operator-id") == "19"
+    assert "provider_timeout" in download_resp.text
+    assert cleanup_resp.status_code == 200
+    assert cleanup_resp.json()["expired_jobs"] == 1
+    assert cleanup_resp.json()["operator_id"] == 19
+    assert db.commit.called
+
+
+def test_parallel_ops_breakage_helpdesk_failures_export_jobs_overview_returns_payload():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.breakage_helpdesk_failures_export_jobs_overview.return_value = {
+            "generated_at": "2026-03-06T10:00:00",
+            "window_days": 7,
+            "window_since": "2026-02-28T10:00:00",
+            "filters": {
+                "provider": "zendesk",
+                "failure_category": "transient",
+                "export_format": "csv",
+            },
+            "total": 1,
+            "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+            "by_job_status": {"completed": 1},
+            "by_sync_status": {"completed": 1},
+            "by_provider": {"zendesk": 1},
+            "by_failure_category": {"transient": 1},
+            "by_export_format": {"csv": 1},
+            "duration_seconds": {
+                "count": 1,
+                "min_seconds": 0.1234,
+                "max_seconds": 0.1234,
+                "avg_seconds": 0.1234,
+                "p50_seconds": 0.1234,
+                "p95_seconds": 0.1234,
+            },
+            "jobs": [
+                {
+                    "job_id": "job-bh-exp-1",
+                    "provider": "zendesk",
+                    "failure_category": "transient",
+                    "export_format": "csv",
+                }
+            ],
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export/jobs/overview"
+            "?window_days=7&provider=zendesk&failure_category=transient&export_format=csv&page=1&page_size=20"
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["by_provider"]["zendesk"] == 1
+    assert body["by_failure_category"]["transient"] == 1
+    assert body["duration_seconds"]["count"] == 1
+    assert body["jobs"][0]["failure_category"] == "transient"
+    assert body["jobs"][0]["export_format"] == "csv"
+    assert body["operator_id"] == 19
+
+
+def test_parallel_ops_breakage_helpdesk_failures_export_job_not_found_maps_contract_error():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.get_breakage_helpdesk_failures_export_job.side_effect = (
+            ValueError("Parallel ops breakage-helpdesk export job not found: job-missing")
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export/jobs/job-missing"
+        )
+
+    assert resp.status_code == 404
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_export_job_not_found"
+    assert detail.get("context", {}).get("job_id") == "job-missing"
+
+
 def test_parallel_ops_metrics_returns_prometheus_text():
     user = SimpleNamespace(id=17, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
@@ -1861,3 +3186,142 @@ def test_parallel_ops_doc_sync_failures_invalid_request_maps_contract_error():
     assert resp.status_code == 400
     detail = resp.json().get("detail") or {}
     assert detail.get("code") == "parallel_ops_invalid_request"
+
+
+def test_parallel_ops_breakage_helpdesk_failures_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.breakage_helpdesk_failures.side_effect = ValueError(
+            "page_size must be between 1 and 200"
+        )
+        resp = client.get("/api/v1/parallel-ops/breakage-helpdesk/failures?window_days=10")
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+
+
+def test_parallel_ops_breakage_helpdesk_failure_trends_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.breakage_helpdesk_failure_trends.side_effect = ValueError(
+            "bucket_days must be <= window_days"
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/trends?window_days=7&bucket_days=14"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+
+
+def test_parallel_ops_breakage_helpdesk_failures_triage_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.breakage_helpdesk_failure_triage.side_effect = ValueError(
+            "top_n must be between 1 and 50"
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/triage?window_days=7&top_n=5"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("top_n") == 5
+
+
+def test_parallel_ops_breakage_helpdesk_failures_triage_apply_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.apply_breakage_helpdesk_failure_triage.side_effect = (
+            ValueError("triage_status must be one of: ignored, in_progress, open, resolved")
+        )
+        resp = client.post(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/triage/apply",
+            json={"triage_status": "oops", "job_ids": ["job-bh-1"]},
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("triage_status") == "oops"
+
+
+def test_parallel_ops_breakage_helpdesk_failures_replay_enqueue_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.enqueue_breakage_helpdesk_failure_replay_jobs.side_effect = (
+            ValueError("window_days must be one of: 1, 7, 14, 30, 90")
+        )
+        resp = client.post(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/replay/enqueue",
+            json={"window_days": 8, "limit": 100},
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("window_days") == 8
+
+
+def test_parallel_ops_breakage_helpdesk_failures_export_jobs_overview_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.breakage_helpdesk_failures_export_jobs_overview.side_effect = (
+            ValueError("export_format must be json, csv, md or zip")
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export/jobs/overview"
+            "?window_days=7&export_format=xlsx"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("export_format") == "xlsx"
+
+
+def test_parallel_ops_breakage_helpdesk_failures_export_invalid_request_maps_contract_error():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_breakage_helpdesk_failures.side_effect = ValueError(
+            "export_format must be json, csv or md"
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/breakage-helpdesk/failures/export?window_days=7&export_format=xlsx"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("export_format") == "xlsx"

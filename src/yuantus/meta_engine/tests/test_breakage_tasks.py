@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from yuantus.meta_engine.bootstrap import import_all_models
 from yuantus.meta_engine.models.job import ConversionJob
 from yuantus.meta_engine.models.parallel_tasks import BreakageIncident
 from yuantus.meta_engine.services.parallel_tasks_service import BreakageIncidentService
@@ -12,12 +13,14 @@ from yuantus.meta_engine.tasks.breakage_tasks import (
     breakage_helpdesk_sync_stub,
     breakage_incidents_export,
     breakage_incidents_export_cleanup,
+    parallel_ops_breakage_helpdesk_failures_export,
 )
 from yuantus.models.base import Base
 from yuantus.security.rbac.models import RBACUser
 
 
 def _session():
+    import_all_models()
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(
         bind=engine,
@@ -105,5 +108,73 @@ def test_breakage_export_and_cleanup_tasks_process_job_payloads() -> None:
         status = service.get_incidents_export_job(str(enqueued["job_id"]))
         assert status["download_ready"] is False
         assert status["sync_status"] == "expired"
+    finally:
+        session.close()
+
+
+def test_parallel_ops_breakage_helpdesk_export_task_processes_job_payloads() -> None:
+    session = _session()
+    try:
+        service = BreakageIncidentService(session)
+        incident = service.create_incident(
+            description="task-parallel-ops-helpdesk-export",
+            product_item_id="p-task-ops-1",
+            bom_line_item_id="bom-task-ops-1",
+        )
+        session.commit()
+        job = service.enqueue_helpdesk_stub_sync(
+            incident.id,
+            user_id=9,
+            provider="zendesk",
+            idempotency_key="task-ops-export-1",
+        )
+        session.commit()
+        service.record_helpdesk_sync_result(
+            incident.id,
+            sync_status="failed",
+            job_id=job.id,
+            error_code="provider_timeout",
+            error_message="timeout",
+            user_id=9,
+        )
+        failed_job = session.get(ConversionJob, job.id)
+        assert failed_job is not None
+        failed_payload = dict(failed_job.payload or {})
+        helpdesk_sync = (
+            dict(failed_payload.get("helpdesk_sync"))
+            if isinstance(failed_payload.get("helpdesk_sync"), dict)
+            else {}
+        )
+        helpdesk_sync["provider_ticket_status"] = "on_hold"
+        failed_payload["helpdesk_sync"] = helpdesk_sync
+        failed_payload["provider_ticket_status"] = "on_hold"
+        failed_job.payload = failed_payload
+        session.add(failed_job)
+        session.commit()
+
+        from yuantus.meta_engine.services.parallel_tasks_service import (
+            ParallelOpsOverviewService,
+        )
+
+        ops = ParallelOpsOverviewService(session)
+        enqueued = ops.enqueue_breakage_helpdesk_failures_export_job(
+            window_days=7,
+            provider="zendesk",
+            failure_category="transient",
+            provider_ticket_status="on_hold",
+            export_format="json",
+            execute_immediately=False,
+            user_id=9,
+        )
+        session.commit()
+
+        export_result = parallel_ops_breakage_helpdesk_failures_export(
+            {"user_id": 9},
+            session,
+            enqueued["job_id"],
+        )
+        session.commit()
+        assert export_result["status"] == "completed"
+        assert export_result["download_ready"] is True
     finally:
         session.close()

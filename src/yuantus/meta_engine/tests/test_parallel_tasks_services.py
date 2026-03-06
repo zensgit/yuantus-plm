@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import io
+import json
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from zipfile import ZipFile
 
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from yuantus.meta_engine.models.item import Item  # noqa: F401
 from yuantus.meta_engine.models.job import ConversionJob
 from yuantus.meta_engine.models.parallel_tasks import (
     BreakageIncident,
@@ -269,6 +271,314 @@ def test_document_multi_site_sync_summary_by_site_and_window(session):
         service.sync_summary(window_days=0)
 
 
+def test_document_multi_site_dead_letter_list_batch_replay_and_summary_export(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-ops",
+        endpoint="https://ops.example.test/plm",
+        auth_secret="ops-token",
+    )
+    session.commit()
+
+    first = service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=["doc-1"],
+        idempotency_key="ops-dead-1",
+    )
+    second = service.enqueue_sync(
+        site_id=site.id,
+        direction="pull",
+        document_ids=["doc-2"],
+        idempotency_key="ops-failed-not-dead",
+    )
+    first.status = "failed"
+    first.attempt_count = 3
+    first.max_attempts = 3
+    first.last_error = "retry exhausted"
+    second.status = "failed"
+    second.attempt_count = 1
+    second.max_attempts = 3
+    second.last_error = "temporary network"
+    session.commit()
+
+    dead_letters = service.list_dead_letter_sync_jobs(site_id=site.id, window_days=7, limit=50)
+    assert len(dead_letters) == 1
+    assert dead_letters[0].id == first.id
+
+    replay_result = service.replay_sync_jobs_batch(
+        site_id=site.id,
+        only_dead_letter=True,
+        window_days=7,
+        limit=20,
+        user_id=9,
+    )
+    assert replay_result["requested"] == 1
+    assert replay_result["replayed"] == 1
+    assert replay_result["failed"] == 0
+    assert len(replay_result["replayed_jobs"]) == 1
+    replayed_job_id = replay_result["replayed_jobs"][0]["replayed_job_id"]
+    replayed_job = service.get_sync_job(replayed_job_id)
+    assert replayed_job is not None
+    assert replayed_job.payload.get("replay_of") == first.id
+
+    replay_result_all_failed = service.replay_sync_jobs_batch(
+        site_id=site.id,
+        only_dead_letter=False,
+        window_days=7,
+        limit=20,
+        user_id=9,
+    )
+    assert replay_result_all_failed["requested"] == 2
+    assert replay_result_all_failed["replayed"] == 2
+
+    exported_json = service.export_sync_summary(site_id=site.id, window_days=7, export_format="json")
+    assert exported_json["filename"] == "doc-sync-summary.json"
+    assert exported_json["media_type"] == "application/json"
+    parsed_json = json.loads(exported_json["content"].decode("utf-8"))
+    assert parsed_json["site_filter"] == site.id
+
+    exported_csv = service.export_sync_summary(site_id=site.id, window_days=7, export_format="csv")
+    assert exported_csv["filename"] == "doc-sync-summary.csv"
+    csv_text = exported_csv["content"].decode("utf-8")
+    assert "dead_letter_total" in csv_text
+    assert site.id in csv_text
+
+    exported_md = service.export_sync_summary(site_id=site.id, window_days=7, export_format="md")
+    assert exported_md["filename"] == "doc-sync-summary.md"
+    md_text = exported_md["content"].decode("utf-8")
+    assert "# Doc Sync Summary" in md_text
+    assert site.id in md_text
+
+    with pytest.raises(ValueError, match="export_format must be json, csv or md"):
+        service.export_sync_summary(site_id=site.id, window_days=7, export_format="xlsx")
+
+    with pytest.raises(ValueError, match="window_days must be between 1 and 90"):
+        service.list_dead_letter_sync_jobs(site_id=site.id, window_days=0, limit=10)
+    with pytest.raises(ValueError, match="limit must be between 1 and 500"):
+        service.replay_sync_jobs_batch(site_id=site.id, limit=0)
+
+
+def test_document_multi_site_checkout_gate_blocks_on_sync_backlog(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-checkout",
+        endpoint="https://checkout.example.test/plm",
+        auth_secret="checkout-token",
+    )
+    session.commit()
+
+    item_id = "item-checkout-1"
+    job_pending = service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=[item_id],
+        idempotency_key="checkout-pending",
+    )
+    job_processing = service.enqueue_sync(
+        site_id=site.id,
+        direction="pull",
+        document_ids=[item_id],
+        idempotency_key="checkout-processing",
+    )
+    job_processing.status = "processing"
+    job_failed = service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=[item_id],
+        idempotency_key="checkout-failed",
+    )
+    job_failed.status = "failed"
+    job_failed.attempt_count = 3
+    job_failed.max_attempts = 3
+    job_failed.last_error = "retry exhausted"
+    job_completed = service.enqueue_sync(
+        site_id=site.id,
+        direction="pull",
+        document_ids=[item_id],
+        idempotency_key="checkout-completed",
+    )
+    job_completed.status = "completed"
+    service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=["item-other"],
+        idempotency_key="checkout-other",
+    )
+    session.commit()
+
+    gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        window_days=7,
+        limit=20,
+    )
+    assert gate["blocking"] is True
+    assert gate["blocking_total"] == 3
+    assert gate["blocking_counts"]["pending"] == 1
+    assert gate["blocking_counts"]["processing"] == 1
+    assert gate["blocking_counts"]["failed"] == 1
+    assert gate["blocking_counts"]["dead_letter"] == 1
+    blocking_ids = {row["id"] for row in gate["blocking_jobs"]}
+    assert job_pending.id in blocking_ids
+    assert job_processing.id in blocking_ids
+    assert job_failed.id in blocking_ids
+    assert job_completed.id not in blocking_ids
+
+    clear_gate = service.evaluate_checkout_sync_gate(
+        item_id="item-other",
+        site_id=site.id,
+        window_days=7,
+        limit=20,
+    )
+    assert clear_gate["blocking"] is True
+    assert clear_gate["blocking_total"] == 1
+    assert clear_gate["blocking_counts"]["pending"] == 1
+
+    with pytest.raises(ValueError, match="item_id must not be empty"):
+        service.evaluate_checkout_sync_gate(item_id="", site_id=site.id)
+    with pytest.raises(ValueError, match="site_id must not be empty"):
+        service.evaluate_checkout_sync_gate(item_id=item_id, site_id="")
+    with pytest.raises(ValueError, match="window_days must be between 1 and 90"):
+        service.evaluate_checkout_sync_gate(item_id=item_id, site_id=site.id, window_days=0)
+    with pytest.raises(ValueError, match="limit must be between 1 and 500"):
+        service.evaluate_checkout_sync_gate(item_id=item_id, site_id=site.id, limit=0)
+
+
+def test_document_multi_site_checkout_gate_supports_document_scope(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-checkout-scope",
+        endpoint="https://checkout-scope.example.test/plm",
+        auth_secret="checkout-token",
+    )
+    session.commit()
+
+    target_file_id = "file-a"
+    other_file_id = "file-b"
+    target_job = service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=[target_file_id],
+        idempotency_key="checkout-scope-target",
+    )
+    other_job = service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=[other_file_id],
+        idempotency_key="checkout-scope-other",
+    )
+    session.commit()
+
+    gate = service.evaluate_checkout_sync_gate(
+        item_id="item-checkout-scope",
+        version_id="ver-checkout-scope",
+        document_ids=[target_file_id],
+        site_id=site.id,
+        window_days=7,
+        limit=20,
+    )
+    assert gate["blocking"] is True
+    assert gate["blocking_total"] == 1
+    assert gate["monitored_document_ids"] == [target_file_id, "ver-checkout-scope"]
+    assert gate["matched_document_ids"] == [target_file_id]
+    assert gate["blocking_jobs"][0]["id"] == target_job.id
+    assert gate["blocking_jobs"][0]["matched_document_ids"] == [target_file_id]
+    assert gate["blocking_jobs"][0]["id"] != other_job.id
+
+
+def test_document_multi_site_probe_remote_site_supports_basic_auth_and_legacy_path(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-probe-basic",
+        endpoint="https://mirror.example.test",
+        auth_mode="basic",
+        auth_secret="legacy-user:legacy-pass",
+    )
+    session.commit()
+
+    calls = []
+
+    class _Resp:
+        def __init__(self, status_code: int):
+            self.status_code = status_code
+            self.text = ""
+
+    class _Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def get(self, url, headers=None, auth=None):
+            calls.append({"url": url, "headers": headers or {}, "auth": auth})
+            if str(url).endswith("/document_is_there/0"):
+                return _Resp(200)
+            return _Resp(404)
+
+    with patch("yuantus.meta_engine.services.parallel_tasks_service.httpx.Client", _Client):
+        result = service.probe_remote_site(site.id, timeout_s=1.0)
+
+    assert result["status"] == "healthy"
+    assert result["http_code"] == 200
+    assert str(result["checked_target"]).endswith("/document_is_there/0")
+    assert result["auth_mode"] == "basic"
+    assert any(
+        str(call["url"]).endswith("/document_is_there/0")
+        and call["auth"] == ("legacy-user", "legacy-pass")
+        for call in calls
+    )
+
+
+def test_document_multi_site_probe_remote_site_supports_custom_health_path_with_token(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-probe-token",
+        endpoint="https://token-probe.example.test",
+        auth_mode="token",
+        auth_secret="site-token-123",
+        metadata_json={"health_path": "/readyz"},
+    )
+    session.commit()
+
+    calls = []
+
+    class _Resp:
+        def __init__(self, status_code: int):
+            self.status_code = status_code
+            self.text = ""
+
+    class _Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def get(self, url, headers=None, auth=None):
+            calls.append({"url": url, "headers": headers or {}, "auth": auth})
+            if str(url).endswith("/readyz"):
+                return _Resp(200)
+            return _Resp(404)
+
+    with patch("yuantus.meta_engine.services.parallel_tasks_service.httpx.Client", _Client):
+        result = service.probe_remote_site(site.id, timeout_s=1.0)
+
+    assert result["status"] == "healthy"
+    assert result["http_code"] == 200
+    assert str(result["checked_target"]).endswith("/readyz")
+    assert result["auth_mode"] == "token"
+    assert calls[0]["headers"].get("Authorization") == "Bearer site-token-123"
+    assert calls[0]["auth"] is None
+
+
 def test_eco_activity_validation_enforces_dependency_gate(session):
     service = ECOActivityValidationService(session)
     a1 = service.create_activity(eco_id="eco-1", name="design review")
@@ -290,6 +600,168 @@ def test_eco_activity_validation_enforces_dependency_gate(session):
     assert blockers["total"] == 0
     events = service.recent_events("eco-1", limit=20)
     assert len(events) >= 4
+
+
+def test_eco_activity_transition_state_machine_alias_and_evaluate(session):
+    service = ECOActivityValidationService(session)
+    a1 = service.create_activity(eco_id="eco-sm", name="prepare")
+    a2 = service.create_activity(
+        eco_id="eco-sm",
+        name="apply",
+        depends_on_activity_ids=[a1.id],
+    )
+    session.commit()
+
+    blocked = service.evaluate_transition(activity_id=a2.id, to_status="done")
+    assert blocked["to_status"] == "completed"
+    assert blocked["can_transition"] is False
+    assert blocked["reason_code"] == "blocking_dependencies"
+    assert blocked["blockers"][0]["activity_id"] == a1.id
+
+    with pytest.raises(ValueError, match="Blocking dependencies"):
+        service.transition_activity(activity_id=a2.id, to_status="done", user_id=1)
+
+    service.transition_activity(activity_id=a1.id, to_status="in_progress", user_id=1)
+    service.transition_activity(activity_id=a1.id, to_status="done", user_id=1)
+    service.transition_activity(activity_id=a2.id, to_status="in_progress", user_id=1)
+    session.commit()
+    refreshed_a2 = service.get_activity(a2.id)
+    assert refreshed_a2 is not None
+    assert refreshed_a2.status == "active"
+
+    with pytest.raises(ValueError, match="Invalid transition: active -> pending"):
+        service.transition_activity(activity_id=a2.id, to_status="draft", user_id=1)
+
+    service.transition_activity(activity_id=a2.id, to_status="done", user_id=1)
+    session.commit()
+    done_a2 = service.get_activity(a2.id)
+    assert done_a2 is not None
+    assert done_a2.status == "completed"
+    assert done_a2.closed_at is not None
+
+    service.transition_activity(activity_id=a2.id, to_status="draft", user_id=1)
+    session.commit()
+    reopened_a2 = service.get_activity(a2.id)
+    assert reopened_a2 is not None
+    assert reopened_a2.status == "pending"
+    assert reopened_a2.closed_at is None
+    assert reopened_a2.closed_by_id is None
+
+    with pytest.raises(ValueError, match="to_status must be one of"):
+        service.evaluate_transition(activity_id=a2.id, to_status="unknown-status")
+
+
+def test_eco_activity_bulk_transition_check_filters_missing_and_truncation(session):
+    service = ECOActivityValidationService(session)
+    parent = service.create_activity(eco_id="eco-bulk", name="parent", is_blocking=True)
+    child = service.create_activity(
+        eco_id="eco-bulk",
+        name="child",
+        depends_on_activity_ids=[parent.id],
+        is_blocking=True,
+    )
+    non_blocking = service.create_activity(
+        eco_id="eco-bulk",
+        name="notify-only",
+        is_blocking=False,
+    )
+    closed = service.create_activity(eco_id="eco-bulk", name="closed", is_blocking=True)
+    service.transition_activity(activity_id=parent.id, to_status="done", user_id=1)
+    service.transition_activity(activity_id=closed.id, to_status="done", user_id=1)
+    session.commit()
+
+    filtered = service.evaluate_transitions_bulk(
+        "eco-bulk",
+        to_status="in_progress",
+        activity_ids=[child.id, parent.id, non_blocking.id, "missing-activity"],
+        include_terminal=False,
+        include_non_blocking=False,
+        limit=10,
+    )
+    assert filtered["to_status"] == "active"
+    assert filtered["selected_total"] == 4
+    assert filtered["total"] == 1
+    assert filtered["ready_total"] == 1
+    assert filtered["blocked_total"] == 0
+    assert filtered["invalid_total"] == 0
+    assert filtered["noop_total"] == 0
+    assert filtered["missing_total"] == 1
+    assert filtered["excluded_total"] == 2
+    assert filtered["missing_activity_ids"] == ["missing-activity"]
+    assert filtered["truncated"] is False
+    assert filtered["decisions"][0]["activity_id"] == child.id
+    assert filtered["decisions"][0]["can_transition"] is True
+
+    truncated = service.evaluate_transitions_bulk(
+        "eco-bulk",
+        to_status="done",
+        include_terminal=True,
+        include_non_blocking=True,
+        limit=1,
+    )
+    assert truncated["total"] == 4
+    assert truncated["ready_total"] == 2
+    assert truncated["noop_total"] == 2
+    assert truncated["truncated"] is True
+    assert len(truncated["decisions"]) == 1
+
+
+def test_eco_activity_bulk_transition_executes_dependency_chain_and_guard_truncation(session):
+    service = ECOActivityValidationService(session)
+    parent = service.create_activity(eco_id="eco-bulk-run", name="parent", is_blocking=True)
+    child = service.create_activity(
+        eco_id="eco-bulk-run",
+        name="child",
+        depends_on_activity_ids=[parent.id],
+        is_blocking=True,
+    )
+    notify = service.create_activity(
+        eco_id="eco-bulk-run",
+        name="notify",
+        is_blocking=False,
+    )
+    done = service.create_activity(eco_id="eco-bulk-run", name="done-before", is_blocking=True)
+    service.transition_activity(activity_id=done.id, to_status="done", user_id=1)
+    session.commit()
+
+    result = service.transition_activities_bulk(
+        "eco-bulk-run",
+        to_status="done",
+        activity_ids=[child.id, parent.id, notify.id, done.id],
+        include_terminal=False,
+        include_non_blocking=False,
+        limit=20,
+        user_id=9,
+        reason="bulk-transition",
+    )
+    session.commit()
+
+    assert result["to_status"] == "completed"
+    assert result["selected_total"] == 4
+    assert result["total"] == 2
+    assert result["executed_total"] == 2
+    assert result["noop_total"] == 0
+    assert result["blocked_total"] == 0
+    assert result["invalid_total"] == 0
+    assert result["excluded_total"] == 2
+    actions = {row["activity_id"]: row["action"] for row in result["decisions"]}
+    assert actions[parent.id] == "executed"
+    assert actions[child.id] == "executed"
+
+    refreshed_parent = service.get_activity(parent.id)
+    refreshed_child = service.get_activity(child.id)
+    assert refreshed_parent is not None and refreshed_parent.status == "completed"
+    assert refreshed_child is not None and refreshed_child.status == "completed"
+
+    with pytest.raises(ValueError, match="bulk execution truncated by limit"):
+        service.transition_activities_bulk(
+            "eco-bulk-run",
+            to_status="done",
+            include_terminal=True,
+            include_non_blocking=True,
+            limit=1,
+            user_id=9,
+        )
 
 
 def test_eco_activity_sla_classification_and_filters(session):
@@ -383,6 +855,99 @@ def test_eco_activity_sla_validates_window_and_limit(session):
         service.activity_sla("eco-1", due_soon_hours=0)
     with pytest.raises(ValueError, match="limit must be between 1 and 500"):
         service.activity_sla("eco-1", limit=0)
+
+
+def test_eco_activity_sla_alerts_and_export(session):
+    service = ECOActivityValidationService(session)
+    now = datetime(2026, 3, 5, 12, 0, 0)
+
+    service.create_activity(
+        eco_id="eco-alert",
+        name="overdue-blocking-a",
+        is_blocking=True,
+        properties={"due_at": (now - timedelta(hours=3)).isoformat()},
+    )
+    service.create_activity(
+        eco_id="eco-alert",
+        name="overdue-blocking-b",
+        is_blocking=True,
+        properties={"due_at": (now - timedelta(hours=2)).isoformat()},
+    )
+    service.create_activity(
+        eco_id="eco-alert",
+        name="due-soon-a",
+        is_blocking=False,
+        properties={"due_at": (now + timedelta(hours=1)).isoformat()},
+    )
+    service.create_activity(
+        eco_id="eco-alert",
+        name="due-soon-b",
+        is_blocking=False,
+        properties={"due_at": (now + timedelta(hours=2)).isoformat()},
+    )
+    session.commit()
+
+    alerts = service.activity_sla_alerts(
+        "eco-alert",
+        now=now,
+        due_soon_hours=24,
+        overdue_rate_warn=0.2,
+        due_soon_count_warn=1,
+        blocking_overdue_warn=1,
+    )
+    assert alerts["status"] == "warning"
+    codes = {row["code"] for row in alerts["alerts"]}
+    assert "eco_activity_sla_overdue_rate_high" in codes
+    assert "eco_activity_sla_due_soon_count_high" in codes
+    assert "eco_activity_sla_blocking_overdue_high" in codes
+    assert alerts["metrics"]["open_total"] == 4
+    assert alerts["metrics"]["overdue_total"] == 2
+    assert alerts["metrics"]["due_soon_total"] == 2
+    assert alerts["metrics"]["blocking_overdue_total"] == 2
+
+    exported_json = service.export_activity_sla_alerts(
+        "eco-alert",
+        now=now,
+        due_soon_hours=24,
+        overdue_rate_warn=0.2,
+        due_soon_count_warn=1,
+        blocking_overdue_warn=1,
+        export_format="json",
+    )
+    assert exported_json["filename"] == "eco-activity-sla-alerts.json"
+    parsed = json.loads(exported_json["content"].decode("utf-8"))
+    assert parsed["status"] == "warning"
+
+    exported_csv = service.export_activity_sla_alerts(
+        "eco-alert",
+        now=now,
+        due_soon_hours=24,
+        overdue_rate_warn=0.2,
+        due_soon_count_warn=1,
+        blocking_overdue_warn=1,
+        export_format="csv",
+    )
+    assert exported_csv["filename"] == "eco-activity-sla-alerts.csv"
+    assert "alert_code" in exported_csv["content"].decode("utf-8")
+
+    exported_md = service.export_activity_sla_alerts(
+        "eco-alert",
+        now=now,
+        due_soon_hours=24,
+        overdue_rate_warn=0.2,
+        due_soon_count_warn=1,
+        blocking_overdue_warn=1,
+        export_format="md",
+    )
+    assert exported_md["filename"] == "eco-activity-sla-alerts.md"
+    assert "# ECO Activity SLA Alerts" in exported_md["content"].decode("utf-8")
+
+    with pytest.raises(ValueError, match="overdue_rate_warn must be between 0 and 1"):
+        service.activity_sla_alerts("eco-alert", overdue_rate_warn=1.2)
+    with pytest.raises(ValueError, match="due_soon_count_warn must be between 0 and 100000"):
+        service.activity_sla_alerts("eco-alert", due_soon_count_warn=-1)
+    with pytest.raises(ValueError, match="export_format must be json, csv or md"):
+        service.export_activity_sla_alerts("eco-alert", export_format="xlsx")
 
 
 def test_workflow_custom_actions_emit_event_and_create_job(session):
@@ -1066,6 +1631,144 @@ def test_breakage_helpdesk_execute_supports_failure_category_and_retry(session):
     assert completed["last_job"]["attempt_count"] == 2
 
 
+def test_breakage_helpdesk_ticket_update_maps_provider_status_to_incident_and_job(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="ticket-update-map",
+        product_item_id="p-hd-ticket-map",
+        bom_line_item_id="bom-hd-ticket-map",
+    )
+    session.commit()
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=15,
+        provider="jira",
+        idempotency_key="hd-ticket-map-1",
+    )
+    session.commit()
+
+    updated = service.apply_helpdesk_ticket_update(
+        incident.id,
+        provider_ticket_status="done",
+        job_id=job.id,
+        external_ticket_id="HD-MAP-1",
+        provider_assignee="qa-owner",
+        provider_payload={"source": "jira-webhook"},
+        user_id=15,
+    )
+    session.commit()
+
+    assert updated["incident_status"] == "resolved"
+    assert updated["incident_responsibility"] == "qa-owner"
+    assert updated["sync_status"] == "completed"
+    assert updated["external_ticket_id"] == "HD-MAP-1"
+    assert updated["last_job"]["status"] == "completed"
+    assert updated["last_job"]["provider"] == "jira"
+    assert updated["last_job"]["provider_ticket_status"] == "resolved"
+    assert updated["last_job"]["provider_assignee"] == "qa-owner"
+    assert updated["last_job"]["provider_payload"] == {"source": "jira-webhook"}
+
+
+def test_breakage_helpdesk_ticket_update_uses_existing_provider_and_in_progress_state(
+    session,
+):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="ticket-update-in-progress",
+        product_item_id="p-hd-ticket-progress",
+        bom_line_item_id="bom-hd-ticket-progress",
+    )
+    session.commit()
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=15,
+        provider="zendesk",
+        idempotency_key="hd-ticket-progress-1",
+    )
+    session.commit()
+
+    updated = service.apply_helpdesk_ticket_update(
+        incident.id,
+        provider_ticket_status="working",
+        job_id=job.id,
+        provider_updated_at=datetime(2026, 3, 6, 9, 0, 0),
+        incident_responsibility="line-team",
+        user_id=15,
+    )
+    session.commit()
+
+    assert updated["incident_status"] == "in_progress"
+    assert updated["incident_responsibility"] == "line-team"
+    assert updated["sync_status"] == "in_progress"
+    assert updated["last_job"]["provider"] == "zendesk"
+    assert updated["last_job"]["status"] == "processing"
+    assert updated["last_job"]["provider_ticket_status"] == "in_progress"
+    assert updated["last_job"]["provider_ticket_updated_at"] == "2026-03-06T09:00:00"
+
+
+def test_breakage_helpdesk_ticket_update_event_id_replay_is_idempotent(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="ticket-update-idempotent",
+        product_item_id="p-hd-ticket-idempotent",
+        bom_line_item_id="bom-hd-ticket-idempotent",
+    )
+    session.commit()
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=15,
+        provider="jira",
+        idempotency_key="hd-ticket-idempotent-1",
+    )
+    session.commit()
+
+    first = service.apply_helpdesk_ticket_update(
+        incident.id,
+        provider_ticket_status="assigned",
+        job_id=job.id,
+        event_id="evt-1",
+        provider_assignee="ops-a",
+        user_id=15,
+    )
+    session.commit()
+    assert first["idempotent_replay"] is False
+    assert first["event_id"] == "evt-1"
+    assert first["incident_status"] == "in_progress"
+    assert first["sync_status"] == "in_progress"
+
+    replay = service.apply_helpdesk_ticket_update(
+        incident.id,
+        provider_ticket_status="closed",
+        job_id=job.id,
+        event_id="evt-1",
+        provider_assignee="ops-b",
+        user_id=15,
+    )
+    session.commit()
+    assert replay["idempotent_replay"] is True
+    assert replay["event_id"] == "evt-1"
+    assert replay["incident_status"] == "in_progress"
+    assert replay["sync_status"] == "in_progress"
+    assert replay["last_job"]["provider_last_event_id"] == "evt-1"
+    assert replay["last_job"]["provider_event_ids_count"] == 1
+    assert replay["last_job"]["provider_ticket_status"] == "in_progress"
+
+    second = service.apply_helpdesk_ticket_update(
+        incident.id,
+        provider_ticket_status="closed",
+        job_id=job.id,
+        event_id="evt-2",
+        user_id=15,
+    )
+    session.commit()
+    assert second["idempotent_replay"] is False
+    assert second["event_id"] == "evt-2"
+    assert second["incident_status"] == "closed"
+    assert second["sync_status"] == "completed"
+    assert second["last_job"]["provider_last_event_id"] == "evt-2"
+    assert second["last_job"]["provider_event_ids_count"] == 2
+
+
 def test_breakage_run_helpdesk_sync_job_provider_dispatch(session):
     service = BreakageIncidentService(session)
     incident = service.create_incident(
@@ -1114,6 +1817,108 @@ def test_breakage_run_helpdesk_sync_job_maps_provider_errors(session):
     assert result["sync_status"] == "failed"
     assert result["last_job"]["failure_category"] == "transient"
     assert "timeout" in str(result["last_job"]["last_error"]).lower()
+
+
+def test_breakage_run_helpdesk_sync_job_http_dispatch_jira(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="provider-http-jira",
+        product_item_id="p-provider-http-jira",
+        bom_line_item_id="bom-provider-http-jira",
+    )
+    session.commit()
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=8,
+        provider="jira",
+        idempotency_key="jira-http-idemp-1",
+        integration_json={
+            "mode": "http",
+            "base_url": "https://jira.example.test",
+            "auth_type": "bearer",
+            "token": "jira-token",
+            "jira_project_key": "OPS",
+            "jira_issue_type": "Task",
+            "timeout_s": 9,
+        },
+    )
+    session.commit()
+
+    with patch("yuantus.meta_engine.services.parallel_tasks_service.httpx.Client") as client_cls:
+        client = client_cls.return_value.__enter__.return_value
+        response = MagicMock()
+        response.status_code = 201
+        response.text = '{"key":"OPS-1001"}'
+        response.json.return_value = {"key": "OPS-1001"}
+        client.post.return_value = response
+
+        result = service.run_helpdesk_sync_job(job.id, user_id=8)
+        session.commit()
+
+    assert result["sync_status"] == "completed"
+    assert result["external_ticket_id"] == "OPS-1001"
+    assert result["last_job"]["provider"] == "jira"
+    assert result["last_job"]["integration_mode"] == "http"
+    assert result["last_job"]["integration_base_url"] == "https://jira.example.test"
+
+    args, kwargs = client.post.call_args
+    assert args[0] == "https://jira.example.test/rest/api/2/issue"
+    assert kwargs["headers"]["Authorization"] == "Bearer jira-token"
+    assert kwargs["headers"]["X-Idempotency-Key"] == "jira-http-idemp-1"
+    assert kwargs["json"]["fields"]["project"]["key"] == "OPS"
+
+
+def test_breakage_run_helpdesk_sync_job_http_error_mapping_and_integration_validation(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="provider-http-zendesk",
+        product_item_id="p-provider-http-zd",
+        bom_line_item_id="bom-provider-http-zd",
+    )
+    session.commit()
+
+    with pytest.raises(ValueError, match="integration.base_url is required when mode=http"):
+        service.enqueue_helpdesk_stub_sync(
+            incident.id,
+            user_id=8,
+            provider="zendesk",
+            integration_json={"mode": "http"},
+        )
+
+    job = service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=8,
+        provider="zendesk",
+        idempotency_key="zd-http-idemp-1",
+        integration_json={
+            "mode": "http",
+            "base_url": "https://zendesk.example.test",
+            "auth_type": "basic",
+            "username": "api-user",
+            "api_key": "api-key",
+            "zendesk_requester_email": "ops@example.test",
+            "zendesk_priority": "high",
+        },
+    )
+    session.commit()
+
+    with patch("yuantus.meta_engine.services.parallel_tasks_service.httpx.Client") as client_cls:
+        client = client_cls.return_value.__enter__.return_value
+        response = MagicMock()
+        response.status_code = 429
+        response.text = "Too Many Requests"
+        response.json.side_effect = ValueError("not json")
+        client.post.return_value = response
+
+        result = service.run_helpdesk_sync_job(job.id, user_id=8)
+        session.commit()
+
+    assert result["sync_status"] == "failed"
+    assert result["last_job"]["provider"] == "zendesk"
+    assert result["last_job"]["integration_mode"] == "http"
+    assert result["last_job"]["error_code"] == "provider_rate_limited"
+    assert result["last_job"]["failure_category"] == "transient"
+    assert "429" in str(result["last_job"]["error_message"])
 
 
 def test_breakage_helpdesk_sync_result_rejects_invalid_sync_status(session):
@@ -1249,6 +2054,20 @@ def test_breakage_cockpit_and_export_supports_formats(session):
         error_message="invalid payload",
         user_id=7,
     )
+    service.apply_helpdesk_ticket_update(
+        incident_a.id,
+        provider_ticket_status="resolved",
+        job_id=job_a.id,
+        provider_assignee="supplier-cockpit",
+        user_id=7,
+    )
+    service.apply_helpdesk_ticket_update(
+        incident_b.id,
+        provider_ticket_status="failed",
+        job_id=job_b.id,
+        provider_assignee="supplier-cockpit",
+        user_id=7,
+    )
     session.commit()
 
     cockpit = service.cockpit(
@@ -1261,6 +2080,11 @@ def test_breakage_cockpit_and_export_supports_formats(session):
     assert cockpit["metrics"]["by_responsibility"]["supplier-cockpit"] == 2
     assert cockpit["helpdesk_sync_summary"]["total_jobs"] == 2
     assert cockpit["helpdesk_sync_summary"]["failed_jobs"] == 1
+    assert cockpit["helpdesk_sync_summary"]["providers_total"] == 1
+    assert cockpit["helpdesk_sync_summary"]["by_provider"]["stub"] == 2
+    assert cockpit["helpdesk_sync_summary"]["by_provider_ticket_status"]["resolved"] == 1
+    assert cockpit["helpdesk_sync_summary"]["by_provider_ticket_status"]["failed"] == 1
+    assert cockpit["helpdesk_sync_summary"]["with_provider_ticket_status"] == 2
 
     exported_json = service.export_cockpit(
         responsibility="supplier-cockpit",
@@ -1504,18 +2328,73 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     )
 
     breakage_service = BreakageIncidentService(session)
-    breakage_service.create_incident(
+    breakage_a = breakage_service.create_incident(
         description="bearing crack",
         severity="high",
         status="open",
         responsibility="supplier-a",
     )
-    breakage_service.create_incident(
+    breakage_b = breakage_service.create_incident(
         description="bearing crack",
         severity="high",
         status="open",
         responsibility="supplier-a",
     )
+    breakage_job = breakage_service.enqueue_helpdesk_stub_sync(
+        breakage_a.id,
+        user_id=7,
+        provider="jira",
+        idempotency_key="ops-summary-hd-1",
+    )
+    breakage_service.record_helpdesk_sync_result(
+        breakage_a.id,
+        sync_status="completed",
+        job_id=breakage_job.id,
+        external_ticket_id="OPS-1001",
+        user_id=7,
+    )
+    breakage_service.apply_helpdesk_ticket_update(
+        breakage_a.id,
+        provider_ticket_status="resolved",
+        job_id=breakage_job.id,
+        event_id="evt-ops-summary-1",
+        incident_status="open",
+        user_id=7,
+    )
+    breakage_failed_job = breakage_service.enqueue_helpdesk_stub_sync(
+        breakage_b.id,
+        user_id=7,
+        provider="zendesk",
+        idempotency_key="ops-summary-hd-failed-1",
+    )
+    breakage_service.record_helpdesk_sync_result(
+        breakage_b.id,
+        sync_status="failed",
+        job_id=breakage_failed_job.id,
+        error_code="provider_timeout",
+        error_message="provider timeout",
+        user_id=7,
+    )
+    failed_job_row = session.get(ConversionJob, breakage_failed_job.id)
+    assert failed_job_row is not None
+    failed_payload = dict(failed_job_row.payload or {})
+    failed_helpdesk_sync = (
+        dict(failed_payload.get("helpdesk_sync"))
+        if isinstance(failed_payload.get("helpdesk_sync"), dict)
+        else {}
+    )
+    failed_result = (
+        dict(failed_payload.get("result"))
+        if isinstance(failed_payload.get("result"), dict)
+        else {}
+    )
+    failed_helpdesk_sync["provider_ticket_status"] = "on_hold"
+    failed_result["provider_ticket_status"] = "on_hold"
+    failed_payload["helpdesk_sync"] = failed_helpdesk_sync
+    failed_payload["result"] = failed_result
+    failed_payload["provider_ticket_status"] = "on_hold"
+    failed_job_row.payload = failed_payload
+    session.add(failed_job_row)
 
     consumption_service = ConsumptionPlanService(session)
     _ = consumption_service.create_template_version(
@@ -1549,6 +2428,16 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert result["workflow_actions"]["by_result_code"]["RETRY_EXHAUSTED"] == 1
     assert result["breakages"]["total"] == 2
     assert result["breakages"]["open_total"] == 2
+    assert result["breakages"]["helpdesk"]["total_jobs"] == 2
+    assert result["breakages"]["helpdesk"]["providers_total"] == 2
+    assert result["breakages"]["helpdesk"]["failed_jobs"] == 1
+    assert result["breakages"]["helpdesk"]["failed_rate"] == pytest.approx(0.5)
+    assert result["breakages"]["helpdesk"]["replay_jobs_total"] == 0
+    assert result["breakages"]["helpdesk"]["replay_batches_total"] == 0
+    assert result["breakages"]["helpdesk"]["replay_failed_jobs"] == 0
+    assert result["breakages"]["helpdesk"]["by_provider"]["jira"] == 1
+    assert result["breakages"]["helpdesk"]["by_provider"]["zendesk"] == 1
+    assert result["breakages"]["helpdesk"]["by_provider_ticket_status"]["resolved"] == 1
     assert result["consumption_templates"]["versions_total"] == 2
     assert result["consumption_templates"]["templates_total"] == 1
     assert result["overlay_cache"]["requests"] >= 2
@@ -1568,11 +2457,83 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
         doc_sync_dead_letter_rate_warn=1.0,
         workflow_failed_rate_warn=1.0,
         breakage_open_rate_warn=1.0,
+        breakage_helpdesk_failed_rate_warn=0.9,
+        breakage_helpdesk_failed_total_warn=99,
+        breakage_helpdesk_triage_coverage_warn=0.0,
+        breakage_helpdesk_export_failed_total_warn=99,
+        breakage_helpdesk_provider_failed_rate_warn=1.0,
+        breakage_helpdesk_provider_failed_min_jobs_warn=99,
+        breakage_helpdesk_provider_failed_rate_critical=1.0,
+        breakage_helpdesk_provider_failed_min_jobs_critical=999,
     )
     assert relaxed["slo_hints"] == []
     assert relaxed["slo_thresholds"]["doc_sync_dead_letter_rate_warn"] == 1.0
     assert relaxed["slo_thresholds"]["workflow_failed_rate_warn"] == 1.0
     assert relaxed["slo_thresholds"]["breakage_open_rate_warn"] == 1.0
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_failed_rate_warn"] == 0.9
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_failed_total_warn"] == 99
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_triage_coverage_warn"] == 0.0
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_export_failed_total_warn"] == 99
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_provider_failed_rate_warn"] == 1.0
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_provider_failed_min_jobs_warn"] == 99
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_provider_failed_rate_critical"] == 1.0
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_provider_failed_min_jobs_critical"] == 999
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_replay_failed_rate_warn"] == 0.5
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_replay_failed_total_warn"] == 3
+    assert relaxed["slo_thresholds"]["breakage_helpdesk_replay_pending_total_warn"] == 10
+
+    strict = ops.summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        overlay_cache_hit_rate_warn=0.1,
+        overlay_cache_min_requests_warn=999,
+        doc_sync_dead_letter_rate_warn=1.0,
+        workflow_failed_rate_warn=1.0,
+        breakage_open_rate_warn=1.0,
+        breakage_helpdesk_failed_rate_warn=0.1,
+        breakage_helpdesk_failed_total_warn=0,
+        breakage_helpdesk_triage_coverage_warn=1.0,
+        breakage_helpdesk_export_failed_total_warn=0,
+        breakage_helpdesk_provider_failed_rate_warn=0.5,
+        breakage_helpdesk_provider_failed_min_jobs_warn=1,
+    )
+    strict_codes = {row["code"] for row in (strict.get("slo_hints") or [])}
+    assert "breakage_helpdesk_failed_rate_high" in strict_codes
+    assert "breakage_helpdesk_failed_total_high" in strict_codes
+    assert "breakage_helpdesk_triage_coverage_low" in strict_codes
+    assert "breakage_helpdesk_provider_failed_rate_high" in strict_codes
+    assert any(
+        row.get("code") == "breakage_helpdesk_provider_failed_rate_high"
+        and row.get("provider") == "zendesk"
+        for row in (strict.get("slo_hints") or [])
+    )
+    critical = ops.summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        overlay_cache_hit_rate_warn=0.1,
+        overlay_cache_min_requests_warn=999,
+        doc_sync_dead_letter_rate_warn=1.0,
+        workflow_failed_rate_warn=1.0,
+        breakage_open_rate_warn=1.0,
+        breakage_helpdesk_failed_rate_warn=0.9,
+        breakage_helpdesk_failed_total_warn=99,
+        breakage_helpdesk_triage_coverage_warn=0.0,
+        breakage_helpdesk_export_failed_total_warn=99,
+        breakage_helpdesk_provider_failed_rate_warn=0.99,
+        breakage_helpdesk_provider_failed_min_jobs_warn=99,
+        breakage_helpdesk_provider_failed_rate_critical=0.5,
+        breakage_helpdesk_provider_failed_min_jobs_critical=1,
+    )
+    assert any(
+        row.get("code") == "breakage_helpdesk_provider_failed_rate_critical"
+        and row.get("provider") == "zendesk"
+        and row.get("level") == "critical"
+        for row in (critical.get("slo_hints") or [])
+    )
 
     trends = ops.trends(
         window_days=7,
@@ -1652,6 +2613,104 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert workflow_failures["total"] == 1
     assert workflow_failures["runs"][0]["result_code"] == "RETRY_EXHAUSTED"
 
+    breakage_helpdesk_failures = ops.breakage_helpdesk_failures(
+        window_days=7,
+        provider="zendesk",
+        failure_category="transient",
+        provider_ticket_status="on_hold",
+        page=1,
+        page_size=10,
+    )
+    assert breakage_helpdesk_failures["total"] == 1
+    assert breakage_helpdesk_failures["by_provider"]["zendesk"] == 1
+    assert breakage_helpdesk_failures["by_failure_category"]["transient"] == 1
+    assert breakage_helpdesk_failures["by_provider_ticket_status"]["on_hold"] == 1
+    assert breakage_helpdesk_failures["jobs"][0]["status"] == "failed"
+    assert breakage_helpdesk_failures["jobs"][0]["error_code"] == "provider_timeout"
+    assert breakage_helpdesk_failures["jobs"][0]["provider_ticket_status"] == "on_hold"
+
+    breakage_helpdesk_failure_trends = ops.breakage_helpdesk_failure_trends(
+        window_days=7,
+        bucket_days=1,
+        provider="zendesk",
+        failure_category="transient",
+        provider_ticket_status="on_hold",
+    )
+    assert breakage_helpdesk_failure_trends["aggregates"]["total_jobs"] == 1
+    assert breakage_helpdesk_failure_trends["aggregates"]["failed_jobs"] == 1
+    assert breakage_helpdesk_failure_trends["aggregates"]["failed_rate"] == pytest.approx(1.0)
+    assert breakage_helpdesk_failure_trends["by_failure_category"]["transient"] == 1
+    assert (
+        breakage_helpdesk_failure_trends["filters"]["provider_ticket_status"]
+        == "on_hold"
+    )
+
+    breakage_helpdesk_failure_triage = ops.breakage_helpdesk_failure_triage(
+        window_days=7,
+        provider="zendesk",
+        failure_category="transient",
+        provider_ticket_status="on_hold",
+        top_n=5,
+    )
+    assert breakage_helpdesk_failure_triage["total_failed_jobs"] == 1
+    assert breakage_helpdesk_failure_triage["replay_candidates_total"] == 1
+    assert breakage_helpdesk_failure_triage["triaged_jobs"] == 0
+    assert breakage_helpdesk_failure_triage["triage_rate"] == pytest.approx(0.0)
+    assert breakage_helpdesk_failure_triage["hotspots"]["failure_categories"][0]["key"] == (
+        "transient"
+    )
+    assert any(
+        row.get("code") == "retry_with_backoff"
+        for row in (breakage_helpdesk_failure_triage.get("triage_actions") or [])
+    )
+
+    breakage_helpdesk_failures_export_csv = ops.export_breakage_helpdesk_failures(
+        window_days=7,
+        provider="zendesk",
+        failure_category="transient",
+        provider_ticket_status="on_hold",
+        export_format="csv",
+    )
+    assert breakage_helpdesk_failures_export_csv["media_type"] == "text/csv"
+    assert (
+        breakage_helpdesk_failures_export_csv["filename"]
+        == "parallel-ops-breakage-helpdesk-failures.csv"
+    )
+    breakage_helpdesk_failures_csv_text = breakage_helpdesk_failures_export_csv[
+        "content"
+    ].decode("utf-8")
+    assert "failure_category" in breakage_helpdesk_failures_csv_text
+    assert "provider_timeout" in breakage_helpdesk_failures_csv_text
+
+    breakage_helpdesk_failures_export_md = ops.export_breakage_helpdesk_failures(
+        window_days=7,
+        provider="zendesk",
+        failure_category="transient",
+        provider_ticket_status="on_hold",
+        export_format="md",
+    )
+    assert breakage_helpdesk_failures_export_md["media_type"] == "text/markdown"
+    assert breakage_helpdesk_failures_export_md["content"].decode("utf-8").startswith(
+        "# Parallel Ops Breakage Helpdesk Failures"
+    )
+    breakage_helpdesk_failures_export_zip = ops.export_breakage_helpdesk_failures(
+        window_days=7,
+        provider="zendesk",
+        failure_category="transient",
+        provider_ticket_status="on_hold",
+        export_format="zip",
+    )
+    assert breakage_helpdesk_failures_export_zip["media_type"] == "application/zip"
+    assert (
+        breakage_helpdesk_failures_export_zip["filename"]
+        == "parallel-ops-breakage-helpdesk-failures.zip"
+    )
+    with ZipFile(io.BytesIO(breakage_helpdesk_failures_export_zip["content"])) as zf:
+        names = set(zf.namelist())
+        assert "failures.json" in names
+        assert "failures.csv" in names
+        assert "summary.md" in names
+
     metrics = ops.prometheus_metrics(
         window_days=7,
         site_id="site-1",
@@ -1660,8 +2719,22 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     )
     assert "yuantus_parallel_doc_sync_jobs_total" in metrics
     assert "yuantus_parallel_workflow_runs_total" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_jobs_total" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_failed_rate" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_triage_rate" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_export_jobs_total" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_provider_failed_total" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_provider_failed_rate" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_replay_jobs_total" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_replay_batches_total" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_replay_failed_rate" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_replay_pending_total" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_by_provider" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_failed_by_failure_category" in metrics
+    assert "yuantus_parallel_breakage_helpdesk_failure_trend_failed_total" in metrics
     assert "yuantus_parallel_slo_hints_total" in metrics
     assert 'site_id="site-1"' in metrics
+    assert 'provider="jira"' in metrics
 
     alerts = ops.alerts(
         window_days=7,
@@ -1686,9 +2759,37 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
         doc_sync_dead_letter_rate_warn=1.0,
         workflow_failed_rate_warn=1.0,
         breakage_open_rate_warn=1.0,
+        breakage_helpdesk_failed_rate_warn=0.9,
+        breakage_helpdesk_failed_total_warn=99,
+        breakage_helpdesk_triage_coverage_warn=0.0,
+        breakage_helpdesk_export_failed_total_warn=99,
+        breakage_helpdesk_provider_failed_rate_warn=1.0,
+        breakage_helpdesk_provider_failed_min_jobs_warn=99,
     )
     assert relaxed_alerts["status"] == "ok"
     assert relaxed_alerts["total"] == 0
+    critical_alerts = ops.alerts(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        level="critical",
+        overlay_cache_hit_rate_warn=0.1,
+        overlay_cache_min_requests_warn=999,
+        doc_sync_dead_letter_rate_warn=1.0,
+        workflow_failed_rate_warn=1.0,
+        breakage_open_rate_warn=1.0,
+        breakage_helpdesk_failed_rate_warn=0.9,
+        breakage_helpdesk_failed_total_warn=99,
+        breakage_helpdesk_triage_coverage_warn=0.0,
+        breakage_helpdesk_export_failed_total_warn=99,
+        breakage_helpdesk_provider_failed_rate_warn=0.99,
+        breakage_helpdesk_provider_failed_min_jobs_warn=99,
+        breakage_helpdesk_provider_failed_rate_critical=0.5,
+        breakage_helpdesk_provider_failed_min_jobs_critical=1,
+    )
+    assert critical_alerts["status"] == "warning"
+    assert critical_alerts["by_code"].get("breakage_helpdesk_provider_failed_rate_critical", 0) >= 1
 
     export_json = ops.export_summary(
         window_days=7,
@@ -1713,6 +2814,8 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     csv_text = export_csv["content"].decode("utf-8")
     assert "metric,value" in csv_text
     assert "doc_sync.total,2" in csv_text
+    assert "breakages.helpdesk.total_jobs,2" in csv_text
+    assert "breakages.helpdesk.replay_pending_jobs" in csv_text
 
     export_md = ops.export_summary(
         window_days=7,
@@ -1735,13 +2838,540 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
         ops.trends(window_days=7, bucket_days=14)
     with pytest.raises(ValueError, match="doc_sync_dead_letter_rate_warn must be between 0 and 1"):
         ops.summary(window_days=7, doc_sync_dead_letter_rate_warn=1.2)
+    with pytest.raises(ValueError, match="breakage_helpdesk_failed_rate_warn must be between 0 and 1"):
+        ops.summary(window_days=7, breakage_helpdesk_failed_rate_warn=1.2)
+    with pytest.raises(ValueError, match="breakage_helpdesk_failed_total_warn must be >= 0"):
+        ops.summary(window_days=7, breakage_helpdesk_failed_total_warn=-1)
+    with pytest.raises(ValueError, match="breakage_helpdesk_triage_coverage_warn must be between 0 and 1"):
+        ops.summary(window_days=7, breakage_helpdesk_triage_coverage_warn=1.2)
+    with pytest.raises(ValueError, match="breakage_helpdesk_export_failed_total_warn must be >= 0"):
+        ops.summary(window_days=7, breakage_helpdesk_export_failed_total_warn=-1)
+    with pytest.raises(ValueError, match="breakage_helpdesk_provider_failed_rate_warn must be between 0 and 1"):
+        ops.summary(window_days=7, breakage_helpdesk_provider_failed_rate_warn=1.2)
+    with pytest.raises(ValueError, match="breakage_helpdesk_provider_failed_min_jobs_warn must be >= 0"):
+        ops.summary(window_days=7, breakage_helpdesk_provider_failed_min_jobs_warn=-1)
+    with pytest.raises(ValueError, match="breakage_helpdesk_provider_failed_rate_critical must be between 0 and 1"):
+        ops.summary(window_days=7, breakage_helpdesk_provider_failed_rate_critical=1.2)
+    with pytest.raises(ValueError, match="breakage_helpdesk_provider_failed_min_jobs_critical must be >= 0"):
+        ops.summary(window_days=7, breakage_helpdesk_provider_failed_min_jobs_critical=-1)
+    with pytest.raises(ValueError, match="breakage_helpdesk_replay_failed_rate_warn must be between 0 and 1"):
+        ops.summary(window_days=7, breakage_helpdesk_replay_failed_rate_warn=1.2)
+    with pytest.raises(ValueError, match="breakage_helpdesk_replay_failed_total_warn must be >= 0"):
+        ops.summary(window_days=7, breakage_helpdesk_replay_failed_total_warn=-1)
+    with pytest.raises(ValueError, match="breakage_helpdesk_replay_pending_total_warn must be >= 0"):
+        ops.summary(window_days=7, breakage_helpdesk_replay_pending_total_warn=-1)
     with pytest.raises(ValueError, match="overlay_cache_min_requests_warn must be >= 0"):
         ops.summary(window_days=7, overlay_cache_min_requests_warn=-1)
     with pytest.raises(ValueError, match="page_size"):
         ops.doc_sync_failures(window_days=7, page_size=500)
+    with pytest.raises(ValueError, match="page_size"):
+        ops.breakage_helpdesk_failures(window_days=7, page_size=500)
+    with pytest.raises(ValueError, match="bucket_days must be one of"):
+        ops.breakage_helpdesk_failure_trends(window_days=7, bucket_days=2)
+    with pytest.raises(ValueError, match="top_n must be between 1 and 50"):
+        ops.breakage_helpdesk_failure_triage(window_days=7, top_n=0)
     with pytest.raises(ValueError, match="level must be one of"):
         ops.alerts(window_days=7, level="oops")
     with pytest.raises(ValueError, match="export_format must be json, csv or md"):
         ops.export_summary(window_days=7, export_format="xlsx")
     with pytest.raises(ValueError, match="export_format must be json, csv or md"):
         ops.export_trends(window_days=7, bucket_days=1, export_format="xlsx")
+    with pytest.raises(ValueError, match="export_format must be json, csv, md or zip"):
+        ops.export_breakage_helpdesk_failures(window_days=7, export_format="xlsx")
+
+
+def test_parallel_ops_breakage_helpdesk_failures_export_job_lifecycle_and_cleanup(session):
+    breakage_service = BreakageIncidentService(session)
+    incident = breakage_service.create_incident(
+        description="parallel-ops-helpdesk-export-job",
+        severity="high",
+        status="open",
+        product_item_id="p-bh-job-1",
+        bom_line_item_id="bom-bh-job-1",
+    )
+    session.commit()
+    job = breakage_service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=8,
+        provider="zendesk",
+        idempotency_key="ops-helpdesk-export-job-1",
+    )
+    session.commit()
+    breakage_service.record_helpdesk_sync_result(
+        incident.id,
+        sync_status="failed",
+        job_id=job.id,
+        error_code="provider_timeout",
+        error_message="timeout",
+        user_id=8,
+    )
+    failed_job = session.get(ConversionJob, job.id)
+    assert failed_job is not None
+    payload = dict(failed_job.payload or {})
+    helpdesk_sync = (
+        dict(payload.get("helpdesk_sync"))
+        if isinstance(payload.get("helpdesk_sync"), dict)
+        else {}
+    )
+    helpdesk_sync["provider_ticket_status"] = "on_hold"
+    payload["helpdesk_sync"] = helpdesk_sync
+    payload["provider_ticket_status"] = "on_hold"
+    failed_job.payload = payload
+    session.add(failed_job)
+    session.commit()
+
+    ops = ParallelOpsOverviewService(session)
+    enqueued = ops.enqueue_breakage_helpdesk_failures_export_job(
+        window_days=7,
+        provider="zendesk",
+        failure_category="transient",
+        provider_ticket_status="on_hold",
+        export_format="csv",
+        execute_immediately=False,
+        user_id=8,
+    )
+    assert enqueued["job_id"]
+    assert enqueued["status"] in {"pending", "processing"}
+    assert enqueued["download_ready"] is False
+
+    executed = ops.execute_breakage_helpdesk_failures_export_job(enqueued["job_id"], user_id=8)
+    session.commit()
+    assert executed["status"] == "completed"
+    assert executed["download_ready"] is True
+    assert executed["filename"] == "parallel-ops-breakage-helpdesk-failures.csv"
+
+    status = ops.get_breakage_helpdesk_failures_export_job(enqueued["job_id"])
+    assert status["status"] == "completed"
+    assert status["download_ready"] is True
+
+    downloaded = ops.download_breakage_helpdesk_failures_export_job(enqueued["job_id"])
+    assert downloaded["media_type"] == "text/csv"
+    csv_text = downloaded["content"].decode("utf-8")
+    assert "provider_timeout" in csv_text
+
+    job_id = str(enqueued["job_id"])
+    row = session.get(ConversionJob, job_id)
+    assert row is not None
+    row.completed_at = datetime.utcnow() - timedelta(hours=25)
+    session.add(row)
+    session.commit()
+
+    cleanup = ops.cleanup_expired_breakage_helpdesk_failures_export_results(
+        ttl_hours=24,
+        limit=50,
+        user_id=8,
+    )
+    session.commit()
+    assert cleanup["expired_jobs"] >= 1
+    assert job_id in set(cleanup["job_ids"])
+
+    expired_status = ops.get_breakage_helpdesk_failures_export_job(job_id)
+    assert expired_status["download_ready"] is False
+    assert expired_status["sync_status"] == "expired"
+    with pytest.raises(ValueError, match="Export content missing for job"):
+        ops.download_breakage_helpdesk_failures_export_job(job_id)
+
+
+def test_parallel_ops_breakage_helpdesk_failure_triage_apply_persists_payload(session):
+    breakage_service = BreakageIncidentService(session)
+    incident = breakage_service.create_incident(
+        description="parallel-ops-helpdesk-triage-apply",
+        severity="high",
+        status="open",
+        product_item_id="p-bh-triage-1",
+        bom_line_item_id="bom-bh-triage-1",
+    )
+    session.commit()
+    job = breakage_service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=8,
+        provider="jira",
+        idempotency_key="ops-helpdesk-triage-apply-1",
+    )
+    session.commit()
+    breakage_service.record_helpdesk_sync_result(
+        incident.id,
+        sync_status="failed",
+        job_id=job.id,
+        error_code="provider_timeout",
+        error_message="timeout",
+        user_id=8,
+    )
+    session.commit()
+
+    ops = ParallelOpsOverviewService(session)
+    applied = ops.apply_breakage_helpdesk_failure_triage(
+        triage_status="in_progress",
+        job_ids=[job.id],
+        triage_owner="ops-l2",
+        root_cause="provider_rate_limit",
+        resolution="retry_with_backoff",
+        note="triage note",
+        tags=["hot", "provider", "hot"],
+        user_id=8,
+    )
+    session.commit()
+    assert applied["updated_total"] == 1
+    assert applied["skipped_not_found_total"] == 0
+    assert applied["updated_jobs"][0]["id"] == job.id
+    assert applied["updated_jobs"][0]["triage_status"] == "in_progress"
+
+    row = session.get(ConversionJob, job.id)
+    assert row is not None
+    payload = row.payload if isinstance(row.payload, dict) else {}
+    triage = payload.get("triage") if isinstance(payload.get("triage"), dict) else {}
+    assert triage.get("status") == "in_progress"
+    assert triage.get("owner") == "ops-l2"
+    assert triage.get("root_cause") == "provider_rate_limit"
+    assert triage.get("resolution") == "retry_with_backoff"
+    assert triage.get("note") == "triage note"
+    assert triage.get("tags") == ["hot", "provider"]
+
+    triage_summary = ops.breakage_helpdesk_failure_triage(
+        window_days=7,
+        provider="jira",
+        top_n=5,
+    )
+    assert triage_summary["total_failed_jobs"] == 1
+    assert triage_summary["triaged_jobs"] == 1
+    assert triage_summary["triage_rate"] == pytest.approx(1.0)
+    assert triage_summary["by_triage_status"]["in_progress"] == 1
+
+
+def test_parallel_ops_breakage_helpdesk_failure_replay_enqueue_creates_jobs(session):
+    breakage_service = BreakageIncidentService(session)
+    incident = breakage_service.create_incident(
+        description="parallel-ops-helpdesk-replay-enqueue",
+        severity="high",
+        status="open",
+        product_item_id="p-bh-replay-1",
+        bom_line_item_id="bom-bh-replay-1",
+    )
+    session.commit()
+    job = breakage_service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=9,
+        provider="zendesk",
+        idempotency_key="ops-helpdesk-replay-src-1",
+    )
+    session.commit()
+    breakage_service.record_helpdesk_sync_result(
+        incident.id,
+        sync_status="failed",
+        job_id=job.id,
+        error_code="provider_timeout",
+        error_message="timeout",
+        user_id=9,
+    )
+    session.commit()
+
+    ops = ParallelOpsOverviewService(session)
+    replay = ops.enqueue_breakage_helpdesk_failure_replay_jobs(
+        job_ids=[job.id],
+        limit=10,
+        user_id=9,
+    )
+    session.commit()
+
+    assert replay["batch_id"]
+    assert replay["created_jobs_total"] == 1
+    assert replay["errors_total"] == 0
+    assert replay["created_jobs"][0]["batch_id"] == replay["batch_id"]
+    assert replay["created_jobs"][0]["source_job_id"] == str(job.id)
+    replay_job_id = str(replay["created_jobs"][0]["job_id"])
+    replay_job = session.get(ConversionJob, replay_job_id)
+    assert replay_job is not None
+    assert replay_job.task_type == "breakage_helpdesk_sync_stub"
+    replay_payload = replay_job.payload if isinstance(replay_job.payload, dict) else {}
+    replay_metadata = (
+        replay_payload.get("metadata")
+        if isinstance(replay_payload.get("metadata"), dict)
+        else {}
+    )
+    replay_info = (
+        replay_metadata.get("replay")
+        if isinstance(replay_metadata.get("replay"), dict)
+        else {}
+    )
+    assert replay_info.get("source_job_id") == str(job.id)
+    assert replay_info.get("batch_id") == replay["batch_id"]
+    assert replay_info.get("requested_by_id") == 9
+    replay_sync = (
+        replay_payload.get("helpdesk_sync")
+        if isinstance(replay_payload.get("helpdesk_sync"), dict)
+        else {}
+    )
+    assert replay_sync.get("provider") == "zendesk"
+    assert replay_sync.get("sync_status") == "queued"
+
+    replay_batch = ops.get_breakage_helpdesk_failure_replay_batch(
+        replay["batch_id"],
+        page=1,
+        page_size=10,
+    )
+    assert replay_batch["batch_id"] == replay["batch_id"]
+    assert replay_batch["total"] >= 1
+    assert replay_batch["by_provider"]["zendesk"] >= 1
+    assert replay_batch["jobs"][0]["source_job_id"] == str(job.id)
+    assert replay_batch["jobs"][0]["batch_id"] == replay["batch_id"]
+
+    replay_batches = ops.list_breakage_helpdesk_failure_replay_batches(
+        window_days=7,
+        provider="zendesk",
+        page=1,
+        page_size=20,
+    )
+    assert replay_batches["total_batches"] >= 1
+    assert replay_batches["by_provider"]["zendesk"] >= 1
+    assert replay_batches["batches"][0]["batch_id"] == replay["batch_id"]
+
+    replay_export_json = ops.export_breakage_helpdesk_failure_replay_batch(
+        replay["batch_id"],
+        export_format="json",
+    )
+    assert replay_export_json["media_type"] == "application/json"
+    assert b'"batch_id"' in replay_export_json["content"]
+    replay_export_csv = ops.export_breakage_helpdesk_failure_replay_batch(
+        replay["batch_id"],
+        export_format="csv",
+    )
+    assert replay_export_csv["media_type"] == "text/csv"
+    assert "batch_id,job_id,source_job_id" in replay_export_csv["content"].decode("utf-8")
+    replay_export_md = ops.export_breakage_helpdesk_failure_replay_batch(
+        replay["batch_id"],
+        export_format="md",
+    )
+    assert replay_export_md["media_type"] == "text/markdown"
+    assert replay_export_md["content"].decode("utf-8").startswith(
+        "# Parallel Ops Breakage Helpdesk Replay Batch"
+    )
+    with pytest.raises(ValueError, match="export_format must be json, csv or md"):
+        ops.export_breakage_helpdesk_failure_replay_batch(
+            replay["batch_id"],
+            export_format="xlsx",
+        )
+
+    replay_payload_failed = dict(replay_job.payload or {})
+    replay_sync_failed = (
+        dict(replay_payload_failed.get("helpdesk_sync"))
+        if isinstance(replay_payload_failed.get("helpdesk_sync"), dict)
+        else {}
+    )
+    replay_sync_failed["sync_status"] = "failed"
+    replay_payload_failed["helpdesk_sync"] = replay_sync_failed
+    replay_job.status = "failed"
+    replay_job.payload = replay_payload_failed
+    session.add(replay_job)
+    session.commit()
+
+    replay_second = ops.enqueue_breakage_helpdesk_failure_replay_jobs(
+        job_ids=[job.id],
+        limit=10,
+        user_id=9,
+    )
+    session.commit()
+    assert replay_second["created_jobs_total"] == 1
+    replay_second_job_id = str(replay_second["created_jobs"][0]["job_id"])
+    replay_second_job = session.get(ConversionJob, replay_second_job_id)
+    assert replay_second_job is not None
+
+    replay_trends = ops.breakage_helpdesk_replay_trends(
+        window_days=7,
+        bucket_days=1,
+        provider="zendesk",
+    )
+    assert replay_trends["aggregates"]["total_jobs"] >= 2
+    assert replay_trends["aggregates"]["failed_jobs"] >= 1
+    assert replay_trends["aggregates"]["total_batches"] >= 2
+    assert replay_trends["by_provider"]["zendesk"] >= 2
+
+    replay_trends_export_json = ops.export_breakage_helpdesk_replay_trends(
+        window_days=7,
+        bucket_days=1,
+        provider="zendesk",
+        export_format="json",
+    )
+    assert replay_trends_export_json["media_type"] == "application/json"
+    assert b'"total_batches"' in replay_trends_export_json["content"]
+    replay_trends_export_csv = ops.export_breakage_helpdesk_replay_trends(
+        window_days=7,
+        bucket_days=1,
+        provider="zendesk",
+        export_format="csv",
+    )
+    assert replay_trends_export_csv["media_type"] == "text/csv"
+    assert "bucket_start,bucket_end,total_jobs,failed_jobs" in replay_trends_export_csv[
+        "content"
+    ].decode("utf-8")
+    replay_trends_export_md = ops.export_breakage_helpdesk_replay_trends(
+        window_days=7,
+        bucket_days=1,
+        provider="zendesk",
+        export_format="md",
+    )
+    assert replay_trends_export_md["media_type"] == "text/markdown"
+    assert replay_trends_export_md["content"].decode("utf-8").startswith(
+        "# Parallel Ops Breakage Helpdesk Replay Trends"
+    )
+
+    replay_strict = ops.summary(
+        window_days=7,
+        breakage_helpdesk_replay_failed_rate_warn=0.1,
+        breakage_helpdesk_replay_failed_total_warn=0,
+        breakage_helpdesk_replay_pending_total_warn=0,
+    )
+    replay_hint_codes = {row.get("code") for row in (replay_strict.get("slo_hints") or [])}
+    assert "breakage_helpdesk_replay_failed_rate_high" in replay_hint_codes
+    assert "breakage_helpdesk_replay_failed_total_high" in replay_hint_codes
+    assert "breakage_helpdesk_replay_pending_total_high" in replay_hint_codes
+
+    replay_alerts = ops.alerts(
+        window_days=7,
+        level="warn",
+        breakage_helpdesk_replay_failed_rate_warn=0.1,
+        breakage_helpdesk_replay_failed_total_warn=0,
+        breakage_helpdesk_replay_pending_total_warn=0,
+    )
+    assert replay_alerts["status"] == "warning"
+    assert replay_alerts["by_code"].get("breakage_helpdesk_replay_failed_rate_high", 0) >= 1
+    assert replay_alerts["by_code"].get("breakage_helpdesk_replay_failed_total_high", 0) >= 1
+    assert replay_alerts["by_code"].get("breakage_helpdesk_replay_pending_total_high", 0) >= 1
+
+    replay_job.created_at = datetime.utcnow() - timedelta(hours=200)
+    replay_second_payload = dict(replay_second_job.payload or {})
+    replay_second_sync = (
+        dict(replay_second_payload.get("helpdesk_sync"))
+        if isinstance(replay_second_payload.get("helpdesk_sync"), dict)
+        else {}
+    )
+    replay_second_sync["sync_status"] = "completed"
+    replay_second_payload["helpdesk_sync"] = replay_second_sync
+    replay_second_job.status = "completed"
+    replay_second_job.payload = replay_second_payload
+    replay_second_job.created_at = datetime.utcnow() - timedelta(hours=200)
+    session.add_all([replay_job, replay_second_job])
+    session.commit()
+
+    replay_cleanup_dry_run = ops.cleanup_breakage_helpdesk_failure_replay_batches(
+        ttl_hours=24,
+        limit=20,
+        dry_run=True,
+    )
+    assert replay_cleanup_dry_run["dry_run"] is True
+    assert replay_cleanup_dry_run["archived_jobs"] >= 2
+    replay_batches_after_dry_run = ops.list_breakage_helpdesk_failure_replay_batches(
+        window_days=90,
+        provider="zendesk",
+        page=1,
+        page_size=20,
+    )
+    assert replay_batches_after_dry_run["total_batches"] >= 2
+
+    replay_cleanup = ops.cleanup_breakage_helpdesk_failure_replay_batches(
+        ttl_hours=24,
+        limit=20,
+    )
+    session.commit()
+    assert replay_cleanup["dry_run"] is False
+    assert replay_cleanup["archived_jobs"] >= 2
+    assert replay["batch_id"] in set(replay_cleanup["batch_ids"])
+    assert replay_second["batch_id"] in set(replay_cleanup["batch_ids"])
+
+    replay_batches_after_cleanup = ops.list_breakage_helpdesk_failure_replay_batches(
+        window_days=90,
+        provider="zendesk",
+        page=1,
+        page_size=20,
+    )
+    assert replay_batches_after_cleanup["total_batches"] == 0
+    replay_trends_after_cleanup = ops.breakage_helpdesk_replay_trends(
+        window_days=90,
+        bucket_days=1,
+        provider="zendesk",
+    )
+    assert replay_trends_after_cleanup["aggregates"]["total_jobs"] == 0
+
+
+def test_parallel_ops_breakage_helpdesk_failure_replay_batch_not_found(session):
+    ops = ParallelOpsOverviewService(session)
+    with pytest.raises(ValueError, match="Replay batch not found"):
+        ops.get_breakage_helpdesk_failure_replay_batch("bh-replay-missing")
+    with pytest.raises(ValueError, match="Replay batch not found"):
+        ops.export_breakage_helpdesk_failure_replay_batch("bh-replay-missing")
+    with pytest.raises(ValueError, match="job_status must be one of"):
+        ops.list_breakage_helpdesk_failure_replay_batches(window_days=7, job_status="oops")
+    with pytest.raises(ValueError, match="job_status must be one of"):
+        ops.breakage_helpdesk_replay_trends(window_days=7, bucket_days=1, job_status="oops")
+    with pytest.raises(ValueError, match="sync_status must be one of"):
+        ops.breakage_helpdesk_replay_trends(window_days=7, bucket_days=1, sync_status="oops")
+    with pytest.raises(ValueError, match="bucket_days must be <= window_days"):
+        ops.breakage_helpdesk_replay_trends(window_days=7, bucket_days=14)
+    with pytest.raises(ValueError, match="export_format must be json, csv or md"):
+        ops.export_breakage_helpdesk_replay_trends(
+            window_days=7,
+            bucket_days=1,
+            export_format="xlsx",
+        )
+    with pytest.raises(ValueError, match="ttl_hours"):
+        ops.cleanup_breakage_helpdesk_failure_replay_batches(ttl_hours=0)
+
+
+def test_parallel_ops_breakage_helpdesk_export_jobs_overview_returns_aggregates(session):
+    breakage_service = BreakageIncidentService(session)
+    incident = breakage_service.create_incident(
+        description="parallel-ops-helpdesk-export-overview",
+        severity="high",
+        status="open",
+        product_item_id="p-bh-overview-1",
+        bom_line_item_id="bom-bh-overview-1",
+    )
+    session.commit()
+    job = breakage_service.enqueue_helpdesk_stub_sync(
+        incident.id,
+        user_id=10,
+        provider="zendesk",
+        idempotency_key="ops-helpdesk-overview-src-1",
+    )
+    session.commit()
+    breakage_service.record_helpdesk_sync_result(
+        incident.id,
+        sync_status="failed",
+        job_id=job.id,
+        error_code="provider_timeout",
+        error_message="timeout",
+        user_id=10,
+    )
+    session.commit()
+
+    ops = ParallelOpsOverviewService(session)
+    export_job = ops.enqueue_breakage_helpdesk_failures_export_job(
+        window_days=7,
+        provider="zendesk",
+        failure_category="transient",
+        export_format="csv",
+        execute_immediately=False,
+        user_id=10,
+    )
+    ops.execute_breakage_helpdesk_failures_export_job(export_job["job_id"], user_id=10)
+    session.commit()
+
+    overview = ops.breakage_helpdesk_failures_export_jobs_overview(
+        window_days=7,
+        provider="zendesk",
+        failure_category="transient",
+        export_format="csv",
+        page=1,
+        page_size=20,
+    )
+    assert overview["total"] >= 1
+    assert overview["by_provider"]["zendesk"] >= 1
+    assert overview["by_failure_category"]["transient"] >= 1
+    assert overview["by_export_format"]["csv"] >= 1
+    assert overview["by_job_status"]["completed"] >= 1
+    assert overview["duration_seconds"]["count"] >= 1
+    assert overview["jobs"][0]["provider"] == "zendesk"
+    assert overview["jobs"][0]["failure_category"] == "transient"
+    assert overview["jobs"][0]["export_format"] == "csv"
+
+    with pytest.raises(ValueError, match="export_format must be json, csv, md or zip"):
+        ops.breakage_helpdesk_failures_export_jobs_overview(window_days=7, export_format="xlsx")
