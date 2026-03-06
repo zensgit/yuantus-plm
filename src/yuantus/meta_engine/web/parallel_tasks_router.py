@@ -1731,7 +1731,9 @@ async def get_breakage_metrics(
 async def get_breakage_metrics_groups(
     group_by: str = Query(
         "responsibility",
-        description="product_item_id|batch_code|bom_line_item_id|responsibility",
+        description=(
+            "product_item_id|batch_code|bom_line_item_id|mbom_id|responsibility|routing_id"
+        ),
     ),
     status: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
@@ -1844,7 +1846,9 @@ async def export_breakage_metrics(
 async def export_breakage_metrics_groups(
     group_by: str = Query(
         "responsibility",
-        description="product_item_id|batch_code|bom_line_item_id|responsibility",
+        description=(
+            "product_item_id|batch_code|bom_line_item_id|mbom_id|responsibility|routing_id"
+        ),
     ),
     status: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),

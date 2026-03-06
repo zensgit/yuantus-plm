@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from yuantus.meta_engine.services.bom_service import BOMService
+
 
 def _load_plugin_module():
     root = Path(__file__).resolve().parents[4]
@@ -18,9 +20,21 @@ def _load_plugin_module():
     return module
 
 
-def _child(rel_id: str, child_id: str, qty: float) -> dict:
+def _child(
+    rel_id: str,
+    child_id: str,
+    qty: float,
+    *,
+    find_num: str | None = None,
+    refdes: str | None = None,
+) -> dict:
+    props = {"quantity": qty}
+    if find_num is not None:
+        props["find_num"] = find_num
+    if refdes is not None:
+        props["refdes"] = refdes
     return {
-        "relationship": {"id": rel_id, "properties": {"quantity": qty}},
+        "relationship": {"id": rel_id, "properties": props},
         "child": {"id": child_id, "name": child_id, "children": []},
     }
 
@@ -63,6 +77,39 @@ def test_compare_num_qty_treats_quantity_as_key():
     assert result.summary["added"] == 1
     assert result.summary["removed"] == 1
     assert result.summary["modified"] == 0
+
+
+def test_compare_by_item_rolls_up_child_id_across_positions():
+    module = _load_plugin_module()
+    line_key, props, aggregate = BOMService.resolve_compare_mode("by_item")
+    assert line_key == "child_id"
+    assert props == ["quantity", "uom"]
+    assert aggregate is True
+    assert BOMService.resolve_compare_mode("child_id") == (line_key, props, aggregate)
+
+    tree_a = {
+        "id": "root",
+        "children": [
+            _child("rel1", "c1", 1, find_num="10"),
+            _child("rel2", "c1", 1, find_num="20"),
+        ],
+    }
+    tree_b = {"id": "root", "children": [_child("rel3", "c1", 2, find_num="99")]}
+
+    result = module.compare_bom_trees(
+        tree_a,
+        tree_b,
+        mode="by_item",
+        quantity_key="quantity",
+        position_key="find_num",
+        refdes_key="refdes",
+        include_unchanged=True,
+    )
+
+    assert result.summary == {"added": 0, "removed": 0, "modified": 0, "unchanged": 1}
+    assert result.differences[0].status == "unchanged"
+    assert result.differences[0].qty_a == 2.0
+    assert result.differences[0].qty_b == 2.0
 
 
 def test_compare_only_product_skips_unchanged():

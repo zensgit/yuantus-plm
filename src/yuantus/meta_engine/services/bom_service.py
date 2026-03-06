@@ -71,6 +71,13 @@ class BOMService:
             "aliases": ["summary"],
             "description": "Aggregate quantities for identical children.",
         },
+        "by_item": {
+            "line_key": "child_id",
+            "include_relationship_props": ["quantity", "uom"],
+            "aggregate_quantities": True,
+            "aliases": ["item", "by_child", "child_id"],
+            "description": "Aggregate quantities by child item ID.",
+        },
         "num_qty": {
             "line_key": "child_config_find_num_qty",
             "include_relationship_props": ["quantity", "uom", "find_num"],
@@ -148,7 +155,7 @@ class BOMService:
                     bool(spec.get("aggregate_quantities")),
                 )
         raise ValueError(
-            "compare_mode must be one of: only_product, summarized, num_qty, "
+            "compare_mode must be one of: only_product, summarized, by_item, num_qty, "
             "by_position, by_reference"
         )
 

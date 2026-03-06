@@ -114,6 +114,11 @@ def checkout(
     doc_sync_document_ids: Optional[List[str]] = Body(None),
     doc_sync_window_days: int = Body(7),
     doc_sync_limit: int = Body(200),
+    doc_sync_block_on_dead_letter_only: bool = Body(False),
+    doc_sync_max_pending: int = Body(0),
+    doc_sync_max_processing: int = Body(0),
+    doc_sync_max_failed: int = Body(0),
+    doc_sync_max_dead_letter: int = Body(0),
     db: Session = Depends(get_db),
 ):
     if doc_sync_site_id:
@@ -145,6 +150,11 @@ def checkout(
                 document_ids=sorted(gate_document_ids),
                 window_days=doc_sync_window_days,
                 limit=doc_sync_limit,
+                block_on_dead_letter_only=doc_sync_block_on_dead_letter_only,
+                max_pending=doc_sync_max_pending,
+                max_processing=doc_sync_max_processing,
+                max_failed=doc_sync_max_failed,
+                max_dead_letter=doc_sync_max_dead_letter,
             )
         except ValueError as exc:
             raise HTTPException(
@@ -157,15 +167,26 @@ def checkout(
                         "site_id": doc_sync_site_id,
                         "window_days": doc_sync_window_days,
                         "limit": doc_sync_limit,
+                        "block_on_dead_letter_only": doc_sync_block_on_dead_letter_only,
+                        "max_pending": doc_sync_max_pending,
+                        "max_processing": doc_sync_max_processing,
+                        "max_failed": doc_sync_max_failed,
+                        "max_dead_letter": doc_sync_max_dead_letter,
                     },
                 },
             )
         if gate.get("blocking"):
+            block_on_dead_letter_only = bool(
+                (gate.get("policy") or {}).get("block_on_dead_letter_only")
+            )
+            message = "Checkout blocked by doc-sync backlog"
+            if block_on_dead_letter_only:
+                message = "Checkout blocked by doc-sync dead-letter backlog"
             raise HTTPException(
                 status_code=409,
                 detail={
                     "code": "doc_sync_checkout_blocked",
-                    "message": "Checkout blocked by doc-sync backlog",
+                    "message": message,
                     "context": gate,
                 },
             )

@@ -442,7 +442,13 @@ def test_breakage_cockpit_endpoint_returns_payload():
                     "bom_line_item_id": "bom-1",
                 }
             ],
-            "metrics": {"total": 1},
+            "metrics": {
+                "total": 1,
+                "by_mbom_id": {"mbom-1": 1},
+                "by_routing_id": {"routing-1": 1},
+                "top_mbom_ids": [{"mbom_id": "mbom-1", "count": 1}],
+                "top_routing_ids": [{"routing_id": "routing-1", "count": 1}],
+            },
             "helpdesk_sync_summary": {"total_jobs": 1, "failed_jobs": 0},
         }
         resp = client.get(
@@ -453,6 +459,10 @@ def test_breakage_cockpit_endpoint_returns_payload():
     body = resp.json()
     assert body["total"] == 1
     assert body["filters"]["bom_line_item_id"] == "bom-1"
+    assert body["metrics"]["by_mbom_id"]["mbom-1"] == 1
+    assert body["metrics"]["by_routing_id"]["routing-1"] == 1
+    assert body["metrics"]["top_mbom_ids"][0]["mbom_id"] == "mbom-1"
+    assert body["metrics"]["top_routing_ids"][0]["routing_id"] == "routing-1"
     assert body["operator_id"] == 3
     service_cls.return_value.cockpit.assert_called_once_with(
         status=None,
@@ -663,9 +673,13 @@ def test_breakage_metrics_returns_dimension_aggregates():
             "by_product_item": {"p-1": 2},
             "by_batch_code": {"b-1": 2},
             "by_bom_line_item": {"bom-1": 2},
+            "by_mbom_id": {"mbom-1": 2},
+            "by_routing_id": {"routing-1": 2},
             "top_product_items": [{"product_item_id": "p-1", "count": 2}],
             "top_batch_codes": [{"batch_code": "b-1", "count": 2}],
             "top_bom_line_items": [{"bom_line_item_id": "bom-1", "count": 2}],
+            "top_mbom_ids": [{"mbom_id": "mbom-1", "count": 2}],
+            "top_routing_ids": [{"routing_id": "routing-1", "count": 2}],
             "hotspot_components": [{"bom_line_item_id": "bom-1", "count": 2}],
             "trend_window_days": 14,
             "trend": [{"date": "2026-03-01", "count": 2}],
@@ -682,9 +696,13 @@ def test_breakage_metrics_returns_dimension_aggregates():
     assert body["by_product_item"]["p-1"] == 2
     assert body["by_batch_code"]["b-1"] == 2
     assert body["by_bom_line_item"]["bom-1"] == 2
+    assert body["by_mbom_id"]["mbom-1"] == 2
+    assert body["by_routing_id"]["routing-1"] == 2
     assert body["top_product_items"][0]["product_item_id"] == "p-1"
     assert body["top_batch_codes"][0]["batch_code"] == "b-1"
     assert body["top_bom_line_items"][0]["bom_line_item_id"] == "bom-1"
+    assert body["top_mbom_ids"][0]["mbom_id"] == "mbom-1"
+    assert body["top_routing_ids"][0]["routing_id"] == "routing-1"
     assert body["operator_id"] == 3
     service_cls.return_value.metrics.assert_called_once_with(
         status=None,
@@ -769,6 +787,57 @@ def test_breakage_metrics_groups_supports_bom_line_item_dimension():
     assert body["operator_id"] == 3
 
 
+def test_breakage_metrics_groups_supports_mbom_and_routing_dimensions():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.metrics_groups.side_effect = [
+            {
+                "group_by": "mbom_id",
+                "total_groups": 1,
+                "groups": [{"group_by": "mbom_id", "group_value": "mbom-1", "count": 2}],
+                "trend_window_days": 14,
+                "filters": {},
+                "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+            },
+            {
+                "group_by": "routing_id",
+                "total_groups": 1,
+                "groups": [
+                    {"group_by": "routing_id", "group_value": "routing-1", "count": 2}
+                ],
+                "trend_window_days": 14,
+                "filters": {},
+                "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+            },
+        ]
+        mbom_resp = client.get(
+            "/api/v1/breakages/metrics/groups?group_by=mbom_id&trend_window_days=14"
+        )
+        routing_resp = client.get(
+            "/api/v1/breakages/metrics/groups?group_by=routing_id&trend_window_days=14"
+        )
+
+    assert mbom_resp.status_code == 200
+    assert mbom_resp.json()["group_by"] == "mbom_id"
+    assert mbom_resp.json()["groups"][0]["group_value"] == "mbom-1"
+    assert routing_resp.status_code == 200
+    assert routing_resp.json()["group_by"] == "routing_id"
+    assert routing_resp.json()["groups"][0]["group_value"] == "routing-1"
+    assert service_cls.return_value.metrics_groups.call_count == 2
+    assert (
+        service_cls.return_value.metrics_groups.call_args_list[0].kwargs["group_by"]
+        == "mbom_id"
+    )
+    assert (
+        service_cls.return_value.metrics_groups.call_args_list[1].kwargs["group_by"]
+        == "routing_id"
+    )
+
+
 def test_breakage_metrics_groups_invalid_request_maps_contract_error():
     user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
@@ -777,7 +846,7 @@ def test_breakage_metrics_groups_invalid_request_maps_contract_error():
         "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.metrics_groups.side_effect = ValueError(
-            "group_by must be one of: batch_code, bom_line_item_id, product_item_id, responsibility"
+            "group_by must be one of: batch_code, bom_line_item_id, mbom_id, product_item_id, responsibility, routing_id"
         )
         resp = client.get(
             "/api/v1/breakages/metrics/groups?group_by=oops&trend_window_days=14"
@@ -786,6 +855,8 @@ def test_breakage_metrics_groups_invalid_request_maps_contract_error():
     assert resp.status_code == 400
     detail = resp.json().get("detail") or {}
     assert detail.get("code") == "breakage_metrics_invalid_request"
+    assert "mbom_id" in (detail.get("message") or "")
+    assert "routing_id" in (detail.get("message") or "")
     assert detail.get("context", {}).get("group_by") == "oops"
 
 

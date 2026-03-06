@@ -167,6 +167,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Parallel P2 Strict Gate Playwright Runner + Runtime Notes: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_STRICT_GATE_PLAYWRIGHT_RUNNER_RUNTIME_NOTES_20260305.md`
 - Parallel P2 Version Checkout Doc-Sync Gate: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_VERSION_CHECKOUT_DOC_SYNC_GATE_20260305.md`
 - Parallel P2 Version Checkout Doc-Sync Gate Scope Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_VERSION_CHECKOUT_DOC_SYNC_GATE_SCOPE_EXT_20260306.md`
+- Parallel P3 Checkout Gate + Breakage Dimensions + BOM Compare Mode: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_CHECKOUT_GATE_BREAKAGE_DIMENSIONS_BOM_COMPARE_MODE_20260306.md`
 - Parallel P3 Odoo18 Reference Parallel Tracks: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_ODOO18_REFERENCE_PARALLEL_TRACKS_20260306.md`
 - Parallel P3 Ops Overview API: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_OPS_OVERVIEW_API_20260228.md`
 - Perf CI Refactor (Config + Baselines + Concurrency): `docs/DEV_AND_VERIFICATION_PERF_CI_REFACTOR_20260209.md`

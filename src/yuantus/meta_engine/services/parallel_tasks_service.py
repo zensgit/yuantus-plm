@@ -133,6 +133,15 @@ class DocumentMultiSiteService:
             raise ValueError("limit must be between 1 and 500")
         return normalized
 
+    def _normalize_non_negative_int(self, value: int, *, name: str) -> int:
+        try:
+            normalized = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must be a non-negative integer") from exc
+        if normalized < 0:
+            raise ValueError(f"{name} must be a non-negative integer")
+        return normalized
+
     def _normalize_remote_auth_mode(self, auth_mode: str) -> str:
         normalized = str(auth_mode or "token").strip().lower() or "token"
         if normalized not in {"token", "basic", "none"}:
@@ -698,6 +707,11 @@ class DocumentMultiSiteService:
         document_ids: Optional[List[str]] = None,
         window_days: int = 7,
         limit: int = 200,
+        block_on_dead_letter_only: bool = False,
+        max_pending: int = 0,
+        max_processing: int = 0,
+        max_failed: int = 0,
+        max_dead_letter: int = 0,
     ) -> Dict[str, Any]:
         normalized_item_id = str(item_id or "").strip()
         if not normalized_item_id:
@@ -717,6 +731,19 @@ class DocumentMultiSiteService:
             monitored_document_ids.add(normalized_version_id)
         normalized_window_days = self._normalize_window_days(window_days)
         cap = self._normalize_sync_limit(limit)
+        thresholds = {
+            "pending": self._normalize_non_negative_int(
+                max_pending, name="max_pending"
+            ),
+            "processing": self._normalize_non_negative_int(
+                max_processing, name="max_processing"
+            ),
+            "failed": self._normalize_non_negative_int(max_failed, name="max_failed"),
+            "dead_letter": self._normalize_non_negative_int(
+                max_dead_letter, name="max_dead_letter"
+            ),
+        }
+        dead_letter_only = bool(block_on_dead_letter_only)
         since = _utcnow() - timedelta(days=normalized_window_days)
 
         query = (
@@ -726,8 +753,8 @@ class DocumentMultiSiteService:
             .order_by(ConversionJob.created_at.desc())
         )
 
-        blocking_jobs: List[ConversionJob] = []
-        blocking_views: List[Dict[str, Any]] = []
+        pending_views: List[Dict[str, Any]] = []
+        dead_letter_views: List[Dict[str, Any]] = []
         matched_document_ids = set()
         counts = {"pending": 0, "processing": 0, "failed": 0, "dead_letter": 0}
         for job in query.all():
@@ -756,17 +783,40 @@ class DocumentMultiSiteService:
             }:
                 continue
             counts[status] = int(counts.get(status) or 0) + 1
-            if self._is_dead_letter_job(job):
+            is_dead_letter = self._is_dead_letter_job(job)
+            if is_dead_letter:
                 counts["dead_letter"] = int(counts.get("dead_letter") or 0) + 1
             matched_document_ids.update(overlap_ids)
-            blocking_jobs.append(job)
             view = self.build_sync_job_view(job)
             view["matched_document_ids"] = overlap_ids
-            blocking_views.append(view)
-            if len(blocking_jobs) >= cap:
+            if is_dead_letter:
+                dead_letter_views.append(view)
+            if not dead_letter_only:
+                pending_views.append(view)
+            tracked_total = len(dead_letter_views) if dead_letter_only else len(pending_views)
+            if tracked_total >= cap:
                 break
 
-        blocking = bool(blocking_views)
+        considered = (
+            ("dead_letter",)
+            if dead_letter_only
+            else ("pending", "processing", "failed", "dead_letter")
+        )
+        blocking_reasons = [
+            {
+                "status": status,
+                "count": int(counts.get(status) or 0),
+                "threshold": int(thresholds.get(status) or 0),
+            }
+            for status in considered
+            if int(counts.get(status) or 0) > int(thresholds.get(status) or 0)
+        ]
+        blocking = bool(blocking_reasons)
+
+        if dead_letter_only:
+            blocking_views = dead_letter_views[:cap]
+        else:
+            blocking_views = pending_views[:cap]
         return {
             "item_id": normalized_item_id,
             "site_id": normalized_site_id,
@@ -776,6 +826,9 @@ class DocumentMultiSiteService:
             "window_days": normalized_window_days,
             "since": since.isoformat(),
             "checked_at": _utcnow().isoformat(),
+            "policy": {"block_on_dead_letter_only": dead_letter_only},
+            "thresholds": thresholds,
+            "blocking_reasons": blocking_reasons,
             "blocking": blocking,
             "blocking_total": len(blocking_views),
             "blocking_counts": counts,
@@ -2567,7 +2620,9 @@ class BreakageIncidentService:
             "product_item_id": "product_item_id",
             "batch_code": "batch_code",
             "bom_line_item_id": "bom_line_item_id",
+            "mbom_id": "version_id",
             "responsibility": "responsibility",
+            "routing_id": "production_order_id",
         }
 
     def _normalize_trend_window_days(self, window_days: int) -> int:
@@ -3376,9 +3431,13 @@ class BreakageIncidentService:
                 "by_product_item": metrics.get("by_product_item") or {},
                 "by_batch_code": metrics.get("by_batch_code") or {},
                 "by_bom_line_item": metrics.get("by_bom_line_item") or {},
+                "by_mbom_id": metrics.get("by_mbom_id") or {},
+                "by_routing_id": metrics.get("by_routing_id") or {},
                 "top_product_items": metrics.get("top_product_items") or [],
                 "top_batch_codes": metrics.get("top_batch_codes") or [],
                 "top_bom_line_items": metrics.get("top_bom_line_items") or [],
+                "top_mbom_ids": metrics.get("top_mbom_ids") or [],
+                "top_routing_ids": metrics.get("top_routing_ids") or [],
                 "hotspot_components": metrics.get("hotspot_components") or [],
                 "trend_window_days": metrics.get("trend_window_days") or trend_window_days,
                 "trend": metrics.get("trend") or [],
@@ -3586,6 +3645,16 @@ class BreakageIncidentService:
             for incident in incidents
             if incident.bom_line_item_id
         )
+        by_mbom_id = Counter(
+            str(incident.version_id)
+            for incident in incidents
+            if incident.version_id
+        )
+        by_routing_id = Counter(
+            str(incident.production_order_id)
+            for incident in incidents
+            if incident.production_order_id
+        )
         top_product_items = [
             {"product_item_id": item_id, "count": count}
             for item_id, count in by_product_item.most_common(10)
@@ -3597,6 +3666,14 @@ class BreakageIncidentService:
         top_bom_line_items = [
             {"bom_line_item_id": item_id, "count": count}
             for item_id, count in by_bom_line_item.most_common(10)
+        ]
+        top_mbom_ids = [
+            {"mbom_id": mbom_id, "count": count}
+            for mbom_id, count in by_mbom_id.most_common(10)
+        ]
+        top_routing_ids = [
+            {"routing_id": routing_id, "count": count}
+            for routing_id, count in by_routing_id.most_common(10)
         ]
 
         now = _utcnow()
@@ -3648,9 +3725,13 @@ class BreakageIncidentService:
             "by_product_item": dict(by_product_item),
             "by_batch_code": dict(by_batch_code),
             "by_bom_line_item": dict(by_bom_line_item),
+            "by_mbom_id": dict(by_mbom_id),
+            "by_routing_id": dict(by_routing_id),
             "top_product_items": top_product_items,
             "top_batch_codes": top_batch_codes,
             "top_bom_line_items": top_bom_line_items,
+            "top_mbom_ids": top_mbom_ids,
+            "top_routing_ids": top_routing_ids,
             "hotspot_components": hotspot_components,
             "trend_window_days": window_days,
             "trend": trend,
@@ -3935,6 +4016,16 @@ class BreakageIncidentService:
                 if isinstance(metrics.get("by_bom_line_item"), dict)
                 else {}
             )
+            by_mbom_id = (
+                metrics.get("by_mbom_id")
+                if isinstance(metrics.get("by_mbom_id"), dict)
+                else {}
+            )
+            by_routing_id = (
+                metrics.get("by_routing_id")
+                if isinstance(metrics.get("by_routing_id"), dict)
+                else {}
+            )
             top_product_items = (
                 metrics.get("top_product_items")
                 if isinstance(metrics.get("top_product_items"), list)
@@ -3948,6 +4039,16 @@ class BreakageIncidentService:
             top_bom_line_items = (
                 metrics.get("top_bom_line_items")
                 if isinstance(metrics.get("top_bom_line_items"), list)
+                else []
+            )
+            top_mbom_ids = (
+                metrics.get("top_mbom_ids")
+                if isinstance(metrics.get("top_mbom_ids"), list)
+                else []
+            )
+            top_routing_ids = (
+                metrics.get("top_routing_ids")
+                if isinstance(metrics.get("top_routing_ids"), list)
                 else []
             )
             hotspots = (
@@ -3981,6 +4082,8 @@ class BreakageIncidentService:
                     f"- by_bom_line_item: "
                     f"{json.dumps(by_bom_line_item, ensure_ascii=False)}"
                 ),
+                f"- by_mbom_id: {json.dumps(by_mbom_id, ensure_ascii=False)}",
+                f"- by_routing_id: {json.dumps(by_routing_id, ensure_ascii=False)}",
                 (
                     f"- top_product_items: "
                     f"{json.dumps(top_product_items, ensure_ascii=False)}"
@@ -3992,6 +4095,11 @@ class BreakageIncidentService:
                 (
                     f"- top_bom_line_items: "
                     f"{json.dumps(top_bom_line_items, ensure_ascii=False)}"
+                ),
+                f"- top_mbom_ids: {json.dumps(top_mbom_ids, ensure_ascii=False)}",
+                (
+                    f"- top_routing_ids: "
+                    f"{json.dumps(top_routing_ids, ensure_ascii=False)}"
                 ),
                 (
                     f"- hotspot_components: "

@@ -1058,7 +1058,7 @@ async def compare_bom(
     compare_mode: Optional[str] = Query(
         None,
         description=(
-            "Optional compare mode: only_product, summarized, num_qty, "
+            "Optional compare mode: only_product, summarized, by_item, num_qty, "
             "by_position, by_reference"
         ),
     ),
@@ -1210,7 +1210,7 @@ async def compare_bom_delta_preview(
     ),
     line_key: str = Query("child_config", description="Line key strategy"),
     compare_mode: Optional[str] = Query(
-        None, description="Optional compare mode: only_product, summarized, num_qty, by_position, by_reference"
+        None, description="Optional compare mode: only_product, summarized, by_item, num_qty, by_position, by_reference"
     ),
     include_substitutes: bool = Query(False),
     include_effectivity: bool = Query(False),
@@ -1267,7 +1267,7 @@ async def compare_bom_delta_export(
     ),
     line_key: str = Query("child_config", description="Line key strategy"),
     compare_mode: Optional[str] = Query(
-        None, description="Optional compare mode: only_product, summarized, num_qty, by_position, by_reference"
+        None, description="Optional compare mode: only_product, summarized, by_item, num_qty, by_position, by_reference"
     ),
     include_substitutes: bool = Query(False),
     include_effectivity: bool = Query(False),

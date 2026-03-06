@@ -62,6 +62,11 @@ def test_version_checkout_blocked_by_doc_sync_gate():
         document_ids=["item-1"],
         window_days=7,
         limit=200,
+        block_on_dead_letter_only=False,
+        max_pending=0,
+        max_processing=0,
+        max_failed=0,
+        max_dead_letter=0,
     )
     assert version_cls.return_value.checkout.call_count == 0
 
@@ -87,6 +92,8 @@ def test_version_checkout_doc_sync_gate_invalid_maps_400():
     assert detail.get("code") == "doc_sync_checkout_gate_invalid"
     assert detail.get("context", {}).get("site_id") == "site-a"
     assert detail.get("context", {}).get("window_days") == 0
+    assert detail.get("context", {}).get("block_on_dead_letter_only") is False
+    assert detail.get("context", {}).get("max_dead_letter") == 0
     doc_sync_cls.return_value.evaluate_checkout_sync_gate.assert_called_once_with(
         item_id="item-1",
         site_id="site-a",
@@ -94,6 +101,11 @@ def test_version_checkout_doc_sync_gate_invalid_maps_400():
         document_ids=["item-1"],
         window_days=0,
         limit=200,
+        block_on_dead_letter_only=False,
+        max_pending=0,
+        max_processing=0,
+        max_failed=0,
+        max_dead_letter=0,
     )
     assert version_cls.return_value.checkout.call_count == 0
 
@@ -143,6 +155,11 @@ def test_version_checkout_passes_when_doc_sync_gate_clear():
         document_ids=["v-main"],
         window_days=3,
         limit=10,
+        block_on_dead_letter_only=False,
+        max_pending=0,
+        max_processing=0,
+        max_failed=0,
+        max_dead_letter=0,
     )
     version_cls.return_value.checkout.assert_called_once_with(
         "item-1",
@@ -202,4 +219,69 @@ def test_version_checkout_gate_includes_version_files_and_extra_document_ids():
         ],
         window_days=7,
         limit=200,
+        block_on_dead_letter_only=False,
+        max_pending=0,
+        max_processing=0,
+        max_failed=0,
+        max_dead_letter=0,
     )
+
+
+def test_version_checkout_doc_sync_gate_supports_dead_letter_policy_thresholds():
+    client, _db = _client_with_user_id(7)
+
+    with patch("yuantus.meta_engine.web.version_router.DocumentMultiSiteService") as doc_sync_cls:
+        with patch("yuantus.meta_engine.web.version_router.VersionService") as version_cls:
+            doc_sync_cls.return_value.evaluate_checkout_sync_gate.return_value = {
+                "item_id": "item-1",
+                "site_id": "site-a",
+                "blocking": True,
+                "blocking_total": 1,
+                "blocking_counts": {
+                    "pending": 2,
+                    "processing": 0,
+                    "failed": 1,
+                    "dead_letter": 1,
+                },
+                "policy": {"block_on_dead_letter_only": True},
+                "thresholds": {
+                    "pending": 5,
+                    "processing": 5,
+                    "failed": 5,
+                    "dead_letter": 0,
+                },
+                "blocking_reasons": [
+                    {"status": "dead_letter", "count": 1, "threshold": 0}
+                ],
+                "blocking_jobs": [{"id": "job-dl-1"}],
+            }
+            resp = client.post(
+                "/api/v1/versions/items/item-1/checkout",
+                json={
+                    "doc_sync_site_id": "site-a",
+                    "doc_sync_block_on_dead_letter_only": True,
+                    "doc_sync_max_pending": 5,
+                    "doc_sync_max_processing": 5,
+                    "doc_sync_max_failed": 5,
+                    "doc_sync_max_dead_letter": 0,
+                },
+            )
+
+    assert resp.status_code == 409
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "doc_sync_checkout_blocked"
+    assert detail.get("message") == "Checkout blocked by doc-sync dead-letter backlog"
+    doc_sync_cls.return_value.evaluate_checkout_sync_gate.assert_called_once_with(
+        item_id="item-1",
+        site_id="site-a",
+        version_id=None,
+        document_ids=["item-1"],
+        window_days=7,
+        limit=200,
+        block_on_dead_letter_only=True,
+        max_pending=5,
+        max_processing=5,
+        max_failed=5,
+        max_dead_letter=0,
+    )
+    assert version_cls.return_value.checkout.call_count == 0

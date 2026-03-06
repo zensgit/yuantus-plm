@@ -539,7 +539,7 @@ async def get_eco_impact(
     ),
     compare_mode: Optional[str] = Query(
         None,
-        description="Optional compare mode: only_product, summarized, num_qty, by_position, by_reference",
+        description="Optional compare mode: only_product, summarized, by_item, num_qty, by_position, by_reference",
     ),
     user=Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -622,7 +622,7 @@ async def export_eco_impact(
     ),
     compare_mode: Optional[str] = Query(
         None,
-        description="Optional compare mode: only_product, summarized, num_qty, by_position, by_reference",
+        description="Optional compare mode: only_product, summarized, by_item, num_qty, by_position, by_reference",
     ),
     user=Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -726,7 +726,7 @@ async def get_eco_bom_diff(
     ),
     compare_mode: Optional[str] = Query(
         None,
-        description="Optional compare mode: only_product, summarized, num_qty, by_position, by_reference",
+        description="Optional compare mode: only_product, summarized, by_item, num_qty, by_position, by_reference",
     ),
     user=Depends(get_current_user),
     db: Session = Depends(get_db),

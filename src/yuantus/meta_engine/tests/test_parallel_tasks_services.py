@@ -487,6 +487,83 @@ def test_document_multi_site_checkout_gate_supports_document_scope(session):
     assert gate["blocking_jobs"][0]["id"] != other_job.id
 
 
+def test_document_multi_site_checkout_gate_supports_thresholds_and_dead_letter_policy(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-checkout-thresholds",
+        endpoint="https://checkout-thresholds.example.test/plm",
+        auth_secret="checkout-token",
+    )
+    session.commit()
+
+    item_id = "item-checkout-thresholds-1"
+    service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=[item_id],
+        idempotency_key="checkout-thresholds-pending",
+    )
+    failed_job = service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=[item_id],
+        idempotency_key="checkout-thresholds-failed",
+    )
+    failed_job.status = "failed"
+    failed_job.attempt_count = 1
+    failed_job.max_attempts = 3
+    failed_job.last_error = "temporary retry"
+    session.commit()
+
+    tolerant_gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        max_pending=1,
+        max_failed=1,
+        max_dead_letter=0,
+    )
+    assert tolerant_gate["blocking"] is False
+    assert tolerant_gate["blocking_counts"]["pending"] == 1
+    assert tolerant_gate["blocking_counts"]["failed"] == 1
+    assert tolerant_gate["blocking_counts"]["dead_letter"] == 0
+    assert tolerant_gate["blocking_reasons"] == []
+
+    failed_job.attempt_count = 3
+    failed_job.max_attempts = 3
+    failed_job.last_error = "retry exhausted"
+    session.commit()
+
+    dead_letter_gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        block_on_dead_letter_only=True,
+        max_pending=99,
+        max_processing=99,
+        max_failed=99,
+        max_dead_letter=0,
+    )
+    assert dead_letter_gate["blocking"] is True
+    assert dead_letter_gate["policy"]["block_on_dead_letter_only"] is True
+    assert dead_letter_gate["thresholds"]["dead_letter"] == 0
+    assert dead_letter_gate["blocking_reasons"] == [
+        {"status": "dead_letter", "count": 1, "threshold": 0}
+    ]
+    assert dead_letter_gate["blocking_total"] == 1
+
+    relaxed_dead_letter_gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        block_on_dead_letter_only=True,
+        max_dead_letter=1,
+    )
+    assert relaxed_dead_letter_gate["blocking"] is False
+    assert relaxed_dead_letter_gate["blocking_counts"]["dead_letter"] == 1
+    assert relaxed_dead_letter_gate["blocking_reasons"] == []
+
+    with pytest.raises(ValueError, match="max_pending must be a non-negative integer"):
+        service.evaluate_checkout_sync_gate(item_id=item_id, site_id=site.id, max_pending=-1)
+
+
 def test_document_multi_site_probe_remote_site_supports_basic_auth_and_legacy_path(session):
     service = DocumentMultiSiteService(session)
     site = service.upsert_remote_site(
@@ -1169,6 +1246,8 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
         description="bearing crack",
         product_item_id="p-1",
         bom_line_item_id="bom-1",
+        production_order_id="routing-1",
+        version_id="mbom-1",
         severity="high",
         batch_code="b-1",
         responsibility="supplier-a",
@@ -1177,6 +1256,8 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
         description="bearing crack",
         product_item_id="p-1",
         bom_line_item_id="bom-1",
+        production_order_id="routing-1",
+        version_id="mbom-1",
         severity="high",
         batch_code="b-1",
         responsibility="supplier-a",
@@ -1185,6 +1266,8 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
         description="wire short",
         product_item_id="p-2",
         bom_line_item_id="bom-2",
+        production_order_id="routing-2",
+        version_id="mbom-2",
         severity="medium",
         batch_code="b-2",
         responsibility="line-b",
@@ -1215,9 +1298,13 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
     assert metrics["by_product_item"]["p-1"] == 2
     assert metrics["by_batch_code"]["b-1"] == 2
     assert metrics["by_bom_line_item"]["bom-1"] == 2
+    assert metrics["by_mbom_id"]["mbom-1"] == 2
+    assert metrics["by_routing_id"]["routing-1"] == 2
     assert metrics["top_product_items"][0]["product_item_id"] == "p-1"
     assert metrics["top_batch_codes"][0]["batch_code"] == "b-1"
     assert metrics["top_bom_line_items"][0]["bom_line_item_id"] == "bom-1"
+    assert metrics["top_mbom_ids"][0]["mbom_id"] == "mbom-1"
+    assert metrics["top_routing_ids"][0]["routing_id"] == "routing-1"
 
 
 def test_breakage_metrics_rejects_invalid_trend_window(session):
@@ -1232,6 +1319,8 @@ def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
         description="group-a-1",
         product_item_id="p-g-1",
         bom_line_item_id="bom-g-1",
+        production_order_id="routing-g-1",
+        version_id="mbom-g-1",
         batch_code="b-g-1",
         responsibility="supplier-a",
     )
@@ -1239,6 +1328,8 @@ def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
         description="group-a-2",
         product_item_id="p-g-1",
         bom_line_item_id="bom-g-1",
+        production_order_id="routing-g-1",
+        version_id="mbom-g-1",
         batch_code="b-g-1",
         responsibility="supplier-a",
     )
@@ -1246,6 +1337,8 @@ def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
         description="group-b-1",
         product_item_id="p-g-2",
         bom_line_item_id="bom-g-2",
+        production_order_id="routing-g-2",
+        version_id="mbom-g-2",
         batch_code="b-g-2",
         responsibility="supplier-b",
     )
@@ -1273,6 +1366,14 @@ def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
     assert groups_bom_line["groups"][0]["group_value"] == "bom-g-1"
     assert groups_bom_line["groups"][0]["count"] == 2
 
+    groups_mbom = service.metrics_groups(group_by="mbom_id")
+    assert groups_mbom["groups"][0]["group_value"] == "mbom-g-1"
+    assert groups_mbom["groups"][0]["count"] == 2
+
+    groups_routing = service.metrics_groups(group_by="routing_id")
+    assert groups_routing["groups"][0]["group_value"] == "routing-g-1"
+    assert groups_routing["groups"][0]["count"] == 2
+
     groups_filtered = service.metrics_groups(
         group_by="product_item_id",
         bom_line_item_id="bom-g-2",
@@ -1284,8 +1385,12 @@ def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
 
 def test_breakage_metrics_groups_rejects_invalid_group_by(session):
     service = BreakageIncidentService(session)
-    with pytest.raises(ValueError, match="group_by must be one of"):
+    with pytest.raises(ValueError) as exc_info:
         service.metrics_groups(group_by="invalid")
+    error = str(exc_info.value)
+    assert "group_by must be one of" in error
+    assert "mbom_id" in error
+    assert "routing_id" in error
 
 
 def test_breakage_metrics_export_json_csv_md(session):
@@ -1294,6 +1399,8 @@ def test_breakage_metrics_export_json_csv_md(session):
         description="export-bearing-crack",
         product_item_id="p-exp-1",
         bom_line_item_id="bom-exp-1",
+        production_order_id="routing-exp-1",
+        version_id="mbom-exp-1",
         severity="high",
         batch_code="batch-exp-1",
         responsibility="supplier-exp",
@@ -1342,6 +1449,8 @@ def test_breakage_metrics_export_json_csv_md(session):
     assert "top_product_items" in md_text
     assert "top_batch_codes" in md_text
     assert "top_bom_line_items" in md_text
+    assert "top_mbom_ids" in md_text
+    assert "top_routing_ids" in md_text
 
 
 def test_breakage_metrics_export_rejects_invalid_format(session):
@@ -2023,6 +2132,8 @@ def test_breakage_cockpit_and_export_supports_formats(session):
         status="open",
         product_item_id="p-cockpit-1",
         bom_line_item_id="bom-cockpit-1",
+        production_order_id="routing-cockpit-1",
+        version_id="mbom-cockpit-1",
         batch_code="batch-cockpit-1",
         responsibility="supplier-cockpit",
     )
@@ -2032,6 +2143,8 @@ def test_breakage_cockpit_and_export_supports_formats(session):
         status="closed",
         product_item_id="p-cockpit-2",
         bom_line_item_id="bom-cockpit-2",
+        production_order_id="routing-cockpit-2",
+        version_id="mbom-cockpit-2",
         batch_code="batch-cockpit-2",
         responsibility="supplier-cockpit",
     )
@@ -2078,6 +2191,18 @@ def test_breakage_cockpit_and_export_supports_formats(session):
     )
     assert cockpit["total"] == 2
     assert cockpit["metrics"]["by_responsibility"]["supplier-cockpit"] == 2
+    assert cockpit["metrics"]["by_mbom_id"]["mbom-cockpit-1"] == 1
+    assert cockpit["metrics"]["by_mbom_id"]["mbom-cockpit-2"] == 1
+    assert cockpit["metrics"]["by_routing_id"]["routing-cockpit-1"] == 1
+    assert cockpit["metrics"]["by_routing_id"]["routing-cockpit-2"] == 1
+    assert any(
+        row.get("mbom_id") == "mbom-cockpit-1"
+        for row in cockpit["metrics"]["top_mbom_ids"]
+    )
+    assert any(
+        row.get("routing_id") == "routing-cockpit-2"
+        for row in cockpit["metrics"]["top_routing_ids"]
+    )
     assert cockpit["helpdesk_sync_summary"]["total_jobs"] == 2
     assert cockpit["helpdesk_sync_summary"]["failed_jobs"] == 1
     assert cockpit["helpdesk_sync_summary"]["providers_total"] == 1
