@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -110,6 +111,56 @@ def test_compare_by_item_rolls_up_child_id_across_positions():
     assert result.differences[0].status == "unchanged"
     assert result.differences[0].qty_a == 2.0
     assert result.differences[0].qty_b == 2.0
+
+
+def test_compare_by_find_refdes_mode_and_alias_behaves_as_expected():
+    line_key, props, aggregate = BOMService.resolve_compare_mode("by_find_refdes")
+    assert line_key == "child_config_find_refdes"
+    assert props == ["quantity", "uom", "find_num", "refdes"]
+    assert aggregate is False
+    assert BOMService.resolve_compare_mode("child_config_find_refdes") == (
+        line_key,
+        props,
+        aggregate,
+    )
+
+    service = BOMService(MagicMock())
+    tree_a = {
+        "id": "root",
+        "config_id": "root",
+        "children": [_child("rel1", "c1", 1, find_num="10", refdes="r2,r1")],
+    }
+    tree_b = {
+        "id": "root",
+        "config_id": "root",
+        "children": [_child("rel2", "c1", 2, find_num="10", refdes="R1,R2")],
+    }
+
+    result = service.compare_bom_trees(
+        tree_a,
+        tree_b,
+        include_relationship_props=props,
+        line_key=line_key,
+        aggregate_quantities=aggregate,
+    )
+
+    assert result["summary"] == {
+        "added": 0,
+        "removed": 0,
+        "changed": 1,
+        "changed_major": 1,
+        "changed_minor": 0,
+        "changed_info": 0,
+    }
+    assert len(result["changed"]) == 1
+    assert result["changed"][0]["line_key"] == "root::c1::10::R1,R2"
+    assert result["changed"][0]["before"] == {"quantity": 1}
+    assert result["changed"][0]["after"] == {"quantity": 2}
+
+
+def test_compare_mode_error_lists_by_find_refdes():
+    with pytest.raises(ValueError, match="by_find_refdes"):
+        BOMService.resolve_compare_mode("not_a_mode")
 
 
 def test_compare_only_product_skips_unchanged():

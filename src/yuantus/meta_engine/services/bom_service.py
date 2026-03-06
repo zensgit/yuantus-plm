@@ -99,6 +99,18 @@ class BOMService:
             "aliases": ["by_ref", "reference"],
             "description": "Compare by child config + refdes.",
         },
+        "by_find_refdes": {
+            "line_key": "child_config_find_refdes",
+            "include_relationship_props": ["quantity", "uom", "find_num", "refdes"],
+            "aggregate_quantities": False,
+            "aliases": [
+                "by_find_ref",
+                "find_refdes",
+                "find_ref",
+                "child_config_find_refdes",
+            ],
+            "description": "Compare by child config + find_num + refdes.",
+        },
     }
     LINE_KEY_OPTIONS = (
         "child_config",
@@ -154,10 +166,8 @@ class BOMService:
                     spec.get("include_relationship_props"),
                     bool(spec.get("aggregate_quantities")),
                 )
-        raise ValueError(
-            "compare_mode must be one of: only_product, summarized, by_item, num_qty, "
-            "by_position, by_reference"
-        )
+        allowed = ", ".join(BOMService.COMPARE_MODES.keys())
+        raise ValueError(f"compare_mode must be one of: {allowed}")
 
     @classmethod
     def line_schema(cls) -> List[Dict[str, Any]]:

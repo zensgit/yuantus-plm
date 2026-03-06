@@ -29,6 +29,13 @@
 - SLI：`breakage_metrics_p95_ms`
 - 目标：`<= 400ms`
 
+## 1.4 Version Checkout Doc-Sync Gate
+
+- SLI：`version_checkout_doc_sync_block_rate = blocked / (blocked + passed)`
+- 目标：根据业务窗口设定（建议值班先基于最近 7 天建立基线）
+- SLI：`doc_sync_dead_letter_total_on_block`
+- 目标：`= 0`（`strict` 与 `tolerant` 模板都建议 dead-letter 零容忍）
+
 ## 2. 日常巡检
 
 1. 调用 `GET /api/v1/cad-3d/overlays/cache/stats`，记录 `hits/misses/evictions/entries`。
@@ -37,6 +44,9 @@
 - `GET /api/v1/consumption/templates/{template_key}/versions`
 - `POST /api/v1/consumption/templates/{template_key}/impact-preview`
 4. 检查失败请求日志，确认错误码是否落在合同范围。
+5. 抽样执行 checkout 门禁请求并记录阻断上下文：
+- `POST /api/v1/versions/items/{item_id}/checkout`
+- 关注 `detail.context.policy`、`detail.context.thresholds`、`detail.context.blocking_reasons`
 
 ## 3. 故障处置
 
@@ -61,6 +71,44 @@
 1. 调用 `POST /api/v1/consumption/templates/{template_key}/impact-preview`，比对 `active_version` 与 `versions` 列表。
 2. 若 `active_version` 缺失：先确认该模板是否存在激活版本。
 3. 记录 `summary.baseline_quantity` 与活动版本计划量是否一致。
+
+## 3.4 Checkout 门禁阻断（`doc_sync_checkout_blocked`）
+
+1. 先看 `policy.block_on_dead_letter_only`：
+- `true`：只按 `dead_letter` 判定阻断。
+- `false`：按 `pending/processing/failed/dead_letter` 全量判定。
+2. 再看 `blocking_reasons`：
+- 每条包含 `status/count/threshold`。
+- 判定规则是 `count > threshold`（等于阈值不阻断）。
+3. 用 `blocking_counts` 判断积压结构：
+- `pending` 高：优先查 worker 吞吐、队列堆积。
+- `processing` 高：优先查外部转换依赖超时。
+- `failed`/`dead_letter` 高：优先查失败明细并执行重放或人工修复。
+4. 结合 `blocking_jobs` 和 `matched_document_ids` 定位具体文档后再重试 checkout。
+
+推荐阈值模板（请求体片段）：
+
+`strict`
+```json
+{
+  "doc_sync_block_on_dead_letter_only": false,
+  "doc_sync_max_pending": 0,
+  "doc_sync_max_processing": 0,
+  "doc_sync_max_failed": 0,
+  "doc_sync_max_dead_letter": 0
+}
+```
+
+`tolerant`
+```json
+{
+  "doc_sync_block_on_dead_letter_only": true,
+  "doc_sync_max_pending": 20,
+  "doc_sync_max_processing": 10,
+  "doc_sync_max_failed": 5,
+  "doc_sync_max_dead_letter": 0
+}
+```
 
 ## 4. 演练记录模板
 

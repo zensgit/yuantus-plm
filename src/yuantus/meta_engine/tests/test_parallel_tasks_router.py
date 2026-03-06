@@ -2183,7 +2183,15 @@ def test_parallel_ops_trends_returns_payload():
                 {
                     "bucket_start": "2026-02-27T00:00:00",
                     "bucket_end": "2026-02-28T00:00:00",
-                    "doc_sync": {"total": 2, "failed_total": 1, "dead_letter_total": 1, "success_rate": 0.5, "dead_letter_rate": 0.5},
+                    "doc_sync": {
+                        "total": 2,
+                        "failed_total": 1,
+                        "dead_letter_total": 1,
+                        "directions": {"push": 1, "pull": 1, "unknown": 0},
+                        "dead_letter_directions": {"push": 0, "pull": 1, "unknown": 0},
+                        "success_rate": 0.5,
+                        "dead_letter_rate": 0.5,
+                    },
                     "workflow_actions": {"total": 1, "failed_total": 1, "failed_rate": 1.0},
                     "breakages": {"total": 1, "open_total": 1, "open_rate": 1.0},
                 }
@@ -2192,6 +2200,9 @@ def test_parallel_ops_trends_returns_payload():
                 "doc_sync_total": 2,
                 "doc_sync_failed_total": 1,
                 "doc_sync_dead_letter_total": 1,
+                "doc_sync_push_total": 1,
+                "doc_sync_pull_total": 1,
+                "doc_sync_dead_letter_pull_total": 1,
                 "workflow_total": 1,
                 "workflow_failed_total": 1,
                 "breakages_total": 1,
@@ -2208,6 +2219,7 @@ def test_parallel_ops_trends_returns_payload():
     body = resp.json()
     assert body["bucket_days"] == 1
     assert body["aggregates"]["doc_sync_total"] == 2
+    assert body["aggregates"]["doc_sync_push_total"] == 1
     assert body["operator_id"] == 18
 
 
@@ -2398,6 +2410,12 @@ def test_parallel_ops_summary_accepts_threshold_overrides():
                 "overlay_cache_hit_rate_warn": 0.2,
                 "overlay_cache_min_requests_warn": 20,
                 "doc_sync_dead_letter_rate_warn": 0.9,
+                "doc_sync_checkout_gate_block_on_dead_letter_only": True,
+                "doc_sync_checkout_gate_max_pending_warn": 5,
+                "doc_sync_checkout_gate_max_processing_warn": 2,
+                "doc_sync_checkout_gate_max_failed_warn": 1,
+                "doc_sync_checkout_gate_max_dead_letter_warn": 0,
+                "doc_sync_dead_letter_trend_delta_warn": 3,
                 "workflow_failed_rate_warn": 0.9,
                 "breakage_open_rate_warn": 0.9,
                 "breakage_helpdesk_failed_rate_warn": 0.8,
@@ -2414,12 +2432,18 @@ def test_parallel_ops_summary_accepts_threshold_overrides():
             },
         }
         resp = client.get(
-            "/api/v1/parallel-ops/summary?window_days=7&overlay_cache_hit_rate_warn=0.2&overlay_cache_min_requests_warn=20&doc_sync_dead_letter_rate_warn=0.9&workflow_failed_rate_warn=0.9&breakage_open_rate_warn=0.9&breakage_helpdesk_failed_rate_warn=0.8&breakage_helpdesk_failed_total_warn=3&breakage_helpdesk_triage_coverage_warn=0.5&breakage_helpdesk_export_failed_total_warn=2&breakage_helpdesk_provider_failed_rate_warn=0.7&breakage_helpdesk_provider_failed_min_jobs_warn=4&breakage_helpdesk_provider_failed_rate_critical=0.95&breakage_helpdesk_provider_failed_min_jobs_critical=8&breakage_helpdesk_replay_failed_rate_warn=0.6&breakage_helpdesk_replay_failed_total_warn=2&breakage_helpdesk_replay_pending_total_warn=6"
+            "/api/v1/parallel-ops/summary?window_days=7&overlay_cache_hit_rate_warn=0.2&overlay_cache_min_requests_warn=20&doc_sync_dead_letter_rate_warn=0.9&doc_sync_checkout_gate_block_on_dead_letter_only=true&doc_sync_checkout_gate_max_pending_warn=5&doc_sync_checkout_gate_max_processing_warn=2&doc_sync_checkout_gate_max_failed_warn=1&doc_sync_checkout_gate_max_dead_letter_warn=0&doc_sync_dead_letter_trend_delta_warn=3&workflow_failed_rate_warn=0.9&breakage_open_rate_warn=0.9&breakage_helpdesk_failed_rate_warn=0.8&breakage_helpdesk_failed_total_warn=3&breakage_helpdesk_triage_coverage_warn=0.5&breakage_helpdesk_export_failed_total_warn=2&breakage_helpdesk_provider_failed_rate_warn=0.7&breakage_helpdesk_provider_failed_min_jobs_warn=4&breakage_helpdesk_provider_failed_rate_critical=0.95&breakage_helpdesk_provider_failed_min_jobs_critical=8&breakage_helpdesk_replay_failed_rate_warn=0.6&breakage_helpdesk_replay_failed_total_warn=2&breakage_helpdesk_replay_pending_total_warn=6"
         )
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["slo_thresholds"]["doc_sync_dead_letter_rate_warn"] == 0.9
+    assert body["slo_thresholds"]["doc_sync_checkout_gate_block_on_dead_letter_only"] is True
+    assert body["slo_thresholds"]["doc_sync_checkout_gate_max_pending_warn"] == 5
+    assert body["slo_thresholds"]["doc_sync_checkout_gate_max_processing_warn"] == 2
+    assert body["slo_thresholds"]["doc_sync_checkout_gate_max_failed_warn"] == 1
+    assert body["slo_thresholds"]["doc_sync_checkout_gate_max_dead_letter_warn"] == 0
+    assert body["slo_thresholds"]["doc_sync_dead_letter_trend_delta_warn"] == 3
     assert body["slo_thresholds"]["breakage_helpdesk_failed_total_warn"] == 3
     assert body["slo_thresholds"]["breakage_helpdesk_triage_coverage_warn"] == 0.5
     assert body["slo_thresholds"]["breakage_helpdesk_export_failed_total_warn"] == 2
@@ -2452,6 +2476,26 @@ def test_parallel_ops_summary_invalid_threshold_maps_contract_error():
     assert detail.get("context", {}).get("doc_sync_dead_letter_rate_warn") == 1.2
 
 
+def test_parallel_ops_summary_invalid_checkout_gate_threshold_maps_contract_error():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.summary.side_effect = ValueError(
+            "doc_sync_checkout_gate_max_failed_warn must be >= 0"
+        )
+        resp = client.get(
+            "/api/v1/parallel-ops/summary?window_days=7&doc_sync_checkout_gate_max_failed_warn=-1"
+        )
+
+    assert resp.status_code == 400
+    detail = resp.json().get("detail") or {}
+    assert detail.get("code") == "parallel_ops_invalid_request"
+    assert detail.get("context", {}).get("doc_sync_checkout_gate_max_failed_warn") == -1
+
+
 def test_parallel_ops_doc_sync_failures_returns_payload():
     user = SimpleNamespace(id=16, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
@@ -2464,6 +2508,7 @@ def test_parallel_ops_doc_sync_failures_returns_payload():
             "window_since": "2026-02-21T00:00:00",
             "site_filter": "site-1",
             "total": 1,
+            "by_direction": {"push": 1},
             "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
             "jobs": [
                 {
@@ -2471,6 +2516,7 @@ def test_parallel_ops_doc_sync_failures_returns_payload():
                     "task_type": "document_sync_push",
                     "status": "failed",
                     "site_id": "site-1",
+                    "direction": "push",
                 }
             ],
         }
@@ -2479,7 +2525,9 @@ def test_parallel_ops_doc_sync_failures_returns_payload():
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 1
+    assert body["by_direction"]["push"] == 1
     assert body["jobs"][0]["status"] == "failed"
+    assert body["jobs"][0]["direction"] == "push"
     assert body["operator_id"] == 16
 
 

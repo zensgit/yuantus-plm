@@ -5882,6 +5882,7 @@ class ThreeDOverlayService:
 class ParallelOpsOverviewService:
     _ALLOWED_WINDOW_DAYS = {1, 7, 14, 30, 90}
     _ALLOWED_BUCKET_DAYS = {1, 7, 14, 30}
+    _ALLOWED_DOC_SYNC_DIRECTIONS = {"push", "pull"}
     _BREAKAGE_HELPDESK_TASK_TYPE = "breakage_helpdesk_sync_stub"
     _BREAKAGE_HELPDESK_FAILURE_EXPORT_TASK_TYPE = (
         "parallel_ops_breakage_helpdesk_failures_export"
@@ -5946,6 +5947,18 @@ class ParallelOpsOverviewService:
         if normalized < 0:
             raise ValueError(f"{field} must be >= 0")
         return normalized
+
+    def _normalize_optional_bool(self, value: Optional[bool], *, field: str) -> Optional[bool]:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        normalized = str(value).strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off"}:
+            return False
+        raise ValueError(f"{field} must be a boolean")
 
     def _normalize_page(self, page: int) -> int:
         try:
@@ -6076,6 +6089,28 @@ class ParallelOpsOverviewService:
             parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
         return parsed
 
+    def _normalize_doc_sync_direction(self, value: Any) -> Optional[str]:
+        normalized = str(value or "").strip().lower()
+        if normalized in self._ALLOWED_DOC_SYNC_DIRECTIONS:
+            return normalized
+        return None
+
+    def _doc_sync_direction_for_job(
+        self, job: ConversionJob, payload: Optional[Dict[str, Any]] = None
+    ) -> str:
+        data = payload if isinstance(payload, dict) else {}
+        direction = self._normalize_doc_sync_direction(data.get("direction"))
+        if direction:
+            return direction
+
+        task_type = str(job.task_type or "").strip().lower()
+        if task_type.startswith("document_sync_"):
+            suffix = task_type[len("document_sync_") :]
+            normalized_suffix = self._normalize_doc_sync_direction(suffix)
+            if normalized_suffix:
+                return normalized_suffix
+        return "unknown"
+
     def _paginate(
         self, rows: List[Dict[str, Any]], *, page: int, page_size: int
     ) -> Dict[str, Any]:
@@ -6111,6 +6146,10 @@ class ParallelOpsOverviewService:
             filtered.append(job)
 
         by_status = Counter(str(job.status or "unknown").lower() for job in filtered)
+        by_direction = Counter()
+        for job in filtered:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            by_direction[self._doc_sync_direction_for_job(job, payload)] += 1
         dead_letter = [
             job
             for job in filtered
@@ -6128,11 +6167,231 @@ class ParallelOpsOverviewService:
         return {
             "total": total,
             "by_status": dict(by_status),
+            "by_direction": dict(by_direction),
             "success_rate": self._safe_ratio(success_count, total),
             "dead_letter_total": len(dead_letter),
             "dead_letter_rate": self._safe_ratio(len(dead_letter), total),
             "avg_attempt_count": round(avg_attempts, 4),
             "site_filter": site_id,
+        }
+
+    def _doc_sync_checkout_gate_snapshot(
+        self,
+        *,
+        doc_sync_summary: Dict[str, Any],
+        block_on_dead_letter_only: Optional[bool],
+        max_pending_warn: Optional[int],
+        max_processing_warn: Optional[int],
+        max_failed_warn: Optional[int],
+        max_dead_letter_warn: Optional[int],
+    ) -> Dict[str, Any]:
+        policy_input = self._normalize_optional_bool(
+            block_on_dead_letter_only,
+            field="doc_sync_checkout_gate_block_on_dead_letter_only",
+        )
+        threshold_inputs = {
+            "pending": self._normalize_non_negative_int(
+                max_pending_warn,
+                field="doc_sync_checkout_gate_max_pending_warn",
+            ),
+            "processing": self._normalize_non_negative_int(
+                max_processing_warn,
+                field="doc_sync_checkout_gate_max_processing_warn",
+            ),
+            "failed": self._normalize_non_negative_int(
+                max_failed_warn,
+                field="doc_sync_checkout_gate_max_failed_warn",
+            ),
+            "dead_letter": self._normalize_non_negative_int(
+                max_dead_letter_warn,
+                field="doc_sync_checkout_gate_max_dead_letter_warn",
+            ),
+        }
+        enabled = policy_input is not None or any(
+            value is not None for value in threshold_inputs.values()
+        )
+        policy = {"block_on_dead_letter_only": bool(policy_input or False)}
+
+        thresholds: Dict[str, Optional[int]] = {}
+        for status, value in threshold_inputs.items():
+            if not enabled:
+                thresholds[status] = None
+            else:
+                thresholds[status] = int(value if value is not None else 0)
+
+        by_status = (
+            doc_sync_summary.get("by_status")
+            if isinstance(doc_sync_summary.get("by_status"), dict)
+            else {}
+        )
+        counts = {
+            "pending": int(by_status.get(JobStatus.PENDING.value, 0) or 0),
+            "processing": int(by_status.get(JobStatus.PROCESSING.value, 0) or 0),
+            "failed": int(by_status.get(JobStatus.FAILED.value, 0) or 0),
+            "dead_letter": int(doc_sync_summary.get("dead_letter_total") or 0),
+        }
+        considered = (
+            ("dead_letter",)
+            if policy["block_on_dead_letter_only"]
+            else ("pending", "processing", "failed", "dead_letter")
+        )
+        threshold_hits: List[Dict[str, Any]] = []
+        if enabled:
+            for status in considered:
+                threshold = thresholds.get(status)
+                if threshold is None:
+                    continue
+                observed = int(counts.get(status) or 0)
+                if observed > int(threshold):
+                    threshold_hits.append(
+                        {
+                            "status": status,
+                            "count": observed,
+                            "threshold": int(threshold),
+                            "exceeded_by": int(observed - int(threshold)),
+                        }
+                    )
+        return {
+            "enabled": bool(enabled),
+            "policy": policy,
+            "thresholds": thresholds,
+            "counts": counts,
+            "threshold_hits": threshold_hits,
+            "threshold_hits_total": len(threshold_hits),
+            "is_blocking": bool(threshold_hits),
+        }
+
+    def _doc_sync_dead_letter_trend_snapshot(
+        self,
+        *,
+        since: datetime,
+        site_id: Optional[str] = None,
+        bucket_days: int = 1,
+    ) -> Dict[str, Any]:
+        normalized_bucket = self._normalize_bucket_days(bucket_days)
+        now = _utcnow()
+        bucket_span = timedelta(days=normalized_bucket)
+        bucket_seconds = float(bucket_span.total_seconds())
+
+        points: List[Dict[str, Any]] = []
+        cursor = since
+        while cursor < now:
+            bucket_end = min(cursor + bucket_span, now)
+            points.append(
+                {
+                    "bucket_start": cursor.isoformat(),
+                    "bucket_end": bucket_end.isoformat(),
+                    "total": 0,
+                    "dead_letter_total": 0,
+                    "directions": {"push": 0, "pull": 0, "unknown": 0},
+                    "dead_letter_directions": {"push": 0, "pull": 0, "unknown": 0},
+                }
+            )
+            cursor = bucket_end
+        if not points:
+            points.append(
+                {
+                    "bucket_start": since.isoformat(),
+                    "bucket_end": now.isoformat(),
+                    "total": 0,
+                    "dead_letter_total": 0,
+                    "directions": {"push": 0, "pull": 0, "unknown": 0},
+                    "dead_letter_directions": {"push": 0, "pull": 0, "unknown": 0},
+                }
+            )
+
+        def bucket_index(created_at: Optional[datetime]) -> Optional[int]:
+            if created_at is None:
+                return None
+            delta = (created_at - since).total_seconds()
+            if delta < 0:
+                return None
+            idx = int(delta // bucket_seconds) if bucket_seconds > 0 else 0
+            if idx < 0:
+                return None
+            if idx >= len(points):
+                return len(points) - 1
+            return idx
+
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type.like("document_sync_%"))
+            .filter(ConversionJob.created_at >= since)
+            .all()
+        )
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            current_site_id = str(payload.get("site_id") or "").strip() or None
+            if site_id and current_site_id != str(site_id).strip():
+                continue
+            idx = bucket_index(job.created_at)
+            if idx is None:
+                continue
+            point = points[idx]
+            point["total"] = int(point.get("total") or 0) + 1
+            direction_key = self._doc_sync_direction_for_job(job, payload)
+            direction_counts = (
+                point.get("directions") if isinstance(point.get("directions"), dict) else {}
+            )
+            direction_counts[direction_key] = int(direction_counts.get(direction_key) or 0) + 1
+            point["directions"] = direction_counts
+            status = str(job.status or "").strip().lower()
+            max_attempts = int(job.max_attempts or 0)
+            attempt_count = int(job.attempt_count or 0)
+            is_dead_letter = (
+                status == JobStatus.FAILED.value
+                and max_attempts > 0
+                and attempt_count >= max_attempts
+            )
+            if is_dead_letter:
+                point["dead_letter_total"] = int(point.get("dead_letter_total") or 0) + 1
+                dead_direction_counts = (
+                    point.get("dead_letter_directions")
+                    if isinstance(point.get("dead_letter_directions"), dict)
+                    else {}
+                )
+                dead_direction_counts[direction_key] = (
+                    int(dead_direction_counts.get(direction_key) or 0) + 1
+                )
+                point["dead_letter_directions"] = dead_direction_counts
+
+        values: List[int] = []
+        direction_totals = Counter()
+        dead_letter_direction_totals = Counter()
+        for point in points:
+            total = int(point.get("total") or 0)
+            dead_letter_total = int(point.get("dead_letter_total") or 0)
+            point["dead_letter_rate"] = self._safe_ratio(dead_letter_total, total)
+            values.append(dead_letter_total)
+            for key, count in (point.get("directions") or {}).items():
+                direction_totals[str(key)] += int(count or 0)
+            for key, count in (point.get("dead_letter_directions") or {}).items():
+                dead_letter_direction_totals[str(key)] += int(count or 0)
+        first = int(values[0]) if values else 0
+        latest = int(values[-1]) if values else 0
+        max_value = int(max(values)) if values else 0
+        min_value = int(min(values)) if values else 0
+        delta = int(max_value - min_value)
+        direction = "flat"
+        if latest > first:
+            direction = "up"
+        elif latest < first:
+            direction = "down"
+
+        return {
+            "bucket_days": normalized_bucket,
+            "points": points,
+            "aggregates": {
+                "first_dead_letter_total": first,
+                "latest_dead_letter_total": latest,
+                "min_dead_letter_total": min_value,
+                "max_dead_letter_total": max_value,
+                "delta_dead_letter_total": delta,
+                "nonzero_buckets": int(sum(1 for value in values if int(value) > 0)),
+                "by_direction": dict(direction_totals),
+                "dead_letter_by_direction": dict(dead_letter_direction_totals),
+            },
+            "direction": direction,
         }
 
     def _workflow_summary(
@@ -6471,6 +6730,12 @@ class ParallelOpsOverviewService:
         breakage_helpdesk_replay_failed_rate_warn: Optional[float] = None,
         breakage_helpdesk_replay_failed_total_warn: Optional[int] = None,
         breakage_helpdesk_replay_pending_total_warn: Optional[int] = None,
+        doc_sync_checkout_gate_block_on_dead_letter_only: Optional[bool] = None,
+        doc_sync_checkout_gate_max_pending_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_processing_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_failed_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_dead_letter_warn: Optional[int] = None,
+        doc_sync_dead_letter_trend_delta_warn: Optional[int] = None,
     ) -> Dict[str, Any]:
         normalized_window = self._normalize_window_days(window_days)
         since = self._window_since(normalized_window)
@@ -6603,9 +6868,49 @@ class ParallelOpsOverviewService:
                 if breakage_helpdesk_replay_pending_total_warn is not None
                 else int(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_replay_pending_total_warn"])
             ),
+            "doc_sync_checkout_gate_block_on_dead_letter_only": self._normalize_optional_bool(
+                doc_sync_checkout_gate_block_on_dead_letter_only,
+                field="doc_sync_checkout_gate_block_on_dead_letter_only",
+            ),
+            "doc_sync_checkout_gate_max_pending_warn": self._normalize_non_negative_int(
+                doc_sync_checkout_gate_max_pending_warn,
+                field="doc_sync_checkout_gate_max_pending_warn",
+            ),
+            "doc_sync_checkout_gate_max_processing_warn": self._normalize_non_negative_int(
+                doc_sync_checkout_gate_max_processing_warn,
+                field="doc_sync_checkout_gate_max_processing_warn",
+            ),
+            "doc_sync_checkout_gate_max_failed_warn": self._normalize_non_negative_int(
+                doc_sync_checkout_gate_max_failed_warn,
+                field="doc_sync_checkout_gate_max_failed_warn",
+            ),
+            "doc_sync_checkout_gate_max_dead_letter_warn": self._normalize_non_negative_int(
+                doc_sync_checkout_gate_max_dead_letter_warn,
+                field="doc_sync_checkout_gate_max_dead_letter_warn",
+            ),
+            "doc_sync_dead_letter_trend_delta_warn": self._normalize_non_negative_int(
+                doc_sync_dead_letter_trend_delta_warn,
+                field="doc_sync_dead_letter_trend_delta_warn",
+            ),
         }
 
         doc_sync = self._doc_sync_summary(since=since, site_id=site_id)
+        checkout_gate = self._doc_sync_checkout_gate_snapshot(
+            doc_sync_summary=doc_sync,
+            block_on_dead_letter_only=thresholds.get(
+                "doc_sync_checkout_gate_block_on_dead_letter_only"
+            ),
+            max_pending_warn=thresholds.get("doc_sync_checkout_gate_max_pending_warn"),
+            max_processing_warn=thresholds.get("doc_sync_checkout_gate_max_processing_warn"),
+            max_failed_warn=thresholds.get("doc_sync_checkout_gate_max_failed_warn"),
+            max_dead_letter_warn=thresholds.get("doc_sync_checkout_gate_max_dead_letter_warn"),
+        )
+        doc_sync["checkout_gate"] = checkout_gate
+        doc_sync["dead_letter_trend"] = self._doc_sync_dead_letter_trend_snapshot(
+            since=since,
+            site_id=site_id,
+            bucket_days=1,
+        )
         workflow = self._workflow_summary(since=since, target_object=target_object)
         breakages = self._breakage_summary(since=since)
         breakages["helpdesk"] = self._breakage_helpdesk_summary(since=since)
@@ -6643,6 +6948,53 @@ class ParallelOpsOverviewService:
                     "message": (
                         "Document sync dead-letter rate is above "
                         f"{float(thresholds['doc_sync_dead_letter_rate_warn']):.4f}"
+                    ),
+                }
+            )
+        checkout_gate = (
+            doc_sync.get("checkout_gate")
+            if isinstance(doc_sync.get("checkout_gate"), dict)
+            else {}
+        )
+        if bool(checkout_gate.get("enabled")) and int(
+            checkout_gate.get("threshold_hits_total") or 0
+        ) > 0:
+            hit_codes = ",".join(
+                str(row.get("status") or "")
+                for row in (checkout_gate.get("threshold_hits") or [])
+                if isinstance(row, dict)
+            )
+            hints.append(
+                {
+                    "code": "doc_sync_checkout_gate_threshold_hit",
+                    "level": "warn",
+                    "message": (
+                        "Doc-sync checkout gate thresholds exceeded"
+                        + (f" for statuses={hit_codes}" if hit_codes else "")
+                    ),
+                }
+            )
+        dead_letter_trend = (
+            doc_sync.get("dead_letter_trend")
+            if isinstance(doc_sync.get("dead_letter_trend"), dict)
+            else {}
+        )
+        trend_aggregates = (
+            dead_letter_trend.get("aggregates")
+            if isinstance(dead_letter_trend.get("aggregates"), dict)
+            else {}
+        )
+        trend_delta_warn = thresholds.get("doc_sync_dead_letter_trend_delta_warn")
+        if trend_delta_warn is not None and int(
+            trend_aggregates.get("delta_dead_letter_total") or 0
+        ) > int(trend_delta_warn):
+            hints.append(
+                {
+                    "code": "doc_sync_dead_letter_trend_up",
+                    "level": "warn",
+                    "message": (
+                        "Doc-sync dead-letter trend delta is above "
+                        f"{int(trend_delta_warn)}"
                     ),
                 }
             )
@@ -6867,6 +7219,8 @@ class ParallelOpsOverviewService:
                         "total": 0,
                         "failed_total": 0,
                         "dead_letter_total": 0,
+                        "directions": {"push": 0, "pull": 0, "unknown": 0},
+                        "dead_letter_directions": {"push": 0, "pull": 0, "unknown": 0},
                     },
                     "workflow_actions": {
                         "total": 0,
@@ -6890,6 +7244,8 @@ class ParallelOpsOverviewService:
                         "total": 0,
                         "failed_total": 0,
                         "dead_letter_total": 0,
+                        "directions": {"push": 0, "pull": 0, "unknown": 0},
+                        "dead_letter_directions": {"push": 0, "pull": 0, "unknown": 0},
                     },
                     "workflow_actions": {
                         "total": 0,
@@ -6935,6 +7291,12 @@ class ParallelOpsOverviewService:
             row = points[idx]
             doc_sync = row["doc_sync"]
             doc_sync["total"] += 1
+            direction_key = self._doc_sync_direction_for_job(job, payload)
+            direction_counts = (
+                doc_sync.get("directions") if isinstance(doc_sync.get("directions"), dict) else {}
+            )
+            direction_counts[direction_key] = int(direction_counts.get(direction_key) or 0) + 1
+            doc_sync["directions"] = direction_counts
             status = str(job.status or "").lower()
             if status == JobStatus.COMPLETED.value:
                 row["_doc_sync_success_total"] += 1
@@ -6944,6 +7306,15 @@ class ParallelOpsOverviewService:
                 attempt_count = int(job.attempt_count or 0)
                 if max_attempts > 0 and attempt_count >= max_attempts:
                     doc_sync["dead_letter_total"] += 1
+                    dead_direction_counts = (
+                        doc_sync.get("dead_letter_directions")
+                        if isinstance(doc_sync.get("dead_letter_directions"), dict)
+                        else {}
+                    )
+                    dead_direction_counts[direction_key] = (
+                        int(dead_direction_counts.get(direction_key) or 0) + 1
+                    )
+                    doc_sync["dead_letter_directions"] = dead_direction_counts
 
         workflow_query = self.session.query(WorkflowCustomActionRun).filter(
             WorkflowCustomActionRun.created_at >= since
@@ -7017,6 +7388,36 @@ class ParallelOpsOverviewService:
                 "doc_sync_dead_letter_total": int(
                     sum((row["doc_sync"]["dead_letter_total"] or 0) for row in points)
                 ),
+                "doc_sync_push_total": int(
+                    sum(
+                        ((row["doc_sync"].get("directions") or {}).get("push") or 0)
+                        for row in points
+                    )
+                ),
+                "doc_sync_pull_total": int(
+                    sum(
+                        ((row["doc_sync"].get("directions") or {}).get("pull") or 0)
+                        for row in points
+                    )
+                ),
+                "doc_sync_unknown_direction_total": int(
+                    sum(
+                        ((row["doc_sync"].get("directions") or {}).get("unknown") or 0)
+                        for row in points
+                    )
+                ),
+                "doc_sync_dead_letter_push_total": int(
+                    sum(
+                        ((row["doc_sync"].get("dead_letter_directions") or {}).get("push") or 0)
+                        for row in points
+                    )
+                ),
+                "doc_sync_dead_letter_pull_total": int(
+                    sum(
+                        ((row["doc_sync"].get("dead_letter_directions") or {}).get("pull") or 0)
+                        for row in points
+                    )
+                ),
                 "workflow_total": int(
                     sum((row["workflow_actions"]["total"] or 0) for row in points)
                 ),
@@ -7061,6 +7462,7 @@ class ParallelOpsOverviewService:
             row_site_id = str(payload.get("site_id") or "").strip() or None
             if site_id and row_site_id != str(site_id).strip():
                 continue
+            direction = self._doc_sync_direction_for_job(job, payload)
             rows.append(
                 {
                     "id": job.id,
@@ -7071,16 +7473,19 @@ class ParallelOpsOverviewService:
                     "last_error": job.last_error,
                     "dedupe_key": job.dedupe_key,
                     "site_id": row_site_id,
+                    "direction": direction,
                     "created_at": job.created_at.isoformat() if job.created_at else None,
                 }
             )
 
         paged = self._paginate(rows, page=normalized_page, page_size=normalized_page_size)
+        by_direction = Counter(str(row.get("direction") or "unknown") for row in rows)
         return {
             "window_days": normalized_window,
             "window_since": since.isoformat(),
             "site_filter": site_id,
             "total": paged["total"],
+            "by_direction": dict(by_direction),
             "pagination": {
                 "page": paged["page"],
                 "page_size": paged["page_size"],
@@ -9666,6 +10071,12 @@ class ParallelOpsOverviewService:
         breakage_helpdesk_replay_failed_rate_warn: Optional[float] = None,
         breakage_helpdesk_replay_failed_total_warn: Optional[int] = None,
         breakage_helpdesk_replay_pending_total_warn: Optional[int] = None,
+        doc_sync_checkout_gate_block_on_dead_letter_only: Optional[bool] = None,
+        doc_sync_checkout_gate_max_pending_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_processing_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_failed_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_dead_letter_warn: Optional[int] = None,
+        doc_sync_dead_letter_trend_delta_warn: Optional[int] = None,
     ) -> str:
         summary = self.summary(
             window_days=window_days,
@@ -9688,6 +10099,12 @@ class ParallelOpsOverviewService:
             breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
             breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
             breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
+            doc_sync_checkout_gate_block_on_dead_letter_only=doc_sync_checkout_gate_block_on_dead_letter_only,
+            doc_sync_checkout_gate_max_pending_warn=doc_sync_checkout_gate_max_pending_warn,
+            doc_sync_checkout_gate_max_processing_warn=doc_sync_checkout_gate_max_processing_warn,
+            doc_sync_checkout_gate_max_failed_warn=doc_sync_checkout_gate_max_failed_warn,
+            doc_sync_checkout_gate_max_dead_letter_warn=doc_sync_checkout_gate_max_dead_letter_warn,
+            doc_sync_dead_letter_trend_delta_warn=doc_sync_dead_letter_trend_delta_warn,
         )
         failure_trends = self.breakage_helpdesk_failure_trends(
             window_days=window_days,
@@ -9720,6 +10137,38 @@ class ParallelOpsOverviewService:
             self._prometheus_line(
                 "yuantus_parallel_doc_sync_success_rate",
                 summary.get("doc_sync", {}).get("success_rate"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_doc_sync_checkout_gate_threshold_hits_total Number of exceeded checkout-gate thresholds.",
+            "# TYPE yuantus_parallel_doc_sync_checkout_gate_threshold_hits_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_doc_sync_checkout_gate_threshold_hits_total",
+                summary.get("doc_sync", {})
+                .get("checkout_gate", {})
+                .get("threshold_hits_total"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_doc_sync_checkout_gate_blocking Checkout-gate is blocking (1) or not (0).",
+            "# TYPE yuantus_parallel_doc_sync_checkout_gate_blocking gauge",
+            self._prometheus_line(
+                "yuantus_parallel_doc_sync_checkout_gate_blocking",
+                1
+                if bool(
+                    summary.get("doc_sync", {})
+                    .get("checkout_gate", {})
+                    .get("is_blocking")
+                )
+                else 0,
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_doc_sync_dead_letter_trend_delta Delta between max and min dead-letter totals in trend buckets.",
+            "# TYPE yuantus_parallel_doc_sync_dead_letter_trend_delta gauge",
+            self._prometheus_line(
+                "yuantus_parallel_doc_sync_dead_letter_trend_delta",
+                summary.get("doc_sync", {})
+                .get("dead_letter_trend", {})
+                .get("aggregates", {})
+                .get("delta_dead_letter_total"),
                 labels=common_labels,
             ),
             "# HELP yuantus_parallel_workflow_runs_total Workflow custom action runs in selected window.",
@@ -9875,6 +10324,15 @@ class ParallelOpsOverviewService:
             ),
         ]
 
+        lines.extend(
+            [
+                "# HELP yuantus_parallel_doc_sync_by_status Doc-sync job counts by status.",
+                "# TYPE yuantus_parallel_doc_sync_by_status gauge",
+                "# HELP yuantus_parallel_doc_sync_by_direction Doc-sync job counts by transfer direction.",
+                "# TYPE yuantus_parallel_doc_sync_by_direction gauge",
+            ]
+        )
+
         by_status = summary.get("doc_sync", {}).get("by_status") or {}
         for status, count in sorted(by_status.items()):
             labels = {**common_labels, "status": status}
@@ -9882,6 +10340,54 @@ class ParallelOpsOverviewService:
                 self._prometheus_line(
                     "yuantus_parallel_doc_sync_by_status",
                     count,
+                    labels=labels,
+                )
+            )
+        by_direction = summary.get("doc_sync", {}).get("by_direction") or {}
+        for direction, count in sorted(by_direction.items()):
+            labels = {**common_labels, "direction": direction}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_doc_sync_by_direction",
+                    count,
+                    labels=labels,
+                )
+            )
+        lines.extend(
+            [
+                "# HELP yuantus_parallel_doc_sync_checkout_gate_threshold_hit_count Observed status count for exceeded checkout-gate threshold.",
+                "# TYPE yuantus_parallel_doc_sync_checkout_gate_threshold_hit_count gauge",
+                "# HELP yuantus_parallel_doc_sync_checkout_gate_threshold_value Configured checkout-gate threshold for exceeded status.",
+                "# TYPE yuantus_parallel_doc_sync_checkout_gate_threshold_value gauge",
+                "# HELP yuantus_parallel_doc_sync_checkout_gate_threshold_exceeded_by Difference between observed count and threshold.",
+                "# TYPE yuantus_parallel_doc_sync_checkout_gate_threshold_exceeded_by gauge",
+            ]
+        )
+        gate_threshold_hits = (
+            summary.get("doc_sync", {}).get("checkout_gate", {}).get("threshold_hits") or []
+        )
+        for row in gate_threshold_hits:
+            if not isinstance(row, dict):
+                continue
+            labels = {**common_labels, "status": row.get("status")}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_doc_sync_checkout_gate_threshold_hit_count",
+                    row.get("count"),
+                    labels=labels,
+                )
+            )
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_doc_sync_checkout_gate_threshold_value",
+                    row.get("threshold"),
+                    labels=labels,
+                )
+            )
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_doc_sync_checkout_gate_threshold_exceeded_by",
+                    row.get("exceeded_by"),
                     labels=labels,
                 )
             )
@@ -10046,6 +10552,12 @@ class ParallelOpsOverviewService:
         breakage_helpdesk_replay_failed_rate_warn: Optional[float] = None,
         breakage_helpdesk_replay_failed_total_warn: Optional[int] = None,
         breakage_helpdesk_replay_pending_total_warn: Optional[int] = None,
+        doc_sync_checkout_gate_block_on_dead_letter_only: Optional[bool] = None,
+        doc_sync_checkout_gate_max_pending_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_processing_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_failed_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_dead_letter_warn: Optional[int] = None,
+        doc_sync_dead_letter_trend_delta_warn: Optional[int] = None,
     ) -> Dict[str, Any]:
         normalized_level = str(level or "").strip().lower() or None
         if normalized_level and normalized_level not in {"warn", "critical", "info"}:
@@ -10072,6 +10584,12 @@ class ParallelOpsOverviewService:
             breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
             breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
             breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
+            doc_sync_checkout_gate_block_on_dead_letter_only=doc_sync_checkout_gate_block_on_dead_letter_only,
+            doc_sync_checkout_gate_max_pending_warn=doc_sync_checkout_gate_max_pending_warn,
+            doc_sync_checkout_gate_max_processing_warn=doc_sync_checkout_gate_max_processing_warn,
+            doc_sync_checkout_gate_max_failed_warn=doc_sync_checkout_gate_max_failed_warn,
+            doc_sync_checkout_gate_max_dead_letter_warn=doc_sync_checkout_gate_max_dead_letter_warn,
+            doc_sync_dead_letter_trend_delta_warn=doc_sync_dead_letter_trend_delta_warn,
         )
         hints = summary.get("slo_hints") or []
         if normalized_level:
@@ -10114,6 +10632,29 @@ class ParallelOpsOverviewService:
         push(
             "doc_sync.success_rate",
             (summary.get("doc_sync") or {}).get("success_rate"),
+        )
+        push(
+            "doc_sync.checkout_gate.threshold_hits_total",
+            (summary.get("doc_sync") or {})
+            .get("checkout_gate", {})
+            .get("threshold_hits_total"),
+        )
+        push(
+            "doc_sync.checkout_gate.is_blocking",
+            1
+            if bool(
+                (summary.get("doc_sync") or {})
+                .get("checkout_gate", {})
+                .get("is_blocking")
+            )
+            else 0,
+        )
+        push(
+            "doc_sync.dead_letter_trend.delta_dead_letter_total",
+            (summary.get("doc_sync") or {})
+            .get("dead_letter_trend", {})
+            .get("aggregates", {})
+            .get("delta_dead_letter_total"),
         )
         push(
             "workflow_actions.total",
@@ -10205,6 +10746,31 @@ class ParallelOpsOverviewService:
 
         for status, count in sorted(((summary.get("doc_sync") or {}).get("by_status") or {}).items()):
             push(f"doc_sync.by_status.{status}", count)
+        for direction, count in sorted(
+            ((summary.get("doc_sync") or {}).get("by_direction") or {}).items()
+        ):
+            push(f"doc_sync.by_direction.{direction}", count)
+        for row in (
+            (summary.get("doc_sync") or {})
+            .get("checkout_gate", {})
+            .get("threshold_hits")
+            or []
+        ):
+            if not isinstance(row, dict):
+                continue
+            status = str(row.get("status") or "unknown")
+            push(
+                f"doc_sync.checkout_gate.threshold_hit.{status}.count",
+                row.get("count"),
+            )
+            push(
+                f"doc_sync.checkout_gate.threshold_hit.{status}.threshold",
+                row.get("threshold"),
+            )
+            push(
+                f"doc_sync.checkout_gate.threshold_hit.{status}.exceeded_by",
+                row.get("exceeded_by"),
+            )
         for code, count in sorted(
             ((summary.get("workflow_actions") or {}).get("by_result_code") or {}).items()
         ):
@@ -10300,6 +10866,12 @@ class ParallelOpsOverviewService:
         breakage_helpdesk_replay_failed_rate_warn: Optional[float] = None,
         breakage_helpdesk_replay_failed_total_warn: Optional[int] = None,
         breakage_helpdesk_replay_pending_total_warn: Optional[int] = None,
+        doc_sync_checkout_gate_block_on_dead_letter_only: Optional[bool] = None,
+        doc_sync_checkout_gate_max_pending_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_processing_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_failed_warn: Optional[int] = None,
+        doc_sync_checkout_gate_max_dead_letter_warn: Optional[int] = None,
+        doc_sync_dead_letter_trend_delta_warn: Optional[int] = None,
     ) -> Dict[str, Any]:
         summary = self.summary(
             window_days=window_days,
@@ -10322,6 +10894,12 @@ class ParallelOpsOverviewService:
             breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
             breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
             breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
+            doc_sync_checkout_gate_block_on_dead_letter_only=doc_sync_checkout_gate_block_on_dead_letter_only,
+            doc_sync_checkout_gate_max_pending_warn=doc_sync_checkout_gate_max_pending_warn,
+            doc_sync_checkout_gate_max_processing_warn=doc_sync_checkout_gate_max_processing_warn,
+            doc_sync_checkout_gate_max_failed_warn=doc_sync_checkout_gate_max_failed_warn,
+            doc_sync_checkout_gate_max_dead_letter_warn=doc_sync_checkout_gate_max_dead_letter_warn,
+            doc_sync_dead_letter_trend_delta_warn=doc_sync_dead_letter_trend_delta_warn,
         )
         normalized = str(export_format or "json").strip().lower()
         if normalized == "json":
@@ -10372,6 +10950,14 @@ class ParallelOpsOverviewService:
             if not isinstance(row, dict):
                 continue
             doc_sync = row.get("doc_sync") if isinstance(row.get("doc_sync"), dict) else {}
+            doc_sync_directions = (
+                doc_sync.get("directions") if isinstance(doc_sync.get("directions"), dict) else {}
+            )
+            doc_sync_dead_letter_directions = (
+                doc_sync.get("dead_letter_directions")
+                if isinstance(doc_sync.get("dead_letter_directions"), dict)
+                else {}
+            )
             workflow = (
                 row.get("workflow_actions")
                 if isinstance(row.get("workflow_actions"), dict)
@@ -10383,8 +10969,13 @@ class ParallelOpsOverviewService:
                     "bucket_start": row.get("bucket_start"),
                     "bucket_end": row.get("bucket_end"),
                     "doc_sync_total": doc_sync.get("total"),
+                    "doc_sync_push_total": doc_sync_directions.get("push"),
+                    "doc_sync_pull_total": doc_sync_directions.get("pull"),
+                    "doc_sync_unknown_direction_total": doc_sync_directions.get("unknown"),
                     "doc_sync_failed_total": doc_sync.get("failed_total"),
                     "doc_sync_dead_letter_total": doc_sync.get("dead_letter_total"),
+                    "doc_sync_dead_letter_push_total": doc_sync_dead_letter_directions.get("push"),
+                    "doc_sync_dead_letter_pull_total": doc_sync_dead_letter_directions.get("pull"),
                     "doc_sync_success_rate": doc_sync.get("success_rate"),
                     "doc_sync_dead_letter_rate": doc_sync.get("dead_letter_rate"),
                     "workflow_total": workflow.get("total"),
@@ -10432,8 +11023,13 @@ class ParallelOpsOverviewService:
                     "bucket_start",
                     "bucket_end",
                     "doc_sync_total",
+                    "doc_sync_push_total",
+                    "doc_sync_pull_total",
+                    "doc_sync_unknown_direction_total",
                     "doc_sync_failed_total",
                     "doc_sync_dead_letter_total",
+                    "doc_sync_dead_letter_push_total",
+                    "doc_sync_dead_letter_pull_total",
                     "doc_sync_success_rate",
                     "doc_sync_dead_letter_rate",
                     "workflow_total",
@@ -10462,8 +11058,8 @@ class ParallelOpsOverviewService:
                 f"- bucket_days: {trends.get('bucket_days') or ''}",
                 f"- window_since: {trends.get('window_since') or ''}",
                 "",
-                "| Bucket Start | Bucket End | DocSync Total | DocSync Failed | DocSync DeadLetter | Workflow Total | Workflow Failed | Breakages Total | Breakages Open |",
-                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+                "| Bucket Start | Bucket End | DocSync Total | DocSync Push | DocSync Pull | DocSync Failed | DocSync DeadLetter | DL Push | DL Pull | Workflow Total | Workflow Failed | Breakages Total | Breakages Open |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
             for row in rows:
                 lines.append(
@@ -10471,8 +11067,12 @@ class ParallelOpsOverviewService:
                     f"{row['bucket_start']} | "
                     f"{row['bucket_end']} | "
                     f"{row['doc_sync_total']} | "
+                    f"{row['doc_sync_push_total']} | "
+                    f"{row['doc_sync_pull_total']} | "
                     f"{row['doc_sync_failed_total']} | "
                     f"{row['doc_sync_dead_letter_total']} | "
+                    f"{row['doc_sync_dead_letter_push_total']} | "
+                    f"{row['doc_sync_dead_letter_pull_total']} | "
                     f"{row['workflow_total']} | "
                     f"{row['workflow_failed_total']} | "
                     f"{row['breakages_total']} | "

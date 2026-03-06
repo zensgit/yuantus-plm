@@ -101,6 +101,73 @@ Notes:
 - Existing audit rows remain in the database.
 - Disabling audit stops new audit writes.
 
+## Version checkout doc-sync gate policy knobs
+
+Endpoint: `POST /api/v1/versions/items/{item_id}/checkout`
+
+New optional request body fields:
+- `doc_sync_block_on_dead_letter_only`
+- `doc_sync_max_pending`
+- `doc_sync_max_processing`
+- `doc_sync_max_failed`
+- `doc_sync_max_dead_letter`
+
+Recommended templates:
+
+`strict` (block on any backlog)
+```json
+{
+  "doc_sync_site_id": "site-a",
+  "doc_sync_window_days": 7,
+  "doc_sync_limit": 200,
+  "doc_sync_block_on_dead_letter_only": false,
+  "doc_sync_max_pending": 0,
+  "doc_sync_max_processing": 0,
+  "doc_sync_max_failed": 0,
+  "doc_sync_max_dead_letter": 0
+}
+```
+
+`tolerant` (block only on dead-letter backlog)
+```json
+{
+  "doc_sync_site_id": "site-a",
+  "doc_sync_window_days": 7,
+  "doc_sync_limit": 200,
+  "doc_sync_block_on_dead_letter_only": true,
+  "doc_sync_max_pending": 20,
+  "doc_sync_max_processing": 10,
+  "doc_sync_max_failed": 5,
+  "doc_sync_max_dead_letter": 0
+}
+```
+
+Example call:
+```bash
+curl -s -X POST \
+  "http://127.0.0.1:7910/api/v1/versions/items/{item_id}/checkout" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "version_id": "{version_id}",
+    "doc_sync_site_id": "site-a",
+    "doc_sync_block_on_dead_letter_only": true,
+    "doc_sync_max_pending": 20,
+    "doc_sync_max_processing": 10,
+    "doc_sync_max_failed": 5,
+    "doc_sync_max_dead_letter": 0
+  }'
+```
+
+Operator troubleshooting (`409` + `detail.code=doc_sync_checkout_blocked`):
+- `policy.block_on_dead_letter_only=true`: only `dead_letter` is evaluated for blocking.
+- `thresholds`: effective numeric limits used by the gate.
+- `blocking_reasons`: exact exceeded statuses (`count > threshold`).
+- `blocking_counts`: observed totals for all statuses; use this to size backlog.
+- `blocking_jobs`: concrete jobs/documents to replay or repair before retry.
+
+If request values are invalid, API returns `400` with `detail.code=doc_sync_checkout_gate_invalid`.
+
 ## Stop services
 
 ```bash

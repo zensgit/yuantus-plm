@@ -2548,6 +2548,15 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert result["window_days"] == 7
     assert result["doc_sync"]["total"] == 2
     assert result["doc_sync"]["dead_letter_total"] == 1
+    assert result["doc_sync"]["by_direction"]["push"] == 1
+    assert result["doc_sync"]["by_direction"]["pull"] == 1
+    assert result["doc_sync"]["checkout_gate"]["enabled"] is False
+    assert result["doc_sync"]["checkout_gate"]["threshold_hits_total"] == 0
+    assert result["doc_sync"]["dead_letter_trend"]["bucket_days"] == 1
+    assert (
+        result["doc_sync"]["dead_letter_trend"]["aggregates"]["delta_dead_letter_total"]
+        >= 0
+    )
     assert result["workflow_actions"]["total"] == 2
     assert result["workflow_actions"]["by_result_code"]["OK"] == 1
     assert result["workflow_actions"]["by_result_code"]["RETRY_EXHAUSTED"] == 1
@@ -2571,6 +2580,35 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert "doc_sync_dead_letter_rate_high" in hint_codes
     assert "workflow_action_failed_rate_high" in hint_codes
     assert "breakage_open_rate_high" in hint_codes
+
+    gate_triggered = ops.summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        doc_sync_checkout_gate_max_failed_warn=0,
+        doc_sync_checkout_gate_max_dead_letter_warn=0,
+    )
+    gate_hint_codes = {row["code"] for row in (gate_triggered.get("slo_hints") or [])}
+    assert "doc_sync_checkout_gate_threshold_hit" in gate_hint_codes
+    assert gate_triggered["doc_sync"]["checkout_gate"]["enabled"] is True
+    assert gate_triggered["doc_sync"]["checkout_gate"]["is_blocking"] is True
+    hit_statuses = {
+        row["status"]
+        for row in (gate_triggered["doc_sync"]["checkout_gate"]["threshold_hits"] or [])
+    }
+    assert "failed" in hit_statuses
+    assert "dead_letter" in hit_statuses
+
+    trend_triggered = ops.summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        doc_sync_dead_letter_trend_delta_warn=0,
+    )
+    trend_hint_codes = {row["code"] for row in (trend_triggered.get("slo_hints") or [])}
+    assert "doc_sync_dead_letter_trend_up" in trend_hint_codes
 
     relaxed = ops.summary(
         window_days=7,
@@ -2606,6 +2644,8 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert relaxed["slo_thresholds"]["breakage_helpdesk_replay_failed_rate_warn"] == 0.5
     assert relaxed["slo_thresholds"]["breakage_helpdesk_replay_failed_total_warn"] == 3
     assert relaxed["slo_thresholds"]["breakage_helpdesk_replay_pending_total_warn"] == 10
+    assert relaxed["slo_thresholds"]["doc_sync_checkout_gate_max_failed_warn"] is None
+    assert relaxed["slo_thresholds"]["doc_sync_dead_letter_trend_delta_warn"] is None
 
     strict = ops.summary(
         window_days=7,
@@ -2673,6 +2713,9 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert trends["aggregates"]["doc_sync_total"] == 2
     assert trends["aggregates"]["doc_sync_failed_total"] == 1
     assert trends["aggregates"]["doc_sync_dead_letter_total"] == 1
+    assert trends["aggregates"]["doc_sync_push_total"] == 1
+    assert trends["aggregates"]["doc_sync_pull_total"] == 1
+    assert trends["aggregates"]["doc_sync_dead_letter_pull_total"] == 1
     assert trends["aggregates"]["workflow_total"] == 2
     assert trends["aggregates"]["workflow_failed_total"] == 1
     assert trends["aggregates"]["breakages_total"] == 2
@@ -2703,6 +2746,7 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert trends_export_csv["filename"] == "parallel-ops-trends.csv"
     trends_csv_text = trends_export_csv["content"].decode("utf-8")
     assert "bucket_start,bucket_end,doc_sync_total" in trends_csv_text
+    assert "doc_sync_push_total" in trends_csv_text
 
     trends_export_md = ops.export_trends(
         window_days=7,
@@ -2724,10 +2768,12 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
         page_size=1,
     )
     assert doc_sync_failures["total"] == 1
+    assert doc_sync_failures["by_direction"]["pull"] == 1
     assert doc_sync_failures["pagination"]["pages"] == 1
     assert len(doc_sync_failures["jobs"]) == 1
     assert doc_sync_failures["jobs"][0]["status"] == "failed"
     assert doc_sync_failures["jobs"][0]["site_id"] == "site-1"
+    assert doc_sync_failures["jobs"][0]["direction"] == "pull"
 
     workflow_failures = ops.workflow_failures(
         window_days=7,
@@ -2857,6 +2903,9 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert "yuantus_parallel_breakage_helpdesk_by_provider" in metrics
     assert "yuantus_parallel_breakage_helpdesk_failed_by_failure_category" in metrics
     assert "yuantus_parallel_breakage_helpdesk_failure_trend_failed_total" in metrics
+    assert "yuantus_parallel_doc_sync_by_direction" in metrics
+    assert "yuantus_parallel_doc_sync_checkout_gate_threshold_hits_total" in metrics
+    assert "yuantus_parallel_doc_sync_dead_letter_trend_delta" in metrics
     assert "yuantus_parallel_slo_hints_total" in metrics
     assert 'site_id="site-1"' in metrics
     assert 'provider="jira"' in metrics
@@ -2985,6 +3034,14 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
         ops.summary(window_days=7, breakage_helpdesk_replay_failed_total_warn=-1)
     with pytest.raises(ValueError, match="breakage_helpdesk_replay_pending_total_warn must be >= 0"):
         ops.summary(window_days=7, breakage_helpdesk_replay_pending_total_warn=-1)
+    with pytest.raises(ValueError, match="doc_sync_checkout_gate_max_failed_warn must be >= 0"):
+        ops.summary(window_days=7, doc_sync_checkout_gate_max_failed_warn=-1)
+    with pytest.raises(ValueError, match="doc_sync_dead_letter_trend_delta_warn must be >= 0"):
+        ops.summary(window_days=7, doc_sync_dead_letter_trend_delta_warn=-1)
+    with pytest.raises(
+        ValueError, match="doc_sync_checkout_gate_block_on_dead_letter_only must be a boolean"
+    ):
+        ops.summary(window_days=7, doc_sync_checkout_gate_block_on_dead_letter_only="oops")
     with pytest.raises(ValueError, match="overlay_cache_min_requests_warn must be >= 0"):
         ops.summary(window_days=7, overlay_cache_min_requests_warn=-1)
     with pytest.raises(ValueError, match="page_size"):

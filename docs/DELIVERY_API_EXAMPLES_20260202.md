@@ -333,3 +333,61 @@ curl -s -X PUT \
   "http://127.0.0.1:7910/api/v1/mboms/{mbom_id}/reopen" \
   -H "Authorization: Bearer $TOKEN"
 ```
+
+## 11) Version Checkout Doc-Sync Gate (Policy + Thresholds)
+
+```bash
+# Checkout with explicit doc-sync gate controls
+curl -s -X POST \
+  "http://127.0.0.1:7910/api/v1/versions/items/{item_id}/checkout" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "version_id": "{version_id}",
+    "doc_sync_site_id": "site-a",
+    "doc_sync_document_ids": ["{version_id}", "{file_id_1}", "{file_id_2}"],
+    "doc_sync_window_days": 7,
+    "doc_sync_limit": 200,
+    "doc_sync_block_on_dead_letter_only": false,
+    "doc_sync_max_pending": 0,
+    "doc_sync_max_processing": 0,
+    "doc_sync_max_failed": 0,
+    "doc_sync_max_dead_letter": 0
+  }'
+```
+
+Recommended templates:
+
+`strict` (block on any backlog)
+```json
+{
+  "doc_sync_site_id": "site-a",
+  "doc_sync_window_days": 7,
+  "doc_sync_limit": 200,
+  "doc_sync_block_on_dead_letter_only": false,
+  "doc_sync_max_pending": 0,
+  "doc_sync_max_processing": 0,
+  "doc_sync_max_failed": 0,
+  "doc_sync_max_dead_letter": 0
+}
+```
+
+`tolerant` (block only on dead-letter backlog)
+```json
+{
+  "doc_sync_site_id": "site-a",
+  "doc_sync_window_days": 7,
+  "doc_sync_limit": 200,
+  "doc_sync_block_on_dead_letter_only": true,
+  "doc_sync_max_pending": 20,
+  "doc_sync_max_processing": 10,
+  "doc_sync_max_failed": 5,
+  "doc_sync_max_dead_letter": 0
+}
+```
+
+When blocked (`409`, `doc_sync_checkout_blocked`), inspect `detail.context`:
+- `policy`: effective policy (`block_on_dead_letter_only`).
+- `thresholds`: applied per-status thresholds.
+- `blocking_reasons`: statuses that exceeded threshold (`count > threshold`).
+- `blocking_counts`: observed totals for `pending/processing/failed/dead_letter`.

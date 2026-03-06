@@ -2879,6 +2879,12 @@ async def get_parallel_ops_summary(
     breakage_helpdesk_replay_failed_rate_warn: Optional[float] = Query(None),
     breakage_helpdesk_replay_failed_total_warn: Optional[int] = Query(None),
     breakage_helpdesk_replay_pending_total_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_block_on_dead_letter_only: Optional[bool] = Query(None),
+    doc_sync_checkout_gate_max_pending_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_processing_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_failed_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_dead_letter_warn: Optional[int] = Query(None),
+    doc_sync_dead_letter_trend_delta_warn: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -2905,6 +2911,12 @@ async def get_parallel_ops_summary(
             breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
             breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
             breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
+            doc_sync_checkout_gate_block_on_dead_letter_only=doc_sync_checkout_gate_block_on_dead_letter_only,
+            doc_sync_checkout_gate_max_pending_warn=doc_sync_checkout_gate_max_pending_warn,
+            doc_sync_checkout_gate_max_processing_warn=doc_sync_checkout_gate_max_processing_warn,
+            doc_sync_checkout_gate_max_failed_warn=doc_sync_checkout_gate_max_failed_warn,
+            doc_sync_checkout_gate_max_dead_letter_warn=doc_sync_checkout_gate_max_dead_letter_warn,
+            doc_sync_dead_letter_trend_delta_warn=doc_sync_dead_letter_trend_delta_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -2932,6 +2944,12 @@ async def get_parallel_ops_summary(
                 "breakage_helpdesk_replay_failed_rate_warn": breakage_helpdesk_replay_failed_rate_warn,
                 "breakage_helpdesk_replay_failed_total_warn": breakage_helpdesk_replay_failed_total_warn,
                 "breakage_helpdesk_replay_pending_total_warn": breakage_helpdesk_replay_pending_total_warn,
+                "doc_sync_checkout_gate_block_on_dead_letter_only": doc_sync_checkout_gate_block_on_dead_letter_only,
+                "doc_sync_checkout_gate_max_pending_warn": doc_sync_checkout_gate_max_pending_warn,
+                "doc_sync_checkout_gate_max_processing_warn": doc_sync_checkout_gate_max_processing_warn,
+                "doc_sync_checkout_gate_max_failed_warn": doc_sync_checkout_gate_max_failed_warn,
+                "doc_sync_checkout_gate_max_dead_letter_warn": doc_sync_checkout_gate_max_dead_letter_warn,
+                "doc_sync_dead_letter_trend_delta_warn": doc_sync_dead_letter_trend_delta_warn,
             },
         )
     result["operator_id"] = int(user.id)
@@ -2997,6 +3015,12 @@ async def get_parallel_ops_alerts(
     breakage_helpdesk_replay_failed_rate_warn: Optional[float] = Query(None),
     breakage_helpdesk_replay_failed_total_warn: Optional[int] = Query(None),
     breakage_helpdesk_replay_pending_total_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_block_on_dead_letter_only: Optional[bool] = Query(None),
+    doc_sync_checkout_gate_max_pending_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_processing_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_failed_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_dead_letter_warn: Optional[int] = Query(None),
+    doc_sync_dead_letter_trend_delta_warn: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -3024,6 +3048,12 @@ async def get_parallel_ops_alerts(
             breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
             breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
             breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
+            doc_sync_checkout_gate_block_on_dead_letter_only=doc_sync_checkout_gate_block_on_dead_letter_only,
+            doc_sync_checkout_gate_max_pending_warn=doc_sync_checkout_gate_max_pending_warn,
+            doc_sync_checkout_gate_max_processing_warn=doc_sync_checkout_gate_max_processing_warn,
+            doc_sync_checkout_gate_max_failed_warn=doc_sync_checkout_gate_max_failed_warn,
+            doc_sync_checkout_gate_max_dead_letter_warn=doc_sync_checkout_gate_max_dead_letter_warn,
+            doc_sync_dead_letter_trend_delta_warn=doc_sync_dead_letter_trend_delta_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -3052,6 +3082,12 @@ async def get_parallel_ops_alerts(
                 "breakage_helpdesk_replay_failed_rate_warn": breakage_helpdesk_replay_failed_rate_warn,
                 "breakage_helpdesk_replay_failed_total_warn": breakage_helpdesk_replay_failed_total_warn,
                 "breakage_helpdesk_replay_pending_total_warn": breakage_helpdesk_replay_pending_total_warn,
+                "doc_sync_checkout_gate_block_on_dead_letter_only": doc_sync_checkout_gate_block_on_dead_letter_only,
+                "doc_sync_checkout_gate_max_pending_warn": doc_sync_checkout_gate_max_pending_warn,
+                "doc_sync_checkout_gate_max_processing_warn": doc_sync_checkout_gate_max_processing_warn,
+                "doc_sync_checkout_gate_max_failed_warn": doc_sync_checkout_gate_max_failed_warn,
+                "doc_sync_checkout_gate_max_dead_letter_warn": doc_sync_checkout_gate_max_dead_letter_warn,
+                "doc_sync_dead_letter_trend_delta_warn": doc_sync_dead_letter_trend_delta_warn,
             },
         )
     result["operator_id"] = int(user.id)
@@ -3081,6 +3117,12 @@ async def export_parallel_ops_summary(
     breakage_helpdesk_replay_failed_rate_warn: Optional[float] = Query(None),
     breakage_helpdesk_replay_failed_total_warn: Optional[int] = Query(None),
     breakage_helpdesk_replay_pending_total_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_block_on_dead_letter_only: Optional[bool] = Query(None),
+    doc_sync_checkout_gate_max_pending_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_processing_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_failed_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_dead_letter_warn: Optional[int] = Query(None),
+    doc_sync_dead_letter_trend_delta_warn: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -3108,6 +3150,12 @@ async def export_parallel_ops_summary(
             breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
             breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
             breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
+            doc_sync_checkout_gate_block_on_dead_letter_only=doc_sync_checkout_gate_block_on_dead_letter_only,
+            doc_sync_checkout_gate_max_pending_warn=doc_sync_checkout_gate_max_pending_warn,
+            doc_sync_checkout_gate_max_processing_warn=doc_sync_checkout_gate_max_processing_warn,
+            doc_sync_checkout_gate_max_failed_warn=doc_sync_checkout_gate_max_failed_warn,
+            doc_sync_checkout_gate_max_dead_letter_warn=doc_sync_checkout_gate_max_dead_letter_warn,
+            doc_sync_dead_letter_trend_delta_warn=doc_sync_dead_letter_trend_delta_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -3136,6 +3184,12 @@ async def export_parallel_ops_summary(
                 "breakage_helpdesk_replay_failed_rate_warn": breakage_helpdesk_replay_failed_rate_warn,
                 "breakage_helpdesk_replay_failed_total_warn": breakage_helpdesk_replay_failed_total_warn,
                 "breakage_helpdesk_replay_pending_total_warn": breakage_helpdesk_replay_pending_total_warn,
+                "doc_sync_checkout_gate_block_on_dead_letter_only": doc_sync_checkout_gate_block_on_dead_letter_only,
+                "doc_sync_checkout_gate_max_pending_warn": doc_sync_checkout_gate_max_pending_warn,
+                "doc_sync_checkout_gate_max_processing_warn": doc_sync_checkout_gate_max_processing_warn,
+                "doc_sync_checkout_gate_max_failed_warn": doc_sync_checkout_gate_max_failed_warn,
+                "doc_sync_checkout_gate_max_dead_letter_warn": doc_sync_checkout_gate_max_dead_letter_warn,
+                "doc_sync_dead_letter_trend_delta_warn": doc_sync_dead_letter_trend_delta_warn,
             },
         )
     return StreamingResponse(
@@ -3961,6 +4015,12 @@ async def get_parallel_ops_metrics(
     breakage_helpdesk_replay_failed_rate_warn: Optional[float] = Query(None),
     breakage_helpdesk_replay_failed_total_warn: Optional[int] = Query(None),
     breakage_helpdesk_replay_pending_total_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_block_on_dead_letter_only: Optional[bool] = Query(None),
+    doc_sync_checkout_gate_max_pending_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_processing_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_failed_warn: Optional[int] = Query(None),
+    doc_sync_checkout_gate_max_dead_letter_warn: Optional[int] = Query(None),
+    doc_sync_dead_letter_trend_delta_warn: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -3987,6 +4047,12 @@ async def get_parallel_ops_metrics(
             breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
             breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
             breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
+            doc_sync_checkout_gate_block_on_dead_letter_only=doc_sync_checkout_gate_block_on_dead_letter_only,
+            doc_sync_checkout_gate_max_pending_warn=doc_sync_checkout_gate_max_pending_warn,
+            doc_sync_checkout_gate_max_processing_warn=doc_sync_checkout_gate_max_processing_warn,
+            doc_sync_checkout_gate_max_failed_warn=doc_sync_checkout_gate_max_failed_warn,
+            doc_sync_checkout_gate_max_dead_letter_warn=doc_sync_checkout_gate_max_dead_letter_warn,
+            doc_sync_dead_letter_trend_delta_warn=doc_sync_dead_letter_trend_delta_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -4014,6 +4080,12 @@ async def get_parallel_ops_metrics(
                 "breakage_helpdesk_replay_failed_rate_warn": breakage_helpdesk_replay_failed_rate_warn,
                 "breakage_helpdesk_replay_failed_total_warn": breakage_helpdesk_replay_failed_total_warn,
                 "breakage_helpdesk_replay_pending_total_warn": breakage_helpdesk_replay_pending_total_warn,
+                "doc_sync_checkout_gate_block_on_dead_letter_only": doc_sync_checkout_gate_block_on_dead_letter_only,
+                "doc_sync_checkout_gate_max_pending_warn": doc_sync_checkout_gate_max_pending_warn,
+                "doc_sync_checkout_gate_max_processing_warn": doc_sync_checkout_gate_max_processing_warn,
+                "doc_sync_checkout_gate_max_failed_warn": doc_sync_checkout_gate_max_failed_warn,
+                "doc_sync_checkout_gate_max_dead_letter_warn": doc_sync_checkout_gate_max_dead_letter_warn,
+                "doc_sync_dead_letter_trend_delta_warn": doc_sync_dead_letter_trend_delta_warn,
             },
         )
     return PlainTextResponse(

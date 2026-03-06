@@ -170,6 +170,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Parallel P3 Checkout Gate + Breakage Dimensions + BOM Compare Mode: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_CHECKOUT_GATE_BREAKAGE_DIMENSIONS_BOM_COMPARE_MODE_20260306.md`
 - Parallel P3 Odoo18 Reference Parallel Tracks: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_ODOO18_REFERENCE_PARALLEL_TRACKS_20260306.md`
 - Parallel P3 Ops Overview API: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_OPS_OVERVIEW_API_20260228.md`
+- Parallel P3 Ops Overview Checkout Gate/Trend + BOM by_find_refdes: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_OPS_OVERVIEW_CHECKOUT_GATE_TREND_BOM_FIND_REFDES_20260306.md`
 - Perf CI Refactor (Config + Baselines + Concurrency): `docs/DEV_AND_VERIFICATION_PERF_CI_REFACTOR_20260209.md`
 - Perf Gate (Generic) - Dev Plan & Verification: `docs/DEV_AND_VERIFICATION_PERF_GATE_20260209.md`
 - Plan Execution (2026-02-02): `docs/DEV_AND_VERIFICATION_PLAN_20260202.md`
