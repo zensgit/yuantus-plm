@@ -5,6 +5,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import time
 import uuid
 from collections import Counter, defaultdict
@@ -123,6 +124,71 @@ class DocumentMultiSiteService:
             raise ValueError("window_days must be between 1 and 90")
         return normalized
 
+    def _normalize_sync_limit(self, limit: int) -> int:
+        try:
+            normalized = int(limit)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("limit must be an integer between 1 and 500") from exc
+        if normalized < 1 or normalized > 500:
+            raise ValueError("limit must be between 1 and 500")
+        return normalized
+
+    def _normalize_remote_auth_mode(self, auth_mode: str) -> str:
+        normalized = str(auth_mode or "token").strip().lower() or "token"
+        if normalized not in {"token", "basic", "none"}:
+            raise ValueError("auth_mode must be one of: token, basic, none")
+        return normalized
+
+    def _build_remote_probe_auth(self, site: RemoteSite) -> Dict[str, Any]:
+        metadata = site.metadata_json if isinstance(site.metadata_json, dict) else {}
+        mode = self._normalize_remote_auth_mode(site.auth_mode)
+        secret = self._decrypt_secret(site.auth_secret_ciphertext)
+        headers: Dict[str, str] = {}
+        auth = None
+        if mode == "token":
+            token = str(metadata.get("token") or "").strip() or secret
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+        elif mode == "basic":
+            username = (
+                str(metadata.get("basic_username") or "").strip()
+                or str(metadata.get("username") or "").strip()
+            )
+            password = (
+                str(metadata.get("basic_password") or "").strip()
+                or str(metadata.get("password") or "").strip()
+            )
+            if secret:
+                if not username and not password and ":" in secret:
+                    username, password = secret.split(":", 1)
+                elif username and not password:
+                    password = secret
+            if username or password:
+                auth = (username, password)
+        return {"headers": headers, "auth": auth, "auth_mode": mode}
+
+    def _build_remote_probe_targets(self, site: RemoteSite) -> List[str]:
+        metadata = site.metadata_json if isinstance(site.metadata_json, dict) else {}
+        configured = (
+            str(metadata.get("health_path") or "").strip()
+            or str(metadata.get("probe_path") or "").strip()
+            or None
+        )
+        endpoint = str(site.endpoint or "").strip().rstrip("/")
+        candidates: List[str] = []
+        for raw in [configured, "/health", "/healthz", "/document_is_there/0"]:
+            path = str(raw or "").strip()
+            if not path or path in candidates:
+                continue
+            candidates.append(path)
+        targets: List[str] = []
+        for path in candidates:
+            if path.startswith("http://") or path.startswith("https://"):
+                targets.append(path)
+            else:
+                targets.append(f"{endpoint}/{path.lstrip('/')}")
+        return targets
+
     def upsert_remote_site(
         self,
         *,
@@ -139,7 +205,7 @@ class DocumentMultiSiteService:
             self.session.add(site)
 
         site.endpoint = endpoint.rstrip("/")
-        site.auth_mode = (auth_mode or "token").strip().lower()
+        site.auth_mode = self._normalize_remote_auth_mode(auth_mode)
         site.is_active = bool(is_active)
         site.metadata_json = metadata_json or {}
         if auth_secret:
@@ -164,22 +230,29 @@ class DocumentMultiSiteService:
         if not site:
             raise ValueError(f"Remote site not found: {site_id}")
 
-        target = f"{site.endpoint.rstrip('/')}/health"
         status = "unhealthy"
         detail = ""
         code = None
+        checked_target = None
         try:
-            headers = {}
-            token = self._decrypt_secret(site.auth_secret_ciphertext)
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
+            auth_payload = self._build_remote_probe_auth(site)
+            headers = auth_payload.get("headers") or {}
+            auth = auth_payload.get("auth")
+            targets = self._build_remote_probe_targets(site)
             with httpx.Client(timeout=timeout_s) as client:
-                resp = client.get(target, headers=headers)
-            code = int(resp.status_code)
-            if 200 <= code < 300:
-                status = "healthy"
-            else:
-                detail = f"http_{code}"
+                for target in targets:
+                    checked_target = target
+                    try:
+                        resp = client.get(target, headers=headers, auth=auth)
+                        code = int(resp.status_code)
+                        if 200 <= code < 300:
+                            status = "healthy"
+                            detail = ""
+                            break
+                        detail = f"http_{code}"
+                    except Exception as exc:
+                        detail = str(exc)
+                        continue
         except Exception as exc:
             detail = str(exc)
 
@@ -194,6 +267,8 @@ class DocumentMultiSiteService:
             "status": status,
             "http_code": code,
             "error": detail or None,
+            "checked_target": checked_target,
+            "auth_mode": site.auth_mode,
             "checked_at": site.last_health_at.isoformat(),
         }
 
@@ -390,6 +465,20 @@ class DocumentMultiSiteService:
             "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         }
 
+    def _is_dead_letter_job(self, job: ConversionJob) -> bool:
+        payload = job.payload if isinstance(job.payload, dict) else {}
+        dead_letter = payload.get("dead_letter")
+        if isinstance(dead_letter, dict) and bool(dead_letter.get("is_dead_letter")):
+            return True
+        status = str(job.status or "").strip().lower()
+        attempt_count = int(job.attempt_count or 0)
+        max_attempts = int(job.max_attempts or 0)
+        return (
+            status == JobStatus.FAILED.value
+            and max_attempts > 0
+            and attempt_count >= max_attempts
+        )
+
     def sync_summary(
         self,
         *,
@@ -487,6 +576,340 @@ class DocumentMultiSiteService:
             "sites": sites,
         }
 
+    def list_dead_letter_sync_jobs(
+        self,
+        *,
+        site_id: Optional[str] = None,
+        window_days: int = 7,
+        limit: int = 100,
+    ) -> List[ConversionJob]:
+        normalized_window_days = self._normalize_window_days(window_days)
+        cap = self._normalize_sync_limit(limit)
+        since = _utcnow() - timedelta(days=normalized_window_days)
+        query = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type.like(f"{self.TASK_PREFIX}%"))
+            .filter(ConversionJob.status == JobStatus.FAILED.value)
+            .filter(ConversionJob.created_at >= since)
+            .order_by(ConversionJob.created_at.desc())
+        )
+        target_site_id = str(site_id).strip() if site_id is not None else None
+        results: List[ConversionJob] = []
+        for job in query.all():
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            current_site_id = str(payload.get("site_id") or "").strip()
+            if target_site_id and current_site_id != target_site_id:
+                continue
+            if not self._is_dead_letter_job(job):
+                continue
+            results.append(job)
+            if len(results) >= cap:
+                break
+        return results
+
+    def replay_sync_jobs_batch(
+        self,
+        *,
+        job_ids: Optional[List[str]] = None,
+        site_id: Optional[str] = None,
+        only_dead_letter: bool = True,
+        window_days: int = 7,
+        limit: int = 50,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        cap = self._normalize_sync_limit(limit)
+        ordered_ids: List[str] = []
+        seen_ids = set()
+        for raw in (job_ids or []):
+            job_id = str(raw or "").strip()
+            if not job_id or job_id in seen_ids:
+                continue
+            seen_ids.add(job_id)
+            ordered_ids.append(job_id)
+
+        source = "job_ids"
+        candidates: List[ConversionJob] = []
+        if ordered_ids:
+            for job_id in ordered_ids:
+                job = self.get_sync_job(job_id)
+                if not job:
+                    continue
+                candidates.append(job)
+        else:
+            source = "dead_letter" if only_dead_letter else "failed"
+            if only_dead_letter:
+                candidates = self.list_dead_letter_sync_jobs(
+                    site_id=site_id,
+                    window_days=window_days,
+                    limit=cap,
+                )
+            else:
+                candidates = self.list_sync_jobs(
+                    site_id=site_id,
+                    status=JobStatus.FAILED.value,
+                    created_from=_utcnow() - timedelta(days=self._normalize_window_days(window_days)),
+                    limit=cap,
+                )
+
+        requested = min(len(candidates), cap)
+        replayed = 0
+        skipped_non_dead_letter = 0
+        failures: List[Dict[str, Any]] = []
+        replayed_jobs: List[Dict[str, Any]] = []
+
+        for job in candidates[:cap]:
+            if only_dead_letter and not self._is_dead_letter_job(job):
+                skipped_non_dead_letter += 1
+                continue
+            try:
+                new_job = self.replay_sync_job(job.id, user_id=user_id)
+                replayed += 1
+                replayed_jobs.append(
+                    {
+                        "source_job_id": job.id,
+                        "replayed_job_id": new_job.id,
+                        "task_type": new_job.task_type,
+                        "status": new_job.status,
+                        "created_at": new_job.created_at.isoformat() if new_job.created_at else None,
+                    }
+                )
+            except Exception as exc:
+                failures.append({"job_id": job.id, "error": str(exc)})
+
+        return {
+            "source": source,
+            "site_id": site_id,
+            "only_dead_letter": bool(only_dead_letter),
+            "window_days": int(window_days),
+            "requested": requested,
+            "replayed": replayed,
+            "failed": len(failures),
+            "skipped_non_dead_letter": skipped_non_dead_letter,
+            "failures": failures,
+            "replayed_jobs": replayed_jobs,
+        }
+
+    def evaluate_checkout_sync_gate(
+        self,
+        *,
+        item_id: str,
+        site_id: str,
+        version_id: Optional[str] = None,
+        document_ids: Optional[List[str]] = None,
+        window_days: int = 7,
+        limit: int = 200,
+    ) -> Dict[str, Any]:
+        normalized_item_id = str(item_id or "").strip()
+        if not normalized_item_id:
+            raise ValueError("item_id must not be empty")
+        normalized_site_id = str(site_id or "").strip()
+        if not normalized_site_id:
+            raise ValueError("site_id must not be empty")
+        normalized_version_id = str(version_id or "").strip() or None
+        monitored_document_ids = {
+            str(doc_id).strip()
+            for doc_id in (document_ids or [])
+            if str(doc_id).strip()
+        }
+        if not monitored_document_ids:
+            monitored_document_ids.add(normalized_item_id)
+        if normalized_version_id:
+            monitored_document_ids.add(normalized_version_id)
+        normalized_window_days = self._normalize_window_days(window_days)
+        cap = self._normalize_sync_limit(limit)
+        since = _utcnow() - timedelta(days=normalized_window_days)
+
+        query = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type.like(f"{self.TASK_PREFIX}%"))
+            .filter(ConversionJob.created_at >= since)
+            .order_by(ConversionJob.created_at.desc())
+        )
+
+        blocking_jobs: List[ConversionJob] = []
+        blocking_views: List[Dict[str, Any]] = []
+        matched_document_ids = set()
+        counts = {"pending": 0, "processing": 0, "failed": 0, "dead_letter": 0}
+        for job in query.all():
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            current_site_id = str(payload.get("site_id") or "").strip()
+            if current_site_id != normalized_site_id:
+                continue
+            raw_document_ids = payload.get("document_ids")
+            job_document_ids = (
+                {
+                    str(doc_id).strip()
+                    for doc_id in raw_document_ids
+                    if str(doc_id).strip()
+                }
+                if isinstance(raw_document_ids, list)
+                else set()
+            )
+            overlap_ids = sorted(job_document_ids.intersection(monitored_document_ids))
+            if not overlap_ids:
+                continue
+            status = str(job.status or "").strip().lower()
+            if status not in {
+                JobStatus.PENDING.value,
+                JobStatus.PROCESSING.value,
+                JobStatus.FAILED.value,
+            }:
+                continue
+            counts[status] = int(counts.get(status) or 0) + 1
+            if self._is_dead_letter_job(job):
+                counts["dead_letter"] = int(counts.get("dead_letter") or 0) + 1
+            matched_document_ids.update(overlap_ids)
+            blocking_jobs.append(job)
+            view = self.build_sync_job_view(job)
+            view["matched_document_ids"] = overlap_ids
+            blocking_views.append(view)
+            if len(blocking_jobs) >= cap:
+                break
+
+        blocking = bool(blocking_views)
+        return {
+            "item_id": normalized_item_id,
+            "site_id": normalized_site_id,
+            "version_id": normalized_version_id,
+            "monitored_document_ids": sorted(monitored_document_ids),
+            "matched_document_ids": sorted(matched_document_ids),
+            "window_days": normalized_window_days,
+            "since": since.isoformat(),
+            "checked_at": _utcnow().isoformat(),
+            "blocking": blocking,
+            "blocking_total": len(blocking_views),
+            "blocking_counts": counts,
+            "blocking_jobs": blocking_views,
+        }
+
+    def export_sync_summary(
+        self,
+        *,
+        site_id: Optional[str] = None,
+        window_days: int = 7,
+        export_format: str = "json",
+    ) -> Dict[str, Any]:
+        summary = self.sync_summary(site_id=site_id, window_days=window_days)
+        normalized = str(export_format or "json").strip().lower()
+        if normalized == "json":
+            return {
+                "content": json.dumps(summary, ensure_ascii=False, indent=2).encode("utf-8"),
+                "media_type": "application/json",
+                "filename": "doc-sync-summary.json",
+            }
+
+        rows: List[Dict[str, Any]] = []
+        rows.append(
+            {
+                "scope": "overall",
+                "site_id": summary.get("site_filter") or "*",
+                "site_name": "",
+                "total": int(summary.get("total_jobs") or 0),
+                "completed": int((summary.get("overall_by_status") or {}).get("completed") or 0),
+                "failed": int((summary.get("overall_by_status") or {}).get("failed") or 0),
+                "processing": int((summary.get("overall_by_status") or {}).get("processing") or 0),
+                "pending": int((summary.get("overall_by_status") or {}).get("pending") or 0),
+                "cancelled": int((summary.get("overall_by_status") or {}).get("cancelled") or 0),
+                "dead_letter_total": int(summary.get("overall_dead_letter_total") or 0),
+                "push_total": "",
+                "pull_total": "",
+                "success_rate": "",
+                "failure_rate": "",
+                "last_job_at": "",
+            }
+        )
+        for site in summary.get("sites") or []:
+            by_status = site.get("by_status") if isinstance(site.get("by_status"), dict) else {}
+            directions = site.get("directions") if isinstance(site.get("directions"), dict) else {}
+            rows.append(
+                {
+                    "scope": "site",
+                    "site_id": site.get("site_id") or "",
+                    "site_name": site.get("site_name") or "",
+                    "total": int(site.get("total") or 0),
+                    "completed": int(by_status.get("completed") or 0),
+                    "failed": int(by_status.get("failed") or 0),
+                    "processing": int(by_status.get("processing") or 0),
+                    "pending": int(by_status.get("pending") or 0),
+                    "cancelled": int(by_status.get("cancelled") or 0),
+                    "dead_letter_total": int(site.get("dead_letter_total") or 0),
+                    "push_total": int(directions.get("push") or 0),
+                    "pull_total": int(directions.get("pull") or 0),
+                    "success_rate": site.get("success_rate"),
+                    "failure_rate": site.get("failure_rate"),
+                    "last_job_at": site.get("last_job_at") or "",
+                }
+            )
+
+        if normalized == "csv":
+            csv_io = io.StringIO()
+            writer = csv.DictWriter(
+                csv_io,
+                fieldnames=[
+                    "scope",
+                    "site_id",
+                    "site_name",
+                    "total",
+                    "completed",
+                    "failed",
+                    "processing",
+                    "pending",
+                    "cancelled",
+                    "dead_letter_total",
+                    "push_total",
+                    "pull_total",
+                    "success_rate",
+                    "failure_rate",
+                    "last_job_at",
+                ],
+            )
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+            return {
+                "content": csv_io.getvalue().encode("utf-8"),
+                "media_type": "text/csv",
+                "filename": "doc-sync-summary.csv",
+            }
+
+        if normalized == "md":
+            lines = [
+                "# Doc Sync Summary",
+                "",
+                f"- window_days: {summary.get('window_days') or 0}",
+                f"- since: {summary.get('since') or ''}",
+                f"- site_filter: {summary.get('site_filter') or '<none>'}",
+                f"- total_jobs: {summary.get('total_jobs') or 0}",
+                f"- total_sites: {summary.get('total_sites') or 0}",
+                f"- overall_dead_letter_total: {summary.get('overall_dead_letter_total') or 0}",
+                "",
+                "| Site ID | Site Name | Total | Completed | Failed | Processing | Dead Letter | Push | Pull | Success Rate | Failure Rate | Last Job At |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+            ]
+            for row in rows[1:]:
+                lines.append(
+                    "| "
+                    f"{row.get('site_id') or ''} | "
+                    f"{row.get('site_name') or ''} | "
+                    f"{row.get('total') or 0} | "
+                    f"{row.get('completed') or 0} | "
+                    f"{row.get('failed') or 0} | "
+                    f"{row.get('processing') or 0} | "
+                    f"{row.get('dead_letter_total') or 0} | "
+                    f"{row.get('push_total') or 0} | "
+                    f"{row.get('pull_total') or 0} | "
+                    f"{row.get('success_rate') if row.get('success_rate') is not None else ''} | "
+                    f"{row.get('failure_rate') if row.get('failure_rate') is not None else ''} | "
+                    f"{row.get('last_job_at') or ''} |"
+                )
+            return {
+                "content": ("\n".join(lines) + "\n").encode("utf-8"),
+                "media_type": "text/markdown",
+                "filename": "doc-sync-summary.md",
+            }
+
+        raise ValueError("export_format must be json, csv or md")
+
     def replay_sync_job(
         self, job_id: str, *, user_id: Optional[int] = None
     ) -> ConversionJob:
@@ -510,9 +933,36 @@ class ECOActivityValidationService:
     _TERMINAL = {"completed", "canceled", "exception"}
     _OPEN = {"pending", "active"}
     _VALID_STATUS = {"pending", "active", "completed", "canceled", "exception"}
+    _STATUS_ALIASES = {
+        "draft": "pending",
+        "in_progress": "active",
+        "eco": "active",
+        "done": "completed",
+        "cancel": "canceled",
+        "cancelled": "canceled",
+    }
+    _TRANSITIONS = {
+        "pending": {"active", "completed", "canceled", "exception"},
+        "active": {"completed", "canceled", "exception"},
+        "completed": {"pending"},
+        "canceled": {"pending"},
+        "exception": {"pending", "active"},
+    }
 
     def __init__(self, session: Session):
         self.session = session
+
+    def _normalize_activity_status(self, value: str, *, field_name: str = "status") -> str:
+        normalized = str(value or "").strip().lower()
+        if normalized in self._VALID_STATUS:
+            return normalized
+        alias = self._STATUS_ALIASES.get(normalized)
+        if alias:
+            return alias
+        allowed = sorted(
+            set(self._VALID_STATUS).union(self._STATUS_ALIASES.keys())
+        )
+        raise ValueError(f"{field_name} must be one of: {', '.join(allowed)}")
 
     def create_activity(
         self,
@@ -595,6 +1045,264 @@ class ECOActivityValidationService:
                 )
         return blockers
 
+    def evaluate_transition(
+        self,
+        *,
+        activity_id: str,
+        to_status: str,
+    ) -> Dict[str, Any]:
+        activity = self.session.get(ECOActivityGate, activity_id)
+        if not activity:
+            raise ValueError(f"Activity not found: {activity_id}")
+
+        current_status = self._normalize_activity_status(
+            str(activity.status or "pending"),
+            field_name="current_status",
+        )
+        target_status = self._normalize_activity_status(
+            to_status,
+            field_name="to_status",
+        )
+        allowed_targets = sorted(
+            set(self._TRANSITIONS.get(current_status, set())).union({current_status})
+        )
+        blockers: List[Dict[str, Any]] = []
+        reason_code = "ok"
+        can_transition = True
+
+        if target_status != current_status and target_status not in allowed_targets:
+            can_transition = False
+            reason_code = "invalid_transition"
+        elif target_status in {"active", "completed"}:
+            blockers = self._dependency_blockers(activity)
+            if blockers:
+                can_transition = False
+                reason_code = "blocking_dependencies"
+
+        return {
+            "activity_id": activity.id,
+            "eco_id": activity.eco_id,
+            "name": activity.name,
+            "from_status": current_status,
+            "to_status": target_status,
+            "requested_status": str(to_status or "").strip(),
+            "allowed_targets": allowed_targets,
+            "can_transition": can_transition,
+            "reason_code": reason_code,
+            "blockers": blockers,
+        }
+
+    def evaluate_transitions_bulk(
+        self,
+        eco_id: str,
+        *,
+        to_status: str,
+        activity_ids: Optional[List[str]] = None,
+        include_terminal: bool = False,
+        include_non_blocking: bool = True,
+        limit: int = 200,
+    ) -> Dict[str, Any]:
+        try:
+            cap = int(limit)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("limit must be an integer between 1 and 500") from exc
+        if cap < 1 or cap > 500:
+            raise ValueError("limit must be between 1 and 500")
+
+        target_status = self._normalize_activity_status(
+            to_status,
+            field_name="to_status",
+        )
+        activities = self.list_activities(eco_id)
+        index = {str(activity.id): activity for activity in activities}
+        selected_ids: List[str]
+        if activity_ids:
+            selected_ids = []
+            seen = set()
+            for value in activity_ids:
+                normalized = str(value or "").strip()
+                if not normalized or normalized in seen:
+                    continue
+                seen.add(normalized)
+                selected_ids.append(normalized)
+        else:
+            selected_ids = [str(activity.id) for activity in activities]
+
+        decisions: List[Dict[str, Any]] = []
+        excluded_ids: List[str] = []
+        missing_ids: List[str] = []
+        for activity_id in selected_ids:
+            activity = index.get(activity_id)
+            if activity is None:
+                missing_ids.append(activity_id)
+                continue
+            current = self._normalize_activity_status(
+                str(activity.status or "pending"),
+                field_name="status",
+            )
+            if not include_terminal and current in self._TERMINAL:
+                excluded_ids.append(activity_id)
+                continue
+            if not include_non_blocking and not bool(activity.is_blocking):
+                excluded_ids.append(activity_id)
+                continue
+            decision = self.evaluate_transition(
+                activity_id=activity.id,
+                to_status=target_status,
+            )
+            decision["is_blocking"] = bool(activity.is_blocking)
+            decision["assignee_id"] = activity.assignee_id
+            decisions.append(decision)
+
+        total_candidates = len(decisions)
+        ready_total = 0
+        blocked_total = 0
+        invalid_total = 0
+        noop_total = 0
+        for row in decisions:
+            if not bool(row.get("can_transition")):
+                if str(row.get("reason_code")) == "blocking_dependencies":
+                    blocked_total += 1
+                else:
+                    invalid_total += 1
+                continue
+            if str(row.get("from_status")) == str(row.get("to_status")):
+                noop_total += 1
+            else:
+                ready_total += 1
+
+        truncated = total_candidates > cap
+        page = decisions[:cap]
+        return {
+            "eco_id": eco_id,
+            "to_status": target_status,
+            "requested_status": str(to_status or "").strip(),
+            "include_terminal": bool(include_terminal),
+            "include_non_blocking": bool(include_non_blocking),
+            "selected_total": len(selected_ids),
+            "total": total_candidates,
+            "ready_total": ready_total,
+            "blocked_total": blocked_total,
+            "invalid_total": invalid_total,
+            "noop_total": noop_total,
+            "missing_total": len(missing_ids),
+            "excluded_total": len(excluded_ids),
+            "missing_activity_ids": missing_ids,
+            "excluded_activity_ids": excluded_ids,
+            "truncated": truncated,
+            "decisions": page,
+        }
+
+    def transition_activities_bulk(
+        self,
+        eco_id: str,
+        *,
+        to_status: str,
+        activity_ids: Optional[List[str]] = None,
+        include_terminal: bool = False,
+        include_non_blocking: bool = True,
+        limit: int = 200,
+        user_id: Optional[int] = None,
+        reason: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        checked = self.evaluate_transitions_bulk(
+            eco_id,
+            to_status=to_status,
+            activity_ids=activity_ids,
+            include_terminal=include_terminal,
+            include_non_blocking=include_non_blocking,
+            limit=limit,
+        )
+        if bool(checked.get("truncated")):
+            raise ValueError(
+                "bulk execution truncated by limit; increase limit and retry"
+            )
+
+        target_status = str(checked.get("to_status") or "").strip().lower()
+        candidate_ids = [
+            str((row or {}).get("activity_id") or "").strip()
+            for row in (checked.get("decisions") or [])
+            if str((row or {}).get("activity_id") or "").strip()
+        ]
+
+        actions: Dict[str, str] = {}
+        decisions: Dict[str, Dict[str, Any]] = {}
+        remaining = set(candidate_ids)
+        max_rounds = max(len(candidate_ids), 1)
+        for _ in range(max_rounds):
+            progressed = False
+            for activity_id in list(remaining):
+                decision = self.evaluate_transition(
+                    activity_id=activity_id,
+                    to_status=target_status,
+                )
+                decisions[activity_id] = decision
+                if not bool(decision.get("can_transition")):
+                    continue
+                if str(decision.get("from_status")) == str(decision.get("to_status")):
+                    actions[activity_id] = "noop"
+                    remaining.discard(activity_id)
+                    progressed = True
+                    continue
+
+                self.transition_activity(
+                    activity_id=activity_id,
+                    to_status=target_status,
+                    user_id=user_id,
+                    reason=reason,
+                )
+                actions[activity_id] = "executed"
+                remaining.discard(activity_id)
+                progressed = True
+            if not progressed:
+                break
+
+        rows: List[Dict[str, Any]] = []
+        executed_total = 0
+        noop_total = 0
+        blocked_total = 0
+        invalid_total = 0
+        for activity_id in candidate_ids:
+            decision = decisions.get(activity_id) or self.evaluate_transition(
+                activity_id=activity_id,
+                to_status=target_status,
+            )
+            action = actions.get(activity_id)
+            if action == "executed":
+                executed_total += 1
+            elif action == "noop":
+                noop_total += 1
+            else:
+                action = "skipped"
+                if str(decision.get("reason_code") or "") == "blocking_dependencies":
+                    blocked_total += 1
+                else:
+                    invalid_total += 1
+
+            rows.append(
+                {
+                    **decision,
+                    "action": action,
+                }
+            )
+
+        return {
+            "eco_id": eco_id,
+            "to_status": target_status,
+            "requested_status": str(to_status or "").strip(),
+            "selected_total": int(checked.get("selected_total") or 0),
+            "total": len(candidate_ids),
+            "executed_total": executed_total,
+            "noop_total": noop_total,
+            "blocked_total": blocked_total,
+            "invalid_total": invalid_total,
+            "missing_total": int(checked.get("missing_total") or 0),
+            "excluded_total": int(checked.get("excluded_total") or 0),
+            "missing_activity_ids": checked.get("missing_activity_ids") or [],
+            "excluded_activity_ids": checked.get("excluded_activity_ids") or [],
+            "decisions": rows,
+        }
+
     def transition_activity(
         self,
         *,
@@ -603,22 +1311,23 @@ class ECOActivityValidationService:
         user_id: Optional[int] = None,
         reason: Optional[str] = None,
     ) -> ECOActivityGate:
+        decision = self.evaluate_transition(activity_id=activity_id, to_status=to_status)
+        if not decision.get("can_transition"):
+            if str(decision.get("reason_code")) == "blocking_dependencies":
+                blocker_text = ", ".join(
+                    f"{entry.get('activity_id')}({entry.get('status', entry.get('reason'))})"
+                    for entry in (decision.get("blockers") or [])
+                )
+                raise ValueError(f"Blocking dependencies: {blocker_text}")
+            raise ValueError(
+                "Invalid transition: "
+                f"{decision.get('from_status')} -> {decision.get('to_status')}"
+            )
+
         activity = self.session.get(ECOActivityGate, activity_id)
         if not activity:
             raise ValueError(f"Activity not found: {activity_id}")
-
-        target = (to_status or "").strip().lower()
-        if target not in self._VALID_STATUS:
-            raise ValueError(f"Invalid status: {to_status}")
-
-        if target == "completed":
-            blockers = self._dependency_blockers(activity)
-            if blockers:
-                blocker_text = ", ".join(
-                    f"{entry.get('activity_id')}({entry.get('status', entry.get('reason'))})"
-                    for entry in blockers
-                )
-                raise ValueError(f"Blocking dependencies: {blocker_text}")
+        target = str(decision.get("to_status") or "").strip().lower()
 
         from_status = activity.status
         activity.status = target
@@ -626,6 +1335,9 @@ class ECOActivityValidationService:
         if target in self._TERMINAL:
             activity.closed_at = _utcnow()
             activity.closed_by_id = user_id
+        else:
+            activity.closed_at = None
+            activity.closed_by_id = None
         self.session.flush()
         self._record_event(
             eco_id=activity.eco_id,
@@ -643,14 +1355,18 @@ class ECOActivityValidationService:
         for activity in activities:
             if not activity.is_blocking:
                 continue
-            if activity.status == "completed":
+            normalized_status = self._normalize_activity_status(
+                str(activity.status or "pending"),
+                field_name="status",
+            )
+            if normalized_status in self._TERMINAL:
                 continue
             deps = self._dependency_blockers(activity)
             blockers.append(
                 {
                     "activity_id": activity.id,
                     "name": activity.name,
-                    "status": activity.status,
+                    "status": normalized_status,
                     "dependencies": deps,
                 }
             )
@@ -730,7 +1446,10 @@ class ECOActivityValidationService:
         for activity in activities:
             if assignee_id is not None and int(activity.assignee_id or 0) != int(assignee_id):
                 continue
-            status = str(activity.status or "pending").strip().lower() or "pending"
+            status = self._normalize_activity_status(
+                str(activity.status or "pending"),
+                field_name="status",
+            )
             is_terminal = status in self._TERMINAL
             if is_terminal and not include_closed:
                 continue
@@ -814,6 +1533,257 @@ class ECOActivityValidationService:
             "truncated": total > cap,
             "activities": page,
         }
+
+    def _normalize_alert_rate_threshold(self, value: Optional[float], *, field: str) -> float:
+        try:
+            normalized = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field} must be between 0 and 1") from exc
+        if normalized < 0 or normalized > 1:
+            raise ValueError(f"{field} must be between 0 and 1")
+        return normalized
+
+    def _normalize_alert_count_threshold(self, value: Optional[int], *, field: str) -> int:
+        try:
+            normalized = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field} must be between 0 and 100000") from exc
+        if normalized < 0 or normalized > 100000:
+            raise ValueError(f"{field} must be between 0 and 100000")
+        return normalized
+
+    def activity_sla_alerts(
+        self,
+        eco_id: str,
+        *,
+        now: Optional[datetime] = None,
+        due_soon_hours: int = 24,
+        include_closed: bool = False,
+        assignee_id: Optional[int] = None,
+        limit: int = 100,
+        overdue_rate_warn: float = 0.2,
+        due_soon_count_warn: int = 5,
+        blocking_overdue_warn: int = 1,
+    ) -> Dict[str, Any]:
+        rate_warn = self._normalize_alert_rate_threshold(
+            overdue_rate_warn,
+            field="overdue_rate_warn",
+        )
+        due_soon_warn = self._normalize_alert_count_threshold(
+            due_soon_count_warn,
+            field="due_soon_count_warn",
+        )
+        blocking_warn = self._normalize_alert_count_threshold(
+            blocking_overdue_warn,
+            field="blocking_overdue_warn",
+        )
+
+        summary = self.activity_sla(
+            eco_id,
+            now=now,
+            due_soon_hours=due_soon_hours,
+            include_closed=include_closed,
+            assignee_id=assignee_id,
+            limit=limit,
+        )
+        open_total = int(summary.get("open_total") or 0)
+        overdue_total = int(summary.get("overdue_total") or 0)
+        due_soon_total = int(summary.get("due_soon_total") or 0)
+        overdue_rate = round(overdue_total / open_total, 4) if open_total > 0 else 0.0
+        activities = summary.get("activities") if isinstance(summary.get("activities"), list) else []
+        overdue_blocking_rows = [
+            row
+            for row in activities
+            if str(row.get("classification") or "") == "overdue" and bool(row.get("is_blocking"))
+        ]
+        blocking_overdue_total = len(overdue_blocking_rows)
+
+        alerts: List[Dict[str, Any]] = []
+        if overdue_rate > rate_warn:
+            alerts.append(
+                {
+                    "code": "eco_activity_sla_overdue_rate_high",
+                    "level": "warn",
+                    "message": (
+                        f"overdue_rate {overdue_rate:.4f} exceeds threshold {rate_warn:.4f}"
+                    ),
+                    "current": overdue_rate,
+                    "threshold": rate_warn,
+                }
+            )
+        if due_soon_total > due_soon_warn:
+            alerts.append(
+                {
+                    "code": "eco_activity_sla_due_soon_count_high",
+                    "level": "warn",
+                    "message": (
+                        f"due_soon_total {due_soon_total} exceeds threshold {due_soon_warn}"
+                    ),
+                    "current": due_soon_total,
+                    "threshold": due_soon_warn,
+                }
+            )
+        if blocking_overdue_total > blocking_warn:
+            alerts.append(
+                {
+                    "code": "eco_activity_sla_blocking_overdue_high",
+                    "level": "warn",
+                    "message": (
+                        f"blocking_overdue_total {blocking_overdue_total} exceeds threshold {blocking_warn}"
+                    ),
+                    "current": blocking_overdue_total,
+                    "threshold": blocking_warn,
+                }
+            )
+
+        return {
+            "eco_id": eco_id,
+            "status": "warning" if alerts else "ok",
+            "generated_at": _utcnow().isoformat(),
+            "thresholds": {
+                "overdue_rate_warn": rate_warn,
+                "due_soon_count_warn": due_soon_warn,
+                "blocking_overdue_warn": blocking_warn,
+            },
+            "metrics": {
+                "open_total": open_total,
+                "overdue_total": overdue_total,
+                "due_soon_total": due_soon_total,
+                "blocking_overdue_total": blocking_overdue_total,
+                "overdue_rate": overdue_rate,
+            },
+            "alerts": alerts,
+            "summary": summary,
+            "top_overdue_blocking": overdue_blocking_rows[:20],
+        }
+
+    def export_activity_sla_alerts(
+        self,
+        eco_id: str,
+        *,
+        now: Optional[datetime] = None,
+        due_soon_hours: int = 24,
+        include_closed: bool = False,
+        assignee_id: Optional[int] = None,
+        limit: int = 100,
+        overdue_rate_warn: float = 0.2,
+        due_soon_count_warn: int = 5,
+        blocking_overdue_warn: int = 1,
+        export_format: str = "json",
+    ) -> Dict[str, Any]:
+        alerts = self.activity_sla_alerts(
+            eco_id,
+            now=now,
+            due_soon_hours=due_soon_hours,
+            include_closed=include_closed,
+            assignee_id=assignee_id,
+            limit=limit,
+            overdue_rate_warn=overdue_rate_warn,
+            due_soon_count_warn=due_soon_count_warn,
+            blocking_overdue_warn=blocking_overdue_warn,
+        )
+        normalized = str(export_format or "json").strip().lower()
+        if normalized == "json":
+            return {
+                "content": json.dumps(alerts, ensure_ascii=False, indent=2).encode("utf-8"),
+                "media_type": "application/json",
+                "filename": "eco-activity-sla-alerts.json",
+            }
+
+        rows: List[Dict[str, Any]] = []
+        metrics = alerts.get("metrics") if isinstance(alerts.get("metrics"), dict) else {}
+        base = {
+            "eco_id": eco_id,
+            "status": alerts.get("status") or "ok",
+            "open_total": int(metrics.get("open_total") or 0),
+            "overdue_total": int(metrics.get("overdue_total") or 0),
+            "due_soon_total": int(metrics.get("due_soon_total") or 0),
+            "blocking_overdue_total": int(metrics.get("blocking_overdue_total") or 0),
+            "overdue_rate": metrics.get("overdue_rate"),
+        }
+        for alert in alerts.get("alerts") or []:
+            rows.append(
+                {
+                    **base,
+                    "alert_code": alert.get("code") or "",
+                    "alert_level": alert.get("level") or "",
+                    "alert_message": alert.get("message") or "",
+                    "current": alert.get("current"),
+                    "threshold": alert.get("threshold"),
+                }
+            )
+        if not rows:
+            rows.append(
+                {
+                    **base,
+                    "alert_code": "",
+                    "alert_level": "",
+                    "alert_message": "",
+                    "current": "",
+                    "threshold": "",
+                }
+            )
+
+        if normalized == "csv":
+            csv_io = io.StringIO()
+            writer = csv.DictWriter(
+                csv_io,
+                fieldnames=[
+                    "eco_id",
+                    "status",
+                    "open_total",
+                    "overdue_total",
+                    "due_soon_total",
+                    "blocking_overdue_total",
+                    "overdue_rate",
+                    "alert_code",
+                    "alert_level",
+                    "alert_message",
+                    "current",
+                    "threshold",
+                ],
+            )
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+            return {
+                "content": csv_io.getvalue().encode("utf-8"),
+                "media_type": "text/csv",
+                "filename": "eco-activity-sla-alerts.csv",
+            }
+
+        if normalized == "md":
+            lines = [
+                "# ECO Activity SLA Alerts",
+                "",
+                f"- eco_id: {eco_id}",
+                f"- status: {alerts.get('status') or 'ok'}",
+                f"- open_total: {base['open_total']}",
+                f"- overdue_total: {base['overdue_total']}",
+                f"- due_soon_total: {base['due_soon_total']}",
+                f"- blocking_overdue_total: {base['blocking_overdue_total']}",
+                f"- overdue_rate: {base['overdue_rate']}",
+                "",
+                "| Alert Code | Level | Current | Threshold | Message |",
+                "| --- | --- | --- | --- | --- |",
+            ]
+            if alerts.get("alerts"):
+                for alert in alerts.get("alerts") or []:
+                    lines.append(
+                        f"| {alert.get('code') or ''} | {alert.get('level') or ''} | "
+                        f"{alert.get('current') if alert.get('current') is not None else ''} | "
+                        f"{alert.get('threshold') if alert.get('threshold') is not None else ''} | "
+                        f"{alert.get('message') or ''} |"
+                    )
+            else:
+                lines.append("| <none> | <none> |  |  | no alerts |")
+            return {
+                "content": ("\n".join(lines) + "\n").encode("utf-8"),
+                "media_type": "text/markdown",
+                "filename": "eco-activity-sla-alerts.md",
+            }
+
+        raise ValueError("export_format must be json, csv or md")
 
     def _record_event(
         self,
@@ -1553,6 +2523,40 @@ class ConsumptionPlanService:
 
 
 class BreakageIncidentService:
+    _HELPDESK_PROVIDER_STATUS_ALIASES = {
+        "todo": "open",
+        "new": "open",
+        "triage": "open",
+        "assigned": "in_progress",
+        "working": "in_progress",
+        "wip": "in_progress",
+        "fixed": "resolved",
+        "done": "resolved",
+        "completed": "resolved",
+        "cancelled": "canceled",
+        "error": "failed",
+    }
+    _HELPDESK_PROVIDER_TO_INCIDENT_STATUS = {
+        "open": "open",
+        "pending": "open",
+        "in_progress": "in_progress",
+        "on_hold": "in_progress",
+        "resolved": "resolved",
+        "closed": "closed",
+        "canceled": "closed",
+        "failed": "open",
+    }
+    _HELPDESK_PROVIDER_TO_SYNC_STATUS = {
+        "open": "queued",
+        "pending": "queued",
+        "in_progress": "in_progress",
+        "on_hold": "in_progress",
+        "resolved": "completed",
+        "closed": "completed",
+        "canceled": "failed",
+        "failed": "failed",
+    }
+
     def __init__(self, session: Session):
         self.session = session
         self._job_service = JobService(session)
@@ -2211,6 +3215,8 @@ class BreakageIncidentService:
         )
         by_job_status = Counter()
         by_sync_status = Counter()
+        by_provider = Counter()
+        by_provider_ticket_status = Counter()
         with_external_ticket = 0
         touched_incidents: set[str] = set()
         for job in jobs:
@@ -2228,7 +3234,13 @@ class BreakageIncidentService:
                 if isinstance(payload.get("helpdesk_sync"), dict)
                 else {}
             )
+            integration = (
+                payload.get("integration")
+                if isinstance(payload.get("integration"), dict)
+                else {}
+            )
             result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            triage = payload.get("triage") if isinstance(payload.get("triage"), dict) else {}
             sync_status = (
                 str(sync_info.get("sync_status") or result.get("sync_status") or "")
                 .strip()
@@ -2236,6 +3248,31 @@ class BreakageIncidentService:
                 or job_status
             )
             by_sync_status[sync_status] += 1
+            provider = (
+                str(
+                    sync_info.get("provider")
+                    or integration.get("provider")
+                    or result.get("provider")
+                    or payload.get("provider")
+                    or "stub"
+                )
+                .strip()
+                .lower()
+                or "stub"
+            )
+            by_provider[provider] += 1
+            provider_ticket_status = (
+                str(
+                    sync_info.get("provider_ticket_status")
+                    or result.get("provider_ticket_status")
+                    or payload.get("provider_ticket_status")
+                    or ""
+                )
+                .strip()
+                .lower()
+            )
+            if provider_ticket_status:
+                by_provider_ticket_status[provider_ticket_status] += 1
             external_ticket_id = (
                 sync_info.get("external_ticket_id")
                 or result.get("external_ticket_id")
@@ -2249,7 +3286,11 @@ class BreakageIncidentService:
             "incidents_with_jobs": len(touched_incidents),
             "by_job_status": dict(by_job_status),
             "by_sync_status": dict(by_sync_status),
+            "by_provider": dict(by_provider),
+            "by_provider_ticket_status": dict(by_provider_ticket_status),
+            "providers_total": len(by_provider),
             "with_external_ticket": with_external_ticket,
+            "with_provider_ticket_status": int(sum(by_provider_ticket_status.values())),
             "failed_jobs": int(by_job_status.get(JobStatus.FAILED.value, 0)),
         }
 
@@ -3085,12 +4126,335 @@ class BreakageIncidentService:
             return {"external_ticket_id": f"ZD-{ticket_base}-{normalized_attempt}"}
         raise ValueError(f"unsupported helpdesk provider: {normalized_provider}")
 
+    def _normalize_helpdesk_provider(self, provider: str) -> str:
+        normalized = str(provider or "stub").strip().lower() or "stub"
+        if normalized not in {"stub", "jira", "zendesk"}:
+            raise ValueError(f"unsupported helpdesk provider: {normalized}")
+        return normalized
+
+    def _normalize_helpdesk_integration(
+        self,
+        *,
+        provider: str,
+        integration_json: Optional[Dict[str, Any]],
+        idempotency_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        raw = integration_json if isinstance(integration_json, dict) else {}
+        base_url = str(raw.get("base_url") or "").strip().rstrip("/")
+        mode = str(raw.get("mode") or "").strip().lower()
+        if not mode:
+            mode = "http" if base_url else "stub"
+        if mode not in {"stub", "http"}:
+            raise ValueError("integration.mode must be one of: stub, http")
+
+        timeout_s_raw = raw.get("timeout_s", 8.0)
+        try:
+            timeout_s = float(timeout_s_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("integration.timeout_s must be between 1 and 60") from exc
+        if timeout_s < 1 or timeout_s > 60:
+            raise ValueError("integration.timeout_s must be between 1 and 60")
+
+        verify_tls = bool(raw.get("verify_tls", True))
+        auth_type = str(raw.get("auth_type") or "").strip().lower()
+        token = str(raw.get("token") or "").strip() or None
+        username = str(raw.get("username") or "").strip() or None
+        api_key = str(raw.get("api_key") or "").strip() or None
+        if not auth_type:
+            if token:
+                auth_type = "bearer"
+            elif username and api_key:
+                auth_type = "basic"
+            else:
+                auth_type = "none"
+        if auth_type not in {"none", "bearer", "basic"}:
+            raise ValueError("integration.auth_type must be one of: none, bearer, basic")
+        if auth_type == "bearer" and not token:
+            raise ValueError("integration.token is required when auth_type=bearer")
+        if auth_type == "basic" and (not username or not api_key):
+            raise ValueError("integration.username/api_key are required when auth_type=basic")
+
+        extra_headers_raw = raw.get("extra_headers")
+        extra_headers: Dict[str, str] = {}
+        if extra_headers_raw is not None:
+            if not isinstance(extra_headers_raw, dict):
+                raise ValueError("integration.extra_headers must be an object")
+            for key, value in extra_headers_raw.items():
+                header_key = str(key or "").strip()
+                if not header_key:
+                    continue
+                extra_headers[header_key] = str(value or "").strip()
+
+        jira_project_key = str(raw.get("jira_project_key") or "").strip() or None
+        jira_issue_type = str(raw.get("jira_issue_type") or "").strip() or None
+        zendesk_requester_email = (
+            str(raw.get("zendesk_requester_email") or "").strip() or None
+        )
+        zendesk_priority = str(raw.get("zendesk_priority") or "").strip().lower() or None
+
+        normalized_provider = self._normalize_helpdesk_provider(provider)
+        if mode == "http":
+            if normalized_provider == "stub":
+                raise ValueError("stub provider does not support integration.mode=http")
+            if not base_url:
+                raise ValueError("integration.base_url is required when mode=http")
+
+        return {
+            "mode": mode,
+            "base_url": base_url or None,
+            "timeout_s": timeout_s,
+            "verify_tls": verify_tls,
+            "auth_type": auth_type,
+            "token": token,
+            "username": username,
+            "api_key": api_key,
+            "extra_headers": extra_headers,
+            "jira_project_key": jira_project_key,
+            "jira_issue_type": jira_issue_type,
+            "zendesk_requester_email": zendesk_requester_email,
+            "zendesk_priority": zendesk_priority,
+            "provider": normalized_provider,
+            "idempotency_key": idempotency_key,
+        }
+
+    def _build_helpdesk_http_headers(
+        self,
+        *,
+        integration: Dict[str, Any],
+        idempotency_key: Optional[str],
+    ) -> Dict[str, str]:
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        extra_headers = (
+            integration.get("extra_headers")
+            if isinstance(integration.get("extra_headers"), dict)
+            else {}
+        )
+        for key, value in extra_headers.items():
+            header_key = str(key or "").strip()
+            if not header_key:
+                continue
+            headers[header_key] = str(value or "").strip()
+        auth_type = str(integration.get("auth_type") or "none").strip().lower()
+        if auth_type == "bearer":
+            token = str(integration.get("token") or "").strip()
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+        if idempotency_key:
+            headers["X-Idempotency-Key"] = str(idempotency_key)
+        return headers
+
+    def _dispatch_helpdesk_provider_http(
+        self,
+        *,
+        provider: str,
+        incident: BreakageIncident,
+        attempt_count: int,
+        metadata_json: Optional[Dict[str, Any]] = None,
+        integration_json: Optional[Dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        metadata = metadata_json if isinstance(metadata_json, dict) else {}
+        integration = (
+            integration_json if isinstance(integration_json, dict) else {}
+        )
+        base_url = str(integration.get("base_url") or "").strip().rstrip("/")
+        timeout_s = float(integration.get("timeout_s") or 8.0)
+        verify_tls = bool(integration.get("verify_tls", True))
+        normalized_provider = self._normalize_helpdesk_provider(provider)
+        if not base_url:
+            raise ValueError("integration.base_url is required when mode=http")
+
+        headers = self._build_helpdesk_http_headers(
+            integration=integration,
+            idempotency_key=idempotency_key,
+        )
+        auth = None
+        if str(integration.get("auth_type") or "").strip().lower() == "basic":
+            auth = (
+                str(integration.get("username") or "").strip(),
+                str(integration.get("api_key") or ""),
+            )
+
+        incident_desc = str(incident.description or "").strip()
+        summary = str(metadata.get("summary") or f"[Breakage] {incident_desc[:120]}").strip()
+        detail = str(
+            metadata.get("description")
+            or (
+                f"breakage_incident_id={incident.id}\n"
+                f"severity={incident.severity}\n"
+                f"status={incident.status}\n"
+                f"product_item_id={incident.product_item_id}\n"
+                f"bom_line_item_id={incident.bom_line_item_id}\n"
+                f"batch_code={incident.batch_code}\n"
+                f"description={incident_desc}"
+            )
+        )
+
+        if normalized_provider == "jira":
+            project_key = str(
+                metadata.get("jira_project_key")
+                or integration.get("jira_project_key")
+                or "OPS"
+            ).strip()
+            issue_type = str(
+                metadata.get("jira_issue_type")
+                or integration.get("jira_issue_type")
+                or "Task"
+            ).strip()
+            request_url = f"{base_url}/rest/api/2/issue"
+            request_body = {
+                "fields": {
+                    "project": {"key": project_key},
+                    "summary": summary,
+                    "description": detail,
+                    "issuetype": {"name": issue_type},
+                }
+            }
+        elif normalized_provider == "zendesk":
+            requester_email = str(
+                metadata.get("zendesk_requester_email")
+                or integration.get("zendesk_requester_email")
+                or "noreply@example.com"
+            ).strip()
+            priority = str(
+                metadata.get("zendesk_priority")
+                or integration.get("zendesk_priority")
+                or "normal"
+            ).strip().lower()
+            request_url = f"{base_url}/api/v2/tickets.json"
+            request_body = {
+                "ticket": {
+                    "subject": summary,
+                    "comment": {"body": detail},
+                    "priority": priority,
+                    "requester": {"email": requester_email},
+                }
+            }
+        else:
+            raise ValueError(f"unsupported helpdesk provider: {normalized_provider}")
+
+        try:
+            with httpx.Client(timeout=timeout_s, verify=verify_tls) as client:
+                response = client.post(
+                    request_url,
+                    headers=headers,
+                    json=request_body,
+                    auth=auth,
+                )
+        except httpx.TimeoutException as exc:
+            raise RuntimeError("provider timeout") from exc
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"provider transport error: {exc}") from exc
+
+        response_text = str(getattr(response, "text", "") or "").strip()
+        status_code = int(getattr(response, "status_code", 0) or 0)
+        if status_code >= 400:
+            preview = response_text[:200]
+            raise RuntimeError(f"http_{status_code}: {preview}")
+
+        body: Dict[str, Any] = {}
+        try:
+            parsed = response.json()
+            if isinstance(parsed, dict):
+                body = parsed
+        except Exception:
+            body = {}
+
+        external_ticket_id = None
+        if normalized_provider == "jira":
+            external_ticket_id = (
+                str(body.get("key") or "").strip()
+                or str(body.get("id") or "").strip()
+                or None
+            )
+        elif normalized_provider == "zendesk":
+            ticket = body.get("ticket") if isinstance(body.get("ticket"), dict) else {}
+            external_ticket_id = (
+                str(ticket.get("id") or "").strip()
+                or str(body.get("id") or "").strip()
+                or None
+            )
+        if not external_ticket_id:
+            ticket_base = str(incident.id or "").replace("-", "").upper()[:8]
+            if normalized_provider == "jira":
+                external_ticket_id = f"JIRA-{ticket_base}-{max(int(attempt_count or 1), 1)}"
+            else:
+                external_ticket_id = f"ZD-{ticket_base}-{max(int(attempt_count or 1), 1)}"
+
+        return {
+            "external_ticket_id": external_ticket_id,
+            "dispatch_mode": "http",
+            "http_status": status_code,
+            "request_url": request_url,
+        }
+
+    def _dispatch_helpdesk_provider(
+        self,
+        *,
+        provider: str,
+        incident: BreakageIncident,
+        attempt_count: int,
+        metadata_json: Optional[Dict[str, Any]] = None,
+        integration_json: Optional[Dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        normalized_provider = self._normalize_helpdesk_provider(provider)
+        integration = (
+            integration_json if isinstance(integration_json, dict) else {}
+        )
+        mode = str(integration.get("mode") or "stub").strip().lower() or "stub"
+        if mode == "http" and normalized_provider in {"jira", "zendesk"}:
+            return self._dispatch_helpdesk_provider_http(
+                provider=normalized_provider,
+                incident=incident,
+                attempt_count=attempt_count,
+                metadata_json=metadata_json,
+                integration_json=integration,
+                idempotency_key=idempotency_key,
+            )
+        return self._simulate_helpdesk_provider_dispatch(
+            provider=normalized_provider,
+            incident=incident,
+            attempt_count=attempt_count,
+            metadata_json=metadata_json,
+        )
+
     def _map_helpdesk_provider_error(
         self,
         exc: Exception,
     ) -> Dict[str, Any]:
         text = str(exc or "").strip()
         lowered = text.lower()
+        if isinstance(exc, httpx.TimeoutException):
+            return {
+                "error_code": "provider_timeout",
+                "error_message": text or "provider timeout",
+            }
+        if isinstance(exc, httpx.HTTPError):
+            return {
+                "error_code": "provider_transport_error",
+                "error_message": text or "provider transport error",
+            }
+        if "http_429" in lowered:
+            return {
+                "error_code": "provider_rate_limited",
+                "error_message": text or "provider rate limited",
+            }
+        if "http_401" in lowered or "http_403" in lowered:
+            return {
+                "error_code": "provider_auth_error",
+                "error_message": text or "provider auth error",
+            }
+        if "http_400" in lowered or "http_404" in lowered or "http_422" in lowered:
+            return {
+                "error_code": "provider_invalid_request",
+                "error_message": text or "provider invalid request",
+            }
+        if "http_5" in lowered:
+            return {
+                "error_code": "provider_http_server_error",
+                "error_message": text or "provider server error",
+            }
         if "timeout" in lowered or "timed out" in lowered:
             return {
                 "error_code": "provider_timeout",
@@ -3149,6 +4513,15 @@ class BreakageIncidentService:
             else {}
         )
         metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+        idempotency_key = (
+            str(
+                sync_info.get("idempotency_key")
+                or integration.get("idempotency_key")
+                or payload.get("idempotency_key")
+                or ""
+            ).strip()
+            or None
+        )
         provider = (
             str(
                 sync_info.get("provider")
@@ -3177,23 +4550,36 @@ class BreakageIncidentService:
             )
 
         try:
-            dispatch_result = self._simulate_helpdesk_provider_dispatch(
+            normalized_integration = self._normalize_helpdesk_integration(
                 provider=provider,
+                integration_json=integration,
+                idempotency_key=idempotency_key,
+            )
+            dispatch_result = self._dispatch_helpdesk_provider(
+                provider=self._normalize_helpdesk_provider(provider),
                 incident=incident,
                 attempt_count=int(job.attempt_count or 0) + 1,
                 metadata_json=metadata,
+                integration_json=normalized_integration,
+                idempotency_key=idempotency_key,
             )
             external_ticket_id = (
                 str(metadata.get("external_ticket_id") or "").strip()
                 or str(dispatch_result.get("external_ticket_id") or "").strip()
                 or None
             )
+            dispatch_meta = dict(metadata)
+            dispatch_meta["provider_dispatch"] = {
+                "mode": str(dispatch_result.get("dispatch_mode") or normalized_integration.get("mode") or "stub"),
+                "http_status": dispatch_result.get("http_status"),
+                "request_url": dispatch_result.get("request_url"),
+            }
             return self.execute_helpdesk_sync(
                 incident_id,
                 simulate_status="completed",
                 job_id=job_id,
                 external_ticket_id=external_ticket_id,
-                metadata_json=metadata,
+                metadata_json=dispatch_meta,
                 user_id=user_id,
             )
         except Exception as exc:
@@ -3204,7 +4590,14 @@ class BreakageIncidentService:
                 job_id=job_id,
                 error_code=str(mapped.get("error_code") or "provider_sync_failed"),
                 error_message=str(mapped.get("error_message") or str(exc)),
-                metadata_json=metadata,
+                metadata_json={
+                    **metadata,
+                    "provider_dispatch": {
+                        "mode": str(integration.get("mode") or "stub"),
+                        "http_status": None,
+                        "request_url": None,
+                    },
+                },
                 user_id=user_id,
             )
 
@@ -3217,13 +4610,12 @@ class BreakageIncidentService:
         provider: str = "stub",
         idempotency_key: Optional[str] = None,
         retry_max_attempts: Optional[int] = None,
+        integration_json: Optional[Dict[str, Any]] = None,
     ) -> ConversionJob:
         incident = self.session.get(BreakageIncident, incident_id)
         if not incident:
             raise ValueError(f"Breakage incident not found: {incident_id}")
-        normalized_provider = str(provider or "stub").strip().lower() or "stub"
-        if not normalized_provider:
-            raise ValueError("provider must not be empty")
+        normalized_provider = self._normalize_helpdesk_provider(provider)
         metadata = metadata_json if isinstance(metadata_json, dict) else {}
         resolved_idempotency_key = (
             str(idempotency_key or "").strip()
@@ -3242,6 +4634,11 @@ class BreakageIncidentService:
                 raise ValueError("retry_max_attempts must be between 1 and 10") from exc
             if max_attempts < 1 or max_attempts > 10:
                 raise ValueError("retry_max_attempts must be between 1 and 10")
+        normalized_integration = self._normalize_helpdesk_integration(
+            provider=normalized_provider,
+            integration_json=integration_json,
+            idempotency_key=resolved_idempotency_key,
+        )
         payload = {
             "incident_id": incident.id,
             "description": incident.description,
@@ -3252,10 +4649,13 @@ class BreakageIncidentService:
             "batch_code": incident.batch_code,
             "customer_name": incident.customer_name,
             "metadata": metadata,
-            "mode": "helpdesk_stub",
+            "mode": (
+                "helpdesk_http"
+                if str(normalized_integration.get("mode") or "stub") == "http"
+                else "helpdesk_stub"
+            ),
             "integration": {
-                "provider": normalized_provider,
-                "idempotency_key": resolved_idempotency_key,
+                **normalized_integration,
             },
             "helpdesk_sync": {
                 "sync_status": "queued",
@@ -3343,6 +4743,8 @@ class BreakageIncidentService:
             "retry",
             "provider_timeout",
             "provider_rate_limited",
+            "provider_transport_error",
+            "provider_http_server_error",
         }
         permanent_tokens = {
             "invalid",
@@ -3367,6 +4769,27 @@ class BreakageIncidentService:
         if any(token in text for token in permanent_tokens):
             return "permanent"
         return "unknown"
+
+    def _normalize_helpdesk_provider_ticket_status(self, status: str) -> str:
+        normalized = str(status or "").strip().lower()
+        if not normalized:
+            raise ValueError("provider_ticket_status must not be empty")
+        return self._HELPDESK_PROVIDER_STATUS_ALIASES.get(normalized, normalized)
+
+    def _map_helpdesk_provider_ticket_to_incident_status(self, status: str) -> str:
+        return self._HELPDESK_PROVIDER_TO_INCIDENT_STATUS.get(status, "open")
+
+    def _map_helpdesk_provider_ticket_to_sync_status(
+        self,
+        status: str,
+        *,
+        fallback: Optional[str] = None,
+    ) -> str:
+        mapped = self._HELPDESK_PROVIDER_TO_SYNC_STATUS.get(status)
+        if mapped:
+            return mapped
+        fallback_normalized = str(fallback or "").strip().lower()
+        return fallback_normalized or "queued"
 
     def _build_helpdesk_sync_job_view(self, job: ConversionJob) -> Dict[str, Any]:
         payload = job.payload if isinstance(job.payload, dict) else {}
@@ -3402,11 +4825,55 @@ class BreakageIncidentService:
             or integration.get("idempotency_key")
             or payload.get("idempotency_key")
         )
+        integration_mode = str(integration.get("mode") or "stub").strip().lower() or "stub"
+        integration_base_url = integration.get("base_url")
         failure_category = (
             sync_info.get("failure_category")
             or result.get("failure_category")
             or payload.get("failure_category")
         )
+        error_code = sync_info.get("error_code") or result.get("error_code")
+        error_message = (
+            sync_info.get("error_message")
+            or result.get("error_message")
+            or payload.get("error_message")
+            or job.last_error
+        )
+        provider_ticket_status = (
+            sync_info.get("provider_ticket_status")
+            or result.get("provider_ticket_status")
+            or payload.get("provider_ticket_status")
+        )
+        provider_ticket_updated_at = (
+            sync_info.get("provider_ticket_updated_at")
+            or result.get("provider_ticket_updated_at")
+            or payload.get("provider_ticket_updated_at")
+        )
+        provider_assignee = (
+            sync_info.get("provider_assignee")
+            or result.get("provider_assignee")
+            or payload.get("provider_assignee")
+        )
+        provider_payload = (
+            sync_info.get("provider_payload")
+            or result.get("provider_payload")
+            or payload.get("provider_payload")
+        )
+        provider_last_event_id = (
+            sync_info.get("provider_last_event_id")
+            or result.get("provider_last_event_id")
+            or payload.get("provider_last_event_id")
+        )
+        provider_event_ids_raw = (
+            sync_info.get("provider_event_ids")
+            or result.get("provider_event_ids")
+            or payload.get("provider_event_ids")
+        )
+        provider_event_ids_count = 0
+        if isinstance(provider_event_ids_raw, list):
+            provider_event_ids_count = len(
+                [value for value in provider_event_ids_raw if str(value or "").strip()]
+            )
         sync_status = (
             str(sync_info.get("sync_status") or result.get("sync_status") or "")
             .strip()
@@ -3421,8 +4888,18 @@ class BreakageIncidentService:
             "status": job.status,
             "sync_status": sync_status,
             "provider": provider,
+            "integration_mode": integration_mode,
+            "integration_base_url": integration_base_url,
             "idempotency_key": idempotency_key,
             "failure_category": failure_category,
+            "error_code": error_code,
+            "error_message": error_message,
+            "provider_ticket_status": provider_ticket_status,
+            "provider_ticket_updated_at": provider_ticket_updated_at,
+            "provider_assignee": provider_assignee,
+            "provider_payload": provider_payload,
+            "provider_last_event_id": provider_last_event_id,
+            "provider_event_ids_count": provider_event_ids_count,
             "external_ticket_id": external_ticket_id,
             "last_error": job.last_error,
             "attempt_count": attempt_count,
@@ -3447,6 +4924,8 @@ class BreakageIncidentService:
         latest = job_views[0] if job_views else None
         return {
             "incident_id": incident_id,
+            "incident_status": str(incident.status or "").strip().lower() or "open",
+            "incident_responsibility": incident.responsibility,
             "sync_status": latest.get("sync_status") if latest else "not_started",
             "external_ticket_id": latest.get("external_ticket_id") if latest else None,
             "last_job": latest,
@@ -3525,10 +5004,12 @@ class BreakageIncidentService:
             )
 
         updated_payload = dict(payload)
-        updated_payload["integration"] = {
-            "provider": provider,
-            "idempotency_key": idempotency_key,
-        }
+        integration_payload = (
+            dict(integration) if isinstance(integration, dict) else {}
+        )
+        integration_payload["provider"] = provider
+        integration_payload["idempotency_key"] = idempotency_key
+        updated_payload["integration"] = integration_payload
         updated_payload["helpdesk_sync"] = {
             "sync_status": normalized_status,
             "provider": provider,
@@ -3628,10 +5109,12 @@ class BreakageIncidentService:
                 error_message=error_message,
             )
         updated_payload = dict(payload)
-        updated_payload["integration"] = {
-            "provider": provider,
-            "idempotency_key": idempotency_key,
-        }
+        integration_payload = (
+            dict(integration) if isinstance(integration, dict) else {}
+        )
+        integration_payload["provider"] = provider
+        integration_payload["idempotency_key"] = idempotency_key
+        updated_payload["integration"] = integration_payload
         updated_payload["helpdesk_sync"] = {
             "sync_status": normalized_sync_status,
             "provider": provider,
@@ -3674,6 +5157,196 @@ class BreakageIncidentService:
         self.session.add(target_job)
         self.session.flush()
         return self.get_helpdesk_sync_status(incident_id)
+
+    def apply_helpdesk_ticket_update(
+        self,
+        incident_id: str,
+        *,
+        provider_ticket_status: str,
+        job_id: Optional[str] = None,
+        external_ticket_id: Optional[str] = None,
+        provider: Optional[str] = None,
+        provider_updated_at: Optional[datetime] = None,
+        provider_assignee: Optional[str] = None,
+        provider_payload: Optional[Dict[str, Any]] = None,
+        event_id: Optional[str] = None,
+        incident_status: Optional[str] = None,
+        incident_responsibility: Optional[str] = None,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        incident = self.session.get(BreakageIncident, incident_id)
+        if not incident:
+            raise ValueError(f"Breakage incident not found: {incident_id}")
+        target_job = self._resolve_helpdesk_sync_job(incident_id, job_id=job_id)
+
+        normalized_provider_status = self._normalize_helpdesk_provider_ticket_status(
+            provider_ticket_status
+        )
+        normalized_incident_status = (
+            str(incident_status or "").strip().lower()
+            or self._map_helpdesk_provider_ticket_to_incident_status(normalized_provider_status)
+        )
+        now = _utcnow()
+        provider_updated = provider_updated_at or now
+        if provider_updated.tzinfo is not None:
+            provider_updated = provider_updated.astimezone(timezone.utc).replace(
+                tzinfo=None
+            )
+
+        payload = target_job.payload if isinstance(target_job.payload, dict) else {}
+        sync_info = (
+            payload.get("helpdesk_sync")
+            if isinstance(payload.get("helpdesk_sync"), dict)
+            else {}
+        )
+        result_payload = (
+            payload.get("result") if isinstance(payload.get("result"), dict) else {}
+        )
+        integration = (
+            payload.get("integration")
+            if isinstance(payload.get("integration"), dict)
+            else {}
+        )
+        idempotency_key = (
+            sync_info.get("idempotency_key")
+            or integration.get("idempotency_key")
+            or payload.get("idempotency_key")
+        )
+        normalized_provider = self._normalize_helpdesk_provider(
+            str(
+                provider
+                or sync_info.get("provider")
+                or integration.get("provider")
+                or payload.get("provider")
+                or "stub"
+            )
+            .strip()
+            .lower()
+            or "stub"
+        )
+        normalized_event_id = str(event_id or "").strip() or None
+        existing_last_event_id = (
+            str(
+                sync_info.get("provider_last_event_id")
+                or result_payload.get("provider_last_event_id")
+                or payload.get("provider_last_event_id")
+                or ""
+            ).strip()
+            or None
+        )
+        existing_event_ids_raw = (
+            sync_info.get("provider_event_ids")
+            or result_payload.get("provider_event_ids")
+            or payload.get("provider_event_ids")
+        )
+        existing_event_ids: List[str] = []
+        seen_event_ids: set[str] = set()
+        if isinstance(existing_event_ids_raw, list):
+            for value in existing_event_ids_raw:
+                normalized = str(value or "").strip()
+                if not normalized or normalized in seen_event_ids:
+                    continue
+                seen_event_ids.add(normalized)
+                existing_event_ids.append(normalized)
+        if normalized_event_id and normalized_event_id in seen_event_ids:
+            replay = self.get_helpdesk_sync_status(incident_id)
+            replay["event_id"] = normalized_event_id
+            replay["idempotent_replay"] = True
+            return replay
+        if normalized_event_id:
+            existing_event_ids.append(normalized_event_id)
+        if len(existing_event_ids) > 50:
+            existing_event_ids = existing_event_ids[-50:]
+        provider_last_event_id = normalized_event_id or existing_last_event_id
+
+        resolved_external_ticket_id = (
+            str(external_ticket_id or "").strip()
+            or str(sync_info.get("external_ticket_id") or "").strip()
+            or str(payload.get("external_ticket_id") or "").strip()
+            or None
+        )
+        derived_sync_status = self._map_helpdesk_provider_ticket_to_sync_status(
+            normalized_provider_status,
+            fallback=sync_info.get("sync_status"),
+        )
+
+        incident.status = normalized_incident_status
+        if incident_responsibility is not None:
+            incident.responsibility = str(incident_responsibility or "").strip() or None
+        elif provider_assignee:
+            incident.responsibility = str(provider_assignee).strip()
+        incident.updated_at = now
+
+        updated_payload = dict(payload)
+        integration_payload = (
+            dict(integration) if isinstance(integration, dict) else {}
+        )
+        integration_payload["provider"] = normalized_provider
+        integration_payload["idempotency_key"] = idempotency_key
+        updated_payload["integration"] = integration_payload
+        updated_payload["helpdesk_sync"] = {
+            "sync_status": derived_sync_status,
+            "provider": normalized_provider,
+            "idempotency_key": idempotency_key,
+            "external_ticket_id": resolved_external_ticket_id,
+            "provider_ticket_status": normalized_provider_status,
+            "provider_ticket_updated_at": provider_updated.isoformat(),
+            "provider_assignee": provider_assignee,
+            "provider_payload": provider_payload or {},
+            "provider_last_event_id": provider_last_event_id,
+            "provider_event_ids": existing_event_ids,
+            "updated_at": now.isoformat(),
+            "updated_by_id": user_id,
+        }
+        if resolved_external_ticket_id:
+            updated_payload["external_ticket_id"] = resolved_external_ticket_id
+
+        result = updated_payload.get("result")
+        if not isinstance(result, dict):
+            result = {}
+        result.update(
+            {
+                "sync_status": derived_sync_status,
+                "provider": normalized_provider,
+                "idempotency_key": idempotency_key,
+                "external_ticket_id": resolved_external_ticket_id,
+                "provider_ticket_status": normalized_provider_status,
+                "provider_ticket_updated_at": provider_updated.isoformat(),
+                "provider_assignee": provider_assignee,
+                "provider_last_event_id": provider_last_event_id,
+                "provider_event_ids": existing_event_ids,
+                "updated_at": now.isoformat(),
+            }
+        )
+        updated_payload["result"] = result
+        updated_payload["provider_last_event_id"] = provider_last_event_id
+        updated_payload["provider_event_ids"] = existing_event_ids
+
+        target_job.payload = updated_payload
+        if derived_sync_status == "completed":
+            target_job.status = JobStatus.COMPLETED.value
+            target_job.completed_at = now
+            target_job.last_error = None
+        elif derived_sync_status == "failed":
+            target_job.status = JobStatus.FAILED.value
+            target_job.completed_at = now
+            target_job.last_error = (
+                f"provider_ticket_status={normalized_provider_status}"
+            )
+        else:
+            if str(target_job.status or "") == JobStatus.PENDING.value:
+                target_job.status = JobStatus.PROCESSING.value
+            if target_job.started_at is None:
+                target_job.started_at = now
+            target_job.completed_at = None
+        self.session.add(target_job)
+        self.session.add(incident)
+        self.session.flush()
+        response = self.get_helpdesk_sync_status(incident_id)
+        if normalized_event_id:
+            response["event_id"] = normalized_event_id
+            response["idempotent_replay"] = False
+        return response
 
 
 class WorkorderDocumentPackService:
@@ -4101,16 +5774,33 @@ class ThreeDOverlayService:
 class ParallelOpsOverviewService:
     _ALLOWED_WINDOW_DAYS = {1, 7, 14, 30, 90}
     _ALLOWED_BUCKET_DAYS = {1, 7, 14, 30}
+    _BREAKAGE_HELPDESK_TASK_TYPE = "breakage_helpdesk_sync_stub"
+    _BREAKAGE_HELPDESK_FAILURE_EXPORT_TASK_TYPE = (
+        "parallel_ops_breakage_helpdesk_failures_export"
+    )
     _DEFAULT_SLO_THRESHOLDS = {
         "overlay_cache_hit_rate_warn": 0.8,
         "overlay_cache_min_requests_warn": 10,
         "doc_sync_dead_letter_rate_warn": 0.05,
         "workflow_failed_rate_warn": 0.02,
         "breakage_open_rate_warn": 0.5,
+        "breakage_helpdesk_failed_rate_warn": 0.5,
+        "breakage_helpdesk_failed_total_warn": 5,
+        "breakage_helpdesk_triage_coverage_warn": 0.8,
+        "breakage_helpdesk_export_failed_total_warn": 0,
+        "breakage_helpdesk_provider_failed_rate_warn": 0.9,
+        "breakage_helpdesk_provider_failed_min_jobs_warn": 5,
+        "breakage_helpdesk_provider_failed_rate_critical": 0.98,
+        "breakage_helpdesk_provider_failed_min_jobs_critical": 10,
+        "breakage_helpdesk_replay_failed_rate_warn": 0.5,
+        "breakage_helpdesk_replay_failed_total_warn": 3,
+        "breakage_helpdesk_replay_pending_total_warn": 10,
     }
+    _ALLOWED_TRIAGE_STATUS = {"open", "in_progress", "resolved", "ignored"}
 
     def __init__(self, session: Session):
         self.session = session
+        self._job_service = JobService(session)
 
     def _normalize_window_days(self, window_days: int) -> int:
         try:
@@ -4167,6 +5857,57 @@ class ParallelOpsOverviewService:
             raise ValueError("page_size must be between 1 and 200")
         return value
 
+    def _normalize_top_n(self, value: int, *, field: str = "top_n") -> int:
+        try:
+            normalized = int(5 if value is None else value)
+        except Exception as exc:
+            raise ValueError(f"{field} must be between 1 and 50") from exc
+        if normalized < 1 or normalized > 50:
+            raise ValueError(f"{field} must be between 1 and 50")
+        return normalized
+
+    def _normalize_cleanup_ttl_hours(self, ttl_hours: int) -> int:
+        try:
+            normalized = int(ttl_hours)
+        except Exception as exc:
+            raise ValueError("ttl_hours must be an integer between 1 and 720") from exc
+        if normalized < 1 or normalized > 720:
+            raise ValueError("ttl_hours must be between 1 and 720")
+        return normalized
+
+    def _normalize_cleanup_limit(self, limit: int) -> int:
+        try:
+            normalized = int(limit)
+        except Exception as exc:
+            raise ValueError("limit must be an integer between 1 and 1000") from exc
+        if normalized < 1 or normalized > 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        return normalized
+
+    def _normalize_bulk_limit(self, limit: int) -> int:
+        try:
+            normalized = int(100 if limit is None else limit)
+        except Exception as exc:
+            raise ValueError("limit must be an integer between 1 and 500") from exc
+        if normalized < 1 or normalized > 500:
+            raise ValueError("limit must be between 1 and 500")
+        return normalized
+
+    def _normalize_breakage_helpdesk_export_format(self, export_format: str) -> str:
+        normalized = str(export_format or "json").strip().lower()
+        if normalized not in {"json", "csv", "md", "zip"}:
+            raise ValueError("export_format must be json, csv, md or zip")
+        return normalized
+
+    def _normalize_triage_status(self, status: str) -> str:
+        normalized = str(status or "").strip().lower()
+        if not normalized:
+            raise ValueError("triage_status must not be empty")
+        if normalized not in self._ALLOWED_TRIAGE_STATUS:
+            allowed = ", ".join(sorted(self._ALLOWED_TRIAGE_STATUS))
+            raise ValueError(f"triage_status must be one of: {allowed}")
+        return normalized
+
     def _normalize_bucket_days(self, bucket_days: int) -> int:
         try:
             value = int(bucket_days or 1)
@@ -4175,6 +5916,57 @@ class ParallelOpsOverviewService:
         if value not in self._ALLOWED_BUCKET_DAYS:
             raise ValueError("bucket_days must be one of: 1, 7, 14, 30")
         return value
+
+    def _percentile(self, values: List[float], ratio: float) -> Optional[float]:
+        if not values:
+            return None
+        if len(values) == 1:
+            return float(values[0])
+        clamped = min(max(float(ratio), 0.0), 1.0)
+        ordered = sorted(float(v) for v in values)
+        position = (len(ordered) - 1) * clamped
+        lower = int(math.floor(position))
+        upper = int(math.ceil(position))
+        if lower == upper:
+            return float(ordered[lower])
+        weight = position - lower
+        return float(ordered[lower] + (ordered[upper] - ordered[lower]) * weight)
+
+    def _duration_stats(self, values: List[float]) -> Dict[str, Any]:
+        normalized = sorted(float(v) for v in values if v is not None and float(v) >= 0.0)
+        if not normalized:
+            return {
+                "count": 0,
+                "min_seconds": None,
+                "max_seconds": None,
+                "avg_seconds": None,
+                "p50_seconds": None,
+                "p95_seconds": None,
+            }
+        count = len(normalized)
+        avg = float(sum(normalized) / float(count))
+        return {
+            "count": int(count),
+            "min_seconds": round(float(normalized[0]), 4),
+            "max_seconds": round(float(normalized[-1]), 4),
+            "avg_seconds": round(avg, 4),
+            "p50_seconds": round(float(self._percentile(normalized, 0.5) or 0.0), 4),
+            "p95_seconds": round(float(self._percentile(normalized, 0.95) or 0.0), 4),
+        }
+
+    def _parse_iso_datetime(self, value: Any) -> Optional[datetime]:
+        raw = str(value or "").strip()
+        if not raw:
+            return None
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(raw)
+        except Exception:
+            return None
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+        return parsed
 
     def _paginate(
         self, rows: List[Dict[str, Any]], *, page: int, page_size: int
@@ -4297,6 +6089,198 @@ class ParallelOpsOverviewService:
             "repeated_rate": self._safe_ratio(repeated_total, total),
         }
 
+    def _breakage_helpdesk_summary(self, *, since: datetime) -> Dict[str, Any]:
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type == self._BREAKAGE_HELPDESK_TASK_TYPE)
+            .filter(ConversionJob.created_at >= since)
+            .order_by(ConversionJob.created_at.desc())
+            .all()
+        )
+        by_job_status = Counter()
+        by_sync_status = Counter()
+        by_provider = Counter()
+        by_provider_failed = Counter()
+        by_provider_ticket_status = Counter()
+        by_triage_status = Counter()
+        replay_batches: set[str] = set()
+        replay_by_job_status = Counter()
+        replay_by_sync_status = Counter()
+        replay_by_provider = Counter()
+        replay_jobs_total = 0
+        replay_failed_jobs = 0
+        replay_pending_jobs = 0
+        with_external_ticket = 0
+        triaged_jobs = 0
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            sync_info = (
+                payload.get("helpdesk_sync")
+                if isinstance(payload.get("helpdesk_sync"), dict)
+                else {}
+            )
+            integration = (
+                payload.get("integration")
+                if isinstance(payload.get("integration"), dict)
+                else {}
+            )
+            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            triage = payload.get("triage") if isinstance(payload.get("triage"), dict) else {}
+            job_status = str(job.status or "unknown").strip().lower() or "unknown"
+            by_job_status[job_status] += 1
+
+            sync_status = (
+                str(sync_info.get("sync_status") or result.get("sync_status") or "")
+                .strip()
+                .lower()
+                or job_status
+            )
+            by_sync_status[sync_status] += 1
+
+            provider = (
+                str(
+                    sync_info.get("provider")
+                    or integration.get("provider")
+                    or result.get("provider")
+                    or payload.get("provider")
+                    or "stub"
+                )
+                .strip()
+                .lower()
+                or "stub"
+            )
+            by_provider[provider] += 1
+            is_failed_job = (
+                sync_status == JobStatus.FAILED.value
+                or job_status == JobStatus.FAILED.value
+            )
+            if is_failed_job:
+                by_provider_failed[provider] += 1
+
+            provider_ticket_status = (
+                str(
+                    sync_info.get("provider_ticket_status")
+                    or result.get("provider_ticket_status")
+                    or payload.get("provider_ticket_status")
+                    or ""
+                )
+                .strip()
+                .lower()
+            )
+            if provider_ticket_status:
+                by_provider_ticket_status[provider_ticket_status] += 1
+
+            metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+            replay = metadata.get("replay") if isinstance(metadata.get("replay"), dict) else {}
+            replay_batch_id = str(replay.get("batch_id") or "").strip()
+            if replay_batch_id:
+                replay_archived = bool(replay.get("archived"))
+                if replay_archived:
+                    continue
+                replay_jobs_total += 1
+                replay_batches.add(replay_batch_id)
+                replay_by_job_status[job_status] += 1
+                replay_by_sync_status[sync_status] += 1
+                replay_by_provider[provider] += 1
+                if is_failed_job:
+                    replay_failed_jobs += 1
+                if sync_status in {
+                    JobStatus.PENDING.value,
+                    JobStatus.PROCESSING.value,
+                    "queued",
+                }:
+                    replay_pending_jobs += 1
+
+            triage_status = (
+                str(triage.get("status") or payload.get("triage_status") or "")
+                .strip()
+                .lower()
+                or "open"
+            )
+            if is_failed_job:
+                by_triage_status[triage_status] += 1
+                is_triaged = (
+                    triage_status != "open"
+                    or bool(str(triage.get("owner") or "").strip())
+                    or bool(str(triage.get("root_cause") or "").strip())
+                    or bool(str(triage.get("resolution") or "").strip())
+                    or bool(str(triage.get("note") or "").strip())
+                )
+                if is_triaged:
+                    triaged_jobs += 1
+
+            external_ticket_id = (
+                sync_info.get("external_ticket_id")
+                or result.get("external_ticket_id")
+                or payload.get("external_ticket_id")
+            )
+            if external_ticket_id:
+                with_external_ticket += 1
+
+        failed_jobs = int(by_job_status.get(JobStatus.FAILED.value, 0))
+        total_jobs = len(jobs)
+        provider_failed_rates: Dict[str, Dict[str, Any]] = {}
+        for provider, total in sorted(by_provider.items()):
+            provider_failed_jobs = int(by_provider_failed.get(provider, 0))
+            provider_failed_rates[provider] = {
+                "total_jobs": int(total),
+                "failed_jobs": provider_failed_jobs,
+                "failed_rate": self._safe_ratio(provider_failed_jobs, int(total)),
+            }
+        return {
+            "total_jobs": len(jobs),
+            "by_job_status": dict(by_job_status),
+            "by_sync_status": dict(by_sync_status),
+            "by_provider": dict(by_provider),
+            "by_provider_failed": dict(by_provider_failed),
+            "provider_failed_rates": provider_failed_rates,
+            "by_provider_ticket_status": dict(by_provider_ticket_status),
+            "by_triage_status": dict(by_triage_status),
+            "providers_total": len(by_provider),
+            "with_external_ticket": with_external_ticket,
+            "with_provider_ticket_status": int(sum(by_provider_ticket_status.values())),
+            "failed_jobs": failed_jobs,
+            "failed_rate": self._safe_ratio(failed_jobs, total_jobs),
+            "triaged_jobs": int(triaged_jobs),
+            "triage_rate": self._safe_ratio(int(triaged_jobs), failed_jobs),
+            "replay_jobs_total": int(replay_jobs_total),
+            "replay_batches_total": int(len(replay_batches)),
+            "replay_failed_jobs": int(replay_failed_jobs),
+            "replay_failed_rate": self._safe_ratio(int(replay_failed_jobs), int(replay_jobs_total)),
+            "replay_by_job_status": dict(replay_by_job_status),
+            "replay_by_sync_status": dict(replay_by_sync_status),
+            "replay_by_provider": dict(replay_by_provider),
+            "replay_pending_jobs": int(replay_pending_jobs),
+        }
+
+    def _breakage_helpdesk_export_job_summary(self, *, since: datetime) -> Dict[str, Any]:
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type == self._BREAKAGE_HELPDESK_FAILURE_EXPORT_TASK_TYPE)
+            .filter(ConversionJob.created_at >= since)
+            .order_by(ConversionJob.created_at.desc())
+            .all()
+        )
+        by_job_status = Counter(str(job.status or "unknown").strip().lower() for job in jobs)
+        expired_jobs = 0
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            export_info = payload.get("export") if isinstance(payload.get("export"), dict) else {}
+            if str(export_info.get("sync_status") or "").strip().lower() == "expired":
+                expired_jobs += 1
+        total_jobs = len(jobs)
+        failed_jobs = int(by_job_status.get(JobStatus.FAILED.value, 0))
+        return {
+            "total_jobs": total_jobs,
+            "by_job_status": dict(by_job_status),
+            "pending_jobs": int(by_job_status.get(JobStatus.PENDING.value, 0)),
+            "processing_jobs": int(by_job_status.get(JobStatus.PROCESSING.value, 0)),
+            "completed_jobs": int(by_job_status.get(JobStatus.COMPLETED.value, 0)),
+            "failed_jobs": failed_jobs,
+            "expired_jobs": int(expired_jobs),
+            "failed_rate": self._safe_ratio(failed_jobs, total_jobs),
+        }
+
     def _consumption_template_summary(
         self, *, template_key: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -4368,6 +6352,17 @@ class ParallelOpsOverviewService:
         doc_sync_dead_letter_rate_warn: Optional[float] = None,
         workflow_failed_rate_warn: Optional[float] = None,
         breakage_open_rate_warn: Optional[float] = None,
+        breakage_helpdesk_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_triage_coverage_warn: Optional[float] = None,
+        breakage_helpdesk_export_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_provider_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_provider_failed_min_jobs_warn: Optional[int] = None,
+        breakage_helpdesk_provider_failed_rate_critical: Optional[float] = None,
+        breakage_helpdesk_provider_failed_min_jobs_critical: Optional[int] = None,
+        breakage_helpdesk_replay_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_replay_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_replay_pending_total_warn: Optional[int] = None,
     ) -> Dict[str, Any]:
         normalized_window = self._normalize_window_days(window_days)
         since = self._window_since(normalized_window)
@@ -4412,11 +6407,101 @@ class ParallelOpsOverviewService:
                 if breakage_open_rate_warn is not None
                 else float(self._DEFAULT_SLO_THRESHOLDS["breakage_open_rate_warn"])
             ),
+            "breakage_helpdesk_failed_rate_warn": (
+                self._normalize_rate_threshold(
+                    breakage_helpdesk_failed_rate_warn,
+                    field="breakage_helpdesk_failed_rate_warn",
+                )
+                if breakage_helpdesk_failed_rate_warn is not None
+                else float(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_failed_rate_warn"])
+            ),
+            "breakage_helpdesk_failed_total_warn": (
+                self._normalize_non_negative_int(
+                    breakage_helpdesk_failed_total_warn,
+                    field="breakage_helpdesk_failed_total_warn",
+                )
+                if breakage_helpdesk_failed_total_warn is not None
+                else int(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_failed_total_warn"])
+            ),
+            "breakage_helpdesk_triage_coverage_warn": (
+                self._normalize_rate_threshold(
+                    breakage_helpdesk_triage_coverage_warn,
+                    field="breakage_helpdesk_triage_coverage_warn",
+                )
+                if breakage_helpdesk_triage_coverage_warn is not None
+                else float(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_triage_coverage_warn"])
+            ),
+            "breakage_helpdesk_export_failed_total_warn": (
+                self._normalize_non_negative_int(
+                    breakage_helpdesk_export_failed_total_warn,
+                    field="breakage_helpdesk_export_failed_total_warn",
+                )
+                if breakage_helpdesk_export_failed_total_warn is not None
+                else int(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_export_failed_total_warn"])
+            ),
+            "breakage_helpdesk_provider_failed_rate_warn": (
+                self._normalize_rate_threshold(
+                    breakage_helpdesk_provider_failed_rate_warn,
+                    field="breakage_helpdesk_provider_failed_rate_warn",
+                )
+                if breakage_helpdesk_provider_failed_rate_warn is not None
+                else float(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_provider_failed_rate_warn"])
+            ),
+            "breakage_helpdesk_provider_failed_min_jobs_warn": (
+                self._normalize_non_negative_int(
+                    breakage_helpdesk_provider_failed_min_jobs_warn,
+                    field="breakage_helpdesk_provider_failed_min_jobs_warn",
+                )
+                if breakage_helpdesk_provider_failed_min_jobs_warn is not None
+                else int(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_provider_failed_min_jobs_warn"])
+            ),
+            "breakage_helpdesk_provider_failed_rate_critical": (
+                self._normalize_rate_threshold(
+                    breakage_helpdesk_provider_failed_rate_critical,
+                    field="breakage_helpdesk_provider_failed_rate_critical",
+                )
+                if breakage_helpdesk_provider_failed_rate_critical is not None
+                else float(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_provider_failed_rate_critical"])
+            ),
+            "breakage_helpdesk_provider_failed_min_jobs_critical": (
+                self._normalize_non_negative_int(
+                    breakage_helpdesk_provider_failed_min_jobs_critical,
+                    field="breakage_helpdesk_provider_failed_min_jobs_critical",
+                )
+                if breakage_helpdesk_provider_failed_min_jobs_critical is not None
+                else int(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_provider_failed_min_jobs_critical"])
+            ),
+            "breakage_helpdesk_replay_failed_rate_warn": (
+                self._normalize_rate_threshold(
+                    breakage_helpdesk_replay_failed_rate_warn,
+                    field="breakage_helpdesk_replay_failed_rate_warn",
+                )
+                if breakage_helpdesk_replay_failed_rate_warn is not None
+                else float(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_replay_failed_rate_warn"])
+            ),
+            "breakage_helpdesk_replay_failed_total_warn": (
+                self._normalize_non_negative_int(
+                    breakage_helpdesk_replay_failed_total_warn,
+                    field="breakage_helpdesk_replay_failed_total_warn",
+                )
+                if breakage_helpdesk_replay_failed_total_warn is not None
+                else int(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_replay_failed_total_warn"])
+            ),
+            "breakage_helpdesk_replay_pending_total_warn": (
+                self._normalize_non_negative_int(
+                    breakage_helpdesk_replay_pending_total_warn,
+                    field="breakage_helpdesk_replay_pending_total_warn",
+                )
+                if breakage_helpdesk_replay_pending_total_warn is not None
+                else int(self._DEFAULT_SLO_THRESHOLDS["breakage_helpdesk_replay_pending_total_warn"])
+            ),
         }
 
         doc_sync = self._doc_sync_summary(since=since, site_id=site_id)
         workflow = self._workflow_summary(since=since, target_object=target_object)
         breakages = self._breakage_summary(since=since)
+        breakages["helpdesk"] = self._breakage_helpdesk_summary(since=since)
+        breakages["helpdesk_export"] = self._breakage_helpdesk_export_job_summary(since=since)
         consumption_templates = self._consumption_template_summary(
             template_key=template_key
         )
@@ -4476,6 +6561,157 @@ class ParallelOpsOverviewService:
                     "message": (
                         "Open breakage ratio is above "
                         f"{float(thresholds['breakage_open_rate_warn']):.4f}"
+                    ),
+                }
+            )
+        helpdesk = (
+            breakages.get("helpdesk") if isinstance(breakages.get("helpdesk"), dict) else {}
+        )
+        if (helpdesk.get("failed_rate") or 0.0) > float(
+            thresholds["breakage_helpdesk_failed_rate_warn"]
+        ):
+            hints.append(
+                {
+                    "code": "breakage_helpdesk_failed_rate_high",
+                    "level": "warn",
+                    "message": (
+                        "Breakage-helpdesk sync failed rate is above "
+                        f"{float(thresholds['breakage_helpdesk_failed_rate_warn']):.4f}"
+                    ),
+                }
+            )
+        if int(helpdesk.get("failed_jobs") or 0) > int(
+            thresholds["breakage_helpdesk_failed_total_warn"]
+        ):
+            hints.append(
+                {
+                    "code": "breakage_helpdesk_failed_total_high",
+                    "level": "warn",
+                    "message": (
+                        "Breakage-helpdesk failed jobs are above "
+                        f"{int(thresholds['breakage_helpdesk_failed_total_warn'])}"
+                    ),
+                }
+            )
+        provider_failed_rates = (
+            helpdesk.get("provider_failed_rates")
+            if isinstance(helpdesk.get("provider_failed_rates"), dict)
+            else {}
+        )
+        for provider, provider_row in sorted(provider_failed_rates.items()):
+            if not isinstance(provider_row, dict):
+                continue
+            provider_total_jobs = int(provider_row.get("total_jobs") or 0)
+            provider_failed_rate = provider_row.get("failed_rate")
+            if provider_failed_rate is None:
+                continue
+            is_critical = (
+                provider_total_jobs
+                >= int(thresholds["breakage_helpdesk_provider_failed_min_jobs_critical"])
+                and float(provider_failed_rate)
+                > float(thresholds["breakage_helpdesk_provider_failed_rate_critical"])
+            )
+            if is_critical:
+                hints.append(
+                    {
+                        "code": "breakage_helpdesk_provider_failed_rate_critical",
+                        "level": "critical",
+                        "provider": provider,
+                        "message": (
+                            "Breakage-helpdesk provider failed rate is above critical "
+                            f"{float(thresholds['breakage_helpdesk_provider_failed_rate_critical']):.4f} "
+                            f"for provider={provider}"
+                        ),
+                    }
+                )
+                continue
+            is_warn = (
+                provider_total_jobs
+                >= int(thresholds["breakage_helpdesk_provider_failed_min_jobs_warn"])
+                and float(provider_failed_rate)
+                > float(thresholds["breakage_helpdesk_provider_failed_rate_warn"])
+            )
+            if is_warn:
+                hints.append(
+                    {
+                        "code": "breakage_helpdesk_provider_failed_rate_high",
+                        "level": "warn",
+                        "provider": provider,
+                        "message": (
+                            "Breakage-helpdesk provider failed rate is above "
+                            f"{float(thresholds['breakage_helpdesk_provider_failed_rate_warn']):.4f} "
+                            f"for provider={provider}"
+                        ),
+                    }
+                )
+        if (helpdesk.get("replay_failed_rate") or 0.0) > float(
+            thresholds["breakage_helpdesk_replay_failed_rate_warn"]
+        ):
+            hints.append(
+                {
+                    "code": "breakage_helpdesk_replay_failed_rate_high",
+                    "level": "warn",
+                    "message": (
+                        "Breakage-helpdesk replay failed rate is above "
+                        f"{float(thresholds['breakage_helpdesk_replay_failed_rate_warn']):.4f}"
+                    ),
+                }
+            )
+        if int(helpdesk.get("replay_failed_jobs") or 0) > int(
+            thresholds["breakage_helpdesk_replay_failed_total_warn"]
+        ):
+            hints.append(
+                {
+                    "code": "breakage_helpdesk_replay_failed_total_high",
+                    "level": "warn",
+                    "message": (
+                        "Breakage-helpdesk replay failed jobs are above "
+                        f"{int(thresholds['breakage_helpdesk_replay_failed_total_warn'])}"
+                    ),
+                }
+            )
+        if int(helpdesk.get("replay_pending_jobs") or 0) > int(
+            thresholds["breakage_helpdesk_replay_pending_total_warn"]
+        ):
+            hints.append(
+                {
+                    "code": "breakage_helpdesk_replay_pending_total_high",
+                    "level": "warn",
+                    "message": (
+                        "Breakage-helpdesk replay pending jobs are above "
+                        f"{int(thresholds['breakage_helpdesk_replay_pending_total_warn'])}"
+                    ),
+                }
+            )
+        if int(helpdesk.get("failed_jobs") or 0) > 0 and (
+            (helpdesk.get("triage_rate") or 0.0)
+            < float(thresholds["breakage_helpdesk_triage_coverage_warn"])
+        ):
+            hints.append(
+                {
+                    "code": "breakage_helpdesk_triage_coverage_low",
+                    "level": "warn",
+                    "message": (
+                        "Breakage-helpdesk triage coverage is below "
+                        f"{float(thresholds['breakage_helpdesk_triage_coverage_warn']):.4f}"
+                    ),
+                }
+            )
+        helpdesk_export = (
+            breakages.get("helpdesk_export")
+            if isinstance(breakages.get("helpdesk_export"), dict)
+            else {}
+        )
+        if int(helpdesk_export.get("failed_jobs") or 0) > int(
+            thresholds["breakage_helpdesk_export_failed_total_warn"]
+        ):
+            hints.append(
+                {
+                    "code": "breakage_helpdesk_export_failed_total_high",
+                    "level": "warn",
+                    "message": (
+                        "Breakage-helpdesk export failed jobs are above "
+                        f"{int(thresholds['breakage_helpdesk_export_failed_total_warn'])}"
                     ),
                 }
             )
@@ -4803,6 +7039,2477 @@ class ParallelOpsOverviewService:
             "runs": paged["rows"],
         }
 
+    def _collect_breakage_helpdesk_rows(
+        self,
+        *,
+        since: datetime,
+        provider_filter: Optional[str] = None,
+        provider_ticket_status_filter: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type == self._BREAKAGE_HELPDESK_TASK_TYPE)
+            .filter(ConversionJob.created_at >= since)
+            .order_by(ConversionJob.created_at.desc())
+            .all()
+        )
+
+        rows: List[Dict[str, Any]] = []
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            helpdesk_sync = (
+                payload.get("helpdesk_sync")
+                if isinstance(payload.get("helpdesk_sync"), dict)
+                else {}
+            )
+            integration = (
+                payload.get("integration")
+                if isinstance(payload.get("integration"), dict)
+                else {}
+            )
+            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            triage = payload.get("triage") if isinstance(payload.get("triage"), dict) else {}
+
+            job_status = str(job.status or "").strip().lower()
+            sync_status = str(
+                helpdesk_sync.get("sync_status")
+                or result.get("sync_status")
+                or payload.get("sync_status")
+                or job_status
+            ).strip().lower()
+            provider_value = (
+                str(
+                    helpdesk_sync.get("provider")
+                    or integration.get("provider")
+                    or result.get("provider")
+                    or payload.get("provider")
+                    or "unknown"
+                )
+                .strip()
+                .lower()
+                or "unknown"
+            )
+            if provider_filter and provider_value != provider_filter:
+                continue
+            provider_ticket_status_value = (
+                str(
+                    helpdesk_sync.get("provider_ticket_status")
+                    or result.get("provider_ticket_status")
+                    or payload.get("provider_ticket_status")
+                    or ""
+                )
+                .strip()
+                .lower()
+            )
+            if provider_ticket_status_filter and (
+                provider_ticket_status_value != provider_ticket_status_filter
+            ):
+                continue
+
+            failure_category_value = (
+                str(
+                    helpdesk_sync.get("failure_category")
+                    or result.get("failure_category")
+                    or payload.get("failure_category")
+                    or ""
+                )
+                .strip()
+                .lower()
+                or "unknown"
+            )
+            row = {
+                "id": job.id,
+                "incident_id": payload.get("incident_id"),
+                "provider": provider_value,
+                "sync_status": sync_status,
+                "failure_category": failure_category_value,
+                "error_code": (
+                    helpdesk_sync.get("error_code")
+                    or result.get("error_code")
+                    or payload.get("error_code")
+                ),
+                "error_message": (
+                    helpdesk_sync.get("error_message")
+                    or result.get("error_message")
+                    or payload.get("error_message")
+                    or job.last_error
+                ),
+                "provider_ticket_status": provider_ticket_status_value or None,
+                "triage_status": (
+                    str(triage.get("status") or payload.get("triage_status") or "")
+                    .strip()
+                    .lower()
+                    or "open"
+                ),
+                "triage_owner": str(triage.get("owner") or "").strip() or None,
+                "triage_root_cause": str(triage.get("root_cause") or "").strip() or None,
+                "triage_resolution": str(triage.get("resolution") or "").strip() or None,
+                "triage_note": str(triage.get("note") or "").strip() or None,
+                "triage_updated_at": triage.get("updated_at"),
+                "triage_updated_by_id": triage.get("updated_by_id"),
+                "external_ticket_id": (
+                    helpdesk_sync.get("external_ticket_id")
+                    or result.get("external_ticket_id")
+                    or payload.get("external_ticket_id")
+                ),
+                "task_type": job.task_type,
+                "status": job.status,
+                "attempt_count": int(job.attempt_count or 0),
+                "max_attempts": int(job.max_attempts or 0),
+                "last_error": job.last_error,
+                "dedupe_key": job.dedupe_key,
+                "created_at": job.created_at.isoformat() if job.created_at else None,
+                "started_at": job.started_at.isoformat() if job.started_at else None,
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                "_is_failed": (
+                    sync_status == JobStatus.FAILED.value
+                    or job_status == JobStatus.FAILED.value
+                ),
+                "_created_at_dt": job.created_at,
+            }
+            rows.append(row)
+        return rows
+
+    def _collect_breakage_helpdesk_replay_rows(
+        self,
+        *,
+        since: Optional[datetime] = None,
+        batch_id_filter: Optional[str] = None,
+        provider_filter: Optional[str] = None,
+        job_status_filter: Optional[str] = None,
+        sync_status_filter: Optional[str] = None,
+        include_archived: bool = False,
+    ) -> List[Dict[str, Any]]:
+        query = self.session.query(ConversionJob).filter(
+            ConversionJob.task_type == self._BREAKAGE_HELPDESK_TASK_TYPE
+        )
+        if since is not None:
+            query = query.filter(ConversionJob.created_at >= since)
+        jobs = query.order_by(ConversionJob.created_at.desc()).all()
+
+        rows: List[Dict[str, Any]] = []
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+            replay = metadata.get("replay") if isinstance(metadata.get("replay"), dict) else {}
+            batch_id = str(replay.get("batch_id") or "").strip()
+            if not batch_id:
+                continue
+            replay_archived = bool(replay.get("archived"))
+            if replay_archived and not include_archived:
+                continue
+            if batch_id_filter and batch_id != batch_id_filter:
+                continue
+
+            helpdesk_sync = (
+                payload.get("helpdesk_sync")
+                if isinstance(payload.get("helpdesk_sync"), dict)
+                else {}
+            )
+            integration = (
+                payload.get("integration")
+                if isinstance(payload.get("integration"), dict)
+                else {}
+            )
+            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            job_status = str(job.status or "unknown").strip().lower() or "unknown"
+            if job_status_filter and job_status != job_status_filter:
+                continue
+            sync_status = (
+                str(
+                    helpdesk_sync.get("sync_status")
+                    or result.get("sync_status")
+                    or payload.get("sync_status")
+                    or job_status
+                )
+                .strip()
+                .lower()
+                or job_status
+            )
+            if sync_status_filter and sync_status != sync_status_filter:
+                continue
+            provider_value = (
+                str(
+                    helpdesk_sync.get("provider")
+                    or integration.get("provider")
+                    or result.get("provider")
+                    or payload.get("provider")
+                    or "unknown"
+                )
+                .strip()
+                .lower()
+                or "unknown"
+            )
+            if provider_filter and provider_value != provider_filter:
+                continue
+            failure_category_value = (
+                str(
+                    helpdesk_sync.get("failure_category")
+                    or result.get("failure_category")
+                    or payload.get("failure_category")
+                    or "unknown"
+                )
+                .strip()
+                .lower()
+                or "unknown"
+            )
+            requested_total_raw = replay.get("requested_total")
+            try:
+                requested_total = (
+                    int(requested_total_raw) if requested_total_raw is not None else None
+                )
+            except Exception:
+                requested_total = None
+            requested_by_raw = replay.get("requested_by_id")
+            try:
+                requested_by_id = (
+                    int(requested_by_raw) if requested_by_raw is not None else None
+                )
+            except Exception:
+                requested_by_id = None
+            replay_index_raw = replay.get("replay_index")
+            try:
+                replay_index = int(replay_index_raw) if replay_index_raw is not None else None
+            except Exception:
+                replay_index = None
+            requested_at = replay.get("requested_at")
+            requested_at_dt = self._parse_iso_datetime(requested_at)
+
+            row_duration_seconds: Optional[float] = None
+            if job.started_at and job.completed_at and job.completed_at >= job.started_at:
+                row_duration_seconds = float((job.completed_at - job.started_at).total_seconds())
+            rows.append(
+                {
+                    "batch_id": batch_id,
+                    "job_id": str(job.id),
+                    "source_job_id": str(replay.get("source_job_id") or "").strip() or None,
+                    "replay_index": replay_index,
+                    "incident_id": payload.get("incident_id"),
+                    "provider": provider_value,
+                    "sync_status": sync_status,
+                    "status": job_status,
+                    "failure_category": failure_category_value,
+                    "idempotency_key": (
+                        helpdesk_sync.get("idempotency_key")
+                        or integration.get("idempotency_key")
+                        or payload.get("idempotency_key")
+                    ),
+                    "requested_at": requested_at,
+                    "requested_by_id": requested_by_id,
+                    "requested_total": requested_total,
+                    "archived": replay_archived,
+                    "archived_at": replay.get("archived_at"),
+                    "attempt_count": int(job.attempt_count or 0),
+                    "max_attempts": int(job.max_attempts or 0),
+                    "last_error": job.last_error,
+                    "duration_seconds": (
+                        round(row_duration_seconds, 4)
+                        if row_duration_seconds is not None
+                        else None
+                    ),
+                    "created_at": job.created_at.isoformat() if job.created_at else None,
+                    "started_at": job.started_at.isoformat() if job.started_at else None,
+                    "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                    "_created_at_dt": job.created_at,
+                    "_requested_at_dt": requested_at_dt,
+                    "_duration_seconds": row_duration_seconds,
+                }
+            )
+        return rows
+
+    def breakage_helpdesk_failures(
+        self,
+        *,
+        window_days: int = 7,
+        provider: Optional[str] = None,
+        failure_category: Optional[str] = None,
+        provider_ticket_status: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        normalized_page = self._normalize_page(page)
+        normalized_page_size = self._normalize_page_size(page_size)
+        since = self._window_since(normalized_window)
+
+        provider_filter = str(provider or "").strip().lower() or None
+        category_filter = str(failure_category or "").strip().lower() or None
+        provider_ticket_status_filter = (
+            str(provider_ticket_status or "").strip().lower() or None
+        )
+        raw_rows = self._collect_breakage_helpdesk_rows(
+            since=since,
+            provider_filter=provider_filter,
+            provider_ticket_status_filter=provider_ticket_status_filter,
+        )
+
+        rows: List[Dict[str, Any]] = []
+        by_provider: Counter[str] = Counter()
+        by_failure_category: Counter[str] = Counter()
+        by_provider_ticket_status: Counter[str] = Counter()
+        for raw_row in raw_rows:
+            if not bool(raw_row.get("_is_failed")):
+                continue
+            failure_category_value = str(raw_row.get("failure_category") or "unknown")
+            if category_filter and failure_category_value != category_filter:
+                continue
+
+            by_provider[str(raw_row.get("provider") or "unknown")] += 1
+            by_failure_category[failure_category_value] += 1
+            provider_ticket_status_value = (
+                str(raw_row.get("provider_ticket_status") or "").strip().lower() or "none"
+            )
+            by_provider_ticket_status[provider_ticket_status_value] += 1
+            row = {
+                key: value
+                for key, value in raw_row.items()
+                if key not in {"_is_failed", "_created_at_dt"}
+            }
+            rows.append(row)
+
+        paged = self._paginate(rows, page=normalized_page, page_size=normalized_page_size)
+        return {
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "provider_filter": provider_filter,
+            "failure_category_filter": category_filter,
+            "provider_ticket_status_filter": provider_ticket_status_filter,
+            "total": paged["total"],
+            "pagination": {
+                "page": paged["page"],
+                "page_size": paged["page_size"],
+                "pages": paged["pages"],
+                "total": paged["total"],
+            },
+            "by_provider": dict(by_provider),
+            "by_failure_category": dict(by_failure_category),
+            "by_provider_ticket_status": dict(by_provider_ticket_status),
+            "jobs": paged["rows"],
+        }
+
+    def breakage_helpdesk_failure_trends(
+        self,
+        *,
+        window_days: int = 7,
+        bucket_days: int = 1,
+        provider: Optional[str] = None,
+        failure_category: Optional[str] = None,
+        provider_ticket_status: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        normalized_bucket = self._normalize_bucket_days(bucket_days)
+        if normalized_bucket > normalized_window:
+            raise ValueError("bucket_days must be <= window_days")
+
+        since = self._window_since(normalized_window)
+        now = _utcnow()
+        bucket_span = timedelta(days=normalized_bucket)
+        bucket_seconds = float(bucket_span.total_seconds())
+
+        points: List[Dict[str, Any]] = []
+        cursor = since
+        while cursor < now:
+            bucket_end = min(cursor + bucket_span, now)
+            points.append(
+                {
+                    "bucket_start": cursor.isoformat(),
+                    "bucket_end": bucket_end.isoformat(),
+                    "total_jobs": 0,
+                    "failed_jobs": 0,
+                    "_failed_by_category": Counter(),
+                }
+            )
+            cursor = bucket_end
+        if not points:
+            points.append(
+                {
+                    "bucket_start": since.isoformat(),
+                    "bucket_end": now.isoformat(),
+                    "total_jobs": 0,
+                    "failed_jobs": 0,
+                    "_failed_by_category": Counter(),
+                }
+            )
+
+        def bucket_index(created_at: Optional[datetime]) -> Optional[int]:
+            if created_at is None:
+                return None
+            delta = (created_at - since).total_seconds()
+            if delta < 0:
+                return None
+            idx = int(delta // bucket_seconds) if bucket_seconds > 0 else 0
+            if idx < 0:
+                return None
+            if idx >= len(points):
+                return len(points) - 1
+            return idx
+
+        provider_filter = str(provider or "").strip().lower() or None
+        category_filter = str(failure_category or "").strip().lower() or None
+        provider_ticket_status_filter = (
+            str(provider_ticket_status or "").strip().lower() or None
+        )
+        raw_rows = self._collect_breakage_helpdesk_rows(
+            since=since,
+            provider_filter=provider_filter,
+            provider_ticket_status_filter=provider_ticket_status_filter,
+        )
+        for raw_row in raw_rows:
+            idx = bucket_index(raw_row.get("_created_at_dt"))
+            if idx is None:
+                continue
+            bucket_row = points[idx]
+            bucket_row["total_jobs"] += 1
+            if not bool(raw_row.get("_is_failed")):
+                continue
+            row_failure_category = str(raw_row.get("failure_category") or "unknown")
+            if category_filter and row_failure_category != category_filter:
+                continue
+            bucket_row["failed_jobs"] += 1
+            bucket_row["_failed_by_category"][row_failure_category] += 1
+
+        by_failure_category: Counter[str] = Counter()
+        for row in points:
+            failed_by_category = row.pop("_failed_by_category", Counter())
+            if isinstance(failed_by_category, Counter):
+                by_failure_category.update(failed_by_category)
+                row["by_failure_category"] = dict(failed_by_category)
+            else:
+                row["by_failure_category"] = {}
+            row["failed_rate"] = self._safe_ratio(
+                int(row.get("failed_jobs") or 0),
+                int(row.get("total_jobs") or 0),
+            )
+
+        total_jobs = int(sum(int(row.get("total_jobs") or 0) for row in points))
+        failed_jobs = int(sum(int(row.get("failed_jobs") or 0) for row in points))
+        return {
+            "generated_at": now.isoformat(),
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "bucket_days": normalized_bucket,
+            "filters": {
+                "provider": provider_filter,
+                "failure_category": category_filter,
+                "provider_ticket_status": provider_ticket_status_filter,
+            },
+            "points": points,
+            "aggregates": {
+                "total_jobs": total_jobs,
+                "failed_jobs": failed_jobs,
+                "failed_rate": self._safe_ratio(failed_jobs, total_jobs),
+            },
+            "by_failure_category": dict(by_failure_category),
+        }
+
+    def breakage_helpdesk_failure_triage(
+        self,
+        *,
+        window_days: int = 7,
+        provider: Optional[str] = None,
+        failure_category: Optional[str] = None,
+        provider_ticket_status: Optional[str] = None,
+        top_n: int = 5,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        normalized_top_n = self._normalize_top_n(top_n, field="top_n")
+        since = self._window_since(normalized_window)
+        provider_filter = str(provider or "").strip().lower() or None
+        category_filter = str(failure_category or "").strip().lower() or None
+        provider_ticket_status_filter = (
+            str(provider_ticket_status or "").strip().lower() or None
+        )
+        raw_rows = self._collect_breakage_helpdesk_rows(
+            since=since,
+            provider_filter=provider_filter,
+            provider_ticket_status_filter=provider_ticket_status_filter,
+        )
+
+        by_provider: Counter[str] = Counter()
+        by_failure_category: Counter[str] = Counter()
+        by_provider_ticket_status: Counter[str] = Counter()
+        by_error_code: Counter[str] = Counter()
+        by_triage_status: Counter[str] = Counter()
+        failed_rows: List[Dict[str, Any]] = []
+        replay_candidates: List[Dict[str, Any]] = []
+        triaged_jobs = 0
+
+        for raw_row in raw_rows:
+            if not bool(raw_row.get("_is_failed")):
+                continue
+            failure_category_value = str(raw_row.get("failure_category") or "unknown")
+            if category_filter and failure_category_value != category_filter:
+                continue
+            provider_value = str(raw_row.get("provider") or "unknown")
+            provider_ticket_status_value = (
+                str(raw_row.get("provider_ticket_status") or "").strip().lower() or "none"
+            )
+            error_code_value = (
+                str(raw_row.get("error_code") or "").strip().lower() or "unknown"
+            )
+            triage_status_value = (
+                str(raw_row.get("triage_status") or "").strip().lower() or "open"
+            )
+            is_triaged = (
+                triage_status_value != "open"
+                or bool(str(raw_row.get("triage_owner") or "").strip())
+                or bool(str(raw_row.get("triage_root_cause") or "").strip())
+                or bool(str(raw_row.get("triage_resolution") or "").strip())
+                or bool(str(raw_row.get("triage_note") or "").strip())
+            )
+
+            by_provider[provider_value] += 1
+            by_failure_category[failure_category_value] += 1
+            by_provider_ticket_status[provider_ticket_status_value] += 1
+            by_error_code[error_code_value] += 1
+            by_triage_status[triage_status_value] += 1
+            if is_triaged:
+                triaged_jobs += 1
+
+            row = {
+                key: value
+                for key, value in raw_row.items()
+                if key not in {"_is_failed", "_created_at_dt"}
+            }
+            failed_rows.append(row)
+
+            attempt_count = int(raw_row.get("attempt_count") or 0)
+            max_attempts = int(raw_row.get("max_attempts") or 0)
+            can_replay = max_attempts <= 0 or attempt_count < max_attempts
+            if can_replay:
+                replay_candidates.append(
+                    {
+                        "id": row.get("id"),
+                        "incident_id": row.get("incident_id"),
+                        "provider": provider_value,
+                        "failure_category": failure_category_value,
+                        "error_code": error_code_value,
+                        "provider_ticket_status": row.get("provider_ticket_status"),
+                        "attempt_count": attempt_count,
+                        "max_attempts": max_attempts,
+                        "created_at": row.get("created_at"),
+                    }
+                )
+
+        total_failed_jobs = len(failed_rows)
+
+        def _counter_rows(counter: Counter[str]) -> List[Dict[str, Any]]:
+            rows: List[Dict[str, Any]] = []
+            for key, count in counter.most_common(normalized_top_n):
+                rows.append(
+                    {
+                        "key": key,
+                        "count": int(count),
+                        "ratio": self._safe_ratio(int(count), total_failed_jobs),
+                    }
+                )
+            return rows
+
+        category_actions = {
+            "transient": {
+                "code": "retry_with_backoff",
+                "title": "Retry transient provider failures",
+                "playbook": "Apply delayed replay with exponential backoff and provider health checks.",
+            },
+            "auth": {
+                "code": "rotate_provider_credentials",
+                "title": "Fix provider authentication",
+                "playbook": "Rotate/rebind credentials and validate auth mode before replay.",
+            },
+            "validation": {
+                "code": "fix_payload_mapping",
+                "title": "Fix request payload validation",
+                "playbook": "Patch payload schema mapping, then replay failed jobs.",
+            },
+            "conflict": {
+                "code": "enforce_idempotency",
+                "title": "Resolve provider conflict/idempotency errors",
+                "playbook": "Check idempotency key strategy and dedupe policy before retry.",
+            },
+            "provider": {
+                "code": "escalate_provider_incident",
+                "title": "Escalate provider-side incident",
+                "playbook": "Escalate with provider logs and temporary fallback handling.",
+            },
+        }
+
+        triage_actions: List[Dict[str, Any]] = []
+        emitted_codes: set[str] = set()
+        for row in _counter_rows(by_failure_category):
+            key = str(row.get("key") or "")
+            action = category_actions.get(key)
+            if not action:
+                continue
+            code = str(action.get("code") or "")
+            if not code or code in emitted_codes:
+                continue
+            emitted_codes.add(code)
+            triage_actions.append(
+                {
+                    "code": code,
+                    "title": action.get("title"),
+                    "playbook": action.get("playbook"),
+                    "evidence": {
+                        "failure_category": key,
+                        "count": row.get("count"),
+                        "ratio": row.get("ratio"),
+                    },
+                }
+            )
+        if not triage_actions and total_failed_jobs > 0:
+            triage_actions.append(
+                {
+                    "code": "inspect_job_payload_and_logs",
+                    "title": "Inspect unknown failure pattern",
+                    "playbook": "Inspect payload.error_code/error_message and provider response body before retry.",
+                    "evidence": {"total_failed_jobs": total_failed_jobs},
+                }
+            )
+
+        return {
+            "generated_at": _utcnow().isoformat(),
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "filters": {
+                "provider": provider_filter,
+                "failure_category": category_filter,
+                "provider_ticket_status": provider_ticket_status_filter,
+            },
+            "top_n": normalized_top_n,
+            "total_failed_jobs": total_failed_jobs,
+            "by_provider": dict(by_provider),
+            "by_failure_category": dict(by_failure_category),
+            "by_provider_ticket_status": dict(by_provider_ticket_status),
+            "by_error_code": dict(by_error_code),
+            "by_triage_status": dict(by_triage_status),
+            "hotspots": {
+                "providers": _counter_rows(by_provider),
+                "failure_categories": _counter_rows(by_failure_category),
+                "provider_ticket_statuses": _counter_rows(by_provider_ticket_status),
+                "error_codes": _counter_rows(by_error_code),
+                "triage_statuses": _counter_rows(by_triage_status),
+            },
+            "triaged_jobs": int(triaged_jobs),
+            "triage_rate": self._safe_ratio(int(triaged_jobs), total_failed_jobs),
+            "replay_candidates_total": len(replay_candidates),
+            "replay_candidates": replay_candidates[:normalized_top_n],
+            "triage_actions": triage_actions,
+        }
+
+    def apply_breakage_helpdesk_failure_triage(
+        self,
+        *,
+        triage_status: str,
+        job_ids: Optional[List[str]] = None,
+        window_days: int = 7,
+        provider: Optional[str] = None,
+        failure_category: Optional[str] = None,
+        provider_ticket_status: Optional[str] = None,
+        limit: int = 100,
+        triage_owner: Optional[str] = None,
+        root_cause: Optional[str] = None,
+        resolution: Optional[str] = None,
+        note: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        normalized_status = self._normalize_triage_status(triage_status)
+        normalized_limit = self._normalize_bulk_limit(limit)
+        normalized_window = self._normalize_window_days(window_days)
+        provider_filter = str(provider or "").strip().lower() or None
+        category_filter = str(failure_category or "").strip().lower() or None
+        provider_ticket_status_filter = (
+            str(provider_ticket_status or "").strip().lower() or None
+        )
+        normalized_owner = str(triage_owner or "").strip() or None
+        normalized_root_cause = str(root_cause or "").strip() or None
+        normalized_resolution = str(resolution or "").strip() or None
+        normalized_note = str(note or "").strip() or None
+        normalized_tags: Optional[List[str]] = None
+        if tags is not None:
+            values = []
+            seen = set()
+            for raw in tags:
+                value = str(raw or "").strip().lower()
+                if not value or value in seen:
+                    continue
+                seen.add(value)
+                values.append(value)
+            normalized_tags = values
+
+        now = _utcnow()
+        normalized_job_ids: List[str] = []
+        seen_job_ids = set()
+        for raw in (job_ids or []):
+            value = str(raw or "").strip()
+            if not value or value in seen_job_ids:
+                continue
+            seen_job_ids.add(value)
+            normalized_job_ids.append(value)
+
+        target_jobs: List[ConversionJob] = []
+        skipped_not_found: List[str] = []
+        source = "job_ids"
+        if normalized_job_ids:
+            for job_id in normalized_job_ids[:normalized_limit]:
+                job = self.session.get(ConversionJob, job_id)
+                if (
+                    not job
+                    or str(job.task_type or "") != self._BREAKAGE_HELPDESK_TASK_TYPE
+                ):
+                    skipped_not_found.append(job_id)
+                    continue
+                target_jobs.append(job)
+        else:
+            source = "filters"
+            since = self._window_since(normalized_window)
+            raw_rows = self._collect_breakage_helpdesk_rows(
+                since=since,
+                provider_filter=provider_filter,
+                provider_ticket_status_filter=provider_ticket_status_filter,
+            )
+            selected_ids: List[str] = []
+            for row in raw_rows:
+                if not bool(row.get("_is_failed")):
+                    continue
+                failure_category_value = str(row.get("failure_category") or "unknown")
+                if category_filter and failure_category_value != category_filter:
+                    continue
+                row_id = str(row.get("id") or "").strip()
+                if not row_id:
+                    continue
+                selected_ids.append(row_id)
+                if len(selected_ids) >= normalized_limit:
+                    break
+            for job_id in selected_ids:
+                job = self.session.get(ConversionJob, job_id)
+                if job is not None:
+                    target_jobs.append(job)
+
+        updated_jobs: List[Dict[str, Any]] = []
+        skipped_non_failed: List[str] = []
+        for job in target_jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            helpdesk_sync = (
+                payload.get("helpdesk_sync")
+                if isinstance(payload.get("helpdesk_sync"), dict)
+                else {}
+            )
+            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            job_status = str(job.status or "").strip().lower()
+            sync_status = (
+                str(helpdesk_sync.get("sync_status") or result.get("sync_status") or "")
+                .strip()
+                .lower()
+                or job_status
+            )
+            is_failed = (
+                sync_status == JobStatus.FAILED.value
+                or job_status == JobStatus.FAILED.value
+            )
+            if not is_failed:
+                skipped_non_failed.append(str(job.id))
+                continue
+            triage_payload = (
+                payload.get("triage") if isinstance(payload.get("triage"), dict) else {}
+            )
+            updated_triage = dict(triage_payload)
+            updated_triage["status"] = normalized_status
+            if triage_owner is not None:
+                updated_triage["owner"] = normalized_owner
+            if root_cause is not None:
+                updated_triage["root_cause"] = normalized_root_cause
+            if resolution is not None:
+                updated_triage["resolution"] = normalized_resolution
+            if note is not None:
+                updated_triage["note"] = normalized_note
+            if normalized_tags is not None:
+                updated_triage["tags"] = normalized_tags
+            updated_triage["updated_at"] = now.isoformat()
+            updated_triage["updated_by_id"] = user_id
+
+            history = (
+                payload.get("triage_history")
+                if isinstance(payload.get("triage_history"), list)
+                else []
+            )
+            history_row = {
+                "at": now.isoformat(),
+                "by_user_id": user_id,
+                "status": normalized_status,
+                "owner": updated_triage.get("owner"),
+                "root_cause": updated_triage.get("root_cause"),
+                "resolution": updated_triage.get("resolution"),
+                "note": updated_triage.get("note"),
+                "tags": updated_triage.get("tags"),
+            }
+            updated_history = [row for row in history if isinstance(row, dict)]
+            updated_history.append(history_row)
+            if len(updated_history) > 50:
+                updated_history = updated_history[-50:]
+
+            updated_payload = dict(payload)
+            updated_payload["triage"] = updated_triage
+            updated_payload["triage_status"] = normalized_status
+            updated_payload["triage_history"] = updated_history
+            job.payload = updated_payload
+            self.session.add(job)
+
+            updated_jobs.append(
+                {
+                    "id": str(job.id),
+                    "incident_id": payload.get("incident_id"),
+                    "triage_status": normalized_status,
+                    "triage_owner": updated_triage.get("owner"),
+                    "triage_updated_at": updated_triage.get("updated_at"),
+                }
+            )
+        if updated_jobs:
+            self.session.flush()
+
+        return {
+            "source": source,
+            "window_days": normalized_window,
+            "filters": {
+                "provider": provider_filter,
+                "failure_category": category_filter,
+                "provider_ticket_status": provider_ticket_status_filter,
+            },
+            "triage_update": {
+                "triage_status": normalized_status,
+                "triage_owner": normalized_owner if triage_owner is not None else None,
+                "root_cause": normalized_root_cause if root_cause is not None else None,
+                "resolution": normalized_resolution if resolution is not None else None,
+                "note": normalized_note if note is not None else None,
+                "tags": normalized_tags if normalized_tags is not None else None,
+            },
+            "requested": len(normalized_job_ids) if normalized_job_ids else normalized_limit,
+            "updated_total": len(updated_jobs),
+            "updated_jobs": updated_jobs,
+            "skipped_not_found_total": len(skipped_not_found),
+            "skipped_not_found_job_ids": skipped_not_found,
+            "skipped_non_failed_total": len(skipped_non_failed),
+            "skipped_non_failed_job_ids": skipped_non_failed,
+            "updated_at": now.isoformat(),
+        }
+
+    def enqueue_breakage_helpdesk_failure_replay_jobs(
+        self,
+        *,
+        job_ids: Optional[List[str]] = None,
+        window_days: int = 7,
+        provider: Optional[str] = None,
+        failure_category: Optional[str] = None,
+        provider_ticket_status: Optional[str] = None,
+        limit: int = 100,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        normalized_limit = self._normalize_bulk_limit(limit)
+        normalized_window = self._normalize_window_days(window_days)
+        provider_filter = str(provider or "").strip().lower() or None
+        category_filter = str(failure_category or "").strip().lower() or None
+        provider_ticket_status_filter = (
+            str(provider_ticket_status or "").strip().lower() or None
+        )
+
+        now = _utcnow()
+        replay_batch_id = f"bh-replay-{_uuid()}"
+        normalized_job_ids: List[str] = []
+        seen_job_ids = set()
+        for raw in (job_ids or []):
+            value = str(raw or "").strip()
+            if not value or value in seen_job_ids:
+                continue
+            seen_job_ids.add(value)
+            normalized_job_ids.append(value)
+
+        source = "job_ids"
+        selected_job_ids: List[str] = []
+        skipped_not_found: List[str] = []
+        if normalized_job_ids:
+            for job_id in normalized_job_ids[:normalized_limit]:
+                job = self.session.get(ConversionJob, job_id)
+                if (
+                    not job
+                    or str(job.task_type or "") != self._BREAKAGE_HELPDESK_TASK_TYPE
+                ):
+                    skipped_not_found.append(job_id)
+                    continue
+                selected_job_ids.append(str(job.id))
+        else:
+            source = "filters"
+            since = self._window_since(normalized_window)
+            raw_rows = self._collect_breakage_helpdesk_rows(
+                since=since,
+                provider_filter=provider_filter,
+                provider_ticket_status_filter=provider_ticket_status_filter,
+            )
+            for row in raw_rows:
+                if not bool(row.get("_is_failed")):
+                    continue
+                failure_category_value = str(row.get("failure_category") or "unknown")
+                if category_filter and failure_category_value != category_filter:
+                    continue
+                row_id = str(row.get("id") or "").strip()
+                if not row_id:
+                    continue
+                selected_job_ids.append(row_id)
+                if len(selected_job_ids) >= normalized_limit:
+                    break
+
+        created_jobs: List[Dict[str, Any]] = []
+        skipped_non_failed: List[str] = []
+        skipped_missing_incident: List[str] = []
+        enqueue_errors: List[Dict[str, str]] = []
+        breakage_service = BreakageIncidentService(self.session)
+        for idx, source_job_id in enumerate(selected_job_ids, start=1):
+            source_job = self.session.get(ConversionJob, source_job_id)
+            if (
+                not source_job
+                or str(source_job.task_type or "") != self._BREAKAGE_HELPDESK_TASK_TYPE
+            ):
+                skipped_not_found.append(source_job_id)
+                continue
+            source_payload = (
+                source_job.payload if isinstance(source_job.payload, dict) else {}
+            )
+            source_helpdesk_sync = (
+                source_payload.get("helpdesk_sync")
+                if isinstance(source_payload.get("helpdesk_sync"), dict)
+                else {}
+            )
+            source_result = (
+                source_payload.get("result")
+                if isinstance(source_payload.get("result"), dict)
+                else {}
+            )
+            source_job_status = str(source_job.status or "").strip().lower()
+            source_sync_status = (
+                str(
+                    source_helpdesk_sync.get("sync_status")
+                    or source_result.get("sync_status")
+                    or source_payload.get("sync_status")
+                    or source_job_status
+                )
+                .strip()
+                .lower()
+            )
+            is_failed = (
+                source_sync_status == JobStatus.FAILED.value
+                or source_job_status == JobStatus.FAILED.value
+            )
+            if not is_failed:
+                skipped_non_failed.append(source_job_id)
+                continue
+            incident_id = str(source_payload.get("incident_id") or "").strip()
+            if not incident_id:
+                skipped_missing_incident.append(source_job_id)
+                continue
+            provider_value = (
+                str(
+                    source_helpdesk_sync.get("provider")
+                    or source_payload.get("provider")
+                    or "stub"
+                )
+                .strip()
+                .lower()
+                or "stub"
+            )
+            integration = (
+                source_payload.get("integration")
+                if isinstance(source_payload.get("integration"), dict)
+                else {}
+            )
+            source_metadata = (
+                source_payload.get("metadata")
+                if isinstance(source_payload.get("metadata"), dict)
+                else {}
+            )
+            replay_idempotency_key = (
+                f"replay-{_stable_hash([source_job_id, now.isoformat(), str(idx)])[:24]}"
+            )
+            replay_metadata = dict(source_metadata)
+            replay_metadata["replay"] = {
+                "batch_id": replay_batch_id,
+                "source_job_id": source_job_id,
+                "requested_at": now.isoformat(),
+                "requested_by_id": user_id,
+                "requested_total": len(selected_job_ids),
+                "replay_index": idx,
+            }
+            source_max_attempts = int(source_job.max_attempts or 0)
+            retry_max_attempts = (
+                source_max_attempts if 1 <= source_max_attempts <= 10 else None
+            )
+            try:
+                replay_job = breakage_service.enqueue_helpdesk_stub_sync(
+                    incident_id,
+                    user_id=user_id,
+                    metadata_json=replay_metadata,
+                    provider=provider_value,
+                    idempotency_key=replay_idempotency_key,
+                    retry_max_attempts=retry_max_attempts,
+                    integration_json=integration,
+                )
+            except Exception as exc:
+                enqueue_errors.append(
+                    {
+                        "source_job_id": source_job_id,
+                        "incident_id": incident_id,
+                        "error": str(exc),
+                    }
+                )
+                continue
+            created_jobs.append(
+                {
+                    "batch_id": replay_batch_id,
+                    "source_job_id": source_job_id,
+                    "job_id": str(replay_job.id),
+                    "incident_id": incident_id,
+                    "provider": provider_value,
+                    "idempotency_key": replay_idempotency_key,
+                }
+            )
+        if created_jobs:
+            self.session.flush()
+
+        return {
+            "source": source,
+            "batch_id": replay_batch_id,
+            "generated_at": now.isoformat(),
+            "window_days": normalized_window,
+            "filters": {
+                "provider": provider_filter,
+                "failure_category": category_filter,
+                "provider_ticket_status": provider_ticket_status_filter,
+            },
+            "limit": normalized_limit,
+            "requested_job_ids_total": len(normalized_job_ids),
+            "selected_jobs_total": len(selected_job_ids),
+            "created_jobs_total": len(created_jobs),
+            "created_jobs": created_jobs,
+            "skipped_not_found_total": len(skipped_not_found),
+            "skipped_not_found_job_ids": skipped_not_found,
+            "skipped_non_failed_total": len(skipped_non_failed),
+            "skipped_non_failed_job_ids": skipped_non_failed,
+            "skipped_missing_incident_total": len(skipped_missing_incident),
+            "skipped_missing_incident_job_ids": skipped_missing_incident,
+            "errors_total": len(enqueue_errors),
+            "errors": enqueue_errors,
+        }
+
+    def get_breakage_helpdesk_failure_replay_batch(
+        self,
+        batch_id: str,
+        *,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
+        normalized_batch_id = str(batch_id or "").strip()
+        if not normalized_batch_id:
+            raise ValueError("batch_id must not be empty")
+        normalized_page = self._normalize_page(page)
+        normalized_page_size = self._normalize_page_size(page_size)
+        rows = self._collect_breakage_helpdesk_replay_rows(
+            batch_id_filter=normalized_batch_id,
+        )
+        if not rows:
+            raise ValueError(f"Replay batch not found: {normalized_batch_id}")
+        by_job_status: Counter[str] = Counter(str(row.get("status") or "unknown") for row in rows)
+        by_sync_status: Counter[str] = Counter(
+            str(row.get("sync_status") or "unknown") for row in rows
+        )
+        by_provider: Counter[str] = Counter(str(row.get("provider") or "unknown") for row in rows)
+        by_failure_category: Counter[str] = Counter(
+            str(row.get("failure_category") or "unknown") for row in rows
+        )
+        requested_by_ids = sorted(
+            {
+                int(row.get("requested_by_id"))
+                for row in rows
+                if row.get("requested_by_id") is not None
+            }
+        )
+        requested_totals = [
+            int(row.get("requested_total"))
+            for row in rows
+            if row.get("requested_total") is not None and int(row.get("requested_total")) >= 0
+        ]
+        duration_values = [
+            float(row.get("_duration_seconds"))
+            for row in rows
+            if row.get("_duration_seconds") is not None
+        ]
+        display_rows = [
+            {key: value for key, value in row.items() if not key.startswith("_")}
+            for row in rows
+        ]
+        paged = self._paginate(display_rows, page=normalized_page, page_size=normalized_page_size)
+        return {
+            "generated_at": _utcnow().isoformat(),
+            "batch_id": normalized_batch_id,
+            "total": int(paged["total"]),
+            "pagination": {
+                "page": int(paged["page"]),
+                "page_size": int(paged["page_size"]),
+                "pages": int(paged["pages"]),
+                "total": int(paged["total"]),
+            },
+            "requested_total": (
+                int(max(requested_totals))
+                if requested_totals
+                else int(paged["total"])
+            ),
+            "requested_by_ids": requested_by_ids,
+            "by_job_status": dict(by_job_status),
+            "by_sync_status": dict(by_sync_status),
+            "by_provider": dict(by_provider),
+            "by_failure_category": dict(by_failure_category),
+            "duration_seconds": self._duration_stats(duration_values),
+            "jobs": paged["rows"],
+        }
+
+    def list_breakage_helpdesk_failure_replay_batches(
+        self,
+        *,
+        window_days: int = 7,
+        provider: Optional[str] = None,
+        job_status: Optional[str] = None,
+        sync_status: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        normalized_page = self._normalize_page(page)
+        normalized_page_size = self._normalize_page_size(page_size)
+        provider_filter = str(provider or "").strip().lower() or None
+        job_status_filter = str(job_status or "").strip().lower() or None
+        sync_status_filter = str(sync_status or "").strip().lower() or None
+        if job_status_filter and job_status_filter not in {
+            JobStatus.PENDING.value,
+            JobStatus.PROCESSING.value,
+            JobStatus.COMPLETED.value,
+            JobStatus.FAILED.value,
+            JobStatus.CANCELLED.value,
+            "unknown",
+        }:
+            raise ValueError(
+                "job_status must be one of: cancelled, completed, failed, pending, processing, unknown"
+            )
+        if sync_status_filter and sync_status_filter not in {
+            JobStatus.PENDING.value,
+            JobStatus.PROCESSING.value,
+            JobStatus.COMPLETED.value,
+            JobStatus.FAILED.value,
+            JobStatus.CANCELLED.value,
+            "queued",
+            "unknown",
+        }:
+            raise ValueError(
+                "sync_status must be one of: cancelled, completed, failed, pending, processing, queued, unknown"
+            )
+        since = self._window_since(normalized_window)
+        rows = self._collect_breakage_helpdesk_replay_rows(
+            since=since,
+            provider_filter=provider_filter,
+            job_status_filter=job_status_filter,
+            sync_status_filter=sync_status_filter,
+        )
+
+        overall_by_job_status: Counter[str] = Counter(
+            str(row.get("status") or "unknown") for row in rows
+        )
+        overall_by_sync_status: Counter[str] = Counter(
+            str(row.get("sync_status") or "unknown") for row in rows
+        )
+        overall_by_provider: Counter[str] = Counter(
+            str(row.get("provider") or "unknown") for row in rows
+        )
+        overall_by_failure_category: Counter[str] = Counter(
+            str(row.get("failure_category") or "unknown") for row in rows
+        )
+
+        grouped: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            batch_id = str(row.get("batch_id") or "").strip()
+            if not batch_id:
+                continue
+            bucket = grouped.setdefault(
+                batch_id,
+                {
+                    "batch_id": batch_id,
+                    "rows": [],
+                    "by_job_status": Counter(),
+                    "by_sync_status": Counter(),
+                    "by_provider": Counter(),
+                    "by_failure_category": Counter(),
+                    "requested_by_ids": set(),
+                    "requested_totals": [],
+                    "duration_values": [],
+                    "first_created_at_dt": None,
+                    "last_created_at_dt": None,
+                    "first_requested_at_dt": None,
+                    "last_requested_at_dt": None,
+                },
+            )
+            bucket["rows"].append(row)
+            job_status_value = str(row.get("status") or "unknown")
+            sync_status_value = str(row.get("sync_status") or "unknown")
+            provider_value = str(row.get("provider") or "unknown")
+            failure_category_value = str(row.get("failure_category") or "unknown")
+            bucket["by_job_status"][job_status_value] += 1
+            bucket["by_sync_status"][sync_status_value] += 1
+            bucket["by_provider"][provider_value] += 1
+            bucket["by_failure_category"][failure_category_value] += 1
+            requested_by_id = row.get("requested_by_id")
+            if requested_by_id is not None:
+                bucket["requested_by_ids"].add(int(requested_by_id))
+            requested_total = row.get("requested_total")
+            if requested_total is not None and int(requested_total) >= 0:
+                bucket["requested_totals"].append(int(requested_total))
+            duration_value = row.get("_duration_seconds")
+            if duration_value is not None:
+                bucket["duration_values"].append(float(duration_value))
+            created_dt = row.get("_created_at_dt")
+            requested_dt = row.get("_requested_at_dt")
+            if created_dt is not None:
+                if bucket["first_created_at_dt"] is None or created_dt < bucket["first_created_at_dt"]:
+                    bucket["first_created_at_dt"] = created_dt
+                if bucket["last_created_at_dt"] is None or created_dt > bucket["last_created_at_dt"]:
+                    bucket["last_created_at_dt"] = created_dt
+            if requested_dt is not None:
+                if (
+                    bucket["first_requested_at_dt"] is None
+                    or requested_dt < bucket["first_requested_at_dt"]
+                ):
+                    bucket["first_requested_at_dt"] = requested_dt
+                if (
+                    bucket["last_requested_at_dt"] is None
+                    or requested_dt > bucket["last_requested_at_dt"]
+                ):
+                    bucket["last_requested_at_dt"] = requested_dt
+
+        summaries: List[Dict[str, Any]] = []
+        for batch_id, bucket in grouped.items():
+            by_job_status = bucket["by_job_status"]
+            jobs_total = int(sum(by_job_status.values()))
+            failed_jobs = int(by_job_status.get(JobStatus.FAILED.value, 0))
+            completed_jobs = int(by_job_status.get(JobStatus.COMPLETED.value, 0))
+            pending_jobs = int(by_job_status.get(JobStatus.PENDING.value, 0))
+            processing_jobs = int(by_job_status.get(JobStatus.PROCESSING.value, 0))
+            first_requested_at_dt = (
+                bucket["first_requested_at_dt"] or bucket["first_created_at_dt"]
+            )
+            last_requested_at_dt = (
+                bucket["last_requested_at_dt"] or bucket["last_created_at_dt"]
+            )
+            first_created_at_dt = bucket["first_created_at_dt"]
+            last_created_at_dt = bucket["last_created_at_dt"]
+            summaries.append(
+                {
+                    "batch_id": batch_id,
+                    "jobs_total": jobs_total,
+                    "requested_total": (
+                        int(max(bucket["requested_totals"]))
+                        if bucket["requested_totals"]
+                        else jobs_total
+                    ),
+                    "requested_by_ids": sorted(bucket["requested_by_ids"]),
+                    "by_job_status": dict(by_job_status),
+                    "by_sync_status": dict(bucket["by_sync_status"]),
+                    "by_provider": dict(bucket["by_provider"]),
+                    "by_failure_category": dict(bucket["by_failure_category"]),
+                    "failed_jobs": failed_jobs,
+                    "completed_jobs": completed_jobs,
+                    "pending_jobs": pending_jobs,
+                    "processing_jobs": processing_jobs,
+                    "failed_rate": self._safe_ratio(failed_jobs, jobs_total),
+                    "duration_seconds": self._duration_stats(bucket["duration_values"]),
+                    "first_requested_at": (
+                        first_requested_at_dt.isoformat()
+                        if first_requested_at_dt is not None
+                        else None
+                    ),
+                    "last_requested_at": (
+                        last_requested_at_dt.isoformat()
+                        if last_requested_at_dt is not None
+                        else None
+                    ),
+                    "first_created_at": (
+                        first_created_at_dt.isoformat()
+                        if first_created_at_dt is not None
+                        else None
+                    ),
+                    "last_created_at": (
+                        last_created_at_dt.isoformat()
+                        if last_created_at_dt is not None
+                        else None
+                    ),
+                    "_sort_dt": (
+                        last_requested_at_dt
+                        or last_created_at_dt
+                        or first_requested_at_dt
+                        or first_created_at_dt
+                    ),
+                }
+            )
+
+        summaries.sort(
+            key=lambda row: (
+                row.get("_sort_dt") is not None,
+                row.get("_sort_dt"),
+                row.get("batch_id"),
+            ),
+            reverse=True,
+        )
+        display_summaries = [
+            {key: value for key, value in row.items() if key != "_sort_dt"}
+            for row in summaries
+        ]
+        paged = self._paginate(
+            display_summaries,
+            page=normalized_page,
+            page_size=normalized_page_size,
+        )
+        return {
+            "generated_at": _utcnow().isoformat(),
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "filters": {
+                "provider": provider_filter,
+                "job_status": job_status_filter,
+                "sync_status": sync_status_filter,
+            },
+            "total_batches": int(paged["total"]),
+            "total_jobs": int(len(rows)),
+            "pagination": {
+                "page": int(paged["page"]),
+                "page_size": int(paged["page_size"]),
+                "pages": int(paged["pages"]),
+                "total": int(paged["total"]),
+            },
+            "by_job_status": dict(overall_by_job_status),
+            "by_sync_status": dict(overall_by_sync_status),
+            "by_provider": dict(overall_by_provider),
+            "by_failure_category": dict(overall_by_failure_category),
+            "batches": paged["rows"],
+        }
+
+    def export_breakage_helpdesk_failure_replay_batch(
+        self,
+        batch_id: str,
+        *,
+        export_format: str = "json",
+    ) -> Dict[str, Any]:
+        normalized_batch_id = str(batch_id or "").strip()
+        if not normalized_batch_id:
+            raise ValueError("batch_id must not be empty")
+        rows = self._collect_breakage_helpdesk_replay_rows(
+            batch_id_filter=normalized_batch_id,
+        )
+        if not rows:
+            raise ValueError(f"Replay batch not found: {normalized_batch_id}")
+
+        by_job_status: Counter[str] = Counter(str(row.get("status") or "unknown") for row in rows)
+        by_sync_status: Counter[str] = Counter(
+            str(row.get("sync_status") or "unknown") for row in rows
+        )
+        by_provider: Counter[str] = Counter(str(row.get("provider") or "unknown") for row in rows)
+        by_failure_category: Counter[str] = Counter(
+            str(row.get("failure_category") or "unknown") for row in rows
+        )
+        requested_by_ids = sorted(
+            {
+                int(row.get("requested_by_id"))
+                for row in rows
+                if row.get("requested_by_id") is not None
+            }
+        )
+        requested_totals = [
+            int(row.get("requested_total"))
+            for row in rows
+            if row.get("requested_total") is not None and int(row.get("requested_total")) >= 0
+        ]
+        duration_values = [
+            float(row.get("_duration_seconds"))
+            for row in rows
+            if row.get("_duration_seconds") is not None
+        ]
+        display_rows = [
+            {key: value for key, value in row.items() if not key.startswith("_")}
+            for row in rows
+        ]
+        payload = {
+            "generated_at": _utcnow().isoformat(),
+            "batch_id": normalized_batch_id,
+            "total": len(display_rows),
+            "requested_total": (
+                int(max(requested_totals))
+                if requested_totals
+                else int(len(display_rows))
+            ),
+            "requested_by_ids": requested_by_ids,
+            "by_job_status": dict(by_job_status),
+            "by_sync_status": dict(by_sync_status),
+            "by_provider": dict(by_provider),
+            "by_failure_category": dict(by_failure_category),
+            "duration_seconds": self._duration_stats(duration_values),
+            "jobs": display_rows,
+        }
+        normalized = str(export_format or "json").strip().lower()
+        if normalized == "json":
+            return {
+                "content": json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"),
+                "media_type": "application/json",
+                "filename": f"parallel-ops-breakage-helpdesk-replay-batch-{normalized_batch_id}.json",
+            }
+        if normalized == "csv":
+            csv_io = io.StringIO()
+            writer = csv.DictWriter(
+                csv_io,
+                fieldnames=[
+                    "batch_id",
+                    "job_id",
+                    "source_job_id",
+                    "replay_index",
+                    "incident_id",
+                    "provider",
+                    "sync_status",
+                    "status",
+                    "failure_category",
+                    "idempotency_key",
+                    "requested_at",
+                    "requested_by_id",
+                    "requested_total",
+                    "archived",
+                    "archived_at",
+                    "attempt_count",
+                    "max_attempts",
+                    "last_error",
+                    "duration_seconds",
+                    "created_at",
+                    "started_at",
+                    "completed_at",
+                ],
+            )
+            writer.writeheader()
+            for row in display_rows:
+                writer.writerow(row)
+            return {
+                "content": csv_io.getvalue().encode("utf-8"),
+                "media_type": "text/csv",
+                "filename": f"parallel-ops-breakage-helpdesk-replay-batch-{normalized_batch_id}.csv",
+            }
+        if normalized == "md":
+            lines = [
+                "# Parallel Ops Breakage Helpdesk Replay Batch",
+                "",
+                f"- generated_at: {payload.get('generated_at') or ''}",
+                f"- batch_id: {normalized_batch_id}",
+                f"- total: {payload.get('total') or 0}",
+                f"- requested_total: {payload.get('requested_total') or 0}",
+                f"- requested_by_ids: {','.join(str(v) for v in requested_by_ids)}",
+                "",
+                "| Replay Job ID | Source Job ID | Provider | Sync Status | Status | Failure Category | Requested At |",
+                "| --- | --- | --- | --- | --- | --- | --- |",
+            ]
+            for row in display_rows:
+                lines.append(
+                    "| "
+                    f"{row.get('job_id') or ''} | "
+                    f"{row.get('source_job_id') or ''} | "
+                    f"{row.get('provider') or ''} | "
+                    f"{row.get('sync_status') or ''} | "
+                    f"{row.get('status') or ''} | "
+                    f"{row.get('failure_category') or ''} | "
+                    f"{row.get('requested_at') or ''} |"
+                )
+            return {
+                "content": ("\n".join(lines) + "\n").encode("utf-8"),
+                "media_type": "text/markdown",
+                "filename": f"parallel-ops-breakage-helpdesk-replay-batch-{normalized_batch_id}.md",
+            }
+        raise ValueError("export_format must be json, csv or md")
+
+    def breakage_helpdesk_replay_trends(
+        self,
+        *,
+        window_days: int = 7,
+        bucket_days: int = 1,
+        provider: Optional[str] = None,
+        job_status: Optional[str] = None,
+        sync_status: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        normalized_bucket = self._normalize_bucket_days(bucket_days)
+        if normalized_bucket > normalized_window:
+            raise ValueError("bucket_days must be <= window_days")
+
+        provider_filter = str(provider or "").strip().lower() or None
+        job_status_filter = str(job_status or "").strip().lower() or None
+        sync_status_filter = str(sync_status or "").strip().lower() or None
+        if job_status_filter and job_status_filter not in {
+            JobStatus.PENDING.value,
+            JobStatus.PROCESSING.value,
+            JobStatus.COMPLETED.value,
+            JobStatus.FAILED.value,
+            JobStatus.CANCELLED.value,
+            "unknown",
+        }:
+            raise ValueError(
+                "job_status must be one of: cancelled, completed, failed, pending, processing, unknown"
+            )
+        if sync_status_filter and sync_status_filter not in {
+            JobStatus.PENDING.value,
+            JobStatus.PROCESSING.value,
+            JobStatus.COMPLETED.value,
+            JobStatus.FAILED.value,
+            JobStatus.CANCELLED.value,
+            "queued",
+            "unknown",
+        }:
+            raise ValueError(
+                "sync_status must be one of: cancelled, completed, failed, pending, processing, queued, unknown"
+            )
+
+        since = self._window_since(normalized_window)
+        now = _utcnow()
+        bucket_span = timedelta(days=normalized_bucket)
+        bucket_seconds = float(bucket_span.total_seconds())
+
+        points: List[Dict[str, Any]] = []
+        cursor = since
+        while cursor < now:
+            bucket_end = min(cursor + bucket_span, now)
+            points.append(
+                {
+                    "bucket_start": cursor.isoformat(),
+                    "bucket_end": bucket_end.isoformat(),
+                    "total_jobs": 0,
+                    "failed_jobs": 0,
+                    "batches_total": 0,
+                    "_batch_ids": set(),
+                    "_by_job_status": Counter(),
+                    "_by_sync_status": Counter(),
+                    "_by_provider": Counter(),
+                }
+            )
+            cursor = bucket_end
+        if not points:
+            points.append(
+                {
+                    "bucket_start": since.isoformat(),
+                    "bucket_end": now.isoformat(),
+                    "total_jobs": 0,
+                    "failed_jobs": 0,
+                    "batches_total": 0,
+                    "_batch_ids": set(),
+                    "_by_job_status": Counter(),
+                    "_by_sync_status": Counter(),
+                    "_by_provider": Counter(),
+                }
+            )
+
+        def bucket_index(created_at: Optional[datetime]) -> Optional[int]:
+            if created_at is None:
+                return None
+            delta = (created_at - since).total_seconds()
+            if delta < 0:
+                return None
+            idx = int(delta // bucket_seconds) if bucket_seconds > 0 else 0
+            if idx < 0:
+                return None
+            if idx >= len(points):
+                return len(points) - 1
+            return idx
+
+        rows = self._collect_breakage_helpdesk_replay_rows(
+            since=since,
+            provider_filter=provider_filter,
+            job_status_filter=job_status_filter,
+            sync_status_filter=sync_status_filter,
+        )
+        by_provider: Counter[str] = Counter()
+        by_job_status: Counter[str] = Counter()
+        by_sync_status: Counter[str] = Counter()
+        all_batch_ids: set[str] = set()
+        for row in rows:
+            idx = bucket_index(row.get("_created_at_dt"))
+            if idx is None:
+                continue
+            status_value = str(row.get("status") or "unknown")
+            sync_status_value = str(row.get("sync_status") or "unknown")
+            provider_value = str(row.get("provider") or "unknown")
+            batch_id = str(row.get("batch_id") or "").strip()
+            point = points[idx]
+            point["total_jobs"] += 1
+            point["_by_job_status"][status_value] += 1
+            point["_by_sync_status"][sync_status_value] += 1
+            point["_by_provider"][provider_value] += 1
+            if batch_id:
+                point["_batch_ids"].add(batch_id)
+                all_batch_ids.add(batch_id)
+            if status_value == JobStatus.FAILED.value or sync_status_value == JobStatus.FAILED.value:
+                point["failed_jobs"] += 1
+
+            by_provider[provider_value] += 1
+            by_job_status[status_value] += 1
+            by_sync_status[sync_status_value] += 1
+
+        for point in points:
+            point["batches_total"] = len(point.pop("_batch_ids", set()))
+            point["by_job_status"] = dict(point.pop("_by_job_status", Counter()))
+            point["by_sync_status"] = dict(point.pop("_by_sync_status", Counter()))
+            point["by_provider"] = dict(point.pop("_by_provider", Counter()))
+            point["failed_rate"] = self._safe_ratio(
+                int(point.get("failed_jobs") or 0),
+                int(point.get("total_jobs") or 0),
+            )
+
+        total_jobs = int(sum(int(point.get("total_jobs") or 0) for point in points))
+        failed_jobs = int(sum(int(point.get("failed_jobs") or 0) for point in points))
+        return {
+            "generated_at": now.isoformat(),
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "bucket_days": normalized_bucket,
+            "filters": {
+                "provider": provider_filter,
+                "job_status": job_status_filter,
+                "sync_status": sync_status_filter,
+            },
+            "points": points,
+            "aggregates": {
+                "total_jobs": total_jobs,
+                "failed_jobs": failed_jobs,
+                "failed_rate": self._safe_ratio(failed_jobs, total_jobs),
+                "total_batches": int(len(all_batch_ids)),
+            },
+            "by_provider": dict(by_provider),
+            "by_job_status": dict(by_job_status),
+            "by_sync_status": dict(by_sync_status),
+        }
+
+    def _breakage_helpdesk_replay_trend_export_rows(
+        self,
+        trends: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        rows: List[Dict[str, Any]] = []
+        for row in trends.get("points") or []:
+            if not isinstance(row, dict):
+                continue
+            rows.append(
+                {
+                    "bucket_start": row.get("bucket_start"),
+                    "bucket_end": row.get("bucket_end"),
+                    "total_jobs": row.get("total_jobs"),
+                    "failed_jobs": row.get("failed_jobs"),
+                    "failed_rate": row.get("failed_rate"),
+                    "batches_total": row.get("batches_total"),
+                }
+            )
+        return rows
+
+    def export_breakage_helpdesk_replay_trends(
+        self,
+        *,
+        window_days: int = 7,
+        bucket_days: int = 1,
+        provider: Optional[str] = None,
+        job_status: Optional[str] = None,
+        sync_status: Optional[str] = None,
+        export_format: str = "json",
+    ) -> Dict[str, Any]:
+        trends = self.breakage_helpdesk_replay_trends(
+            window_days=window_days,
+            bucket_days=bucket_days,
+            provider=provider,
+            job_status=job_status,
+            sync_status=sync_status,
+        )
+        normalized = str(export_format or "json").strip().lower()
+        if normalized == "json":
+            content = json.dumps(trends, ensure_ascii=False, indent=2).encode("utf-8")
+            return {
+                "content": content,
+                "media_type": "application/json",
+                "filename": "parallel-ops-breakage-helpdesk-replay-trends.json",
+            }
+
+        rows = self._breakage_helpdesk_replay_trend_export_rows(trends)
+        if normalized == "csv":
+            csv_io = io.StringIO()
+            writer = csv.DictWriter(
+                csv_io,
+                fieldnames=[
+                    "bucket_start",
+                    "bucket_end",
+                    "total_jobs",
+                    "failed_jobs",
+                    "failed_rate",
+                    "batches_total",
+                ],
+            )
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+            return {
+                "content": csv_io.getvalue().encode("utf-8"),
+                "media_type": "text/csv",
+                "filename": "parallel-ops-breakage-helpdesk-replay-trends.csv",
+            }
+
+        if normalized == "md":
+            lines = [
+                "# Parallel Ops Breakage Helpdesk Replay Trends",
+                "",
+                f"- generated_at: {trends.get('generated_at') or ''}",
+                f"- window_days: {trends.get('window_days') or ''}",
+                f"- bucket_days: {trends.get('bucket_days') or ''}",
+                f"- window_since: {trends.get('window_since') or ''}",
+                "",
+                "| Bucket Start | Bucket End | Total Jobs | Failed Jobs | Failed Rate | Batches Total |",
+                "| --- | --- | --- | --- | --- | --- |",
+            ]
+            for row in rows:
+                lines.append(
+                    "| "
+                    f"{row.get('bucket_start') or ''} | "
+                    f"{row.get('bucket_end') or ''} | "
+                    f"{row.get('total_jobs') or 0} | "
+                    f"{row.get('failed_jobs') or 0} | "
+                    f"{row.get('failed_rate') if row.get('failed_rate') is not None else ''} | "
+                    f"{row.get('batches_total') or 0} |"
+                )
+            return {
+                "content": ("\n".join(lines) + "\n").encode("utf-8"),
+                "media_type": "text/markdown",
+                "filename": "parallel-ops-breakage-helpdesk-replay-trends.md",
+            }
+        raise ValueError("export_format must be json, csv or md")
+
+    def cleanup_breakage_helpdesk_failure_replay_batches(
+        self,
+        *,
+        ttl_hours: int = 168,
+        limit: int = 200,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        normalized_ttl_hours = self._normalize_cleanup_ttl_hours(ttl_hours)
+        normalized_limit = self._normalize_cleanup_limit(limit)
+        now = _utcnow()
+        cutoff = now - timedelta(hours=normalized_ttl_hours)
+
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type == self._BREAKAGE_HELPDESK_TASK_TYPE)
+            .filter(ConversionJob.created_at.isnot(None))
+            .filter(ConversionJob.created_at <= cutoff)
+            .order_by(ConversionJob.created_at.asc(), ConversionJob.id.asc())
+            .all()
+        )
+
+        terminal_statuses = {
+            JobStatus.COMPLETED.value,
+            JobStatus.FAILED.value,
+            JobStatus.CANCELLED.value,
+        }
+        archived_jobs = 0
+        scanned_jobs = 0
+        skipped_non_terminal_total = 0
+        skipped_already_archived_total = 0
+        batch_ids: set[str] = set()
+        job_ids: List[str] = []
+
+        for job in jobs:
+            if archived_jobs >= normalized_limit:
+                break
+            scanned_jobs += 1
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+            replay = metadata.get("replay") if isinstance(metadata.get("replay"), dict) else {}
+            batch_id = str(replay.get("batch_id") or "").strip()
+            if not batch_id:
+                continue
+            if bool(replay.get("archived")):
+                skipped_already_archived_total += 1
+                continue
+            helpdesk_sync = (
+                payload.get("helpdesk_sync")
+                if isinstance(payload.get("helpdesk_sync"), dict)
+                else {}
+            )
+            result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+            job_status = str(job.status or "").strip().lower()
+            sync_status = (
+                str(
+                    helpdesk_sync.get("sync_status")
+                    or result.get("sync_status")
+                    or payload.get("sync_status")
+                    or job_status
+                )
+                .strip()
+                .lower()
+            )
+            if job_status not in terminal_statuses or sync_status not in terminal_statuses:
+                skipped_non_terminal_total += 1
+                continue
+            if not dry_run:
+                replay["archived"] = True
+                replay["archived_at"] = now.isoformat()
+                replay["archive_reason"] = "ttl_expired"
+                replay["archive_ttl_hours"] = normalized_ttl_hours
+                metadata["replay"] = replay
+                payload["metadata"] = metadata
+                job.payload = payload
+                self.session.add(job)
+
+            archived_jobs += 1
+            batch_ids.add(batch_id)
+            job_ids.append(str(job.id))
+
+        if archived_jobs > 0 and not dry_run:
+            self.session.flush()
+        return {
+            "generated_at": now.isoformat(),
+            "ttl_hours": normalized_ttl_hours,
+            "limit": normalized_limit,
+            "dry_run": bool(dry_run),
+            "cutoff_at": cutoff.isoformat(),
+            "archived_jobs": int(archived_jobs),
+            "archived_batches": int(len(batch_ids)),
+            "batch_ids": sorted(batch_ids),
+            "job_ids": job_ids,
+            "scanned_jobs": int(scanned_jobs),
+            "skipped_non_terminal_total": int(skipped_non_terminal_total),
+            "skipped_already_archived_total": int(skipped_already_archived_total),
+        }
+
+    def export_breakage_helpdesk_failures(
+        self,
+        *,
+        window_days: int = 7,
+        provider: Optional[str] = None,
+        failure_category: Optional[str] = None,
+        provider_ticket_status: Optional[str] = None,
+        export_format: str = "json",
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        since = self._window_since(normalized_window)
+        provider_filter = str(provider or "").strip().lower() or None
+        category_filter = str(failure_category or "").strip().lower() or None
+        provider_ticket_status_filter = (
+            str(provider_ticket_status or "").strip().lower() or None
+        )
+
+        raw_rows = self._collect_breakage_helpdesk_rows(
+            since=since,
+            provider_filter=provider_filter,
+            provider_ticket_status_filter=provider_ticket_status_filter,
+        )
+        rows: List[Dict[str, Any]] = []
+        by_provider: Counter[str] = Counter()
+        by_failure_category: Counter[str] = Counter()
+        by_provider_ticket_status: Counter[str] = Counter()
+        for raw_row in raw_rows:
+            if not bool(raw_row.get("_is_failed")):
+                continue
+            failure_category_value = str(raw_row.get("failure_category") or "unknown")
+            if category_filter and failure_category_value != category_filter:
+                continue
+            provider_value = str(raw_row.get("provider") or "unknown")
+            provider_ticket_status_value = (
+                str(raw_row.get("provider_ticket_status") or "").strip().lower() or "none"
+            )
+            by_provider[provider_value] += 1
+            by_failure_category[failure_category_value] += 1
+            by_provider_ticket_status[provider_ticket_status_value] += 1
+            rows.append(
+                {
+                    key: value
+                    for key, value in raw_row.items()
+                    if key not in {"_is_failed", "_created_at_dt"}
+                }
+            )
+
+        payload = {
+            "generated_at": _utcnow().isoformat(),
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "provider_filter": provider_filter,
+            "failure_category_filter": category_filter,
+            "provider_ticket_status_filter": provider_ticket_status_filter,
+            "total": len(rows),
+            "by_provider": dict(by_provider),
+            "by_failure_category": dict(by_failure_category),
+            "by_provider_ticket_status": dict(by_provider_ticket_status),
+            "jobs": rows,
+        }
+        normalized = str(export_format or "json").strip().lower()
+        if normalized == "json":
+            return {
+                "content": json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"),
+                "media_type": "application/json",
+                "filename": "parallel-ops-breakage-helpdesk-failures.json",
+            }
+        if normalized == "csv":
+            csv_io = io.StringIO()
+            writer = csv.DictWriter(
+                csv_io,
+                fieldnames=[
+                    "id",
+                    "incident_id",
+                    "provider",
+                    "sync_status",
+                    "failure_category",
+                    "error_code",
+                    "error_message",
+                    "provider_ticket_status",
+                    "triage_status",
+                    "triage_owner",
+                    "triage_root_cause",
+                    "triage_resolution",
+                    "triage_note",
+                    "triage_updated_at",
+                    "triage_updated_by_id",
+                    "external_ticket_id",
+                    "task_type",
+                    "status",
+                    "attempt_count",
+                    "max_attempts",
+                    "last_error",
+                    "dedupe_key",
+                    "created_at",
+                    "started_at",
+                    "completed_at",
+                ],
+            )
+            writer.writeheader()
+            for row in rows:
+                writer.writerow(row)
+            return {
+                "content": csv_io.getvalue().encode("utf-8"),
+                "media_type": "text/csv",
+                "filename": "parallel-ops-breakage-helpdesk-failures.csv",
+            }
+        md_content = None
+        if normalized == "md":
+            lines = [
+                "# Parallel Ops Breakage Helpdesk Failures",
+                "",
+                f"- generated_at: {payload.get('generated_at') or ''}",
+                f"- window_days: {payload.get('window_days') or ''}",
+                f"- window_since: {payload.get('window_since') or ''}",
+                f"- provider_filter: {provider_filter or ''}",
+                f"- failure_category_filter: {category_filter or ''}",
+                f"- provider_ticket_status_filter: {provider_ticket_status_filter or ''}",
+                f"- total: {len(rows)}",
+                "",
+                "| Job ID | Incident ID | Provider | Failure Category | Error Code | Status | Created At |",
+                "| --- | --- | --- | --- | --- | --- | --- |",
+            ]
+            for row in rows:
+                lines.append(
+                    "| "
+                    f"{row.get('id') or ''} | "
+                    f"{row.get('incident_id') or ''} | "
+                    f"{row.get('provider') or ''} | "
+                    f"{row.get('failure_category') or ''} | "
+                    f"{row.get('error_code') or ''} | "
+                    f"{row.get('status') or ''} | "
+                    f"{row.get('created_at') or ''} |"
+                )
+            md_content = ("\n".join(lines) + "\n").encode("utf-8")
+            return {
+                "content": md_content,
+                "media_type": "text/markdown",
+                "filename": "parallel-ops-breakage-helpdesk-failures.md",
+            }
+        if normalized == "zip":
+            csv_export = self.export_breakage_helpdesk_failures(
+                window_days=window_days,
+                provider=provider,
+                failure_category=failure_category,
+                provider_ticket_status=provider_ticket_status,
+                export_format="csv",
+            )
+            if md_content is None:
+                md_export = self.export_breakage_helpdesk_failures(
+                    window_days=window_days,
+                    provider=provider,
+                    failure_category=failure_category,
+                    provider_ticket_status=provider_ticket_status,
+                    export_format="md",
+                )
+                md_content = md_export["content"]
+            zip_io = io.BytesIO()
+            with ZipFile(zip_io, mode="w", compression=ZIP_DEFLATED) as zf:
+                zf.writestr(
+                    "failures.json",
+                    json.dumps(payload, ensure_ascii=False, indent=2),
+                )
+                zf.writestr(
+                    "failures.csv",
+                    (csv_export.get("content") or b"").decode("utf-8"),
+                )
+                zf.writestr(
+                    "summary.md",
+                    (md_content or b"").decode("utf-8"),
+                )
+            return {
+                "content": zip_io.getvalue(),
+                "media_type": "application/zip",
+                "filename": "parallel-ops-breakage-helpdesk-failures.zip",
+            }
+        raise ValueError("export_format must be json, csv, md or zip")
+
+    def _build_breakage_helpdesk_failures_export_job_dedupe_key(
+        self,
+        *,
+        window_days: int,
+        provider: Optional[str],
+        failure_category: Optional[str],
+        provider_ticket_status: Optional[str],
+        export_format: str,
+    ) -> str:
+        token = _stable_hash(
+            [
+                str(window_days),
+                str(provider or ""),
+                str(failure_category or ""),
+                str(provider_ticket_status or ""),
+                str(export_format or ""),
+            ]
+        )
+        return f"parallel-ops-breakage-helpdesk-failures-export:{token}"
+
+    def _get_breakage_helpdesk_failures_export_job(self, job_id: str) -> ConversionJob:
+        job = self.session.get(ConversionJob, job_id)
+        if (
+            not job
+            or str(job.task_type or "") != self._BREAKAGE_HELPDESK_FAILURE_EXPORT_TASK_TYPE
+        ):
+            raise ValueError(f"Parallel ops breakage-helpdesk export job not found: {job_id}")
+        return job
+
+    def _build_breakage_helpdesk_failures_export_job_view(
+        self, job: ConversionJob
+    ) -> Dict[str, Any]:
+        payload = job.payload if isinstance(job.payload, dict) else {}
+        filters = payload.get("filters") if isinstance(payload.get("filters"), dict) else {}
+        export_info = payload.get("export") if isinstance(payload.get("export"), dict) else {}
+        export_result = (
+            payload.get("export_result")
+            if isinstance(payload.get("export_result"), dict)
+            else {}
+        )
+        size_bytes = export_result.get("size_bytes")
+        try:
+            result_size = int(size_bytes) if size_bytes is not None else None
+        except Exception:
+            result_size = None
+        attempt_count = int(job.attempt_count or 0)
+        max_attempts = int(job.max_attempts or 0)
+        return {
+            "job_id": job.id,
+            "task_type": job.task_type,
+            "status": job.status,
+            "sync_status": (
+                str(export_info.get("sync_status") or "").strip().lower()
+                or str(job.status or "").strip().lower()
+            ),
+            "filters": filters,
+            "export_format": payload.get("export_format"),
+            "filename": export_result.get("filename"),
+            "media_type": export_result.get("media_type"),
+            "result_size_bytes": result_size,
+            "download_ready": bool(
+                str(job.status or "") == JobStatus.COMPLETED.value
+                and export_result.get("content_b64")
+            ),
+            "last_error": job.last_error,
+            "attempt_count": attempt_count,
+            "max_attempts": max_attempts,
+            "retry_budget": {
+                "attempt_count": attempt_count,
+                "max_attempts": max_attempts,
+                "remaining_attempts": max(max_attempts - attempt_count, 0),
+            },
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "scheduled_at": job.scheduled_at.isoformat() if job.scheduled_at else None,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        }
+
+    def enqueue_breakage_helpdesk_failures_export_job(
+        self,
+        *,
+        window_days: int = 7,
+        provider: Optional[str] = None,
+        failure_category: Optional[str] = None,
+        provider_ticket_status: Optional[str] = None,
+        export_format: str = "json",
+        execute_immediately: bool = False,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        normalized_provider = str(provider or "").strip().lower() or None
+        normalized_failure_category = str(failure_category or "").strip().lower() or None
+        normalized_provider_ticket_status = (
+            str(provider_ticket_status or "").strip().lower() or None
+        )
+        normalized_format = self._normalize_breakage_helpdesk_export_format(export_format)
+        payload = {
+            "filters": {
+                "window_days": normalized_window,
+                "provider": normalized_provider,
+                "failure_category": normalized_failure_category,
+                "provider_ticket_status": normalized_provider_ticket_status,
+            },
+            "export_format": normalized_format,
+            "export": {
+                "sync_status": "queued",
+                "created_at": _utcnow().isoformat(),
+                "created_by_id": user_id,
+            },
+        }
+        dedupe_key = self._build_breakage_helpdesk_failures_export_job_dedupe_key(
+            window_days=normalized_window,
+            provider=normalized_provider,
+            failure_category=normalized_failure_category,
+            provider_ticket_status=normalized_provider_ticket_status,
+            export_format=normalized_format,
+        )
+        job = self._job_service.create_job(
+            task_type=self._BREAKAGE_HELPDESK_FAILURE_EXPORT_TASK_TYPE,
+            payload=payload,
+            user_id=user_id,
+            dedupe=True,
+            dedupe_key=dedupe_key,
+        )
+        if execute_immediately:
+            self.execute_breakage_helpdesk_failures_export_job(job.id, user_id=user_id)
+            refreshed = self.session.get(ConversionJob, job.id)
+            if refreshed:
+                job = refreshed
+        return self._build_breakage_helpdesk_failures_export_job_view(job)
+
+    def execute_breakage_helpdesk_failures_export_job(
+        self,
+        job_id: str,
+        *,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        job = self._get_breakage_helpdesk_failures_export_job(job_id)
+        payload = job.payload if isinstance(job.payload, dict) else {}
+        export_result = (
+            payload.get("export_result")
+            if isinstance(payload.get("export_result"), dict)
+            else {}
+        )
+        if (
+            str(job.status or "") == JobStatus.COMPLETED.value
+            and export_result.get("content_b64")
+        ):
+            return self._build_breakage_helpdesk_failures_export_job_view(job)
+
+        now = _utcnow()
+        filters = payload.get("filters") if isinstance(payload.get("filters"), dict) else {}
+        normalized_window = self._normalize_window_days(int(filters.get("window_days") or 7))
+        normalized_provider = str(filters.get("provider") or "").strip().lower() or None
+        normalized_failure_category = (
+            str(filters.get("failure_category") or "").strip().lower() or None
+        )
+        normalized_provider_ticket_status = (
+            str(filters.get("provider_ticket_status") or "").strip().lower() or None
+        )
+        normalized_format = self._normalize_breakage_helpdesk_export_format(
+            str(payload.get("export_format") or "json")
+        )
+
+        job.status = JobStatus.PROCESSING.value
+        job.started_at = now
+        job.attempt_count = int(job.attempt_count or 0) + 1
+        self.session.add(job)
+        self.session.flush()
+
+        try:
+            exported = self.export_breakage_helpdesk_failures(
+                window_days=normalized_window,
+                provider=normalized_provider,
+                failure_category=normalized_failure_category,
+                provider_ticket_status=normalized_provider_ticket_status,
+                export_format=normalized_format,
+            )
+            content_bytes = bytes(exported.get("content") or b"")
+            encoded_content = base64.b64encode(content_bytes).decode("ascii")
+            updated_payload = dict(payload)
+            updated_payload["filters"] = {
+                "window_days": normalized_window,
+                "provider": normalized_provider,
+                "failure_category": normalized_failure_category,
+                "provider_ticket_status": normalized_provider_ticket_status,
+            }
+            updated_payload["export"] = {
+                "sync_status": "completed",
+                "updated_at": now.isoformat(),
+                "updated_by_id": user_id,
+            }
+            updated_payload["export_result"] = {
+                "filename": exported.get("filename"),
+                "media_type": exported.get("media_type"),
+                "size_bytes": len(content_bytes),
+                "content_sha1": hashlib.sha1(content_bytes).hexdigest(),
+                "content_b64": encoded_content,
+            }
+            updated_payload["result"] = {
+                "filename": exported.get("filename"),
+                "media_type": exported.get("media_type"),
+                "size_bytes": len(content_bytes),
+                "updated_at": now.isoformat(),
+            }
+            job.payload = updated_payload
+            job.status = JobStatus.COMPLETED.value
+            job.completed_at = now
+            job.last_error = None
+            self.session.add(job)
+            self.session.flush()
+            return self._build_breakage_helpdesk_failures_export_job_view(job)
+        except Exception as exc:
+            updated_payload = dict(payload)
+            updated_payload["export"] = {
+                "sync_status": "failed",
+                "error_message": str(exc),
+                "updated_at": now.isoformat(),
+                "updated_by_id": user_id,
+            }
+            job.payload = updated_payload
+            job.status = JobStatus.FAILED.value
+            job.completed_at = now
+            job.last_error = str(exc)
+            self.session.add(job)
+            self.session.flush()
+            raise ValueError(str(exc))
+
+    def get_breakage_helpdesk_failures_export_job(self, job_id: str) -> Dict[str, Any]:
+        job = self._get_breakage_helpdesk_failures_export_job(job_id)
+        return self._build_breakage_helpdesk_failures_export_job_view(job)
+
+    def run_breakage_helpdesk_failures_export_job(
+        self,
+        job_id: str,
+        *,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        return self.execute_breakage_helpdesk_failures_export_job(job_id, user_id=user_id)
+
+    def download_breakage_helpdesk_failures_export_job(self, job_id: str) -> Dict[str, Any]:
+        job = self._get_breakage_helpdesk_failures_export_job(job_id)
+        if str(job.status or "") != JobStatus.COMPLETED.value:
+            raise ValueError(f"Export job is not completed yet: {job_id}")
+        payload = job.payload if isinstance(job.payload, dict) else {}
+        result = payload.get("export_result")
+        if not isinstance(result, dict):
+            raise ValueError(f"Export result payload missing for job: {job_id}")
+        encoded = result.get("content_b64")
+        if not encoded:
+            raise ValueError(f"Export content missing for job: {job_id}")
+        try:
+            decoded = base64.b64decode(str(encoded).encode("ascii"))
+        except Exception as exc:
+            raise ValueError(f"Export content decode failed for job: {job_id}") from exc
+        return {
+            "content": decoded,
+            "media_type": result.get("media_type") or "application/octet-stream",
+            "filename": result.get("filename") or "parallel-ops-breakage-helpdesk-failures.bin",
+        }
+
+    def cleanup_expired_breakage_helpdesk_failures_export_results(
+        self,
+        *,
+        ttl_hours: int = 24,
+        limit: int = 200,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        normalized_ttl_hours = self._normalize_cleanup_ttl_hours(ttl_hours)
+        normalized_limit = self._normalize_cleanup_limit(limit)
+        now = _utcnow()
+        cutoff = now - timedelta(hours=normalized_ttl_hours)
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type == self._BREAKAGE_HELPDESK_FAILURE_EXPORT_TASK_TYPE)
+            .filter(ConversionJob.status == JobStatus.COMPLETED.value)
+            .filter(ConversionJob.completed_at.isnot(None))
+            .filter(ConversionJob.completed_at <= cutoff)
+            .order_by(ConversionJob.completed_at.asc())
+            .limit(normalized_limit)
+            .all()
+        )
+        expired_jobs = 0
+        skipped_jobs = 0
+        touched_job_ids: List[str] = []
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            result = (
+                payload.get("export_result")
+                if isinstance(payload.get("export_result"), dict)
+                else {}
+            )
+            if not result.get("content_b64"):
+                skipped_jobs += 1
+                continue
+            updated_payload = dict(payload)
+            updated_result = dict(result)
+            updated_result.pop("content_b64", None)
+            updated_result["content_expired_at"] = now.isoformat()
+            updated_result["content_ttl_hours"] = normalized_ttl_hours
+            updated_payload["export_result"] = updated_result
+            export_info = (
+                updated_payload.get("export")
+                if isinstance(updated_payload.get("export"), dict)
+                else {}
+            )
+            export_info = dict(export_info)
+            export_info["sync_status"] = "expired"
+            export_info["content_expired_at"] = now.isoformat()
+            export_info["content_ttl_hours"] = normalized_ttl_hours
+            export_info["updated_by_id"] = user_id
+            updated_payload["export"] = export_info
+            job.payload = updated_payload
+            self.session.add(job)
+            expired_jobs += 1
+            touched_job_ids.append(str(job.id))
+        if expired_jobs:
+            self.session.flush()
+        return {
+            "ttl_hours": normalized_ttl_hours,
+            "limit": normalized_limit,
+            "expired_jobs": expired_jobs,
+            "skipped_jobs": skipped_jobs,
+            "job_ids": touched_job_ids,
+        }
+
+    def breakage_helpdesk_failures_export_jobs_overview(
+        self,
+        *,
+        window_days: int = 7,
+        provider: Optional[str] = None,
+        failure_category: Optional[str] = None,
+        export_format: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 20,
+    ) -> Dict[str, Any]:
+        normalized_window = self._normalize_window_days(window_days)
+        normalized_page = self._normalize_page(page)
+        normalized_page_size = self._normalize_page_size(page_size)
+        provider_filter = str(provider or "").strip().lower() or None
+        failure_category_filter = str(failure_category or "").strip().lower() or None
+        export_format_filter: Optional[str] = None
+        if export_format is not None:
+            export_format_filter = self._normalize_breakage_helpdesk_export_format(
+                export_format
+            )
+        since = self._window_since(normalized_window)
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(
+                ConversionJob.task_type
+                == self._BREAKAGE_HELPDESK_FAILURE_EXPORT_TASK_TYPE
+            )
+            .filter(ConversionJob.created_at >= since)
+            .order_by(ConversionJob.created_at.desc())
+            .all()
+        )
+
+        by_job_status: Counter[str] = Counter()
+        by_sync_status: Counter[str] = Counter()
+        by_provider: Counter[str] = Counter()
+        by_failure_category: Counter[str] = Counter()
+        by_export_format: Counter[str] = Counter()
+        duration_seconds: List[float] = []
+        rows: List[Dict[str, Any]] = []
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            filters = payload.get("filters") if isinstance(payload.get("filters"), dict) else {}
+            export_info = payload.get("export") if isinstance(payload.get("export"), dict) else {}
+            provider_value = (
+                str(filters.get("provider") or payload.get("provider") or "all")
+                .strip()
+                .lower()
+                or "all"
+            )
+            export_format_value = (
+                str(payload.get("export_format") or "json").strip().lower() or "json"
+            )
+            failure_category_value = (
+                str(filters.get("failure_category") or payload.get("failure_category") or "all")
+                .strip()
+                .lower()
+                or "all"
+            )
+            if provider_filter and provider_value != provider_filter:
+                continue
+            if failure_category_filter and failure_category_value != failure_category_filter:
+                continue
+            if export_format_filter and export_format_value != export_format_filter:
+                continue
+            job_status_value = str(job.status or "unknown").strip().lower() or "unknown"
+            sync_status_value = (
+                str(export_info.get("sync_status") or job_status_value).strip().lower()
+                or job_status_value
+            )
+            by_job_status[job_status_value] += 1
+            by_sync_status[sync_status_value] += 1
+            by_provider[provider_value] += 1
+            by_failure_category[failure_category_value] += 1
+            by_export_format[export_format_value] += 1
+            row_duration_seconds: Optional[float] = None
+            if job.started_at and job.completed_at and job.completed_at >= job.started_at:
+                row_duration_seconds = float(
+                    (job.completed_at - job.started_at).total_seconds()
+                )
+                duration_seconds.append(row_duration_seconds)
+            rows.append(
+                {
+                    **self._build_breakage_helpdesk_failures_export_job_view(job),
+                    "provider": provider_value,
+                    "failure_category": failure_category_value,
+                    "export_format": export_format_value,
+                    "sync_status": sync_status_value,
+                    "duration_seconds": (
+                        round(row_duration_seconds, 4)
+                        if row_duration_seconds is not None
+                        else None
+                    ),
+                }
+            )
+
+        paged = self._paginate(rows, page=normalized_page, page_size=normalized_page_size)
+        return {
+            "generated_at": _utcnow().isoformat(),
+            "window_days": normalized_window,
+            "window_since": since.isoformat(),
+            "filters": {
+                "provider": provider_filter,
+                "failure_category": failure_category_filter,
+                "export_format": export_format_filter,
+            },
+            "total": int(paged["total"]),
+            "pagination": {
+                "page": int(paged["page"]),
+                "page_size": int(paged["page_size"]),
+                "pages": int(paged["pages"]),
+                "total": int(paged["total"]),
+            },
+            "by_job_status": dict(by_job_status),
+            "by_sync_status": dict(by_sync_status),
+            "by_provider": dict(by_provider),
+            "by_failure_category": dict(by_failure_category),
+            "by_export_format": dict(by_export_format),
+            "duration_seconds": self._duration_stats(duration_seconds),
+            "jobs": paged["rows"],
+        }
+
     def _prometheus_escape(self, value: Any) -> str:
         return (
             str(value)
@@ -4840,6 +9547,17 @@ class ParallelOpsOverviewService:
         doc_sync_dead_letter_rate_warn: Optional[float] = None,
         workflow_failed_rate_warn: Optional[float] = None,
         breakage_open_rate_warn: Optional[float] = None,
+        breakage_helpdesk_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_triage_coverage_warn: Optional[float] = None,
+        breakage_helpdesk_export_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_provider_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_provider_failed_min_jobs_warn: Optional[int] = None,
+        breakage_helpdesk_provider_failed_rate_critical: Optional[float] = None,
+        breakage_helpdesk_provider_failed_min_jobs_critical: Optional[int] = None,
+        breakage_helpdesk_replay_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_replay_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_replay_pending_total_warn: Optional[int] = None,
     ) -> str:
         summary = self.summary(
             window_days=window_days,
@@ -4851,6 +9569,21 @@ class ParallelOpsOverviewService:
             doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
             workflow_failed_rate_warn=workflow_failed_rate_warn,
             breakage_open_rate_warn=breakage_open_rate_warn,
+            breakage_helpdesk_failed_rate_warn=breakage_helpdesk_failed_rate_warn,
+            breakage_helpdesk_failed_total_warn=breakage_helpdesk_failed_total_warn,
+            breakage_helpdesk_triage_coverage_warn=breakage_helpdesk_triage_coverage_warn,
+            breakage_helpdesk_export_failed_total_warn=breakage_helpdesk_export_failed_total_warn,
+            breakage_helpdesk_provider_failed_rate_warn=breakage_helpdesk_provider_failed_rate_warn,
+            breakage_helpdesk_provider_failed_min_jobs_warn=breakage_helpdesk_provider_failed_min_jobs_warn,
+            breakage_helpdesk_provider_failed_rate_critical=breakage_helpdesk_provider_failed_rate_critical,
+            breakage_helpdesk_provider_failed_min_jobs_critical=breakage_helpdesk_provider_failed_min_jobs_critical,
+            breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
+            breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
+            breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
+        )
+        failure_trends = self.breakage_helpdesk_failure_trends(
+            window_days=window_days,
+            bucket_days=1,
         )
         common_labels = {
             "window_days": int(summary.get("window_days") or 0),
@@ -4909,6 +9642,101 @@ class ParallelOpsOverviewService:
                 summary.get("breakages", {}).get("open_total"),
                 labels=common_labels,
             ),
+            "# HELP yuantus_parallel_breakage_helpdesk_jobs_total Breakage-helpdesk sync jobs in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_jobs_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_jobs_total",
+                summary.get("breakages", {}).get("helpdesk", {}).get("total_jobs"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_failed_total Failed breakage-helpdesk sync jobs in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_failed_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_failed_total",
+                summary.get("breakages", {}).get("helpdesk", {}).get("failed_jobs"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_failed_rate Failed breakage-helpdesk sync job ratio in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_failed_rate gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_failed_rate",
+                summary.get("breakages", {}).get("helpdesk", {}).get("failed_rate"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_triaged_total Triaged failed breakage-helpdesk jobs in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_triaged_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_triaged_total",
+                summary.get("breakages", {}).get("helpdesk", {}).get("triaged_jobs"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_triage_rate Triage coverage ratio among failed breakage-helpdesk jobs in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_triage_rate gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_triage_rate",
+                summary.get("breakages", {}).get("helpdesk", {}).get("triage_rate"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_replay_jobs_total Replay breakage-helpdesk jobs in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_replay_jobs_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_replay_jobs_total",
+                summary.get("breakages", {}).get("helpdesk", {}).get("replay_jobs_total"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_replay_batches_total Replay breakage-helpdesk batches in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_replay_batches_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_replay_batches_total",
+                summary.get("breakages", {}).get("helpdesk", {}).get("replay_batches_total"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_replay_failed_total Failed replay breakage-helpdesk jobs in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_replay_failed_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_replay_failed_total",
+                summary.get("breakages", {}).get("helpdesk", {}).get("replay_failed_jobs"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_replay_failed_rate Failed replay breakage-helpdesk ratio in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_replay_failed_rate gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_replay_failed_rate",
+                summary.get("breakages", {}).get("helpdesk", {}).get("replay_failed_rate"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_replay_pending_total Pending replay breakage-helpdesk jobs in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_replay_pending_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_replay_pending_total",
+                summary.get("breakages", {}).get("helpdesk", {}).get("replay_pending_jobs"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_external_ticket_total Breakage-helpdesk jobs with external ticket id.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_external_ticket_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_external_ticket_total",
+                summary.get("breakages", {}).get("helpdesk", {}).get("with_external_ticket"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_export_jobs_total Breakage-helpdesk export jobs in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_export_jobs_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_export_jobs_total",
+                summary.get("breakages", {}).get("helpdesk_export", {}).get("total_jobs"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_export_failed_total Failed breakage-helpdesk export jobs in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_export_failed_total gauge",
+            self._prometheus_line(
+                "yuantus_parallel_breakage_helpdesk_export_failed_total",
+                summary.get("breakages", {}).get("helpdesk_export", {}).get("failed_jobs"),
+                labels=common_labels,
+            ),
+            "# HELP yuantus_parallel_breakage_helpdesk_provider_failed_total Failed breakage-helpdesk jobs by provider in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_provider_failed_total gauge",
+            "# HELP yuantus_parallel_breakage_helpdesk_provider_failed_rate Failed breakage-helpdesk rate by provider in selected window.",
+            "# TYPE yuantus_parallel_breakage_helpdesk_provider_failed_rate gauge",
             "# HELP yuantus_parallel_consumption_template_versions_total Consumption template versions tracked.",
             "# TYPE yuantus_parallel_consumption_template_versions_total gauge",
             self._prometheus_line(
@@ -4961,6 +9789,129 @@ class ParallelOpsOverviewService:
                 )
             )
 
+        by_provider = summary.get("breakages", {}).get("helpdesk", {}).get("by_provider") or {}
+        for provider, count in sorted(by_provider.items()):
+            labels = {**common_labels, "provider": provider}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_breakage_helpdesk_by_provider",
+                    count,
+                    labels=labels,
+                )
+            )
+        replay_by_provider = (
+            summary.get("breakages", {}).get("helpdesk", {}).get("replay_by_provider") or {}
+        )
+        for provider, count in sorted(replay_by_provider.items()):
+            labels = {**common_labels, "provider": provider}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_breakage_helpdesk_replay_by_provider",
+                    count,
+                    labels=labels,
+                )
+            )
+        by_provider_failed = (
+            summary.get("breakages", {}).get("helpdesk", {}).get("by_provider_failed") or {}
+        )
+        for provider, count in sorted(by_provider_failed.items()):
+            labels = {**common_labels, "provider": provider}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_breakage_helpdesk_provider_failed_total",
+                    count,
+                    labels=labels,
+                )
+            )
+        provider_failed_rates = (
+            summary.get("breakages", {}).get("helpdesk", {}).get("provider_failed_rates")
+            or {}
+        )
+        for provider, provider_row in sorted(provider_failed_rates.items()):
+            if not isinstance(provider_row, dict):
+                continue
+            labels = {**common_labels, "provider": provider}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_breakage_helpdesk_provider_failed_rate",
+                    provider_row.get("failed_rate"),
+                    labels=labels,
+                )
+            )
+
+        by_provider_ticket_status = (
+            summary.get("breakages", {})
+            .get("helpdesk", {})
+            .get("by_provider_ticket_status")
+            or {}
+        )
+        for provider_ticket_status, count in sorted(by_provider_ticket_status.items()):
+            labels = {**common_labels, "provider_ticket_status": provider_ticket_status}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_breakage_helpdesk_by_provider_ticket_status",
+                    count,
+                    labels=labels,
+                )
+            )
+        by_triage_status = (
+            summary.get("breakages", {}).get("helpdesk", {}).get("by_triage_status") or {}
+        )
+        for triage_status, count in sorted(by_triage_status.items()):
+            labels = {**common_labels, "triage_status": triage_status}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_breakage_helpdesk_by_triage_status",
+                    count,
+                    labels=labels,
+                )
+            )
+        helpdesk_export_by_status = (
+            summary.get("breakages", {}).get("helpdesk_export", {}).get("by_job_status") or {}
+        )
+        for job_status, count in sorted(helpdesk_export_by_status.items()):
+            labels = {**common_labels, "status": job_status}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_breakage_helpdesk_export_by_status",
+                    count,
+                    labels=labels,
+                )
+            )
+        for failure_category, count in sorted(
+            (failure_trends.get("by_failure_category") or {}).items()
+        ):
+            labels = {**common_labels, "failure_category": failure_category}
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_breakage_helpdesk_failed_by_failure_category",
+                    count,
+                    labels=labels,
+                )
+            )
+        for point in failure_trends.get("points") or []:
+            if not isinstance(point, dict):
+                continue
+            labels = {
+                **common_labels,
+                "bucket_start": point.get("bucket_start"),
+                "bucket_end": point.get("bucket_end"),
+            }
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_breakage_helpdesk_failure_trend_failed_total",
+                    point.get("failed_jobs"),
+                    labels=labels,
+                )
+            )
+            lines.append(
+                self._prometheus_line(
+                    "yuantus_parallel_breakage_helpdesk_failure_trend_total_jobs",
+                    point.get("total_jobs"),
+                    labels=labels,
+                )
+            )
+
         return "\n".join(lines) + "\n"
 
     def alerts(
@@ -4976,6 +9927,17 @@ class ParallelOpsOverviewService:
         doc_sync_dead_letter_rate_warn: Optional[float] = None,
         workflow_failed_rate_warn: Optional[float] = None,
         breakage_open_rate_warn: Optional[float] = None,
+        breakage_helpdesk_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_triage_coverage_warn: Optional[float] = None,
+        breakage_helpdesk_export_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_provider_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_provider_failed_min_jobs_warn: Optional[int] = None,
+        breakage_helpdesk_provider_failed_rate_critical: Optional[float] = None,
+        breakage_helpdesk_provider_failed_min_jobs_critical: Optional[int] = None,
+        breakage_helpdesk_replay_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_replay_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_replay_pending_total_warn: Optional[int] = None,
     ) -> Dict[str, Any]:
         normalized_level = str(level or "").strip().lower() or None
         if normalized_level and normalized_level not in {"warn", "critical", "info"}:
@@ -4991,6 +9953,17 @@ class ParallelOpsOverviewService:
             doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
             workflow_failed_rate_warn=workflow_failed_rate_warn,
             breakage_open_rate_warn=breakage_open_rate_warn,
+            breakage_helpdesk_failed_rate_warn=breakage_helpdesk_failed_rate_warn,
+            breakage_helpdesk_failed_total_warn=breakage_helpdesk_failed_total_warn,
+            breakage_helpdesk_triage_coverage_warn=breakage_helpdesk_triage_coverage_warn,
+            breakage_helpdesk_export_failed_total_warn=breakage_helpdesk_export_failed_total_warn,
+            breakage_helpdesk_provider_failed_rate_warn=breakage_helpdesk_provider_failed_rate_warn,
+            breakage_helpdesk_provider_failed_min_jobs_warn=breakage_helpdesk_provider_failed_min_jobs_warn,
+            breakage_helpdesk_provider_failed_rate_critical=breakage_helpdesk_provider_failed_rate_critical,
+            breakage_helpdesk_provider_failed_min_jobs_critical=breakage_helpdesk_provider_failed_min_jobs_critical,
+            breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
+            breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
+            breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
         )
         hints = summary.get("slo_hints") or []
         if normalized_level:
@@ -5045,6 +10018,70 @@ class ParallelOpsOverviewService:
         push("breakages.total", (summary.get("breakages") or {}).get("total"))
         push("breakages.open_total", (summary.get("breakages") or {}).get("open_total"))
         push(
+            "breakages.helpdesk.total_jobs",
+            (summary.get("breakages") or {}).get("helpdesk", {}).get("total_jobs"),
+        )
+        push(
+            "breakages.helpdesk.failed_jobs",
+            (summary.get("breakages") or {}).get("helpdesk", {}).get("failed_jobs"),
+        )
+        push(
+            "breakages.helpdesk.failed_rate",
+            (summary.get("breakages") or {}).get("helpdesk", {}).get("failed_rate"),
+        )
+        push(
+            "breakages.helpdesk.triaged_jobs",
+            (summary.get("breakages") or {}).get("helpdesk", {}).get("triaged_jobs"),
+        )
+        push(
+            "breakages.helpdesk.triage_rate",
+            (summary.get("breakages") or {}).get("helpdesk", {}).get("triage_rate"),
+        )
+        push(
+            "breakages.helpdesk.replay_jobs_total",
+            (summary.get("breakages") or {}).get("helpdesk", {}).get("replay_jobs_total"),
+        )
+        push(
+            "breakages.helpdesk.replay_batches_total",
+            (summary.get("breakages") or {}).get("helpdesk", {}).get("replay_batches_total"),
+        )
+        push(
+            "breakages.helpdesk.replay_failed_jobs",
+            (summary.get("breakages") or {}).get("helpdesk", {}).get("replay_failed_jobs"),
+        )
+        push(
+            "breakages.helpdesk.replay_failed_rate",
+            (summary.get("breakages") or {}).get("helpdesk", {}).get("replay_failed_rate"),
+        )
+        push(
+            "breakages.helpdesk.replay_pending_jobs",
+            (summary.get("breakages") or {}).get("helpdesk", {}).get("replay_pending_jobs"),
+        )
+        push(
+            "breakages.helpdesk.with_external_ticket",
+            (summary.get("breakages") or {})
+            .get("helpdesk", {})
+            .get("with_external_ticket"),
+        )
+        push(
+            "breakages.helpdesk.with_provider_ticket_status",
+            (summary.get("breakages") or {})
+            .get("helpdesk", {})
+            .get("with_provider_ticket_status"),
+        )
+        push(
+            "breakages.helpdesk_export.total_jobs",
+            (summary.get("breakages") or {}).get("helpdesk_export", {}).get("total_jobs"),
+        )
+        push(
+            "breakages.helpdesk_export.failed_jobs",
+            (summary.get("breakages") or {}).get("helpdesk_export", {}).get("failed_jobs"),
+        )
+        push(
+            "breakages.helpdesk_export.expired_jobs",
+            (summary.get("breakages") or {}).get("helpdesk_export", {}).get("expired_jobs"),
+        )
+        push(
             "consumption_templates.versions_total",
             (summary.get("consumption_templates") or {}).get("versions_total"),
         )
@@ -5064,6 +10101,71 @@ class ParallelOpsOverviewService:
             ((summary.get("workflow_actions") or {}).get("by_result_code") or {}).items()
         ):
             push(f"workflow_actions.by_result_code.{code}", count)
+        for provider, count in sorted(
+            ((summary.get("breakages") or {}).get("helpdesk", {}).get("by_provider") or {}).items()
+        ):
+            push(f"breakages.helpdesk.by_provider.{provider}", count)
+        for provider, count in sorted(
+            (
+                (summary.get("breakages") or {})
+                .get("helpdesk", {})
+                .get("replay_by_provider")
+                or {}
+            ).items()
+        ):
+            push(f"breakages.helpdesk.replay_by_provider.{provider}", count)
+        for sync_status, count in sorted(
+            (
+                (summary.get("breakages") or {})
+                .get("helpdesk", {})
+                .get("replay_by_sync_status")
+                or {}
+            ).items()
+        ):
+            push(f"breakages.helpdesk.replay_by_sync_status.{sync_status}", count)
+        for provider, count in sorted(
+            (
+                (summary.get("breakages") or {})
+                .get("helpdesk", {})
+                .get("by_provider_failed")
+                or {}
+            ).items()
+        ):
+            push(f"breakages.helpdesk.by_provider_failed.{provider}", count)
+        for provider, provider_row in sorted(
+            (
+                (summary.get("breakages") or {})
+                .get("helpdesk", {})
+                .get("provider_failed_rates")
+                or {}
+            ).items()
+        ):
+            if not isinstance(provider_row, dict):
+                continue
+            push(
+                f"breakages.helpdesk.provider_failed_rate.{provider}",
+                provider_row.get("failed_rate"),
+            )
+        for provider_ticket_status, count in sorted(
+            (
+                (summary.get("breakages") or {})
+                .get("helpdesk", {})
+                .get("by_provider_ticket_status")
+                or {}
+            ).items()
+        ):
+            push(
+                f"breakages.helpdesk.by_provider_ticket_status.{provider_ticket_status}",
+                count,
+            )
+        for triage_status, count in sorted(
+            ((summary.get("breakages") or {}).get("helpdesk", {}).get("by_triage_status") or {}).items()
+        ):
+            push(f"breakages.helpdesk.by_triage_status.{triage_status}", count)
+        for job_status, count in sorted(
+            ((summary.get("breakages") or {}).get("helpdesk_export", {}).get("by_job_status") or {}).items()
+        ):
+            push(f"breakages.helpdesk_export.by_job_status.{job_status}", count)
         return rows
 
     def export_summary(
@@ -5079,6 +10181,17 @@ class ParallelOpsOverviewService:
         doc_sync_dead_letter_rate_warn: Optional[float] = None,
         workflow_failed_rate_warn: Optional[float] = None,
         breakage_open_rate_warn: Optional[float] = None,
+        breakage_helpdesk_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_triage_coverage_warn: Optional[float] = None,
+        breakage_helpdesk_export_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_provider_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_provider_failed_min_jobs_warn: Optional[int] = None,
+        breakage_helpdesk_provider_failed_rate_critical: Optional[float] = None,
+        breakage_helpdesk_provider_failed_min_jobs_critical: Optional[int] = None,
+        breakage_helpdesk_replay_failed_rate_warn: Optional[float] = None,
+        breakage_helpdesk_replay_failed_total_warn: Optional[int] = None,
+        breakage_helpdesk_replay_pending_total_warn: Optional[int] = None,
     ) -> Dict[str, Any]:
         summary = self.summary(
             window_days=window_days,
@@ -5090,6 +10203,17 @@ class ParallelOpsOverviewService:
             doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
             workflow_failed_rate_warn=workflow_failed_rate_warn,
             breakage_open_rate_warn=breakage_open_rate_warn,
+            breakage_helpdesk_failed_rate_warn=breakage_helpdesk_failed_rate_warn,
+            breakage_helpdesk_failed_total_warn=breakage_helpdesk_failed_total_warn,
+            breakage_helpdesk_triage_coverage_warn=breakage_helpdesk_triage_coverage_warn,
+            breakage_helpdesk_export_failed_total_warn=breakage_helpdesk_export_failed_total_warn,
+            breakage_helpdesk_provider_failed_rate_warn=breakage_helpdesk_provider_failed_rate_warn,
+            breakage_helpdesk_provider_failed_min_jobs_warn=breakage_helpdesk_provider_failed_min_jobs_warn,
+            breakage_helpdesk_provider_failed_rate_critical=breakage_helpdesk_provider_failed_rate_critical,
+            breakage_helpdesk_provider_failed_min_jobs_critical=breakage_helpdesk_provider_failed_min_jobs_critical,
+            breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
+            breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
+            breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
         )
         normalized = str(export_format or "json").strip().lower()
         if normalized == "json":

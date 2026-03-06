@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -16,6 +16,7 @@ from yuantus.meta_engine.version.file_service import (
     VersionFileError,
 )
 from yuantus.meta_engine.version.models import ItemVersion
+from yuantus.meta_engine.services.parallel_tasks_service import DocumentMultiSiteService
 
 from yuantus.api.dependencies.auth import get_current_user_id_optional as get_current_user_id
 
@@ -109,8 +110,66 @@ def checkout(
     user_id: int = Depends(get_current_user_id),
     comment: Optional[str] = Body(None),
     version_id: Optional[str] = Body(None),
+    doc_sync_site_id: Optional[str] = Body(None),
+    doc_sync_document_ids: Optional[List[str]] = Body(None),
+    doc_sync_window_days: int = Body(7),
+    doc_sync_limit: int = Body(200),
     db: Session = Depends(get_db),
 ):
+    if doc_sync_site_id:
+        gate_document_ids = {
+            str(doc_id).strip()
+            for doc_id in (doc_sync_document_ids or [])
+            if str(doc_id).strip()
+        }
+        normalized_version_id = str(version_id or "").strip() or None
+        if normalized_version_id:
+            gate_document_ids.add(normalized_version_id)
+            version = db.get(ItemVersion, normalized_version_id)
+            if version and str(version.item_id or "") == str(item_id):
+                if version.primary_file_id:
+                    gate_document_ids.add(str(version.primary_file_id).strip())
+                for version_file in version.version_files or []:
+                    file_id = str(getattr(version_file, "file_id", "") or "").strip()
+                    if file_id:
+                        gate_document_ids.add(file_id)
+        if not gate_document_ids:
+            gate_document_ids.add(str(item_id).strip())
+
+        doc_sync_service = DocumentMultiSiteService(db)
+        try:
+            gate = doc_sync_service.evaluate_checkout_sync_gate(
+                item_id=item_id,
+                site_id=doc_sync_site_id,
+                version_id=normalized_version_id,
+                document_ids=sorted(gate_document_ids),
+                window_days=doc_sync_window_days,
+                limit=doc_sync_limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "doc_sync_checkout_gate_invalid",
+                    "message": str(exc),
+                    "context": {
+                        "item_id": item_id,
+                        "site_id": doc_sync_site_id,
+                        "window_days": doc_sync_window_days,
+                        "limit": doc_sync_limit,
+                    },
+                },
+            )
+        if gate.get("blocking"):
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "doc_sync_checkout_blocked",
+                    "message": "Checkout blocked by doc-sync backlog",
+                    "context": gate,
+                },
+            )
+
     service = VersionService(db)
     try:
         ver = service.checkout(item_id, user_id, comment, version_id)

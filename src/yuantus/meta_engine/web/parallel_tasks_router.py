@@ -187,6 +187,14 @@ class SyncJobCreateRequest(BaseModel):
     metadata_json: Optional[Dict[str, Any]] = None
 
 
+class SyncReplayBatchRequest(BaseModel):
+    job_ids: Optional[List[str]] = None
+    site_id: Optional[str] = None
+    only_dead_letter: bool = True
+    window_days: int = Field(7, ge=1, le=90)
+    limit: int = Field(50, ge=1, le=500)
+
+
 @parallel_tasks_router.post("/doc-sync/sites")
 async def upsert_remote_site(
     payload: RemoteSiteUpsertRequest,
@@ -380,6 +388,71 @@ async def list_sync_jobs(
     }
 
 
+@parallel_tasks_router.get("/doc-sync/jobs/dead-letter")
+async def list_doc_sync_dead_letter_jobs(
+    site_id: Optional[str] = Query(None),
+    window_days: int = Query(7),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentMultiSiteService(db)
+    try:
+        jobs = service.list_dead_letter_sync_jobs(
+            site_id=site_id,
+            window_days=window_days,
+            limit=limit,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="doc_sync_dead_letter_invalid",
+            message=str(exc),
+            context={"site_id": site_id, "window_days": window_days, "limit": limit},
+        )
+    return {
+        "site_id": site_id,
+        "window_days": window_days,
+        "total": len(jobs),
+        "jobs": [service.build_sync_job_view(job) for job in jobs],
+        "operator_id": int(user.id),
+    }
+
+
+@parallel_tasks_router.post("/doc-sync/jobs/replay-batch")
+async def replay_doc_sync_jobs_batch(
+    payload: SyncReplayBatchRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentMultiSiteService(db)
+    try:
+        result = service.replay_sync_jobs_batch(
+            job_ids=payload.job_ids,
+            site_id=payload.site_id,
+            only_dead_letter=payload.only_dead_letter,
+            window_days=payload.window_days,
+            limit=payload.limit,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="doc_sync_replay_batch_invalid",
+            message=str(exc),
+            context={
+                "site_id": payload.site_id,
+                "only_dead_letter": payload.only_dead_letter,
+                "window_days": payload.window_days,
+                "limit": payload.limit,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
 @parallel_tasks_router.get("/doc-sync/summary")
 async def get_doc_sync_summary(
     site_id: Optional[str] = Query(None),
@@ -399,6 +472,44 @@ async def get_doc_sync_summary(
         )
     result["operator_id"] = int(user.id)
     return result
+
+
+@parallel_tasks_router.get("/doc-sync/summary/export")
+async def export_doc_sync_summary(
+    site_id: Optional[str] = Query(None),
+    window_days: int = Query(7),
+    export_format: str = Query("json", description="json|csv|md"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentMultiSiteService(db)
+    try:
+        exported = service.export_sync_summary(
+            site_id=site_id,
+            window_days=window_days,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="doc_sync_summary_export_invalid",
+            message=str(exc),
+            context={
+                "site_id": site_id,
+                "window_days": window_days,
+                "export_format": export_format,
+            },
+        )
+    return StreamingResponse(
+        io.BytesIO(exported["content"]),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "doc-sync-summary.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
 
 
 @parallel_tasks_router.get("/doc-sync/jobs/{job_id}")
@@ -470,7 +581,31 @@ class ECOActivityCreateRequest(BaseModel):
 
 
 class ECOActivityTransitionRequest(BaseModel):
-    to_status: str
+    to_status: str = Field(
+        ...,
+        description=(
+            "pending|active|completed|canceled|exception "
+            "(aliases: draft|in_progress|eco|done|cancel)"
+        ),
+    )
+    reason: Optional[str] = None
+
+
+class ECOActivityBulkTransitionCheckRequest(BaseModel):
+    to_status: str = Field(
+        ...,
+        description=(
+            "pending|active|completed|canceled|exception "
+            "(aliases: draft|in_progress|eco|done|cancel)"
+        ),
+    )
+    activity_ids: Optional[List[str]] = None
+    include_terminal: bool = False
+    include_non_blocking: bool = True
+    limit: int = Field(200, ge=1, le=500)
+
+
+class ECOActivityBulkTransitionRequest(ECOActivityBulkTransitionCheckRequest):
     reason: Optional[str] = None
 
 
@@ -595,6 +730,109 @@ async def transition_eco_activity(
     }
 
 
+@parallel_tasks_router.get("/eco-activities/activity/{activity_id}/transition-check")
+async def check_eco_activity_transition(
+    activity_id: str,
+    to_status: str = Query(...),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ECOActivityValidationService(db)
+    try:
+        result = service.evaluate_transition(
+            activity_id=activity_id,
+            to_status=to_status,
+        )
+    except ValueError as exc:
+        message = str(exc)
+        if "not found" in message.lower():
+            _raise_api_error(
+                status_code=404,
+                code="eco_activity_not_found",
+                message=message,
+                context={"activity_id": activity_id},
+            )
+        _raise_api_error(
+            status_code=400,
+            code="eco_activity_transition_invalid",
+            message=message,
+            context={
+                "activity_id": activity_id,
+                "to_status": to_status,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.post("/eco-activities/{eco_id}/transition-check/bulk")
+async def check_eco_activity_transitions_bulk(
+    eco_id: str,
+    payload: ECOActivityBulkTransitionCheckRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ECOActivityValidationService(db)
+    try:
+        result = service.evaluate_transitions_bulk(
+            eco_id,
+            to_status=payload.to_status,
+            activity_ids=payload.activity_ids,
+            include_terminal=payload.include_terminal,
+            include_non_blocking=payload.include_non_blocking,
+            limit=payload.limit,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="eco_activity_transition_invalid",
+            message=str(exc),
+            context={
+                "eco_id": eco_id,
+                "to_status": payload.to_status,
+                "limit": payload.limit,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.post("/eco-activities/{eco_id}/transition/bulk")
+async def transition_eco_activities_bulk(
+    eco_id: str,
+    payload: ECOActivityBulkTransitionRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ECOActivityValidationService(db)
+    try:
+        result = service.transition_activities_bulk(
+            eco_id,
+            to_status=payload.to_status,
+            activity_ids=payload.activity_ids,
+            include_terminal=payload.include_terminal,
+            include_non_blocking=payload.include_non_blocking,
+            limit=payload.limit,
+            user_id=int(user.id),
+            reason=payload.reason,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="eco_activity_transition_invalid",
+            message=str(exc),
+            context={
+                "eco_id": eco_id,
+                "to_status": payload.to_status,
+                "limit": payload.limit,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
 @parallel_tasks_router.get("/eco-activities/{eco_id}/blockers")
 async def get_eco_blockers(
     eco_id: str,
@@ -672,6 +910,113 @@ async def get_eco_activity_sla(
         )
     result["operator_id"] = int(user.id)
     return result
+
+
+@parallel_tasks_router.get("/eco-activities/{eco_id}/sla/alerts")
+async def get_eco_activity_sla_alerts(
+    eco_id: str,
+    due_soon_hours: int = Query(24),
+    include_closed: bool = Query(False),
+    assignee_id: Optional[int] = Query(None),
+    limit: int = Query(100),
+    evaluated_at: Optional[str] = Query(None),
+    overdue_rate_warn: float = Query(0.2),
+    due_soon_count_warn: int = Query(5),
+    blocking_overdue_warn: int = Query(1),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ECOActivityValidationService(db)
+    now = _parse_utc_datetime(evaluated_at, field_name="evaluated_at")
+    try:
+        result = service.activity_sla_alerts(
+            eco_id,
+            now=now,
+            due_soon_hours=due_soon_hours,
+            include_closed=include_closed,
+            assignee_id=assignee_id,
+            limit=limit,
+            overdue_rate_warn=overdue_rate_warn,
+            due_soon_count_warn=due_soon_count_warn,
+            blocking_overdue_warn=blocking_overdue_warn,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="eco_activity_sla_alerts_invalid",
+            message=str(exc),
+            context={
+                "eco_id": eco_id,
+                "due_soon_hours": due_soon_hours,
+                "include_closed": bool(include_closed),
+                "assignee_id": assignee_id,
+                "limit": limit,
+                "overdue_rate_warn": overdue_rate_warn,
+                "due_soon_count_warn": due_soon_count_warn,
+                "blocking_overdue_warn": blocking_overdue_warn,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/eco-activities/{eco_id}/sla/alerts/export")
+async def export_eco_activity_sla_alerts(
+    eco_id: str,
+    due_soon_hours: int = Query(24),
+    include_closed: bool = Query(False),
+    assignee_id: Optional[int] = Query(None),
+    limit: int = Query(100),
+    evaluated_at: Optional[str] = Query(None),
+    overdue_rate_warn: float = Query(0.2),
+    due_soon_count_warn: int = Query(5),
+    blocking_overdue_warn: int = Query(1),
+    export_format: str = Query("json", description="json|csv|md"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ECOActivityValidationService(db)
+    now = _parse_utc_datetime(evaluated_at, field_name="evaluated_at")
+    try:
+        exported = service.export_activity_sla_alerts(
+            eco_id,
+            now=now,
+            due_soon_hours=due_soon_hours,
+            include_closed=include_closed,
+            assignee_id=assignee_id,
+            limit=limit,
+            overdue_rate_warn=overdue_rate_warn,
+            due_soon_count_warn=due_soon_count_warn,
+            blocking_overdue_warn=blocking_overdue_warn,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="eco_activity_sla_alerts_export_invalid",
+            message=str(exc),
+            context={
+                "eco_id": eco_id,
+                "due_soon_hours": due_soon_hours,
+                "include_closed": bool(include_closed),
+                "assignee_id": assignee_id,
+                "limit": limit,
+                "overdue_rate_warn": overdue_rate_warn,
+                "due_soon_count_warn": due_soon_count_warn,
+                "blocking_overdue_warn": blocking_overdue_warn,
+                "export_format": export_format,
+            },
+        )
+    return StreamingResponse(
+        io.BytesIO(exported["content"]),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "eco-activity-sla-alerts.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
 
 
 # ---------------------------
@@ -1234,6 +1579,7 @@ class BreakageStatusUpdateRequest(BaseModel):
 class BreakageHelpdeskSyncRequest(BaseModel):
     metadata_json: Optional[Dict[str, Any]] = None
     provider: str = "stub"
+    integration_json: Optional[Dict[str, Any]] = None
     idempotency_key: Optional[str] = None
     retry_max_attempts: Optional[int] = Field(None, ge=1, le=10)
 
@@ -1256,6 +1602,21 @@ class BreakageHelpdeskSyncExecuteRequest(BaseModel):
     metadata_json: Optional[Dict[str, Any]] = None
 
 
+class BreakageHelpdeskTicketUpdateRequest(BaseModel):
+    provider_ticket_status: str = Field(..., min_length=1)
+    job_id: Optional[str] = None
+    event_id: Optional[str] = None
+    external_ticket_id: Optional[str] = None
+    provider: Optional[str] = Field(None, description="stub|jira|zendesk")
+    provider_updated_at: Optional[str] = Field(
+        None, description="ISO-8601 datetime"
+    )
+    provider_assignee: Optional[str] = None
+    provider_payload: Optional[Dict[str, Any]] = None
+    incident_status: Optional[str] = None
+    incident_responsibility: Optional[str] = None
+
+
 class BreakageExportJobCreateRequest(BaseModel):
     status: Optional[str] = None
     severity: Optional[str] = None
@@ -1272,6 +1633,50 @@ class BreakageExportJobCreateRequest(BaseModel):
 class BreakageExportCleanupRequest(BaseModel):
     ttl_hours: int = Field(24, ge=1, le=720)
     limit: int = Field(200, ge=1, le=1000)
+
+
+class ParallelOpsBreakageHelpdeskFailuresExportJobCreateRequest(BaseModel):
+    window_days: int = Field(7, ge=1, le=90)
+    provider: Optional[str] = None
+    failure_category: Optional[str] = None
+    provider_ticket_status: Optional[str] = None
+    export_format: str = Field("json", description="json|csv|md|zip")
+    execute_immediately: bool = True
+
+
+class ParallelOpsBreakageHelpdeskFailuresExportCleanupRequest(BaseModel):
+    ttl_hours: int = Field(24, ge=1, le=720)
+    limit: int = Field(200, ge=1, le=1000)
+
+
+class ParallelOpsBreakageHelpdeskFailureTriageApplyRequest(BaseModel):
+    triage_status: str = Field(..., min_length=1)
+    job_ids: Optional[List[str]] = None
+    window_days: int = Field(7, ge=1, le=90)
+    provider: Optional[str] = None
+    failure_category: Optional[str] = None
+    provider_ticket_status: Optional[str] = None
+    limit: int = Field(100, ge=1, le=500)
+    triage_owner: Optional[str] = None
+    root_cause: Optional[str] = None
+    resolution: Optional[str] = None
+    note: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class ParallelOpsBreakageHelpdeskFailureReplayRequest(BaseModel):
+    job_ids: Optional[List[str]] = None
+    window_days: int = Field(7, ge=1, le=90)
+    provider: Optional[str] = None
+    failure_category: Optional[str] = None
+    provider_ticket_status: Optional[str] = None
+    limit: int = Field(100, ge=1, le=500)
+
+
+class ParallelOpsBreakageHelpdeskFailureReplayCleanupRequest(BaseModel):
+    ttl_hours: int = Field(168, ge=1, le=720)
+    limit: int = Field(200, ge=1, le=1000)
+    dry_run: bool = False
 
 
 @parallel_tasks_router.get("/breakages/metrics")
@@ -1940,6 +2345,7 @@ async def sync_breakage_to_helpdesk_stub(
             user_id=int(user.id),
             metadata_json=payload.metadata_json,
             provider=payload.provider,
+            integration_json=payload.integration_json,
             idempotency_key=payload.idempotency_key,
             retry_max_attempts=payload.retry_max_attempts,
         )
@@ -2068,6 +2474,57 @@ async def record_breakage_helpdesk_sync_result(
             context={
                 "incident_id": incident_id,
                 "sync_status": payload.sync_status,
+                "job_id": payload.job_id,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.post("/breakages/{incident_id}/helpdesk-sync/ticket-update")
+async def apply_breakage_helpdesk_ticket_update(
+    incident_id: str,
+    payload: BreakageHelpdeskTicketUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BreakageIncidentService(db)
+    try:
+        provider_updated_at = _parse_utc_datetime(
+            payload.provider_updated_at,
+            field_name="provider_updated_at",
+        )
+        result = service.apply_helpdesk_ticket_update(
+            incident_id,
+            provider_ticket_status=payload.provider_ticket_status,
+            job_id=payload.job_id,
+            external_ticket_id=payload.external_ticket_id,
+            provider=payload.provider,
+            provider_updated_at=provider_updated_at,
+            provider_assignee=payload.provider_assignee,
+            provider_payload=payload.provider_payload,
+            event_id=payload.event_id,
+            incident_status=payload.incident_status,
+            incident_responsibility=payload.incident_responsibility,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        if "Breakage incident not found" in str(exc):
+            _raise_api_error(
+                status_code=404,
+                code="breakage_not_found",
+                message=str(exc),
+                context={"incident_id": incident_id},
+            )
+        _raise_api_error(
+            status_code=400,
+            code="breakage_helpdesk_sync_invalid",
+            message=str(exc),
+            context={
+                "incident_id": incident_id,
+                "provider_ticket_status": payload.provider_ticket_status,
                 "job_id": payload.job_id,
             },
         )
@@ -2407,6 +2864,17 @@ async def get_parallel_ops_summary(
     doc_sync_dead_letter_rate_warn: Optional[float] = Query(None),
     workflow_failed_rate_warn: Optional[float] = Query(None),
     breakage_open_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_triage_coverage_warn: Optional[float] = Query(None),
+    breakage_helpdesk_export_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_provider_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_provider_failed_min_jobs_warn: Optional[int] = Query(None),
+    breakage_helpdesk_provider_failed_rate_critical: Optional[float] = Query(None),
+    breakage_helpdesk_provider_failed_min_jobs_critical: Optional[int] = Query(None),
+    breakage_helpdesk_replay_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_replay_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_replay_pending_total_warn: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -2422,6 +2890,17 @@ async def get_parallel_ops_summary(
             doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
             workflow_failed_rate_warn=workflow_failed_rate_warn,
             breakage_open_rate_warn=breakage_open_rate_warn,
+            breakage_helpdesk_failed_rate_warn=breakage_helpdesk_failed_rate_warn,
+            breakage_helpdesk_failed_total_warn=breakage_helpdesk_failed_total_warn,
+            breakage_helpdesk_triage_coverage_warn=breakage_helpdesk_triage_coverage_warn,
+            breakage_helpdesk_export_failed_total_warn=breakage_helpdesk_export_failed_total_warn,
+            breakage_helpdesk_provider_failed_rate_warn=breakage_helpdesk_provider_failed_rate_warn,
+            breakage_helpdesk_provider_failed_min_jobs_warn=breakage_helpdesk_provider_failed_min_jobs_warn,
+            breakage_helpdesk_provider_failed_rate_critical=breakage_helpdesk_provider_failed_rate_critical,
+            breakage_helpdesk_provider_failed_min_jobs_critical=breakage_helpdesk_provider_failed_min_jobs_critical,
+            breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
+            breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
+            breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -2438,6 +2917,17 @@ async def get_parallel_ops_summary(
                 "doc_sync_dead_letter_rate_warn": doc_sync_dead_letter_rate_warn,
                 "workflow_failed_rate_warn": workflow_failed_rate_warn,
                 "breakage_open_rate_warn": breakage_open_rate_warn,
+                "breakage_helpdesk_failed_rate_warn": breakage_helpdesk_failed_rate_warn,
+                "breakage_helpdesk_failed_total_warn": breakage_helpdesk_failed_total_warn,
+                "breakage_helpdesk_triage_coverage_warn": breakage_helpdesk_triage_coverage_warn,
+                "breakage_helpdesk_export_failed_total_warn": breakage_helpdesk_export_failed_total_warn,
+                "breakage_helpdesk_provider_failed_rate_warn": breakage_helpdesk_provider_failed_rate_warn,
+                "breakage_helpdesk_provider_failed_min_jobs_warn": breakage_helpdesk_provider_failed_min_jobs_warn,
+                "breakage_helpdesk_provider_failed_rate_critical": breakage_helpdesk_provider_failed_rate_critical,
+                "breakage_helpdesk_provider_failed_min_jobs_critical": breakage_helpdesk_provider_failed_min_jobs_critical,
+                "breakage_helpdesk_replay_failed_rate_warn": breakage_helpdesk_replay_failed_rate_warn,
+                "breakage_helpdesk_replay_failed_total_warn": breakage_helpdesk_replay_failed_total_warn,
+                "breakage_helpdesk_replay_pending_total_warn": breakage_helpdesk_replay_pending_total_warn,
             },
         )
     result["operator_id"] = int(user.id)
@@ -2492,6 +2982,17 @@ async def get_parallel_ops_alerts(
     doc_sync_dead_letter_rate_warn: Optional[float] = Query(None),
     workflow_failed_rate_warn: Optional[float] = Query(None),
     breakage_open_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_triage_coverage_warn: Optional[float] = Query(None),
+    breakage_helpdesk_export_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_provider_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_provider_failed_min_jobs_warn: Optional[int] = Query(None),
+    breakage_helpdesk_provider_failed_rate_critical: Optional[float] = Query(None),
+    breakage_helpdesk_provider_failed_min_jobs_critical: Optional[int] = Query(None),
+    breakage_helpdesk_replay_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_replay_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_replay_pending_total_warn: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -2508,6 +3009,17 @@ async def get_parallel_ops_alerts(
             doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
             workflow_failed_rate_warn=workflow_failed_rate_warn,
             breakage_open_rate_warn=breakage_open_rate_warn,
+            breakage_helpdesk_failed_rate_warn=breakage_helpdesk_failed_rate_warn,
+            breakage_helpdesk_failed_total_warn=breakage_helpdesk_failed_total_warn,
+            breakage_helpdesk_triage_coverage_warn=breakage_helpdesk_triage_coverage_warn,
+            breakage_helpdesk_export_failed_total_warn=breakage_helpdesk_export_failed_total_warn,
+            breakage_helpdesk_provider_failed_rate_warn=breakage_helpdesk_provider_failed_rate_warn,
+            breakage_helpdesk_provider_failed_min_jobs_warn=breakage_helpdesk_provider_failed_min_jobs_warn,
+            breakage_helpdesk_provider_failed_rate_critical=breakage_helpdesk_provider_failed_rate_critical,
+            breakage_helpdesk_provider_failed_min_jobs_critical=breakage_helpdesk_provider_failed_min_jobs_critical,
+            breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
+            breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
+            breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -2525,6 +3037,17 @@ async def get_parallel_ops_alerts(
                 "doc_sync_dead_letter_rate_warn": doc_sync_dead_letter_rate_warn,
                 "workflow_failed_rate_warn": workflow_failed_rate_warn,
                 "breakage_open_rate_warn": breakage_open_rate_warn,
+                "breakage_helpdesk_failed_rate_warn": breakage_helpdesk_failed_rate_warn,
+                "breakage_helpdesk_failed_total_warn": breakage_helpdesk_failed_total_warn,
+                "breakage_helpdesk_triage_coverage_warn": breakage_helpdesk_triage_coverage_warn,
+                "breakage_helpdesk_export_failed_total_warn": breakage_helpdesk_export_failed_total_warn,
+                "breakage_helpdesk_provider_failed_rate_warn": breakage_helpdesk_provider_failed_rate_warn,
+                "breakage_helpdesk_provider_failed_min_jobs_warn": breakage_helpdesk_provider_failed_min_jobs_warn,
+                "breakage_helpdesk_provider_failed_rate_critical": breakage_helpdesk_provider_failed_rate_critical,
+                "breakage_helpdesk_provider_failed_min_jobs_critical": breakage_helpdesk_provider_failed_min_jobs_critical,
+                "breakage_helpdesk_replay_failed_rate_warn": breakage_helpdesk_replay_failed_rate_warn,
+                "breakage_helpdesk_replay_failed_total_warn": breakage_helpdesk_replay_failed_total_warn,
+                "breakage_helpdesk_replay_pending_total_warn": breakage_helpdesk_replay_pending_total_warn,
             },
         )
     result["operator_id"] = int(user.id)
@@ -2543,6 +3066,17 @@ async def export_parallel_ops_summary(
     doc_sync_dead_letter_rate_warn: Optional[float] = Query(None),
     workflow_failed_rate_warn: Optional[float] = Query(None),
     breakage_open_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_triage_coverage_warn: Optional[float] = Query(None),
+    breakage_helpdesk_export_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_provider_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_provider_failed_min_jobs_warn: Optional[int] = Query(None),
+    breakage_helpdesk_provider_failed_rate_critical: Optional[float] = Query(None),
+    breakage_helpdesk_provider_failed_min_jobs_critical: Optional[int] = Query(None),
+    breakage_helpdesk_replay_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_replay_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_replay_pending_total_warn: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -2559,6 +3093,17 @@ async def export_parallel_ops_summary(
             doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
             workflow_failed_rate_warn=workflow_failed_rate_warn,
             breakage_open_rate_warn=breakage_open_rate_warn,
+            breakage_helpdesk_failed_rate_warn=breakage_helpdesk_failed_rate_warn,
+            breakage_helpdesk_failed_total_warn=breakage_helpdesk_failed_total_warn,
+            breakage_helpdesk_triage_coverage_warn=breakage_helpdesk_triage_coverage_warn,
+            breakage_helpdesk_export_failed_total_warn=breakage_helpdesk_export_failed_total_warn,
+            breakage_helpdesk_provider_failed_rate_warn=breakage_helpdesk_provider_failed_rate_warn,
+            breakage_helpdesk_provider_failed_min_jobs_warn=breakage_helpdesk_provider_failed_min_jobs_warn,
+            breakage_helpdesk_provider_failed_rate_critical=breakage_helpdesk_provider_failed_rate_critical,
+            breakage_helpdesk_provider_failed_min_jobs_critical=breakage_helpdesk_provider_failed_min_jobs_critical,
+            breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
+            breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
+            breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -2576,6 +3121,17 @@ async def export_parallel_ops_summary(
                 "doc_sync_dead_letter_rate_warn": doc_sync_dead_letter_rate_warn,
                 "workflow_failed_rate_warn": workflow_failed_rate_warn,
                 "breakage_open_rate_warn": breakage_open_rate_warn,
+                "breakage_helpdesk_failed_rate_warn": breakage_helpdesk_failed_rate_warn,
+                "breakage_helpdesk_failed_total_warn": breakage_helpdesk_failed_total_warn,
+                "breakage_helpdesk_triage_coverage_warn": breakage_helpdesk_triage_coverage_warn,
+                "breakage_helpdesk_export_failed_total_warn": breakage_helpdesk_export_failed_total_warn,
+                "breakage_helpdesk_provider_failed_rate_warn": breakage_helpdesk_provider_failed_rate_warn,
+                "breakage_helpdesk_provider_failed_min_jobs_warn": breakage_helpdesk_provider_failed_min_jobs_warn,
+                "breakage_helpdesk_provider_failed_rate_critical": breakage_helpdesk_provider_failed_rate_critical,
+                "breakage_helpdesk_provider_failed_min_jobs_critical": breakage_helpdesk_provider_failed_min_jobs_critical,
+                "breakage_helpdesk_replay_failed_rate_warn": breakage_helpdesk_replay_failed_rate_warn,
+                "breakage_helpdesk_replay_failed_total_warn": breakage_helpdesk_replay_failed_total_warn,
+                "breakage_helpdesk_replay_pending_total_warn": breakage_helpdesk_replay_pending_total_warn,
             },
         )
     return StreamingResponse(
@@ -2703,6 +3259,682 @@ async def get_parallel_ops_workflow_failures(
     return result
 
 
+@parallel_tasks_router.get("/parallel-ops/breakage-helpdesk/failures")
+async def get_parallel_ops_breakage_helpdesk_failures(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    provider: Optional[str] = Query(None),
+    failure_category: Optional[str] = Query(None),
+    provider_ticket_status: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.breakage_helpdesk_failures(
+            window_days=window_days,
+            provider=provider,
+            failure_category=failure_category,
+            provider_ticket_status=provider_ticket_status,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "provider": provider,
+                "failure_category": failure_category,
+                "provider_ticket_status": provider_ticket_status,
+                "page": page,
+                "page_size": page_size,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/breakage-helpdesk/failures/trends")
+async def get_parallel_ops_breakage_helpdesk_failure_trends(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    bucket_days: int = Query(1, description="1|7|14|30"),
+    provider: Optional[str] = Query(None),
+    failure_category: Optional[str] = Query(None),
+    provider_ticket_status: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.breakage_helpdesk_failure_trends(
+            window_days=window_days,
+            bucket_days=bucket_days,
+            provider=provider,
+            failure_category=failure_category,
+            provider_ticket_status=provider_ticket_status,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "bucket_days": bucket_days,
+                "provider": provider,
+                "failure_category": failure_category,
+                "provider_ticket_status": provider_ticket_status,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/breakage-helpdesk/failures/triage")
+async def get_parallel_ops_breakage_helpdesk_failures_triage(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    provider: Optional[str] = Query(None),
+    failure_category: Optional[str] = Query(None),
+    provider_ticket_status: Optional[str] = Query(None),
+    top_n: int = Query(5, ge=1, le=50),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.breakage_helpdesk_failure_triage(
+            window_days=window_days,
+            provider=provider,
+            failure_category=failure_category,
+            provider_ticket_status=provider_ticket_status,
+            top_n=top_n,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "provider": provider,
+                "failure_category": failure_category,
+                "provider_ticket_status": provider_ticket_status,
+                "top_n": top_n,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.post("/parallel-ops/breakage-helpdesk/failures/triage/apply")
+async def apply_parallel_ops_breakage_helpdesk_failures_triage(
+    payload: ParallelOpsBreakageHelpdeskFailureTriageApplyRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.apply_breakage_helpdesk_failure_triage(
+            triage_status=payload.triage_status,
+            job_ids=payload.job_ids,
+            window_days=payload.window_days,
+            provider=payload.provider,
+            failure_category=payload.failure_category,
+            provider_ticket_status=payload.provider_ticket_status,
+            limit=payload.limit,
+            triage_owner=payload.triage_owner,
+            root_cause=payload.root_cause,
+            resolution=payload.resolution,
+            note=payload.note,
+            tags=payload.tags,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "triage_status": payload.triage_status,
+                "window_days": payload.window_days,
+                "provider": payload.provider,
+                "failure_category": payload.failure_category,
+                "provider_ticket_status": payload.provider_ticket_status,
+                "limit": payload.limit,
+                "job_ids_total": len(payload.job_ids or []),
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.post("/parallel-ops/breakage-helpdesk/failures/replay/enqueue")
+async def enqueue_parallel_ops_breakage_helpdesk_failures_replay(
+    payload: ParallelOpsBreakageHelpdeskFailureReplayRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.enqueue_breakage_helpdesk_failure_replay_jobs(
+            job_ids=payload.job_ids,
+            window_days=payload.window_days,
+            provider=payload.provider,
+            failure_category=payload.failure_category,
+            provider_ticket_status=payload.provider_ticket_status,
+            limit=payload.limit,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": payload.window_days,
+                "provider": payload.provider,
+                "failure_category": payload.failure_category,
+                "provider_ticket_status": payload.provider_ticket_status,
+                "limit": payload.limit,
+                "job_ids_total": len(payload.job_ids or []),
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/breakage-helpdesk/failures/replay/batches")
+async def list_parallel_ops_breakage_helpdesk_failures_replay_batches(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    provider: Optional[str] = Query(None),
+    job_status: Optional[str] = Query(
+        None,
+        description="pending|processing|completed|failed|cancelled|unknown",
+    ),
+    sync_status: Optional[str] = Query(
+        None,
+        description="queued|pending|processing|completed|failed|cancelled|unknown",
+    ),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.list_breakage_helpdesk_failure_replay_batches(
+            window_days=window_days,
+            provider=provider,
+            job_status=job_status,
+            sync_status=sync_status,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "provider": provider,
+                "job_status": job_status,
+                "sync_status": sync_status,
+                "page": page,
+                "page_size": page_size,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/breakage-helpdesk/failures/replay/trends")
+async def get_parallel_ops_breakage_helpdesk_failures_replay_trends(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    bucket_days: int = Query(1, description="1|7|14|30"),
+    provider: Optional[str] = Query(None),
+    job_status: Optional[str] = Query(
+        None,
+        description="pending|processing|completed|failed|cancelled|unknown",
+    ),
+    sync_status: Optional[str] = Query(
+        None,
+        description="queued|pending|processing|completed|failed|cancelled|unknown",
+    ),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.breakage_helpdesk_replay_trends(
+            window_days=window_days,
+            bucket_days=bucket_days,
+            provider=provider,
+            job_status=job_status,
+            sync_status=sync_status,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "bucket_days": bucket_days,
+                "provider": provider,
+                "job_status": job_status,
+                "sync_status": sync_status,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/breakage-helpdesk/failures/replay/trends/export")
+async def export_parallel_ops_breakage_helpdesk_failures_replay_trends(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    bucket_days: int = Query(1, description="1|7|14|30"),
+    provider: Optional[str] = Query(None),
+    job_status: Optional[str] = Query(
+        None,
+        description="pending|processing|completed|failed|cancelled|unknown",
+    ),
+    sync_status: Optional[str] = Query(
+        None,
+        description="queued|pending|processing|completed|failed|cancelled|unknown",
+    ),
+    export_format: str = Query("json", description="json|csv|md"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        exported = service.export_breakage_helpdesk_replay_trends(
+            window_days=window_days,
+            bucket_days=bucket_days,
+            provider=provider,
+            job_status=job_status,
+            sync_status=sync_status,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "bucket_days": bucket_days,
+                "provider": provider,
+                "job_status": job_status,
+                "sync_status": sync_status,
+                "export_format": export_format,
+            },
+        )
+    return StreamingResponse(
+        io.BytesIO(exported.get("content") or b""),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "parallel-ops-breakage-helpdesk-replay-trends.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
+
+
+@parallel_tasks_router.get(
+    "/parallel-ops/breakage-helpdesk/failures/replay/batches/{batch_id}"
+)
+async def get_parallel_ops_breakage_helpdesk_failures_replay_batch(
+    batch_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.get_breakage_helpdesk_failure_replay_batch(
+            batch_id,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        status_code = 400
+        code = "parallel_ops_invalid_request"
+        if "not found" in str(exc).lower():
+            status_code = 404
+            code = "parallel_ops_replay_batch_not_found"
+        _raise_api_error(
+            status_code=status_code,
+            code=code,
+            message=str(exc),
+            context={
+                "batch_id": batch_id,
+                "page": page,
+                "page_size": page_size,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get(
+    "/parallel-ops/breakage-helpdesk/failures/replay/batches/{batch_id}/export"
+)
+async def export_parallel_ops_breakage_helpdesk_failures_replay_batch(
+    batch_id: str,
+    export_format: str = Query("json", description="json|csv|md"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        exported = service.export_breakage_helpdesk_failure_replay_batch(
+            batch_id,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        status_code = 400
+        code = "parallel_ops_invalid_request"
+        if "not found" in str(exc).lower():
+            status_code = 404
+            code = "parallel_ops_replay_batch_not_found"
+        _raise_api_error(
+            status_code=status_code,
+            code=code,
+            message=str(exc),
+            context={"batch_id": batch_id, "export_format": export_format},
+        )
+    return StreamingResponse(
+        io.BytesIO(exported.get("content") or b""),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "parallel-ops-breakage-helpdesk-replay-batch.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
+
+
+@parallel_tasks_router.post("/parallel-ops/breakage-helpdesk/failures/replay/batches/cleanup")
+async def cleanup_parallel_ops_breakage_helpdesk_failures_replay_batches(
+    payload: ParallelOpsBreakageHelpdeskFailureReplayCleanupRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.cleanup_breakage_helpdesk_failure_replay_batches(
+            ttl_hours=payload.ttl_hours,
+            limit=payload.limit,
+            dry_run=payload.dry_run,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "ttl_hours": payload.ttl_hours,
+                "limit": payload.limit,
+                "dry_run": payload.dry_run,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/breakage-helpdesk/failures/export")
+async def export_parallel_ops_breakage_helpdesk_failures(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    provider: Optional[str] = Query(None),
+    failure_category: Optional[str] = Query(None),
+    provider_ticket_status: Optional[str] = Query(None),
+    export_format: str = Query("json", description="json|csv|md|zip"),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        exported = service.export_breakage_helpdesk_failures(
+            window_days=window_days,
+            provider=provider,
+            failure_category=failure_category,
+            provider_ticket_status=provider_ticket_status,
+            export_format=export_format,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "provider": provider,
+                "failure_category": failure_category,
+                "provider_ticket_status": provider_ticket_status,
+                "export_format": export_format,
+            },
+        )
+    return StreamingResponse(
+        io.BytesIO(exported.get("content") or b""),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "parallel-ops-breakage-helpdesk-failures.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
+
+
+@parallel_tasks_router.post("/parallel-ops/breakage-helpdesk/failures/export/jobs")
+async def create_parallel_ops_breakage_helpdesk_failures_export_job(
+    payload: ParallelOpsBreakageHelpdeskFailuresExportJobCreateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.enqueue_breakage_helpdesk_failures_export_job(
+            window_days=payload.window_days,
+            provider=payload.provider,
+            failure_category=payload.failure_category,
+            provider_ticket_status=payload.provider_ticket_status,
+            export_format=payload.export_format,
+            execute_immediately=payload.execute_immediately,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_export_job_invalid",
+            message=str(exc),
+            context={
+                "window_days": payload.window_days,
+                "provider": payload.provider,
+                "failure_category": payload.failure_category,
+                "provider_ticket_status": payload.provider_ticket_status,
+                "export_format": payload.export_format,
+                "execute_immediately": payload.execute_immediately,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.post("/parallel-ops/breakage-helpdesk/failures/export/jobs/cleanup")
+async def cleanup_parallel_ops_breakage_helpdesk_failures_export_job_results(
+    payload: ParallelOpsBreakageHelpdeskFailuresExportCleanupRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.cleanup_expired_breakage_helpdesk_failures_export_results(
+            ttl_hours=payload.ttl_hours,
+            limit=payload.limit,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_export_job_invalid",
+            message=str(exc),
+            context={"ttl_hours": payload.ttl_hours, "limit": payload.limit},
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/breakage-helpdesk/failures/export/jobs/overview")
+async def get_parallel_ops_breakage_helpdesk_failures_export_jobs_overview(
+    window_days: int = Query(7, description="1|7|14|30|90"),
+    provider: Optional[str] = Query(None),
+    failure_category: Optional[str] = Query(None),
+    export_format: Optional[str] = Query(None, description="json|csv|md|zip"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.breakage_helpdesk_failures_export_jobs_overview(
+            window_days=window_days,
+            provider=provider,
+            failure_category=failure_category,
+            export_format=export_format,
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=400,
+            code="parallel_ops_invalid_request",
+            message=str(exc),
+            context={
+                "window_days": window_days,
+                "provider": provider,
+                "failure_category": failure_category,
+                "export_format": export_format,
+                "page": page,
+                "page_size": page_size,
+            },
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get("/parallel-ops/breakage-helpdesk/failures/export/jobs/{job_id}")
+async def get_parallel_ops_breakage_helpdesk_failures_export_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.get_breakage_helpdesk_failures_export_job(job_id)
+    except ValueError as exc:
+        code = "parallel_ops_export_job_not_found"
+        status_code = 404
+        if "not found" not in str(exc).lower():
+            code = "parallel_ops_export_job_invalid"
+            status_code = 400
+        _raise_api_error(
+            status_code=status_code,
+            code=code,
+            message=str(exc),
+            context={"job_id": job_id},
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.post(
+    "/parallel-ops/breakage-helpdesk/failures/export/jobs/{job_id}/run"
+)
+async def run_parallel_ops_breakage_helpdesk_failures_export_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        result = service.run_breakage_helpdesk_failures_export_job(
+            job_id,
+            user_id=int(user.id),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        code = "parallel_ops_export_job_not_found"
+        status_code = 404
+        if "not found" not in str(exc).lower():
+            code = "parallel_ops_export_job_invalid"
+            status_code = 400
+        _raise_api_error(
+            status_code=status_code,
+            code=code,
+            message=str(exc),
+            context={"job_id": job_id},
+        )
+    result["operator_id"] = int(user.id)
+    return result
+
+
+@parallel_tasks_router.get(
+    "/parallel-ops/breakage-helpdesk/failures/export/jobs/{job_id}/download"
+)
+async def download_parallel_ops_breakage_helpdesk_failures_export_job(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = ParallelOpsOverviewService(db)
+    try:
+        exported = service.download_breakage_helpdesk_failures_export_job(job_id)
+    except ValueError as exc:
+        code = "parallel_ops_export_job_not_found"
+        status_code = 404
+        if "not found" not in str(exc).lower():
+            code = "parallel_ops_export_job_invalid"
+            status_code = 400
+        _raise_api_error(
+            status_code=status_code,
+            code=code,
+            message=str(exc),
+            context={"job_id": job_id},
+        )
+    return StreamingResponse(
+        io.BytesIO(exported.get("content") or b""),
+        media_type=str(exported.get("media_type") or "application/octet-stream"),
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{exported.get("filename") or "parallel-ops-breakage-helpdesk-failures.bin"}"'
+            ),
+            "X-Operator-Id": str(int(user.id)),
+        },
+    )
+
+
 @parallel_tasks_router.get("/parallel-ops/metrics")
 async def get_parallel_ops_metrics(
     window_days: int = Query(7, description="1|7|14|30|90"),
@@ -2714,6 +3946,17 @@ async def get_parallel_ops_metrics(
     doc_sync_dead_letter_rate_warn: Optional[float] = Query(None),
     workflow_failed_rate_warn: Optional[float] = Query(None),
     breakage_open_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_triage_coverage_warn: Optional[float] = Query(None),
+    breakage_helpdesk_export_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_provider_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_provider_failed_min_jobs_warn: Optional[int] = Query(None),
+    breakage_helpdesk_provider_failed_rate_critical: Optional[float] = Query(None),
+    breakage_helpdesk_provider_failed_min_jobs_critical: Optional[int] = Query(None),
+    breakage_helpdesk_replay_failed_rate_warn: Optional[float] = Query(None),
+    breakage_helpdesk_replay_failed_total_warn: Optional[int] = Query(None),
+    breakage_helpdesk_replay_pending_total_warn: Optional[int] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -2729,6 +3972,17 @@ async def get_parallel_ops_metrics(
             doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
             workflow_failed_rate_warn=workflow_failed_rate_warn,
             breakage_open_rate_warn=breakage_open_rate_warn,
+            breakage_helpdesk_failed_rate_warn=breakage_helpdesk_failed_rate_warn,
+            breakage_helpdesk_failed_total_warn=breakage_helpdesk_failed_total_warn,
+            breakage_helpdesk_triage_coverage_warn=breakage_helpdesk_triage_coverage_warn,
+            breakage_helpdesk_export_failed_total_warn=breakage_helpdesk_export_failed_total_warn,
+            breakage_helpdesk_provider_failed_rate_warn=breakage_helpdesk_provider_failed_rate_warn,
+            breakage_helpdesk_provider_failed_min_jobs_warn=breakage_helpdesk_provider_failed_min_jobs_warn,
+            breakage_helpdesk_provider_failed_rate_critical=breakage_helpdesk_provider_failed_rate_critical,
+            breakage_helpdesk_provider_failed_min_jobs_critical=breakage_helpdesk_provider_failed_min_jobs_critical,
+            breakage_helpdesk_replay_failed_rate_warn=breakage_helpdesk_replay_failed_rate_warn,
+            breakage_helpdesk_replay_failed_total_warn=breakage_helpdesk_replay_failed_total_warn,
+            breakage_helpdesk_replay_pending_total_warn=breakage_helpdesk_replay_pending_total_warn,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -2745,6 +3999,17 @@ async def get_parallel_ops_metrics(
                 "doc_sync_dead_letter_rate_warn": doc_sync_dead_letter_rate_warn,
                 "workflow_failed_rate_warn": workflow_failed_rate_warn,
                 "breakage_open_rate_warn": breakage_open_rate_warn,
+                "breakage_helpdesk_failed_rate_warn": breakage_helpdesk_failed_rate_warn,
+                "breakage_helpdesk_failed_total_warn": breakage_helpdesk_failed_total_warn,
+                "breakage_helpdesk_triage_coverage_warn": breakage_helpdesk_triage_coverage_warn,
+                "breakage_helpdesk_export_failed_total_warn": breakage_helpdesk_export_failed_total_warn,
+                "breakage_helpdesk_provider_failed_rate_warn": breakage_helpdesk_provider_failed_rate_warn,
+                "breakage_helpdesk_provider_failed_min_jobs_warn": breakage_helpdesk_provider_failed_min_jobs_warn,
+                "breakage_helpdesk_provider_failed_rate_critical": breakage_helpdesk_provider_failed_rate_critical,
+                "breakage_helpdesk_provider_failed_min_jobs_critical": breakage_helpdesk_provider_failed_min_jobs_critical,
+                "breakage_helpdesk_replay_failed_rate_warn": breakage_helpdesk_replay_failed_rate_warn,
+                "breakage_helpdesk_replay_failed_total_warn": breakage_helpdesk_replay_failed_total_warn,
+                "breakage_helpdesk_replay_pending_total_warn": breakage_helpdesk_replay_pending_total_warn,
             },
         )
     return PlainTextResponse(
