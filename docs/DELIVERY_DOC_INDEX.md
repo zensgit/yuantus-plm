@@ -38,7 +38,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`
 - Week Plan & Verification (Enhancements): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202_FEATURES2.md`
 - Week Plan & Verification (Enhancements 2026-02-03): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260203_ENHANCEMENTS.md`
-- Release Notes: `docs/RELEASE_NOTES_v0.1.3_update_20260203.md` (latest), `docs/RELEASE_NOTES_v0.1.3_update_20260202.md`, `docs/RELEASE_NOTES_v0.1.3_update_20260201.md`, `docs/RELEASE_NOTES_v0.1.3.md`
+- Release Notes: `docs/RELEASE_NOTES_v0.1.3_update_20260306.md` (latest), `docs/RELEASE_NOTES_v0.1.3_update_20260204.md`, `docs/RELEASE_NOTES_v0.1.3_update_20260203.md`, `docs/RELEASE_NOTES_v0.1.3_update_20260202.md`, `docs/RELEASE_NOTES_v0.1.3_update_20260201.md`, `docs/RELEASE_NOTES_v0.1.3.md`
 - Verification Summary: `docs/VERIFICATION_RESULTS.md`
 
 ## Ops & Deployment
@@ -167,6 +167,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Parallel P2 Strict Gate Playwright Runner + Runtime Notes: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_STRICT_GATE_PLAYWRIGHT_RUNNER_RUNTIME_NOTES_20260305.md`
 - Parallel P2 Version Checkout Doc-Sync Gate: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_VERSION_CHECKOUT_DOC_SYNC_GATE_20260305.md`
 - Parallel P2 Version Checkout Doc-Sync Gate Scope Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P2_VERSION_CHECKOUT_DOC_SYNC_GATE_SCOPE_EXT_20260306.md`
+- Parallel P3 Odoo18 Reference Parallel Tracks: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_ODOO18_REFERENCE_PARALLEL_TRACKS_20260306.md`
 - Parallel P3 Ops Overview API: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_OPS_OVERVIEW_API_20260228.md`
 - Perf CI Refactor (Config + Baselines + Concurrency): `docs/DEV_AND_VERIFICATION_PERF_CI_REFACTOR_20260209.md`
 - Perf Gate (Generic) - Dev Plan & Verification: `docs/DEV_AND_VERIFICATION_PERF_GATE_20260209.md`
