@@ -24,6 +24,7 @@ class QualityPointCreateRequest(BaseModel):
     check_type: str = "pass_fail"
     product_id: Optional[str] = None
     item_type_id: Optional[str] = None
+    routing_id: Optional[str] = None
     operation_id: Optional[str] = None
     trigger_on: str = "manual"
     measure_min: Optional[float] = None
@@ -41,6 +42,8 @@ class QualityPointUpdateRequest(BaseModel):
     name: Optional[str] = None
     check_type: Optional[str] = None
     is_active: Optional[bool] = None
+    routing_id: Optional[str] = None
+    operation_id: Optional[str] = None
     measure_min: Optional[float] = None
     measure_max: Optional[float] = None
     measure_unit: Optional[str] = None
@@ -87,6 +90,7 @@ def _point_dict(p) -> dict:
         "check_type": p.check_type,
         "product_id": p.product_id,
         "item_type_id": p.item_type_id,
+        "routing_id": p.routing_id,
         "operation_id": p.operation_id,
         "trigger_on": p.trigger_on,
         "measure_min": p.measure_min,
@@ -104,6 +108,8 @@ def _check_dict(c) -> dict:
         "id": c.id,
         "point_id": c.point_id,
         "product_id": c.product_id,
+        "routing_id": c.routing_id,
+        "operation_id": c.operation_id,
         "check_type": c.check_type,
         "result": c.result,
         "measure_value": c.measure_value,
@@ -154,6 +160,7 @@ async def create_quality_point(
             check_type=req.check_type,
             product_id=req.product_id,
             item_type_id=req.item_type_id,
+            routing_id=req.routing_id,
             operation_id=req.operation_id,
             trigger_on=req.trigger_on,
             measure_min=req.measure_min,
@@ -178,6 +185,8 @@ async def create_quality_point(
 async def list_quality_points(
     product_id: Optional[str] = Query(None),
     item_type_id: Optional[str] = Query(None),
+    routing_id: Optional[str] = Query(None),
+    operation_id: Optional[str] = Query(None),
     check_type: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
     db: Session = Depends(get_db),
@@ -186,6 +195,8 @@ async def list_quality_points(
     points = svc.list_points(
         product_id=product_id,
         item_type_id=item_type_id,
+        routing_id=routing_id,
+        operation_id=operation_id,
         check_type=check_type,
         is_active=is_active,
     )
@@ -270,12 +281,18 @@ async def record_quality_check(
 async def list_quality_checks(
     point_id: Optional[str] = Query(None),
     product_id: Optional[str] = Query(None),
+    routing_id: Optional[str] = Query(None),
+    operation_id: Optional[str] = Query(None),
     result: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     svc = QualityService(db)
     checks = svc.list_checks(
-        point_id=point_id, product_id=product_id, result=result
+        point_id=point_id,
+        product_id=product_id,
+        routing_id=routing_id,
+        operation_id=operation_id,
+        result=result,
     )
     return {"total": len(checks), "checks": [_check_dict(c) for c in checks]}
 
@@ -356,3 +373,15 @@ async def get_quality_alert(alert_id: str, db: Session = Depends(get_db)):
     if not alert:
         raise HTTPException(status_code=404, detail="Quality alert not found")
     return _alert_dict(alert)
+
+
+@quality_router.get("/alerts/{alert_id}/manufacturing-context")
+async def get_alert_manufacturing_context(
+    alert_id: str,
+    db: Session = Depends(get_db),
+):
+    svc = QualityService(db)
+    ctx = svc.get_alert_manufacturing_context(alert_id)
+    if ctx is None:
+        raise HTTPException(status_code=404, detail="Quality alert not found")
+    return ctx

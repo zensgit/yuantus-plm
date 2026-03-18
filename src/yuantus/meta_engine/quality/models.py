@@ -87,9 +87,10 @@ class QualityPoint(Base):
         nullable=False,
     )
 
-    # Scope: product / item-type / operation
+    # Scope: product / item-type / routing / operation
     product_id = Column(String, ForeignKey("meta_items.id"), nullable=True, index=True)
     item_type_id = Column(String, nullable=True, index=True)
+    routing_id = Column(String, nullable=True, index=True)
     operation_id = Column(String, nullable=True, index=True)
 
     # Measure-specific thresholds
@@ -139,6 +140,10 @@ class QualityCheck(Base):
         index=True,
     )
     product_id = Column(String, ForeignKey("meta_items.id"), nullable=True, index=True)
+
+    # Manufacturing scope (copied from point on creation)
+    routing_id = Column(String, nullable=True, index=True)
+    operation_id = Column(String, nullable=True, index=True)
 
     # Check execution
     check_type = Column(String(30), nullable=False)

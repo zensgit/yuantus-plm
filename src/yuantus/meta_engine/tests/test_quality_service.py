@@ -1,4 +1,4 @@
-"""Tests for C4 – Quality domain service layer."""
+"""Tests for C4/C8 – Quality domain service layer."""
 
 from unittest.mock import MagicMock, patch
 import pytest
@@ -207,3 +207,118 @@ class TestQualityAlerts:
         svc.transition_alert(alert.id, target_state="closed")
         with pytest.raises(ValueError, match="Cannot transition"):
             svc.transition_alert(alert.id, target_state="new")
+
+
+# ------------------------------------------------------------------
+# C8 – routing/operation scoping & manufacturing context
+# ------------------------------------------------------------------
+
+
+class TestQualityMRPIntegration:
+
+    def test_create_point_with_routing_id(self):
+        session = _mock_session()
+        svc = QualityService(session)
+        point = svc.create_point(
+            name="Assembly Check",
+            routing_id="routing-1",
+            operation_id="op-10",
+            trigger_on="production",
+        )
+        assert point.routing_id == "routing-1"
+        assert point.operation_id == "op-10"
+
+    def test_check_inherits_routing_and_operation_from_point(self):
+        session = _mock_session()
+        svc = QualityService(session)
+        point = svc.create_point(
+            name="Diameter",
+            check_type="measure",
+            routing_id="routing-1",
+            operation_id="op-20",
+            measure_min=9.5,
+            measure_max=10.5,
+        )
+        check = svc.create_check(point_id=point.id, source_document_ref="MO-100")
+        assert check.routing_id == "routing-1"
+        assert check.operation_id == "op-20"
+
+    def test_check_inherits_none_when_point_has_no_routing(self):
+        session = _mock_session()
+        svc = QualityService(session)
+        point = svc.create_point(name="Visual Only")
+        check = svc.create_check(point_id=point.id)
+        assert check.routing_id is None
+        assert check.operation_id is None
+
+    def test_manufacturing_context_full_chain(self):
+        session = _mock_session()
+        svc = QualityService(session)
+        point = svc.create_point(
+            name="Torque Check",
+            check_type="measure",
+            routing_id="routing-1",
+            operation_id="op-30",
+            product_id="item-1",
+            trigger_on="production",
+            measure_min=10.0,
+            measure_max=20.0,
+            measure_unit="Nm",
+        )
+        check = svc.create_check(
+            point_id=point.id,
+            source_document_ref="MO-200",
+            lot_serial="LOT-A",
+        )
+        svc.record_check_result(check.id, result="none", measure_value=25.0)
+        alert = svc.create_alert(
+            name="Torque out of range",
+            check_id=check.id,
+            product_id="item-1",
+            priority="high",
+        )
+        ctx = svc.get_alert_manufacturing_context(alert.id)
+        assert ctx is not None
+        assert ctx["alert_id"] == alert.id
+        assert ctx["alert_name"] == "Torque out of range"
+        assert ctx["product_id"] == "item-1"
+        # check sub-dict
+        assert ctx["check"]["check_id"] == check.id
+        assert ctx["check"]["result"] == "fail"
+        assert ctx["check"]["measure_value"] == 25.0
+        assert ctx["check"]["source_document_ref"] == "MO-200"
+        assert ctx["check"]["lot_serial"] == "LOT-A"
+        # point sub-dict
+        assert ctx["point"]["point_id"] == point.id
+        assert ctx["point"]["routing_id"] == "routing-1"
+        assert ctx["point"]["operation_id"] == "op-30"
+        assert ctx["point"]["measure_min"] == 10.0
+        assert ctx["point"]["measure_max"] == 20.0
+        assert ctx["point"]["measure_unit"] == "Nm"
+        # manufacturing summary
+        mfg = ctx["manufacturing_summary"]
+        assert mfg["routing_id"] == "routing-1"
+        assert mfg["operation_id"] == "op-30"
+        assert mfg["source_document_ref"] == "MO-200"
+        assert mfg["lot_serial"] == "LOT-A"
+        assert mfg["product_id"] == "item-1"
+
+    def test_manufacturing_context_alert_without_check(self):
+        session = _mock_session()
+        svc = QualityService(session)
+        alert = svc.create_alert(
+            name="Standalone Issue",
+            product_id="item-2",
+        )
+        ctx = svc.get_alert_manufacturing_context(alert.id)
+        assert ctx is not None
+        assert ctx["check"] is None
+        assert ctx["point"] is None
+        assert ctx["manufacturing_summary"]["routing_id"] is None
+        assert ctx["manufacturing_summary"]["product_id"] == "item-2"
+
+    def test_manufacturing_context_nonexistent_alert(self):
+        session = _mock_session()
+        svc = QualityService(session)
+        ctx = svc.get_alert_manufacturing_context("no-such-alert")
+        assert ctx is None

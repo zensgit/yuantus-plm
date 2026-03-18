@@ -35,6 +35,7 @@ class QualityService:
         check_type: str = QualityCheckType.PASS_FAIL.value,
         product_id: Optional[str] = None,
         item_type_id: Optional[str] = None,
+        routing_id: Optional[str] = None,
         operation_id: Optional[str] = None,
         trigger_on: str = "manual",
         measure_min: Optional[float] = None,
@@ -60,6 +61,7 @@ class QualityService:
             check_type=check_type,
             product_id=product_id,
             item_type_id=item_type_id,
+            routing_id=routing_id,
             operation_id=operation_id,
             trigger_on=trigger_on,
             measure_min=measure_min,
@@ -86,6 +88,8 @@ class QualityService:
         *,
         product_id: Optional[str] = None,
         item_type_id: Optional[str] = None,
+        routing_id: Optional[str] = None,
+        operation_id: Optional[str] = None,
         check_type: Optional[str] = None,
         is_active: Optional[bool] = None,
     ) -> List[QualityPoint]:
@@ -94,6 +98,10 @@ class QualityService:
             q = q.filter(QualityPoint.product_id == product_id)
         if item_type_id is not None:
             q = q.filter(QualityPoint.item_type_id == item_type_id)
+        if routing_id is not None:
+            q = q.filter(QualityPoint.routing_id == routing_id)
+        if operation_id is not None:
+            q = q.filter(QualityPoint.operation_id == operation_id)
         if check_type is not None:
             q = q.filter(QualityPoint.check_type == check_type)
         if is_active is not None:
@@ -132,6 +140,8 @@ class QualityService:
             id=str(uuid.uuid4()),
             point_id=point_id,
             product_id=product_id or point.product_id,
+            routing_id=point.routing_id,
+            operation_id=point.operation_id,
             check_type=point.check_type,
             result=QualityCheckResult.NONE.value,
             source_document_ref=source_document_ref,
@@ -191,6 +201,8 @@ class QualityService:
         *,
         point_id: Optional[str] = None,
         product_id: Optional[str] = None,
+        routing_id: Optional[str] = None,
+        operation_id: Optional[str] = None,
         result: Optional[str] = None,
     ) -> List[QualityCheck]:
         q = self.session.query(QualityCheck)
@@ -198,6 +210,10 @@ class QualityService:
             q = q.filter(QualityCheck.point_id == point_id)
         if product_id is not None:
             q = q.filter(QualityCheck.product_id == product_id)
+        if routing_id is not None:
+            q = q.filter(QualityCheck.routing_id == routing_id)
+        if operation_id is not None:
+            q = q.filter(QualityCheck.operation_id == operation_id)
         if result is not None:
             q = q.filter(QualityCheck.result == result)
         return q.order_by(QualityCheck.created_at.desc()).all()
@@ -306,3 +322,74 @@ class QualityService:
         if product_id is not None:
             q = q.filter(QualityAlert.product_id == product_id)
         return q.order_by(QualityAlert.created_at.desc()).all()
+
+    # ------------------------------------------------------------------
+    # C8 – Manufacturing context
+    # ------------------------------------------------------------------
+
+    def get_alert_manufacturing_context(
+        self, alert_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Build a manufacturing context summary for an alert.
+
+        Traverses alert → check → point to gather routing, operation,
+        source document, lot/serial, and measure threshold data.
+        Returns None if the alert does not exist.
+        """
+        alert = self.get_alert(alert_id)
+        if not alert:
+            return None
+
+        check_ctx: Optional[Dict[str, Any]] = None
+        point_ctx: Optional[Dict[str, Any]] = None
+        mfg_summary: Dict[str, Any] = {
+            "routing_id": None,
+            "operation_id": None,
+            "source_document_ref": None,
+            "product_id": alert.product_id,
+            "lot_serial": None,
+        }
+
+        if alert.check_id:
+            check = self.get_check(alert.check_id)
+            if check:
+                check_ctx = {
+                    "check_id": check.id,
+                    "check_type": check.check_type,
+                    "result": check.result,
+                    "measure_value": check.measure_value,
+                    "source_document_ref": check.source_document_ref,
+                    "lot_serial": check.lot_serial,
+                }
+                mfg_summary["source_document_ref"] = check.source_document_ref
+                mfg_summary["lot_serial"] = check.lot_serial
+                mfg_summary["routing_id"] = check.routing_id
+                mfg_summary["operation_id"] = check.operation_id
+
+                point = self.get_point(check.point_id)
+                if point:
+                    point_ctx = {
+                        "point_id": point.id,
+                        "point_name": point.name,
+                        "routing_id": point.routing_id,
+                        "operation_id": point.operation_id,
+                        "trigger_on": point.trigger_on,
+                        "measure_min": point.measure_min,
+                        "measure_max": point.measure_max,
+                        "measure_unit": point.measure_unit,
+                    }
+                    if not mfg_summary["routing_id"]:
+                        mfg_summary["routing_id"] = point.routing_id
+                    if not mfg_summary["operation_id"]:
+                        mfg_summary["operation_id"] = point.operation_id
+
+        return {
+            "alert_id": alert.id,
+            "alert_name": alert.name,
+            "alert_state": alert.state,
+            "alert_priority": alert.priority,
+            "product_id": alert.product_id,
+            "check": check_ctx,
+            "point": point_ctx,
+            "manufacturing_summary": mfg_summary,
+        }
