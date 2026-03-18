@@ -1,0 +1,1 @@
+"""Quality assurance domain package."""
