@@ -1695,3 +1695,45 @@ git diff --check
 ### Residual Risks
 - `C23/C24/C25` are task-prep only at this stage; no implementation has been started
 - the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers outside their own domains
+
+## Increment 2026-03-19 Codex-C23-C24-Stack-Verification
+
+### Touched Areas
+- `feature/codex-c23c24-staging`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C23_PLM_BOX_OPS_REPORT_TRANSITIONS_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C24_DOCUMENT_SYNC_RECONCILIATION_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c23c24 python3 -m py_compile \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c23c24 PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- cherry-picked `48af7e3` into staging as `585d5f3`
+- cherry-picked `00df973` into staging as `7ab31dc`
+- `py_compile`: passed
+- combined targeted regression: `111 passed, 44 warnings in 3.99s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- `C25` has not been integrated yet

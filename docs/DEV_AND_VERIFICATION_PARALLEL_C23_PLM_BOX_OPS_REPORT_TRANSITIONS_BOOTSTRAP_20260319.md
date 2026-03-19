@@ -26,3 +26,11 @@ pytest src/yuantus/meta_engine/tests/test_box_*.py -v
 ## Verification
 1. `pytest src/yuantus/meta_engine/tests/test_box_*.py -v` → 47 passed
 2. `git diff --check` → clean
+
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-c23c24-staging`
+- cherry-pick source: `48af7e3`
+- integrated commit: `585d5f3`
+- combined regression with `C24`:
+  - `111 passed, 44 warnings in 3.99s`
+- `git diff --check`: passed

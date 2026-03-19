@@ -184,3 +184,17 @@
   - `C24`
   - `C25`
 - this planning step does not reopen active merge-prep on `main`; it only prepares isolated task boundaries
+
+## Next Candidate Stack: C23-C24
+- candidate branch:
+  - `feature/codex-c23c24-staging`
+- base relation:
+  - fast-forward from `main` commit `ee2292d`
+- integrated commits:
+  - `585d5f3` `feat(c23): add box ops report and transition summary endpoints`
+  - `7ab31dc` `feat(c24): add document sync reconciliation and conflict resolution endpoints`
+- candidate verification:
+  - combined targeted regression:
+    - `111 passed, 44 warnings in 3.99s`
+- current gate:
+  - keep `C25` as the final pending task before deciding whether to promote this batch

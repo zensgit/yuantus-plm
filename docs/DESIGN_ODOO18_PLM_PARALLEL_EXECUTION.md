@@ -790,3 +790,21 @@
 ### Non-Goals
 - 本轮不把 `C23-C25` 直接并入 `main`
 - 本轮不触发新的统一栈合并
+
+## Increment 2026-03-19 Codex-C23-C24-Stack-Verification
+
+### Decision
+- `C23` 与 `C24` 已经不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c23c24-staging` 上完成联合验证。
+- 两条线仍保持 greenfield 范围：
+  - 不注册到 `src/yuantus/api/app.py`
+  - 不触碰 `parallel_tasks`、`version`、`benchmark_branches`
+
+### Why
+- `box` 与 `document_sync` 的第三阶段扩展依旧互不写冲突，适合先做并行联合验证。
+- 先把 `C23/C24` 收成一个 staging 候选，再决定是否叠 `C25`，比三条一次性扩面更稳。
+
+### Result
+- `C23` staging commit: `585d5f3`
+- `C24` staging commit: `7ab31dc`
+- `C25` 继续保持 `prepared_for_claude`

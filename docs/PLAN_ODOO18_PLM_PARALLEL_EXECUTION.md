@@ -32,7 +32,7 @@
 - `C17/C18/C19` greenfield candidate stack：merged into `main`
 - post-merge stabilization refresh：completed on this branch
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
-- next Claude greenfield batch `C23/C24/C25`：prepared on this branch
+- next Claude greenfield batch `C23/C24/C25`：`C23/C24` codex-stack verified, `C25` pending
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -55,8 +55,8 @@
 | C20 | P2 | PLM box analytics / export | `box` analytics/read-model/export helpers | merged_on_main_greenfield |
 | C21 | P2 | document sync analytics / export | `document_sync` analytics/conflict/export helpers | merged_on_main_greenfield |
 | C22 | P2 | cutted-parts analytics / export | `cutted_parts` analytics/waste/export helpers | merged_on_main_greenfield |
-| C23 | P3 | PLM box ops-report / transitions | `box` ops-report/state-transition/export helpers | prepared_for_claude |
-| C24 | P3 | document sync reconciliation | `document_sync` reconciliation/conflict-resolution/export helpers | prepared_for_claude |
+| C23 | P3 | PLM box ops-report / transitions | `box` ops-report/state-transition/export helpers | codex_stack_verified |
+| C24 | P3 | document sync reconciliation | `document_sync` reconciliation/conflict-resolution/export helpers | codex_stack_verified |
 | C25 | P3 | cutted-parts cost / utilization | `cutted_parts` utilization/cost/export helpers | prepared_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
@@ -716,3 +716,16 @@
 - non-goals:
   - no app registration
   - no optimization solver or BOM/manufacturing hot-path integration
+
+## Increment 2026-03-19 Codex-C23-C24-Stack-Verification
+- built isolated candidate stack branch `feature/codex-c23c24-staging`
+- cherry-picked:
+  - `48af7e3` `feat(c23): add box ops report and transition summary endpoints`
+  - `00df973` `feat(c24): add document sync reconciliation and conflict resolution endpoints`
+- stack commits after integration:
+  - `585d5f3` `feat(c23): add box ops report and transition summary endpoints`
+  - `7ab31dc` `feat(c24): add document sync reconciliation and conflict resolution endpoints`
+- combined targeted regression:
+  - `111 passed, 44 warnings in 3.99s`
+- current follow-up:
+  - keep `C25` as the only remaining pending task in this batch

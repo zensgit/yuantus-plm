@@ -25,3 +25,11 @@
 ## Verification
 1. `pytest src/yuantus/meta_engine/tests/test_document_sync_*.py -v` -- 64 passed
 2. `git diff --check` -- clean (no whitespace errors)
+
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-c23c24-staging`
+- cherry-pick source: `00df973`
+- integrated commit: `7ab31dc`
+- combined regression with `C23`:
+  - `111 passed, 44 warnings in 3.99s`
+- `git diff --check`: passed
