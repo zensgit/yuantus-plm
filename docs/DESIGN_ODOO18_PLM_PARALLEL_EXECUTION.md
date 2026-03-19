@@ -660,3 +660,33 @@
 - 不触碰任何脏 worktree，尤其是 `yuantus-cad-pipeline`
 - 把 rehearsal / superseded integration worktree 视为可回收工件，而不是长期保留资产
 - 在稳定窗口明确接受前，维持“Claude 不开新任务”的冻结策略
+
+## Next Claude Batch C20-C22
+
+### Why
+- `main` 的 post-merge 稳定窗口已经通过，当前可以安全恢复新一轮并行开发。
+- 为了避免重新回到热文件冲突，下一批仍应局限在已存在 greenfield 子域的第二阶段扩展。
+
+### Task Boundaries
+- `C20`
+  - 只允许扩展 `box` 子域内部 analytics / export helpers
+- `C21`
+  - 只允许扩展 `document_sync` 子域内部 analytics / conflict / export helpers
+- `C22`
+  - 只允许扩展 `cutted_parts` 子域内部 analytics / waste / export helpers
+
+### Chosen Defaults
+- Claude should branch the next greenfield batch from:
+  - `feature/claude-greenfield-base-2`
+  - source branch: `main`
+- `C20-C22` 一律不允许编辑：
+  - `src/yuantus/api/app.py`
+  - `parallel_tasks`
+  - `version`
+  - `benchmark_branches`
+  - 当前已集成 hot routers
+- 这三条线只做域内读侧、统计和导出，不做新的跨域 orchestration
+
+### Non-Goals
+- 本轮不把 `C20-C22` 直接并入 `main`
+- 本轮不触发新的统一栈合并

@@ -3,7 +3,7 @@
 ## Goal Snapshot
 - 目标一：在当前真实代码基线上持续收口 Odoo18 PLM 对标能力
 - 目标二：把 Claude 已完成分支按模块边界安全并入统一集成栈
-- 当前工作分支：`feature/codex-stack-c17c18c19`
+- 当前工作分支：`main`
 
 ## Baseline Correction
 - 当前仓库真实基线与此前长链路摘要不一致。
@@ -29,7 +29,9 @@
 - `C14` approvals export / ops-report bootstrap：completed on this branch
 - `C15` subcontracting analytics / export bootstrap：completed on this branch
 - `C16` quality SPC / analytics bootstrap：completed on this branch
-- `C17/C18/C19` greenfield candidate stack：completed on this branch
+- `C17/C18/C19` greenfield candidate stack：merged into `main`
+- post-merge stabilization refresh：completed on this branch
+- next Claude greenfield batch `C20/C21/C22`：prepared on this branch
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -46,9 +48,12 @@
 | C14 | P2 | approvals export / ops-report | `approvals` service + router + tests | completed_on_this_branch |
 | C15 | P2 | subcontracting analytics / export | `subcontracting` service + router + tests | completed_on_this_branch |
 | C16 | P2 | quality SPC / analytics | `quality` analytics services + analytics router + tests | completed_on_this_branch |
-| C17 | P2 | PLM box bootstrap | new `box` module + router + tests | completed_on_candidate_stack |
-| C18 | P2 | document multi-site sync bootstrap | new `document_sync` module + router + tests | completed_on_candidate_stack |
-| C19 | P2 | cutted-parts bootstrap | new `cutted_parts` module + router + tests | completed_on_candidate_stack |
+| C17 | P2 | PLM box bootstrap | new `box` module + router + tests | merged_on_main_greenfield |
+| C18 | P2 | document multi-site sync bootstrap | new `document_sync` module + router + tests | merged_on_main_greenfield |
+| C19 | P2 | cutted-parts bootstrap | new `cutted_parts` module + router + tests | merged_on_main_greenfield |
+| C20 | P2 | PLM box analytics / export | `box` analytics/read-model/export helpers | prepared_for_claude |
+| C21 | P2 | document sync analytics / export | `document_sync` analytics/conflict/export helpers | prepared_for_claude |
+| C22 | P2 | cutted-parts analytics / export | `cutted_parts` analytics/waste/export helpers | prepared_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -571,3 +576,50 @@
 - Operational conclusion:
   - the prior `.pytest_cache` `No space left on device` warning did not recur
   - keep Claude frozen until the stabilization window is explicitly accepted
+
+## Increment 2026-03-19 Next Claude Batch C20-C22
+- Stabilization window on merged `main` has been accepted for new greenfield planning.
+- Claude may reopen parallel work only in the following low-conflict greenfield extensions:
+  - `C20`
+  - `C21`
+  - `C22`
+- Claude greenfield branches should now base from:
+  - `feature/claude-greenfield-base-2`
+  - source branch for that freeze point: `main`
+- Keep these tasks out of hot paths:
+  - no edits to `src/yuantus/api/app.py`
+  - no edits to `parallel_tasks`, `version`, `benchmark_branches`
+  - no edits to currently integrated hot routers
+
+### C20
+- task: `PLM box analytics / export bootstrap`
+- suggested branch: `feature/claude-c20-box-analytics`
+- write scope:
+  - `src/yuantus/meta_engine/box/`
+  - `src/yuantus/meta_engine/web/box_router.py`
+  - `src/yuantus/meta_engine/tests/test_box_*.py`
+- non-goals:
+  - no app registration
+  - no CAD/storage/version integration
+
+### C21
+- task: `document sync analytics / export bootstrap`
+- suggested branch: `feature/claude-c21-document-sync-analytics`
+- write scope:
+  - `src/yuantus/meta_engine/document_sync/`
+  - `src/yuantus/meta_engine/web/document_sync_router.py`
+  - `src/yuantus/meta_engine/tests/test_document_sync_*.py`
+- non-goals:
+  - no app registration
+  - no background workers or storage hot-path integration
+
+### C22
+- task: `cutted-parts analytics / export bootstrap`
+- suggested branch: `feature/claude-c22-cutted-parts-analytics`
+- write scope:
+  - `src/yuantus/meta_engine/cutted_parts/`
+  - `src/yuantus/meta_engine/web/cutted_parts_router.py`
+  - `src/yuantus/meta_engine/tests/test_cutted_parts_*.py`
+- non-goals:
+  - no app registration
+  - no optimization solver or BOM/manufacturing hot-path integration

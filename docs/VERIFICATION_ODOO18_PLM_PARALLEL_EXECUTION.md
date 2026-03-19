@@ -1461,3 +1461,39 @@ PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc pytest -q \
 ### Residual Risks
 - `C17/C18/C19` 仍未接入 `src/yuantus/api/app.py`
 - 当前已证明磁盘清理后的 merged `main` 可稳定回归，但仍需人工接受稳定窗口后再恢复新一轮并行开发
+
+## Increment 2026-03-19 Codex-Prepare-Next-Claude-Batch-C20-C22
+
+### Touched Areas
+- `main`
+- `contracts/claude_allowed_paths.json`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DELIVERY_DOC_INDEX.md`
+- `docs/DESIGN_PARALLEL_C20_PLM_BOX_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C20_PLM_BOX_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- `docs/DESIGN_PARALLEL_C21_DOCUMENT_SYNC_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C21_DOCUMENT_SYNC_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- `docs/DESIGN_PARALLEL_C22_CUTTED_PARTS_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C22_CUTTED_PARTS_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+python3 -m json.tool contracts/claude_allowed_paths.json >/dev/null
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- added path-guard profiles `C20`, `C21`, `C22`
+- prepared shared PLAN / DESIGN / VERIFICATION entries for the next Claude batch
+- added standalone design / verification templates for `C20/C21/C22`
+- `python3 -m json.tool contracts/claude_allowed_paths.json >/dev/null`: passed
+- `git diff --check`: passed
+
+### Residual Risks
+- `C20/C21/C22` are task-prep only at this stage; no implementation has been started
+- the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers

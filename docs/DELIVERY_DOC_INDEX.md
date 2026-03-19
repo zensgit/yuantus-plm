@@ -100,6 +100,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - C18 Document Sync Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
 - C19 Cutted Parts Bootstrap Design: `docs/DESIGN_PARALLEL_C19_CUTTED_PARTS_BOOTSTRAP_20260319.md`
 - C19 Cutted Parts Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C19_CUTTED_PARTS_BOOTSTRAP_20260319.md`
+- C20 PLM Box Analytics Export Bootstrap Design: `docs/DESIGN_PARALLEL_C20_PLM_BOX_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- C20 PLM Box Analytics Export Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C20_PLM_BOX_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- C21 Document Sync Analytics Export Bootstrap Design: `docs/DESIGN_PARALLEL_C21_DOCUMENT_SYNC_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- C21 Document Sync Analytics Export Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C21_DOCUMENT_SYNC_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- C22 Cutted Parts Analytics Export Bootstrap Design: `docs/DESIGN_PARALLEL_C22_CUTTED_PARTS_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- C22 Cutted Parts Analytics Export Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C22_CUTTED_PARTS_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`

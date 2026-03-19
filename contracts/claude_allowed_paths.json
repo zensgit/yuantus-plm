@@ -232,6 +232,39 @@
         "^src/yuantus/meta_engine/web/cutted_parts_router\\.py$",
         "^src/yuantus/meta_engine/tests/test_cutted_parts_.*\\.py$"
       ]
+    },
+    "C20": {
+      "description": "PLM Box analytics and export helpers inside the isolated box domain",
+      "branch_patterns": [
+        "^feature/claude-c20(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/box/.*",
+        "^src/yuantus/meta_engine/web/box_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_box_.*\\.py$"
+      ]
+    },
+    "C21": {
+      "description": "Document sync analytics and export helpers inside the isolated document_sync domain",
+      "branch_patterns": [
+        "^feature/claude-c21(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/document_sync/.*",
+        "^src/yuantus/meta_engine/web/document_sync_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_document_sync_.*\\.py$"
+      ]
+    },
+    "C22": {
+      "description": "Cutted-parts analytics and export helpers inside the isolated cutted_parts domain",
+      "branch_patterns": [
+        "^feature/claude-c22(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/cutted_parts/.*",
+        "^src/yuantus/meta_engine/web/cutted_parts_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_cutted_parts_.*\\.py$"
+      ]
     }
   }
 }

@@ -132,5 +132,10 @@
 ## Claude Parallel Policy
 - expanded candidate stack is now frozen except merge-prep and review work
 - `C17-C19` are complete and already integrated into the greenfield candidate stack
-- do not open new Claude feature branches until:
-  - post-merge stabilization on `main` is explicitly accepted
+- post-merge stabilization on `main` has been accepted
+- new Claude work, if reopened, should use the next greenfield batch only:
+  - `C20`
+  - `C21`
+  - `C22`
+- next greenfield base:
+  - `feature/claude-greenfield-base-2`
