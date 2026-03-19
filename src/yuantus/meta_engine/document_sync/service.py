@@ -676,3 +676,138 @@ class DocumentSyncService:
             "replay_overview": self.replay_overview(),
             "sites": [self.site_audit(s.id) for s in sites],
         }
+
+    # ------------------------------------------------------------------
+    # Drift / Snapshots (C30)
+    # ------------------------------------------------------------------
+
+    def drift_overview(self) -> Dict[str, Any]:
+        """Fleet-wide drift metrics: issue rates and conflict/sync totals."""
+        sites = self.session.query(SyncSite).all()
+        jobs = self.session.query(SyncJob).all()
+
+        jobs_with_issues = 0
+        sites_with_failed: set = set()
+        total_synced_documents = 0
+        total_conflicts = 0
+
+        for j in jobs:
+            error_count = j.error_count or 0
+            conflict_count = j.conflict_count or 0
+            if error_count > 0 or conflict_count > 0:
+                jobs_with_issues += 1
+            if j.state == SyncJobState.FAILED.value:
+                sites_with_failed.add(j.site_id)
+            total_synced_documents += (j.synced_count or 0)
+            total_conflicts += conflict_count
+
+        total_jobs = len(jobs)
+        drift_rate: Any = (
+            round(jobs_with_issues / total_jobs * 100, 1)
+            if total_jobs > 0
+            else None
+        )
+
+        return {
+            "total_sites": len(sites),
+            "total_jobs": total_jobs,
+            "jobs_with_issues": jobs_with_issues,
+            "drift_rate": drift_rate,
+            "sites_with_failed_jobs": len(sites_with_failed),
+            "total_synced_documents": total_synced_documents,
+            "total_conflicts": total_conflicts,
+        }
+
+    def site_snapshots(self, site_id: str) -> Dict[str, Any]:
+        """Per-site snapshot: job health, sync totals, and latest job state."""
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        jobs = (
+            self.session.query(SyncJob)
+            .filter(SyncJob.site_id == site_id)
+            .all()
+        )
+
+        total = len(jobs)
+        completed = 0
+        total_synced = 0
+        total_errors = 0
+        total_conflicts = 0
+        latest_job_state: Any = None
+
+        for j in jobs:
+            if j.state == SyncJobState.COMPLETED.value:
+                completed += 1
+            total_synced += (j.synced_count or 0)
+            total_errors += (j.error_count or 0)
+            total_conflicts += (j.conflict_count or 0)
+            latest_job_state = j.state  # last in list (ordered by created_at desc)
+
+        health_pct: Any = (
+            round(completed / total * 100, 1)
+            if total > 0
+            else None
+        )
+
+        return {
+            "site_id": site.id,
+            "site_name": site.name,
+            "state": site.state,
+            "direction": site.direction,
+            "total_jobs": total,
+            "latest_job_state": latest_job_state,
+            "completed_jobs": completed,
+            "total_synced": total_synced,
+            "total_errors": total_errors,
+            "total_conflicts": total_conflicts,
+            "health_pct": health_pct,
+        }
+
+    def job_drift(self, job_id: str) -> Dict[str, Any]:
+        """Per-job drift detail: completeness, issue detection, record breakdown."""
+        job = self.get_job(job_id)
+        if job is None:
+            raise ValueError(f"Job '{job_id}' not found")
+
+        total_documents = job.total_documents or 0
+        synced_count = job.synced_count or 0
+        conflict_count = job.conflict_count or 0
+        error_count = job.error_count or 0
+        skipped_count = job.skipped_count or 0
+
+        drift_detected = error_count > 0 or conflict_count > 0
+
+        sync_completeness_pct: Any = (
+            round(synced_count / total_documents * 100, 1)
+            if total_documents > 0
+            else None
+        )
+
+        records = self.list_records(job_id)
+        records_by_outcome: Dict[str, int] = {}
+        for r in records:
+            records_by_outcome[r.outcome] = records_by_outcome.get(r.outcome, 0) + 1
+
+        return {
+            "job_id": job.id,
+            "state": job.state,
+            "direction": job.direction,
+            "total_documents": total_documents,
+            "synced_count": synced_count,
+            "conflict_count": conflict_count,
+            "error_count": error_count,
+            "skipped_count": skipped_count,
+            "drift_detected": drift_detected,
+            "sync_completeness_pct": sync_completeness_pct,
+            "records_by_outcome": records_by_outcome,
+        }
+
+    def export_drift(self) -> Dict[str, Any]:
+        """Export-ready drift payload: overview + per-site snapshots."""
+        sites = self.session.query(SyncSite).all()
+        return {
+            "drift_overview": self.drift_overview(),
+            "sites": [self.site_snapshots(s.id) for s in sites],
+        }

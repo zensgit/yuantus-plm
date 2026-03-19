@@ -555,3 +555,119 @@ def test_export_audit():
     assert "sites" in resp.json()
     assert resp.json()["replay_overview"]["total_jobs"] == 2
     assert len(resp.json()["sites"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Drift / Snapshots endpoint tests (C30)
+# ---------------------------------------------------------------------------
+
+
+def test_drift_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.drift_overview.return_value = {
+            "total_sites": 2,
+            "total_jobs": 3,
+            "jobs_with_issues": 2,
+            "drift_rate": 66.7,
+            "sites_with_failed_jobs": 1,
+            "total_synced_documents": 15,
+            "total_conflicts": 2,
+        }
+        resp = client.get("/api/v1/document-sync/drift/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_sites"] == 2
+    assert resp.json()["drift_rate"] == 66.7
+    assert resp.json()["jobs_with_issues"] == 2
+    assert resp.json()["total_synced_documents"] == 15
+
+
+def test_site_snapshots():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_snapshots.return_value = {
+            "site_id": "s1", "site_name": "HQ", "state": "active",
+            "direction": "push", "total_jobs": 3,
+            "latest_job_state": "completed", "completed_jobs": 2,
+            "total_synced": 15, "total_errors": 2, "total_conflicts": 1,
+            "health_pct": 66.7,
+        }
+        resp = client.get("/api/v1/document-sync/sites/s1/snapshots")
+
+    assert resp.status_code == 200
+    assert resp.json()["site_id"] == "s1"
+    assert resp.json()["health_pct"] == 66.7
+    assert resp.json()["completed_jobs"] == 2
+    assert resp.json()["total_synced"] == 15
+
+
+def test_site_snapshots_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_snapshots.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/sites/bad/snapshots")
+
+    assert resp.status_code == 404
+
+
+def test_job_drift():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.job_drift.return_value = {
+            "job_id": "j1", "state": "completed", "direction": "push",
+            "total_documents": 10, "synced_count": 7,
+            "conflict_count": 2, "error_count": 1, "skipped_count": 0,
+            "drift_detected": True, "sync_completeness_pct": 70.0,
+            "records_by_outcome": {"synced": 1, "conflict": 1, "error": 1},
+        }
+        resp = client.get("/api/v1/document-sync/jobs/j1/drift")
+
+    assert resp.status_code == 200
+    assert resp.json()["job_id"] == "j1"
+    assert resp.json()["drift_detected"] is True
+    assert resp.json()["sync_completeness_pct"] == 70.0
+    assert resp.json()["records_by_outcome"]["synced"] == 1
+
+
+def test_job_drift_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.job_drift.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/jobs/bad/drift")
+
+    assert resp.status_code == 404
+
+
+def test_export_drift():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_drift.return_value = {
+            "drift_overview": {
+                "total_sites": 1, "total_jobs": 1,
+                "jobs_with_issues": 1, "drift_rate": 100.0,
+                "sites_with_failed_jobs": 0,
+                "total_synced_documents": 10, "total_conflicts": 1,
+            },
+            "sites": [
+                {"site_id": "s1", "site_name": "HQ", "state": "active",
+                 "direction": "push", "total_jobs": 1,
+                 "latest_job_state": "completed", "completed_jobs": 1,
+                 "total_synced": 10, "total_errors": 0, "total_conflicts": 1,
+                 "health_pct": 100.0},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/export/drift")
+
+    assert resp.status_code == 200
+    assert "drift_overview" in resp.json()
+    assert "sites" in resp.json()
+    assert resp.json()["drift_overview"]["total_sites"] == 1
+    assert len(resp.json()["sites"]) == 1
+    assert resp.json()["sites"][0]["site_id"] == "s1"

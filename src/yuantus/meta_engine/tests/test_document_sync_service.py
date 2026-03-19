@@ -1088,3 +1088,260 @@ class TestReplayAudit:
         assert len(result["sites"]) == 1
         assert result["sites"][0]["site_id"] == "s1"
         assert result["sites"][0]["health_pct"] == 100.0
+
+
+# ---------------------------------------------------------------------------
+# TestDriftSnapshots (C30)
+# ---------------------------------------------------------------------------
+
+
+class TestDriftSnapshots:
+    def _session_with_models(self, sites=None, jobs=None, records=None):
+        """Session with model-aware query routing and session.get support."""
+        session = _mock_session()
+        _sites = sites or []
+        _jobs = jobs or []
+        _records = records or []
+
+        def _get_side_effect(model, pk):
+            if model is SyncSite:
+                return next((s for s in _sites if s.id == pk), None)
+            if model is SyncJob:
+                return next((j for j in _jobs if j.id == pk), None)
+            return None
+
+        session.get.side_effect = _get_side_effect
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is SyncSite:
+                q.all.return_value = _sites
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is SyncJob:
+                q.all.return_value = _jobs
+
+                def filter_side_effect(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = _jobs
+                    fq.filter.return_value = fq
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = filter_side_effect
+                q.order_by.return_value = q
+            elif model is SyncRecord:
+                q.all.return_value = _records
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+        return session
+
+    def test_drift_overview(self):
+        """Sites with jobs having issues produce correct drift_rate."""
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="active", direction="pull"),
+        ]
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.conflict_count = 2
+        j1.error_count = 0
+
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j2.synced_count = 0
+        j2.conflict_count = 0
+        j2.error_count = 3
+
+        j3 = _make_job(job_id="j3", site_id="s2", state="completed")
+        j3.synced_count = 5
+        j3.conflict_count = 0
+        j3.error_count = 0
+
+        session = self._session_with_models(sites=sites, jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.drift_overview()
+
+        assert result["total_sites"] == 2
+        assert result["total_jobs"] == 3
+        assert result["jobs_with_issues"] == 2  # j1 has conflicts, j2 has errors
+        # drift_rate = 2/3 * 100 = 66.7
+        assert result["drift_rate"] == 66.7
+        assert result["sites_with_failed_jobs"] == 1  # s1 has j2 failed
+        assert result["total_synced_documents"] == 15
+        assert result["total_conflicts"] == 2
+
+    def test_drift_overview_empty(self):
+        """No sites/jobs yields None drift_rate and zero counts."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.drift_overview()
+
+        assert result["total_sites"] == 0
+        assert result["total_jobs"] == 0
+        assert result["jobs_with_issues"] == 0
+        assert result["drift_rate"] is None
+        assert result["sites_with_failed_jobs"] == 0
+        assert result["total_synced_documents"] == 0
+        assert result["total_conflicts"] == 0
+
+    def test_site_snapshots(self):
+        """Site with multiple jobs produces correct health_pct."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.conflict_count = 1
+        j1.error_count = 0
+
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j2.synced_count = 0
+        j2.conflict_count = 0
+        j2.error_count = 2
+
+        j3 = _make_job(job_id="j3", site_id="s1", state="completed")
+        j3.synced_count = 5
+        j3.conflict_count = 0
+        j3.error_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.site_snapshots("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["site_name"] == "HQ"
+        assert result["state"] == "active"
+        assert result["direction"] == "push"
+        assert result["total_jobs"] == 3
+        assert result["completed_jobs"] == 2
+        assert result["total_synced"] == 15
+        assert result["total_errors"] == 2
+        assert result["total_conflicts"] == 1
+        # health_pct: 2 completed / 3 total = 66.7
+        assert result["health_pct"] == 66.7
+        # latest_job_state is last in the list
+        assert result["latest_job_state"] == "completed"
+
+    def test_site_snapshots_no_jobs(self):
+        """Site exists but has no jobs; health_pct is None."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        session = self._session_with_models(sites=[site], jobs=[])
+        service = DocumentSyncService(session)
+        result = service.site_snapshots("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["total_jobs"] == 0
+        assert result["completed_jobs"] == 0
+        assert result["health_pct"] is None
+        assert result["latest_job_state"] is None
+
+    def test_site_snapshots_not_found(self):
+        """Raises ValueError when site does not exist."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.site_snapshots("nonexistent")
+
+    def test_job_drift(self):
+        """Job with errors/conflicts has drift_detected=True."""
+        job = _make_job(job_id="j1", site_id="s1", state="completed", direction="push")
+        job.total_documents = 10
+        job.synced_count = 7
+        job.conflict_count = 2
+        job.error_count = 1
+        job.skipped_count = 0
+
+        r_synced = _make_record(record_id="r1", document_id="d1", outcome="synced")
+        r_conflict = _make_record(record_id="r2", document_id="d2", outcome="conflict")
+        r_error = _make_record(record_id="r3", document_id="d3", outcome="error")
+
+        session = self._session_with_models(
+            jobs=[job], records=[r_synced, r_conflict, r_error]
+        )
+        service = DocumentSyncService(session)
+        result = service.job_drift("j1")
+
+        assert result["job_id"] == "j1"
+        assert result["state"] == "completed"
+        assert result["direction"] == "push"
+        assert result["total_documents"] == 10
+        assert result["synced_count"] == 7
+        assert result["conflict_count"] == 2
+        assert result["error_count"] == 1
+        assert result["skipped_count"] == 0
+        assert result["drift_detected"] is True
+        # sync_completeness_pct: 7/10 * 100 = 70.0
+        assert result["sync_completeness_pct"] == 70.0
+        assert result["records_by_outcome"]["synced"] == 1
+        assert result["records_by_outcome"]["conflict"] == 1
+        assert result["records_by_outcome"]["error"] == 1
+
+    def test_job_drift_clean(self):
+        """Job with no issues has drift_detected=False."""
+        job = _make_job(job_id="j1", site_id="s1", state="completed", direction="push")
+        job.total_documents = 5
+        job.synced_count = 5
+        job.conflict_count = 0
+        job.error_count = 0
+        job.skipped_count = 0
+
+        r1 = _make_record(record_id="r1", document_id="d1", outcome="synced")
+        r2 = _make_record(record_id="r2", document_id="d2", outcome="synced")
+
+        session = self._session_with_models(jobs=[job], records=[r1, r2])
+        service = DocumentSyncService(session)
+        result = service.job_drift("j1")
+
+        assert result["drift_detected"] is False
+        assert result["sync_completeness_pct"] == 100.0
+        assert result["records_by_outcome"]["synced"] == 2
+
+    def test_job_drift_not_found(self):
+        """Raises ValueError when job does not exist."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.job_drift("nonexistent")
+
+    def test_export_drift(self):
+        """Export combines drift_overview + per-site snapshots."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.conflict_count = 1
+        j1.error_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.export_drift()
+
+        assert "drift_overview" in result
+        assert "sites" in result
+        assert result["drift_overview"]["total_sites"] == 1
+        assert result["drift_overview"]["total_jobs"] == 1
+        assert result["drift_overview"]["jobs_with_issues"] == 1
+        assert len(result["sites"]) == 1
+        assert result["sites"][0]["site_id"] == "s1"
+        assert result["sites"][0]["completed_jobs"] == 1
+
+    def test_export_drift_empty(self):
+        """Export with no data returns empty structures."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.export_drift()
+
+        assert result["drift_overview"]["total_sites"] == 0
+        assert result["drift_overview"]["total_jobs"] == 0
+        assert result["drift_overview"]["drift_rate"] is None
+        assert result["sites"] == []

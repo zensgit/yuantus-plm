@@ -348,3 +348,52 @@ def export_audit(
 ):
     service = DocumentSyncService(db)
     return service.export_audit()
+
+
+# ---------------------------------------------------------------------------
+# Drift / Snapshots endpoints (C30)
+# ---------------------------------------------------------------------------
+
+
+@document_sync_router.get("/drift/overview")
+def drift_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.drift_overview()
+
+
+@document_sync_router.get("/sites/{site_id}/snapshots")
+def site_snapshots(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.site_snapshots(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/jobs/{job_id}/drift")
+def job_drift_endpoint(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.job_drift(job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/export/drift")
+def export_drift(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.export_drift()
