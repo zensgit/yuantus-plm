@@ -1034,3 +1034,19 @@
 - `C31` staging commit: `4f2e54b`
 - combined targeted regression with `C29/C30/C31`: `267 passed, 98 warnings in 3.61s`
 - unified stack regression on staging: `485 passed, 172 warnings in 14.77s`
+
+## Increment 2026-03-19 Codex-Merge-Rehearsal-C29-C30-C31
+
+### Decision
+- `C29/C30/C31` 不再停留在“仅 staging 已验证”，而是已经完成面向 `main` 的 fast-forward rehearsal。
+- 当前 fifth-stage greenfield 批次已经具备进入真实主线合并窗口的条件。
+
+### Why
+- `feature/codex-c29c30c31-staging` 相对 `main` 是纯快进关系。
+- 在 rehearsal 分支 `feature/codex-merge-rehearsal-c29c30c31` 上执行 `--ff-only` 后，没有出现手工冲突。
+- rehearsal 分支上的 unified stack full 结果与候选栈一致，说明候选栈进入主线后的测试面没有新增不稳定因素。
+
+### Result
+- rehearsal branch: `feature/codex-merge-rehearsal-c29c30c31`
+- rehearsal fast-forward: `c620f94` -> `64bfae3`
+- rehearsal full regression: `485 passed, 172 warnings in 15.85s`

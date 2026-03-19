@@ -34,7 +34,7 @@
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
 - next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
-- next Claude greenfield batch `C29/C30/C31`：`C29/C30/C31` codex-stack verified on staging branch
+- next Claude greenfield batch `C29/C30/C31`：candidate stack rehearsed; `main` still frozen
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -951,3 +951,17 @@
   - `485 passed, 172 warnings in 14.77s`
 - result:
   - `C29/C30/C31` are now in Codex-verified staging state
+
+## Increment 2026-03-19 Codex-Merge-Rehearsal-C29-C30-C31
+- candidate branch:
+  - `feature/codex-c29c30c31-staging`
+- rehearsal branch:
+  - `feature/codex-merge-rehearsal-c29c30c31`
+- rehearsal fast-forward:
+  - `c620f94` -> `64bfae3`
+- rehearsal result:
+  - no manual conflict resolution required
+  - unified stack full on rehearsal branch:
+    - `485 passed, 172 warnings in 15.85s`
+- next step:
+  - actual fast-forward into `main` if we accept this fifth-stage batch

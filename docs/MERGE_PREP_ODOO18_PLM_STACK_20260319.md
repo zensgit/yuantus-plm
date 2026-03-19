@@ -294,3 +294,13 @@
     - `485 passed, 172 warnings in 14.77s`
 - current gate:
   - `C29/C30/C31` are now staging-verified
+- rehearsal branch:
+  - `feature/codex-merge-rehearsal-c29c30c31`
+- rehearsal action:
+  - fast-forwarded `main` baseline `c620f94` to candidate commit `64bfae3`
+- rehearsal verification:
+  - unified stack script on rehearsal branch:
+    - `485 passed, 172 warnings in 15.85s`
+  - rehearsal passed without manual conflict resolution
+- next step:
+  - actual fast-forward into `main` if we accept this fifth-stage batch
