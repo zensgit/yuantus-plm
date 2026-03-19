@@ -217,19 +217,20 @@
   - `C28`
 - this planning step does not reopen active merge-prep on `main`; it only prepares isolated fourth-stage task boundaries
 
-## Next Candidate Stack: C26-C27
+## Next Candidate Stack: C26-C27-C28
 - candidate branch:
-  - `feature/codex-c26c27-staging`
+  - `feature/codex-c26c27c28-staging`
 - base relation:
   - fast-forward from `main` commit `d068476`
 - integrated commits:
   - `37e81be` `feat(box): add reconciliation/audit analytics (C26)`
   - `f828406` `feat(document-sync): add replay/audit analytics (C27)`
+  - `fabc2b5` `feat(cutted-parts): add C28 templates/scenarios bootstrap`
 - candidate verification:
   - combined targeted regression:
-    - `140 passed, 55 warnings in 2.35s`
+    - `222 passed, 82 warnings in 3.75s`
   - unified stack script on staging branch:
-    - `425 passed, 151 warnings in 13.34s`
+    - `440 passed, 156 warnings in 13.91s`
 - current gate:
-  - `C26/C27` are now staging-verified
-  - `C28` remains pending before the next promotion step
+  - `C26/C27/C28` are now staging-verified
+  - next step is merge-prep / rehearsal for this full fourth-stage greenfield batch

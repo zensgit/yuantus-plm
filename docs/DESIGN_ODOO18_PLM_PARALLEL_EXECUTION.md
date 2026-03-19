@@ -898,3 +898,23 @@
 - `C27` staging commit: `f828406`
 - combined targeted regression: `140 passed, 55 warnings in 2.35s`
 - unified stack regression on staging: `425 passed, 151 warnings in 13.34s`
+
+## Increment 2026-03-19 Codex-C28-Integration
+
+### Decision
+- `C28` 不再保持 pending，而是直接叠入第四阶段 greenfield 候选栈。
+- 当前 fourth-stage greenfield batch 已完整闭环：
+  - `C26`
+  - `C27`
+  - `C28`
+
+### Why
+- `C28` 继续保持纯 `cutted_parts` 子域范围，不触碰 `app.py` 或任何跨域热路径。
+- `C26/C27` 的 staging 已稳定，直接叠 `C28` 比另起一条候选栈更省回归和文档成本。
+- 候选栈改名为 `feature/codex-c26c27c28-staging` 后，分支口径与实际内容保持一致。
+
+### Result
+- candidate branch: `feature/codex-c26c27c28-staging`
+- integrated commit: `fabc2b5`
+- combined greenfield regression: `222 passed, 82 warnings in 3.75s`
+- unified stack regression on staging: `440 passed, 156 warnings in 13.91s`

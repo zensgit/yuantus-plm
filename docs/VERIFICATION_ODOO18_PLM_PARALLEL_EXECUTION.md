@@ -1921,3 +1921,60 @@ git diff --check
 ### Residual Risks
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
 - `C28` had not been integrated yet at this point in the timeline
+
+## Increment 2026-03-19 Codex-C28-Integration
+
+### Touched Areas
+- `feature/codex-c26c27c28-staging`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C28_CUTTED_PARTS_TEMPLATES_SCENARIOS_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c26c27c28 python3 -m py_compile \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py \
+  src/yuantus/meta_engine/cutted_parts/service.py \
+  src/yuantus/meta_engine/web/cutted_parts_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c26c27c28-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c26c27c28-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- cherry-picked `13c8c90` into staging as `fabc2b5`
+- `py_compile`: passed
+- combined greenfield regression with `C26+C27+C28`: `222 passed, 82 warnings in 3.75s`
+- unified stack script on `feature/codex-c26c27c28-staging`: `440 passed, 156 warnings in 13.91s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- no app registration or hot-path integration has been performed yet, by design

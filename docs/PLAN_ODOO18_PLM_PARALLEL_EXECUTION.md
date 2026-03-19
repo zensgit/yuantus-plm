@@ -33,7 +33,7 @@
 - post-merge stabilization refresh：completed on this branch
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
 - next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
-- next Claude greenfield batch `C26/C27/C28`：`C26/C27` codex-stack verified on staging branch; `C28` pending
+- next Claude greenfield batch `C26/C27/C28`：all codex-stack verified on staging branch
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -61,7 +61,7 @@
 | C25 | P3 | cutted-parts cost / utilization | `cutted_parts` utilization/cost/export helpers | merged_on_main_greenfield |
 | C26 | P3 | PLM box reconciliation / audit | `box` reconciliation/audit/export helpers | codex_stack_verified |
 | C27 | P3 | document sync replay / audit | `document_sync` replay/audit/export helpers | codex_stack_verified |
-| C28 | P3 | cutted-parts templates / scenarios | `cutted_parts` template/scenario/export helpers | prepared_for_claude |
+| C28 | P3 | cutted-parts templates / scenarios | `cutted_parts` template/scenario/export helpers | codex_stack_verified |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -825,3 +825,17 @@
 - result:
   - `C26/C27` are now in Codex-verified staging state
   - `C28` remains pending by design
+
+## Increment 2026-03-19 Codex-C28-Integration
+- promoted candidate stack branch:
+  - `feature/codex-c26c27c28-staging`
+- cherry-picked:
+  - `13c8c90` `feat(cutted-parts): add C28 templates/scenarios bootstrap`
+- staging commit after integration:
+  - `fabc2b5` `feat(cutted-parts): add C28 templates/scenarios bootstrap`
+- combined greenfield regression after `C28`:
+  - `222 passed, 82 warnings in 3.75s`
+- unified stack full regression after `C28`:
+  - `440 passed, 156 warnings in 13.91s`
+- result:
+  - `C26/C27/C28` are now all in Codex-verified staging state
