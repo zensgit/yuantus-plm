@@ -76,3 +76,7 @@
   - `C17` first
   - `C18` after `C17` stabilizes
   - `C19` last
+- greenfield base branch:
+  - `feature/claude-greenfield-base`
+  - freeze commit `9b312e3`
+- do not start `C17-C19` from `main`

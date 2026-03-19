@@ -303,6 +303,10 @@
   - `C17`
   - `C18`
   - `C19`
+- Claude greenfield branches should base from:
+  - `feature/claude-greenfield-base`
+  - current freeze point: `9b312e3`
+- Do not branch these tasks from `main`, because `main` does not yet carry the prepared path-guard/docs baseline
 
 ### C17
 - task: `PLM Box bootstrap`

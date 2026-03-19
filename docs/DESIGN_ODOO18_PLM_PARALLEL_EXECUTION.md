@@ -497,6 +497,10 @@
   - `version`
   - `benchmark_branches`
   - 当前已集成 router 热文件
+- Claude should branch greenfield work from the frozen base:
+  - `feature/claude-greenfield-base`
+  - freeze commit `9b312e3`
+- Do not branch `C17-C19` from `main`, because `main` lacks the prepared guard/docs context
 
 ### Non-Goals
 - 本轮不把 `C17-C19` 直接叠到统一栈
