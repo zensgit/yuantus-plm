@@ -24,6 +24,7 @@ from yuantus.meta_engine.models.parallel_tasks import (
     WorkflowCustomActionRun,
     WorkorderDocumentLink,
 )
+from yuantus.meta_engine.report_locale.models import ReportLocaleProfile
 from yuantus.meta_engine.services.parallel_tasks_service import (
     BreakageIncidentService,
     ConsumptionPlanService,
@@ -56,6 +57,7 @@ def session():
             WorkorderDocumentLink.__table__,
             ThreeDOverlay.__table__,
             ConversionJob.__table__,
+            ReportLocaleProfile.__table__,
         ],
     )
     SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
@@ -1405,6 +1407,16 @@ def test_breakage_metrics_export_json_csv_md(session):
         batch_code="batch-exp-1",
         responsibility="supplier-exp",
     )
+    session.add(
+        ReportLocaleProfile(
+            id="rp-breakage-zh",
+            name="Breakage ZH",
+            lang="zh_CN",
+            timezone="Asia/Shanghai",
+            report_type="breakage_metrics",
+            is_default=True,
+        )
+    )
     session.commit()
 
     exported_json = service.export_metrics(
@@ -1418,6 +1430,21 @@ def test_breakage_metrics_export_json_csv_md(session):
     assert exported_json["filename"] == "breakage-metrics.json"
     assert '"total": 1' in exported_json["content"].decode("utf-8")
     assert '"by_product_item": {' in exported_json["content"].decode("utf-8")
+    exported_json_locale = service.export_metrics(
+        product_item_id="p-exp-1",
+        bom_line_item_id="bom-exp-1",
+        responsibility="supplier-exp",
+        trend_window_days=14,
+        export_format="json",
+        report_lang="zh_CN",
+        report_type="breakage_metrics",
+        locale_profile_id="rp-breakage-zh",
+    )
+    exported_json_locale_payload = json.loads(
+        exported_json_locale["content"].decode("utf-8")
+    )
+    assert exported_json_locale_payload["locale"]["id"] == "rp-breakage-zh"
+    assert exported_json_locale_payload["locale"]["lang"] == "zh_CN"
 
     exported_csv = service.export_metrics(
         product_item_id="p-exp-1",
@@ -1451,6 +1478,19 @@ def test_breakage_metrics_export_json_csv_md(session):
     assert "top_bom_line_items" in md_text
     assert "top_mbom_ids" in md_text
     assert "top_routing_ids" in md_text
+    exported_md_locale = service.export_metrics(
+        product_item_id="p-exp-1",
+        bom_line_item_id="bom-exp-1",
+        responsibility="supplier-exp",
+        trend_window_days=14,
+        export_format="md",
+        report_lang="zh_CN",
+        report_type="breakage_metrics",
+        locale_profile_id="rp-breakage-zh",
+    )
+    md_locale_text = exported_md_locale["content"].decode("utf-8")
+    assert "## Locale" in md_locale_text
+    assert "rp-breakage-zh" in md_locale_text
 
 
 def test_breakage_metrics_export_rejects_invalid_format(session):
@@ -1475,6 +1515,16 @@ def test_breakage_metrics_groups_export_json_csv_md(session):
         batch_code="b-g-exp-1",
         responsibility="supplier-g-exp",
     )
+    session.add(
+        ReportLocaleProfile(
+            id="rp-breakage-groups-zh",
+            name="Breakage Groups ZH",
+            lang="zh_CN",
+            timezone="Asia/Shanghai",
+            report_type="breakage_metrics_groups",
+            is_default=True,
+        )
+    )
     session.commit()
 
     exported_json = service.export_metrics_groups(
@@ -1487,6 +1537,20 @@ def test_breakage_metrics_groups_export_json_csv_md(session):
     assert exported_json["filename"] == "breakage-metrics-groups.json"
     assert '"group_by": "product_item_id"' in exported_json["content"].decode("utf-8")
     assert '"total_groups": 1' in exported_json["content"].decode("utf-8")
+    exported_json_locale = service.export_metrics_groups(
+        group_by="product_item_id",
+        responsibility="supplier-g-exp",
+        trend_window_days=14,
+        export_format="json",
+        report_lang="zh_CN",
+        report_type="breakage_metrics_groups",
+        locale_profile_id="rp-breakage-groups-zh",
+    )
+    exported_groups_json_payload = json.loads(
+        exported_json_locale["content"].decode("utf-8")
+    )
+    assert exported_groups_json_payload["locale"]["id"] == "rp-breakage-groups-zh"
+    assert exported_groups_json_payload["locale"]["lang"] == "zh_CN"
 
     exported_csv = service.export_metrics_groups(
         group_by="product_item_id",
@@ -1513,6 +1577,18 @@ def test_breakage_metrics_groups_export_json_csv_md(session):
     assert "| Group By | Group Value | Count |" in md_text
     assert "product_item_id" in md_text
     assert "p-g-exp-1" in md_text
+    exported_md_locale = service.export_metrics_groups(
+        group_by="product_item_id",
+        responsibility="supplier-g-exp",
+        trend_window_days=14,
+        export_format="md",
+        report_lang="zh_CN",
+        report_type="breakage_metrics_groups",
+        locale_profile_id="rp-breakage-groups-zh",
+    )
+    md_groups_locale_text = exported_md_locale["content"].decode("utf-8")
+    assert "## Locale" in md_groups_locale_text
+    assert "rp-breakage-groups-zh" in md_groups_locale_text
 
     exported_bom_line_json = service.export_metrics_groups(
         group_by="bom_line_item_id",
@@ -1547,6 +1623,16 @@ def test_breakage_incidents_export_supports_bom_line_filter_and_formats(session)
         batch_code="batch-list-2",
         responsibility="supplier-list",
     )
+    session.add(
+        ReportLocaleProfile(
+            id="rp-breakage-incidents-zh",
+            name="Breakage Incidents ZH",
+            lang="zh_CN",
+            timezone="Asia/Shanghai",
+            report_type="breakage_incidents",
+            is_default=True,
+        )
+    )
     session.commit()
 
     listed = service.list_incidents(bom_line_item_id="bom-list-1")
@@ -1562,6 +1648,20 @@ def test_breakage_incidents_export_supports_bom_line_filter_and_formats(session)
     assert exported_json["media_type"] == "application/json"
     assert exported_json["filename"] == "breakage-incidents.json"
     assert '"bom_line_item_id": "bom-list-1"' in exported_json["content"].decode("utf-8")
+    exported_json_locale = service.export_incidents(
+        bom_line_item_id="bom-list-1",
+        page=1,
+        page_size=10,
+        export_format="json",
+        report_lang="zh_CN",
+        report_type="breakage_incidents",
+        locale_profile_id="rp-breakage-incidents-zh",
+    )
+    exported_json_locale_payload = json.loads(
+        exported_json_locale["content"].decode("utf-8")
+    )
+    assert exported_json_locale_payload["locale"]["id"] == "rp-breakage-incidents-zh"
+    assert exported_json_locale_payload["locale"]["lang"] == "zh_CN"
 
     exported_csv = service.export_incidents(
         bom_line_item_id="bom-list-1",
@@ -1586,6 +1686,18 @@ def test_breakage_incidents_export_supports_bom_line_filter_and_formats(session)
     assert exported_md["filename"] == "breakage-incidents.md"
     assert md_text.startswith("# Breakage Incidents")
     assert "bom-list-1" in md_text
+    exported_md_locale = service.export_incidents(
+        bom_line_item_id="bom-list-1",
+        page=1,
+        page_size=10,
+        export_format="md",
+        report_lang="zh_CN",
+        report_type="breakage_incidents",
+        locale_profile_id="rp-breakage-incidents-zh",
+    )
+    md_locale_text = exported_md_locale["content"].decode("utf-8")
+    assert "## Locale" in md_locale_text
+    assert "rp-breakage-incidents-zh" in md_locale_text
 
 
 def test_breakage_incidents_export_rejects_invalid_format(session):
@@ -2282,6 +2394,38 @@ def test_workorder_doc_pack_supports_inherited_links_and_zip_export(session):
     assert "documents.csv" in names
 
 
+def test_workorder_doc_pack_includes_locale_profile_context(session):
+    service = WorkorderDocumentPackService(session)
+    service.upsert_link(routing_id="r-locale", document_item_id="doc-1")
+    session.add(
+        ReportLocaleProfile(
+            id="rp-workorder-zh",
+            name="Workorder ZH",
+            lang="zh_CN",
+            timezone="Asia/Shanghai",
+            report_type="workorder_doc_pack",
+            is_default=True,
+        )
+    )
+    session.commit()
+
+    pack = service.export_pack(
+        routing_id="r-locale",
+        export_meta={
+            "report_lang": "zh_CN",
+            "report_type": "workorder_doc_pack",
+        },
+    )
+
+    locale = pack["manifest"]["locale"]
+    assert locale["id"] == "rp-workorder-zh"
+    assert locale["lang"] == "zh_CN"
+    assert locale["requested_lang"] == "zh_CN"
+    zf = ZipFile(io.BytesIO(pack["zip_bytes"]))
+    names = set(zf.namelist())
+    assert "locale.json" in names
+
+
 def test_3d_overlay_role_gate_and_component_lookup(session):
     service = ThreeDOverlayService(session)
     service.reset_cache_for_tests()
@@ -2536,6 +2680,26 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
         version_label="v2",
         activate=True,
     )
+    session.add(
+        ReportLocaleProfile(
+            id="rp-ops-zh",
+            name="Parallel Ops ZH",
+            lang="zh_CN",
+            timezone="Asia/Shanghai",
+            report_type="parallel_ops_summary",
+            is_default=True,
+        )
+    )
+    session.add(
+        ReportLocaleProfile(
+            id="rp-ops-trends-zh",
+            name="Parallel Ops Trends ZH",
+            lang="zh_CN",
+            timezone="Asia/Shanghai",
+            report_type="parallel_ops_trends",
+            is_default=True,
+        )
+    )
     session.commit()
 
     ops = ParallelOpsOverviewService(session)
@@ -2733,6 +2897,22 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert trends_export_json["media_type"] == "application/json"
     assert trends_export_json["filename"] == "parallel-ops-trends.json"
     assert b'"bucket_days": 1' in trends_export_json["content"]
+    trends_export_json_locale = ops.export_trends(
+        window_days=7,
+        bucket_days=1,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        export_format="json",
+        report_lang="zh_CN",
+        report_type="parallel_ops_trends",
+        locale_profile_id="rp-ops-trends-zh",
+    )
+    trends_export_json_payload = json.loads(
+        trends_export_json_locale["content"].decode("utf-8")
+    )
+    assert trends_export_json_payload["locale"]["id"] == "rp-ops-trends-zh"
+    assert trends_export_json_payload["locale"]["lang"] == "zh_CN"
 
     trends_export_csv = ops.export_trends(
         window_days=7,
@@ -2760,6 +2940,20 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert trends_export_md["filename"] == "parallel-ops-trends.md"
     trends_md_text = trends_export_md["content"].decode("utf-8")
     assert trends_md_text.startswith("# Parallel Ops Trends")
+    trends_export_md_locale = ops.export_trends(
+        window_days=7,
+        bucket_days=1,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        export_format="md",
+        report_lang="zh_CN",
+        report_type="parallel_ops_trends",
+        locale_profile_id="rp-ops-trends-zh",
+    )
+    trends_md_locale_text = trends_export_md_locale["content"].decode("utf-8")
+    assert "## Locale" in trends_md_locale_text
+    assert "rp-ops-trends-zh" in trends_md_locale_text
 
     doc_sync_failures = ops.doc_sync_failures(
         window_days=7,
@@ -2975,6 +3169,19 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     assert export_json["media_type"] == "application/json"
     assert export_json["filename"] == "parallel-ops-summary.json"
     assert b'"window_days": 7' in export_json["content"]
+    export_json_locale = ops.export_summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        export_format="json",
+        report_lang="zh_CN",
+        report_type="parallel_ops_summary",
+        locale_profile_id="rp-ops-zh",
+    )
+    export_json_locale_payload = json.loads(export_json_locale["content"].decode("utf-8"))
+    assert export_json_locale_payload["locale"]["id"] == "rp-ops-zh"
+    assert export_json_locale_payload["locale"]["lang"] == "zh_CN"
 
     export_csv = ops.export_summary(
         window_days=7,
@@ -3003,6 +3210,19 @@ def test_parallel_ops_overview_summary_and_window_validation(session):
     md_text = export_md["content"].decode("utf-8")
     assert md_text.startswith("# Parallel Ops Summary")
     assert "| doc_sync.total | 2 |" in md_text
+    export_md_locale = ops.export_summary(
+        window_days=7,
+        site_id="site-1",
+        target_object="ECO",
+        template_key="tpl-ops",
+        export_format="md",
+        report_lang="zh_CN",
+        report_type="parallel_ops_summary",
+        locale_profile_id="rp-ops-zh",
+    )
+    md_locale_text = export_md_locale["content"].decode("utf-8")
+    assert "## Locale" in md_locale_text
+    assert "rp-ops-zh" in md_locale_text
 
     with pytest.raises(ValueError, match="window_days"):
         ops.summary(window_days=10)

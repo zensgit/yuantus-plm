@@ -116,6 +116,7 @@ class FileMetadata(BaseModel):
     cad_review_by_id: Optional[int] = None
     cad_reviewed_at: Optional[str] = None
     conversion_status: Optional[str] = None
+    viewer_readiness: Optional[dict] = None
     created_at: Optional[str] = None
 
 
@@ -634,12 +635,191 @@ async def get_file_metadata(file_id: str, request: Request, db: Session = Depend
             else None
         ),
         conversion_status=file_container.conversion_status,
+        viewer_readiness=CADConverterService(
+            db, vault_base_path=VAULT_DIR
+        ).assess_viewer_readiness(file_container),
         created_at=(
             file_container.created_at.isoformat() if file_container.created_at else None
         ),
     )
 
 
+@file_router.get("/{file_id}/viewer_readiness")
+async def get_viewer_readiness(file_id: str, db: Session = Depends(get_db)):
+    """Assess 3D/2D viewer readiness for a file."""
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+    converter = CADConverterService(db, vault_base_path=VAULT_DIR)
+    return converter.assess_viewer_readiness(file_container)
+
+
+@file_router.get("/{file_id}/geometry/assets")
+async def list_geometry_assets(file_id: str, db: Session = Depends(get_db)):
+    """List available geometry assets (textures, sidecars) for a file."""
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+    converter = CADConverterService(db, vault_base_path=VAULT_DIR)
+    readiness = converter.assess_viewer_readiness(file_container)
+    return {
+        "file_id": file_id,
+        "geometry_format": readiness.get("geometry_format"),
+        "assets": readiness.get("available_assets", []),
+        "total": len(readiness.get("available_assets", [])),
+    }
+
+
+# ============================================================================
+# C11 – Consumer Readiness Endpoints
+# ============================================================================
+
+
+@file_router.get("/{file_id}/consumer-summary")
+async def get_consumer_summary(file_id: str, db: Session = Depends(get_db)):
+    """One-stop consumer-facing summary: readiness + assets + URLs.
+
+    Returns everything a viewer client needs to render or fall back.
+    """
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+    converter = CADConverterService(db, vault_base_path=VAULT_DIR)
+    readiness = converter.assess_viewer_readiness(file_container)
+    return {
+        "file_id": file_id,
+        "filename": file_container.filename,
+        "file_type": file_container.file_type,
+        "document_type": file_container.document_type,
+        "viewer_mode": readiness["viewer_mode"],
+        "is_viewer_ready": readiness["is_viewer_ready"],
+        "geometry_format": readiness.get("geometry_format"),
+        "assets": readiness.get("available_assets", []),
+        "blocking_reasons": readiness.get("blocking_reasons", []),
+        "urls": {
+            "geometry": f"/api/v1/file/{file_id}/geometry" if readiness["geometry_available"] else None,
+            "preview": f"/api/v1/file/{file_id}/preview" if readiness["preview_available"] else None,
+            "manifest": f"/api/v1/file/{file_id}/cad_manifest" if readiness["manifest_available"] else None,
+            "download": f"/api/v1/file/{file_id}/download",
+            "viewer_readiness": f"/api/v1/file/{file_id}/viewer_readiness",
+        },
+    }
+
+
+@file_router.post("/viewer-readiness/export")
+async def export_viewer_readiness(
+    payload: dict,
+    export_format: str = Query("json", description="json|csv"),
+    db: Session = Depends(get_db),
+):
+    """Export viewer readiness status for a batch of file IDs.
+
+    Accepts ``{"file_ids": ["fc-1", "fc-2", ...]}`` and returns an
+    exportable readiness report.
+    """
+    file_ids = payload.get("file_ids", [])
+    if not file_ids or not isinstance(file_ids, list):
+        raise HTTPException(status_code=400, detail="file_ids list required")
+
+    converter = CADConverterService(db, vault_base_path=VAULT_DIR)
+    rows = []
+    for fid in file_ids:
+        fc = db.get(FileContainer, fid)
+        if not fc:
+            rows.append({
+                "file_id": fid, "filename": None, "viewer_mode": "not_found",
+                "is_viewer_ready": False, "geometry_format": None,
+                "blocking_reasons": ["file_not_found"],
+            })
+            continue
+        readiness = converter.assess_viewer_readiness(fc)
+        rows.append({
+            "file_id": fid,
+            "filename": fc.filename,
+            "viewer_mode": readiness["viewer_mode"],
+            "is_viewer_ready": readiness["is_viewer_ready"],
+            "geometry_format": readiness.get("geometry_format"),
+            "blocking_reasons": readiness.get("blocking_reasons", []),
+        })
+
+    if export_format == "csv":
+        import csv as _csv
+        buf = io.StringIO()
+        writer = _csv.DictWriter(buf, fieldnames=[
+            "file_id", "filename", "viewer_mode", "is_viewer_ready",
+            "geometry_format", "blocking_reasons",
+        ])
+        writer.writeheader()
+        for row in rows:
+            csv_row = dict(row)
+            csv_row["blocking_reasons"] = ";".join(csv_row.get("blocking_reasons") or [])
+            writer.writerow(csv_row)
+        return StreamingResponse(
+            io.BytesIO(buf.getvalue().encode("utf-8")),
+            media_type="text/csv",
+            headers={"Content-Disposition": 'attachment; filename="viewer-readiness.csv"'},
+        )
+
+    # Default: JSON
+    return {
+        "total": len(rows),
+        "ready_count": sum(1 for r in rows if r["is_viewer_ready"]),
+        "not_ready_count": sum(1 for r in rows if not r["is_viewer_ready"]),
+        "files": rows,
+    }
+
+
+@file_router.post("/geometry-pack-summary")
+async def geometry_pack_summary(
+    payload: dict,
+    db: Session = Depends(get_db),
+):
+    """Aggregate geometry asset info for a batch of files.
+
+    Accepts ``{"file_ids": ["fc-1", "fc-2", ...]}`` and returns a
+    summary of all geometry assets across those files.
+    """
+    file_ids = payload.get("file_ids", [])
+    if not file_ids or not isinstance(file_ids, list):
+        raise HTTPException(status_code=400, detail="file_ids list required")
+
+    converter = CADConverterService(db, vault_base_path=VAULT_DIR)
+    items = []
+    total_assets = 0
+    format_counts: dict = {}
+    ready_count = 0
+
+    for fid in file_ids:
+        fc = db.get(FileContainer, fid)
+        if not fc:
+            items.append({"file_id": fid, "found": False, "assets": [], "geometry_format": None})
+            continue
+        readiness = converter.assess_viewer_readiness(fc)
+        assets = readiness.get("available_assets", [])
+        fmt = readiness.get("geometry_format")
+        total_assets += len(assets)
+        if fmt:
+            format_counts[fmt] = format_counts.get(fmt, 0) + 1
+        if readiness["is_viewer_ready"]:
+            ready_count += 1
+        items.append({
+            "file_id": fid,
+            "found": True,
+            "filename": fc.filename,
+            "geometry_format": fmt,
+            "assets": assets,
+            "asset_count": len(assets),
+            "is_viewer_ready": readiness["is_viewer_ready"],
+        })
+
+    return {
+        "total_files": len(file_ids),
+        "files_found": sum(1 for i in items if i.get("found", False)),
+        "viewer_ready_count": ready_count,
+        "total_assets": total_assets,
+        "format_counts": format_counts,
+        "pack": items,
+    }
 @file_router.get("/{file_id}/download")
 async def download_file(file_id: str, db: Session = Depends(get_db)):
     """Download the original file."""

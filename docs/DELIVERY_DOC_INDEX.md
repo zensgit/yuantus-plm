@@ -71,6 +71,37 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- Odoo18 PLM Parallel Execution Plan: `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- Odoo18 PLM Parallel Execution Design: `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- Odoo18 PLM Parallel Execution Verification: `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- C7 BOM Compare Summarized Snapshot Design: `docs/DESIGN_PARALLEL_C7_BOM_COMPARE_SUMMARIZED_SNAPSHOT_20260318.md`
+- C7 BOM Compare Summarized Snapshot Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C7_BOM_COMPARE_SUMMARIZED_SNAPSHOT_20260318.md`
+- C8 Quality MRP Bootstrap Integration Design: `docs/DESIGN_PARALLEL_C8_QUALITY_MRP_BOOTSTRAP_INTEGRATION_20260318.md`
+- C8 Quality MRP Bootstrap Integration Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C8_QUALITY_MRP_BOOTSTRAP_INTEGRATION_20260318.md`
+- C9 Maintenance Workcenter Readiness Design: `docs/DESIGN_PARALLEL_C9_MAINTENANCE_WORKCENTER_READINESS_20260318.md`
+- C9 Maintenance Workcenter Readiness Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C9_MAINTENANCE_WORKCENTER_READINESS_20260318.md`
+- C10 Locale Resolver Export Helpers Design: `docs/DESIGN_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
+- C10 Locale Resolver Export Helpers Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
+- C11 File Viewer Consumer Design: `docs/DESIGN_PARALLEL_C11_FILE_VIEWER_CONSUMER_20260319.md`
+- C11 File Viewer Consumer Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C11_FILE_VIEWER_CONSUMER_20260319.md`
+- C12 Approvals Bootstrap Design: `docs/DESIGN_PARALLEL_C12_APPROVALS_BOOTSTRAP_20260319.md`
+- C12 Approvals Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C12_APPROVALS_BOOTSTRAP_20260319.md`
+- C13 Subcontracting Bootstrap Design: `docs/DESIGN_PARALLEL_C13_SUBCONTRACTING_BOOTSTRAP_20260319.md`
+- C13 Subcontracting Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C13_SUBCONTRACTING_BOOTSTRAP_20260319.md`
+- C14 Approvals Export Ops-Report Bootstrap Design: `docs/DESIGN_PARALLEL_C14_APPROVALS_EXPORT_OPS_REPORT_BOOTSTRAP_20260319.md`
+- C14 Approvals Export Ops-Report Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C14_APPROVALS_EXPORT_OPS_REPORT_BOOTSTRAP_20260319.md`
+- C15 Subcontracting Analytics Export Bootstrap Design: `docs/DESIGN_PARALLEL_C15_SUBCONTRACTING_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- C15 Subcontracting Analytics Export Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C15_SUBCONTRACTING_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- C16 Quality SPC Analytics Bootstrap Design: `docs/DESIGN_PARALLEL_C16_QUALITY_SPC_ANALYTICS_BOOTSTRAP_20260319.md`
+- C16 Quality SPC Analytics Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C16_QUALITY_SPC_ANALYTICS_BOOTSTRAP_20260319.md`
+- C17 PLM Box Bootstrap Design: `docs/DESIGN_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
+- C17 PLM Box Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
+- C18 Document Sync Bootstrap Design: `docs/DESIGN_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
+- C18 Document Sync Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
+- C19 Cutted Parts Bootstrap Design: `docs/DESIGN_PARALLEL_C19_CUTTED_PARTS_BOOTSTRAP_20260319.md`
+- C19 Cutted Parts Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C19_CUTTED_PARTS_BOOTSTRAP_20260319.md`
+- Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
 - Baseline Filters API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`
 - BOM Compare API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_COMPARE_E2E_20260214.md`
@@ -206,6 +237,10 @@ This index aggregates all delivery‑related documents for private deployments.
 - Roadmap 9.3 Performance Report (2026-02-07): `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`
 - Roadmap 9.3 Performance Trend: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND.md`
 - Phase 3 Progress Snapshot: `docs/PHASE3_PROGRESS_SNAPSHOT_20260206.md`
+- Parallel C17 PLM Box Bootstrap Design: `docs/DESIGN_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
+- Parallel C17 PLM Box Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
+- Parallel C18 Document Sync Bootstrap Design: `docs/DESIGN_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
+- Parallel C18 Document Sync Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
 
 ## Optional
 

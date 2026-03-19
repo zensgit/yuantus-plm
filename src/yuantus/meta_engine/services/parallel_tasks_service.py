@@ -33,6 +33,7 @@ from yuantus.meta_engine.models.parallel_tasks import (
     WorkflowCustomActionRun,
     WorkorderDocumentLink,
 )
+from yuantus.meta_engine.report_locale.service import ReportLocaleService
 from yuantus.meta_engine.services.job_service import JobService
 
 
@@ -42,6 +43,54 @@ def _uuid() -> str:
 
 def _utcnow() -> datetime:
     return datetime.utcnow()
+
+
+def _serialize_report_locale_profile(profile: Any) -> Dict[str, Any]:
+    return {
+        "id": getattr(profile, "id", None),
+        "name": getattr(profile, "name", None),
+        "lang": getattr(profile, "lang", None),
+        "fallback_lang": getattr(profile, "fallback_lang", None),
+        "number_format": getattr(profile, "number_format", None),
+        "date_format": getattr(profile, "date_format", None),
+        "time_format": getattr(profile, "time_format", None),
+        "timezone": getattr(profile, "timezone", None),
+        "paper_size": getattr(profile, "paper_size", None),
+        "orientation": getattr(profile, "orientation", None),
+        "header_text": getattr(profile, "header_text", None),
+        "footer_text": getattr(profile, "footer_text", None),
+        "logo_path": getattr(profile, "logo_path", None),
+        "report_type": getattr(profile, "report_type", None),
+        "is_default": bool(getattr(profile, "is_default", False)),
+    }
+
+
+def _resolve_report_locale_context(
+    session: Session,
+    *,
+    locale_profile_id: Optional[str],
+    report_lang: Optional[str],
+    report_type: Optional[str],
+) -> Optional[Dict[str, Any]]:
+    profile_id = str(locale_profile_id or "").strip() or None
+    lang = str(report_lang or "").strip() or None
+    normalized_report_type = str(report_type or "").strip() or None
+    if not profile_id and not lang:
+        return None
+
+    service = ReportLocaleService(session)
+    profile = None
+    if profile_id:
+        profile = service.get_profile(profile_id)
+    elif lang:
+        profile = service.resolve_profile(lang=lang, report_type=normalized_report_type)
+    if not profile:
+        return None
+    payload = _serialize_report_locale_profile(profile)
+    payload["requested_lang"] = lang
+    payload["requested_report_type"] = normalized_report_type
+    payload["requested_profile_id"] = profile_id
+    return payload
 
 
 def _xor_bytes(raw: bytes, key: bytes) -> bytes:
@@ -2785,6 +2834,9 @@ class BreakageIncidentService:
         page: int = 1,
         page_size: int = 20,
         export_format: str = "json",
+        report_lang: Optional[str] = None,
+        report_type: Optional[str] = None,
+        locale_profile_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         incidents_all = self.list_incidents(
             status=status,
@@ -2821,10 +2873,19 @@ class BreakageIncidentService:
             },
             "incidents": serialized,
         }
+        locale_context = _resolve_report_locale_context(
+            self.session,
+            locale_profile_id=locale_profile_id,
+            report_lang=report_lang,
+            report_type=report_type or "breakage_incidents",
+        )
         normalized = str(export_format or "json").strip().lower()
         if normalized == "json":
+            payload = dict(exported)
+            if locale_context:
+                payload["locale"] = locale_context
             return {
-                "content": json.dumps(exported, ensure_ascii=False, indent=2).encode("utf-8"),
+                "content": json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8"),
                 "media_type": "application/json",
                 "filename": "breakage-incidents.json",
             }
@@ -2881,9 +2942,25 @@ class BreakageIncidentService:
                 f"- page_size: {current_page_size}",
                 f"- filters: {json.dumps(exported['filters'], ensure_ascii=False)}",
                 "",
-                "| ID | Status | Severity | Product | BOM Line | Batch | Responsibility |",
-                "| --- | --- | --- | --- | --- | --- | --- |",
             ]
+            if locale_context:
+                lines.extend(
+                    [
+                        "## Locale",
+                        "",
+                        f"- lang: {locale_context.get('lang') or ''}",
+                        f"- profile_id: {locale_context.get('id') or ''}",
+                        f"- report_type: {locale_context.get('report_type') or locale_context.get('requested_report_type') or ''}",
+                        f"- timezone: {locale_context.get('timezone') or ''}",
+                        "",
+                    ]
+                )
+            lines.extend(
+                [
+                    "| ID | Status | Severity | Product | BOM Line | Batch | Responsibility |",
+                    "| --- | --- | --- | --- | --- | --- | --- |",
+                ]
+            )
             for row in serialized:
                 lines.append(
                     f"| {row['id'] or ''} | {row['status'] or ''} | {row['severity'] or ''} | "
@@ -3935,6 +4012,9 @@ class BreakageIncidentService:
         page: int = 1,
         page_size: int = 20,
         export_format: str = "json",
+        report_lang: Optional[str] = None,
+        report_type: Optional[str] = None,
+        locale_profile_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         metrics = self.metrics(
             status=status,
@@ -3947,9 +4027,18 @@ class BreakageIncidentService:
             page=page,
             page_size=page_size,
         )
+        locale_context = _resolve_report_locale_context(
+            self.session,
+            locale_profile_id=locale_profile_id,
+            report_lang=report_lang,
+            report_type=report_type or "breakage_metrics",
+        )
         normalized = str(export_format or "json").strip().lower()
         if normalized == "json":
-            content = json.dumps(metrics, ensure_ascii=False, indent=2).encode("utf-8")
+            payload = dict(metrics)
+            if locale_context:
+                payload["locale"] = locale_context
+            content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
             return {
                 "content": content,
                 "media_type": "application/json",
@@ -4106,9 +4195,25 @@ class BreakageIncidentService:
                     f"{json.dumps(hotspots, ensure_ascii=False)}"
                 ),
                 "",
-                "| Date | Count |",
-                "| --- | --- |",
             ]
+            if locale_context:
+                lines.extend(
+                    [
+                        "## Locale",
+                        "",
+                        f"- lang: {locale_context.get('lang') or ''}",
+                        f"- profile_id: {locale_context.get('id') or ''}",
+                        f"- report_type: {locale_context.get('report_type') or locale_context.get('requested_report_type') or ''}",
+                        f"- timezone: {locale_context.get('timezone') or ''}",
+                        "",
+                    ]
+                )
+            lines.extend(
+                [
+                    "| Date | Count |",
+                    "| --- | --- |",
+                ]
+            )
             for row in rows:
                 lines.append(f"| {row['date'] or ''} | {row['count'] or 0} |")
             return {
@@ -4133,6 +4238,9 @@ class BreakageIncidentService:
         page: int = 1,
         page_size: int = 20,
         export_format: str = "json",
+        report_lang: Optional[str] = None,
+        report_type: Optional[str] = None,
+        locale_profile_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         metrics_groups = self.metrics_groups(
             group_by=group_by,
@@ -4146,9 +4254,18 @@ class BreakageIncidentService:
             page=page,
             page_size=page_size,
         )
+        locale_context = _resolve_report_locale_context(
+            self.session,
+            locale_profile_id=locale_profile_id,
+            report_lang=report_lang,
+            report_type=report_type or "breakage_metrics_groups",
+        )
         normalized = str(export_format or "json").strip().lower()
         if normalized == "json":
-            content = json.dumps(metrics_groups, ensure_ascii=False, indent=2).encode("utf-8")
+            payload = dict(metrics_groups)
+            if locale_context:
+                payload["locale"] = locale_context
+            content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
             return {
                 "content": content,
                 "media_type": "application/json",
@@ -4195,9 +4312,25 @@ class BreakageIncidentService:
                 ),
                 f"- filters: {json.dumps(metrics_groups.get('filters') or {}, ensure_ascii=False)}",
                 "",
-                "| Group By | Group Value | Count |",
-                "| --- | --- | --- |",
             ]
+            if locale_context:
+                lines.extend(
+                    [
+                        "## Locale",
+                        "",
+                        f"- lang: {locale_context.get('lang') or ''}",
+                        f"- profile_id: {locale_context.get('id') or ''}",
+                        f"- report_type: {locale_context.get('report_type') or locale_context.get('requested_report_type') or ''}",
+                        f"- timezone: {locale_context.get('timezone') or ''}",
+                        "",
+                    ]
+                )
+            lines.extend(
+                [
+                    "| Group By | Group Value | Count |",
+                    "| --- | --- | --- |",
+                ]
+            )
             for row in rows:
                 lines.append(
                     f"| {row['group_by'] or ''} | {row['group_value'] or ''} | {row['count'] or 0} |"
@@ -5554,6 +5687,12 @@ class WorkorderDocumentPackService:
             "exported_by": str(normalized_meta.get("exported_by") or "").strip() or None,
             "format_version": "workorder-doc-pack.v2",
         }
+        locale_context = _resolve_report_locale_context(
+            self.session,
+            locale_profile_id=normalized_meta.get("locale_profile_id"),
+            report_lang=normalized_meta.get("report_lang"),
+            report_type=normalized_meta.get("report_type") or "workorder_doc_pack",
+        )
         docs = [
             {
                 "link_id": link.id,
@@ -5580,6 +5719,8 @@ class WorkorderDocumentPackService:
             "export_meta": export_context,
             "documents": docs,
         }
+        if locale_context:
+            manifest["locale"] = locale_context
 
         csv_io = io.StringIO()
         writer = csv.DictWriter(
@@ -5603,6 +5744,8 @@ class WorkorderDocumentPackService:
         with ZipFile(zip_io, mode="w", compression=ZIP_DEFLATED) as zf:
             zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
             zf.writestr("documents.csv", csv_io.getvalue())
+            if locale_context:
+                zf.writestr("locale.json", json.dumps(locale_context, ensure_ascii=False, indent=2))
 
         return {"manifest": manifest, "zip_bytes": zip_io.getvalue()}
 
@@ -10850,6 +10993,9 @@ class ParallelOpsOverviewService:
         target_object: Optional[str] = None,
         template_key: Optional[str] = None,
         export_format: str = "json",
+        report_lang: Optional[str] = None,
+        report_type: Optional[str] = None,
+        locale_profile_id: Optional[str] = None,
         overlay_cache_hit_rate_warn: Optional[float] = None,
         overlay_cache_min_requests_warn: Optional[int] = None,
         doc_sync_dead_letter_rate_warn: Optional[float] = None,
@@ -10901,9 +11047,18 @@ class ParallelOpsOverviewService:
             doc_sync_checkout_gate_max_dead_letter_warn=doc_sync_checkout_gate_max_dead_letter_warn,
             doc_sync_dead_letter_trend_delta_warn=doc_sync_dead_letter_trend_delta_warn,
         )
+        locale_context = _resolve_report_locale_context(
+            self.session,
+            locale_profile_id=locale_profile_id,
+            report_lang=report_lang,
+            report_type=report_type or "parallel_ops_summary",
+        )
         normalized = str(export_format or "json").strip().lower()
         if normalized == "json":
-            content = json.dumps(summary, ensure_ascii=False, indent=2).encode("utf-8")
+            payload = dict(summary)
+            if locale_context:
+                payload["locale"] = locale_context
+            content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
             return {
                 "content": content,
                 "media_type": "application/json",
@@ -10931,9 +11086,25 @@ class ParallelOpsOverviewService:
                 f"- window_days: {summary.get('window_days') or ''}",
                 f"- window_since: {summary.get('window_since') or ''}",
                 "",
+            ]
+            if locale_context:
+                lines.extend(
+                    [
+                        "## Locale",
+                        "",
+                        f"- lang: {locale_context.get('lang') or ''}",
+                        f"- profile_id: {locale_context.get('id') or ''}",
+                        f"- report_type: {locale_context.get('report_type') or locale_context.get('requested_report_type') or ''}",
+                        f"- timezone: {locale_context.get('timezone') or ''}",
+                        "",
+                    ]
+                )
+            lines.extend(
+                [
                 "| Metric | Value |",
                 "| --- | --- |",
-            ]
+                ]
+            )
             for row in rows:
                 lines.append(f"| {row['metric']} | {row['value']} |")
             return {
@@ -10997,6 +11168,9 @@ class ParallelOpsOverviewService:
         target_object: Optional[str] = None,
         template_key: Optional[str] = None,
         export_format: str = "json",
+        report_lang: Optional[str] = None,
+        report_type: Optional[str] = None,
+        locale_profile_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         trends = self.trends(
             window_days=window_days,
@@ -11005,9 +11179,18 @@ class ParallelOpsOverviewService:
             target_object=target_object,
             template_key=template_key,
         )
+        locale_context = _resolve_report_locale_context(
+            self.session,
+            locale_profile_id=locale_profile_id,
+            report_lang=report_lang,
+            report_type=report_type or "parallel_ops_trends",
+        )
         normalized = str(export_format or "json").strip().lower()
         if normalized == "json":
-            content = json.dumps(trends, ensure_ascii=False, indent=2).encode("utf-8")
+            payload = dict(trends)
+            if locale_context:
+                payload["locale"] = locale_context
+            content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
             return {
                 "content": content,
                 "media_type": "application/json",
@@ -11058,9 +11241,25 @@ class ParallelOpsOverviewService:
                 f"- bucket_days: {trends.get('bucket_days') or ''}",
                 f"- window_since: {trends.get('window_since') or ''}",
                 "",
+            ]
+            if locale_context:
+                lines.extend(
+                    [
+                        "## Locale",
+                        "",
+                        f"- lang: {locale_context.get('lang') or ''}",
+                        f"- profile_id: {locale_context.get('id') or ''}",
+                        f"- report_type: {locale_context.get('report_type') or locale_context.get('requested_report_type') or ''}",
+                        f"- timezone: {locale_context.get('timezone') or ''}",
+                        "",
+                    ]
+                )
+            lines.extend(
+                [
                 "| Bucket Start | Bucket End | DocSync Total | DocSync Push | DocSync Pull | DocSync Failed | DocSync DeadLetter | DL Push | DL Pull | Workflow Total | Workflow Failed | Breakages Total | Breakages Open |",
                 "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
-            ]
+                ]
+            )
             for row in rows:
                 lines.append(
                     "| "

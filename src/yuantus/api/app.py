@@ -24,6 +24,7 @@ from yuantus.meta_engine.web.config_router import config_router
 from yuantus.meta_engine.web.cad_router import router as cad_router
 from yuantus.meta_engine.web.dedup_router import dedup_router
 from yuantus.meta_engine.web.eco_router import eco_router
+from yuantus.meta_engine.web.approvals_router import approvals_router
 from yuantus.meta_engine.web.equivalent_router import equivalent_router
 from yuantus.meta_engine.web.effectivity_router import effectivity_router
 from yuantus.meta_engine.web.file_router import file_router
@@ -42,6 +43,11 @@ from yuantus.meta_engine.web.schema_router import schema_router
 from yuantus.meta_engine.web.search_router import search_router
 from yuantus.meta_engine.web.impact_router import impact_router
 from yuantus.meta_engine.web.item_cockpit_router import item_cockpit_router
+from yuantus.meta_engine.web.locale_router import locale_router
+from yuantus.meta_engine.web.maintenance_router import maintenance_router
+from yuantus.meta_engine.web.quality_router import quality_router
+from yuantus.meta_engine.web.quality_analytics_router import quality_analytics_router
+from yuantus.meta_engine.web.subcontracting_router import subcontracting_router
 from yuantus.meta_engine.web.ui_router import ui_router
 from yuantus.meta_engine.web.version_router import version_router
 from yuantus.meta_engine.web.manufacturing_router import (
@@ -114,6 +120,7 @@ def create_app() -> FastAPI:
     app.include_router(rpc_router, prefix="/api/v1")
     app.include_router(search_router, prefix="/api/v1")
     app.include_router(bom_router, prefix="/api/v1")
+    app.include_router(approvals_router, prefix="/api/v1")
     app.include_router(equivalent_router, prefix="/api/v1")
     app.include_router(effectivity_router, prefix="/api/v1")
     app.include_router(baseline_router, prefix="/api/v1")
@@ -126,6 +133,7 @@ def create_app() -> FastAPI:
     app.include_router(schema_router, prefix="/api/v1")
     app.include_router(impact_router, prefix="/api/v1")
     app.include_router(item_cockpit_router, prefix="/api/v1")
+    app.include_router(locale_router, prefix="/api/v1")
     app.include_router(release_readiness_router, prefix="/api/v1")
     app.include_router(release_orchestration_router, prefix="/api/v1")
     app.include_router(ui_router, prefix="/api/v1")
@@ -138,6 +146,10 @@ def create_app() -> FastAPI:
     app.include_router(report_router, prefix="/api/v1")
     app.include_router(eco_router, prefix="/api/v1")
     app.include_router(parallel_tasks_router, prefix="/api/v1")
+    app.include_router(maintenance_router, prefix="/api/v1")
+    app.include_router(quality_router, prefix="/api/v1")
+    app.include_router(quality_analytics_router, prefix="/api/v1")
+    app.include_router(subcontracting_router, prefix="/api/v1")
 
     return app
 

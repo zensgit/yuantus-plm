@@ -128,6 +128,41 @@ def test_workorder_doc_export_json_includes_export_meta():
     assert data["scope_summary"]["operation"] == 1
 
 
+def test_workorder_doc_export_passes_locale_query_contract():
+    user = SimpleNamespace(id=2, roles=["admin"], is_superuser=False, email="u2@example.com")
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.WorkorderDocumentPackService"
+    ) as service_cls:
+        service_cls.return_value.export_pack.return_value = {
+            "manifest": {
+                "routing_id": "r-1",
+                "documents": [],
+                "count": 0,
+                "scope_summary": {"routing": 0, "operation": 0},
+                "export_meta": {},
+                "locale": {"id": "rp-1", "lang": "zh_CN"},
+            },
+            "zip_bytes": b"PK\x03\x04",
+        }
+        resp = client.get(
+            "/api/v1/workorder-docs/export"
+            "?routing_id=r-1"
+            "&export_format=json"
+            "&report_lang=zh_CN"
+            "&report_type=workorder_doc_pack"
+            "&locale_profile_id=rp-1"
+        )
+
+    assert resp.status_code == 200
+    kwargs = service_cls.return_value.export_pack.call_args.kwargs
+    assert kwargs["export_meta"]["report_lang"] == "zh_CN"
+    assert kwargs["export_meta"]["report_type"] == "workorder_doc_pack"
+    assert kwargs["export_meta"]["locale_profile_id"] == "rp-1"
+    assert resp.json()["locale"]["id"] == "rp-1"
+
+
 def test_breakage_helpdesk_sync_endpoint_returns_job():
     user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
     client, db = _client_with_user(user)
@@ -895,7 +930,40 @@ def test_breakage_metrics_groups_export_returns_download_response():
         page=1,
         page_size=20,
         export_format="csv",
+        report_lang=None,
+        report_type=None,
+        locale_profile_id=None,
     )
+
+
+def test_breakage_metrics_groups_export_passes_locale_query_contract():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.export_metrics_groups.return_value = {
+            "content": b'{"group_by": "product_item_id", "locale": {"id": "rp-breakage-groups-zh"}}',
+            "media_type": "application/json",
+            "filename": "breakage-metrics-groups.json",
+        }
+        resp = client.get(
+            "/api/v1/breakages/metrics/groups/export"
+            "?group_by=product_item_id"
+            "&trend_window_days=14"
+            "&export_format=json"
+            "&report_lang=zh_CN"
+            "&report_type=breakage_metrics_groups"
+            "&locale_profile_id=rp-breakage-groups-zh"
+        )
+
+    assert resp.status_code == 200
+    kwargs = service_cls.return_value.export_metrics_groups.call_args.kwargs
+    assert kwargs["report_lang"] == "zh_CN"
+    assert kwargs["report_type"] == "breakage_metrics_groups"
+    assert kwargs["locale_profile_id"] == "rp-breakage-groups-zh"
+    assert resp.json()["locale"]["id"] == "rp-breakage-groups-zh"
 
 
 def test_breakage_metrics_groups_export_invalid_request_maps_contract_error():
@@ -993,7 +1061,39 @@ def test_breakage_export_returns_download_response():
         page=1,
         page_size=20,
         export_format="csv",
+        report_lang=None,
+        report_type=None,
+        locale_profile_id=None,
     )
+
+
+def test_breakage_export_passes_locale_query_contract():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.export_incidents.return_value = {
+            "content": b'{"total": 1, "locale": {"id": "rp-breakage-incidents-zh"}}',
+            "media_type": "application/json",
+            "filename": "breakage-incidents.json",
+        }
+        resp = client.get(
+            "/api/v1/breakages/export"
+            "?bom_line_item_id=bom-1"
+            "&export_format=json"
+            "&report_lang=zh_CN"
+            "&report_type=breakage_incidents"
+            "&locale_profile_id=rp-breakage-incidents-zh"
+        )
+
+    assert resp.status_code == 200
+    kwargs = service_cls.return_value.export_incidents.call_args.kwargs
+    assert kwargs["report_lang"] == "zh_CN"
+    assert kwargs["report_type"] == "breakage_incidents"
+    assert kwargs["locale_profile_id"] == "rp-breakage-incidents-zh"
+    assert resp.json()["locale"]["id"] == "rp-breakage-incidents-zh"
 
 
 def test_breakage_export_invalid_request_maps_contract_error():
@@ -1051,7 +1151,39 @@ def test_breakage_metrics_export_returns_download_response():
         page=1,
         page_size=20,
         export_format="csv",
+        report_lang=None,
+        report_type=None,
+        locale_profile_id=None,
     )
+
+
+def test_breakage_metrics_export_passes_locale_query_contract():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.export_metrics.return_value = {
+            "content": b'{"total": 1, "locale": {"id": "rp-breakage-zh"}}',
+            "media_type": "application/json",
+            "filename": "breakage-metrics.json",
+        }
+        resp = client.get(
+            "/api/v1/breakages/metrics/export"
+            "?trend_window_days=14"
+            "&export_format=json"
+            "&report_lang=zh_CN"
+            "&report_type=breakage_metrics"
+            "&locale_profile_id=rp-breakage-zh"
+        )
+
+    assert resp.status_code == 200
+    kwargs = service_cls.return_value.export_metrics.call_args.kwargs
+    assert kwargs["report_lang"] == "zh_CN"
+    assert kwargs["report_type"] == "breakage_metrics"
+    assert kwargs["locale_profile_id"] == "rp-breakage-zh"
+    assert resp.json()["locale"]["id"] == "rp-breakage-zh"
 
 
 def test_breakage_metrics_export_invalid_request_maps_contract_error():
@@ -2266,6 +2398,36 @@ def test_parallel_ops_trends_export_returns_download_response():
     assert "doc_sync_total" in resp.text
 
 
+def test_parallel_ops_trends_export_passes_locale_query_contract():
+    user = SimpleNamespace(id=18, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_trends.return_value = {
+            "content": b'{"bucket_days": 1, "locale": {"id": "rp-ops-trends-zh"}}',
+            "media_type": "application/json",
+            "filename": "parallel-ops-trends.json",
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/trends/export"
+            "?window_days=7"
+            "&bucket_days=1"
+            "&export_format=json"
+            "&report_lang=zh_CN"
+            "&report_type=parallel_ops_trends"
+            "&locale_profile_id=rp-ops-trends-zh"
+        )
+
+    assert resp.status_code == 200
+    kwargs = service_cls.return_value.export_trends.call_args.kwargs
+    assert kwargs["report_lang"] == "zh_CN"
+    assert kwargs["report_type"] == "parallel_ops_trends"
+    assert kwargs["locale_profile_id"] == "rp-ops-trends-zh"
+    assert resp.json()["locale"]["id"] == "rp-ops-trends-zh"
+
+
 def test_parallel_ops_trends_export_invalid_request_maps_contract_error():
     user = SimpleNamespace(id=18, roles=["admin"], is_superuser=False)
     client, _db = _client_with_user(user)
@@ -2367,6 +2529,35 @@ def test_parallel_ops_summary_export_returns_download_response():
     )
     assert resp.headers.get("x-operator-id") == "19"
     assert '"window_days": 7' in resp.text
+
+
+def test_parallel_ops_summary_export_passes_locale_query_contract():
+    user = SimpleNamespace(id=19, roles=["admin"], is_superuser=False)
+    client, _db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+    ) as service_cls:
+        service_cls.return_value.export_summary.return_value = {
+            "content": b'{"window_days": 7, "locale": {"id": "rp-ops-zh"}}',
+            "media_type": "application/json",
+            "filename": "parallel-ops-summary.json",
+        }
+        resp = client.get(
+            "/api/v1/parallel-ops/summary/export"
+            "?window_days=7"
+            "&export_format=json"
+            "&report_lang=zh_CN"
+            "&report_type=parallel_ops_summary"
+            "&locale_profile_id=rp-ops-zh"
+        )
+
+    assert resp.status_code == 200
+    kwargs = service_cls.return_value.export_summary.call_args.kwargs
+    assert kwargs["report_lang"] == "zh_CN"
+    assert kwargs["report_type"] == "parallel_ops_summary"
+    assert kwargs["locale_profile_id"] == "rp-ops-zh"
+    assert resp.json()["locale"]["id"] == "rp-ops-zh"
 
 
 def test_parallel_ops_summary_export_invalid_request_maps_contract_error():

@@ -92,6 +92,9 @@ def _manifest_to_pdf_bytes(manifest: Dict[str, Any]) -> bytes:
     scope_summary = manifest.get("scope_summary") if isinstance(manifest, dict) else {}
     if not isinstance(scope_summary, dict):
         scope_summary = {}
+    locale = manifest.get("locale") if isinstance(manifest, dict) else {}
+    if not isinstance(locale, dict):
+        locale = {}
 
     lines = [
         "Workorder Document Pack",
@@ -107,8 +110,18 @@ def _manifest_to_pdf_bytes(manifest: Dict[str, Any]) -> bytes:
         f"total_documents: {manifest.get('count') or 0}",
         f"routing_scope_docs: {scope_summary.get('routing') or 0}",
         f"operation_scope_docs: {scope_summary.get('operation') or 0}",
-        "=== Documents ===",
     ]
+    if locale:
+        lines.extend(
+            [
+                "=== Locale ===",
+                f"lang: {locale.get('lang') or ''}",
+                f"profile_id: {locale.get('id') or ''}",
+                f"report_type: {locale.get('report_type') or locale.get('requested_report_type') or ''}",
+                f"timezone: {locale.get('timezone') or ''}",
+            ]
+        )
+    lines.append("=== Documents ===")
     for idx, row in enumerate(manifest.get("documents") or [], start=1):
         lines.append(
             f"{idx}. doc={row.get('document_item_id')} "
@@ -1795,6 +1808,9 @@ async def export_breakage_metrics(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=200),
     export_format: str = Query("json", description="json|csv|md"),
+    report_lang: Optional[str] = Query(None),
+    report_type: Optional[str] = Query(None),
+    locale_profile_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -1811,6 +1827,9 @@ async def export_breakage_metrics(
             page=page,
             page_size=page_size,
             export_format=export_format,
+            report_lang=report_lang,
+            report_type=report_type,
+            locale_profile_id=locale_profile_id,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -1828,6 +1847,9 @@ async def export_breakage_metrics(
                 "page": page,
                 "page_size": page_size,
                 "export_format": export_format,
+                "report_lang": report_lang,
+                "report_type": report_type,
+                "locale_profile_id": locale_profile_id,
             },
         )
     return StreamingResponse(
@@ -1860,6 +1882,9 @@ async def export_breakage_metrics_groups(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=200),
     export_format: str = Query("json", description="json|csv|md"),
+    report_lang: Optional[str] = Query(None),
+    report_type: Optional[str] = Query(None),
+    locale_profile_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -1877,6 +1902,9 @@ async def export_breakage_metrics_groups(
             page=page,
             page_size=page_size,
             export_format=export_format,
+            report_lang=report_lang,
+            report_type=report_type,
+            locale_profile_id=locale_profile_id,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -1895,6 +1923,9 @@ async def export_breakage_metrics_groups(
                 "page": page,
                 "page_size": page_size,
                 "export_format": export_format,
+                "report_lang": report_lang,
+                "report_type": report_type,
+                "locale_profile_id": locale_profile_id,
             },
         )
     return StreamingResponse(
@@ -2013,6 +2044,9 @@ async def export_breakage_incidents(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=200),
     export_format: str = Query("json", description="json|csv|md"),
+    report_lang: Optional[str] = Query(None),
+    report_type: Optional[str] = Query(None),
+    locale_profile_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -2028,6 +2062,9 @@ async def export_breakage_incidents(
             page=page,
             page_size=page_size,
             export_format=export_format,
+            report_lang=report_lang,
+            report_type=report_type,
+            locale_profile_id=locale_profile_id,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -2044,6 +2081,9 @@ async def export_breakage_incidents(
                 "page": page,
                 "page_size": page_size,
                 "export_format": export_format,
+                "report_lang": report_lang,
+                "report_type": report_type,
+                "locale_profile_id": locale_profile_id,
             },
         )
     return StreamingResponse(
@@ -2629,6 +2669,9 @@ async def export_workorder_doc_pack(
     export_format: str = Query("zip", description="zip|json|pdf"),
     job_no: Optional[str] = Query(None),
     operator_name: Optional[str] = Query(None),
+    report_lang: Optional[str] = Query(None),
+    report_type: Optional[str] = Query(None),
+    locale_profile_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -2642,6 +2685,9 @@ async def export_workorder_doc_pack(
             "operator_id": int(user.id),
             "operator_name": operator_name,
             "exported_by": str(getattr(user, "email", "") or getattr(user, "id", "")),
+            "report_lang": report_lang,
+            "report_type": report_type,
+            "locale_profile_id": locale_profile_id,
         },
     )
     manifest = result["manifest"]
@@ -3101,6 +3147,9 @@ async def export_parallel_ops_summary(
     target_object: Optional[str] = Query(None),
     template_key: Optional[str] = Query(None),
     export_format: str = Query("json", description="json|csv|md"),
+    report_lang: Optional[str] = Query(None),
+    report_type: Optional[str] = Query(None),
+    locale_profile_id: Optional[str] = Query(None),
     overlay_cache_hit_rate_warn: Optional[float] = Query(None),
     overlay_cache_min_requests_warn: Optional[int] = Query(None),
     doc_sync_dead_letter_rate_warn: Optional[float] = Query(None),
@@ -3134,6 +3183,9 @@ async def export_parallel_ops_summary(
             target_object=target_object,
             template_key=template_key,
             export_format=export_format,
+            report_lang=report_lang,
+            report_type=report_type,
+            locale_profile_id=locale_profile_id,
             overlay_cache_hit_rate_warn=overlay_cache_hit_rate_warn,
             overlay_cache_min_requests_warn=overlay_cache_min_requests_warn,
             doc_sync_dead_letter_rate_warn=doc_sync_dead_letter_rate_warn,
@@ -3168,6 +3220,9 @@ async def export_parallel_ops_summary(
                 "target_object": target_object,
                 "template_key": template_key,
                 "export_format": export_format,
+                "report_lang": report_lang,
+                "report_type": report_type,
+                "locale_profile_id": locale_profile_id,
                 "overlay_cache_hit_rate_warn": overlay_cache_hit_rate_warn,
                 "overlay_cache_min_requests_warn": overlay_cache_min_requests_warn,
                 "doc_sync_dead_letter_rate_warn": doc_sync_dead_letter_rate_warn,
@@ -3212,6 +3267,9 @@ async def export_parallel_ops_trends(
     target_object: Optional[str] = Query(None),
     template_key: Optional[str] = Query(None),
     export_format: str = Query("json", description="json|csv|md"),
+    report_lang: Optional[str] = Query(None),
+    report_type: Optional[str] = Query(None),
+    locale_profile_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -3224,6 +3282,9 @@ async def export_parallel_ops_trends(
             target_object=target_object,
             template_key=template_key,
             export_format=export_format,
+            report_lang=report_lang,
+            report_type=report_type,
+            locale_profile_id=locale_profile_id,
         )
     except ValueError as exc:
         _raise_api_error(
@@ -3237,6 +3298,9 @@ async def export_parallel_ops_trends(
                 "target_object": target_object,
                 "template_key": template_key,
                 "export_format": export_format,
+                "report_lang": report_lang,
+                "report_type": report_type,
+                "locale_profile_id": locale_profile_id,
             },
         )
     return StreamingResponse(
