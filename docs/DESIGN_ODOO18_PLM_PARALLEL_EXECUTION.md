@@ -934,3 +934,25 @@
 - rehearsal branch: `feature/codex-merge-rehearsal-c26c27c28`
 - rehearsal fast-forward: `d068476` -> `019e874`
 - rehearsal full regression: `440 passed, 156 warnings in 13.61s`
+
+## Increment 2026-03-19 Main-FastForward-C26-C27-C28
+
+### Decision
+- `C26/C27/C28` 不再停留在候选栈 / rehearsal 状态，而是作为第四阶段 greenfield 批次正式进入 `main`。
+- `main` 现在直接承载：
+  - `C26`
+  - `C27`
+  - `C28`
+
+### Why
+- `feature/codex-c26c27c28-staging` 相对 `main` 是纯快进关系，实际合并不需要额外冲突修复。
+- 合并前候选栈已完成：
+  - 联合定向回归
+  - unified stack full regression
+  - 面向 `main` 的 fast-forward rehearsal
+- 合并后在 `main` 上再次重跑 unified stack，结果保持稳定。
+
+### Result
+- merged main commit: `129e773`
+- source staging branch: `feature/codex-c26c27c28-staging`
+- post-merge unified stack rerun on `main`: `440 passed, 156 warnings in 13.96s`

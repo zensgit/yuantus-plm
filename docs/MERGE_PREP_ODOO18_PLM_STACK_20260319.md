@@ -247,3 +247,15 @@
 - resolution:
   - rehearsal passed without manual conflict resolution
   - candidate stack is ready for actual main fast-forward if accepted
+
+## Actual Main Fast-Forward: C26-C27-C28
+- source staging branch:
+  - `feature/codex-c26c27c28-staging`
+- main fast-forward lineage:
+  - `d068476` -> `129e773`
+- post-merge verification on `main`:
+  - unified stack rerun:
+    - `440 passed, 156 warnings in 13.96s`
+- resolution:
+  - `C26/C27/C28` are now merged on `main`
+  - no new post-merge functional regression was observed

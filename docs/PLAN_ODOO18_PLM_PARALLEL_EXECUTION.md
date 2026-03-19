@@ -33,7 +33,7 @@
 - post-merge stabilization refresh：completed on this branch
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
 - next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
-- next Claude greenfield batch `C26/C27/C28`：candidate stack fast-forward rehearsal complete
+- next Claude greenfield batch `C26/C27/C28`：merged on `main` and post-merge verified
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -59,9 +59,9 @@
 | C23 | P3 | PLM box ops-report / transitions | `box` ops-report/state-transition/export helpers | merged_on_main_greenfield |
 | C24 | P3 | document sync reconciliation | `document_sync` reconciliation/conflict-resolution/export helpers | merged_on_main_greenfield |
 | C25 | P3 | cutted-parts cost / utilization | `cutted_parts` utilization/cost/export helpers | merged_on_main_greenfield |
-| C26 | P3 | PLM box reconciliation / audit | `box` reconciliation/audit/export helpers | candidate_stack_rehearsed |
-| C27 | P3 | document sync replay / audit | `document_sync` replay/audit/export helpers | candidate_stack_rehearsed |
-| C28 | P3 | cutted-parts templates / scenarios | `cutted_parts` template/scenario/export helpers | candidate_stack_rehearsed |
+| C26 | P3 | PLM box reconciliation / audit | `box` reconciliation/audit/export helpers | merged_on_main_greenfield |
+| C27 | P3 | document sync replay / audit | `document_sync` replay/audit/export helpers | merged_on_main_greenfield |
+| C28 | P3 | cutted-parts templates / scenarios | `cutted_parts` template/scenario/export helpers | merged_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -853,3 +853,15 @@
     - `440 passed, 156 warnings in 13.61s`
 - next step:
   - actual fast-forward into `main` if we accept this fourth-stage batch
+
+## Increment 2026-03-19 Main-FastForward-C26-C27-C28
+- `main` advanced from:
+  - `d068476`
+  - to `129e773`
+- source staging branch:
+  - `feature/codex-c26c27c28-staging`
+- post-merge unified stack rerun on `main`:
+  - `440 passed, 156 warnings in 13.96s`
+- result:
+  - `C26/C27/C28` are now part of `main`
+  - no new post-merge functional regression was observed
