@@ -47,6 +47,7 @@
 | C16 | P2 | quality SPC / analytics | `quality` analytics services + analytics router + tests | completed_on_this_branch |
 | C17 | P2 | PLM box bootstrap | new `box` module + router + tests | completed_on_c17_integration_branch |
 | C18 | P2 | document multi-site sync bootstrap | new `document_sync` module + router + tests | completed_on_c18_integration_branch |
+| C19 | P2 | cutted-parts bootstrap | new `cutted_parts` module + router + tests | completed_on_c19_integration_branch |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -360,6 +361,24 @@
     - `19 passed, 8 warnings`
   - light cross-pack regression:
     - `66 passed, 53 warnings`
+
+## Increment 2026-03-19 Codex-C19-Integration
+- Created `feature/codex-c19-cutted-parts-integration` from the frozen unified stack baseline `feature/codex-stack-c11c12`
+- Cherry-picked Claude `C19` commit `e474466`
+- Preserved the original greenfield constraint:
+  - no `src/yuantus/api/app.py` registration
+- Integrated artifacts:
+  - `src/yuantus/meta_engine/cutted_parts/__init__.py`
+  - `src/yuantus/meta_engine/cutted_parts/models.py`
+  - `src/yuantus/meta_engine/cutted_parts/service.py`
+  - `src/yuantus/meta_engine/web/cutted_parts_router.py`
+  - `src/yuantus/meta_engine/tests/test_cutted_parts_service.py`
+  - `src/yuantus/meta_engine/tests/test_cutted_parts_router.py`
+- Verification results on the Codex integration branch:
+  - cutted-parts targeted pack:
+    - `35 passed, 11 warnings`
+  - light cross-pack regression:
+    - `69 passed, 56 warnings`
 
 ## Increment 2026-03-19 Codex-C11-C12-Integration
 - Created `feature/codex-stack-c11c12` from the verified `C13` baseline

@@ -724,7 +724,68 @@ git diff --check
 - `git diff --check`: passed
 
 ### Residual Risks
-- `C17-C19` 目前只完成了边界与模板准备，尚无实现代码
+- `C17-C19` 已进入分支化 greenfield 实现阶段，但尚未全部汇总到统一候选栈
+
+## Increment 2026-03-19 Codex-C19-Integration
+
+### Touched Areas
+- `feature/codex-c19-cutted-parts-integration`
+- `src/yuantus/meta_engine/cutted_parts/__init__.py`
+- `src/yuantus/meta_engine/cutted_parts/models.py`
+- `src/yuantus/meta_engine/cutted_parts/service.py`
+- `src/yuantus/meta_engine/web/cutted_parts_router.py`
+- `src/yuantus/meta_engine/tests/test_cutted_parts_service.py`
+- `src/yuantus/meta_engine/tests/test_cutted_parts_router.py`
+- `docs/DESIGN_PARALLEL_C19_CUTTED_PARTS_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C19_CUTTED_PARTS_BOOTSTRAP_20260319.md`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/meta_engine/cutted_parts/__init__.py \
+  src/yuantus/meta_engine/cutted_parts/models.py \
+  src/yuantus/meta_engine/cutted_parts/service.py \
+  src/yuantus/meta_engine/web/cutted_parts_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `py_compile`: passed
+- targeted `C19` pack:
+  - `35 passed, 11 warnings`
+- light cross-pack regression:
+  - `69 passed, 56 warnings`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- `C19` 仍保持未注册到 `src/yuantus/api/app.py`
+- 当前只证明 greenfield router/service 与现有已集成子域不冲突，尚未证明全应用接线
 
 ## Increment 2026-03-19 Codex-C17-Integration
 

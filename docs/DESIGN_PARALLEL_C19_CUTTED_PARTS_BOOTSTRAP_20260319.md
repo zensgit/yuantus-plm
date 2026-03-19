@@ -1,4 +1,4 @@
-# C19 Cutted Parts Bootstrap Design
+# C19 – Cutted Parts Bootstrap – Design
 
 ## Goal
 - 在独立 `cutted_parts` 子域内建立 cutted-parts bootstrap。
@@ -67,3 +67,12 @@ cancelled cancelled  cancelled
 ```
 
 Completed and cancelled are terminal states.
+
+## Codex Integration Notes
+- `C19` was integrated on top of the frozen unified stack branch in:
+  - `feature/codex-c19-cutted-parts-integration`
+- The greenfield isolation contract was preserved:
+  - no app registration
+  - no edits to BOM / manufacturing hot services
+- Extensible JSON fields remain portable across the current test/storage baseline by using:
+  - `JSON().with_variant(JSONB, "postgresql")`
