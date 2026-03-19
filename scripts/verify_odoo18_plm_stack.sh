@@ -49,6 +49,18 @@ compile_files=(
   "src/yuantus/meta_engine/subcontracting/models.py"
   "src/yuantus/meta_engine/subcontracting/service.py"
   "src/yuantus/meta_engine/web/subcontracting_router.py"
+  "src/yuantus/meta_engine/box/__init__.py"
+  "src/yuantus/meta_engine/box/models.py"
+  "src/yuantus/meta_engine/box/service.py"
+  "src/yuantus/meta_engine/web/box_router.py"
+  "src/yuantus/meta_engine/document_sync/__init__.py"
+  "src/yuantus/meta_engine/document_sync/models.py"
+  "src/yuantus/meta_engine/document_sync/service.py"
+  "src/yuantus/meta_engine/web/document_sync_router.py"
+  "src/yuantus/meta_engine/cutted_parts/__init__.py"
+  "src/yuantus/meta_engine/cutted_parts/models.py"
+  "src/yuantus/meta_engine/cutted_parts/service.py"
+  "src/yuantus/meta_engine/web/cutted_parts_router.py"
   "src/yuantus/meta_engine/web/bom_router.py"
 )
 
@@ -60,6 +72,9 @@ smoke_tests=(
   "src/yuantus/meta_engine/tests/test_locale_router.py"
   "src/yuantus/meta_engine/tests/test_subcontracting_router.py"
   "src/yuantus/meta_engine/tests/test_approvals_router.py"
+  "src/yuantus/meta_engine/tests/test_box_router.py"
+  "src/yuantus/meta_engine/tests/test_document_sync_router.py"
+  "src/yuantus/meta_engine/tests/test_cutted_parts_router.py"
 )
 
 full_tests=(
@@ -83,6 +98,12 @@ full_tests=(
   "src/yuantus/meta_engine/tests/test_file_viewer_readiness.py"
   "src/yuantus/meta_engine/tests/test_approvals_service.py"
   "src/yuantus/meta_engine/tests/test_approvals_router.py"
+  "src/yuantus/meta_engine/tests/test_box_service.py"
+  "src/yuantus/meta_engine/tests/test_box_router.py"
+  "src/yuantus/meta_engine/tests/test_document_sync_service.py"
+  "src/yuantus/meta_engine/tests/test_document_sync_router.py"
+  "src/yuantus/meta_engine/tests/test_cutted_parts_service.py"
+  "src/yuantus/meta_engine/tests/test_cutted_parts_router.py"
 )
 
 case "$MODE" in

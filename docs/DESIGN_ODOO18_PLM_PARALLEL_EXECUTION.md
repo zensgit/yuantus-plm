@@ -526,6 +526,33 @@
 - 本轮不继续在统一栈上叠 `C17-C19` 实现
 - 本轮不把统一栈重新当成主功能开发分支
 
+## Increment 2026-03-19 Expanded Greenfield Candidate Stack Merge Prep
+
+### Why
+- `C17/C18/C19` 已完成独立集成验证，但还缺少：
+  - 扩展后的统一回归脚本
+  - 面向 `main` 的真实 merge rehearsal
+- 这两步不完成，候选栈还不能进入最终合并决策。
+
+### Delivered Scope
+- 扩展 `scripts/verify_odoo18_plm_stack.sh`：
+  - `box`
+  - `document_sync`
+  - `cutted_parts`
+- 将 merge-prep 工作分支切换到：
+  - `feature/codex-stack-c17c18c19`
+- 基于 `main` 完成新的 rehearsal merge：
+  - `feature/codex-merge-rehearsal-c17c18c19`
+
+### Chosen Defaults
+- 候选栈继续保持 greenfield 子域不注册到 `src/yuantus/api/app.py`
+- full baseline 以扩展后的 `scripts/verify_odoo18_plm_stack.sh full` 为准
+- rehearsal 仍在独立分支完成，不在候选栈直接制造 merge commit
+
+### Non-Goals
+- 本轮不把 `C17/C18/C19` 回并到统一主栈
+- 本轮不再打开新的 Claude greenfield 任务
+
 ### Why
 - 现有仓库只有 ECO approvals，不存在独立的 generic approvals 模块。
 - 这条线适合用全新模块落地，避免挤占现有热文件。

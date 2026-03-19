@@ -1,7 +1,7 @@
 # Odoo18 PLM Unified Stack Merge Prep
 
 ## Branch
-- `feature/codex-stack-c11c12`
+- `feature/codex-stack-c17c18c19`
 
 ## Included Contracts
 - `C6`
@@ -16,13 +16,16 @@
 - `C14`
 - `C15`
 - `C16`
+- `C17`
+- `C18`
+- `C19`
 
 ## Latest Commits
-- `4c1b49d` `docs(plan): prepare claude c17-c19 greenfield task batch`
-- `a07ee36` `docs(stack): record merge prep regression and hotspot summary`
-- `4152374` `feat(stack): integrate c16 into unified quality analytics stack`
-- `afc9b19` `feat(c16): add quality SPC and analytics services`
-- `a016201` `feat(stack): integrate c14 c15 and automate unified regression`
+- `1d49413` `docs(stack): record c17 c18 c19 combined integration regression`
+- `2f98e1b` `docs(c19): record codex integration verification`
+- `ea7af53` `feat(c19): bootstrap cutted-parts domain with materials, plans, and cuts`
+- `457170c` `docs(stack): record c17 c18 combined integration regression`
+- `f2534d6` `docs(c18): record codex integration verification`
 
 ## Merge Hotspots
 - `src/yuantus/api/app.py`
@@ -31,32 +34,48 @@
 - `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
 - `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
 - `docs/DELIVERY_DOC_INDEX.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 
 ## Regression Baselines
-- unified stack script:
-  - `218 passed, 75 warnings`
-- broader merge-prep pack:
-  - `112 passed, 283 deselected, 62 warnings`
+- expanded unified stack script:
+  - `305 passed, 103 warnings in 121.86s`
+- greenfield candidate targeted pack:
+  - `87 passed, 29 warnings`
+- greenfield candidate light cross-pack:
+  - `87 passed, 74 warnings`
 
 ## Current Assessment
-- No blocking integration defect found on the unified stack branch
-- Remaining work is merge-prep and wider final regression, not new feature branches
+- No blocking integration defect found on the expanded candidate stack
+- Remaining work is:
+  - final merge target decision
+  - whether to fold `C17-C19` back into the unified main stack
 
 ## Merge Rehearsal
-- rehearsal branch: `feature/codex-merge-rehearsal-stack`
-- rehearsal merge commit: `b307d19`
-- result:
-  - unified stack merges into `main` without manual conflict resolution
+- prior rehearsal branch:
+  - `feature/codex-merge-rehearsal-stack`
+- prior rehearsal merge commit:
+  - `b307d19`
+- prior result:
+  - pre-greenfield unified stack merged into `main` without manual conflict resolution
+- current expanded candidate stack rehearsal:
+  - branch:
+    - `feature/codex-merge-rehearsal-c17c18c19`
+  - merge commit:
+    - `79abfc4`
+  - result:
+    - expanded candidate stack merges into `main` without manual conflict resolution
 
 ## Final Regression Refresh
-- unified stack script rerun:
-  - `218 passed, 75 warnings in 12.43s`
-- broader merge-prep pack rerun:
-  - `112 passed, 283 deselected, 62 warnings in 15.07s`
+- expanded stack script rerun:
+  - `305 passed, 103 warnings in 121.86s`
+- greenfield targeted pack:
+  - `87 passed, 29 warnings`
+- greenfield light cross-pack:
+  - `87 passed, 74 warnings`
 
 ## Merge Checklist
 - confirm target branch is still `main`
-- merge source branch `feature/codex-stack-c11c12`
+- merge source branch `feature/codex-stack-c17c18c19`
 - review hotspot files first:
   - `src/yuantus/api/app.py`
   - `contracts/claude_allowed_paths.json`
@@ -64,6 +83,7 @@
   - `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
   - `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
   - `docs/DELIVERY_DOC_INDEX.md`
+  - `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 - rerun before final merge:
   - `PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc scripts/verify_odoo18_plm_stack.sh full`
 - recommended post-merge regression:
@@ -71,12 +91,9 @@
   - rerun the broader merge-prep pytest pack
 
 ## Claude Parallel Policy
-- unified stack is now frozen except merge-prep and review work
-- Claude may take only new greenfield tasks:
-  - `C17` first
-  - `C18` after `C17` stabilizes
-  - `C19` last
-- greenfield base branch:
-  - `feature/claude-greenfield-base`
-  - freeze commit `9b312e3`
-- do not start `C17-C19` from `main`
+- expanded candidate stack is now frozen except merge-prep and review work
+- `C17-C19` are complete and already integrated into the greenfield candidate stack
+- do not open new Claude feature branches until:
+  - expanded stack merge rehearsal is complete
+  - final regression is stable
+  - greenfield candidate stack merge target is decided

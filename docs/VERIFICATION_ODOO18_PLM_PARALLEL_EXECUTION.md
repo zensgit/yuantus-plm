@@ -1275,3 +1275,56 @@ git diff --check
 ### Residual Risks
 - `C17/C18/C19` 仍都保持未注册到 `src/yuantus/api/app.py`
 - 当前只证明三个 greenfield 子域可以一起叠加且不踩现有已集成子域，尚未证明统一主应用接线
+
+## Increment 2026-03-19 Codex-C17-C18-C19-Merge-Prep
+
+### Touched Areas
+- `feature/codex-stack-c17c18c19`
+- `scripts/verify_odoo18_plm_stack.sh`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `feature/codex-merge-rehearsal-c17c18c19`
+
+### Verification Commands
+```bash
+bash -n scripts/verify_odoo18_plm_stack.sh
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git worktree add /Users/huazhou/Downloads/Github/Yuantus-worktrees/codex-merge-rehearsal-c17c18c19 \
+  -b feature/codex-merge-rehearsal-c17c18c19 \
+  main
+```
+
+```bash
+git -C /Users/huazhou/Downloads/Github/Yuantus-worktrees/codex-merge-rehearsal-c17c18c19 \
+  merge --no-ff feature/codex-stack-c17c18c19 \
+  -m "Merge branch 'feature/codex-stack-c17c18c19' into feature/codex-merge-rehearsal-c17c18c19"
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `bash -n scripts/verify_odoo18_plm_stack.sh`: passed
+- expanded stack script full baseline:
+  - `305 passed, 103 warnings in 121.86s`
+- merge rehearsal:
+  - no manual conflict resolution needed
+  - merge rehearsal commit: `79abfc4`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- `C17/C18/C19` 仍未接入 `src/yuantus/api/app.py`
+- 当前证明的是候选栈可稳定回归且可干净合入 `main`，还未把这三域并回统一主栈

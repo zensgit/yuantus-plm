@@ -525,3 +525,17 @@
     - `87 passed, 29 warnings`
   - light cross-pack regression:
     - `87 passed, 74 warnings`
+
+## Increment 2026-03-19 Codex-C17-C18-C19-Merge-Prep
+- Expanded `scripts/verify_odoo18_plm_stack.sh` to include:
+  - `box`
+  - `document_sync`
+  - `cutted_parts`
+- Refreshed the expanded candidate stack full baseline:
+  - `305 passed, 103 warnings`
+- Created merge rehearsal branch from `main`:
+  - `feature/codex-merge-rehearsal-c17c18c19`
+- Merge rehearsal result:
+  - `feature/codex-stack-c17c18c19` merged into `main` without manual conflict resolution
+  - merge rehearsal commit:
+    - `79abfc4`
