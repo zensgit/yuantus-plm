@@ -2,7 +2,7 @@
 
 **Branch**: `feature/claude-c8-quality-mrp`
 **Date**: 2026-03-18
-**Status**: All 31 tests passing
+**Status**: Codex integration verified, 32 targeted tests passing
 
 ---
 
@@ -35,26 +35,66 @@
 | 4 | `test_alert_manufacturing_context_endpoint` | 200 with full context payload |
 | 5 | `test_alert_manufacturing_context_404_when_not_found` | 404 when alert missing |
 
-## 4. Execution Log
+## 4. Original Branch Execution Log
 
 ```
 $ python3 -m pytest test_quality_service.py test_quality_router.py -v
 31 passed in 0.49s
 ```
 
-## 5. Files Modified
+## 5. Codex Integration Verification (2026-03-19)
+
+### Integration Adjustments
+
+| File | Change |
+|---|---|
+| `src/yuantus/api/app.py` | Registered `quality_router` in `create_app()` |
+| `src/yuantus/meta_engine/web/quality_router.py` | Replaced deprecated `dict()` with `model_dump()` |
+| `src/yuantus/meta_engine/tests/test_quality_router.py` | Added `create_app()` route registration smoke test |
+
+### Commands
+
+```bash
+python3 -m py_compile \
+  src/yuantus/api/app.py \
+  src/yuantus/meta_engine/quality/__init__.py \
+  src/yuantus/meta_engine/quality/models.py \
+  src/yuantus/meta_engine/quality/service.py \
+  src/yuantus/meta_engine/web/quality_router.py \
+  src/yuantus/meta_engine/tests/test_quality_service.py \
+  src/yuantus/meta_engine/tests/test_quality_router.py
+
+pytest -q \
+  src/yuantus/meta_engine/tests/test_quality_service.py \
+  src/yuantus/meta_engine/tests/test_quality_router.py
+
+git diff --check
+```
+
+### Results
+
+- `py_compile`: passed
+- `pytest -q ...`: `32 passed, 8 warnings in 2.20s`
+- `git diff --check`: passed
+
+Warnings remained pre-existing:
+- `starlette.formparsers` pending deprecation
+- `httpx` `app=` shortcut deprecation
+
+## 6. Files Modified
 
 | File | Change |
 |---|---|
 | `quality/models.py` | +`routing_id` on QualityPoint; +`routing_id`, `operation_id` on QualityCheck |
 | `quality/service.py` | +routing_id param, +filters, +`get_alert_manufacturing_context()` |
-| `web/quality_router.py` | +routing_id in request/response models, +filter params, +manufacturing-context endpoint |
+| `web/quality_router.py` | +routing_id in request/response models, +filter params, +manufacturing-context endpoint; `model_dump()` for Pydantic v2 |
 | `tests/test_quality_service.py` | +6 C8 tests in `TestQualityMRPIntegration` class |
-| `tests/test_quality_router.py` | Created with 2 C4 base + 5 C8 integration tests |
+| `tests/test_quality_router.py` | 2 C4 base + 5 C8 integration tests + app registration smoke test |
+| `api/app.py` | `quality_router` registered in `create_app()` |
 
-## 6. Known Limitations
+## 7. Known Limitations
 
-- `app.py` does not yet include `quality_router` in `create_app()` — router
-  registration is deferred to avoid touching the shared app configuration.
-- Router tests use a standalone FastAPI test app instead of `create_app()`.
 - No list-level manufacturing context (only per-alert).
+- Router behavior is still primarily validated with isolated test apps;
+  app-level coverage currently checks registration, not a full
+  authenticated end-to-end request path.

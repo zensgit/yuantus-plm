@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from yuantus.api.app import create_app
 from yuantus.database import get_db
 from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.meta_engine.web.quality_router import quality_router
@@ -308,3 +309,13 @@ def test_alert_manufacturing_context_404_when_not_found():
         )
 
     assert response.status_code == 404
+
+
+def test_quality_routes_registered_in_create_app():
+    app = create_app()
+    paths = {route.path for route in app.routes}
+
+    assert "/api/v1/quality/points" in paths
+    assert "/api/v1/quality/checks" in paths
+    assert "/api/v1/quality/alerts" in paths
+    assert "/api/v1/quality/alerts/{alert_id}/manufacturing-context" in paths

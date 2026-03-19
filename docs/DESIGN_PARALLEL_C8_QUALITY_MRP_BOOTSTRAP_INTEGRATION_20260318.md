@@ -2,7 +2,7 @@
 
 **Branch**: `feature/claude-c8-quality-mrp`
 **Date**: 2026-03-18
-**Status**: Implemented & Verified
+**Status**: Implemented, Codex-integrated & Verified
 
 ---
 
@@ -115,3 +115,33 @@ and `operation_id` in their output.
 
 4. **No new tables**: All changes are column additions to existing
    C4 tables and new service methods.
+
+## 7. Codex Integration Notes (2026-03-19)
+
+Codex-side integration verification applied three targeted adjustments:
+
+1. **Imported C4 bootstrap into the integration branch**
+   - Cherry-picked `feature/claude-c4-quality`
+   - Rationale: C8 is an extension of the quality domain, not a
+     standalone module.
+
+2. **Registered `quality_router` in the main application**
+   - Added `quality_router` import to `src/yuantus/api/app.py`
+   - Added `app.include_router(quality_router, prefix="/api/v1")`
+   - Rationale: branch-local router tests were already green, but the
+     feature was not reachable from `create_app()` until this step.
+
+3. **Removed Pydantic v2 deprecated request serialization**
+   - Replaced `req.dict(exclude_unset=True)` with
+     `req.model_dump(exclude_unset=True)` in `quality_router.py`
+   - Rationale: keep the quality router free of new deprecation noise
+     before broader integration.
+
+## 8. Final Scope On This Integration Branch
+
+- Quality points CRUD
+- Quality checks CRUD + result recording
+- Quality alerts CRUD + transitions
+- Routing/operation scoped quality points and checks
+- Alert manufacturing context
+- Main app router registration

@@ -43,6 +43,8 @@ from yuantus.meta_engine.web.search_router import search_router
 from yuantus.meta_engine.web.impact_router import impact_router
 from yuantus.meta_engine.web.item_cockpit_router import item_cockpit_router
 from yuantus.meta_engine.web.locale_router import locale_router
+from yuantus.meta_engine.web.maintenance_router import maintenance_router
+from yuantus.meta_engine.web.quality_router import quality_router
 from yuantus.meta_engine.web.ui_router import ui_router
 from yuantus.meta_engine.web.version_router import version_router
 from yuantus.meta_engine.web.manufacturing_router import (
@@ -51,7 +53,6 @@ from yuantus.meta_engine.web.manufacturing_router import (
     workcenter_router,
 )
 from yuantus.meta_engine.web.parallel_tasks_router import parallel_tasks_router
-from yuantus.meta_engine.web.maintenance_router import maintenance_router
 from yuantus.plugin_manager.runtime import load_plugins
 from yuantus.security.auth.database import init_identity_db
 
@@ -142,6 +143,7 @@ def create_app() -> FastAPI:
     app.include_router(eco_router, prefix="/api/v1")
     app.include_router(parallel_tasks_router, prefix="/api/v1")
     app.include_router(maintenance_router, prefix="/api/v1")
+    app.include_router(quality_router, prefix="/api/v1")
 
     return app
 

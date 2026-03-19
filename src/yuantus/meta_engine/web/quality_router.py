@@ -219,7 +219,7 @@ async def update_quality_point(
     db: Session = Depends(get_db),
 ):
     svc = QualityService(db)
-    fields = {k: v for k, v in req.dict(exclude_unset=True).items()}
+    fields = {k: v for k, v in req.model_dump(exclude_unset=True).items()}
     point = svc.update_point(point_id, **fields)
     if not point:
         raise HTTPException(status_code=404, detail="Quality point not found")
