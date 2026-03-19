@@ -259,3 +259,21 @@
 - resolution:
   - `C26/C27/C28` are now merged on `main`
   - no new post-merge functional regression was observed
+
+## Main Stabilization: C26-C27-C28
+- stabilization reruns on `main`:
+  - targeted greenfield pack:
+    - `222 passed, 82 warnings in 2.12s`
+  - unified stack full:
+    - `440 passed, 156 warnings in 12.63s`
+- stabilization status:
+  - accepted
+
+## Next Claude Base: C29-C31
+- next Claude base:
+  - `feature/claude-greenfield-base-5`
+- next greenfield batch:
+  - `C29`
+  - `C30`
+  - `C31`
+- this planning step does not reopen active merge-prep on `main`; it only prepares isolated fifth-stage task boundaries

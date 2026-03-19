@@ -118,6 +118,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - C27 Document Sync Replay Audit Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C27_DOCUMENT_SYNC_REPLAY_AUDIT_BOOTSTRAP_20260319.md`
 - C28 Cutted Parts Templates Scenarios Bootstrap Design: `docs/DESIGN_PARALLEL_C28_CUTTED_PARTS_TEMPLATES_SCENARIOS_BOOTSTRAP_20260319.md`
 - C28 Cutted Parts Templates Scenarios Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C28_CUTTED_PARTS_TEMPLATES_SCENARIOS_BOOTSTRAP_20260319.md`
+- C29 PLM Box Capacity Compliance Bootstrap Design: `docs/DESIGN_PARALLEL_C29_PLM_BOX_CAPACITY_COMPLIANCE_BOOTSTRAP_20260319.md`
+- C29 PLM Box Capacity Compliance Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C29_PLM_BOX_CAPACITY_COMPLIANCE_BOOTSTRAP_20260319.md`
+- C30 Document Sync Drift Snapshots Bootstrap Design: `docs/DESIGN_PARALLEL_C30_DOCUMENT_SYNC_DRIFT_SNAPSHOTS_BOOTSTRAP_20260319.md`
+- C30 Document Sync Drift Snapshots Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C30_DOCUMENT_SYNC_DRIFT_SNAPSHOTS_BOOTSTRAP_20260319.md`
+- C31 Cutted Parts Benchmark Quote Bootstrap Design: `docs/DESIGN_PARALLEL_C31_CUTTED_PARTS_BENCHMARK_QUOTE_BOOTSTRAP_20260319.md`
+- C31 Cutted Parts Benchmark Quote Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C31_CUTTED_PARTS_BENCHMARK_QUOTE_BOOTSTRAP_20260319.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`

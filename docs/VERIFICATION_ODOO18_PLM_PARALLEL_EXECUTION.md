@@ -1655,6 +1655,72 @@ git diff --check
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
 - no new post-merge functional regression was observed
 
+## Increment 2026-03-19 Main-Stability-Refresh-C26-C27-C28
+
+### Touched Areas
+- `main`
+- no functional code changes; verification-only stability pass
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c26c27c28-stability-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c26c27c28-stability-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+### Actual Results
+- targeted greenfield stability rerun on `main`: `222 passed, 82 warnings in 2.12s`
+- unified stack stability rerun on `main`: `440 passed, 156 warnings in 12.63s`
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- no new stability-window regression was observed
+
+## Increment 2026-03-19 Codex-Prepare-Next-Claude-Batch-C29-C31
+
+### Touched Areas
+- `main`
+- `contracts/claude_allowed_paths.json`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DELIVERY_DOC_INDEX.md`
+- `docs/DESIGN_PARALLEL_C29_PLM_BOX_CAPACITY_COMPLIANCE_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C29_PLM_BOX_CAPACITY_COMPLIANCE_BOOTSTRAP_20260319.md`
+- `docs/DESIGN_PARALLEL_C30_DOCUMENT_SYNC_DRIFT_SNAPSHOTS_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C30_DOCUMENT_SYNC_DRIFT_SNAPSHOTS_BOOTSTRAP_20260319.md`
+- `docs/DESIGN_PARALLEL_C31_CUTTED_PARTS_BENCHMARK_QUOTE_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C31_CUTTED_PARTS_BENCHMARK_QUOTE_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+python3 -m json.tool contracts/claude_allowed_paths.json >/dev/null
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- added path-guard profiles `C29`, `C30`, `C31`
+- created frozen Claude base branch `feature/claude-greenfield-base-5`
+- prepared shared PLAN / DESIGN / VERIFICATION entries for the next Claude batch
+- added standalone design / verification templates for `C29/C30/C31`
+
+### Residual Risks
+- `C29/C30/C31` are task-prep only at this stage; no implementation has been started
+- the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers outside their own domains
+
 ## Increment 2026-03-19 Main-FastForward-C20-C21-C22
 
 ### Touched Areas

@@ -956,3 +956,48 @@
 - merged main commit: `129e773`
 - source staging branch: `feature/codex-c26c27c28-staging`
 - post-merge unified stack rerun on `main`: `440 passed, 156 warnings in 13.96s`
+
+## Increment 2026-03-19 Main-Stability-Refresh-C26-C27-C28
+
+### Decision
+- 接受 `C26/C27/C28` 在 `main` 上的短稳定窗口。
+
+### Why
+- `main` 上再次重跑：
+  - fourth-stage greenfield targeted pack
+  - unified stack full
+- 结果与 candidate stack / post-merge 初次验证保持一致，没有新增功能回归。
+
+### Result
+- targeted greenfield rerun on `main`: `222 passed, 82 warnings in 2.12s`
+- unified stack rerun on `main`: `440 passed, 156 warnings in 12.63s`
+
+## Next Claude Batch C29-C31
+
+### Why
+- `C26/C27/C28` 已经完成主线合并和稳定窗口确认。
+- 下一批如果继续并行，最稳的路径仍然是延续同一组三个 greenfield 子域，而不是引入新的跨域热文件。
+
+### Task Boundaries
+- `C29`
+  - 只允许扩展 `box` 子域内部 capacity / compliance / export helpers
+- `C30`
+  - 只允许扩展 `document_sync` 子域内部 drift / snapshot / export helpers
+- `C31`
+  - 只允许扩展 `cutted_parts` 子域内部 benchmark / quote / export helpers
+
+### Chosen Defaults
+- Claude should branch the next greenfield batch from:
+  - `feature/claude-greenfield-base-5`
+  - source branch: `main`
+- `C29-C31` 一律不允许编辑：
+  - `src/yuantus/api/app.py`
+  - `parallel_tasks`
+  - `version`
+  - `benchmark_branches`
+  - 当前已集成 hot routers outside their own domains
+- 这三条线继续只做域内读侧、统计、导出和状态辅助，不做新的跨域 orchestration
+
+### Non-Goals
+- 本轮不把 `C29-C31` 直接并入 `main`
+- 本轮不触发新的统一栈合并
