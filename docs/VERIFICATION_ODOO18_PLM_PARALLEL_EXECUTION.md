@@ -1732,6 +1732,7 @@ git diff --check
 - cherry-picked `00df973` into staging as `7ab31dc`
 - `py_compile`: passed
 - combined targeted regression: `111 passed, 44 warnings in 3.99s`
+- unified stack script on `feature/codex-c23c24-staging`: `379 passed, 134 warnings in 31.56s`
 - `git diff --check`: passed
 
 ### Residual Risks

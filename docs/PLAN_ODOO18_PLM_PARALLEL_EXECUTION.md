@@ -727,5 +727,7 @@
   - `7ab31dc` `feat(c24): add document sync reconciliation and conflict resolution endpoints`
 - combined targeted regression:
   - `111 passed, 44 warnings in 3.99s`
+- unified stack full regression on staging:
+  - `379 passed, 134 warnings in 31.56s`
 - current follow-up:
   - keep `C25` as the only remaining pending task in this batch

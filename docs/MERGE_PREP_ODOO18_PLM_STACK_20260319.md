@@ -196,5 +196,7 @@
 - candidate verification:
   - combined targeted regression:
     - `111 passed, 44 warnings in 3.99s`
+  - unified stack script on staging branch:
+    - `379 passed, 134 warnings in 31.56s`
 - current gate:
   - keep `C25` as the final pending task before deciding whether to promote this batch
