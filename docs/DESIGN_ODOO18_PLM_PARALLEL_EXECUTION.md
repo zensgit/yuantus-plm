@@ -1018,3 +1018,19 @@
 - `C30` staging commit: `6fcf9be`
 - combined targeted regression: `169 passed, 66 warnings in 2.17s`
 - unified stack regression on staging: `469 passed, 167 warnings in 12.95s`
+
+## Increment 2026-03-19 Codex-C31-Stack-Verification
+
+### Decision
+- `C31` 已不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c29c30c31-staging` 上完成 `C29/C30/C31` 联合验证。
+- `C29/C30/C31` 现在作为完整的 fifth-stage candidate stack 进入下一步 merge-prep 评估。
+
+### Why
+- `cutted_parts` 的 `benchmark / quote` 读侧增强与现有 `C22/C25` 写域保持一致，不需要触发新的跨域依赖。
+- 在 `C29/C30` 已验证基础上补齐 `C31`，可以直接得到完整的 `box/document_sync/cutted_parts` fifth-stage 绿地候选栈。
+
+### Result
+- `C31` staging commit: `4f2e54b`
+- combined targeted regression with `C29/C30/C31`: `267 passed, 98 warnings in 3.61s`
+- unified stack regression on staging: `485 passed, 172 warnings in 14.77s`

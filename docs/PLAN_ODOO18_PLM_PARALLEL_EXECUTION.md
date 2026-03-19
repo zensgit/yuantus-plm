@@ -34,7 +34,7 @@
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
 - next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
-- next Claude greenfield batch `C29/C30/C31`：`C29/C30` codex-stack verified on staging branch; `C31` pending
+- next Claude greenfield batch `C29/C30/C31`：`C29/C30/C31` codex-stack verified on staging branch
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -65,7 +65,7 @@
 | C28 | P3 | cutted-parts templates / scenarios | `cutted_parts` template/scenario/export helpers | merged_on_main_greenfield |
 | C29 | P3 | PLM box capacity / compliance | `box` capacity/compliance/export helpers | codex_stack_verified |
 | C30 | P3 | document sync drift / snapshots | `document_sync` drift/snapshot/export helpers | codex_stack_verified |
-| C31 | P3 | cutted-parts benchmark / quote | `cutted_parts` benchmark/quote/export helpers | prepared_for_claude |
+| C31 | P3 | cutted-parts benchmark / quote | `cutted_parts` benchmark/quote/export helpers | codex_stack_verified |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -937,3 +937,17 @@
 - result:
   - `C29/C30` are now in Codex-verified staging state
   - `C31` remains pending by design
+
+## Increment 2026-03-19 Codex-C31-Stack-Verification
+- promoted isolated candidate stack branch:
+  - `feature/codex-c29c30c31-staging`
+- cherry-picked:
+  - `c190634` `feat(cutted-parts): add C31 benchmark/quote bootstrap`
+- staging commit after integration:
+  - `4f2e54b` `feat(cutted-parts): add C31 benchmark/quote bootstrap`
+- combined targeted regression with `C29/C30/C31`:
+  - `267 passed, 98 warnings in 3.61s`
+- unified stack full regression on staging:
+  - `485 passed, 172 warnings in 14.77s`
+- result:
+  - `C29/C30/C31` are now in Codex-verified staging state
