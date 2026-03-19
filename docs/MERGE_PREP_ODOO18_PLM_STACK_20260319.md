@@ -216,3 +216,20 @@
   - `C27`
   - `C28`
 - this planning step does not reopen active merge-prep on `main`; it only prepares isolated fourth-stage task boundaries
+
+## Next Candidate Stack: C26-C27
+- candidate branch:
+  - `feature/codex-c26c27-staging`
+- base relation:
+  - fast-forward from `main` commit `d068476`
+- integrated commits:
+  - `37e81be` `feat(box): add reconciliation/audit analytics (C26)`
+  - `f828406` `feat(document-sync): add replay/audit analytics (C27)`
+- candidate verification:
+  - combined targeted regression:
+    - `140 passed, 55 warnings in 2.35s`
+  - unified stack script on staging branch:
+    - `425 passed, 151 warnings in 13.34s`
+- current gate:
+  - `C26/C27` are now staging-verified
+  - `C28` remains pending before the next promotion step

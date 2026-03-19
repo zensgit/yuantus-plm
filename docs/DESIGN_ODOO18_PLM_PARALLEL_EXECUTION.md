@@ -881,3 +881,20 @@
 ### Non-Goals
 - 本轮不把 `C26-C28` 直接并入 `main`
 - 本轮不触发新的统一栈合并
+
+## Increment 2026-03-19 Codex-C26-C27-Stack-Verification
+
+### Decision
+- `C26` 与 `C27` 已经不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c26c27-staging` 上完成联合验证。
+- `C28` 继续保持 pending，不与本轮 staging 混并。
+
+### Why
+- `box` 与 `document_sync` 的第四阶段扩展仍然互不写冲突，适合先做并行联合验证。
+- `C28` 继续留在 `cutted_parts` 子域，延后回收可以减少本轮 staging 的扩面和回归压力。
+
+### Result
+- `C26` staging commit: `37e81be`
+- `C27` staging commit: `f828406`
+- combined targeted regression: `140 passed, 55 warnings in 2.35s`
+- unified stack regression on staging: `425 passed, 151 warnings in 13.34s`

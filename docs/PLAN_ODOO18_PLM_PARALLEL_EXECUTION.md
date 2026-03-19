@@ -33,7 +33,7 @@
 - post-merge stabilization refresh：completed on this branch
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
 - next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
-- next Claude greenfield batch `C26/C27/C28`：prepared on `main`
+- next Claude greenfield batch `C26/C27/C28`：`C26/C27` codex-stack verified on staging branch; `C28` pending
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -59,8 +59,8 @@
 | C23 | P3 | PLM box ops-report / transitions | `box` ops-report/state-transition/export helpers | merged_on_main_greenfield |
 | C24 | P3 | document sync reconciliation | `document_sync` reconciliation/conflict-resolution/export helpers | merged_on_main_greenfield |
 | C25 | P3 | cutted-parts cost / utilization | `cutted_parts` utilization/cost/export helpers | merged_on_main_greenfield |
-| C26 | P3 | PLM box reconciliation / audit | `box` reconciliation/audit/export helpers | prepared_for_claude |
-| C27 | P3 | document sync replay / audit | `document_sync` replay/audit/export helpers | prepared_for_claude |
+| C26 | P3 | PLM box reconciliation / audit | `box` reconciliation/audit/export helpers | codex_stack_verified |
+| C27 | P3 | document sync replay / audit | `document_sync` replay/audit/export helpers | codex_stack_verified |
 | C28 | P3 | cutted-parts templates / scenarios | `cutted_parts` template/scenario/export helpers | prepared_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
@@ -808,3 +808,20 @@
 - non-goals:
   - no app registration
   - no optimization solver or BOM/manufacturing hot-path integration
+
+## Increment 2026-03-19 Codex-C26-C27-Stack-Verification
+- built isolated candidate stack branch:
+  - `feature/codex-c26c27-staging`
+- cherry-picked:
+  - `77b5d4d` `feat(box): add reconciliation/audit analytics (C26)`
+  - `608d4cd` `feat(document-sync): add replay/audit analytics (C27)`
+- staging commits after integration:
+  - `37e81be` `feat(box): add reconciliation/audit analytics (C26)`
+  - `f828406` `feat(document-sync): add replay/audit analytics (C27)`
+- combined targeted regression:
+  - `140 passed, 55 warnings in 2.35s`
+- unified stack full regression on staging:
+  - `425 passed, 151 warnings in 13.34s`
+- result:
+  - `C26/C27` are now in Codex-verified staging state
+  - `C28` remains pending by design

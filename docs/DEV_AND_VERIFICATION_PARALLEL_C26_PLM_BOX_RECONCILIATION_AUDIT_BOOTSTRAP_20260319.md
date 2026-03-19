@@ -20,6 +20,22 @@
 2. `bash scripts/check_allowed_paths.sh --mode staged`
 3. `git diff --check`
 
+## Test Results
+```bash
+pytest src/yuantus/meta_engine/tests/test_box_*.py -v
+60 passed
+```
+
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-c26c27-staging`
+- cherry-pick source: `77b5d4d`
+- integrated commit: `37e81be`
+- combined regression with `C27`:
+  - `140 passed, 55 warnings in 2.35s`
+- unified stack script on staging:
+  - `425 passed, 151 warnings in 13.34s`
+- `git diff --check`: passed
+
 ## Notes
 - Keep all edits inside the isolated `box` domain.
 - Do not register the router in `app.py`.
