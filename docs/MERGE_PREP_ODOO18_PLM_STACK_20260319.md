@@ -159,6 +159,8 @@
     - `118 passed, 43 warnings in 31.73s`
   - greenfield cross-regression with `C20+C21+C22`:
     - `133 passed, 49 warnings in 3.32s`
+  - unified stack script on candidate branch:
+    - `351 passed, 123 warnings in 28.77s`
 - current gate:
   - `C20/C21/C22` are all now candidate-stack verified
   - next step is merge-prep / rehearsal for this full greenfield second-stage batch

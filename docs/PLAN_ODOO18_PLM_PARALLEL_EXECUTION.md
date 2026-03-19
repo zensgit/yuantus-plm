@@ -647,5 +647,7 @@
   - `68e3dbb` `feat(c22): add cutted-parts analytics and export endpoints`
 - combined greenfield regression after `C22`:
   - `133 passed, 49 warnings in 3.32s`
+- unified stack full regression on candidate stack:
+  - `351 passed, 123 warnings in 28.77s`
 - result:
   - `C20/C21/C22` are now all in Codex-verified candidate-stack state

@@ -1582,6 +1582,7 @@ git diff --check
 - cherry-picked `64c9724` into candidate stack as `68e3dbb`
 - `py_compile`: passed
 - combined greenfield regression with `C20+C21+C22`: `133 passed, 49 warnings in 3.32s`
+- unified stack script on `feature/codex-stack-c20c21c22`: `351 passed, 123 warnings in 28.77s`
 - `git diff --check`: passed
 
 ### Residual Risks
