@@ -998,3 +998,64 @@ git diff --check
 ### Residual Risks
 - wider final pack 仍不是整仓全量回归
 - 当前主风险已从功能缺陷转移为合并顺序和审阅质量
+
+## Increment 2026-03-19 Codex-C18-Integration
+
+### Touched Areas
+- `feature/codex-c18-document-sync-integration`
+- `src/yuantus/meta_engine/document_sync/__init__.py`
+- `src/yuantus/meta_engine/document_sync/models.py`
+- `src/yuantus/meta_engine/document_sync/service.py`
+- `src/yuantus/meta_engine/web/document_sync_router.py`
+- `src/yuantus/meta_engine/tests/test_document_sync_service.py`
+- `src/yuantus/meta_engine/tests/test_document_sync_router.py`
+- `docs/DESIGN_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/meta_engine/document_sync/__init__.py \
+  src/yuantus/meta_engine/document_sync/models.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `py_compile`: passed
+- targeted `C18` pack:
+  - `33 passed, 12 warnings`
+- light cross-pack regression:
+  - `70 passed, 57 warnings`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- `C18` 仍保持未注册到 `src/yuantus/api/app.py`
+- 当前只证明 greenfield router/service 与现有已集成子域不冲突，尚未证明全应用接线

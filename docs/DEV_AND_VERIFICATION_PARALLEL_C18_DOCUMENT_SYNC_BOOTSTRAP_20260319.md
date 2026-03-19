@@ -1,11 +1,12 @@
 # C18 – Document Multi-Site Sync Bootstrap – Dev & Verification
 
 ## Status
-- implemented
+- integrated_verified
 
 ## Branch
 - Base: `feature/claude-greenfield-base`
 - Branch: `feature/claude-c18-document-sync`
+- Codex integration branch: `feature/codex-c18-document-sync-integration`
 
 ## Scope
 - `src/yuantus/meta_engine/document_sync/`
@@ -74,3 +75,19 @@
 2. `pytest src/yuantus/meta_engine/tests/test_document_sync_router.py -v`
 3. `bash scripts/check_allowed_paths.sh --mode staged`
 4. `git diff --check`
+
+## Codex Integration Verification
+
+### Commands
+1. `PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile src/yuantus/meta_engine/document_sync/__init__.py src/yuantus/meta_engine/document_sync/models.py src/yuantus/meta_engine/document_sync/service.py src/yuantus/meta_engine/web/document_sync_router.py src/yuantus/meta_engine/tests/test_document_sync_service.py src/yuantus/meta_engine/tests/test_document_sync_router.py`
+2. `pytest -q src/yuantus/meta_engine/tests/test_document_sync_service.py src/yuantus/meta_engine/tests/test_document_sync_router.py`
+3. `pytest -q src/yuantus/meta_engine/tests/test_file_viewer_readiness.py src/yuantus/meta_engine/tests/test_approvals_router.py src/yuantus/meta_engine/tests/test_subcontracting_router.py src/yuantus/meta_engine/tests/test_quality_analytics_router.py src/yuantus/meta_engine/tests/test_maintenance_router.py src/yuantus/meta_engine/tests/test_document_sync_router.py`
+4. `git diff --check`
+
+### Results
+- `py_compile`: passed
+- targeted `C18` pack:
+  - `33 passed, 12 warnings`
+- light cross-pack regression:
+  - `70 passed, 57 warnings`
+- `git diff --check`: passed

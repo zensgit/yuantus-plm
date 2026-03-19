@@ -455,3 +455,21 @@
   - do not stack more Codex feature work on this branch
   - Claude may open only greenfield branches `C17 -> C18 -> C19`
   - Codex stays on merge-prep, final review, and later greenfield integration
+
+## Increment 2026-03-19 Codex-C18-Integration
+- Created `feature/codex-c18-document-sync-integration` from the frozen unified stack baseline `feature/codex-stack-c11c12`
+- Cherry-picked Claude `C18` commit `f379e2c`
+- Preserved the original greenfield constraint:
+  - no `src/yuantus/api/app.py` registration
+- Integrated artifacts:
+  - `src/yuantus/meta_engine/document_sync/__init__.py`
+  - `src/yuantus/meta_engine/document_sync/models.py`
+  - `src/yuantus/meta_engine/document_sync/service.py`
+  - `src/yuantus/meta_engine/web/document_sync_router.py`
+  - `src/yuantus/meta_engine/tests/test_document_sync_service.py`
+  - `src/yuantus/meta_engine/tests/test_document_sync_router.py`
+- Verification results on the Codex integration branch:
+  - document-sync targeted pack:
+    - `33 passed, 12 warnings`
+  - light cross-pack regression:
+    - `70 passed, 57 warnings`

@@ -88,3 +88,12 @@
 | GET | `/jobs` | List (filters: site_id, state) |
 | GET | `/jobs/{job_id}` | Get single |
 | GET | `/jobs/{job_id}/summary` | Conflict/checksum summary |
+
+## Codex Integration Notes
+- `C18` was integrated on top of the frozen unified stack branch in:
+  - `feature/codex-c18-document-sync-integration`
+- The greenfield isolation contract was preserved:
+  - no app registration
+  - no edits to storage / CAD hot paths
+- Extensible JSON fields remain portable across the current test/storage baseline by using:
+  - `JSON().with_variant(JSONB, "postgresql")`
