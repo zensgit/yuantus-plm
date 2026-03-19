@@ -1059,3 +1059,74 @@ git diff --check
 ### Residual Risks
 - `C18` 仍保持未注册到 `src/yuantus/api/app.py`
 - 当前只证明 greenfield router/service 与现有已集成子域不冲突，尚未证明全应用接线
+
+## Increment 2026-03-19 Codex-C17-C18-Stack
+
+### Touched Areas
+- `feature/codex-stack-c17c18`
+- `src/yuantus/meta_engine/box/__init__.py`
+- `src/yuantus/meta_engine/box/models.py`
+- `src/yuantus/meta_engine/box/service.py`
+- `src/yuantus/meta_engine/web/box_router.py`
+- `src/yuantus/meta_engine/document_sync/__init__.py`
+- `src/yuantus/meta_engine/document_sync/models.py`
+- `src/yuantus/meta_engine/document_sync/service.py`
+- `src/yuantus/meta_engine/web/document_sync_router.py`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DELIVERY_DOC_INDEX.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/meta_engine/box/__init__.py \
+  src/yuantus/meta_engine/box/models.py \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/document_sync/__init__.py \
+  src/yuantus/meta_engine/document_sync/models.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `py_compile`: passed
+- `C17 + C18` targeted pack:
+  - `52 passed, 19 warnings`
+- light cross-pack regression:
+  - `77 passed, 64 warnings`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- `C17/C18` 仍都保持未注册到 `src/yuantus/api/app.py`
+- 当前只证明两个 greenfield 子域可以一起叠加且不踩现有已集成子域，尚未证明统一主应用接线

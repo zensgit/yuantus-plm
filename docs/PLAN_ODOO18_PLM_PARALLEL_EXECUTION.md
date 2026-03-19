@@ -473,3 +473,20 @@
     - `33 passed, 12 warnings`
   - light cross-pack regression:
     - `70 passed, 57 warnings`
+
+## Increment 2026-03-19 Codex-C17-C18-Stack
+- Created `feature/codex-stack-c17c18` from the frozen unified stack baseline `feature/codex-stack-c11c12`
+- Stacked:
+  - `C17` integration commits `e56736a`, `b6d32bf`
+  - `C18` integration commits `36ef954`, `f2534d6`
+- Real shared-file conflicts appeared only in:
+  - `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+  - `docs/DELIVERY_DOC_INDEX.md`
+- Conflict strategy:
+  - preserved both `C17` and `C18` status lines in the priority matrix
+  - preserved both `C17` and `C18` entries in the delivery index
+- Combined verification results on the stack branch:
+  - `C17 + C18` targeted pack:
+    - `52 passed, 19 warnings`
+  - light cross-pack regression:
+    - `77 passed, 64 warnings`
