@@ -185,20 +185,25 @@
   - `C25`
 - this planning step does not reopen active merge-prep on `main`; it only prepares isolated task boundaries
 
-## Next Candidate Stack: C23-C24-C25
-- candidate branch:
+## Resolved Candidate Stack: C23-C24-C25
+- source staging branch:
   - `feature/codex-c23c24c25-staging`
-- base relation:
-  - fast-forward from `main` commit `ee2292d`
+- main fast-forward lineage:
+  - `ee2292d` -> `88abb79`
 - integrated commits:
   - `585d5f3` `feat(c23): add box ops report and transition summary endpoints`
   - `7ab31dc` `feat(c24): add document sync reconciliation and conflict resolution endpoints`
   - `b2fec86` `feat(cutted-parts): add cost and utilization analytics (C25)`
-- candidate verification:
+- staging verification before merge:
   - combined targeted regression:
     - `178 passed, 66 warnings in 3.62s`
   - unified stack script on staging branch:
     - `396 passed, 140 warnings in 15.87s`
-- current gate:
-  - `C23/C24/C25` are all now staging-verified
-  - next step is merge-prep / rehearsal for this full third-stage greenfield batch
+- post-merge verification on `main`:
+  - unified stack rerun:
+    - `396 passed, 140 warnings in 11.78s`
+  - broader regression rerun:
+    - `249 passed, 122 warnings in 9.26s`
+- resolution:
+  - `C23/C24/C25` are now merged on `main`
+  - no new post-merge functional regression was observed

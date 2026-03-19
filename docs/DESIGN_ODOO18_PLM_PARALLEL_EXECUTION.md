@@ -828,3 +828,26 @@
 - integrated commit: `b2fec86`
 - combined greenfield regression: `178 passed, 66 warnings in 3.62s`
 - unified stack regression: `396 passed, 140 warnings in 15.87s`
+
+## Increment 2026-03-19 Main-FastForward-C23-C24-C25
+
+### Decision
+- `C23/C24/C25` 不再保留为 staging 候选批次，而是作为第三阶段 greenfield 批次正式进入 `main`。
+- `main` 现在直接承载：
+  - `C23`
+  - `C24`
+  - `C25`
+
+### Why
+- `feature/codex-c23c24c25-staging` 相对 `main` 是纯快进关系，合并不需要额外冲突修复。
+- 合并前 staging 已完成：
+  - 绿地区域联合回归
+  - unified stack full regression
+- 合并后在 `main` 上再次重跑 unified stack 与 broader regression，结果保持稳定。
+- `C25` 使用 `GET /utilization/overview` 而不是建议里的 `GET /overview` 是正确设计收敛，因为 `C22` 已占用 `/overview`。
+
+### Result
+- merged main commit: `88abb79`
+- source staging branch: `feature/codex-c23c24c25-staging`
+- post-merge unified stack rerun on `main`: `396 passed, 140 warnings in 11.78s`
+- post-merge broader rerun on `main`: `249 passed, 122 warnings in 9.26s`

@@ -32,7 +32,7 @@
 - `C17/C18/C19` greenfield candidate stack：merged into `main`
 - post-merge stabilization refresh：completed on this branch
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
-- next Claude greenfield batch `C23/C24/C25`：all codex-stack verified on staging branch
+- next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -55,9 +55,9 @@
 | C20 | P2 | PLM box analytics / export | `box` analytics/read-model/export helpers | merged_on_main_greenfield |
 | C21 | P2 | document sync analytics / export | `document_sync` analytics/conflict/export helpers | merged_on_main_greenfield |
 | C22 | P2 | cutted-parts analytics / export | `cutted_parts` analytics/waste/export helpers | merged_on_main_greenfield |
-| C23 | P3 | PLM box ops-report / transitions | `box` ops-report/state-transition/export helpers | codex_stack_verified |
-| C24 | P3 | document sync reconciliation | `document_sync` reconciliation/conflict-resolution/export helpers | codex_stack_verified |
-| C25 | P3 | cutted-parts cost / utilization | `cutted_parts` utilization/cost/export helpers | codex_stack_verified |
+| C23 | P3 | PLM box ops-report / transitions | `box` ops-report/state-transition/export helpers | merged_on_main_greenfield |
+| C24 | P3 | document sync reconciliation | `document_sync` reconciliation/conflict-resolution/export helpers | merged_on_main_greenfield |
+| C25 | P3 | cutted-parts cost / utilization | `cutted_parts` utilization/cost/export helpers | merged_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -747,3 +747,17 @@
   - `396 passed, 140 warnings in 15.87s`
 - result:
   - `C23/C24/C25` are now all in Codex-verified staging state
+
+## Increment 2026-03-19 Main-FastForward-C23-C24-C25
+- `main` advanced from:
+  - `ee2292d`
+  - to `88abb79`
+- source staging branch:
+  - `feature/codex-c23c24c25-staging`
+- post-merge unified stack rerun on `main`:
+  - `396 passed, 140 warnings in 11.78s`
+- post-merge broader regression rerun on `main`:
+  - `249 passed, 122 warnings in 9.26s`
+- result:
+  - `C23/C24/C25` are now part of `main`
+  - no new post-merge functional regression was observed
