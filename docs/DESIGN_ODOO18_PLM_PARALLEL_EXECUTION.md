@@ -690,3 +690,22 @@
 ### Non-Goals
 - 本轮不把 `C20-C22` 直接并入 `main`
 - 本轮不触发新的统一栈合并
+
+## Increment 2026-03-19 Codex-C20-C21-Stack-Verification
+
+### Decision
+- `C20` 与 `C21` 已经不再只是 Claude 分支成果。
+- Codex 已在独立候选栈 `feature/codex-stack-c20c21` 上完成联合验证。
+- 这两条线仍保持 greenfield 范围：
+  - 不注册到 `src/yuantus/api/app.py`
+  - 不触碰 `parallel_tasks`、`version`、`benchmark_branches`
+
+### Why This Shape
+- `box` 与 `document_sync` 写域彼此独立，适合先做组合验证。
+- 先把 `C20/C21` 收成一个候选栈，比直接把三条 `C20/C21/C22` 一次性叠加更稳。
+- 当前磁盘压力和回归成本都要求把 greenfield 第二阶段分批验证，而不是一次性扩面。
+
+### Result
+- `C20` candidate stack commit: `e85d046`
+- `C21` candidate stack commit: `b45e7a4`
+- `C22` 继续保持 `prepared_for_claude`

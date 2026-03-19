@@ -1497,3 +1497,49 @@ git diff --check
 ### Residual Risks
 - `C20/C21/C22` are task-prep only at this stage; no implementation has been started
 - the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers
+
+## Increment 2026-03-19 Codex-C20-C21-Stack-Verification
+
+### Touched Areas
+- `feature/codex-stack-c20c21`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C20_PLM_BOX_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C21_DOCUMENT_SYNC_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c20c21 python3 -m py_compile \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c20c21 pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- cherry-picked `4102f55` into candidate stack as `e85d046`
+- cherry-picked `18ecb5b` into candidate stack as `b45e7a4`
+- `py_compile`: passed
+- combined targeted regression: `83 passed, 33 warnings in 9.00s`
+- `git diff --check`: passed
+
+### Residual Risks
+- disk free space remained low during the first attempt, so single-domain temp worktrees had to be removed before the combined stack could be verified
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations

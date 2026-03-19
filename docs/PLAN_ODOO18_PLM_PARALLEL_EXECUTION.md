@@ -31,7 +31,7 @@
 - `C16` quality SPC / analytics bootstrap：completed on this branch
 - `C17/C18/C19` greenfield candidate stack：merged into `main`
 - post-merge stabilization refresh：completed on this branch
-- next Claude greenfield batch `C20/C21/C22`：prepared on this branch
+- next Claude greenfield batch `C20/C21/C22`：`C20/C21` codex-stack verified, `C22` pending
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -51,8 +51,8 @@
 | C17 | P2 | PLM box bootstrap | new `box` module + router + tests | merged_on_main_greenfield |
 | C18 | P2 | document multi-site sync bootstrap | new `document_sync` module + router + tests | merged_on_main_greenfield |
 | C19 | P2 | cutted-parts bootstrap | new `cutted_parts` module + router + tests | merged_on_main_greenfield |
-| C20 | P2 | PLM box analytics / export | `box` analytics/read-model/export helpers | prepared_for_claude |
-| C21 | P2 | document sync analytics / export | `document_sync` analytics/conflict/export helpers | prepared_for_claude |
+| C20 | P2 | PLM box analytics / export | `box` analytics/read-model/export helpers | codex_stack_verified |
+| C21 | P2 | document sync analytics / export | `document_sync` analytics/conflict/export helpers | codex_stack_verified |
 | C22 | P2 | cutted-parts analytics / export | `cutted_parts` analytics/waste/export helpers | prepared_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
@@ -623,3 +623,15 @@
 - non-goals:
   - no app registration
   - no optimization solver or BOM/manufacturing hot-path integration
+
+## Increment 2026-03-19 Codex-C20-C21-Stack-Verification
+- built isolated candidate stack branch `feature/codex-stack-c20c21`
+- cherry-picked:
+  - `4102f55` `feat(c20): add box analytics and export endpoints`
+  - `18ecb5b` `feat(c21): add document sync analytics and export endpoints`
+- stack commits after integration:
+  - `e85d046` `feat(c20): add box analytics and export endpoints`
+  - `b45e7a4` `feat(c21): add document sync analytics and export endpoints`
+- validated `C20` and `C21` together without touching `app.py` or existing hot paths
+- current follow-up:
+  - keep `C22` as the only remaining pending task in this greenfield batch

@@ -42,3 +42,11 @@
 1. `pytest src/yuantus/meta_engine/tests/test_document_sync_*.py -v`
 2. `bash scripts/check_allowed_paths.sh --mode staged`
 3. `git diff --check`
+
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-stack-c20c21`
+- cherry-pick source: `18ecb5b`
+- integrated commit: `b45e7a4`
+- combined regression with `C20`:
+  - `83 passed, 33 warnings in 9.00s`
+- `git diff --check`: passed
