@@ -15,12 +15,25 @@
 - export-ready sync summary payload
 - router-level analytics/export endpoints
 
-## Suggested API
-- `GET /api/v1/document-sync/overview`
-- `GET /api/v1/document-sync/sites/{site_id}/analytics`
-- `GET /api/v1/document-sync/jobs/{job_id}/conflicts`
-- `GET /api/v1/document-sync/export/overview`
-- `GET /api/v1/document-sync/export/conflicts`
+## New Service Methods
+
+| Method | Returns | Purpose |
+|--------|---------|---------|
+| `overview()` | Dict | Site/job totals, state/direction breakdowns, conflict/error totals |
+| `site_analytics(site_id)` | Dict | Per-site job counts, synced/conflict/error/skipped aggregates |
+| `job_conflicts(job_id)` | Dict | Conflict-only records for a specific job |
+| `export_overview()` | Dict | Export-ready combined overview payload |
+| `export_conflicts()` | Dict | Cross-job conflict summary for export |
+
+## New API Endpoints
+
+| Method | Path | Handler |
+|--------|------|---------|
+| GET | `/overview` | High-level site/job overview |
+| GET | `/sites/{site_id}/analytics` | Per-site analytics |
+| GET | `/jobs/{job_id}/conflicts` | Per-job conflict list |
+| GET | `/export/overview` | Export-ready overview |
+| GET | `/export/conflicts` | Export-ready conflict summary |
 
 ## Non-Goals
 - 不改 `src/yuantus/api/app.py`

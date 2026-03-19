@@ -369,3 +369,211 @@ class TestJobSummary:
         service = DocumentSyncService(session)
         with pytest.raises(ValueError, match="not found"):
             service.job_summary("nonexistent")
+
+
+# ---------------------------------------------------------------------------
+# TestAnalytics (C21)
+# ---------------------------------------------------------------------------
+
+
+class TestAnalytics:
+    def _session_with_models(self, sites=None, jobs=None):
+        """Session whose query() returns sites or jobs depending on model."""
+        session = _mock_session()
+        _sites = sites or []
+        _jobs = jobs or []
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is SyncSite:
+                q.all.return_value = _sites
+            elif model is SyncJob:
+                q.all.return_value = _jobs
+            else:
+                q.all.return_value = []
+            q.filter.return_value = q
+            q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+        return session
+
+    def test_overview(self):
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="disabled", direction="pull"),
+        ]
+        jobs = [
+            _make_job(job_id="j1", state="completed"),
+            _make_job(job_id="j2", state="failed"),
+        ]
+        jobs[0].conflict_count = 2
+        jobs[0].error_count = 0
+        jobs[1].conflict_count = 1
+        jobs[1].error_count = 3
+
+        session = self._session_with_models(sites=sites, jobs=jobs)
+        service = DocumentSyncService(session)
+        result = service.overview()
+
+        assert result["total_sites"] == 2
+        assert result["sites_by_state"]["active"] == 1
+        assert result["sites_by_state"]["disabled"] == 1
+        assert result["sites_by_direction"]["push"] == 1
+        assert result["sites_by_direction"]["pull"] == 1
+        assert result["total_jobs"] == 2
+        assert result["total_conflicts"] == 3
+        assert result["total_errors"] == 3
+
+    def test_overview_empty(self):
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.overview()
+
+        assert result["total_sites"] == 0
+        assert result["total_jobs"] == 0
+        assert result["total_conflicts"] == 0
+
+    def test_site_analytics(self):
+        session = _mock_session()
+        fake_site = _make_site(state="active")
+        session.get.return_value = fake_site
+
+        j1 = _make_job(job_id="j1", state="completed")
+        j1.synced_count = 10
+        j1.conflict_count = 2
+        j1.error_count = 1
+        j1.skipped_count = 0
+
+        j2 = _make_job(job_id="j2", state="pending")
+        j2.synced_count = 0
+        j2.conflict_count = 0
+        j2.error_count = 0
+        j2.skipped_count = 0
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.all.return_value = [j1, j2]
+
+        service = DocumentSyncService(session)
+        result = service.site_analytics("site-1")
+
+        assert result["site_id"] == "site-1"
+        assert result["total_jobs"] == 2
+        assert result["jobs_by_state"]["completed"] == 1
+        assert result["jobs_by_state"]["pending"] == 1
+        assert result["total_synced"] == 10
+        assert result["total_conflicts"] == 2
+        assert result["total_errors"] == 1
+
+    def test_site_analytics_not_found(self):
+        session = _mock_session()
+        session.get.return_value = None
+
+        service = DocumentSyncService(session)
+        with pytest.raises(ValueError, match="not found"):
+            service.site_analytics("nonexistent")
+
+    def test_job_conflicts(self):
+        session = _mock_session()
+        fake_job = _make_job()
+        session.get.return_value = fake_job
+
+        r_synced = MagicMock(spec=SyncRecord)
+        r_synced.outcome = "synced"
+        r_synced.document_id = "d1"
+
+        r_conflict = MagicMock(spec=SyncRecord)
+        r_conflict.outcome = "conflict"
+        r_conflict.document_id = "d2"
+        r_conflict.source_checksum = "aaa"
+        r_conflict.target_checksum = "bbb"
+        r_conflict.conflict_detail = "version mismatch"
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = [r_synced, r_conflict]
+
+        service = DocumentSyncService(session)
+        result = service.job_conflicts("job-1")
+
+        assert result["job_id"] == "job-1"
+        assert result["total_records"] == 2
+        assert result["conflict_count"] == 1
+        assert result["conflicts"][0]["document_id"] == "d2"
+
+    def test_job_conflicts_not_found(self):
+        session = _mock_session()
+        session.get.return_value = None
+
+        service = DocumentSyncService(session)
+        with pytest.raises(ValueError, match="not found"):
+            service.job_conflicts("nonexistent")
+
+    def test_export_overview(self):
+        session = self._session_with_models(
+            sites=[_make_site()], jobs=[_make_job()]
+        )
+        service = DocumentSyncService(session)
+        result = service.export_overview()
+
+        assert "overview" in result
+        assert result["overview"]["total_sites"] == 1
+        assert result["overview"]["total_jobs"] == 1
+
+    def test_export_conflicts(self):
+        session = _mock_session()
+
+        j1 = _make_job(job_id="j1")
+
+        r_conflict = MagicMock(spec=SyncRecord)
+        r_conflict.outcome = "conflict"
+        r_conflict.document_id = "d2"
+        r_conflict.source_checksum = "xxx"
+        r_conflict.target_checksum = "yyy"
+        r_conflict.conflict_detail = "checksum mismatch"
+
+        r_ok = MagicMock(spec=SyncRecord)
+        r_ok.outcome = "synced"
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is SyncJob:
+                q.all.return_value = [j1]
+            elif model is SyncRecord:
+                q.all.return_value = [r_conflict, r_ok]
+            else:
+                q.all.return_value = []
+            q.filter.return_value = q
+            q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+
+        service = DocumentSyncService(session)
+        result = service.export_conflicts()
+
+        assert result["total_conflicts"] == 1
+        assert result["conflicts"][0]["job_id"] == "j1"
+        assert result["conflicts"][0]["document_id"] == "d2"
+
+    def test_export_conflicts_empty(self):
+        session = _mock_session()
+
+        def mock_query(model):
+            q = MagicMock()
+            q.all.return_value = []
+            q.filter.return_value = q
+            q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+
+        service = DocumentSyncService(session)
+        result = service.export_conflicts()
+
+        assert result["total_conflicts"] == 0
+        assert result["conflicts"] == []

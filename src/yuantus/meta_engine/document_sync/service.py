@@ -298,3 +298,126 @@ class DocumentSyncService:
             "conflicts": conflicts,
             "errors": errors,
         }
+
+    # ------------------------------------------------------------------
+    # Analytics (C21)
+    # ------------------------------------------------------------------
+
+    def overview(self) -> Dict[str, Any]:
+        """High-level overview: site/job counts, state breakdowns."""
+        sites = self.session.query(SyncSite).all()
+        jobs = self.session.query(SyncJob).all()
+
+        sites_by_state: Dict[str, int] = {}
+        sites_by_direction: Dict[str, int] = {}
+        for s in sites:
+            sites_by_state[s.state] = sites_by_state.get(s.state, 0) + 1
+            sites_by_direction[s.direction] = sites_by_direction.get(s.direction, 0) + 1
+
+        jobs_by_state: Dict[str, int] = {}
+        total_conflicts = 0
+        total_errors = 0
+        for j in jobs:
+            jobs_by_state[j.state] = jobs_by_state.get(j.state, 0) + 1
+            total_conflicts += (j.conflict_count or 0)
+            total_errors += (j.error_count or 0)
+
+        return {
+            "total_sites": len(sites),
+            "sites_by_state": sites_by_state,
+            "sites_by_direction": sites_by_direction,
+            "total_jobs": len(jobs),
+            "jobs_by_state": jobs_by_state,
+            "total_conflicts": total_conflicts,
+            "total_errors": total_errors,
+        }
+
+    def site_analytics(self, site_id: str) -> Dict[str, Any]:
+        """Per-site analytics: job counts and outcome aggregates."""
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        jobs = (
+            self.session.query(SyncJob)
+            .filter(SyncJob.site_id == site_id)
+            .all()
+        )
+
+        by_state: Dict[str, int] = {}
+        total_synced = 0
+        total_conflicts = 0
+        total_errors = 0
+        total_skipped = 0
+        for j in jobs:
+            by_state[j.state] = by_state.get(j.state, 0) + 1
+            total_synced += (j.synced_count or 0)
+            total_conflicts += (j.conflict_count or 0)
+            total_errors += (j.error_count or 0)
+            total_skipped += (j.skipped_count or 0)
+
+        return {
+            "site_id": site.id,
+            "site_name": site.name,
+            "state": site.state,
+            "total_jobs": len(jobs),
+            "jobs_by_state": by_state,
+            "total_synced": total_synced,
+            "total_conflicts": total_conflicts,
+            "total_errors": total_errors,
+            "total_skipped": total_skipped,
+        }
+
+    def job_conflicts(self, job_id: str) -> Dict[str, Any]:
+        """Conflict-only summary for a specific job."""
+        job = self.get_job(job_id)
+        if job is None:
+            raise ValueError(f"Job '{job_id}' not found")
+
+        records = self.list_records(job_id)
+        conflicts: List[Dict[str, Any]] = []
+        for r in records:
+            if r.outcome == SyncRecordOutcome.CONFLICT.value:
+                conflicts.append({
+                    "document_id": r.document_id,
+                    "source_checksum": r.source_checksum,
+                    "target_checksum": r.target_checksum,
+                    "detail": r.conflict_detail,
+                })
+
+        return {
+            "job_id": job.id,
+            "site_id": job.site_id,
+            "total_records": len(records),
+            "conflict_count": len(conflicts),
+            "conflicts": conflicts,
+        }
+
+    def export_overview(self) -> Dict[str, Any]:
+        """Export-ready combined overview payload."""
+        return {
+            "overview": self.overview(),
+        }
+
+    def export_conflicts(self) -> Dict[str, Any]:
+        """Export-ready conflict summary across all jobs."""
+        jobs = self.session.query(SyncJob).all()
+        all_conflicts: List[Dict[str, Any]] = []
+
+        for j in jobs:
+            records = self.list_records(j.id)
+            for r in records:
+                if r.outcome == SyncRecordOutcome.CONFLICT.value:
+                    all_conflicts.append({
+                        "job_id": j.id,
+                        "site_id": j.site_id,
+                        "document_id": r.document_id,
+                        "source_checksum": r.source_checksum,
+                        "target_checksum": r.target_checksum,
+                        "detail": r.conflict_detail,
+                    })
+
+        return {
+            "total_conflicts": len(all_conflicts),
+            "conflicts": all_conflicts,
+        }

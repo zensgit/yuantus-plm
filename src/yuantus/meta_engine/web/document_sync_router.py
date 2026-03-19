@@ -192,3 +192,61 @@ def get_job_summary(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return summary
+
+
+# ---------------------------------------------------------------------------
+# Analytics / export endpoints (C21)
+# ---------------------------------------------------------------------------
+
+
+@document_sync_router.get("/overview")
+def sync_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.overview()
+
+
+@document_sync_router.get("/sites/{site_id}/analytics")
+def site_analytics(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.site_analytics(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/jobs/{job_id}/conflicts")
+def job_conflicts(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.job_conflicts(job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/export/overview")
+def export_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.export_overview()
+
+
+@document_sync_router.get("/export/conflicts")
+def export_conflicts(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.export_conflicts()

@@ -216,3 +216,113 @@ def test_get_job_summary_not_found():
         resp = client.get("/api/v1/document-sync/jobs/bad/summary")
 
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Analytics / export endpoint tests (C21)
+# ---------------------------------------------------------------------------
+
+
+def test_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.overview.return_value = {
+            "total_sites": 3, "sites_by_state": {"active": 2, "disabled": 1},
+            "sites_by_direction": {"push": 2, "pull": 1},
+            "total_jobs": 5, "jobs_by_state": {"completed": 3, "pending": 2},
+            "total_conflicts": 4, "total_errors": 2,
+        }
+        resp = client.get("/api/v1/document-sync/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_sites"] == 3
+    assert resp.json()["total_jobs"] == 5
+    assert resp.json()["total_conflicts"] == 4
+
+
+def test_site_analytics():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_analytics.return_value = {
+            "site_id": "site-1", "site_name": "HQ", "state": "active",
+            "total_jobs": 2, "jobs_by_state": {"completed": 1, "pending": 1},
+            "total_synced": 10, "total_conflicts": 2,
+            "total_errors": 1, "total_skipped": 0,
+        }
+        resp = client.get("/api/v1/document-sync/sites/site-1/analytics")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_synced"] == 10
+    assert resp.json()["total_conflicts"] == 2
+
+
+def test_site_analytics_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_analytics.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/sites/x/analytics")
+
+    assert resp.status_code == 404
+
+
+def test_job_conflicts():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.job_conflicts.return_value = {
+            "job_id": "job-1", "site_id": "site-1",
+            "total_records": 5, "conflict_count": 2,
+            "conflicts": [
+                {"document_id": "d1", "source_checksum": "a", "target_checksum": "b", "detail": "mismatch"},
+                {"document_id": "d2", "source_checksum": "c", "target_checksum": "d", "detail": "version"},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/jobs/job-1/conflicts")
+
+    assert resp.status_code == 200
+    assert resp.json()["conflict_count"] == 2
+    assert len(resp.json()["conflicts"]) == 2
+
+
+def test_job_conflicts_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.job_conflicts.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/jobs/x/conflicts")
+
+    assert resp.status_code == 404
+
+
+def test_export_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_overview.return_value = {
+            "overview": {"total_sites": 1, "total_jobs": 2,
+                         "sites_by_state": {}, "sites_by_direction": {},
+                         "jobs_by_state": {}, "total_conflicts": 0, "total_errors": 0},
+        }
+        resp = client.get("/api/v1/document-sync/export/overview")
+
+    assert resp.status_code == 200
+    assert "overview" in resp.json()
+
+
+def test_export_conflicts():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_conflicts.return_value = {
+            "total_conflicts": 1,
+            "conflicts": [{"job_id": "j1", "site_id": "s1", "document_id": "d1",
+                           "source_checksum": "a", "target_checksum": "b", "detail": "x"}],
+        }
+        resp = client.get("/api/v1/document-sync/export/conflicts")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_conflicts"] == 1
+    assert len(resp.json()["conflicts"]) == 1
