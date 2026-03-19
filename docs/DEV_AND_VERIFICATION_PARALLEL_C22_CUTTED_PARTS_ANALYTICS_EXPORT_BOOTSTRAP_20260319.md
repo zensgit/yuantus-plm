@@ -1,7 +1,7 @@
 # C22 – Cutted Parts Analytics / Export Bootstrap – Dev & Verification
 
 ## Status
-- planned_ready_for_claude
+- complete
 
 ## Branch
 - Base: `feature/claude-greenfield-base-2`
@@ -12,7 +12,14 @@
 - `src/yuantus/meta_engine/web/cutted_parts_router.py`
 - `src/yuantus/meta_engine/tests/test_cutted_parts_*.py`
 
-## Verification Required
-1. `pytest src/yuantus/meta_engine/tests/test_cutted_parts_*.py -v`
-2. `bash scripts/check_allowed_paths.sh --mode staged`
-3. `git diff --check`
+## Changed Files
+1. `src/yuantus/meta_engine/cutted_parts/service.py` — +5 analytics/export methods, is_active fix
+2. `src/yuantus/meta_engine/web/cutted_parts_router.py` — +5 GET endpoints
+3. `src/yuantus/meta_engine/tests/test_cutted_parts_service.py` — +10 tests (TestAnalytics)
+4. `src/yuantus/meta_engine/tests/test_cutted_parts_router.py` — +6 tests
+5. `docs/DESIGN_PARALLEL_C22_*` — updated
+6. `docs/DEV_AND_VERIFICATION_PARALLEL_C22_*` — updated
+
+## Verification
+1. `pytest src/yuantus/meta_engine/tests/test_cutted_parts_*.py -v` → 50 passed
+2. `git diff --check` → clean

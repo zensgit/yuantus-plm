@@ -90,6 +90,7 @@ class CuttedPartsService:
             stock_quantity=stock_quantity,
             cost_per_unit=cost_per_unit,
             product_id=product_id,
+            is_active=True,
             properties=properties,
             created_by_id=created_by_id,
         )
@@ -266,4 +267,133 @@ class CuttedPartsService:
             "by_status": by_status,
             "total_scrap_weight": total_scrap,
             "waste_pct": plan.waste_pct,
+        }
+
+    # ------------------------------------------------------------------
+    # Analytics (C22)
+    # ------------------------------------------------------------------
+
+    def overview(self) -> Dict[str, Any]:
+        """High-level overview: plan counts, state breakdown, totals."""
+        plans = self.session.query(CutPlan).all()
+        materials = self.session.query(RawMaterial).all()
+
+        by_state: Dict[str, int] = {}
+        total_parts = 0
+        total_scrap = 0
+        total_ok = 0
+        total_rework = 0
+        for p in plans:
+            by_state[p.state] = by_state.get(p.state, 0) + 1
+            total_parts += (p.total_parts or 0)
+            total_ok += (p.ok_count or 0)
+            total_scrap += (p.scrap_count or 0)
+            total_rework += (p.rework_count or 0)
+
+        return {
+            "total_plans": len(plans),
+            "plans_by_state": by_state,
+            "total_materials": len(materials),
+            "total_parts": total_parts,
+            "total_ok": total_ok,
+            "total_scrap": total_scrap,
+            "total_rework": total_rework,
+        }
+
+    def material_analytics(self) -> Dict[str, Any]:
+        """Material-level analytics: breakdown by type, stock, cost."""
+        materials = self.session.query(RawMaterial).all()
+
+        by_type: Dict[str, int] = {}
+        total_stock = 0.0
+        total_cost_value = 0.0
+        active_count = 0
+
+        for m in materials:
+            by_type[m.material_type] = by_type.get(m.material_type, 0) + 1
+            total_stock += (m.stock_quantity or 0.0)
+            if m.cost_per_unit and m.stock_quantity:
+                total_cost_value += m.cost_per_unit * m.stock_quantity
+            if m.is_active:
+                active_count += 1
+
+        return {
+            "total_materials": len(materials),
+            "active_count": active_count,
+            "by_type": by_type,
+            "total_stock_quantity": total_stock,
+            "total_cost_value": total_cost_value,
+        }
+
+    def waste_summary(self, plan_id: str) -> Dict[str, Any]:
+        """Waste / utilization summary for a specific plan."""
+        plan = self.get_plan(plan_id)
+        if plan is None:
+            raise ValueError(f"Plan '{plan_id}' not found")
+
+        cuts = self.list_cuts(plan_id)
+
+        ok_count = 0
+        scrap_count = 0
+        rework_count = 0
+        total_scrap_weight = 0.0
+        total_quantity = 0.0
+
+        for c in cuts:
+            total_quantity += (c.quantity or 0.0)
+            if c.status == CutResultStatus.OK.value:
+                ok_count += 1
+            elif c.status == CutResultStatus.SCRAP.value:
+                scrap_count += 1
+                total_scrap_weight += (c.scrap_weight or 0.0)
+            elif c.status == CutResultStatus.REWORK.value:
+                rework_count += 1
+
+        utilization_pct = None
+        if len(cuts) > 0:
+            utilization_pct = round(ok_count / len(cuts) * 100, 2)
+
+        return {
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "state": plan.state,
+            "total_cuts": len(cuts),
+            "ok_count": ok_count,
+            "scrap_count": scrap_count,
+            "rework_count": rework_count,
+            "total_quantity": total_quantity,
+            "total_scrap_weight": total_scrap_weight,
+            "waste_pct": plan.waste_pct,
+            "utilization_pct": utilization_pct,
+        }
+
+    def export_overview(self) -> Dict[str, Any]:
+        """Export-ready combined overview + material analytics."""
+        return {
+            "overview": self.overview(),
+            "material_analytics": self.material_analytics(),
+        }
+
+    def export_waste(self) -> Dict[str, Any]:
+        """Export-ready waste summary across all plans."""
+        plans = self.session.query(CutPlan).all()
+        plan_summaries = []
+        for p in plans:
+            cuts = self.list_cuts(p.id)
+            scrap_weight = sum((c.scrap_weight or 0.0) for c in cuts)
+            scrap_count = sum(
+                1 for c in cuts if c.status == CutResultStatus.SCRAP.value
+            )
+            plan_summaries.append({
+                "plan_id": p.id,
+                "plan_name": p.name,
+                "state": p.state,
+                "total_cuts": len(cuts),
+                "scrap_count": scrap_count,
+                "total_scrap_weight": scrap_weight,
+                "waste_pct": p.waste_pct,
+            })
+        return {
+            "total_plans": len(plans),
+            "plans": plan_summaries,
         }

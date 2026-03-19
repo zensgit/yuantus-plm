@@ -183,3 +183,91 @@ def test_list_materials():
     assert resp.status_code == 200
     assert resp.json()["count"] == 1
     assert resp.json()["materials"][0]["name"] == "Steel Sheet"
+
+
+# ---------------------------------------------------------------------------
+# Analytics / export endpoints (C22)
+# ---------------------------------------------------------------------------
+
+
+def test_overview():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.overview.return_value = {
+            "total_plans": 3, "plans_by_state": {"draft": 2, "completed": 1},
+            "total_materials": 5, "total_parts": 20,
+            "total_ok": 15, "total_scrap": 3, "total_rework": 2,
+        }
+        resp = client.get("/api/v1/cutted-parts/overview")
+    assert resp.status_code == 200
+    assert resp.json()["total_plans"] == 3
+
+
+def test_material_analytics():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.material_analytics.return_value = {
+            "total_materials": 2, "active_count": 2,
+            "by_type": {"sheet": 1, "bar": 1},
+            "total_stock_quantity": 150.0, "total_cost_value": 2000.0,
+        }
+        resp = client.get("/api/v1/cutted-parts/materials/analytics")
+    assert resp.status_code == 200
+    assert resp.json()["total_materials"] == 2
+
+
+def test_waste_summary():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.waste_summary.return_value = {
+            "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
+            "total_cuts": 3, "ok_count": 1, "scrap_count": 1, "rework_count": 1,
+            "total_quantity": 5.0, "total_scrap_weight": 0.5,
+            "waste_pct": 8.5, "utilization_pct": 33.33,
+        }
+        resp = client.get("/api/v1/cutted-parts/plans/plan-1/waste-summary")
+    assert resp.status_code == 200
+    assert resp.json()["total_cuts"] == 3
+    assert resp.json()["utilization_pct"] == 33.33
+
+
+def test_waste_summary_not_found_404():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.waste_summary.side_effect = ValueError("Plan 'x' not found")
+        resp = client.get("/api/v1/cutted-parts/plans/x/waste-summary")
+    assert resp.status_code == 404
+
+
+def test_export_overview():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_overview.return_value = {
+            "overview": {"total_plans": 1},
+            "material_analytics": {"total_materials": 1},
+        }
+        resp = client.get("/api/v1/cutted-parts/export/overview")
+    assert resp.status_code == 200
+    assert "overview" in resp.json()
+    assert "material_analytics" in resp.json()
+
+
+def test_export_waste():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_waste.return_value = {
+            "total_plans": 1,
+            "plans": [{"plan_id": "p1", "plan_name": "P1", "state": "draft",
+                        "total_cuts": 2, "scrap_count": 1,
+                        "total_scrap_weight": 0.3, "waste_pct": 5.0}],
+        }
+        resp = client.get("/api/v1/cutted-parts/export/waste")
+    assert resp.status_code == 200
+    assert resp.json()["total_plans"] == 1
+    assert len(resp.json()["plans"]) == 1
