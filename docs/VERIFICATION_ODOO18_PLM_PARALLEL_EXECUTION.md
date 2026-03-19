@@ -1538,6 +1538,7 @@ git diff --check
 - cherry-picked `18ecb5b` into candidate stack as `b45e7a4`
 - `py_compile`: passed
 - combined targeted regression: `83 passed, 33 warnings in 9.00s`
+- greenfield cross-regression with `C19`: `118 passed, 43 warnings in 31.73s`
 - `git diff --check`: passed
 
 ### Residual Risks

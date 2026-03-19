@@ -633,5 +633,7 @@
   - `e85d046` `feat(c20): add box analytics and export endpoints`
   - `b45e7a4` `feat(c21): add document sync analytics and export endpoints`
 - validated `C20` and `C21` together without touching `app.py` or existing hot paths
+- extended greenfield cross-regression with `C19`:
+  - `118 passed, 43 warnings in 31.73s`
 - current follow-up:
   - keep `C22` as the only remaining pending task in this greenfield batch
