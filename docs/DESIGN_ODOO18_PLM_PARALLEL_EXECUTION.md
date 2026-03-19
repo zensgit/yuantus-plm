@@ -320,6 +320,29 @@
 - 本轮不把 approvals 接到 ECO / quality / purchase 写侧
 - 本轮不扩展 C11 到新的 3D 编辑能力
 
+## Increment 2026-03-19 Unified Stack C7-C13
+
+### Why
+- `C7-C13` 已分别在多个 Codex 分支完成集成验证，但还需要确认单一 stack 分支上的真实可组合性。
+- 这轮目标是把 `BOM + quality + maintenance + locale + subcontracting + file viewer + approvals` 放到同一分支上，用统一回归来证明边界没有互相踩坏。
+
+### Delivered Scope
+- 以 `feature/codex-stack-c11c12` 作为当前统一集成栈
+- 确认 ancestry 关系：
+  - locale/export 基线
+  - `C7-C9` stack
+  - `C13`
+  - `C11/C12`
+- 在统一栈上完成跨域回归，而不再只看单任务包定向测试
+
+### Chosen Defaults
+- 继续以 stack 分支作为后续合并准备基线
+- 暂停给 Claude 分配新任务，直到当前 stack 进入合并窗口
+
+### Non-Goals
+- 本轮不再引入新功能
+- 本轮不新开 `C14+` 任务
+
 ### Why
 - 现有仓库只有 ECO approvals，不存在独立的 generic approvals 模块。
 - 这条线适合用全新模块落地，避免挤占现有热文件。

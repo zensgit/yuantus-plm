@@ -136,7 +136,9 @@
 
 ## Next Claude Allocation Draft
 - `C11/C12/C13` 已进入 Codex 集成完成态
-- 下一批 Claude 任务需要重新开新边界，不再回写这三条线
+- 当前建议：暂不再给 Claude 开新任务
+- 先等待 `feature/codex-stack-c11c12` 完成更大范围交叉回归与后续合并窗口
+- 下一批 Claude 任务需要重新开新边界，不再回写 `C7-C13`
 
 ## Claude Allocation
 - `C7/C8/C9/C10` should not be edited further on Claude branches unless a new bugfix branch is explicitly opened.
@@ -200,6 +202,23 @@
 - Unified branch regression:
   - `47 passed, 24 warnings` for `C11 + C12`
   - `57 passed, 44 warnings` for `C11 + C12 + locale + quality + maintenance + subcontracting`
+
+## Increment 2026-03-19 Codex-Unified-Stack-C7-C13
+- Confirmed `feature/codex-stack-c11c12` contains:
+  - locale/export baseline `1ed22a2`
+  - `C7-C9` verified stack `2a64ebb`
+  - `C13` integration `489396a`
+  - `C11/C12` integration commits `1290eeb`, `d0e6d76`, `9e48f35`
+- Ran a larger cross-pack regression across:
+  - BOM summarized snapshot
+  - quality
+  - maintenance
+  - locale
+  - subcontracting
+  - file viewer readiness
+  - approvals
+- Result:
+  - `86 passed, 60 warnings`
 
 ## Increment 2026-03-19 Codex-C13-Subcontracting
 - Created `feature/codex-c13-subcontracting-integration` from the verified stack baseline

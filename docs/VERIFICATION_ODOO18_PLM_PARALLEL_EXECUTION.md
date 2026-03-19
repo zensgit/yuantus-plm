@@ -381,6 +381,48 @@ git diff --check
 - `C11` 当前只验证了 file/viewer 消费侧，不包含更深的 CAD rule stack
 - `C12` 当前是 generic approvals bootstrap，还未接入 ECO/quality 等写侧业务
 
+## Increment 2026-03-19 Unified Stack C7-C13
+
+### Touched Areas
+- `feature/codex-stack-c11c12`
+- `src/yuantus/meta_engine/tests/test_bom_summarized_router.py`
+- `src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py`
+- `src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py`
+- `src/yuantus/meta_engine/tests/test_quality_router.py`
+- `src/yuantus/meta_engine/tests/test_maintenance_router.py`
+- `src/yuantus/meta_engine/tests/test_locale_router.py`
+- `src/yuantus/meta_engine/tests/test_subcontracting_router.py`
+- `src/yuantus/meta_engine/tests/test_file_viewer_readiness.py`
+- `src/yuantus/meta_engine/tests/test_approvals_service.py`
+- `src/yuantus/meta_engine/tests/test_approvals_router.py`
+
+### Verification Commands
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_bom_summarized_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py \
+  src/yuantus/meta_engine/tests/test_quality_router.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_locale_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_service.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py
+```
+
+### Actual Results
+- unified cross-pack regression:
+  - `86 passed, 60 warnings`
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- 这仍是模块级交叉回归，不是主仓最终合并后的全仓回归
+- `C11/C12/C13` 已处于 stack 分支稳定态，但还未进入主仓合并窗口
+
 ## Increment 2026-03-19 C7-C8-C9 Stack Branch
 
 ### Touched Areas
