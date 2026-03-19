@@ -21,11 +21,11 @@
 - `C19`
 
 ## Latest Commits
+- `c9b4729` `docs(stack): finalize c17 c18 c19 merge prep baseline`
 - `1d49413` `docs(stack): record c17 c18 c19 combined integration regression`
 - `2f98e1b` `docs(c19): record codex integration verification`
 - `ea7af53` `feat(c19): bootstrap cutted-parts domain with materials, plans, and cuts`
 - `457170c` `docs(stack): record c17 c18 combined integration regression`
-- `f2534d6` `docs(c18): record codex integration verification`
 
 ## Merge Hotspots
 - `src/yuantus/api/app.py`
