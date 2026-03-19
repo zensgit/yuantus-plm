@@ -1495,8 +1495,8 @@ git diff --check
 - `git diff --check`: passed
 
 ### Residual Risks
-- `C20/C21/C22` are task-prep only at this stage; no implementation has been started
-- the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers
+- `C20` and `C21` have now moved beyond task preparation into Codex-verified candidate-stack state
+- `C22` remains task-prep only and should still stay off `src/yuantus/api/app.py` and all integrated hot routers
 
 ## Increment 2026-03-19 Codex-C20-C21-Stack-Verification
 
