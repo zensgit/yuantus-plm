@@ -1,0 +1,93 @@
+{
+  "shared_allow": [
+    "^docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION\\.md$",
+    "^docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION\\.md$",
+    "^docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION\\.md$",
+    "^docs/DELIVERY_DOC_INDEX\\.md$",
+    "^docs/(DESIGN|DEV_AND_VERIFICATION)_PARALLEL_C[1-6]_.*\\.md$",
+    "^contracts/claude_allowed_paths\\.json$"
+  ],
+  "global_deny": [
+    "^services/cad-connector/app\\.py$",
+    "^src/yuantus/meta_engine/web/version_router\\.py$",
+    "^src/yuantus/meta_engine/version/service\\.py$",
+    "^src/yuantus/meta_engine/services/parallel_tasks_service\\.py$",
+    "^src/yuantus/meta_engine/web/parallel_tasks_router\\.py$",
+    "^src/yuantus/meta_engine/services/benchmark_branches_service\\.py$",
+    "^src/yuantus/meta_engine/web/benchmark_branches_router\\.py$"
+  ],
+  "profiles": {
+    "C1": {
+      "description": "BOM automatic weight on the existing BOM surface",
+      "branch_patterns": [
+        "^feature/claude-c1(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/services/bom_service\\.py$",
+        "^src/yuantus/meta_engine/services/bom_rollup_service\\.py$",
+        "^src/yuantus/meta_engine/web/bom_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_bom_.*\\.py$"
+      ]
+    },
+    "C2": {
+      "description": "Spare BOM productization without touching benchmark or hot-path routers",
+      "branch_patterns": [
+        "^feature/claude-c2(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/services/bom_service\\.py$",
+        "^src/yuantus/meta_engine/web/bom_router\\.py$",
+        "^src/yuantus/meta_engine/manufacturing/.*\\.py$",
+        "^src/yuantus/meta_engine/tests/test_bom_.*\\.py$",
+        "^src/yuantus/meta_engine/tests/test_manufacturing_.*\\.py$"
+      ]
+    },
+    "C3": {
+      "description": "3D/file viewer contract hardening on the existing file router pipeline",
+      "branch_patterns": [
+        "^feature/claude-c3(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/web/file_router\\.py$",
+        "^src/yuantus/meta_engine/services/cad_converter_service\\.py$",
+        "^src/yuantus/meta_engine/tests/test_file_.*\\.py$",
+        "^src/yuantus/meta_engine/tests/test_cad_.*\\.py$"
+      ]
+    },
+    "C4": {
+      "description": "Quality bootstrap in an isolated module boundary",
+      "branch_patterns": [
+        "^feature/claude-c4(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/quality/.*",
+        "^src/yuantus/meta_engine/web/quality_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_quality_.*\\.py$"
+      ]
+    },
+    "C5": {
+      "description": "Maintenance bootstrap in an isolated module boundary",
+      "branch_patterns": [
+        "^feature/claude-c5(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/maintenance/.*",
+        "^src/yuantus/meta_engine/web/maintenance_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_maintenance_.*\\.py$"
+      ]
+    },
+    "C6": {
+      "description": "Locale/report helper bootstrap in isolated helper modules",
+      "branch_patterns": [
+        "^feature/claude-c6(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/locale/.*",
+        "^src/yuantus/meta_engine/report_locale/.*",
+        "^src/yuantus/meta_engine/web/locale_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_locale_.*\\.py$",
+        "^src/yuantus/meta_engine/tests/test_report_locale_.*\\.py$"
+      ]
+    }
+  }
+}

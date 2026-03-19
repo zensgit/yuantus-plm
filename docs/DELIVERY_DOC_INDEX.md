@@ -71,6 +71,12 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- Odoo18 PLM Parallel Execution Plan: `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- Odoo18 PLM Parallel Execution Design: `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- Odoo18 PLM Parallel Execution Verification: `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- C10 Locale Resolver Export Helpers Design: `docs/DESIGN_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
+- C10 Locale Resolver Export Helpers Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
+
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
 - Baseline Filters API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`
 - BOM Compare API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_COMPARE_E2E_20260214.md`
