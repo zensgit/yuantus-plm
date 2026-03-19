@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from yuantus.api.app import create_app
 from yuantus.database import get_db
 from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.meta_engine.web.maintenance_router import maintenance_router
@@ -263,3 +264,13 @@ def test_equipment_404_still_works():
         response = client.get("/api/v1/maintenance/equipment/no-such")
 
     assert response.status_code == 404
+
+
+def test_maintenance_routes_registered_in_create_app():
+    app = create_app()
+    paths = {route.path for route in app.routes}
+
+    assert "/api/v1/maintenance/categories" in paths
+    assert "/api/v1/maintenance/equipment/readiness-summary" in paths
+    assert "/api/v1/maintenance/preventive-schedule" in paths
+    assert "/api/v1/maintenance/queue-summary" in paths

@@ -2,7 +2,7 @@
 
 **Branch**: `feature/claude-c9-maintenance-readiness`
 **Date**: 2026-03-18
-**Status**: All 34 tests passing
+**Status**: Codex integration verified, 35 targeted tests passing
 
 ---
 
@@ -41,26 +41,68 @@
 | 4 | `test_queue_summary_endpoint` | 200 with queue payload, workcenter filter |
 | 5 | `test_equipment_404_still_works` | Path param route still returns 404 |
 
-## 4. Execution Log
+## 4. Original Branch Execution Log
 
 ```
 $ python3 -m pytest test_maintenance_service.py test_maintenance_router.py -v
 34 passed in 0.50s
 ```
 
-## 5. Files Modified
+## 5. Codex Integration Verification (2026-03-19)
+
+### Integration Adjustments
+
+| File | Change |
+|---|---|
+| `src/yuantus/meta_engine/maintenance/__init__.py` | Imported missing package marker from C5 bootstrap |
+| `src/yuantus/meta_engine/maintenance/models.py` | Imported missing equipment/request data model from C5 bootstrap |
+| `src/yuantus/api/app.py` | Registered `maintenance_router` under `/api/v1` |
+| `src/yuantus/meta_engine/tests/test_maintenance_router.py` | Added `create_app()` route registration smoke test |
+
+### Commands
+
+```bash
+python3 -m py_compile \
+  src/yuantus/api/app.py \
+  src/yuantus/meta_engine/maintenance/__init__.py \
+  src/yuantus/meta_engine/maintenance/models.py \
+  src/yuantus/meta_engine/maintenance/service.py \
+  src/yuantus/meta_engine/web/maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_maintenance_service.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py
+
+pytest -q \
+  src/yuantus/meta_engine/tests/test_maintenance_service.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py
+
+git diff --check
+```
+
+### Results
+
+- `py_compile`: passed
+- `pytest -q ...`: `35 passed, 8 warnings in 2.25s`
+- `git diff --check`: passed
+
+Warnings remained pre-existing:
+- `starlette.formparsers` pending deprecation
+- `httpx` `app=` shortcut deprecation
+
+## 6. Files Modified
 
 | File | Change |
 |---|---|
 | `maintenance/service.py` | +`get_equipment_readiness_summary()`, +`get_preventive_schedule()`, +`get_maintenance_queue_summary()` |
 | `web/maintenance_router.py` | +readiness-summary endpoint (before {id} route), +preventive-schedule, +queue-summary |
 | `tests/test_maintenance_service.py` | +`_MockQuery` helper, +12 C9 tests in 3 classes |
-| `tests/test_maintenance_router.py` | Rewritten with standalone FastAPI app + 5 C9 integration tests |
+| `tests/test_maintenance_router.py` | Standalone FastAPI tests + app registration smoke test |
+| `api/app.py` | `maintenance_router` registered in `create_app()` |
+| `maintenance/models.py` | C5 maintenance data model imported into integration branch |
 
-## 6. Known Limitations
+## 7. Known Limitations
 
-- `app.py` does not yet include `maintenance_router` in `create_app()` —
-  registration deferred to avoid touching shared app configuration.
-- Router tests use a standalone FastAPI test app instead of `create_app()`.
 - Workcenter/plant filtering on queue summary uses in-memory join
   (equipment lookup per request) — suitable for moderate dataset sizes.
+- Router behavior is still primarily validated with isolated test apps;
+  app-level coverage currently checks registration, not a full
+  authenticated end-to-end request path.

@@ -2,7 +2,7 @@
 
 **Branch**: `feature/claude-c9-maintenance-readiness`
 **Date**: 2026-03-18
-**Status**: Implemented & Verified
+**Status**: Implemented, Codex-integrated & Verified
 
 ---
 
@@ -109,3 +109,37 @@ Queue items are sorted by priority (urgent first) then state.
 
 4. **Graceful empty handling**: All summaries return valid zero-state
    responses when no data matches the filters.
+
+## 5. Codex Integration Notes (2026-03-19)
+
+Claude's `C9` increment depends on the `C5 maintenance bootstrap`
+data model. During Codex-side integration verification, the following
+integration adjustments were applied:
+
+1. **Imported missing maintenance model package**
+   - Added `src/yuantus/meta_engine/maintenance/__init__.py`
+   - Added `src/yuantus/meta_engine/maintenance/models.py`
+   - Rationale: `MaintenanceService` already assumed the C5 data model,
+     so C9 is not a standalone increment.
+
+2. **Registered `maintenance_router` in the main application**
+   - Added `maintenance_router` import to `src/yuantus/api/app.py`
+   - Added `app.include_router(maintenance_router, prefix="/api/v1")`
+   - Rationale: branch-local router tests were already green, but the
+     feature was not reachable from `create_app()` until this step.
+
+3. **Added app-level registration smoke coverage**
+   - Extended `test_maintenance_router.py` with a
+     `create_app()` route registration assertion.
+   - Rationale: keep the main router contract verified without adding
+     a heavier middleware/auth integration test.
+
+## 6. Final Scope On This Integration Branch
+
+- Maintenance category CRUD
+- Equipment CRUD + status updates
+- Maintenance request CRUD + transitions
+- Equipment readiness summary
+- Preventive schedule overview
+- Maintenance queue summary
+- Main app router registration
