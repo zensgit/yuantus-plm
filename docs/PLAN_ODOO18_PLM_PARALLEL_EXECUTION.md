@@ -538,4 +538,6 @@
 - Merge rehearsal result:
   - `feature/codex-stack-c17c18c19` merged into `main` without manual conflict resolution
   - merge rehearsal commit:
-    - `79abfc4`
+    - `7db4fc6`
+  - rehearsal-branch full baseline:
+    - `305 passed, 103 warnings`

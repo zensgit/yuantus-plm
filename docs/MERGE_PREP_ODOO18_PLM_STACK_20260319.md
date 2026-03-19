@@ -47,8 +47,8 @@
 ## Current Assessment
 - No blocking integration defect found on the expanded candidate stack
 - Remaining work is:
-  - final merge target decision
-  - whether to fold `C17-C19` back into the unified main stack
+  - execute the final merge when release timing is approved
+  - perform post-merge regression on the target branch
 
 ## Merge Rehearsal
 - prior rehearsal branch:
@@ -61,9 +61,11 @@
   - branch:
     - `feature/codex-merge-rehearsal-c17c18c19`
   - merge commit:
-    - `79abfc4`
+    - `7db4fc6`
   - result:
     - expanded candidate stack merges into `main` without manual conflict resolution
+    - expanded stack script also passes on the rehearsal branch:
+      - `305 passed, 103 warnings in 20.43s`
 
 ## Final Regression Refresh
 - expanded stack script rerun:
@@ -96,4 +98,4 @@
 - do not open new Claude feature branches until:
   - expanded stack merge rehearsal is complete
   - final regression is stable
-  - greenfield candidate stack merge target is decided
+  - the final merge is either executed or explicitly deferred

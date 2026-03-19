@@ -1318,7 +1318,9 @@ git diff --check
   - `305 passed, 103 warnings in 121.86s`
 - merge rehearsal:
   - no manual conflict resolution needed
-  - merge rehearsal commit: `79abfc4`
+  - merge rehearsal commit: `7db4fc6`
+  - rehearsal-branch full baseline:
+    - `305 passed, 103 warnings in 20.43s`
 - `git diff --check`: passed
 
 ### Warnings
