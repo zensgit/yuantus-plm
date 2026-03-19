@@ -1330,3 +1330,73 @@ git diff --check
 ### Residual Risks
 - `C17/C18/C19` 仍未接入 `src/yuantus/api/app.py`
 - 当前证明的是候选栈可稳定回归且可干净合入 `main`，还未把这三域并回统一主栈
+
+## Increment 2026-03-19 Codex-Main-Merge-C17-C18-C19
+
+### Touched Areas
+- `main`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+
+### Verification Commands
+```bash
+bash -n scripts/verify_odoo18_plm_stack.sh
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc pytest -q \
+  src/yuantus/meta_engine/tests/test_bom_summarized_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_preview.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_router.py \
+  src/yuantus/meta_engine/tests/test_quality_service.py \
+  src/yuantus/meta_engine/tests/test_quality_router.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_service.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_quality_spc_service.py \
+  src/yuantus/meta_engine/tests/test_maintenance_service.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_locale_service.py \
+  src/yuantus/meta_engine/tests/test_report_locale_service.py \
+  src/yuantus/meta_engine/tests/test_locale_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_service.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_service.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_services.py -k 'locale or report_locale or export_' \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_router.py -k 'locale or export'
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- actual merge:
+  - source branch `feature/codex-stack-c17c18c19`
+  - target branch `main`
+  - merge commit: `f46ff5e`
+- `bash -n scripts/verify_odoo18_plm_stack.sh`: passed
+- post-merge expanded stack script:
+  - `305 passed, 103 warnings in 17.86s`
+- broader merge-prep pack:
+  - `112 passed, 283 deselected, 63 warnings in 46.91s`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+- `pytest` cache write warning:
+  - `.pytest_cache` emitted `No space left on device`
+  - test execution still completed successfully
+
+### Residual Risks
+- `C17/C18/C19` 仍未接入 `src/yuantus/api/app.py`
+- 当前已证明 `main` 上的合并结果可稳定回归，但磁盘空间压力需要在后续稳定窗口内处理

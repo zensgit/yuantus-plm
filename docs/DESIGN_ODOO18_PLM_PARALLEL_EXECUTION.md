@@ -628,3 +628,19 @@
 - 本轮不做采购单联动
 - 本轮不做 routing/MRP orchestration 改写
 - 本轮不做制造主服务回写
+
+## Increment 2026-03-19 Main Merge Execution For Expanded Greenfield Stack
+
+### Why
+- merge rehearsal 已经证明 `feature/codex-stack-c17c18c19` 可干净合入 `main`
+- 继续停留在 rehearsal 阶段不会再产生新的技术信息，应该直接验证真实 `main` 合并态
+
+### Delivered Scope
+- 在独立 `main` worktree 上执行实际合并
+- 以合并后的 `main` 为基线重新运行 full stack script 和更大范围 merge-prep 回归
+- 将 merge-prep 状态从“待执行最终合并”推进到“已执行合并，进入稳定窗口”
+
+### Chosen Defaults
+- 继续保持 `C17/C18/C19` 不注册到 `src/yuantus/api/app.py`
+- 将 `.pytest_cache` 的磁盘写入告警视为环境告警，而不是功能阻塞
+- 在 post-merge 稳定窗口被接受前，不开启新的 Claude feature 分支

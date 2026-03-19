@@ -21,6 +21,7 @@
 - `C19`
 
 ## Latest Commits
+- `f46ff5e` `Merge branch 'feature/codex-stack-c17c18c19' into main`
 - `c9b4729` `docs(stack): finalize c17 c18 c19 merge prep baseline`
 - `1d49413` `docs(stack): record c17 c18 c19 combined integration regression`
 - `2f98e1b` `docs(c19): record codex integration verification`
@@ -45,10 +46,11 @@
   - `87 passed, 74 warnings`
 
 ## Current Assessment
-- No blocking integration defect found on the expanded candidate stack
+- Final merge into `main` has been executed
+- No blocking post-merge defect found on the merged target branch
 - Remaining work is:
-  - execute the final merge when release timing is approved
-  - perform post-merge regression on the target branch
+  - short stabilization monitoring on `main`
+  - defer any new Claude branch creation until the stabilization window is accepted
 
 ## Merge Rehearsal
 - prior rehearsal branch:
@@ -67,6 +69,22 @@
     - expanded stack script also passes on the rehearsal branch:
       - `305 passed, 103 warnings in 20.43s`
 
+## Actual Main Merge
+- target branch:
+  - `main`
+- actual merge commit:
+  - `f46ff5e`
+- result:
+  - `feature/codex-stack-c17c18c19` merged into `main` without manual conflict resolution
+- post-merge regression on `main`:
+  - expanded stack script:
+    - `305 passed, 103 warnings in 17.86s`
+  - broader merge-prep pack:
+    - `112 passed, 283 deselected, 63 warnings in 46.91s`
+  - note:
+    - `pytest` emitted one cache warning due to `No space left on device` while writing `.pytest_cache`
+    - test execution itself completed successfully
+
 ## Final Regression Refresh
 - expanded stack script rerun:
   - `305 passed, 103 warnings in 121.86s`
@@ -74,28 +92,33 @@
   - `87 passed, 29 warnings`
 - greenfield light cross-pack:
   - `87 passed, 74 warnings`
+- actual merged-`main` post-merge checks:
+  - expanded stack script:
+    - `305 passed, 103 warnings in 17.86s`
+  - broader merge-prep pack:
+    - `112 passed, 283 deselected, 63 warnings in 46.91s`
 
 ## Merge Checklist
-- confirm target branch is still `main`
-- merge source branch `feature/codex-stack-c17c18c19`
-- review hotspot files first:
-  - `src/yuantus/api/app.py`
-  - `contracts/claude_allowed_paths.json`
-  - `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
-  - `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
-  - `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
-  - `docs/DELIVERY_DOC_INDEX.md`
-  - `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
-- rerun before final merge:
-  - `PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc scripts/verify_odoo18_plm_stack.sh full`
-- recommended post-merge regression:
-  - rerun `scripts/verify_odoo18_plm_stack.sh full`
-  - rerun the broader merge-prep pytest pack
+- completed:
+  - confirmed target branch `main`
+  - merged source branch `feature/codex-stack-c17c18c19`
+  - reviewed hotspot files first:
+    - `src/yuantus/api/app.py`
+    - `contracts/claude_allowed_paths.json`
+    - `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+    - `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+    - `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+    - `docs/DELIVERY_DOC_INDEX.md`
+    - `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+  - reran `scripts/verify_odoo18_plm_stack.sh full`
+  - reran the broader merge-prep pytest pack
+- follow-up:
+  - monitor disk pressure because `.pytest_cache` write emitted `No space left on device`
+  - hold new Claude branches until stabilization is accepted
 
 ## Claude Parallel Policy
 - expanded candidate stack is now frozen except merge-prep and review work
 - `C17-C19` are complete and already integrated into the greenfield candidate stack
 - do not open new Claude feature branches until:
-  - expanded stack merge rehearsal is complete
-  - final regression is stable
-  - the final merge is either executed or explicitly deferred
+  - post-merge stabilization on `main` is accepted
+  - the disk-pressure warning is triaged

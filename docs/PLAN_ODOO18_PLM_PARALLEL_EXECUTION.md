@@ -541,3 +541,19 @@
     - `7db4fc6`
   - rehearsal-branch full baseline:
     - `305 passed, 103 warnings`
+
+## Increment 2026-03-19 Codex-Main-Merge-C17-C18-C19
+- Executed the actual merge:
+  - source: `feature/codex-stack-c17c18c19`
+  - target: `main`
+  - merge commit: `f46ff5e`
+- Post-merge validation on `main`:
+  - expanded stack script:
+    - `305 passed, 103 warnings`
+  - broader merge-prep pack:
+    - `112 passed, 283 deselected, 63 warnings`
+- Operational note:
+  - `pytest` emitted a cache write warning because `.pytest_cache` hit `No space left on device`
+  - test execution still completed successfully
+- Current policy:
+  - do not open new Claude feature branches until post-merge stabilization is accepted
