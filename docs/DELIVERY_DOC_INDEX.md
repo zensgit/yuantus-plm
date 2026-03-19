@@ -237,6 +237,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Roadmap 9.3 Performance Report (2026-02-07): `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`
 - Roadmap 9.3 Performance Trend: `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_TREND.md`
 - Phase 3 Progress Snapshot: `docs/PHASE3_PROGRESS_SNAPSHOT_20260206.md`
+- Parallel C17 PLM Box Bootstrap Design: `docs/DESIGN_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
+- Parallel C17 PLM Box Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
 
 ## Optional
 

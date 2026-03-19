@@ -45,6 +45,7 @@
 | C14 | P2 | approvals export / ops-report | `approvals` service + router + tests | completed_on_this_branch |
 | C15 | P2 | subcontracting analytics / export | `subcontracting` service + router + tests | completed_on_this_branch |
 | C16 | P2 | quality SPC / analytics | `quality` analytics services + analytics router + tests | completed_on_this_branch |
+| C17 | P2 | PLM box bootstrap | new `box` module + router + tests | completed_on_c17_branch |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
