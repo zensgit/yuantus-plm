@@ -1718,8 +1718,61 @@ git diff --check
 - added standalone design / verification templates for `C29/C30/C31`
 
 ### Residual Risks
-- `C29/C30/C31` are task-prep only at this stage; no implementation has been started
+- this preparation step itself introduces no code changes
 - the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers outside their own domains
+
+## Increment 2026-03-19 Codex-C29-C30-Stack-Verification
+
+### Touched Areas
+- `feature/codex-c29c30-staging`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C29_PLM_BOX_CAPACITY_COMPLIANCE_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C30_DOCUMENT_SYNC_DRIFT_SNAPSHOTS_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c29c30 python3 -m py_compile \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c29c30-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c29c30-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- cherry-picked `ab909e4` into staging as `31e59bb`
+- cherry-picked `b0b27b0` into staging as `6fcf9be`
+- `py_compile`: passed
+- combined targeted regression: `169 passed, 66 warnings in 2.17s`
+- unified stack script on `feature/codex-c29c30-staging`: `469 passed, 167 warnings in 12.95s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- `C31` had not been integrated yet at this point in the timeline
 
 ## Increment 2026-03-19 Main-FastForward-C20-C21-C22
 

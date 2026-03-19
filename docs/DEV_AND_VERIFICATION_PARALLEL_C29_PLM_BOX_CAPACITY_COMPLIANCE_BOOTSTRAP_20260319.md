@@ -20,6 +20,16 @@
 2. `git diff --check` -- clean
 3. All C29 service methods tested (8 service tests + 5 router tests = 13 new)
 
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-c29c30-staging`
+- cherry-pick source: `ab909e4`
+- integrated commit: `31e59bb`
+- combined regression with `C30`:
+  - `169 passed, 66 warnings in 2.17s`
+- unified stack script on staging:
+  - `469 passed, 167 warnings in 12.95s`
+- `git diff --check`: passed
+
 ## Notes
 - Keep all edits inside the isolated `box` domain.
 - Do not register the router in `app.py`.

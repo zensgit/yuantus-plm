@@ -1001,3 +1001,20 @@
 ### Non-Goals
 - 本轮不把 `C29-C31` 直接并入 `main`
 - 本轮不触发新的统一栈合并
+
+## Increment 2026-03-19 Codex-C29-C30-Stack-Verification
+
+### Decision
+- `C29` 与 `C30` 已经不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c29c30-staging` 上完成联合验证。
+- `C31` 继续保持 pending，不与本轮 staging 混并。
+
+### Why
+- `box` 与 `document_sync` 的第五阶段扩展仍然互不写冲突，适合先做并行联合验证。
+- `C31` 继续留在 `cutted_parts` 子域，延后回收可以减少本轮 staging 的扩面和回归压力。
+
+### Result
+- `C29` staging commit: `31e59bb`
+- `C30` staging commit: `6fcf9be`
+- combined targeted regression: `169 passed, 66 warnings in 2.17s`
+- unified stack regression on staging: `469 passed, 167 warnings in 12.95s`

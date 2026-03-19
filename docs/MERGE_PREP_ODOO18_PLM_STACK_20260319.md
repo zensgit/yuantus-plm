@@ -277,3 +277,20 @@
   - `C30`
   - `C31`
 - this planning step does not reopen active merge-prep on `main`; it only prepares isolated fifth-stage task boundaries
+
+## Next Candidate Stack: C29-C30
+- candidate branch:
+  - `feature/codex-c29c30-staging`
+- base relation:
+  - fast-forward from `main` commit `c620f94`
+- integrated commits:
+  - `31e59bb` `feat(box): add C29 capacity/compliance bootstrap`
+  - `6fcf9be` `feat(document-sync): add C30 drift/snapshots bootstrap`
+- candidate verification:
+  - combined targeted regression:
+    - `169 passed, 66 warnings in 2.17s`
+  - unified stack script on staging branch:
+    - `469 passed, 167 warnings in 12.95s`
+- current gate:
+  - `C29/C30` are now staging-verified
+  - `C31` remains pending before the next promotion step

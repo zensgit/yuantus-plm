@@ -19,6 +19,16 @@
 1. `pytest src/yuantus/meta_engine/tests/test_document_sync_*.py -v` -- 96 passed
 2. `git diff --check` -- clean
 
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-c29c30-staging`
+- cherry-pick source: `b0b27b0`
+- integrated commit: `6fcf9be`
+- combined regression with `C29`:
+  - `169 passed, 66 warnings in 2.17s`
+- unified stack script on staging:
+  - `469 passed, 167 warnings in 12.95s`
+- `git diff --check`: passed
+
 ## Notes
 - Keep all edits inside the isolated `document_sync` domain.
 - Do not register the router in `app.py`.

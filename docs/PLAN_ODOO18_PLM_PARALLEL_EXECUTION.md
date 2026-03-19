@@ -34,7 +34,7 @@
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
 - next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
-- next Claude greenfield batch `C29/C30/C31`：prepared on `main`
+- next Claude greenfield batch `C29/C30/C31`：`C29/C30` codex-stack verified on staging branch; `C31` pending
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -63,8 +63,8 @@
 | C26 | P3 | PLM box reconciliation / audit | `box` reconciliation/audit/export helpers | merged_on_main_greenfield |
 | C27 | P3 | document sync replay / audit | `document_sync` replay/audit/export helpers | merged_on_main_greenfield |
 | C28 | P3 | cutted-parts templates / scenarios | `cutted_parts` template/scenario/export helpers | merged_on_main_greenfield |
-| C29 | P3 | PLM box capacity / compliance | `box` capacity/compliance/export helpers | prepared_for_claude |
-| C30 | P3 | document sync drift / snapshots | `document_sync` drift/snapshot/export helpers | prepared_for_claude |
+| C29 | P3 | PLM box capacity / compliance | `box` capacity/compliance/export helpers | codex_stack_verified |
+| C30 | P3 | document sync drift / snapshots | `document_sync` drift/snapshot/export helpers | codex_stack_verified |
 | C31 | P3 | cutted-parts benchmark / quote | `cutted_parts` benchmark/quote/export helpers | prepared_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
@@ -920,3 +920,20 @@
 - non-goals:
   - no app registration
   - no optimization solver or BOM/manufacturing hot-path integration
+
+## Increment 2026-03-19 Codex-C29-C30-Stack-Verification
+- built isolated candidate stack branch:
+  - `feature/codex-c29c30-staging`
+- cherry-picked:
+  - `ab909e4` `feat(box): add C29 capacity/compliance bootstrap`
+  - `b0b27b0` `feat(document-sync): add C30 drift/snapshots bootstrap`
+- staging commits after integration:
+  - `31e59bb` `feat(box): add C29 capacity/compliance bootstrap`
+  - `6fcf9be` `feat(document-sync): add C30 drift/snapshots bootstrap`
+- combined targeted regression:
+  - `169 passed, 66 warnings in 2.17s`
+- unified stack full regression on staging:
+  - `469 passed, 167 warnings in 12.95s`
+- result:
+  - `C29/C30` are now in Codex-verified staging state
+  - `C31` remains pending by design
