@@ -34,7 +34,7 @@
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
 - next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
-- next Claude greenfield batch `C29/C30/C31`：candidate stack rehearsed; `main` still frozen
+- next Claude greenfield batch `C29/C30/C31`：merged on `main` and post-merge verified
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -63,9 +63,9 @@
 | C26 | P3 | PLM box reconciliation / audit | `box` reconciliation/audit/export helpers | merged_on_main_greenfield |
 | C27 | P3 | document sync replay / audit | `document_sync` replay/audit/export helpers | merged_on_main_greenfield |
 | C28 | P3 | cutted-parts templates / scenarios | `cutted_parts` template/scenario/export helpers | merged_on_main_greenfield |
-| C29 | P3 | PLM box capacity / compliance | `box` capacity/compliance/export helpers | codex_stack_verified |
-| C30 | P3 | document sync drift / snapshots | `document_sync` drift/snapshot/export helpers | codex_stack_verified |
-| C31 | P3 | cutted-parts benchmark / quote | `cutted_parts` benchmark/quote/export helpers | codex_stack_verified |
+| C29 | P3 | PLM box capacity / compliance | `box` capacity/compliance/export helpers | merged_on_main_greenfield |
+| C30 | P3 | document sync drift / snapshots | `document_sync` drift/snapshot/export helpers | merged_on_main_greenfield |
+| C31 | P3 | cutted-parts benchmark / quote | `cutted_parts` benchmark/quote/export helpers | merged_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -965,3 +965,17 @@
     - `485 passed, 172 warnings in 15.85s`
 - next step:
   - actual fast-forward into `main` if we accept this fifth-stage batch
+
+## Increment 2026-03-19 Main-FastForward-C29-C30-C31
+- `main` advanced from:
+  - `c620f94`
+  - to `5feeb4a`
+- source staging branch:
+  - `feature/codex-c29c30c31-staging`
+- post-merge targeted greenfield rerun on `main`:
+  - `267 passed, 98 warnings in 2.74s`
+- post-merge unified stack rerun on `main`:
+  - `485 passed, 172 warnings in 12.59s`
+- result:
+  - `C29/C30/C31` are now part of `main`
+  - no new post-merge functional regression was observed

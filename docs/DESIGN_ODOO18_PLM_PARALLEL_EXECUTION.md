@@ -1050,3 +1050,26 @@
 - rehearsal branch: `feature/codex-merge-rehearsal-c29c30c31`
 - rehearsal fast-forward: `c620f94` -> `64bfae3`
 - rehearsal full regression: `485 passed, 172 warnings in 15.85s`
+
+## Increment 2026-03-19 Main-FastForward-C29-C30-C31
+
+### Decision
+- `C29/C30/C31` 不再停留在候选栈 / rehearsal 状态，而是作为第五阶段 greenfield 批次正式进入 `main`。
+- `main` 现在直接承载：
+  - `C29`
+  - `C30`
+  - `C31`
+
+### Why
+- `feature/codex-c29c30c31-staging` 相对 `main` 是纯快进关系，实际合并不需要额外冲突修复。
+- 合并前候选栈已完成：
+  - 联合定向回归
+  - unified stack full regression
+  - 面向 `main` 的 fast-forward rehearsal
+- 合并后在 `main` 上再次重跑 targeted greenfield pack 和 unified stack，结果保持稳定。
+
+### Result
+- merged main commit: `5feeb4a`
+- source staging branch: `feature/codex-c29c30c31-staging`
+- post-merge targeted greenfield rerun on `main`: `267 passed, 98 warnings in 2.74s`
+- post-merge unified stack rerun on `main`: `485 passed, 172 warnings in 12.59s`

@@ -1588,6 +1588,49 @@ git diff --check
 ### Residual Risks
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
 
+## Increment 2026-03-19 Main-FastForward-C29-C30-C31
+
+### Touched Areas
+- `main`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+git merge --ff-only feature/codex-c29c30c31-staging
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c29c30c31-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c29c30c31-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `main` fast-forwarded from `c620f94` to `5feeb4a`
+- post-merge targeted greenfield rerun on `main`: `267 passed, 98 warnings in 2.74s`
+- post-merge unified stack rerun on `main`: `485 passed, 172 warnings in 12.59s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- no new post-merge functional regression was observed
+
 ## Increment 2026-03-19 Codex-Merge-Rehearsal-C29-C30-C31
 
 ### Touched Areas
