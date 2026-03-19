@@ -94,6 +94,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - C15 Subcontracting Analytics Export Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C15_SUBCONTRACTING_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
 - C16 Quality SPC Analytics Bootstrap Design: `docs/DESIGN_PARALLEL_C16_QUALITY_SPC_ANALYTICS_BOOTSTRAP_20260319.md`
 - C16 Quality SPC Analytics Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C16_QUALITY_SPC_ANALYTICS_BOOTSTRAP_20260319.md`
+- C17 PLM Box Bootstrap Design: `docs/DESIGN_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
+- C17 PLM Box Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
+- C18 Document Sync Bootstrap Design: `docs/DESIGN_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
+- C18 Document Sync Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
+- C19 Cutted Parts Bootstrap Design: `docs/DESIGN_PARALLEL_C19_CUTTED_PARTS_BOOTSTRAP_20260319.md`
+- C19 Cutted Parts Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C19_CUTTED_PARTS_BOOTSTRAP_20260319.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`

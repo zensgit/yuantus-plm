@@ -296,6 +296,47 @@
   - stop opening new Claude feature branches
   - move to merge-prep and final wider regression
 
+## Increment 2026-03-19 Next Claude Batch C17-C19
+- Merge rehearsal passed on `feature/codex-merge-rehearsal-stack`
+- Current unified stack remains frozen for merge-prep and final integration
+- Claude can receive new work again, but only in net-new domains:
+  - `C17`
+  - `C18`
+  - `C19`
+
+### C17
+- task: `PLM Box bootstrap`
+- suggested branch: `feature/claude-c17-plm-box`
+- write scope:
+  - `src/yuantus/meta_engine/box/`
+  - `src/yuantus/meta_engine/web/box_router.py`
+  - `src/yuantus/meta_engine/tests/test_box_*.py`
+- non-goals:
+  - no edits to `src/yuantus/api/app.py`
+  - no edits to `parallel_tasks`, `version`, `benchmark_branches`
+
+### C18
+- task: `document multi-site sync bootstrap`
+- suggested branch: `feature/claude-c18-document-sync`
+- write scope:
+  - `src/yuantus/meta_engine/document_sync/`
+  - `src/yuantus/meta_engine/web/document_sync_router.py`
+  - `src/yuantus/meta_engine/tests/test_document_sync_*.py`
+- non-goals:
+  - no edits to `src/yuantus/api/app.py`
+  - no edits to storage/CAD hot paths
+
+### C19
+- task: `cutted-parts bootstrap`
+- suggested branch: `feature/claude-c19-cutted-parts`
+- write scope:
+  - `src/yuantus/meta_engine/cutted_parts/`
+  - `src/yuantus/meta_engine/web/cutted_parts_router.py`
+  - `src/yuantus/meta_engine/tests/test_cutted_parts_*.py`
+- non-goals:
+  - no edits to `src/yuantus/api/app.py`
+  - no edits to BOM/manufacturing hot services
+
 ## Increment 2026-03-19 Codex-C11-C12-Integration
 - Created `feature/codex-stack-c11c12` from the verified `C13` baseline
 - Integrated Claude `C11` commit `c21346b`

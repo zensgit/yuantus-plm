@@ -4,11 +4,7 @@
     "^docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION\\.md$",
     "^docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION\\.md$",
     "^docs/DELIVERY_DOC_INDEX\\.md$",
-<<<<<<< HEAD
-    "^docs/(DESIGN|DEV_AND_VERIFICATION)_PARALLEL_C([1-9]|1[0-6])_.*\\.md$",
-=======
     "^docs/(DESIGN|DEV_AND_VERIFICATION)_PARALLEL_C\\d+_.*\\.md$",
->>>>>>> 72d4134 (feat(c16): add quality SPC and analytics services)
     "^contracts/claude_allowed_paths\\.json$"
   ],
   "global_deny": [
@@ -93,7 +89,6 @@
         "^src/yuantus/meta_engine/tests/test_report_locale_.*\\.py$"
       ]
     },
-<<<<<<< HEAD
     "C7": {
       "description": "BOM summarized compare and snapshot hardening on the existing BOM router",
       "branch_patterns": [
@@ -203,6 +198,39 @@
         "^src/yuantus/meta_engine/web/quality_router\\.py$",
         "^src/yuantus/meta_engine/web/quality_analytics_router\\.py$",
         "^src/yuantus/meta_engine/tests/test_quality_.*\\.py$"
+      ]
+    },
+    "C17": {
+      "description": "PLM Box bootstrap in a new isolated box domain",
+      "branch_patterns": [
+        "^feature/claude-c17(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/box/.*",
+        "^src/yuantus/meta_engine/web/box_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_box_.*\\.py$"
+      ]
+    },
+    "C18": {
+      "description": "Document multi-site sync bootstrap in a new isolated document_sync domain",
+      "branch_patterns": [
+        "^feature/claude-c18(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/document_sync/.*",
+        "^src/yuantus/meta_engine/web/document_sync_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_document_sync_.*\\.py$"
+      ]
+    },
+    "C19": {
+      "description": "Cutted-parts bootstrap in a new isolated cutted_parts domain",
+      "branch_patterns": [
+        "^feature/claude-c19(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/cutted_parts/.*",
+        "^src/yuantus/meta_engine/web/cutted_parts_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_cutted_parts_.*\\.py$"
       ]
     }
   }

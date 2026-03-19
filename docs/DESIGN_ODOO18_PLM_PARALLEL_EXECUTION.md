@@ -476,6 +476,32 @@
 - 本轮不做最终主仓合并
 - 本轮不追加新的功能面
 
+## Next Claude Batch C17-C19
+
+### Why
+- `feature/codex-merge-rehearsal-stack` 已完成无冲突合并演练。
+- 当前主栈可以冻结进入 merge-prep，因此允许 Claude 重新开新任务，但只能开全新绿地子域。
+
+### Task Boundaries
+- `C17`
+  - 只允许扩展 `box` 子域
+- `C18`
+  - 只允许扩展 `document_sync` 子域
+- `C19`
+  - 只允许扩展 `cutted_parts` 子域
+
+### Chosen Defaults
+- `C17-C19` 一律不允许编辑：
+  - `src/yuantus/api/app.py`
+  - `parallel_tasks`
+  - `version`
+  - `benchmark_branches`
+  - 当前已集成 router 热文件
+
+### Non-Goals
+- 本轮不把 `C17-C19` 直接叠到统一栈
+- 本轮不定义新的跨域 orchestration
+
 ### Why
 - 现有仓库只有 ECO approvals，不存在独立的 generic approvals 模块。
 - 这条线适合用全新模块落地，避免挤占现有热文件。
