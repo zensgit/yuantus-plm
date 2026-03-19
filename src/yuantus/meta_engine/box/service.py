@@ -324,3 +324,91 @@ class BoxService:
                 for c in contents
             ],
         }
+
+    # ------------------------------------------------------------------
+    # Analytics / ops report (C23)
+    # ------------------------------------------------------------------
+
+    def transition_summary(self) -> Dict[str, Any]:
+        """Aggregate state distribution across all boxes with transition eligibility counts."""
+        boxes = self.session.query(BoxItem).all()
+        by_state: Dict[str, int] = {}
+        draft_to_active_eligible = 0
+        active_to_archive_eligible = 0
+
+        for b in boxes:
+            by_state[b.state] = by_state.get(b.state, 0) + 1
+            if b.state == BoxState.DRAFT.value:
+                draft_to_active_eligible += 1
+            elif b.state == BoxState.ACTIVE.value:
+                active_to_archive_eligible += 1
+
+        return {
+            "total": len(boxes),
+            "by_state": by_state,
+            "draft_to_active_eligible": draft_to_active_eligible,
+            "active_to_archive_eligible": active_to_archive_eligible,
+        }
+
+    def active_archive_breakdown(self) -> Dict[str, Any]:
+        """Breakdown of active vs archived boxes with cost and type detail."""
+        boxes = self.session.query(BoxItem).all()
+
+        active_boxes: List[BoxItem] = []
+        archived_boxes: List[BoxItem] = []
+
+        for b in boxes:
+            if b.state == BoxState.ACTIVE.value:
+                active_boxes.append(b)
+            elif b.state == BoxState.ARCHIVED.value:
+                archived_boxes.append(b)
+
+        def _build_group(group: List[BoxItem]) -> Dict[str, Any]:
+            total_cost = 0.0
+            by_type: Dict[str, int] = {}
+            for b in group:
+                if b.cost is not None:
+                    total_cost += b.cost
+                by_type[b.box_type] = by_type.get(b.box_type, 0) + 1
+            return {
+                "count": len(group),
+                "total_cost": total_cost,
+                "by_type": by_type,
+            }
+
+        return {
+            "active": _build_group(active_boxes),
+            "archived": _build_group(archived_boxes),
+        }
+
+    def ops_report(self, box_id: str) -> Dict[str, Any]:
+        """Per-box operational report: box info + state transition eligibility + contents summary."""
+        box = self.get_box(box_id)
+        if box is None:
+            raise ValueError(f"Box '{box_id}' not found")
+
+        contents = self.list_contents(box_id)
+        total_quantity = 0.0
+        for c in contents:
+            total_quantity += (c.quantity or 0.0)
+
+        return {
+            "box_id": box.id,
+            "name": box.name,
+            "state": box.state,
+            "box_type": box.box_type,
+            "can_activate": box.state == BoxState.DRAFT.value,
+            "can_archive": box.state == BoxState.ACTIVE.value,
+            "is_terminal": box.state == BoxState.ARCHIVED.value,
+            "contents_count": len(contents),
+            "total_quantity": total_quantity,
+            "material": box.material,
+            "cost": box.cost,
+        }
+
+    def export_ops_report(self) -> Dict[str, Any]:
+        """Export-ready payload combining transition_summary + active_archive_breakdown."""
+        return {
+            "transition_summary": self.transition_summary(),
+            "active_archive_breakdown": self.active_archive_breakdown(),
+        }

@@ -366,3 +366,178 @@ class TestBoxAnalytics:
         service = BoxService(session)
         with pytest.raises(ValueError, match="not found"):
             service.export_contents("nonexistent")
+
+
+# ---------------------------------------------------------------------------
+# TestOpsReport (C23)
+# ---------------------------------------------------------------------------
+
+
+class TestOpsReport:
+    def _session_with_boxes(self, boxes):
+        """Session whose query(BoxItem).all() returns *boxes*."""
+        session = _mock_session()
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.all.return_value = boxes
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        return session
+
+    def test_transition_summary(self):
+        boxes = [
+            _make_box(box_id="b1", state="draft"),
+            _make_box(box_id="b2", state="draft"),
+            _make_box(box_id="b3", state="active"),
+            _make_box(box_id="b4", state="archived"),
+        ]
+
+        session = self._session_with_boxes(boxes)
+        service = BoxService(session)
+        result = service.transition_summary()
+
+        assert result["total"] == 4
+        assert result["by_state"]["draft"] == 2
+        assert result["by_state"]["active"] == 1
+        assert result["by_state"]["archived"] == 1
+        assert result["draft_to_active_eligible"] == 2
+        assert result["active_to_archive_eligible"] == 1
+
+    def test_transition_summary_empty(self):
+        session = self._session_with_boxes([])
+        service = BoxService(session)
+        result = service.transition_summary()
+
+        assert result["total"] == 0
+        assert result["by_state"] == {}
+        assert result["draft_to_active_eligible"] == 0
+        assert result["active_to_archive_eligible"] == 0
+
+    def test_active_archive_breakdown(self):
+        boxes = [
+            _make_box(box_id="b1", state="active", box_type="box"),
+            _make_box(box_id="b2", state="active", box_type="carton"),
+            _make_box(box_id="b3", state="archived", box_type="box"),
+            _make_box(box_id="b4", state="draft", box_type="pallet"),
+        ]
+        boxes[0].cost = 5.0
+        boxes[1].cost = 3.0
+        boxes[2].cost = 2.0
+        boxes[3].cost = 1.0
+
+        session = self._session_with_boxes(boxes)
+        service = BoxService(session)
+        result = service.active_archive_breakdown()
+
+        assert result["active"]["count"] == 2
+        assert result["active"]["total_cost"] == 8.0
+        assert result["active"]["by_type"]["box"] == 1
+        assert result["active"]["by_type"]["carton"] == 1
+        assert result["archived"]["count"] == 1
+        assert result["archived"]["total_cost"] == 2.0
+        assert result["archived"]["by_type"]["box"] == 1
+
+    def test_active_archive_breakdown_no_archived(self):
+        boxes = [
+            _make_box(box_id="b1", state="active", box_type="box"),
+            _make_box(box_id="b2", state="draft", box_type="carton"),
+        ]
+        boxes[0].cost = 10.0
+        boxes[1].cost = 5.0
+
+        session = self._session_with_boxes(boxes)
+        service = BoxService(session)
+        result = service.active_archive_breakdown()
+
+        assert result["active"]["count"] == 1
+        assert result["active"]["total_cost"] == 10.0
+        assert result["archived"]["count"] == 0
+        assert result["archived"]["total_cost"] == 0.0
+        assert result["archived"]["by_type"] == {}
+
+    def test_ops_report_draft(self):
+        session = _mock_session()
+        fake_box = _make_box(state="draft")
+        session.get.return_value = fake_box
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+
+        c1 = MagicMock(spec=BoxContent)
+        c1.quantity = 5.0
+        c2 = MagicMock(spec=BoxContent)
+        c2.quantity = 3.0
+        query_mock.all.return_value = [c1, c2]
+
+        service = BoxService(session)
+        result = service.ops_report("box-1")
+
+        assert result["box_id"] == "box-1"
+        assert result["name"] == "Test Box"
+        assert result["state"] == "draft"
+        assert result["can_activate"] is True
+        assert result["can_archive"] is False
+        assert result["is_terminal"] is False
+        assert result["contents_count"] == 2
+        assert result["total_quantity"] == 8.0
+        assert result["material"] == "cardboard"
+        assert result["cost"] == 2.5
+
+    def test_ops_report_active(self):
+        session = _mock_session()
+        fake_box = _make_box(state="active")
+        session.get.return_value = fake_box
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = []
+
+        service = BoxService(session)
+        result = service.ops_report("box-1")
+
+        assert result["state"] == "active"
+        assert result["can_activate"] is False
+        assert result["can_archive"] is True
+        assert result["is_terminal"] is False
+        assert result["contents_count"] == 0
+        assert result["total_quantity"] == 0.0
+
+    def test_ops_report_not_found(self):
+        session = _mock_session()
+        session.get.return_value = None
+
+        service = BoxService(session)
+        with pytest.raises(ValueError, match="not found"):
+            service.ops_report("nonexistent")
+
+    def test_export_ops_report(self):
+        boxes = [
+            _make_box(box_id="b1", state="draft"),
+            _make_box(box_id="b2", state="active"),
+            _make_box(box_id="b3", state="archived"),
+        ]
+        boxes[0].cost = 1.0
+        boxes[1].cost = 2.0
+        boxes[2].cost = 3.0
+
+        session = self._session_with_boxes(boxes)
+        service = BoxService(session)
+        result = service.export_ops_report()
+
+        assert "transition_summary" in result
+        assert "active_archive_breakdown" in result
+
+        ts = result["transition_summary"]
+        assert ts["total"] == 3
+        assert ts["draft_to_active_eligible"] == 1
+        assert ts["active_to_archive_eligible"] == 1
+
+        aab = result["active_archive_breakdown"]
+        assert aab["active"]["count"] == 1
+        assert aab["active"]["total_cost"] == 2.0
+        assert aab["archived"]["count"] == 1
+        assert aab["archived"]["total_cost"] == 3.0

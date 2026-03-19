@@ -283,3 +283,103 @@ def test_export_contents_not_found_404():
         resp = client.get("/api/v1/box/items/x/export-contents")
 
     assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Ops report / transitions endpoint tests (C23)
+# ---------------------------------------------------------------------------
+
+
+def test_transition_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.transition_summary.return_value = {
+            "total": 4,
+            "by_state": {"draft": 2, "active": 1, "archived": 1},
+            "draft_to_active_eligible": 2,
+            "active_to_archive_eligible": 1,
+        }
+        resp = client.get("/api/v1/box/transitions/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 4
+    assert resp.json()["draft_to_active_eligible"] == 2
+    assert resp.json()["active_to_archive_eligible"] == 1
+
+
+def test_active_archive_breakdown():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.active_archive_breakdown.return_value = {
+            "active": {"count": 3, "total_cost": 15.0, "by_type": {"box": 2, "carton": 1}},
+            "archived": {"count": 1, "total_cost": 5.0, "by_type": {"box": 1}},
+        }
+        resp = client.get("/api/v1/box/active-archive/breakdown")
+
+    assert resp.status_code == 200
+    assert resp.json()["active"]["count"] == 3
+    assert resp.json()["active"]["total_cost"] == 15.0
+    assert resp.json()["archived"]["count"] == 1
+
+
+def test_ops_report():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.ops_report.return_value = {
+            "box_id": "box-1",
+            "name": "Test Box",
+            "state": "draft",
+            "box_type": "box",
+            "can_activate": True,
+            "can_archive": False,
+            "is_terminal": False,
+            "contents_count": 2,
+            "total_quantity": 8.0,
+            "material": "cardboard",
+            "cost": 2.5,
+        }
+        resp = client.get("/api/v1/box/items/box-1/ops-report")
+
+    assert resp.status_code == 200
+    assert resp.json()["box_id"] == "box-1"
+    assert resp.json()["can_activate"] is True
+    assert resp.json()["can_archive"] is False
+    assert resp.json()["contents_count"] == 2
+
+
+def test_ops_report_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.ops_report.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/box/items/nonexistent/ops-report")
+
+    assert resp.status_code == 404
+
+
+def test_export_ops_report():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_ops_report.return_value = {
+            "transition_summary": {
+                "total": 3,
+                "by_state": {"draft": 1, "active": 1, "archived": 1},
+                "draft_to_active_eligible": 1,
+                "active_to_archive_eligible": 1,
+            },
+            "active_archive_breakdown": {
+                "active": {"count": 1, "total_cost": 5.0, "by_type": {"box": 1}},
+                "archived": {"count": 1, "total_cost": 3.0, "by_type": {"carton": 1}},
+            },
+        }
+        resp = client.get("/api/v1/box/export/ops-report")
+
+    assert resp.status_code == 200
+    assert "transition_summary" in resp.json()
+    assert "active_archive_breakdown" in resp.json()
+    assert resp.json()["transition_summary"]["total"] == 3
+    assert resp.json()["active_archive_breakdown"]["active"]["count"] == 1

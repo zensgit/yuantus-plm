@@ -231,3 +231,48 @@ def box_export_contents(
         return service.export_contents(box_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Ops report / transitions (C23)
+# ---------------------------------------------------------------------------
+
+
+@box_router.get("/transitions/summary")
+def box_transition_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.transition_summary()
+
+
+@box_router.get("/active-archive/breakdown")
+def box_active_archive_breakdown(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.active_archive_breakdown()
+
+
+@box_router.get("/items/{box_id}/ops-report")
+def box_ops_report(
+    box_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    try:
+        return service.ops_report(box_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@box_router.get("/export/ops-report")
+def box_export_ops_report(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.export_ops_report()
