@@ -743,3 +743,20 @@
   - `aebdc09`
 - post-merge unified stack regression on `main`:
   - `351 passed, 123 warnings in 30.86s`
+
+## Increment 2026-03-19 Main-Stability-Refresh-C20-C21-C22
+
+### Decision
+- 接受 `C20/C21/C22` 在 `main` 上的短稳定窗口。
+
+### Why
+- merged `main` 上连续两轮统一口径回归没有新增失败。
+- warnings 仍然只是已知的 `starlette.formparsers` 与 `httpx app=` 弃用告警。
+
+### Result
+- stabilization rerun:
+  - `351 passed, 123 warnings in 42.37s`
+- broader rerun:
+  - `351 passed, 123 warnings in 42.32s`
+- next step:
+  - freeze new feature work until the next greenfield batch is explicitly planned

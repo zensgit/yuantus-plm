@@ -1609,3 +1609,54 @@ PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c20c21c22 PYTEST_ADDOPTS='-p no:cachep
 
 ### Residual Risks
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+
+## Increment 2026-03-19 Main-Stability-Refresh-C20-C21-C22
+
+### Touched Areas
+- `main`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-stability PYTEST_ADDOPTS='-p no:cacheprovider' scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-broader PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_bom_summarized_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_preview.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_router.py \
+  src/yuantus/meta_engine/tests/test_quality_service.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_service.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_quality_spc_service.py \
+  src/yuantus/meta_engine/tests/test_quality_router.py \
+  src/yuantus/meta_engine/tests/test_maintenance_service.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_locale_service.py \
+  src/yuantus/meta_engine/tests/test_report_locale_service.py \
+  src/yuantus/meta_engine/tests/test_locale_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_service.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_service.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+### Actual Results
+- merged-`main` unified stack rerun: `351 passed, 123 warnings in 42.37s`
+- merged-`main` broader rerun: `351 passed, 123 warnings in 42.32s`
+- no new post-merge defect surfaced during the stabilization refresh
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
