@@ -807,4 +807,24 @@
 ### Result
 - `C23` staging commit: `585d5f3`
 - `C24` staging commit: `7ab31dc`
-- `C25` 继续保持 `prepared_for_claude`
+- `C25` 已加入 staging 候选栈并完成联合验证
+
+## Increment 2026-03-19 Codex-C25-Integration
+
+### Decision
+- `C25` 不再保持独立待办状态，而是直接叠入 `feature/codex-c23c24c25-staging`。
+- 当前 third-stage greenfield batch 已完整闭环：
+  - `C23`
+  - `C24`
+  - `C25`
+
+### Why
+- `C25` 继续保持纯 greenfield 范围，不触碰 `app.py` 或任何跨域热路径。
+- `GET /utilization/overview` 替代建议里的 `GET /overview` 是正确调整，因为 `C22` 已占用 `/overview`。
+- 统一成一条 staging 候选栈后，后续 merge-prep 和回归不再需要分散维护。
+
+### Result
+- staging branch: `feature/codex-c23c24c25-staging`
+- integrated commit: `b2fec86`
+- combined greenfield regression: `178 passed, 66 warnings in 3.62s`
+- unified stack regression: `396 passed, 140 warnings in 15.87s`

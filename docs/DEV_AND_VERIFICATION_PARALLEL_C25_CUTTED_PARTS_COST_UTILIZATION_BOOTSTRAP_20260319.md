@@ -18,3 +18,15 @@
 ## Verification
 1. `pytest src/yuantus/meta_engine/tests/test_cutted_parts_*.py -v` → 67 passed
 2. `git diff --check` → clean
+
+## Codex Integration Verification
+- staging branch: `feature/codex-c23c24c25-staging`
+- cherry-pick source: `30b7d3b`
+- integrated commit: `b2fec86`
+- route adjustment accepted:
+  - `GET /utilization/overview` replaces `GET /overview` because `C22` already owns `/overview`
+- combined regression with `C23+C24`:
+  - `178 passed, 66 warnings in 3.62s`
+- unified stack regression:
+  - `396 passed, 140 warnings in 15.87s`
+- `git diff --check`: passed

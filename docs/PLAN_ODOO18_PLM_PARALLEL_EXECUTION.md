@@ -32,7 +32,7 @@
 - `C17/C18/C19` greenfield candidate stack：merged into `main`
 - post-merge stabilization refresh：completed on this branch
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
-- next Claude greenfield batch `C23/C24/C25`：`C23/C24` codex-stack verified, `C25` pending
+- next Claude greenfield batch `C23/C24/C25`：all codex-stack verified on staging branch
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -57,7 +57,7 @@
 | C22 | P2 | cutted-parts analytics / export | `cutted_parts` analytics/waste/export helpers | merged_on_main_greenfield |
 | C23 | P3 | PLM box ops-report / transitions | `box` ops-report/state-transition/export helpers | codex_stack_verified |
 | C24 | P3 | document sync reconciliation | `document_sync` reconciliation/conflict-resolution/export helpers | codex_stack_verified |
-| C25 | P3 | cutted-parts cost / utilization | `cutted_parts` utilization/cost/export helpers | prepared_for_claude |
+| C25 | P3 | cutted-parts cost / utilization | `cutted_parts` utilization/cost/export helpers | codex_stack_verified |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -730,4 +730,20 @@
 - unified stack full regression on staging:
   - `379 passed, 134 warnings in 31.56s`
 - current follow-up:
-  - keep `C25` as the only remaining pending task in this batch
+  - promote the staging branch to `feature/codex-c23c24c25-staging`
+
+## Increment 2026-03-19 Codex-C25-Integration
+- extended staging branch:
+  - `feature/codex-c23c24c25-staging`
+- cherry-picked:
+  - `30b7d3b` `feat(cutted-parts): add cost and utilization analytics (C25)`
+- integrated staging commit:
+  - `b2fec86` `feat(cutted-parts): add cost and utilization analytics (C25)`
+- note:
+  - `GET /utilization/overview` was accepted as the correct route because `GET /overview` already exists from `C22`
+- combined greenfield regression after `C25`:
+  - `178 passed, 66 warnings in 3.62s`
+- unified stack full regression after `C25`:
+  - `396 passed, 140 warnings in 15.87s`
+- result:
+  - `C23/C24/C25` are now all in Codex-verified staging state

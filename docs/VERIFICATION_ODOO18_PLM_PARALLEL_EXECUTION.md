@@ -1737,4 +1737,52 @@ git diff --check
 
 ### Residual Risks
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
-- `C25` has not been integrated yet
+- `C25` had not been integrated yet at this point in the timeline
+
+## Increment 2026-03-19 Codex-C25-Integration
+
+### Touched Areas
+- `feature/codex-c23c24c25-staging`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C25_CUTTED_PARTS_COST_UTILIZATION_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c23c24c25 python3 -m py_compile \
+  src/yuantus/meta_engine/cutted_parts/service.py \
+  src/yuantus/meta_engine/web/cutted_parts_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c23c24c25 PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c23c24c25-full PYTEST_ADDOPTS='-p no:cacheprovider' scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- cherry-picked `30b7d3b` into staging as `b2fec86`
+- `py_compile`: passed
+- combined greenfield regression with `C23+C24+C25`: `178 passed, 66 warnings in 3.62s`
+- unified stack script on `feature/codex-c23c24c25-staging`: `396 passed, 140 warnings in 15.87s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- no app registration or hot-path integration has been performed yet, by design
