@@ -1,0 +1,42 @@
+name: odoo18-plm-stack-regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Regression mode"
+        required: false
+        default: "full"
+        type: choice
+        options:
+          - smoke
+          - full
+
+permissions:
+  contents: read
+
+jobs:
+  stack-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run Odoo18 PLM stack regression
+        env:
+          PYTHONPYCACHEPREFIX: /tmp/yuantus-pyc
+        run: |
+          chmod +x scripts/verify_odoo18_plm_stack.sh
+          scripts/verify_odoo18_plm_stack.sh "${{ github.event.inputs.mode || 'full' }}"

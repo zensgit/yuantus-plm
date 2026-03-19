@@ -494,6 +494,104 @@ pytest -q \
 - 仍未覆盖主仓最终合并后的全仓回归
 - 当前结果证明的是 `C7-C13` 统一 stack 的组合稳定性
 
+## Increment 2026-03-19 Unified Stack Regression Automation
+
+### Touched Areas
+- `scripts/verify_odoo18_plm_stack.sh`
+- `.github/workflows/odoo18-plm-stack-regression.yml`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+
+### Verification Commands
+```bash
+chmod +x scripts/verify_odoo18_plm_stack.sh
+```
+
+```bash
+bash -n scripts/verify_odoo18_plm_stack.sh
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `bash -n`: passed
+- stack regression script (`full`):
+  - `177 passed, 62 warnings in 14.45s`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- workflow 目前只提供手动触发，不会自动替代现有回归流水线
+- `C14/C15/C16` 仍需等实际分支返回后，再用该脚本做增量集成验证
+
+## Increment 2026-03-19 C14-C15 Unified Stack Integration
+
+### Touched Areas
+- `src/yuantus/meta_engine/approvals/service.py`
+- `src/yuantus/meta_engine/web/approvals_router.py`
+- `src/yuantus/meta_engine/tests/test_approvals_service.py`
+- `src/yuantus/meta_engine/tests/test_approvals_router.py`
+- `src/yuantus/meta_engine/subcontracting/service.py`
+- `src/yuantus/meta_engine/web/subcontracting_router.py`
+- `src/yuantus/meta_engine/tests/test_subcontracting_service.py`
+- `src/yuantus/meta_engine/tests/test_subcontracting_router.py`
+- `scripts/verify_odoo18_plm_stack.sh`
+- shared `PLAN/DESIGN/VERIFICATION` docs
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/meta_engine/approvals/service.py \
+  src/yuantus/meta_engine/web/approvals_router.py \
+  src/yuantus/meta_engine/tests/test_approvals_service.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/meta_engine/subcontracting/service.py \
+  src/yuantus/meta_engine/web/subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_service.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_approvals_service.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_service.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- targeted pack:
+  - `44 passed, 16 warnings in 4.70s`
+- unified stack script (`full`):
+  - `191 passed, 68 warnings in 11.44s`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- `C16` 仍未进入统一栈
+- `C14/C15` 是基于 worker 交付契约在统一栈复刻并验证，不是直接 cherry-pick worker branch
+
 ## Increment 2026-03-19 C7-C8-C9 Stack Branch
 
 ### Touched Areas

@@ -1,8 +1,10 @@
 """Generic approvals service layer."""
 from __future__ import annotations
 
+import csv
 import uuid
 from datetime import datetime
+from io import StringIO
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -38,6 +40,50 @@ class ApprovalService:
 
     def __init__(self, session: Session):
         self.session = session
+
+    @staticmethod
+    def _utcnow_iso() -> str:
+        return datetime.utcnow().isoformat() + "Z"
+
+    @staticmethod
+    def _request_dict(req: ApprovalRequest) -> Dict[str, Any]:
+        return {
+            "id": req.id,
+            "title": req.title,
+            "category_id": req.category_id,
+            "entity_type": req.entity_type,
+            "entity_id": req.entity_id,
+            "state": req.state,
+            "priority": req.priority,
+            "description": req.description,
+            "rejection_reason": req.rejection_reason,
+            "requested_by_id": req.requested_by_id,
+            "assigned_to_id": req.assigned_to_id,
+            "decided_by_id": req.decided_by_id,
+            "created_at": req.created_at.isoformat() if req.created_at else None,
+            "submitted_at": req.submitted_at.isoformat() if req.submitted_at else None,
+            "decided_at": req.decided_at.isoformat() if req.decided_at else None,
+            "cancelled_at": req.cancelled_at.isoformat() if req.cancelled_at else None,
+        }
+
+    @staticmethod
+    def _render_csv(rows: List[Dict[str, Any]], fieldnames: List[str]) -> str:
+        buffer = StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({name: row.get(name) for name in fieldnames})
+        return buffer.getvalue()
+
+    @staticmethod
+    def _render_markdown_table(rows: List[Dict[str, Any]], columns: List[str]) -> str:
+        header = "| " + " | ".join(columns) + " |"
+        separator = "| " + " | ".join("---" for _ in columns) + " |"
+        body = [
+            "| " + " | ".join(str(row.get(column, "")) for column in columns) + " |"
+            for row in rows
+        ]
+        return "\n".join([header, separator, *body]) if body else "\n".join([header, separator])
 
     # ------------------------------------------------------------------
     # Categories
@@ -197,3 +243,219 @@ class ApprovalService:
                 "category_id": category_id,
             },
         }
+
+    def get_requests_export(
+        self,
+        *,
+        state: Optional[str] = None,
+        category_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        priority: Optional[str] = None,
+        assigned_to_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        requests = self.list_requests(
+            state=state,
+            category_id=category_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            priority=priority,
+            assigned_to_id=assigned_to_id,
+        )
+        return {
+            "requests": [self._request_dict(req) for req in requests],
+            "filters": {
+                "state": state,
+                "category_id": category_id,
+                "entity_type": entity_type,
+                "entity_id": entity_id,
+                "priority": priority,
+                "assigned_to_id": assigned_to_id,
+            },
+            "generated_at": self._utcnow_iso(),
+        }
+
+    def export_requests(
+        self,
+        *,
+        fmt: str = "json",
+        state: Optional[str] = None,
+        category_id: Optional[str] = None,
+        entity_type: Optional[str] = None,
+        entity_id: Optional[str] = None,
+        priority: Optional[str] = None,
+        assigned_to_id: Optional[int] = None,
+    ) -> Dict[str, Any] | str:
+        payload = self.get_requests_export(
+            state=state,
+            category_id=category_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            priority=priority,
+            assigned_to_id=assigned_to_id,
+        )
+        if fmt == "json":
+            return payload
+        if fmt == "csv":
+            return self._render_csv(
+                payload["requests"],
+                [
+                    "id",
+                    "title",
+                    "category_id",
+                    "entity_type",
+                    "entity_id",
+                    "state",
+                    "priority",
+                    "assigned_to_id",
+                    "requested_by_id",
+                    "decided_by_id",
+                    "created_at",
+                    "submitted_at",
+                    "decided_at",
+                    "cancelled_at",
+                ],
+            )
+        if fmt == "markdown":
+            filters = payload["filters"]
+            rows = payload["requests"]
+            lines = [
+                "# Approvals Requests Export",
+                "",
+                f"- generated_at: `{payload['generated_at']}`",
+                f"- total: `{len(rows)}`",
+                "",
+                "## Filters",
+                "",
+            ]
+            for key, value in filters.items():
+                lines.append(f"- {key}: `{value}`")
+            lines.extend(
+                [
+                    "",
+                    "## Requests",
+                    "",
+                    self._render_markdown_table(
+                        rows,
+                        ["id", "title", "state", "priority", "entity_type", "entity_id"],
+                    ),
+                ]
+            )
+            return "\n".join(lines)
+        raise ValueError(f"Unsupported format: {fmt}")
+
+    def get_summary_export(
+        self,
+        *,
+        entity_type: Optional[str] = None,
+        category_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        summary = self.get_summary(entity_type=entity_type, category_id=category_id)
+        metrics: List[Dict[str, Any]] = [
+            {"metric": "total", "value": summary["total"]},
+            {"metric": "pending", "value": summary["pending"]},
+        ]
+        for key, value in sorted(summary["by_state"].items()):
+            metrics.append({"metric": f"state.{key}", "value": value})
+        for key, value in sorted(summary["by_priority"].items()):
+            metrics.append({"metric": f"priority.{key}", "value": value})
+        return {
+            "summary": summary,
+            "metrics": metrics,
+            "generated_at": self._utcnow_iso(),
+        }
+
+    def export_summary(
+        self,
+        *,
+        fmt: str = "json",
+        entity_type: Optional[str] = None,
+        category_id: Optional[str] = None,
+    ) -> Dict[str, Any] | str:
+        payload = self.get_summary_export(
+            entity_type=entity_type,
+            category_id=category_id,
+        )
+        if fmt == "json":
+            return payload
+        if fmt == "csv":
+            return self._render_csv(payload["metrics"], ["metric", "value"])
+        if fmt == "markdown":
+            lines = [
+                "# Approvals Summary Export",
+                "",
+                f"- generated_at: `{payload['generated_at']}`",
+                "",
+                "## Summary",
+                "",
+                self._render_markdown_table(payload["metrics"], ["metric", "value"]),
+            ]
+            return "\n".join(lines)
+        raise ValueError(f"Unsupported format: {fmt}")
+
+    def get_ops_report(self) -> Dict[str, Any]:
+        categories = self.list_categories()
+        requests = self.list_requests()
+        total_requests = len(requests)
+        total_categories = len(categories)
+
+        def _coverage(count: int) -> float:
+            if total_requests == 0:
+                return 0.0
+            return round(count / total_requests, 4)
+
+        category_count = sum(1 for req in requests if req.category_id)
+        entity_link_count = sum(
+            1 for req in requests if req.entity_type and req.entity_id
+        )
+        assignment_count = sum(1 for req in requests if req.assigned_to_id is not None)
+        terminal_state_count = sum(
+            1
+            for req in requests
+            if req.state
+            in {
+                ApprovalState.APPROVED.value,
+                ApprovalState.REJECTED.value,
+                ApprovalState.CANCELLED.value,
+            }
+        )
+
+        category_coverage = _coverage(category_count)
+        entity_link_coverage = _coverage(entity_link_count)
+        assignment_coverage = _coverage(assignment_count)
+        terminal_state_coverage = _coverage(terminal_state_count)
+
+        return {
+            "generated_at": self._utcnow_iso(),
+            "categories_total": total_categories,
+            "requests_total": total_requests,
+            "category_coverage": category_coverage,
+            "entity_link_coverage": entity_link_coverage,
+            "assignment_coverage": assignment_coverage,
+            "terminal_state_coverage": terminal_state_coverage,
+            "bootstrap_ready": (
+                total_categories > 0
+                and total_requests > 0
+                and category_coverage > 0
+                and entity_link_coverage > 0
+                and assignment_coverage > 0
+            ),
+        }
+
+    def export_ops_report(self, *, fmt: str = "json") -> Dict[str, Any] | str:
+        payload = self.get_ops_report()
+        if fmt == "json":
+            return payload
+        if fmt == "csv":
+            return self._render_csv([payload], list(payload.keys()))
+        if fmt == "markdown":
+            lines = [
+                "# Approvals Ops Report",
+                "",
+                self._render_markdown_table(
+                    [{k: payload[k] for k in payload.keys()}],
+                    list(payload.keys()),
+                ),
+            ]
+            return "\n".join(lines)
+        raise ValueError(f"Unsupported format: {fmt}")

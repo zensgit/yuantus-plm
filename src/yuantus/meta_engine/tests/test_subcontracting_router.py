@@ -112,3 +112,50 @@ def test_subcontracting_routes_registered_in_create_app():
     assert "/api/v1/subcontracting/orders/{order_id}/assign-vendor" in paths
     assert "/api/v1/subcontracting/orders/{order_id}/issue-material" in paths
     assert "/api/v1/subcontracting/orders/{order_id}/record-receipt" in paths
+    assert "/api/v1/subcontracting/overview" in paths
+    assert "/api/v1/subcontracting/vendors/analytics" in paths
+    assert "/api/v1/subcontracting/receipts/analytics" in paths
+
+
+def test_subcontracting_analytics_endpoints():
+    client, _db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.subcontracting_router.SubcontractingService") as svc_cls:
+        svc = svc_cls.return_value
+        svc.get_overview.return_value = {"orders_total": 2, "vendors_total": 1}
+        svc.get_vendor_analytics.return_value = {"vendors": [{"vendor_id": "v-1"}]}
+        svc.get_receipt_analytics.return_value = {"receipts": [{"order_id": "so-1"}]}
+
+        overview_response = client.get("/api/v1/subcontracting/overview")
+        vendors_response = client.get("/api/v1/subcontracting/vendors/analytics")
+        receipts_response = client.get("/api/v1/subcontracting/receipts/analytics")
+
+    assert overview_response.status_code == 200
+    assert overview_response.json()["orders_total"] == 2
+    assert vendors_response.status_code == 200
+    assert vendors_response.json()["vendors"][0]["vendor_id"] == "v-1"
+    assert receipts_response.status_code == 200
+    assert receipts_response.json()["receipts"][0]["order_id"] == "so-1"
+
+
+def test_subcontracting_export_endpoints():
+    client, _db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.subcontracting_router.SubcontractingService") as svc_cls:
+        svc = svc_cls.return_value
+        svc.export_overview.return_value = {"orders_total": 2}
+        svc.export_vendor_analytics.return_value = "vendor_id,orders_total\nv-1,1\n"
+        svc.export_receipt_analytics.return_value = {"receipts": [{"order_id": "so-1"}]}
+
+        overview_response = client.get("/api/v1/subcontracting/export/overview", params={"format": "json"})
+        vendors_response = client.get("/api/v1/subcontracting/export/vendors", params={"format": "csv"})
+        receipts_response = client.get("/api/v1/subcontracting/export/receipts", params={"format": "json"})
+
+    assert overview_response.status_code == 200
+    assert overview_response.headers["content-disposition"].endswith('subcontracting-overview.json"')
+    assert overview_response.json()["orders_total"] == 2
+    assert vendors_response.status_code == 200
+    assert vendors_response.headers["content-type"].startswith("text/csv")
+    assert "vendor_id,orders_total" in vendors_response.text
+    assert receipts_response.status_code == 200
+    assert receipts_response.json()["receipts"][0]["order_id"] == "so-1"

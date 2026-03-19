@@ -343,6 +343,28 @@
 - 本轮不再引入新功能
 - 本轮不新开 `C14+` 任务
 
+## Increment 2026-03-19 Unified Stack Regression Automation
+
+### Why
+- `C7-C13` 已进入统一 stack 集成态，继续依赖人工拼接长命令做验证，效率低且容易漏包。
+- `C14-C16` 回来后仍会复用同一条统一栈，需要一个稳定、可复用、可放进 CI 的入口。
+
+### Delivered Scope
+- 新增本地脚本：
+  - `scripts/verify_odoo18_plm_stack.sh`
+- 新增手动 workflow：
+  - `.github/workflows/odoo18-plm-stack-regression.yml`
+
+### Chosen Defaults
+- 脚本默认模式是 `full`
+- `full` 复用当前已验证通过的统一栈测试包
+- `smoke` 只保留 app/router 级快速健康检查
+- workflow 暂时只开放 `workflow_dispatch`
+
+### Non-Goals
+- 本轮不改现有 `regression.yml`
+- 本轮不把统一栈专用回归强行并入全仓 CI 默认路径
+
 ## Next Claude Batch C14-C16
 
 ### Why
@@ -364,6 +386,39 @@
 - 不给 Claude 分配新的跨域 orchestration 任务
 - 不让 Claude 修改 `parallel_tasks`、`version`、`benchmark_branches`
 - 继续用 path guard profile 强约束新任务边界
+
+## Increment 2026-03-19 C14-C15 Unified Stack Integration
+
+### Why
+- `C14/C15` worker 都已返回明确契约，但分支 ref 没有同步到主仓 refs。
+- 为避免集成窗口被 branch 同步问题卡住，直接按 worker 交付契约在统一栈复刻并验证。
+
+### Delivered Scope
+- `approvals` 新增导出和 ops-report：
+  - requests export
+  - summary export
+  - ops-report
+  - ops-report export
+- `subcontracting` 新增 analytics/export：
+  - overview
+  - vendor analytics
+  - receipt analytics
+  - overview/vendors/receipts export
+
+### Chosen Defaults
+- `C14` 导出支持：
+  - `json`
+  - `csv`
+  - `markdown`
+- `C15` 导出支持：
+  - `json`
+  - `csv`
+- `C15` 继续复用已存在的 `subcontracting_router` 主应用注册，不回退到局部 `FastAPI.include_router(...)` 证明路径
+
+### Non-Goals
+- 本轮不引入 `approvals` 到 ECO 热路径
+- 本轮不改制造核心服务
+- 本轮不做 `subcontracting` 持久化账本增强
 
 ### Why
 - 现有仓库只有 ECO approvals，不存在独立的 generic approvals 模块。

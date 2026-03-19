@@ -18,6 +18,7 @@
 - `P2-A` parallel-ops summary/trends locale pipeline：completed on this branch
 - `P2-A` breakage metrics/groups locale pipeline：completed on this branch
 - `P2-A` breakage incidents locale pipeline：completed on this branch
+- unified stack regression automation：completed on this branch
 - `C7` BOM compare hardening：merged and verified on this branch (`58f8db7`, `0a0a2eb`)
 - `C8` quality-mrp integration：merged and verified on this branch (`f918784`, `12f5b9b`, `a7139ff`)
 - `C9` maintenance-workcenter readiness：merged and verified on this branch (`736e612`, `b32ed6e`)
@@ -25,6 +26,8 @@
 - `C11` file/3D consumer hardening：completed on this branch
 - `C12` generic approvals bootstrap：completed on this branch
 - `C13` subcontracting bootstrap：completed on this branch
+- `C14` approvals export / ops-report bootstrap：completed on this branch
+- `C15` subcontracting analytics / export bootstrap：completed on this branch
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -38,6 +41,8 @@
 | C11 | P1 | file/3D consumer hardening | `file_router` + file viewer tests | completed_on_this_branch |
 | C12 | P2 | generic approvals bootstrap | new `approvals` module + router + tests | completed_on_this_branch |
 | C13 | P2 | subcontracting bootstrap | new `subcontracting` module + router + tests | completed_on_this_branch |
+| C14 | P2 | approvals export / ops-report | `approvals` service + router + tests | completed_on_this_branch |
+| C15 | P2 | subcontracting analytics / export | `subcontracting` service + router + tests | completed_on_this_branch |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -224,6 +229,27 @@
     - no edits to `parallel_tasks`
     - no edits to manufacturing hot paths
 
+## Increment 2026-03-19 Codex-C14-C15-Integration
+- Integrated `C14` directly on the unified stack branch using the worker-delivered contract:
+  - `GET /api/v1/approvals/requests/export`
+  - `GET /api/v1/approvals/summary/export`
+  - `GET /api/v1/approvals/ops-report`
+  - `GET /api/v1/approvals/ops-report/export`
+- Integrated `C15` directly on the unified stack branch using the worker-delivered contract:
+  - `GET /api/v1/subcontracting/overview`
+  - `GET /api/v1/subcontracting/vendors/analytics`
+  - `GET /api/v1/subcontracting/receipts/analytics`
+  - `GET /api/v1/subcontracting/export/overview`
+  - `GET /api/v1/subcontracting/export/vendors`
+  - `GET /api/v1/subcontracting/export/receipts`
+- Targeted regression:
+  - `44 passed, 16 warnings`
+- Unified stack regression via script:
+  - `191 passed, 68 warnings`
+- `C14/C15` should no longer be treated as pending Claude work
+- Remaining greenfield Claude batch priority is now:
+  - `C16`
+
 ## Increment 2026-03-19 Codex-C11-C12-Integration
 - Created `feature/codex-stack-c11c12` from the verified `C13` baseline
 - Integrated Claude `C11` commit `c21346b`
@@ -274,6 +300,25 @@
   - approvals service/router
 - Result:
   - `177 passed, 62 warnings`
+
+## Increment 2026-03-19 Codex-Stack-Regression-Automation
+- Added reusable regression script:
+  - `scripts/verify_odoo18_plm_stack.sh`
+- Added manual workflow entrypoint:
+  - `.github/workflows/odoo18-plm-stack-regression.yml`
+- Script modes:
+  - `smoke`
+  - `full`
+- Current default verification baseline remains `full`, covering:
+  - BOM summarized snapshot + delta
+  - quality
+  - maintenance
+  - locale
+  - subcontracting
+  - file viewer readiness
+  - approvals
+- Intended use:
+  - future `C14/C15/C16` integration should reuse this script before stack merge
 
 ## Increment 2026-03-19 Codex-C13-Subcontracting
 - Created `feature/codex-c13-subcontracting-integration` from the verified stack baseline

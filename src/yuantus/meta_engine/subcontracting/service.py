@@ -1,7 +1,10 @@
 """Subcontracting bootstrap service."""
 from __future__ import annotations
 
+import csv
 import uuid
+from datetime import datetime
+from io import StringIO
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -18,6 +21,19 @@ from yuantus.meta_engine.subcontracting.models import (
 class SubcontractingService:
     def __init__(self, session: Session):
         self.session = session
+
+    @staticmethod
+    def _utcnow_iso() -> str:
+        return datetime.utcnow().isoformat() + "Z"
+
+    @staticmethod
+    def _render_csv(rows: List[Dict[str, Any]], fieldnames: List[str]) -> str:
+        buffer = StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({name: row.get(name) for name in fieldnames})
+        return buffer.getvalue()
 
     def create_order(
         self,
@@ -223,3 +239,138 @@ class SubcontractingService:
         if not operation_id:
             return None
         return self.session.get(Operation, operation_id)
+
+    def get_overview(self) -> Dict[str, Any]:
+        orders = self.list_orders()
+        total_requested = sum(float(order.requested_qty or 0.0) for order in orders)
+        total_issued = sum(float(order.issued_qty or 0.0) for order in orders)
+        total_received = sum(float(order.received_qty or 0.0) for order in orders)
+        by_state: Dict[str, int] = {}
+        for order in orders:
+            by_state[order.state] = by_state.get(order.state, 0) + 1
+        return {
+            "generated_at": self._utcnow_iso(),
+            "orders_total": len(orders),
+            "vendors_total": len({order.vendor_id for order in orders if order.vendor_id}),
+            "requested_qty_total": round(total_requested, 4),
+            "issued_qty_total": round(total_issued, 4),
+            "received_qty_total": round(total_received, 4),
+            "open_qty_total": round(max(total_requested - total_received, 0.0), 4),
+            "by_state": by_state,
+        }
+
+    def get_vendor_analytics(self) -> Dict[str, Any]:
+        rows: Dict[str, Dict[str, Any]] = {}
+        for order in self.list_orders():
+            vendor_key = order.vendor_id or "unassigned"
+            current = rows.setdefault(
+                vendor_key,
+                {
+                    "vendor_id": order.vendor_id,
+                    "vendor_name": order.vendor_name,
+                    "orders_total": 0,
+                    "requested_qty_total": 0.0,
+                    "issued_qty_total": 0.0,
+                    "received_qty_total": 0.0,
+                    "open_qty_total": 0.0,
+                },
+            )
+            requested = float(order.requested_qty or 0.0)
+            issued = float(order.issued_qty or 0.0)
+            received = float(order.received_qty or 0.0)
+            current["orders_total"] += 1
+            current["requested_qty_total"] += requested
+            current["issued_qty_total"] += issued
+            current["received_qty_total"] += received
+            current["open_qty_total"] += max(requested - received, 0.0)
+        vendors = list(rows.values())
+        vendors.sort(key=lambda row: ((row["vendor_id"] or ""), row["vendor_name"] or ""))
+        for vendor in vendors:
+            requested = vendor["requested_qty_total"]
+            received = vendor["received_qty_total"]
+            vendor["completion_pct"] = round((received / requested) * 100, 2) if requested > 0 else 0.0
+        return {
+            "generated_at": self._utcnow_iso(),
+            "vendors": vendors,
+        }
+
+    def get_receipt_analytics(self) -> Dict[str, Any]:
+        rows = []
+        for order in self.list_orders():
+            requested = float(order.requested_qty or 0.0)
+            received = float(order.received_qty or 0.0)
+            rows.append(
+                {
+                    "order_id": order.id,
+                    "name": order.name,
+                    "vendor_id": order.vendor_id,
+                    "state": order.state,
+                    "requested_qty": requested,
+                    "received_qty": received,
+                    "open_qty": max(requested - received, 0.0),
+                    "completion_pct": round((received / requested) * 100, 2) if requested > 0 else 0.0,
+                }
+            )
+        rows.sort(key=lambda row: row["order_id"])
+        return {
+            "generated_at": self._utcnow_iso(),
+            "receipts": rows,
+        }
+
+    def export_overview(self, *, fmt: str = "json") -> Dict[str, Any] | str:
+        payload = self.get_overview()
+        if fmt == "json":
+            return payload
+        if fmt == "csv":
+            flattened = {
+                "generated_at": payload["generated_at"],
+                "orders_total": payload["orders_total"],
+                "vendors_total": payload["vendors_total"],
+                "requested_qty_total": payload["requested_qty_total"],
+                "issued_qty_total": payload["issued_qty_total"],
+                "received_qty_total": payload["received_qty_total"],
+                "open_qty_total": payload["open_qty_total"],
+                "by_state": payload["by_state"],
+            }
+            return self._render_csv([flattened], list(flattened.keys()))
+        raise ValueError(f"Unsupported format: {fmt}")
+
+    def export_vendor_analytics(self, *, fmt: str = "json") -> Dict[str, Any] | str:
+        payload = self.get_vendor_analytics()
+        if fmt == "json":
+            return payload
+        if fmt == "csv":
+            return self._render_csv(
+                payload["vendors"],
+                [
+                    "vendor_id",
+                    "vendor_name",
+                    "orders_total",
+                    "requested_qty_total",
+                    "issued_qty_total",
+                    "received_qty_total",
+                    "open_qty_total",
+                    "completion_pct",
+                ],
+            )
+        raise ValueError(f"Unsupported format: {fmt}")
+
+    def export_receipt_analytics(self, *, fmt: str = "json") -> Dict[str, Any] | str:
+        payload = self.get_receipt_analytics()
+        if fmt == "json":
+            return payload
+        if fmt == "csv":
+            return self._render_csv(
+                payload["receipts"],
+                [
+                    "order_id",
+                    "name",
+                    "vendor_id",
+                    "state",
+                    "requested_qty",
+                    "received_qty",
+                    "open_qty",
+                    "completion_pct",
+                ],
+            )
+        raise ValueError(f"Unsupported format: {fmt}")

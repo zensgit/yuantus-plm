@@ -88,6 +88,10 @@ This index aggregates all delivery‑related documents for private deployments.
 - C12 Approvals Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C12_APPROVALS_BOOTSTRAP_20260319.md`
 - C13 Subcontracting Bootstrap Design: `docs/DESIGN_PARALLEL_C13_SUBCONTRACTING_BOOTSTRAP_20260319.md`
 - C13 Subcontracting Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C13_SUBCONTRACTING_BOOTSTRAP_20260319.md`
+- C14 Approvals Export Ops-Report Bootstrap Design: `docs/DESIGN_PARALLEL_C14_APPROVALS_EXPORT_OPS_REPORT_BOOTSTRAP_20260319.md`
+- C14 Approvals Export Ops-Report Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C14_APPROVALS_EXPORT_OPS_REPORT_BOOTSTRAP_20260319.md`
+- C15 Subcontracting Analytics Export Bootstrap Design: `docs/DESIGN_PARALLEL_C15_SUBCONTRACTING_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+- C15 Subcontracting Analytics Export Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C15_SUBCONTRACTING_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
 - Baseline Filters API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`

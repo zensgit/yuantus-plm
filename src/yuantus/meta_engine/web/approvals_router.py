@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -74,6 +75,32 @@ def _request_dict(r) -> dict:
         "decided_at": r.decided_at.isoformat() if r.decided_at else None,
         "cancelled_at": r.cancelled_at.isoformat() if r.cancelled_at else None,
     }
+
+
+def _export_response(
+    *,
+    payload: Dict[str, Any] | str,
+    fmt: str,
+    stem: str,
+):
+    if fmt == "json":
+        return JSONResponse(
+            content=payload,
+            headers={"content-disposition": f'attachment; filename="{stem}.json"'},
+        )
+    if fmt == "csv":
+        return PlainTextResponse(
+            content=str(payload),
+            media_type="text/csv; charset=utf-8",
+            headers={"content-disposition": f'attachment; filename="{stem}.csv"'},
+        )
+    if fmt == "markdown":
+        return PlainTextResponse(
+            content=str(payload),
+            media_type="text/markdown; charset=utf-8",
+            headers={"content-disposition": f'attachment; filename="{stem}.md"'},
+        )
+    raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
 
 
 # ============================================================================
@@ -175,6 +202,33 @@ async def list_approval_requests(
     return {"total": len(reqs), "requests": [_request_dict(r) for r in reqs]}
 
 
+@approvals_router.get("/requests/export")
+async def export_approval_requests(
+    format: str = Query("json", pattern="^(json|csv|markdown)$"),
+    state: Optional[str] = Query(None),
+    category_id: Optional[str] = Query(None),
+    entity_type: Optional[str] = Query(None),
+    entity_id: Optional[str] = Query(None),
+    priority: Optional[str] = Query(None),
+    assigned_to_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+):
+    svc = ApprovalService(db)
+    try:
+        payload = svc.export_requests(
+            fmt=format,
+            state=state,
+            category_id=category_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            priority=priority,
+            assigned_to_id=assigned_to_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _export_response(payload=payload, fmt=format, stem="approval-requests-export")
+
+
 @approvals_router.get("/requests/{request_id}")
 async def get_approval_request(request_id: str, db: Session = Depends(get_db)):
     svc = ApprovalService(db)
@@ -192,3 +246,41 @@ async def approval_summary(
 ):
     svc = ApprovalService(db)
     return svc.get_summary(entity_type=entity_type, category_id=category_id)
+
+
+@approvals_router.get("/summary/export")
+async def export_approval_summary(
+    format: str = Query("json", pattern="^(json|csv|markdown)$"),
+    entity_type: Optional[str] = Query(None),
+    category_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    svc = ApprovalService(db)
+    try:
+        payload = svc.export_summary(
+            fmt=format,
+            entity_type=entity_type,
+            category_id=category_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _export_response(payload=payload, fmt=format, stem="approval-summary-export")
+
+
+@approvals_router.get("/ops-report")
+async def approvals_ops_report(db: Session = Depends(get_db)):
+    svc = ApprovalService(db)
+    return svc.get_ops_report()
+
+
+@approvals_router.get("/ops-report/export")
+async def export_approvals_ops_report(
+    format: str = Query("json", pattern="^(json|csv|markdown)$"),
+    db: Session = Depends(get_db),
+):
+    svc = ApprovalService(db)
+    try:
+        payload = svc.export_ops_report(fmt=format)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _export_response(payload=payload, fmt=format, stem="approval-ops-report")

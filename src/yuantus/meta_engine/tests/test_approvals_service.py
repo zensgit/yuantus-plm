@@ -202,3 +202,66 @@ class TestApprovalSummary:
         summary = svc.get_summary()
         assert summary["total"] == 0
         assert summary["pending"] == 0
+
+
+class TestApprovalExports:
+
+    def test_requests_export_json(self):
+        session = _mock_session()
+        svc = ApprovalService(session)
+        req = svc.create_request(
+            title="Approve ECO-42",
+            category_id="cat-1",
+            entity_type="eco",
+            entity_id="eco-42",
+            assigned_to_id=7,
+        )
+        payload = svc.export_requests(fmt="json")
+        assert payload["filters"]["entity_type"] is None
+        assert payload["requests"][0]["id"] == req.id
+        assert payload["generated_at"].endswith("Z")
+
+    def test_requests_export_markdown(self):
+        session = _mock_session()
+        svc = ApprovalService(session)
+        svc.create_request(title="Approve ECO-43", entity_type="eco")
+        rendered = svc.export_requests(fmt="markdown", entity_type="eco")
+        assert "# Approvals Requests Export" in rendered
+        assert "## Filters" in rendered
+        assert "Approve ECO-43" in rendered
+
+    def test_summary_export_csv(self):
+        session = _mock_session()
+        svc = ApprovalService(session)
+        req = svc.create_request(title="Approve BOM")
+        svc.transition_request(req.id, target_state="pending")
+        rendered = svc.export_summary(fmt="csv")
+        assert "metric,value" in rendered
+        assert "pending,1" in rendered
+
+    def test_ops_report_bootstrap_ready(self):
+        session = _mock_session()
+        svc = ApprovalService(session)
+        cat = svc.create_category(name="ECO")
+        req = svc.create_request(
+            title="Approve ECO",
+            category_id=cat.id,
+            entity_type="eco",
+            entity_id="eco-1",
+            assigned_to_id=9,
+        )
+        svc.transition_request(req.id, target_state="pending")
+        svc.transition_request(req.id, target_state="approved", decided_by_id=9)
+        report = svc.get_ops_report()
+        assert report["category_coverage"] == 1.0
+        assert report["entity_link_coverage"] == 1.0
+        assert report["assignment_coverage"] == 1.0
+        assert report["terminal_state_coverage"] == 1.0
+        assert report["bootstrap_ready"] is True
+
+    def test_ops_report_export_markdown(self):
+        session = _mock_session()
+        svc = ApprovalService(session)
+        rendered = svc.export_ops_report(fmt="markdown")
+        assert "# Approvals Ops Report" in rendered
+        assert "bootstrap_ready" in rendered

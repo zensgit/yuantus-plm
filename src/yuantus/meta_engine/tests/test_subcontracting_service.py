@@ -131,3 +131,41 @@ def test_receipt_rejects_missing_order():
     svc = SubcontractingService(session)
     with pytest.raises(ValueError, match="not found"):
         svc.record_receipt("missing", quantity=1)
+
+
+def test_overview_analytics_totals():
+    session = _mock_session()
+    svc = SubcontractingService(session)
+    first = svc.create_order(name="Vendor A", requested_qty=10, vendor_id="v-1")
+    second = svc.create_order(name="Vendor B", requested_qty=5, vendor_id="v-2")
+    svc.record_material_issue(first.id, quantity=10)
+    svc.record_receipt(first.id, quantity=4)
+    svc.record_receipt(second.id, quantity=5)
+
+    overview = svc.get_overview()
+
+    assert overview["orders_total"] == 2
+    assert overview["vendors_total"] == 2
+    assert overview["requested_qty_total"] == 15.0
+    assert overview["received_qty_total"] == 9.0
+
+
+def test_vendor_analytics_export_csv():
+    session = _mock_session()
+    svc = SubcontractingService(session)
+    svc.create_order(name="Vendor A", requested_qty=2, vendor_id="v-1", vendor_name="Acme")
+    rendered = svc.export_vendor_analytics(fmt="csv")
+    assert "vendor_id,vendor_name,orders_total" in rendered
+    assert "v-1,Acme,1" in rendered
+
+
+def test_receipt_analytics_json_rows():
+    session = _mock_session()
+    svc = SubcontractingService(session)
+    order = svc.create_order(name="Vendor A", requested_qty=4, vendor_id="v-1")
+    svc.record_receipt(order.id, quantity=1)
+
+    payload = svc.export_receipt_analytics(fmt="json")
+
+    assert payload["receipts"][0]["order_id"] == order.id
+    assert payload["receipts"][0]["completion_pct"] == 25.0

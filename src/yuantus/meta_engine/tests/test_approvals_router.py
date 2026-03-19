@@ -154,6 +154,96 @@ def test_summary_endpoint():
     )
 
 
+def test_requests_export_endpoint():
+    client, _db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_requests.return_value = {
+            "requests": [{"id": "ar-1", "title": "Approve ECO"}],
+            "filters": {"entity_type": "eco"},
+            "generated_at": "2026-03-19T00:00:00Z",
+        }
+
+        resp = client.get(
+            "/api/v1/approvals/requests/export",
+            params={"format": "json", "entity_type": "eco"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers["content-disposition"].endswith('approval-requests-export.json"')
+    assert resp.json()["requests"][0]["id"] == "ar-1"
+    service.export_requests.assert_called_once_with(
+        fmt="json",
+        state=None,
+        category_id=None,
+        entity_type="eco",
+        entity_id=None,
+        priority=None,
+        assigned_to_id=None,
+    )
+
+
+def test_summary_export_endpoint():
+    client, _db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_summary.return_value = "metric,value\ntotal,2\n"
+
+        resp = client.get(
+            "/api/v1/approvals/summary/export",
+            params={"format": "csv"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "metric,value" in resp.text
+    service.export_summary.assert_called_once_with(
+        fmt="csv",
+        entity_type=None,
+        category_id=None,
+    )
+
+
+def test_ops_report_endpoint():
+    client, _db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+        service = svc_cls.return_value
+        service.get_ops_report.return_value = {
+            "category_coverage": 0.5,
+            "entity_link_coverage": 1.0,
+            "assignment_coverage": 0.25,
+            "terminal_state_coverage": 0.75,
+            "bootstrap_ready": False,
+        }
+
+        resp = client.get("/api/v1/approvals/ops-report")
+
+    assert resp.status_code == 200
+    assert resp.json()["bootstrap_ready"] is False
+    service.get_ops_report.assert_called_once_with()
+
+
+def test_ops_report_export_endpoint():
+    client, _db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_ops_report.return_value = "# Approvals Ops Report\n"
+
+        resp = client.get(
+            "/api/v1/approvals/ops-report/export",
+            params={"format": "markdown"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/markdown")
+    assert "# Approvals Ops Report" in resp.text
+    service.export_ops_report.assert_called_once_with(fmt="markdown")
+
+
 def test_transition_validation_error():
     client, db = _client_with_db()
 
@@ -176,5 +266,9 @@ def test_approvals_routes_registered_in_create_app():
 
     assert "/api/v1/approvals/categories" in paths
     assert "/api/v1/approvals/requests" in paths
+    assert "/api/v1/approvals/requests/export" in paths
     assert "/api/v1/approvals/requests/{request_id}" in paths
     assert "/api/v1/approvals/summary" in paths
+    assert "/api/v1/approvals/summary/export" in paths
+    assert "/api/v1/approvals/ops-report" in paths
+    assert "/api/v1/approvals/ops-report/export" in paths

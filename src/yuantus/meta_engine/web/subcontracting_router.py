@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -47,6 +48,26 @@ def _event_dict(event) -> dict:
         "note": event.note,
         "created_at": event.created_at.isoformat() if event.created_at else None,
     }
+
+
+def _export_response(
+    *,
+    payload: Dict[str, Any] | str,
+    fmt: str,
+    stem: str,
+):
+    if fmt == "json":
+        return JSONResponse(
+            content=payload,
+            headers={"content-disposition": f'attachment; filename="{stem}.json"'},
+        )
+    if fmt == "csv":
+        return PlainTextResponse(
+            content=str(payload),
+            media_type="text/csv; charset=utf-8",
+            headers={"content-disposition": f'attachment; filename="{stem}.csv"'},
+        )
+    raise HTTPException(status_code=400, detail=f"Unsupported format: {fmt}")
 
 
 @subcontracting_router.post("/orders")
@@ -176,3 +197,60 @@ async def get_timeline(order_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="SubcontractOrder not found")
     events = svc.get_timeline(order_id)
     return {"total": len(events), "events": [_event_dict(event) for event in events]}
+
+
+@subcontracting_router.get("/overview")
+async def subcontracting_overview(db: Session = Depends(get_db)):
+    svc = SubcontractingService(db)
+    return svc.get_overview()
+
+
+@subcontracting_router.get("/vendors/analytics")
+async def subcontracting_vendor_analytics(db: Session = Depends(get_db)):
+    svc = SubcontractingService(db)
+    return svc.get_vendor_analytics()
+
+
+@subcontracting_router.get("/receipts/analytics")
+async def subcontracting_receipt_analytics(db: Session = Depends(get_db)):
+    svc = SubcontractingService(db)
+    return svc.get_receipt_analytics()
+
+
+@subcontracting_router.get("/export/overview")
+async def export_subcontracting_overview(
+    format: str = Query("json", pattern="^(json|csv)$"),
+    db: Session = Depends(get_db),
+):
+    svc = SubcontractingService(db)
+    try:
+        payload = svc.export_overview(fmt=format)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _export_response(payload=payload, fmt=format, stem="subcontracting-overview")
+
+
+@subcontracting_router.get("/export/vendors")
+async def export_subcontracting_vendors(
+    format: str = Query("json", pattern="^(json|csv)$"),
+    db: Session = Depends(get_db),
+):
+    svc = SubcontractingService(db)
+    try:
+        payload = svc.export_vendor_analytics(fmt=format)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _export_response(payload=payload, fmt=format, stem="subcontracting-vendors")
+
+
+@subcontracting_router.get("/export/receipts")
+async def export_subcontracting_receipts(
+    format: str = Query("json", pattern="^(json|csv)$"),
+    db: Session = Depends(get_db),
+):
+    svc = SubcontractingService(db)
+    try:
+        payload = svc.export_receipt_analytics(fmt=format)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return _export_response(payload=payload, fmt=format, stem="subcontracting-receipts")
