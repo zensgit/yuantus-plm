@@ -240,3 +240,57 @@ def export_waste(
 ):
     service = CuttedPartsService(db)
     return service.export_waste()
+
+
+# ---------------------------------------------------------------------------
+# Cost / Utilization endpoints (C25)
+# ---------------------------------------------------------------------------
+
+
+@cutted_parts_router.get("/utilization/overview")
+def utilization_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    return service.utilization_overview()
+
+
+@cutted_parts_router.get("/materials/utilization")
+def material_utilization(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    return service.material_utilization()
+
+
+@cutted_parts_router.get("/plans/{plan_id}/cost-summary")
+def plan_cost_summary(
+    plan_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    try:
+        return service.plan_cost_summary(plan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@cutted_parts_router.get("/export/utilization")
+def export_utilization(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    return service.export_utilization()
+
+
+@cutted_parts_router.get("/export/costs")
+def export_costs(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    return service.export_costs()

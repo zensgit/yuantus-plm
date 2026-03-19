@@ -397,3 +397,163 @@ class CuttedPartsService:
             "total_plans": len(plans),
             "plans": plan_summaries,
         }
+
+    # ------------------------------------------------------------------
+    # Cost / Utilization (C25)
+    # ------------------------------------------------------------------
+
+    def utilization_overview(self) -> Dict[str, Any]:
+        """Fleet-wide utilization summary across all plans."""
+        plans = self.session.query(CutPlan).all()
+
+        plans_with_data = 0
+        utilization_sum = 0.0
+        high_util = 0   # >=80 %
+        medium_util = 0  # 50-79 %
+        low_util = 0     # <50 %
+
+        for p in plans:
+            total = p.total_parts or 0
+            ok = p.ok_count or 0
+            if total > 0:
+                plans_with_data += 1
+                util = ok / total * 100
+                utilization_sum += util
+                if util >= 80:
+                    high_util += 1
+                elif util >= 50:
+                    medium_util += 1
+                else:
+                    low_util += 1
+
+        avg_utilization = (
+            round(utilization_sum / plans_with_data, 2)
+            if plans_with_data > 0
+            else None
+        )
+
+        return {
+            "total_plans": len(plans),
+            "plans_with_data": plans_with_data,
+            "avg_utilization_pct": avg_utilization,
+            "high_utilization": high_util,
+            "medium_utilization": medium_util,
+            "low_utilization": low_util,
+        }
+
+    def material_utilization(self) -> Dict[str, Any]:
+        """Material consumption and remaining-stock analysis."""
+        materials = self.session.query(RawMaterial).all()
+        plans = self.session.query(CutPlan).all()
+
+        consumed_map: Dict[str, float] = {}
+        plan_count_map: Dict[str, int] = {}
+        for p in plans:
+            if p.material_id:
+                consumed_map[p.material_id] = (
+                    consumed_map.get(p.material_id, 0.0)
+                    + (p.material_quantity or 0.0)
+                )
+                plan_count_map[p.material_id] = (
+                    plan_count_map.get(p.material_id, 0) + 1
+                )
+
+        items: List[Dict[str, Any]] = []
+        total_stock = 0.0
+        total_consumed = 0.0
+
+        for m in materials:
+            consumed = consumed_map.get(m.id, 0.0)
+            stock = m.stock_quantity or 0.0
+            total_stock += stock
+            total_consumed += consumed
+
+            items.append({
+                "material_id": m.id,
+                "material_name": m.name,
+                "material_type": m.material_type,
+                "stock_quantity": stock,
+                "consumed_quantity": consumed,
+                "remaining_quantity": stock - consumed,
+                "plan_count": plan_count_map.get(m.id, 0),
+                "consumption_pct": (
+                    round(consumed / stock * 100, 2) if stock > 0 else None
+                ),
+            })
+
+        return {
+            "total_materials": len(materials),
+            "total_stock": total_stock,
+            "total_consumed": total_consumed,
+            "materials": items,
+        }
+
+    def plan_cost_summary(self, plan_id: str) -> Dict[str, Any]:
+        """Per-plan cost: material cost, waste cost, cost per good part."""
+        plan = self.get_plan(plan_id)
+        if plan is None:
+            raise ValueError(f"Plan '{plan_id}' not found")
+
+        material_cost: Optional[float] = None
+        material_name: Optional[str] = None
+        cost_per_unit: Optional[float] = None
+
+        if plan.material_id:
+            mat = self.session.get(RawMaterial, plan.material_id)
+            if mat:
+                material_name = mat.name
+                cost_per_unit = mat.cost_per_unit
+                if mat.cost_per_unit is not None:
+                    material_cost = mat.cost_per_unit * (
+                        plan.material_quantity or 0.0
+                    )
+
+        cuts = self.list_cuts(plan_id)
+        total_scrap_weight = sum((c.scrap_weight or 0.0) for c in cuts)
+        ok_count = sum(
+            1 for c in cuts if c.status == CutResultStatus.OK.value
+        )
+
+        cost_per_good_part: Optional[float] = None
+        if material_cost is not None and ok_count > 0:
+            cost_per_good_part = round(material_cost / ok_count, 2)
+
+        return {
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "state": plan.state,
+            "material_id": plan.material_id,
+            "material_name": material_name,
+            "material_quantity": plan.material_quantity,
+            "cost_per_unit": cost_per_unit,
+            "material_cost": material_cost,
+            "total_cuts": len(cuts),
+            "ok_count": ok_count,
+            "total_scrap_weight": total_scrap_weight,
+            "cost_per_good_part": cost_per_good_part,
+        }
+
+    def export_utilization(self) -> Dict[str, Any]:
+        """Export-ready combined utilization payload."""
+        return {
+            "utilization_overview": self.utilization_overview(),
+            "material_utilization": self.material_utilization(),
+        }
+
+    def export_costs(self) -> Dict[str, Any]:
+        """Export-ready cost payload across all plans."""
+        plans = self.session.query(CutPlan).all()
+        plan_costs = []
+        total_material_cost = 0.0
+
+        for p in plans:
+            summary = self.plan_cost_summary(p.id)
+            if summary["material_cost"] is not None:
+                total_material_cost += summary["material_cost"]
+            plan_costs.append(summary)
+
+        return {
+            "total_plans": len(plans),
+            "total_material_cost": total_material_cost,
+            "plans": plan_costs,
+        }

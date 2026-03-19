@@ -444,3 +444,174 @@ class TestAnalytics:
         result = svc.export_waste()
         assert result["total_plans"] == 0
         assert result["plans"] == []
+
+
+# ---------------------------------------------------------------------------
+# Cost / Utilization (C25)
+# ---------------------------------------------------------------------------
+
+
+class TestCosting:
+
+    def test_utilization_overview(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        p1 = svc.create_plan(name="Plan A")
+        p1.total_parts = 10
+        p1.ok_count = 9  # 90% → high
+
+        p2 = svc.create_plan(name="Plan B")
+        p2.total_parts = 10
+        p2.ok_count = 6  # 60% → medium
+
+        p3 = svc.create_plan(name="Plan C")
+        p3.total_parts = 10
+        p3.ok_count = 3  # 30% → low
+
+        result = svc.utilization_overview()
+        assert result["total_plans"] == 3
+        assert result["plans_with_data"] == 3
+        assert result["avg_utilization_pct"] == 60.0  # (90+60+30)/3
+        assert result["high_utilization"] == 1
+        assert result["medium_utilization"] == 1
+        assert result["low_utilization"] == 1
+
+    def test_utilization_overview_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.utilization_overview()
+        assert result["total_plans"] == 0
+        assert result["plans_with_data"] == 0
+        assert result["avg_utilization_pct"] is None
+
+    def test_utilization_overview_no_data_plans(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        p = svc.create_plan(name="Empty Plan")
+        p.total_parts = 0
+        p.ok_count = 0
+
+        result = svc.utilization_overview()
+        assert result["total_plans"] == 1
+        assert result["plans_with_data"] == 0
+        assert result["avg_utilization_pct"] is None
+
+    def test_material_utilization(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel Sheet", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        p1 = svc.create_plan(
+            name="Job 1", material_id=mat.id, material_quantity=30.0,
+        )
+        p2 = svc.create_plan(
+            name="Job 2", material_id=mat.id, material_quantity=20.0,
+        )
+
+        result = svc.material_utilization()
+        assert result["total_materials"] == 1
+        assert result["total_stock"] == 100.0
+        assert result["total_consumed"] == 50.0
+        assert len(result["materials"]) == 1
+
+        item = result["materials"][0]
+        assert item["consumed_quantity"] == 50.0
+        assert item["remaining_quantity"] == 50.0
+        assert item["plan_count"] == 2
+        assert item["consumption_pct"] == 50.0
+
+    def test_material_utilization_no_plans(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        svc.create_material(name="Unused Steel", stock_quantity=200.0)
+
+        result = svc.material_utilization()
+        assert result["total_materials"] == 1
+        assert result["total_consumed"] == 0.0
+        item = result["materials"][0]
+        assert item["consumed_quantity"] == 0.0
+        assert item["remaining_quantity"] == 200.0
+        assert item["plan_count"] == 0
+        assert item["consumption_pct"] == 0.0
+
+    def test_plan_cost_summary(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Cost Plan", material_id=mat.id, material_quantity=5.0,
+        )
+        svc.add_cut(plan.id, status="ok", quantity=1.0)
+        svc.add_cut(plan.id, status="ok", quantity=1.0)
+        svc.add_cut(plan.id, status="scrap", quantity=1.0, scrap_weight=0.3)
+
+        result = svc.plan_cost_summary(plan.id)
+        assert result["plan_id"] == plan.id
+        assert result["material_name"] == "Steel"
+        assert result["material_cost"] == 50.0  # 10 * 5
+        assert result["total_cuts"] == 3
+        assert result["ok_count"] == 2
+        assert result["total_scrap_weight"] == 0.3
+        assert result["cost_per_good_part"] == 25.0  # 50 / 2
+
+    def test_plan_cost_summary_no_material(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        plan = svc.create_plan(name="No Material Plan")
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.plan_cost_summary(plan.id)
+        assert result["material_cost"] is None
+        assert result["material_name"] is None
+        assert result["cost_per_good_part"] is None
+
+    def test_plan_cost_summary_not_found(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        with pytest.raises(ValueError, match="not found"):
+            svc.plan_cost_summary("nonexistent")
+
+    def test_export_utilization(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        p = svc.create_plan(name="P1")
+        p.total_parts = 10
+        p.ok_count = 8
+        svc.create_material(name="M1", stock_quantity=50.0)
+
+        result = svc.export_utilization()
+        assert "utilization_overview" in result
+        assert "material_utilization" in result
+        assert result["utilization_overview"]["total_plans"] == 1
+        assert result["material_utilization"]["total_materials"] == 1
+
+    def test_export_costs(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Plan", material_id=mat.id, material_quantity=3.0,
+        )
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.export_costs()
+        assert result["total_plans"] == 1
+        assert result["total_material_cost"] == 30.0  # 10 * 3
+        assert len(result["plans"]) == 1
+        assert result["plans"][0]["material_cost"] == 30.0
+
+    def test_export_costs_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.export_costs()
+        assert result["total_plans"] == 0
+        assert result["total_material_cost"] == 0.0
+        assert result["plans"] == []
