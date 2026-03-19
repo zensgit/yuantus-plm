@@ -412,3 +412,132 @@ class BoxService:
             "transition_summary": self.transition_summary(),
             "active_archive_breakdown": self.active_archive_breakdown(),
         }
+
+    # ------------------------------------------------------------------
+    # Reconciliation / audit (C26)
+    # ------------------------------------------------------------------
+
+    def reconciliation_overview(self) -> Dict[str, Any]:
+        """Fleet-wide reconciliation: completeness and consistency metrics."""
+        boxes = self.session.query(BoxItem).all()
+
+        total = len(boxes)
+        with_contents = 0
+        without_contents = 0
+        with_barcode = 0
+        without_barcode = 0
+        with_dimensions = 0
+        with_weight = 0
+
+        for b in boxes:
+            contents = self.list_contents(b.id)
+            if contents:
+                with_contents += 1
+            else:
+                without_contents += 1
+            if b.barcode:
+                with_barcode += 1
+            else:
+                without_barcode += 1
+            if b.width is not None and b.height is not None and b.depth is not None:
+                with_dimensions += 1
+            if b.tare_weight is not None or b.max_gross_weight is not None:
+                with_weight += 1
+
+        completeness_pct = round(
+            (with_barcode + with_dimensions + with_weight) / (total * 3) * 100, 1
+        ) if total > 0 else 0.0
+
+        return {
+            "total": total,
+            "with_contents": with_contents,
+            "without_contents": without_contents,
+            "with_barcode": with_barcode,
+            "without_barcode": without_barcode,
+            "with_dimensions": with_dimensions,
+            "with_weight": with_weight,
+            "completeness_pct": completeness_pct,
+        }
+
+    def audit_summary(self) -> Dict[str, Any]:
+        """Audit checks: missing fields, data quality issues."""
+        boxes = self.session.query(BoxItem).all()
+
+        no_material: List[str] = []
+        no_dimensions: List[str] = []
+        no_cost: List[str] = []
+        archived_with_contents: List[str] = []
+
+        for b in boxes:
+            if not b.material:
+                no_material.append(b.id)
+            if b.width is None or b.height is None or b.depth is None:
+                no_dimensions.append(b.id)
+            if b.cost is None:
+                no_cost.append(b.id)
+            if b.state == BoxState.ARCHIVED.value:
+                contents = self.list_contents(b.id)
+                if contents:
+                    archived_with_contents.append(b.id)
+
+        return {
+            "total": len(boxes),
+            "no_material": len(no_material),
+            "no_material_ids": no_material,
+            "no_dimensions": len(no_dimensions),
+            "no_dimensions_ids": no_dimensions,
+            "no_cost": len(no_cost),
+            "no_cost_ids": no_cost,
+            "archived_with_contents": len(archived_with_contents),
+            "archived_with_contents_ids": archived_with_contents,
+        }
+
+    def box_reconciliation(self, box_id: str) -> Dict[str, Any]:
+        """Per-box reconciliation: completeness checks and content summary."""
+        box = self.get_box(box_id)
+        if box is None:
+            raise ValueError(f"Box '{box_id}' not found")
+
+        contents = self.list_contents(box_id)
+        total_quantity = 0.0
+        for c in contents:
+            total_quantity += (c.quantity or 0.0)
+
+        has_dimensions = (
+            box.width is not None
+            and box.height is not None
+            and box.depth is not None
+        )
+        has_weight = (
+            box.tare_weight is not None or box.max_gross_weight is not None
+        )
+
+        checks_passed = sum([
+            bool(box.material),
+            has_dimensions,
+            has_weight,
+            bool(box.barcode),
+            bool(box.cost is not None),
+        ])
+
+        return {
+            "box_id": box.id,
+            "name": box.name,
+            "state": box.state,
+            "has_material": bool(box.material),
+            "has_dimensions": has_dimensions,
+            "has_weight": has_weight,
+            "has_barcode": bool(box.barcode),
+            "has_cost": box.cost is not None,
+            "checks_passed": checks_passed,
+            "checks_total": 5,
+            "contents_count": len(contents),
+            "total_quantity": total_quantity,
+        }
+
+    def export_box_reconciliation(self) -> Dict[str, Any]:
+        """Export-ready reconciliation payload: overview + audit summary."""
+        return {
+            "reconciliation_overview": self.reconciliation_overview(),
+            "audit_summary": self.audit_summary(),
+        }

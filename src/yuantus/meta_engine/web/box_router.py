@@ -276,3 +276,48 @@ def box_export_ops_report(
 ):
     service = BoxService(db)
     return service.export_ops_report()
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation / audit (C26)
+# ---------------------------------------------------------------------------
+
+
+@box_router.get("/reconciliation/overview")
+def box_reconciliation_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.reconciliation_overview()
+
+
+@box_router.get("/audit/summary")
+def box_audit_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.audit_summary()
+
+
+@box_router.get("/items/{box_id}/reconciliation")
+def box_item_reconciliation(
+    box_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    try:
+        return service.box_reconciliation(box_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@box_router.get("/export/reconciliation")
+def box_export_reconciliation(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.export_box_reconciliation()

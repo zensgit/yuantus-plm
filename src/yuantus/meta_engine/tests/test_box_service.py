@@ -541,3 +541,230 @@ class TestOpsReport:
         assert aab["active"]["total_cost"] == 2.0
         assert aab["archived"]["count"] == 1
         assert aab["archived"]["total_cost"] == 3.0
+
+
+# ---------------------------------------------------------------------------
+# TestReconciliationAudit (C26)
+# ---------------------------------------------------------------------------
+
+
+class TestReconciliationAudit:
+    def _session_with_boxes_and_contents(self, boxes, contents_map=None):
+        """Session whose query(BoxItem).all() returns boxes and list_contents is routed via contents_map."""
+        session = _mock_session()
+        _contents_map = contents_map or {}
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is BoxItem:
+                q.all.return_value = boxes
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is BoxContent:
+                # For list_contents: filter by box_id
+                def content_filter(*args, **kwargs):
+                    fq = MagicMock()
+                    # Return all contents for simplicity; per-box filtering via contents_map
+                    fq.all.return_value = []
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = content_filter
+                q.order_by.return_value = q
+                q.all.return_value = []
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+
+        # Support session.get for per-box reconciliation
+        def get_side_effect(model, pk):
+            if model is BoxItem:
+                return next((b for b in boxes if b.id == pk), None)
+            return None
+
+        session.get.side_effect = get_side_effect
+
+        return session
+
+    def test_reconciliation_overview(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.barcode = "BC001"
+        b1.width = 100.0
+        b1.height = 80.0
+        b1.depth = 50.0
+        b1.tare_weight = 0.5
+        b1.max_gross_weight = 10.0
+
+        b2 = _make_box(box_id="b2", state="draft")
+        b2.barcode = None
+        b2.width = None
+        b2.height = None
+        b2.depth = None
+        b2.tare_weight = None
+        b2.max_gross_weight = None
+
+        session = self._session_with_boxes_and_contents([b1, b2])
+        service = BoxService(session)
+        result = service.reconciliation_overview()
+
+        assert result["total"] == 2
+        assert result["without_contents"] == 2  # no contents mocked
+        assert result["with_barcode"] == 1
+        assert result["without_barcode"] == 1
+        assert result["with_dimensions"] == 1
+        assert result["with_weight"] == 1
+        # completeness: (1 barcode + 1 dims + 1 weight) / (2*3) = 3/6 = 50.0%
+        assert result["completeness_pct"] == 50.0
+
+    def test_reconciliation_overview_empty(self):
+        session = self._session_with_boxes_and_contents([])
+        service = BoxService(session)
+        result = service.reconciliation_overview()
+
+        assert result["total"] == 0
+        assert result["completeness_pct"] == 0.0
+
+    def test_audit_summary(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.material = "cardboard"
+        b1.width = 100.0
+        b1.height = 80.0
+        b1.depth = 50.0
+        b1.cost = 2.5
+
+        b2 = _make_box(box_id="b2", state="draft")
+        b2.material = None
+        b2.width = None
+        b2.height = None
+        b2.depth = None
+        b2.cost = None
+
+        b3 = _make_box(box_id="b3", state="archived")
+        b3.material = "wood"
+        b3.width = 200.0
+        b3.height = 150.0
+        b3.depth = 100.0
+        b3.cost = 5.0
+
+        session = self._session_with_boxes_and_contents([b1, b2, b3])
+        service = BoxService(session)
+        result = service.audit_summary()
+
+        assert result["total"] == 3
+        assert result["no_material"] == 1
+        assert "b2" in result["no_material_ids"]
+        assert result["no_dimensions"] == 1
+        assert "b2" in result["no_dimensions_ids"]
+        assert result["no_cost"] == 1
+        assert "b2" in result["no_cost_ids"]
+
+    def test_audit_summary_empty(self):
+        session = self._session_with_boxes_and_contents([])
+        service = BoxService(session)
+        result = service.audit_summary()
+
+        assert result["total"] == 0
+        assert result["no_material"] == 0
+        assert result["no_dimensions"] == 0
+        assert result["no_cost"] == 0
+        assert result["archived_with_contents"] == 0
+
+    def test_box_reconciliation(self):
+        session = _mock_session()
+        box = _make_box(state="active")
+        box.material = "cardboard"
+        box.width = 100.0
+        box.height = 80.0
+        box.depth = 50.0
+        box.tare_weight = 0.5
+        box.max_gross_weight = None
+        box.barcode = "BC001"
+        box.cost = 2.5
+        session.get.return_value = box
+
+        c1 = MagicMock(spec=BoxContent)
+        c1.quantity = 5.0
+        c2 = MagicMock(spec=BoxContent)
+        c2.quantity = 3.0
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = [c1, c2]
+
+        service = BoxService(session)
+        result = service.box_reconciliation("box-1")
+
+        assert result["box_id"] == "box-1"
+        assert result["has_material"] is True
+        assert result["has_dimensions"] is True
+        assert result["has_weight"] is True
+        assert result["has_barcode"] is True
+        assert result["has_cost"] is True
+        assert result["checks_passed"] == 5
+        assert result["checks_total"] == 5
+        assert result["contents_count"] == 2
+        assert result["total_quantity"] == 8.0
+
+    def test_box_reconciliation_incomplete(self):
+        session = _mock_session()
+        box = _make_box(state="draft")
+        box.material = None
+        box.width = None
+        box.height = None
+        box.depth = None
+        box.tare_weight = None
+        box.max_gross_weight = None
+        box.barcode = None
+        box.cost = None
+        session.get.return_value = box
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = []
+
+        service = BoxService(session)
+        result = service.box_reconciliation("box-1")
+
+        assert result["has_material"] is False
+        assert result["has_dimensions"] is False
+        assert result["has_weight"] is False
+        assert result["has_barcode"] is False
+        assert result["has_cost"] is False
+        assert result["checks_passed"] == 0
+        assert result["contents_count"] == 0
+
+    def test_box_reconciliation_not_found(self):
+        session = _mock_session()
+        session.get.return_value = None
+
+        service = BoxService(session)
+        with pytest.raises(ValueError, match="not found"):
+            service.box_reconciliation("nonexistent")
+
+    def test_export_box_reconciliation(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.barcode = "BC001"
+        b1.width = 100.0
+        b1.height = 80.0
+        b1.depth = 50.0
+        b1.tare_weight = 0.5
+        b1.max_gross_weight = 10.0
+        b1.material = "cardboard"
+        b1.cost = 2.5
+
+        session = self._session_with_boxes_and_contents([b1])
+        service = BoxService(session)
+        result = service.export_box_reconciliation()
+
+        assert "reconciliation_overview" in result
+        assert "audit_summary" in result
+        assert result["reconciliation_overview"]["total"] == 1
+        assert result["audit_summary"]["total"] == 1

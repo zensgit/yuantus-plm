@@ -383,3 +383,114 @@ def test_export_ops_report():
     assert "active_archive_breakdown" in resp.json()
     assert resp.json()["transition_summary"]["total"] == 3
     assert resp.json()["active_archive_breakdown"]["active"]["count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation / audit endpoint tests (C26)
+# ---------------------------------------------------------------------------
+
+
+def test_reconciliation_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.reconciliation_overview.return_value = {
+            "total": 5,
+            "with_contents": 3,
+            "without_contents": 2,
+            "with_barcode": 4,
+            "without_barcode": 1,
+            "with_dimensions": 3,
+            "with_weight": 4,
+            "completeness_pct": 73.3,
+        }
+        resp = client.get("/api/v1/box/reconciliation/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 5
+    assert resp.json()["with_barcode"] == 4
+    assert resp.json()["completeness_pct"] == 73.3
+
+
+def test_audit_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.audit_summary.return_value = {
+            "total": 3,
+            "no_material": 1,
+            "no_material_ids": ["b2"],
+            "no_dimensions": 1,
+            "no_dimensions_ids": ["b2"],
+            "no_cost": 1,
+            "no_cost_ids": ["b2"],
+            "archived_with_contents": 0,
+            "archived_with_contents_ids": [],
+        }
+        resp = client.get("/api/v1/box/audit/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 3
+    assert resp.json()["no_material"] == 1
+    assert "b2" in resp.json()["no_material_ids"]
+
+
+def test_box_item_reconciliation():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_reconciliation.return_value = {
+            "box_id": "box-1",
+            "name": "Test Box",
+            "state": "active",
+            "has_material": True,
+            "has_dimensions": True,
+            "has_weight": True,
+            "has_barcode": True,
+            "has_cost": True,
+            "checks_passed": 5,
+            "checks_total": 5,
+            "contents_count": 2,
+            "total_quantity": 8.0,
+        }
+        resp = client.get("/api/v1/box/items/box-1/reconciliation")
+
+    assert resp.status_code == 200
+    assert resp.json()["box_id"] == "box-1"
+    assert resp.json()["checks_passed"] == 5
+    assert resp.json()["contents_count"] == 2
+
+
+def test_box_item_reconciliation_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_reconciliation.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/box/items/nonexistent/reconciliation")
+
+    assert resp.status_code == 404
+
+
+def test_export_reconciliation():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_box_reconciliation.return_value = {
+            "reconciliation_overview": {
+                "total": 2, "with_contents": 1, "without_contents": 1,
+                "with_barcode": 2, "without_barcode": 0,
+                "with_dimensions": 1, "with_weight": 2, "completeness_pct": 83.3,
+            },
+            "audit_summary": {
+                "total": 2, "no_material": 0, "no_material_ids": [],
+                "no_dimensions": 1, "no_dimensions_ids": ["b2"],
+                "no_cost": 0, "no_cost_ids": [],
+                "archived_with_contents": 0, "archived_with_contents_ids": [],
+            },
+        }
+        resp = client.get("/api/v1/box/export/reconciliation")
+
+    assert resp.status_code == 200
+    assert "reconciliation_overview" in resp.json()
+    assert "audit_summary" in resp.json()
+    assert resp.json()["reconciliation_overview"]["total"] == 2
