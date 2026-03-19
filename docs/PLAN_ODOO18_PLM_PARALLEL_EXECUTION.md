@@ -18,20 +18,26 @@
 - `P2-A` parallel-ops summary/trends locale pipeline：completed on this branch
 - `P2-A` breakage metrics/groups locale pipeline：completed on this branch
 - `P2-A` breakage incidents locale pipeline：completed on this branch
-- `C7` BOM compare hardening：reported complete by Claude on `feature/claude-c7-bom-compare`, pending integration
-- `C8` quality-mrp integration：reported complete by Claude on `feature/claude-c8-quality-mrp`, pending integration
-- `C9` maintenance-workcenter readiness：reported complete by Claude on `feature/claude-c9-maintenance-readiness`, pending integration
+- `C7` BOM compare hardening：Codex-integrated on `feature/codex-c7-bom-compare-integration` (`5c31dd3`, `db781f4`)
+- `C8` quality-mrp integration：Codex-integrated on `feature/codex-c8-quality-integration` (`3b971f3`, `7ee9f1e`)
+- `C9` maintenance-workcenter readiness：Codex-integrated on `feature/codex-c9-maintenance-integration` (`d395fb8`, `7340027`)
 - `C10` locale description resolver：completed on this branch after Codex integration verification
+- `C11` file/3D consumer hardening：ready_for_claude
+- `C12` generic approvals bootstrap：ready_for_claude
+- `C13` subcontracting bootstrap：ready_for_claude
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
 | --- | --- | --- | --- | --- |
 | C6 | P2 | locale/report bootstrap | `locale` + `report_locale` + `locale_router` | completed |
 | P2-A | P2 | locale/report helpers | `parallel_tasks` workorder export + parallel-ops export locale integration | completed |
-| C7 | P1 | BOM compare & summary hardening | `bom_service` + `bom_router` | branch_complete_reported |
-| C8 | P1 | quality-mrp integration | `quality` + manufacturing integration edge | branch_complete_reported |
-| C9 | P1 | maintenance-workcenter readiness | `maintenance` + workcenter integration edge | branch_complete_reported |
+| C7 | P1 | BOM compare & summary hardening | `bom_router` + summarized snapshot regression pack | completed_on_codex_integration_branch |
+| C8 | P1 | quality-mrp integration | `quality` + manufacturing integration edge | completed_on_codex_integration_branch |
+| C9 | P1 | maintenance-workcenter readiness | `maintenance` + workcenter integration edge | completed_on_codex_integration_branch |
 | C10 | P2 | locale description resolver | `locale` description/read-model helpers | completed |
+| C11 | P1 | file/3D consumer hardening | `file_router` + file viewer tests | ready_for_claude |
+| C12 | P2 | generic approvals bootstrap | new `approvals` module + router + tests | ready_for_claude |
+| C13 | P2 | subcontracting bootstrap | new `subcontracting` module + router + tests | ready_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -99,8 +105,62 @@
   - `GET /api/v1/locale/translations/fallback-preview`
   - `GET /api/v1/locale/export-context`
 
+
+## Increment 2026-03-19 Codex-C7-C8-C9-Integration
+- `C7` integrated on `feature/codex-c7-bom-compare-integration`
+  - imported branch-local summarized snapshot regression files
+  - verified `24 passed` across summarized snapshot + delta BOM pack
+- `C8` integrated on `feature/codex-c8-quality-integration`
+  - registered `quality_router` in `src/yuantus/api/app.py`
+  - replaced deprecated `dict()` with `model_dump()`
+  - verified `32 passed` in quality service/router pack
+- `C9` integrated on `feature/codex-c9-maintenance-integration`
+  - imported missing `maintenance` model package from `C5` bootstrap
+  - registered `maintenance_router` in `src/yuantus/api/app.py`
+  - verified `35 passed` in maintenance service/router pack
+
+## Next Claude Allocation Draft
+- `C11` file/3D consumer hardening: scoped and ready
+- `C12` generic approvals bootstrap: scoped and ready
+- `C13` subcontracting bootstrap: scoped and ready
+
 ## Claude Allocation
-- `C7/C8` are now reported complete on Claude branches and should be integrated only after Codex-side verification.
-- Next safe Claude tasks:
-  - none on locale path until `C7/C8/C9` integration order is scheduled
+- `C7/C8/C9/C10` should not be edited further on Claude branches unless a new bugfix branch is explicitly opened.
+- `C11` file/3D consumer hardening
+  - suggested branch: `feature/claude-c11-file-viewer-consumer`
+  - write scope:
+    - `src/yuantus/meta_engine/web/file_router.py`
+    - `src/yuantus/meta_engine/tests/test_file_viewer_readiness.py`
+  - deliverables:
+    - viewer readiness export payload
+    - geometry asset pack summary
+    - consumer-ready field/read model
+  - non-goals:
+    - no edits to `parallel_tasks`, `quality`, `maintenance`, `locale`
+- `C12` generic approvals bootstrap
+  - suggested branch: `feature/claude-c12-approvals-bootstrap`
+  - write scope:
+    - new `src/yuantus/meta_engine/approvals/`
+    - new `src/yuantus/meta_engine/web/approvals_router.py`
+    - new approval tests
+  - deliverables:
+    - approval category model
+    - approval request model
+    - request state transition API
+    - pending/list/detail endpoints
+  - non-goals:
+    - no changes to existing ECO approval hot files
+- `C13` subcontracting bootstrap
+  - suggested branch: `feature/claude-c13-subcontracting-bootstrap`
+  - write scope:
+    - new `src/yuantus/meta_engine/subcontracting/`
+    - new `src/yuantus/meta_engine/web/subcontracting_router.py`
+    - new subcontracting tests
+  - deliverables:
+    - subcontract order read model
+    - vendor assignment fields
+    - material issue/receipt skeleton
+    - list/detail endpoints
+  - non-goals:
+    - do not mutate existing `manufacturing/routing_service.py` in the first increment
 - `C10` has been integrated and verified on the current Codex branch.

@@ -4,7 +4,7 @@
     "^docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION\\.md$",
     "^docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION\\.md$",
     "^docs/DELIVERY_DOC_INDEX\\.md$",
-    "^docs/(DESIGN|DEV_AND_VERIFICATION)_PARALLEL_C[1-6]_.*\\.md$",
+    "^docs/(DESIGN|DEV_AND_VERIFICATION)_PARALLEL_C([1-9]|1[0-3])_.*\\.md$",
     "^contracts/claude_allowed_paths\\.json$"
   ],
   "global_deny": [
@@ -87,6 +87,83 @@
         "^src/yuantus/meta_engine/web/locale_router\\.py$",
         "^src/yuantus/meta_engine/tests/test_locale_.*\\.py$",
         "^src/yuantus/meta_engine/tests/test_report_locale_.*\\.py$"
+      ]
+    },
+    "C7": {
+      "description": "BOM summarized compare and snapshot hardening on the existing BOM router",
+      "branch_patterns": [
+        "^feature/claude-c7(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/web/bom_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_bom_summarized.*\\.py$"
+      ]
+    },
+    "C8": {
+      "description": "Quality-MRP integration on the isolated quality domain",
+      "branch_patterns": [
+        "^feature/claude-c8(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/quality/.*",
+        "^src/yuantus/meta_engine/web/quality_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_quality_.*\\.py$"
+      ]
+    },
+    "C9": {
+      "description": "Maintenance-workcenter readiness on the isolated maintenance domain",
+      "branch_patterns": [
+        "^feature/claude-c9(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/maintenance/.*",
+        "^src/yuantus/meta_engine/web/maintenance_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_maintenance_.*\\.py$"
+      ]
+    },
+    "C10": {
+      "description": "Locale description resolver and export helpers in locale modules",
+      "branch_patterns": [
+        "^feature/claude-c10(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/locale/.*",
+        "^src/yuantus/meta_engine/report_locale/.*",
+        "^src/yuantus/meta_engine/web/locale_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_locale_.*\\.py$",
+        "^src/yuantus/meta_engine/tests/test_report_locale_.*\\.py$"
+      ]
+    },
+    "C11": {
+      "description": "File and 3D consumer hardening on the existing file router",
+      "branch_patterns": [
+        "^feature/claude-c11(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/web/file_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_file_.*\\.py$"
+      ]
+    },
+    "C12": {
+      "description": "Generic approvals bootstrap in a new isolated approvals module",
+      "branch_patterns": [
+        "^feature/claude-c12(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/approvals/.*",
+        "^src/yuantus/meta_engine/web/approvals_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_approvals_.*\\.py$"
+      ]
+    },
+    "C13": {
+      "description": "Subcontracting bootstrap in a new isolated subcontracting module",
+      "branch_patterns": [
+        "^feature/claude-c13(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/subcontracting/.*",
+        "^src/yuantus/meta_engine/web/subcontracting_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_subcontracting_.*\\.py$"
       ]
     }
   }

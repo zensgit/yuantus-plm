@@ -249,6 +249,63 @@ git diff --check
 - `starlette.formparsers` pending deprecation for `python_multipart`
 - `httpx` `app=` shortcut deprecation in test client stack
 
+## Increment 2026-03-19 C7-C8-C9-Locale Cross Regression
+
+### Touched Areas
+- `feature/codex-c7-bom-compare-integration`
+- `feature/codex-c8-quality-integration`
+- `feature/codex-c9-maintenance-integration`
+- `feature/codex-p2a-locale-export`
+
+### Verification Commands
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_bom_summarized_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_preview.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_quality_service.py \
+  src/yuantus/meta_engine/tests/test_quality_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_maintenance_service.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_locale_service.py \
+  src/yuantus/meta_engine/tests/test_report_locale_service.py \
+  src/yuantus/meta_engine/tests/test_locale_router.py \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_services.py -k 'locale or report_locale or export_' \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_router.py -k 'locale or export'
+```
+
+### Actual Results
+- `C7` BOM summarized + delta pack:
+  - `24 passed, 19 warnings`
+- `C8` quality pack:
+  - `32 passed, 8 warnings`
+- `C9` maintenance pack:
+  - `35 passed, 8 warnings`
+- locale/export combined pack:
+  - `84 passed, 123 deselected, 44 warnings`
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- 这轮是分支内定向回归，不是多分支合并后的单一工作树全量回归
+- `C11/C12/C13` 仍未开始实现
+
 ### Residual Risks
 - locale export 目前覆盖：
   - `workorder-docs/export`

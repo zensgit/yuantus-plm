@@ -199,3 +199,85 @@
 - 本轮不做自动翻译
 - 本轮不做 description write-back
 - 本轮不做跨域消费端接线，先只提供稳定 locale contract
+
+## Increment 2026-03-19 C7-C8-C9-Cross-Regression
+
+### Why
+- `C7/C8/C9` 已经分别进入独立 Codex 集成 worktree，但还需要一轮统一口径的回归确认。
+- 这轮目标不是增加功能，而是确认三个集成分支都达到了“可合并”状态。
+
+### Delivered Scope
+- `C7`：
+  - summarized snapshot regression pack promoted to tracked tests
+  - regression expanded to include existing BOM delta tests
+- `C8`：
+  - `quality_router` registered in `create_app()`
+  - Pydantic v2 `dict()` deprecation removed
+- `C9`：
+  - imported missing `maintenance` model package from `C5`
+  - `maintenance_router` registered in `create_app()`
+
+### Non-Goals
+- 本轮不合并这些分支回 `main`
+- 本轮不修改 Claude 的原 feature branches
+
+## Claude Task Draft C11
+
+### Why
+- 当前已有 `viewer_readiness`、`geometry/assets`、`cad_manifest_url`、`cad_viewer_url`。
+- 但缺少面向消费端的导出/summary/readiness 聚合工件。
+
+### Write Scope
+- `src/yuantus/meta_engine/web/file_router.py`
+- `src/yuantus/meta_engine/tests/test_file_viewer_readiness.py`
+
+### Target Deliverables
+- `viewer_readiness` export payload
+- `geometry/assets` pack summary
+- consumer-ready aggregate field in file metadata/read model
+
+### Non-Goals
+- 不碰 `parallel_tasks`
+- 不碰 `quality` / `maintenance` / `locale`
+
+## Claude Task Draft C12
+
+### Why
+- 现有仓库只有 ECO approvals，不存在独立的 generic approvals 模块。
+- 这条线适合用全新模块落地，避免挤占现有热文件。
+
+### Write Scope
+- new `src/yuantus/meta_engine/approvals/`
+- new `src/yuantus/meta_engine/web/approvals_router.py`
+- new approval tests
+
+### Target Deliverables
+- approval category
+- approval request
+- request state machine
+- pending/list/detail endpoints
+
+### Non-Goals
+- 不修改 `eco_router.py`
+- 不修改 `eco_service.py`
+
+## Claude Task Draft C13
+
+### Why
+- 当前制造模型已有 `is_subcontracted` / `subcontractor_id` 痕迹，但没有独立 subcontracting 模块。
+- 用 bootstrap 方式先做独立读模型和最小路由，冲突最低。
+
+### Write Scope
+- new `src/yuantus/meta_engine/subcontracting/`
+- new `src/yuantus/meta_engine/web/subcontracting_router.py`
+- new subcontracting tests
+
+### Target Deliverables
+- subcontract order read model
+- vendor assignment
+- material issue/receipt skeleton
+- list/detail endpoints
+
+### Non-Goals
+- 第一轮不改 `manufacturing/routing_service.py`
+- 第一轮不做复杂 MRP orchestration
