@@ -23,3 +23,11 @@
 ## Verification
 1. `pytest src/yuantus/meta_engine/tests/test_cutted_parts_*.py -v` → 50 passed
 2. `git diff --check` → clean
+
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-stack-c20c21c22`
+- cherry-pick source: `64c9724`
+- integrated commit: `68e3dbb`
+- combined regression with `C20+C21`:
+  - `133 passed, 49 warnings in 3.32s`
+- `git diff --check`: passed

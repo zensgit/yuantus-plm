@@ -708,4 +708,23 @@
 ### Result
 - `C20` candidate stack commit: `e85d046`
 - `C21` candidate stack commit: `b45e7a4`
-- `C22` 继续保持 `prepared_for_claude`
+- `C22` 已加入 Codex 候选栈并完成联合验证
+
+## Increment 2026-03-19 Codex-C22-Integration
+
+### Decision
+- `C22` 不再保持独立待办状态，而是直接叠入 `feature/codex-stack-c20c21c22`。
+- 这样当前 greenfield 第二阶段批次已经完整闭环：
+  - `C20`
+  - `C21`
+  - `C22`
+
+### Why
+- `C22` 与 `C20/C21` 一样保持纯 greenfield 范围，不触碰 `app.py` 或热路径。
+- `cutted_parts` 的 analytics/export 读侧与 `box`、`document_sync` 的第二阶段扩展没有写域冲突。
+- 统一成一个候选栈后，后续 merge-prep 和回归不再需要分散维护两条批次口径。
+
+### Result
+- candidate stack branch: `feature/codex-stack-c20c21c22`
+- integrated commit: `68e3dbb`
+- combined greenfield regression: `133 passed, 49 warnings in 3.32s`

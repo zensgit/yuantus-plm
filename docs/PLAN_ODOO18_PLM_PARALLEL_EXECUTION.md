@@ -31,7 +31,7 @@
 - `C16` quality SPC / analytics bootstrap：completed on this branch
 - `C17/C18/C19` greenfield candidate stack：merged into `main`
 - post-merge stabilization refresh：completed on this branch
-- next Claude greenfield batch `C20/C21/C22`：`C20/C21` codex-stack verified, `C22` pending
+- next Claude greenfield batch `C20/C21/C22`：all codex-stack verified on candidate branch
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -53,7 +53,7 @@
 | C19 | P2 | cutted-parts bootstrap | new `cutted_parts` module + router + tests | merged_on_main_greenfield |
 | C20 | P2 | PLM box analytics / export | `box` analytics/read-model/export helpers | codex_stack_verified |
 | C21 | P2 | document sync analytics / export | `document_sync` analytics/conflict/export helpers | codex_stack_verified |
-| C22 | P2 | cutted-parts analytics / export | `cutted_parts` analytics/waste/export helpers | prepared_for_claude |
+| C22 | P2 | cutted-parts analytics / export | `cutted_parts` analytics/waste/export helpers | codex_stack_verified |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -636,4 +636,16 @@
 - extended greenfield cross-regression with `C19`:
   - `118 passed, 43 warnings in 31.73s`
 - current follow-up:
-  - keep `C22` as the only remaining pending task in this greenfield batch
+  - promote the candidate stack to `feature/codex-stack-c20c21c22`
+
+## Increment 2026-03-19 Codex-C22-Integration
+- extended candidate stack branch:
+  - `feature/codex-stack-c20c21c22`
+- cherry-picked:
+  - `64c9724` `feat(c22): add cutted-parts analytics and export endpoints`
+- integrated stack commit:
+  - `68e3dbb` `feat(c22): add cutted-parts analytics and export endpoints`
+- combined greenfield regression after `C22`:
+  - `133 passed, 49 warnings in 3.32s`
+- result:
+  - `C20/C21/C22` are now all in Codex-verified candidate-stack state

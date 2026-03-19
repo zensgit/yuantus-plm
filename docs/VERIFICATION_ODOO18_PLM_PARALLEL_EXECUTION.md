@@ -1496,7 +1496,7 @@ git diff --check
 
 ### Residual Risks
 - `C20` and `C21` have now moved beyond task preparation into Codex-verified candidate-stack state
-- `C22` remains task-prep only and should still stay off `src/yuantus/api/app.py` and all integrated hot routers
+- `C22` was still pending at this point in the timeline and should stay off `src/yuantus/api/app.py` and all integrated hot routers until integrated
 
 ## Increment 2026-03-19 Codex-C20-C21-Stack-Verification
 
@@ -1544,3 +1544,46 @@ git diff --check
 ### Residual Risks
 - disk free space remained low during the first attempt, so single-domain temp worktrees had to be removed before the combined stack could be verified
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+
+## Increment 2026-03-19 Codex-C22-Integration
+
+### Touched Areas
+- `feature/codex-stack-c20c21c22`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C22_CUTTED_PARTS_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c20c21c22 python3 -m py_compile \
+  src/yuantus/meta_engine/cutted_parts/service.py \
+  src/yuantus/meta_engine/web/cutted_parts_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c20c21c22 pytest -q -p no:cacheprovider \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- cherry-picked `64c9724` into candidate stack as `68e3dbb`
+- `py_compile`: passed
+- combined greenfield regression with `C20+C21+C22`: `133 passed, 49 warnings in 3.32s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- no app registration or hot-path integration has been performed yet, by design
