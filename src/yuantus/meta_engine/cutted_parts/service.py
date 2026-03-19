@@ -557,3 +557,147 @@ class CuttedPartsService:
             "total_material_cost": total_material_cost,
             "plans": plan_costs,
         }
+
+    # ------------------------------------------------------------------
+    # Templates / Scenarios (C28)
+    # ------------------------------------------------------------------
+
+    def template_overview(self) -> Dict[str, Any]:
+        """Fleet-wide template metrics: plan counts as templates, active
+        scenario (non-terminal) count, and default material breakdown."""
+        plans = self.session.query(CutPlan).all()
+        materials = self.session.query(RawMaterial).all()
+
+        template_count = len(plans)
+        active_scenarios = 0
+        terminal = {CutPlanState.COMPLETED.value, CutPlanState.CANCELLED.value}
+        material_breakdown: Dict[str, int] = {}
+
+        for p in plans:
+            if p.state not in terminal:
+                active_scenarios += 1
+            if p.material_id:
+                material_breakdown[p.material_id] = (
+                    material_breakdown.get(p.material_id, 0) + 1
+                )
+
+        # Resolve material names
+        mat_name_map: Dict[str, str] = {m.id: m.name for m in materials}
+        material_detail: List[Dict[str, Any]] = []
+        for mid, count in material_breakdown.items():
+            material_detail.append({
+                "material_id": mid,
+                "material_name": mat_name_map.get(mid, mid),
+                "plan_count": count,
+            })
+
+        return {
+            "template_count": template_count,
+            "active_scenarios": active_scenarios,
+            "completed_scenarios": sum(
+                1 for p in plans if p.state == CutPlanState.COMPLETED.value
+            ),
+            "material_breakdown": material_detail,
+        }
+
+    def scenario_summary(self, plan_id: str) -> Dict[str, Any]:
+        """Per-plan scenario comparison: waste/cost deltas vs fleet average,
+        best-known snapshot for the plan."""
+        plan = self.get_plan(plan_id)
+        if plan is None:
+            raise ValueError(f"Plan '{plan_id}' not found")
+
+        cuts = self.list_cuts(plan_id)
+
+        ok_count = sum(
+            1 for c in cuts if c.status == CutResultStatus.OK.value
+        )
+        scrap_count = sum(
+            1 for c in cuts if c.status == CutResultStatus.SCRAP.value
+        )
+        rework_count = sum(
+            1 for c in cuts if c.status == CutResultStatus.REWORK.value
+        )
+        total_scrap_weight = sum((c.scrap_weight or 0.0) for c in cuts)
+
+        # Compute fleet average waste_pct
+        all_plans = self.session.query(CutPlan).all()
+        waste_values = [
+            p.waste_pct for p in all_plans if p.waste_pct is not None
+        ]
+        fleet_avg_waste = (
+            round(sum(waste_values) / len(waste_values), 2)
+            if waste_values
+            else None
+        )
+        waste_delta = None
+        if plan.waste_pct is not None and fleet_avg_waste is not None:
+            waste_delta = round(plan.waste_pct - fleet_avg_waste, 2)
+
+        # Material cost for this plan
+        material_cost: Optional[float] = None
+        if plan.material_id:
+            mat = self.session.get(RawMaterial, plan.material_id)
+            if mat and mat.cost_per_unit is not None:
+                material_cost = mat.cost_per_unit * (
+                    plan.material_quantity or 0.0
+                )
+
+        return {
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "state": plan.state,
+            "total_cuts": len(cuts),
+            "ok_count": ok_count,
+            "scrap_count": scrap_count,
+            "rework_count": rework_count,
+            "total_scrap_weight": total_scrap_weight,
+            "waste_pct": plan.waste_pct,
+            "fleet_avg_waste_pct": fleet_avg_waste,
+            "waste_delta": waste_delta,
+            "material_cost": material_cost,
+        }
+
+    def material_templates(self) -> Dict[str, Any]:
+        """Template grouping by material type and stock profile."""
+        materials = self.session.query(RawMaterial).all()
+        plans = self.session.query(CutPlan).all()
+
+        plan_count_map: Dict[str, int] = {}
+        for p in plans:
+            if p.material_id:
+                plan_count_map[p.material_id] = (
+                    plan_count_map.get(p.material_id, 0) + 1
+                )
+
+        by_type: Dict[str, List[Dict[str, Any]]] = {}
+        for m in materials:
+            entry = {
+                "material_id": m.id,
+                "material_name": m.name,
+                "grade": m.grade,
+                "stock_quantity": m.stock_quantity or 0.0,
+                "cost_per_unit": m.cost_per_unit,
+                "is_active": m.is_active,
+                "plan_count": plan_count_map.get(m.id, 0),
+            }
+            by_type.setdefault(m.material_type, []).append(entry)
+
+        return {
+            "total_materials": len(materials),
+            "by_type": by_type,
+        }
+
+    def export_scenarios(self) -> Dict[str, Any]:
+        """Export-ready payload combining template overview and per-plan
+        scenario summaries."""
+        plans = self.session.query(CutPlan).all()
+        scenario_summaries = []
+        for p in plans:
+            scenario_summaries.append(self.scenario_summary(p.id))
+
+        return {
+            "template_overview": self.template_overview(),
+            "material_templates": self.material_templates(),
+            "scenarios": scenario_summaries,
+        }

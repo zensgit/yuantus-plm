@@ -364,3 +364,86 @@ def test_export_costs():
     assert resp.status_code == 200
     assert resp.json()["total_material_cost"] == 30.0
     assert len(resp.json()["plans"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Templates / Scenarios endpoints (C28)
+# ---------------------------------------------------------------------------
+
+
+def test_template_overview():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.template_overview.return_value = {
+            "template_count": 3, "active_scenarios": 2,
+            "completed_scenarios": 1,
+            "material_breakdown": [
+                {"material_id": "m1", "material_name": "Steel", "plan_count": 2},
+            ],
+        }
+        resp = client.get("/api/v1/cutted-parts/templates/overview")
+    assert resp.status_code == 200
+    assert resp.json()["template_count"] == 3
+    assert resp.json()["active_scenarios"] == 2
+
+
+def test_scenario_summary():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.scenario_summary.return_value = {
+            "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
+            "total_cuts": 3, "ok_count": 1, "scrap_count": 1, "rework_count": 1,
+            "total_scrap_weight": 0.5, "waste_pct": 8.0,
+            "fleet_avg_waste_pct": 8.0, "waste_delta": 0.0,
+            "material_cost": 50.0,
+        }
+        resp = client.get("/api/v1/cutted-parts/plans/plan-1/scenarios")
+    assert resp.status_code == 200
+    assert resp.json()["total_cuts"] == 3
+    assert resp.json()["waste_delta"] == 0.0
+
+
+def test_scenario_summary_not_found_404():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.scenario_summary.side_effect = ValueError("Plan 'x' not found")
+        resp = client.get("/api/v1/cutted-parts/plans/x/scenarios")
+    assert resp.status_code == 404
+
+
+def test_material_templates():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.material_templates.return_value = {
+            "total_materials": 2,
+            "by_type": {
+                "sheet": [{"material_id": "m1", "material_name": "Steel",
+                           "grade": "304", "stock_quantity": 100.0,
+                           "cost_per_unit": 10.0, "is_active": True,
+                           "plan_count": 2}],
+            },
+        }
+        resp = client.get("/api/v1/cutted-parts/materials/templates")
+    assert resp.status_code == 200
+    assert resp.json()["total_materials"] == 2
+    assert "sheet" in resp.json()["by_type"]
+
+
+def test_export_scenarios():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_scenarios.return_value = {
+            "template_overview": {"template_count": 1},
+            "material_templates": {"total_materials": 1},
+            "scenarios": [{"plan_id": "p1", "plan_name": "Plan 1"}],
+        }
+        resp = client.get("/api/v1/cutted-parts/export/scenarios")
+    assert resp.status_code == 200
+    assert "template_overview" in resp.json()
+    assert "material_templates" in resp.json()
+    assert len(resp.json()["scenarios"]) == 1

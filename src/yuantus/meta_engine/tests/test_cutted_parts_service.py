@@ -615,3 +615,156 @@ class TestCosting:
         assert result["total_plans"] == 0
         assert result["total_material_cost"] == 0.0
         assert result["plans"] == []
+
+
+# ---------------------------------------------------------------------------
+# Templates / Scenarios (C28)
+# ---------------------------------------------------------------------------
+
+
+class TestTemplatesScenarios:
+
+    def test_template_overview(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(name="Steel Sheet")
+        p1 = svc.create_plan(name="Active Plan", material_id=mat.id)
+        p2 = svc.create_plan(name="Completed Plan", material_id=mat.id)
+        p2.state = "completed"
+
+        result = svc.template_overview()
+        assert result["template_count"] == 2
+        assert result["active_scenarios"] == 1
+        assert result["completed_scenarios"] == 1
+        assert len(result["material_breakdown"]) == 1
+        assert result["material_breakdown"][0]["plan_count"] == 2
+        assert result["material_breakdown"][0]["material_name"] == "Steel Sheet"
+
+    def test_template_overview_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.template_overview()
+        assert result["template_count"] == 0
+        assert result["active_scenarios"] == 0
+        assert result["completed_scenarios"] == 0
+        assert result["material_breakdown"] == []
+
+    def test_scenario_summary(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Scenario Plan", material_id=mat.id, material_quantity=5.0,
+        )
+        plan.waste_pct = 8.0
+        svc.add_cut(plan.id, status="ok", quantity=3.0)
+        svc.add_cut(plan.id, status="scrap", quantity=1.0, scrap_weight=0.5)
+        svc.add_cut(plan.id, status="rework", quantity=1.0)
+
+        result = svc.scenario_summary(plan.id)
+        assert result["plan_id"] == plan.id
+        assert result["plan_name"] == "Scenario Plan"
+        assert result["total_cuts"] == 3
+        assert result["ok_count"] == 1
+        assert result["scrap_count"] == 1
+        assert result["rework_count"] == 1
+        assert result["total_scrap_weight"] == 0.5
+        assert result["waste_pct"] == 8.0
+        assert result["fleet_avg_waste_pct"] == 8.0  # only plan
+        assert result["waste_delta"] == 0.0
+        assert result["material_cost"] == 50.0  # 10 * 5
+
+    def test_scenario_summary_waste_delta(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        p1 = svc.create_plan(name="Plan A")
+        p1.waste_pct = 10.0
+        p2 = svc.create_plan(name="Plan B")
+        p2.waste_pct = 6.0
+
+        result = svc.scenario_summary(p1.id)
+        # fleet avg = (10 + 6) / 2 = 8.0
+        assert result["fleet_avg_waste_pct"] == 8.0
+        assert result["waste_delta"] == 2.0  # 10 - 8
+
+    def test_scenario_summary_no_waste(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        plan = svc.create_plan(name="No Waste Plan")
+
+        result = svc.scenario_summary(plan.id)
+        assert result["waste_pct"] is None
+        assert result["fleet_avg_waste_pct"] is None
+        assert result["waste_delta"] is None
+        assert result["material_cost"] is None
+
+    def test_scenario_summary_not_found(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        with pytest.raises(ValueError, match="not found"):
+            svc.scenario_summary("nonexistent")
+
+    def test_material_templates(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        m1 = svc.create_material(
+            name="Steel A", material_type="sheet",
+            stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        m2 = svc.create_material(
+            name="Aluminum B", material_type="bar",
+            stock_quantity=50.0, cost_per_unit=20.0,
+        )
+        svc.create_plan(name="Plan 1", material_id=m1.id)
+        svc.create_plan(name="Plan 2", material_id=m1.id)
+
+        result = svc.material_templates()
+        assert result["total_materials"] == 2
+        assert "sheet" in result["by_type"]
+        assert "bar" in result["by_type"]
+        assert len(result["by_type"]["sheet"]) == 1
+        assert result["by_type"]["sheet"][0]["plan_count"] == 2
+        assert result["by_type"]["bar"][0]["plan_count"] == 0
+
+    def test_material_templates_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.material_templates()
+        assert result["total_materials"] == 0
+        assert result["by_type"] == {}
+
+    def test_export_scenarios(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Export Plan", material_id=mat.id, material_quantity=3.0,
+        )
+        plan.waste_pct = 5.0
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.export_scenarios()
+        assert "template_overview" in result
+        assert "material_templates" in result
+        assert "scenarios" in result
+        assert result["template_overview"]["template_count"] == 1
+        assert result["material_templates"]["total_materials"] == 1
+        assert len(result["scenarios"]) == 1
+        assert result["scenarios"][0]["plan_id"] == plan.id
+
+    def test_export_scenarios_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.export_scenarios()
+        assert result["template_overview"]["template_count"] == 0
+        assert result["material_templates"]["total_materials"] == 0
+        assert result["scenarios"] == []
