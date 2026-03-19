@@ -1589,6 +1589,40 @@ git diff --check
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
 - no app registration or hot-path integration has been performed yet, by design
 
+## Increment 2026-03-19 Codex-Merge-Rehearsal-C26-C27-C28
+
+### Touched Areas
+- `feature/codex-c26c27c28-staging`
+- `feature/codex-merge-rehearsal-c26c27c28`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+git merge --ff-only feature/codex-c26c27c28-staging
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-merge-c26c27c28-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- rehearsal branch fast-forwarded from `d068476` to `019e874`
+- no manual conflict resolution was required
+- unified stack script on `feature/codex-merge-rehearsal-c26c27c28`: `440 passed, 156 warnings in 13.61s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- actual `main` has not been advanced yet at this point in the timeline
+
 ## Increment 2026-03-19 Main-FastForward-C20-C21-C22
 
 ### Touched Areas

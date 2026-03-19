@@ -234,3 +234,16 @@
 - current gate:
   - `C26/C27/C28` are now staging-verified
   - next step is merge-prep / rehearsal for this full fourth-stage greenfield batch
+
+## Merge Rehearsal: C26-C27-C28
+- rehearsal branch:
+  - `feature/codex-merge-rehearsal-c26c27c28`
+- rehearsal action:
+  - `main` branch state at `d068476`
+  - fast-forwarded to candidate stack commit `019e874`
+- rehearsal verification:
+  - unified stack script on rehearsal branch:
+    - `440 passed, 156 warnings in 13.61s`
+- resolution:
+  - rehearsal passed without manual conflict resolution
+  - candidate stack is ready for actual main fast-forward if accepted
