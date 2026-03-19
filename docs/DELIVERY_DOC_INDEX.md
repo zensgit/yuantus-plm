@@ -239,6 +239,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Phase 3 Progress Snapshot: `docs/PHASE3_PROGRESS_SNAPSHOT_20260206.md`
 - Parallel C17 PLM Box Bootstrap Design: `docs/DESIGN_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
 - Parallel C17 PLM Box Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
+- Parallel C18 Document Sync Bootstrap Design: `docs/DESIGN_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
+- Parallel C18 Document Sync Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
 
 ## Optional
 

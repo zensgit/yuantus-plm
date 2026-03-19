@@ -1,0 +1,300 @@
+"""
+DocumentSyncService – site management, sync jobs, record tracking, and
+summary export for the document multi-site sync domain.
+"""
+from __future__ import annotations
+
+import uuid
+from typing import Any, Dict, List, Optional
+
+from sqlalchemy.orm import Session
+
+from yuantus.meta_engine.document_sync.models import (
+    SiteState,
+    SyncDirection,
+    SyncJob,
+    SyncJobState,
+    SyncRecord,
+    SyncRecordOutcome,
+    SyncSite,
+)
+
+
+# ---------------------------------------------------------------------------
+# Valid state transitions
+# ---------------------------------------------------------------------------
+
+_SITE_TRANSITIONS: Dict[str, List[str]] = {
+    SiteState.ACTIVE.value: [SiteState.DISABLED.value, SiteState.ARCHIVED.value],
+    SiteState.DISABLED.value: [SiteState.ACTIVE.value, SiteState.ARCHIVED.value],
+    SiteState.ARCHIVED.value: [],  # terminal
+}
+
+_JOB_TRANSITIONS: Dict[str, List[str]] = {
+    SyncJobState.PENDING.value: [
+        SyncJobState.RUNNING.value,
+        SyncJobState.CANCELLED.value,
+    ],
+    SyncJobState.RUNNING.value: [
+        SyncJobState.COMPLETED.value,
+        SyncJobState.FAILED.value,
+        SyncJobState.CANCELLED.value,
+    ],
+    SyncJobState.COMPLETED.value: [],
+    SyncJobState.FAILED.value: [],
+    SyncJobState.CANCELLED.value: [],
+}
+
+
+class DocumentSyncService:
+    """Domain service for document multi-site sync management."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    # ------------------------------------------------------------------
+    # Site CRUD
+    # ------------------------------------------------------------------
+
+    def create_site(
+        self,
+        *,
+        name: str,
+        site_code: str,
+        base_url: Optional[str] = None,
+        description: Optional[str] = None,
+        direction: str = SyncDirection.PUSH.value,
+        is_primary: bool = False,
+        properties: Optional[Dict[str, Any]] = None,
+        created_by_id: Optional[int] = None,
+    ) -> SyncSite:
+        valid_dirs = {d.value for d in SyncDirection}
+        if direction not in valid_dirs:
+            raise ValueError(
+                f"Invalid direction '{direction}'. Must be one of: {sorted(valid_dirs)}"
+            )
+
+        site = SyncSite(
+            id=str(uuid.uuid4()),
+            name=name,
+            site_code=site_code,
+            base_url=base_url,
+            description=description,
+            state=SiteState.ACTIVE.value,
+            direction=direction,
+            is_primary=is_primary,
+            properties=properties,
+            created_by_id=created_by_id,
+        )
+        self.session.add(site)
+        self.session.flush()
+        return site
+
+    def get_site(self, site_id: str) -> Optional[SyncSite]:
+        return self.session.get(SyncSite, site_id)
+
+    def list_sites(
+        self,
+        *,
+        state: Optional[str] = None,
+        direction: Optional[str] = None,
+    ) -> List[SyncSite]:
+        q = self.session.query(SyncSite)
+        if state is not None:
+            q = q.filter(SyncSite.state == state)
+        if direction is not None:
+            q = q.filter(SyncSite.direction == direction)
+        return q.order_by(SyncSite.created_at.desc()).all()
+
+    def update_site(self, site_id: str, **fields: Any) -> Optional[SyncSite]:
+        site = self.get_site(site_id)
+        if site is None:
+            return None
+        for key, value in fields.items():
+            if hasattr(site, key) and key not in ("id", "created_at", "created_by_id"):
+                setattr(site, key, value)
+        self.session.flush()
+        return site
+
+    def transition_site_state(
+        self, site_id: str, target_state: str
+    ) -> SyncSite:
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        allowed = _SITE_TRANSITIONS.get(site.state, [])
+        if target_state not in allowed:
+            raise ValueError(
+                f"Cannot transition site from '{site.state}' to '{target_state}'. "
+                f"Allowed: {allowed}"
+            )
+        site.state = target_state
+        self.session.flush()
+        return site
+
+    # ------------------------------------------------------------------
+    # Job CRUD
+    # ------------------------------------------------------------------
+
+    def create_job(
+        self,
+        *,
+        site_id: str,
+        direction: str = SyncDirection.PUSH.value,
+        document_filter: Optional[Dict[str, Any]] = None,
+        properties: Optional[Dict[str, Any]] = None,
+        created_by_id: Optional[int] = None,
+    ) -> SyncJob:
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+        if site.state != SiteState.ACTIVE.value:
+            raise ValueError(
+                f"Cannot create job for site in state '{site.state}'"
+            )
+
+        valid_dirs = {d.value for d in SyncDirection}
+        if direction not in valid_dirs:
+            raise ValueError(
+                f"Invalid direction '{direction}'. Must be one of: {sorted(valid_dirs)}"
+            )
+
+        job = SyncJob(
+            id=str(uuid.uuid4()),
+            site_id=site_id,
+            state=SyncJobState.PENDING.value,
+            direction=direction,
+            document_filter=document_filter,
+            properties=properties,
+            created_by_id=created_by_id,
+        )
+        self.session.add(job)
+        self.session.flush()
+        return job
+
+    def get_job(self, job_id: str) -> Optional[SyncJob]:
+        return self.session.get(SyncJob, job_id)
+
+    def list_jobs(
+        self,
+        *,
+        site_id: Optional[str] = None,
+        state: Optional[str] = None,
+    ) -> List[SyncJob]:
+        q = self.session.query(SyncJob)
+        if site_id is not None:
+            q = q.filter(SyncJob.site_id == site_id)
+        if state is not None:
+            q = q.filter(SyncJob.state == state)
+        return q.order_by(SyncJob.created_at.desc()).all()
+
+    def transition_job_state(
+        self, job_id: str, target_state: str
+    ) -> SyncJob:
+        job = self.get_job(job_id)
+        if job is None:
+            raise ValueError(f"Job '{job_id}' not found")
+
+        allowed = _JOB_TRANSITIONS.get(job.state, [])
+        if target_state not in allowed:
+            raise ValueError(
+                f"Cannot transition job from '{job.state}' to '{target_state}'. "
+                f"Allowed: {allowed}"
+            )
+        job.state = target_state
+        self.session.flush()
+        return job
+
+    # ------------------------------------------------------------------
+    # Sync records
+    # ------------------------------------------------------------------
+
+    def add_record(
+        self,
+        job_id: str,
+        *,
+        document_id: str,
+        source_checksum: Optional[str] = None,
+        target_checksum: Optional[str] = None,
+        outcome: str = SyncRecordOutcome.SYNCED.value,
+        conflict_detail: Optional[str] = None,
+        error_detail: Optional[str] = None,
+    ) -> SyncRecord:
+        job = self.get_job(job_id)
+        if job is None:
+            raise ValueError(f"Job '{job_id}' not found")
+
+        valid_outcomes = {o.value for o in SyncRecordOutcome}
+        if outcome not in valid_outcomes:
+            raise ValueError(
+                f"Invalid outcome '{outcome}'. Must be one of: {sorted(valid_outcomes)}"
+            )
+
+        record = SyncRecord(
+            id=str(uuid.uuid4()),
+            job_id=job_id,
+            document_id=document_id,
+            source_checksum=source_checksum,
+            target_checksum=target_checksum,
+            outcome=outcome,
+            conflict_detail=conflict_detail,
+            error_detail=error_detail,
+        )
+        self.session.add(record)
+        self.session.flush()
+        return record
+
+    def list_records(self, job_id: str) -> List[SyncRecord]:
+        return (
+            self.session.query(SyncRecord)
+            .filter(SyncRecord.job_id == job_id)
+            .order_by(SyncRecord.created_at)
+            .all()
+        )
+
+    # ------------------------------------------------------------------
+    # Summary / export
+    # ------------------------------------------------------------------
+
+    def job_summary(self, job_id: str) -> Dict[str, Any]:
+        """Build a sync summary payload for downstream export."""
+        job = self.get_job(job_id)
+        if job is None:
+            raise ValueError(f"Job '{job_id}' not found")
+
+        records = self.list_records(job_id)
+
+        by_outcome: Dict[str, int] = {}
+        conflicts: List[Dict[str, Any]] = []
+        errors: List[Dict[str, Any]] = []
+
+        for r in records:
+            by_outcome[r.outcome] = by_outcome.get(r.outcome, 0) + 1
+            if r.outcome == SyncRecordOutcome.CONFLICT.value:
+                conflicts.append(
+                    {
+                        "document_id": r.document_id,
+                        "source_checksum": r.source_checksum,
+                        "target_checksum": r.target_checksum,
+                        "detail": r.conflict_detail,
+                    }
+                )
+            elif r.outcome == SyncRecordOutcome.ERROR.value:
+                errors.append(
+                    {
+                        "document_id": r.document_id,
+                        "detail": r.error_detail,
+                    }
+                )
+
+        return {
+            "job_id": job.id,
+            "site_id": job.site_id,
+            "state": job.state,
+            "direction": job.direction,
+            "total_records": len(records),
+            "by_outcome": by_outcome,
+            "conflicts": conflicts,
+            "errors": errors,
+        }
