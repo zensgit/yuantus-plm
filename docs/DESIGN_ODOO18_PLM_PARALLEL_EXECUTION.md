@@ -420,6 +420,37 @@
 - 本轮不改制造核心服务
 - 本轮不做 `subcontracting` 持久化账本增强
 
+## Increment 2026-03-19 C16 Unified Stack Integration
+
+### Why
+- `C16` 是 `quality` 域里的纯增量读侧，天然适合直接并入统一栈。
+- 统一栈脚本如果不把 `quality analytics / SPC` 纳进去，后续回归基线就不完整。
+
+### Delivered Scope
+- cherry-pick `72d4134`
+- 新增：
+  - `src/yuantus/meta_engine/quality/analytics_service.py`
+  - `src/yuantus/meta_engine/quality/spc_service.py`
+  - `src/yuantus/meta_engine/web/quality_analytics_router.py`
+  - `src/yuantus/meta_engine/tests/test_quality_analytics_service.py`
+  - `src/yuantus/meta_engine/tests/test_quality_analytics_router.py`
+  - `src/yuantus/meta_engine/tests/test_quality_spc_service.py`
+- 主应用注册：
+  - `src/yuantus/api/app.py`
+- 统一栈脚本扩容：
+  - `scripts/verify_odoo18_plm_stack.sh`
+
+### Chosen Defaults
+- analytics router 与现有 `quality_router` 并行存在，不回写原有 CRUD 契约
+- path guard 冲突按统一栈更宽边界收口：
+  - 保留 `quality_router`
+  - 追加 `quality_analytics_router`
+- 统一栈脚本继续默认跑 `full`
+
+### Non-Goals
+- 本轮不把质量统计联到 `parallel_tasks`
+- 本轮不把质量统计回写制造热路径
+
 ### Why
 - 现有仓库只有 ECO approvals，不存在独立的 generic approvals 模块。
 - 这条线适合用全新模块落地，避免挤占现有热文件。

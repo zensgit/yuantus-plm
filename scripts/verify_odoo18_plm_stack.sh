@@ -35,7 +35,10 @@ compile_files=(
   "src/yuantus/meta_engine/approvals/service.py"
   "src/yuantus/meta_engine/web/approvals_router.py"
   "src/yuantus/meta_engine/quality/models.py"
+  "src/yuantus/meta_engine/quality/analytics_service.py"
   "src/yuantus/meta_engine/quality/service.py"
+  "src/yuantus/meta_engine/quality/spc_service.py"
+  "src/yuantus/meta_engine/web/quality_analytics_router.py"
   "src/yuantus/meta_engine/web/quality_router.py"
   "src/yuantus/meta_engine/maintenance/models.py"
   "src/yuantus/meta_engine/maintenance/service.py"
@@ -51,6 +54,7 @@ compile_files=(
 
 smoke_tests=(
   "src/yuantus/meta_engine/tests/test_file_viewer_readiness.py"
+  "src/yuantus/meta_engine/tests/test_quality_analytics_router.py"
   "src/yuantus/meta_engine/tests/test_quality_router.py"
   "src/yuantus/meta_engine/tests/test_maintenance_router.py"
   "src/yuantus/meta_engine/tests/test_locale_router.py"
@@ -65,6 +69,9 @@ full_tests=(
   "src/yuantus/meta_engine/tests/test_bom_delta_preview.py"
   "src/yuantus/meta_engine/tests/test_bom_delta_router.py"
   "src/yuantus/meta_engine/tests/test_quality_service.py"
+  "src/yuantus/meta_engine/tests/test_quality_analytics_service.py"
+  "src/yuantus/meta_engine/tests/test_quality_analytics_router.py"
+  "src/yuantus/meta_engine/tests/test_quality_spc_service.py"
   "src/yuantus/meta_engine/tests/test_quality_router.py"
   "src/yuantus/meta_engine/tests/test_maintenance_service.py"
   "src/yuantus/meta_engine/tests/test_maintenance_router.py"

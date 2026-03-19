@@ -592,6 +592,61 @@ git diff --check
 - `C16` 仍未进入统一栈
 - `C14/C15` 是基于 worker 交付契约在统一栈复刻并验证，不是直接 cherry-pick worker branch
 
+## Increment 2026-03-19 C16 Unified Stack Integration
+
+### Touched Areas
+- `contracts/claude_allowed_paths.json`
+- `src/yuantus/api/app.py`
+- `src/yuantus/meta_engine/quality/analytics_service.py`
+- `src/yuantus/meta_engine/quality/spc_service.py`
+- `src/yuantus/meta_engine/web/quality_analytics_router.py`
+- `src/yuantus/meta_engine/tests/test_quality_analytics_service.py`
+- `src/yuantus/meta_engine/tests/test_quality_analytics_router.py`
+- `src/yuantus/meta_engine/tests/test_quality_spc_service.py`
+- `scripts/verify_odoo18_plm_stack.sh`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/api/app.py \
+  src/yuantus/meta_engine/quality/analytics_service.py \
+  src/yuantus/meta_engine/quality/spc_service.py \
+  src/yuantus/meta_engine/web/quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_service.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_quality_spc_service.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_quality_analytics_service.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_quality_spc_service.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- targeted C16 pack:
+  - `27 passed, 8 warnings in 4.73s`
+- unified stack script (`full`):
+  - `218 passed, 75 warnings in 13.09s`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- `C14/C15/C16` 虽已进入统一栈，但还没有做主仓最终合并回归
+- 当前建议不再继续给 Claude 开新功能分支，先进入 merge-prep
+
 ## Increment 2026-03-19 C7-C8-C9 Stack Branch
 
 ### Touched Areas

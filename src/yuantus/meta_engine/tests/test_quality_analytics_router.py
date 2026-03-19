@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from yuantus.api.app import create_app
 from yuantus.database import get_db
 from yuantus.meta_engine.web.quality_analytics_router import quality_analytics_router
 
@@ -167,3 +168,13 @@ def test_spc_payload_empty_measurements():
     assert resp.status_code == 200
     data = resp.json()
     assert data["capability"]["sample_size"] == 0
+
+
+def test_quality_analytics_routes_registered_in_create_app():
+    app = create_app()
+    paths = {route.path for route in app.routes}
+    assert "/api/v1/quality/analytics" in paths
+    assert "/api/v1/quality/analytics/defect-rates" in paths
+    assert "/api/v1/quality/analytics/alert-aging" in paths
+    assert "/api/v1/quality/spc" in paths
+    assert "/api/v1/quality/spc/{point_id}" in paths

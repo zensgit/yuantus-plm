@@ -28,6 +28,7 @@
 - `C13` subcontracting bootstrap：completed on this branch
 - `C14` approvals export / ops-report bootstrap：completed on this branch
 - `C15` subcontracting analytics / export bootstrap：completed on this branch
+- `C16` quality SPC / analytics bootstrap：completed on this branch
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -43,6 +44,7 @@
 | C13 | P2 | subcontracting bootstrap | new `subcontracting` module + router + tests | completed_on_this_branch |
 | C14 | P2 | approvals export / ops-report | `approvals` service + router + tests | completed_on_this_branch |
 | C15 | P2 | subcontracting analytics / export | `subcontracting` service + router + tests | completed_on_this_branch |
+| C16 | P2 | quality SPC / analytics | `quality` analytics services + analytics router + tests | completed_on_this_branch |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -249,6 +251,26 @@
 - `C14/C15` should no longer be treated as pending Claude work
 - Remaining greenfield Claude batch priority is now:
   - `C16`
+
+## Increment 2026-03-19 Codex-C16-Integration
+- Cherry-picked Claude `C16` commit `72d4134`
+- Resolved only the expected path-guard conflict in:
+  - `contracts/claude_allowed_paths.json`
+- Registered `quality_analytics_router` in:
+  - `src/yuantus/api/app.py`
+- Extended unified stack regression script:
+  - `scripts/verify_odoo18_plm_stack.sh`
+  - now includes:
+    - `test_quality_analytics_service.py`
+    - `test_quality_analytics_router.py`
+    - `test_quality_spc_service.py`
+- Targeted regression:
+  - `27 passed, 8 warnings`
+- Unified stack regression via script:
+  - `218 passed, 75 warnings`
+- `C14/C15/C16` are all completed on the unified stack branch
+- Recommendation:
+  - pause new Claude feature branches until the current stack enters merge-prep
 
 ## Increment 2026-03-19 Codex-C11-C12-Integration
 - Created `feature/codex-stack-c11c12` from the verified `C13` baseline
