@@ -376,6 +376,50 @@ git diff --check
 - stack branch 目前还没有把 `C11/C12/C13` 实现并入
 - 主仓 `/Users/huazhou/Downloads/Github/Yuantus` 仍在 Claude 分支，不应直接在主仓上继续叠集成改动
 
+## Increment 2026-03-19 C13-Subcontracting Bootstrap
+
+### Touched Areas
+- `src/yuantus/meta_engine/subcontracting/__init__.py`
+- `src/yuantus/meta_engine/subcontracting/models.py`
+- `src/yuantus/meta_engine/subcontracting/service.py`
+- `src/yuantus/meta_engine/web/subcontracting_router.py`
+- `src/yuantus/meta_engine/tests/test_subcontracting_service.py`
+- `src/yuantus/meta_engine/tests/test_subcontracting_router.py`
+- `src/yuantus/api/app.py`
+- `docs/DESIGN_PARALLEL_C13_SUBCONTRACTING_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C13_SUBCONTRACTING_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/meta_engine/subcontracting/__init__.py \
+  src/yuantus/meta_engine/subcontracting/models.py \
+  src/yuantus/meta_engine/subcontracting/service.py \
+  src/yuantus/meta_engine/web/subcontracting_router.py \
+  src/yuantus/api/app.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_service.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_subcontracting_service.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py
+```
+
+### Actual Results
+- `py_compile`: passed
+- subcontracting bootstrap pack:
+  - `9 passed, 3 warnings`
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- 目前还是 bootstrap 读模型，没有采购/收货单据联动
+- 目前不回写制造主服务，只消费已有 `Operation` 委外字段
+
 ## Increment 2026-03-18 C10-Locale-Resolver
 
 ### Touched Areas

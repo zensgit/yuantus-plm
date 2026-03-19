@@ -45,6 +45,7 @@ from yuantus.meta_engine.web.item_cockpit_router import item_cockpit_router
 from yuantus.meta_engine.web.locale_router import locale_router
 from yuantus.meta_engine.web.maintenance_router import maintenance_router
 from yuantus.meta_engine.web.quality_router import quality_router
+from yuantus.meta_engine.web.subcontracting_router import subcontracting_router
 from yuantus.meta_engine.web.ui_router import ui_router
 from yuantus.meta_engine.web.version_router import version_router
 from yuantus.meta_engine.web.manufacturing_router import (
@@ -144,6 +145,7 @@ def create_app() -> FastAPI:
     app.include_router(parallel_tasks_router, prefix="/api/v1")
     app.include_router(maintenance_router, prefix="/api/v1")
     app.include_router(quality_router, prefix="/api/v1")
+    app.include_router(subcontracting_router, prefix="/api/v1")
 
     return app
 

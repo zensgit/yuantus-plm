@@ -82,6 +82,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - C9 Maintenance Workcenter Readiness Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C9_MAINTENANCE_WORKCENTER_READINESS_20260318.md`
 - C10 Locale Resolver Export Helpers Design: `docs/DESIGN_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
 - C10 Locale Resolver Export Helpers Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
+- C13 Subcontracting Bootstrap Design: `docs/DESIGN_PARALLEL_C13_SUBCONTRACTING_BOOTSTRAP_20260319.md`
+- C13 Subcontracting Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C13_SUBCONTRACTING_BOOTSTRAP_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
 - Baseline Filters API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`

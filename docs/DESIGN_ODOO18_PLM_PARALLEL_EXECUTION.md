@@ -318,3 +318,39 @@
 ### Non-Goals
 - 第一轮不改 `manufacturing/routing_service.py`
 - 第一轮不做复杂 MRP orchestration
+
+## Increment 2026-03-19 C13-Subcontracting Bootstrap
+
+### Why
+- 现有制造模型已经有 `is_subcontracted` / `subcontractor_id` 痕迹，但没有独立 subcontracting 域。
+- 这条线适合用 net-new 模块落地，避免和 Claude 正在进行的 `C11/C12` 写域冲突。
+
+### Delivered Scope
+- new `src/yuantus/meta_engine/subcontracting/models.py`
+- new `src/yuantus/meta_engine/subcontracting/service.py`
+- new `src/yuantus/meta_engine/web/subcontracting_router.py`
+- app registration in `src/yuantus/api/app.py`
+- service/router/app smoke tests
+
+### Chosen Defaults
+- 只复用 `Operation.routing_id`、`Operation.is_subcontracted`、`Operation.subcontractor_id`
+- 不改 `manufacturing/routing_service.py`
+- 订单状态只覆盖 bootstrap 必需闭环：
+  - `draft`
+  - `issued`
+  - `partially_received`
+  - `completed`
+
+### Delivered Contract
+- `POST /api/v1/subcontracting/orders`
+- `GET /api/v1/subcontracting/orders`
+- `GET /api/v1/subcontracting/orders/{order_id}`
+- `POST /api/v1/subcontracting/orders/{order_id}/assign-vendor`
+- `POST /api/v1/subcontracting/orders/{order_id}/issue-material`
+- `POST /api/v1/subcontracting/orders/{order_id}/record-receipt`
+- `GET /api/v1/subcontracting/orders/{order_id}/timeline`
+
+### Non-Goals
+- 本轮不做采购单联动
+- 本轮不做 routing/MRP orchestration 改写
+- 本轮不做制造主服务回写

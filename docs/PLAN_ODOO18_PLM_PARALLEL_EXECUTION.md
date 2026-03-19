@@ -3,7 +3,7 @@
 ## Goal Snapshot
 - 目标一：在当前真实代码基线上持续收口 Odoo18 PLM 对标能力
 - 目标二：把 Claude 已完成分支按模块边界安全并入统一集成栈
-- 当前工作分支：`feature/codex-stack-c7c8c9`
+- 当前工作分支：`feature/codex-c13-subcontracting-integration`
 
 ## Baseline Correction
 - 当前仓库真实基线与此前长链路摘要不一致。
@@ -22,9 +22,9 @@
 - `C8` quality-mrp integration：merged and verified on this branch (`f918784`, `12f5b9b`, `a7139ff`)
 - `C9` maintenance-workcenter readiness：merged and verified on this branch (`736e612`, `b32ed6e`)
 - `C10` locale description resolver：completed on this branch after Codex integration verification
-- `C11` file/3D consumer hardening：ready_for_claude
-- `C12` generic approvals bootstrap：ready_for_claude
-- `C13` subcontracting bootstrap：ready_for_claude
+- `C11` file/3D consumer hardening：in_progress_by_claude_reported
+- `C12` generic approvals bootstrap：in_progress_by_claude_reported
+- `C13` subcontracting bootstrap：completed on this branch
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -35,9 +35,9 @@
 | C8 | P1 | quality-mrp integration | `quality` + manufacturing integration edge | completed_on_stack_branch |
 | C9 | P1 | maintenance-workcenter readiness | `maintenance` + workcenter integration edge | completed_on_stack_branch |
 | C10 | P2 | locale description resolver | `locale` description/read-model helpers | completed |
-| C11 | P1 | file/3D consumer hardening | `file_router` + file viewer tests | ready_for_claude |
-| C12 | P2 | generic approvals bootstrap | new `approvals` module + router + tests | ready_for_claude |
-| C13 | P2 | subcontracting bootstrap | new `subcontracting` module + router + tests | ready_for_claude |
+| C11 | P1 | file/3D consumer hardening | `file_router` + file viewer tests | in_progress_by_claude_reported |
+| C12 | P2 | generic approvals bootstrap | new `approvals` module + router + tests | in_progress_by_claude_reported |
+| C13 | P2 | subcontracting bootstrap | new `subcontracting` module + router + tests | completed_on_this_branch |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -135,9 +135,9 @@
   - `98 passed, 200 deselected, 54 warnings`
 
 ## Next Claude Allocation Draft
-- `C11` file/3D consumer hardening: highest priority and scoped
-- `C12` generic approvals bootstrap: second priority and scoped
-- `C13` subcontracting bootstrap: third priority and scoped
+- `C11` file/3D consumer hardening: in progress on Claude branch
+- `C12` generic approvals bootstrap: in progress on Claude branch
+- no new Claude task should be opened until `C11/C12` stabilize
 
 ## Claude Allocation
 - `C7/C8/C9/C10` should not be edited further on Claude branches unless a new bugfix branch is explicitly opened.
@@ -179,3 +179,15 @@
   - non-goals:
     - do not mutate existing `manufacturing/routing_service.py` in the first increment
 - `C10` has been integrated and verified on the current Codex branch.
+
+## Increment 2026-03-19 Codex-C13-Subcontracting
+- Created `feature/codex-c13-subcontracting-integration` from the verified stack baseline
+- Added isolated subcontracting bootstrap module:
+  - `src/yuantus/meta_engine/subcontracting/models.py`
+  - `src/yuantus/meta_engine/subcontracting/service.py`
+  - `src/yuantus/meta_engine/web/subcontracting_router.py`
+- Registered `subcontracting_router` in `src/yuantus/api/app.py`
+- Added service/router/app smoke tests:
+  - `src/yuantus/meta_engine/tests/test_subcontracting_service.py`
+  - `src/yuantus/meta_engine/tests/test_subcontracting_router.py`
+- Verified `9 passed, 3 warnings`
