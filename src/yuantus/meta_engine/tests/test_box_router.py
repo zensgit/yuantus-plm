@@ -178,3 +178,108 @@ def test_create_invalid_400():
     assert resp.status_code == 400
     assert "Invalid box_type" in resp.json()["detail"]
     assert db.rollback.called
+
+
+# ---------------------------------------------------------------------------
+# Analytics / export endpoint tests (C20)
+# ---------------------------------------------------------------------------
+
+
+def test_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.overview.return_value = {
+            "total": 5, "active": 3,
+            "by_state": {"draft": 2, "active": 3},
+            "by_type": {"box": 4, "pallet": 1},
+            "total_cost": 25.0,
+        }
+        resp = client.get("/api/v1/box/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 5
+    assert resp.json()["by_type"]["box"] == 4
+
+
+def test_material_analytics():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.material_analytics.return_value = {
+            "total": 3,
+            "by_material": {"cardboard": 2, "wood": 1},
+            "no_material": 0,
+        }
+        resp = client.get("/api/v1/box/materials/analytics")
+
+    assert resp.status_code == 200
+    assert resp.json()["by_material"]["cardboard"] == 2
+
+
+def test_contents_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.contents_summary.return_value = {
+            "box_id": "box-1", "box_name": "Test",
+            "total_lines": 3, "distinct_items": 2,
+            "total_quantity": 10.0, "has_lot_serial": 1,
+        }
+        resp = client.get("/api/v1/box/items/box-1/contents-summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_lines"] == 3
+    assert resp.json()["distinct_items"] == 2
+
+
+def test_contents_summary_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.contents_summary.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/box/items/x/contents-summary")
+
+    assert resp.status_code == 404
+
+
+def test_export_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_overview.return_value = {
+            "overview": {"total": 2, "active": 1, "by_state": {}, "by_type": {}, "total_cost": 0},
+            "material_analytics": {"total": 2, "by_material": {}, "no_material": 2},
+        }
+        resp = client.get("/api/v1/box/export/overview")
+
+    assert resp.status_code == 200
+    assert "overview" in resp.json()
+    assert "material_analytics" in resp.json()
+
+
+def test_export_contents():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_contents.return_value = {
+            "box_id": "box-1", "box_name": "Test",
+            "total_lines": 1, "distinct_items": 1,
+            "total_quantity": 5.0, "has_lot_serial": 0,
+            "contents": [{"id": "c-1", "item_id": "i-1", "quantity": 5.0, "lot_serial": None, "note": None}],
+        }
+        resp = client.get("/api/v1/box/items/box-1/export-contents")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_lines"] == 1
+    assert len(resp.json()["contents"]) == 1
+
+
+def test_export_contents_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_contents.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/box/items/x/export-contents")
+
+    assert resp.status_code == 404

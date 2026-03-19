@@ -223,3 +223,104 @@ class BoxService:
                 for c in contents
             ],
         }
+
+    # ------------------------------------------------------------------
+    # Analytics (C20)
+    # ------------------------------------------------------------------
+
+    def overview(self) -> Dict[str, Any]:
+        """High-level overview: total counts, state and type breakdowns."""
+        boxes = self.session.query(BoxItem).all()
+        by_state: Dict[str, int] = {}
+        by_type: Dict[str, int] = {}
+        active_count = 0
+        total_cost = 0.0
+
+        for b in boxes:
+            by_state[b.state] = by_state.get(b.state, 0) + 1
+            by_type[b.box_type] = by_type.get(b.box_type, 0) + 1
+            if b.is_active:
+                active_count += 1
+            if b.cost is not None:
+                total_cost += b.cost
+
+        return {
+            "total": len(boxes),
+            "active": active_count,
+            "by_state": by_state,
+            "by_type": by_type,
+            "total_cost": total_cost,
+        }
+
+    def material_analytics(self) -> Dict[str, Any]:
+        """Breakdown of boxes by material value."""
+        boxes = self.session.query(BoxItem).all()
+        by_material: Dict[str, int] = {}
+        no_material = 0
+
+        for b in boxes:
+            if b.material:
+                by_material[b.material] = by_material.get(b.material, 0) + 1
+            else:
+                no_material += 1
+
+        return {
+            "total": len(boxes),
+            "by_material": by_material,
+            "no_material": no_material,
+        }
+
+    def contents_summary(self, box_id: str) -> Dict[str, Any]:
+        """Aggregate contents of a single box for quick overview."""
+        box = self.get_box(box_id)
+        if box is None:
+            raise ValueError(f"Box '{box_id}' not found")
+
+        contents = self.list_contents(box_id)
+        distinct_items: set = set()
+        total_quantity = 0.0
+        has_lot_serial = 0
+
+        for c in contents:
+            distinct_items.add(c.item_id)
+            total_quantity += (c.quantity or 0.0)
+            if c.lot_serial:
+                has_lot_serial += 1
+
+        return {
+            "box_id": box.id,
+            "box_name": box.name,
+            "total_lines": len(contents),
+            "distinct_items": len(distinct_items),
+            "total_quantity": total_quantity,
+            "has_lot_serial": has_lot_serial,
+        }
+
+    def export_overview(self) -> Dict[str, Any]:
+        """Export-ready overview payload with overview + material analytics."""
+        return {
+            "overview": self.overview(),
+            "material_analytics": self.material_analytics(),
+        }
+
+    def export_contents(self, box_id: str) -> Dict[str, Any]:
+        """Export-ready contents payload: summary + full line list."""
+        box = self.get_box(box_id)
+        if box is None:
+            raise ValueError(f"Box '{box_id}' not found")
+
+        summary = self.contents_summary(box_id)
+        contents = self.list_contents(box_id)
+        return {
+            **summary,
+            "contents": [
+                {
+                    "id": c.id,
+                    "item_id": c.item_id,
+                    "quantity": c.quantity,
+                    "lot_serial": c.lot_serial,
+                    "note": c.note,
+                }
+                for c in contents
+            ],
+        }

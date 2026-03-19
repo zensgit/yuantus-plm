@@ -203,3 +203,166 @@ class TestBoxContents:
         service = BoxService(session)
         assert service.remove_content("content-1") is True
         session.delete.assert_called_once_with(fake_content)
+
+
+# ---------------------------------------------------------------------------
+# TestBoxAnalytics (C20)
+# ---------------------------------------------------------------------------
+
+
+class TestBoxAnalytics:
+    def _session_with_boxes(self, boxes):
+        """Session whose query(BoxItem).all() returns *boxes*."""
+        session = _mock_session()
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.all.return_value = boxes
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        return session
+
+    def test_overview(self):
+        boxes = [
+            _make_box(box_id="b1", state="draft", box_type="box"),
+            _make_box(box_id="b2", state="active", box_type="carton"),
+            _make_box(box_id="b3", state="active", box_type="box"),
+        ]
+        boxes[0].cost = 2.0
+        boxes[1].cost = 3.5
+        boxes[2].cost = None
+        boxes[0].is_active = True
+        boxes[1].is_active = True
+        boxes[2].is_active = False
+
+        session = self._session_with_boxes(boxes)
+        service = BoxService(session)
+        result = service.overview()
+
+        assert result["total"] == 3
+        assert result["active"] == 2
+        assert result["by_state"]["draft"] == 1
+        assert result["by_state"]["active"] == 2
+        assert result["by_type"]["box"] == 2
+        assert result["by_type"]["carton"] == 1
+        assert result["total_cost"] == 5.5
+
+    def test_overview_empty(self):
+        session = self._session_with_boxes([])
+        service = BoxService(session)
+        result = service.overview()
+
+        assert result["total"] == 0
+        assert result["active"] == 0
+        assert result["by_state"] == {}
+        assert result["total_cost"] == 0.0
+
+    def test_material_analytics(self):
+        boxes = [
+            _make_box(box_id="b1"),
+            _make_box(box_id="b2"),
+            _make_box(box_id="b3"),
+        ]
+        boxes[0].material = "cardboard"
+        boxes[1].material = "wood"
+        boxes[2].material = None
+
+        session = self._session_with_boxes(boxes)
+        service = BoxService(session)
+        result = service.material_analytics()
+
+        assert result["total"] == 3
+        assert result["by_material"]["cardboard"] == 1
+        assert result["by_material"]["wood"] == 1
+        assert result["no_material"] == 1
+
+    def test_contents_summary(self):
+        session = _mock_session()
+        fake_box = _make_box()
+        session.get.return_value = fake_box
+
+        c1 = MagicMock(spec=BoxContent)
+        c1.item_id = "item-1"
+        c1.quantity = 5.0
+        c1.lot_serial = "LOT-001"
+
+        c2 = MagicMock(spec=BoxContent)
+        c2.item_id = "item-2"
+        c2.quantity = 3.0
+        c2.lot_serial = None
+
+        c3 = MagicMock(spec=BoxContent)
+        c3.item_id = "item-1"
+        c3.quantity = 2.0
+        c3.lot_serial = "LOT-002"
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = [c1, c2, c3]
+
+        service = BoxService(session)
+        result = service.contents_summary("box-1")
+
+        assert result["box_id"] == "box-1"
+        assert result["total_lines"] == 3
+        assert result["distinct_items"] == 2
+        assert result["total_quantity"] == 10.0
+        assert result["has_lot_serial"] == 2
+
+    def test_contents_summary_not_found(self):
+        session = _mock_session()
+        session.get.return_value = None
+
+        service = BoxService(session)
+        with pytest.raises(ValueError, match="not found"):
+            service.contents_summary("nonexistent")
+
+    def test_export_overview(self):
+        boxes = [_make_box(box_id="b1")]
+        boxes[0].cost = 10.0
+        boxes[0].material = "plastic"
+
+        session = self._session_with_boxes(boxes)
+        service = BoxService(session)
+        result = service.export_overview()
+
+        assert "overview" in result
+        assert "material_analytics" in result
+        assert result["overview"]["total"] == 1
+        assert result["material_analytics"]["by_material"]["plastic"] == 1
+
+    def test_export_contents(self):
+        session = _mock_session()
+        fake_box = _make_box()
+        session.get.return_value = fake_box
+
+        c1 = MagicMock(spec=BoxContent)
+        c1.id = "c-1"
+        c1.item_id = "item-1"
+        c1.quantity = 4.0
+        c1.lot_serial = None
+        c1.note = "fragile"
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = [c1]
+
+        service = BoxService(session)
+        result = service.export_contents("box-1")
+
+        assert result["box_id"] == "box-1"
+        assert result["total_lines"] == 1
+        assert result["total_quantity"] == 4.0
+        assert len(result["contents"]) == 1
+        assert result["contents"][0]["note"] == "fragile"
+
+    def test_export_contents_not_found(self):
+        session = _mock_session()
+        session.get.return_value = None
+
+        service = BoxService(session)
+        with pytest.raises(ValueError, match="not found"):
+            service.export_contents("nonexistent")

@@ -173,3 +173,61 @@ def export_box_meta(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     return meta
+
+
+# ---------------------------------------------------------------------------
+# Analytics / export endpoints (C20)
+# ---------------------------------------------------------------------------
+
+
+@box_router.get("/overview")
+def box_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.overview()
+
+
+@box_router.get("/materials/analytics")
+def box_material_analytics(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.material_analytics()
+
+
+@box_router.get("/items/{box_id}/contents-summary")
+def box_contents_summary(
+    box_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    try:
+        return service.contents_summary(box_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@box_router.get("/export/overview")
+def box_export_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.export_overview()
+
+
+@box_router.get("/items/{box_id}/export-contents")
+def box_export_contents(
+    box_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    try:
+        return service.export_contents(box_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
