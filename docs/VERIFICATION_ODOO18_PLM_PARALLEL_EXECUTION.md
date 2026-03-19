@@ -315,6 +315,67 @@ pytest -q \
   - `breakage incidents export`
 - 还未把 locale 接到 maintenance / BOM / more report pipelines
 
+## Increment 2026-03-19 C7-C8-C9 Stack Branch
+
+### Touched Areas
+- `feature/codex-stack-c7c8c9`
+- `src/yuantus/api/app.py`
+- `contracts/claude_allowed_paths.json`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DELIVERY_DOC_INDEX.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/api/app.py \
+  src/yuantus/meta_engine/web/maintenance_router.py \
+  src/yuantus/meta_engine/web/quality_router.py \
+  src/yuantus/meta_engine/web/bom_router.py \
+  src/yuantus/meta_engine/web/locale_router.py \
+  src/yuantus/meta_engine/maintenance/service.py \
+  src/yuantus/meta_engine/quality/service.py \
+  src/yuantus/meta_engine/locale/service.py \
+  src/yuantus/meta_engine/report_locale/service.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_locale_service.py \
+  src/yuantus/meta_engine/tests/test_report_locale_service.py \
+  src/yuantus/meta_engine/tests/test_locale_router.py \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_services.py -k 'locale or report_locale or export_' \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_router.py -k 'locale or export' \
+  src/yuantus/meta_engine/tests/test_maintenance_service.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_quality_service.py \
+  src/yuantus/meta_engine/tests/test_quality_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_preview.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_router.py
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `py_compile`: passed
+- integrated stack regression:
+  - `98 passed, 200 deselected, 54 warnings in 12.37s`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- stack branch 目前还没有把 `C11/C12/C13` 实现并入
+- 主仓 `/Users/huazhou/Downloads/Github/Yuantus` 仍在 Claude 分支，不应直接在主仓上继续叠集成改动
+
 ## Increment 2026-03-18 C10-Locale-Resolver
 
 ### Touched Areas

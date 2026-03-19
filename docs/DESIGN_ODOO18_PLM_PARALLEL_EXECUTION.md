@@ -221,6 +221,43 @@
 - 本轮不合并这些分支回 `main`
 - 本轮不修改 Claude 的原 feature branches
 
+## Increment 2026-03-19 C7-C8-C9-Stack Integration
+
+### Why
+- 分支级回归已经分别通过，但这还不等于单一工作树可合并。
+- 需要一条统一集成栈验证真实 cherry-pick 顺序、共享 router 注册点和 path-guard contract。
+
+### Delivered Scope
+- 从 `feature/codex-p2a-locale-export` 新开 `feature/codex-stack-c7c8c9`
+- 按顺序叠加：
+  - `C9` maintenance integration
+  - `C8` quality integration
+  - `C7` BOM summarized snapshot integration
+- 把 stack 上的真实冲突固定到两个文件：
+  - `contracts/claude_allowed_paths.json`
+  - `src/yuantus/api/app.py`
+
+### Conflict Resolution
+- `contracts/claude_allowed_paths.json`
+  - 保留 locale 基线里的 `C1-C13` 全量 profile
+  - 不回退到 `C8/C9` 分支里的较早 profile 子集
+- `src/yuantus/api/app.py`
+  - 同时保留 `locale_router`
+  - 同时注册 `maintenance_router`
+  - 同时注册 `quality_router`
+
+### Chosen Defaults
+- 统一集成栈继续以 locale/export 分支为基线
+- `C7/C8/C9` 不再视为“仅在独立集成分支完成”，而是视为“已在 stack 分支合并验证”
+- Claude 下一批任务优先级固定为：
+  - `C11`
+  - `C12`
+  - `C13`
+
+### Non-Goals
+- 本轮不把 stack 直接回合并到主仓脏工作树
+- 本轮不扩展 `C11/C12/C13` 的实现
+
 ## Claude Task Draft C11
 
 ### Why

@@ -74,6 +74,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - Odoo18 PLM Parallel Execution Plan: `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
 - Odoo18 PLM Parallel Execution Design: `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
 - Odoo18 PLM Parallel Execution Verification: `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- C7 BOM Compare Summarized Snapshot Design: `docs/DESIGN_PARALLEL_C7_BOM_COMPARE_SUMMARIZED_SNAPSHOT_20260318.md`
+- C7 BOM Compare Summarized Snapshot Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C7_BOM_COMPARE_SUMMARIZED_SNAPSHOT_20260318.md`
+- C8 Quality MRP Bootstrap Integration Design: `docs/DESIGN_PARALLEL_C8_QUALITY_MRP_BOOTSTRAP_INTEGRATION_20260318.md`
+- C8 Quality MRP Bootstrap Integration Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C8_QUALITY_MRP_BOOTSTRAP_INTEGRATION_20260318.md`
+- C9 Maintenance Workcenter Readiness Design: `docs/DESIGN_PARALLEL_C9_MAINTENANCE_WORKCENTER_READINESS_20260318.md`
+- C9 Maintenance Workcenter Readiness Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C9_MAINTENANCE_WORKCENTER_READINESS_20260318.md`
 - C10 Locale Resolver Export Helpers Design: `docs/DESIGN_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
 - C10 Locale Resolver Export Helpers Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
 

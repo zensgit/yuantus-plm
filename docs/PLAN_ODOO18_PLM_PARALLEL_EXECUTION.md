@@ -2,8 +2,8 @@
 
 ## Goal Snapshot
 - 目标一：在当前真实代码基线上持续收口 Odoo18 PLM 对标能力
-- 目标二：把 Claude 已完成分支按模块边界安全并入，不和进行中的 `C7` 冲突
-- 当前工作分支：`feature/codex-p2a-locale-export`
+- 目标二：把 Claude 已完成分支按模块边界安全并入统一集成栈
+- 当前工作分支：`feature/codex-stack-c7c8c9`
 
 ## Baseline Correction
 - 当前仓库真实基线与此前长链路摘要不一致。
@@ -18,9 +18,9 @@
 - `P2-A` parallel-ops summary/trends locale pipeline：completed on this branch
 - `P2-A` breakage metrics/groups locale pipeline：completed on this branch
 - `P2-A` breakage incidents locale pipeline：completed on this branch
-- `C7` BOM compare hardening：Codex-integrated on `feature/codex-c7-bom-compare-integration` (`5c31dd3`, `db781f4`)
-- `C8` quality-mrp integration：Codex-integrated on `feature/codex-c8-quality-integration` (`3b971f3`, `7ee9f1e`)
-- `C9` maintenance-workcenter readiness：Codex-integrated on `feature/codex-c9-maintenance-integration` (`d395fb8`, `7340027`)
+- `C7` BOM compare hardening：merged and verified on this branch (`58f8db7`, `0a0a2eb`)
+- `C8` quality-mrp integration：merged and verified on this branch (`f918784`, `12f5b9b`, `a7139ff`)
+- `C9` maintenance-workcenter readiness：merged and verified on this branch (`736e612`, `b32ed6e`)
 - `C10` locale description resolver：completed on this branch after Codex integration verification
 - `C11` file/3D consumer hardening：ready_for_claude
 - `C12` generic approvals bootstrap：ready_for_claude
@@ -31,9 +31,9 @@
 | --- | --- | --- | --- | --- |
 | C6 | P2 | locale/report bootstrap | `locale` + `report_locale` + `locale_router` | completed |
 | P2-A | P2 | locale/report helpers | `parallel_tasks` workorder export + parallel-ops export locale integration | completed |
-| C7 | P1 | BOM compare & summary hardening | `bom_router` + summarized snapshot regression pack | completed_on_codex_integration_branch |
-| C8 | P1 | quality-mrp integration | `quality` + manufacturing integration edge | completed_on_codex_integration_branch |
-| C9 | P1 | maintenance-workcenter readiness | `maintenance` + workcenter integration edge | completed_on_codex_integration_branch |
+| C7 | P1 | BOM compare & summary hardening | `bom_router` + summarized snapshot regression pack | completed_on_stack_branch |
+| C8 | P1 | quality-mrp integration | `quality` + manufacturing integration edge | completed_on_stack_branch |
+| C9 | P1 | maintenance-workcenter readiness | `maintenance` + workcenter integration edge | completed_on_stack_branch |
 | C10 | P2 | locale description resolver | `locale` description/read-model helpers | completed |
 | C11 | P1 | file/3D consumer hardening | `file_router` + file viewer tests | ready_for_claude |
 | C12 | P2 | generic approvals bootstrap | new `approvals` module + router + tests | ready_for_claude |
@@ -119,10 +119,25 @@
   - registered `maintenance_router` in `src/yuantus/api/app.py`
   - verified `35 passed` in maintenance service/router pack
 
+## Increment 2026-03-19 Codex-C7-C8-C9-Stack
+- Created `feature/codex-stack-c7c8c9` from the locale/export baseline
+- Stacked:
+  - `C9` integration commits `d395fb8`, `7340027`
+  - `C8` integration commits `0423e03`, `3b971f3`, `7ee9f1e`
+  - `C7` integration commits `5c31dd3`, `db781f4`
+- Resolved real stack conflicts only in:
+  - `contracts/claude_allowed_paths.json`
+  - `src/yuantus/api/app.py`
+- Conflict strategy:
+  - preserved the broader `C1-C13` Claude path-guard matrix
+  - kept `locale_router`, `maintenance_router`, and `quality_router` all registered in `create_app()`
+- Unified stack regression on this branch:
+  - `98 passed, 200 deselected, 54 warnings`
+
 ## Next Claude Allocation Draft
-- `C11` file/3D consumer hardening: scoped and ready
-- `C12` generic approvals bootstrap: scoped and ready
-- `C13` subcontracting bootstrap: scoped and ready
+- `C11` file/3D consumer hardening: highest priority and scoped
+- `C12` generic approvals bootstrap: second priority and scoped
+- `C13` subcontracting bootstrap: third priority and scoped
 
 ## Claude Allocation
 - `C7/C8/C9/C10` should not be edited further on Claude branches unless a new bugfix branch is explicitly opened.
