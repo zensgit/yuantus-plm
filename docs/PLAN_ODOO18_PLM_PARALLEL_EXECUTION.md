@@ -3,7 +3,7 @@
 ## Goal Snapshot
 - 目标一：在当前真实代码基线上持续收口 Odoo18 PLM 对标能力
 - 目标二：把 Claude 已完成分支按模块边界安全并入统一集成栈
-- 当前工作分支：`feature/codex-stack-c11c12`
+- 当前工作分支：`feature/codex-stack-c17c18c19`
 
 ## Baseline Correction
 - 当前仓库真实基线与此前长链路摘要不一致。
@@ -29,6 +29,7 @@
 - `C14` approvals export / ops-report bootstrap：completed on this branch
 - `C15` subcontracting analytics / export bootstrap：completed on this branch
 - `C16` quality SPC / analytics bootstrap：completed on this branch
+- `C17/C18/C19` greenfield candidate stack：completed on this branch
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -45,9 +46,9 @@
 | C14 | P2 | approvals export / ops-report | `approvals` service + router + tests | completed_on_this_branch |
 | C15 | P2 | subcontracting analytics / export | `subcontracting` service + router + tests | completed_on_this_branch |
 | C16 | P2 | quality SPC / analytics | `quality` analytics services + analytics router + tests | completed_on_this_branch |
-| C17 | P2 | PLM box bootstrap | new `box` module + router + tests | completed_on_c17_integration_branch |
-| C18 | P2 | document multi-site sync bootstrap | new `document_sync` module + router + tests | completed_on_c18_integration_branch |
-| C19 | P2 | cutted-parts bootstrap | new `cutted_parts` module + router + tests | completed_on_c19_integration_branch |
+| C17 | P2 | PLM box bootstrap | new `box` module + router + tests | completed_on_candidate_stack |
+| C18 | P2 | document multi-site sync bootstrap | new `document_sync` module + router + tests | completed_on_candidate_stack |
+| C19 | P2 | cutted-parts bootstrap | new `cutted_parts` module + router + tests | completed_on_candidate_stack |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -509,3 +510,18 @@
     - `52 passed, 19 warnings`
   - light cross-pack regression:
     - `77 passed, 64 warnings`
+
+## Increment 2026-03-19 Codex-C17-C18-C19-Stack
+- Created `feature/codex-stack-c17c18c19` from the verified greenfield candidate stack `feature/codex-stack-c17c18`
+- Stacked:
+  - `C19` integration commits `ea7af53`, `2f98e1b`
+- Real shared-file conflict appeared only in:
+  - `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- Conflict strategy:
+  - preserved all three `C17` / `C18` / `C19` status lines in the priority matrix
+  - preserved both prior `C17` / `C18` candidate-stack notes and added the `C19` integration record
+- Combined verification results on the stack branch:
+  - `C17 + C18 + C19` targeted pack:
+    - `87 passed, 29 warnings`
+  - light cross-pack regression:
+    - `87 passed, 74 warnings`

@@ -724,7 +724,7 @@ git diff --check
 - `git diff --check`: passed
 
 ### Residual Risks
-- `C17-C19` 已进入分支化 greenfield 实现阶段，但尚未全部汇总到统一候选栈
+- `C17-C19` 已汇总到 greenfield 候选栈，但仍未接入统一主应用
 
 ## Increment 2026-03-19 Codex-C19-Integration
 
@@ -1191,3 +1191,87 @@ git diff --check
 ### Residual Risks
 - `C17/C18` 仍都保持未注册到 `src/yuantus/api/app.py`
 - 当前只证明两个 greenfield 子域可以一起叠加且不踩现有已集成子域，尚未证明统一主应用接线
+
+## Increment 2026-03-19 Codex-C17-C18-C19-Stack
+
+### Touched Areas
+- `feature/codex-stack-c17c18c19`
+- `src/yuantus/meta_engine/box/__init__.py`
+- `src/yuantus/meta_engine/box/models.py`
+- `src/yuantus/meta_engine/box/service.py`
+- `src/yuantus/meta_engine/web/box_router.py`
+- `src/yuantus/meta_engine/document_sync/__init__.py`
+- `src/yuantus/meta_engine/document_sync/models.py`
+- `src/yuantus/meta_engine/document_sync/service.py`
+- `src/yuantus/meta_engine/web/document_sync_router.py`
+- `src/yuantus/meta_engine/cutted_parts/__init__.py`
+- `src/yuantus/meta_engine/cutted_parts/models.py`
+- `src/yuantus/meta_engine/cutted_parts/service.py`
+- `src/yuantus/meta_engine/web/cutted_parts_router.py`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/meta_engine/box/__init__.py \
+  src/yuantus/meta_engine/box/models.py \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/document_sync/__init__.py \
+  src/yuantus/meta_engine/document_sync/models.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py \
+  src/yuantus/meta_engine/cutted_parts/__init__.py \
+  src/yuantus/meta_engine/cutted_parts/models.py \
+  src/yuantus/meta_engine/cutted_parts/service.py \
+  src/yuantus/meta_engine/web/cutted_parts_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `py_compile`: passed
+- `C17 + C18 + C19` targeted pack:
+  - `87 passed, 29 warnings`
+- light cross-pack regression:
+  - `87 passed, 74 warnings`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- `C17/C18/C19` 仍都保持未注册到 `src/yuantus/api/app.py`
+- 当前只证明三个 greenfield 子域可以一起叠加且不踩现有已集成子域，尚未证明统一主应用接线
