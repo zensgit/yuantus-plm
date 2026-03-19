@@ -139,3 +139,22 @@
   - `C22`
 - next greenfield base:
   - `feature/claude-greenfield-base-2`
+
+## Next Candidate Stack: C20-C21
+- candidate branch:
+  - `feature/codex-stack-c20c21`
+- base relation:
+  - fast-forward from `main` commit `dd4b72a`
+- integrated commits:
+  - `e85d046` `feat(c20): add box analytics and export endpoints`
+  - `b45e7a4` `feat(c21): add document sync analytics and export endpoints`
+  - `084141e` `docs(stack): record c20 c21 candidate verification`
+  - `4bb81d3` `docs(stack): add c19 cross-regression to c20 c21 candidate`
+  - `280c8b6` `docs(verification): refresh c20 c21 c22 batch status`
+- candidate verification:
+  - targeted `C20+C21` pack:
+    - `83 passed, 33 warnings in 9.00s`
+  - greenfield cross-regression with `C19`:
+    - `118 passed, 43 warnings in 31.73s`
+- current gate:
+  - keep `C22` as the final pending task before deciding whether to promote this candidate into the next merged stack
