@@ -60,6 +60,28 @@ def _make_job(job_id="job-1", site_id="site-1", state="pending", direction="push
     return job
 
 
+def _make_record(
+    record_id="rec-1",
+    job_id="job-1",
+    document_id="doc-1",
+    outcome="synced",
+    source_checksum=None,
+    target_checksum=None,
+    conflict_detail=None,
+    error_detail=None,
+):
+    rec = MagicMock(spec=SyncRecord)
+    rec.id = record_id
+    rec.job_id = job_id
+    rec.document_id = document_id
+    rec.outcome = outcome
+    rec.source_checksum = source_checksum
+    rec.target_checksum = target_checksum
+    rec.conflict_detail = conflict_detail
+    rec.error_detail = error_detail
+    return rec
+
+
 # ---------------------------------------------------------------------------
 # TestSiteCRUD
 # ---------------------------------------------------------------------------
@@ -577,3 +599,250 @@ class TestAnalytics:
 
         assert result["total_conflicts"] == 0
         assert result["conflicts"] == []
+
+
+# ---------------------------------------------------------------------------
+# TestReconciliation (C24)
+# ---------------------------------------------------------------------------
+
+
+class TestReconciliation:
+    def _session_with_models(self, sites=None, jobs=None, records=None):
+        """Session whose query() returns sites, jobs, or records depending on model."""
+        session = _mock_session()
+        _sites = sites or []
+        _jobs = jobs or []
+        _records = records or []
+
+        def _get_side_effect(model, pk):
+            if model is SyncSite:
+                return next((s for s in _sites if s.id == pk), None)
+            if model is SyncJob:
+                return next((j for j in _jobs if j.id == pk), None)
+            return None
+
+        session.get.side_effect = _get_side_effect
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is SyncSite:
+                q.all.return_value = _sites
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is SyncJob:
+                # Support both .all() and .filter().all() patterns
+                q.all.return_value = _jobs
+
+                def filter_side_effect(*args, **kwargs):
+                    fq = MagicMock()
+                    # Try to match by site_id filter
+                    filtered = _jobs
+                    fq.all.return_value = filtered
+                    fq.filter.return_value = fq
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = filter_side_effect
+                q.order_by.return_value = q
+            elif model is SyncRecord:
+                q.all.return_value = _records
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+        return session
+
+    def test_reconciliation_queue(self):
+        """Jobs with conflicts in completed/failed state appear in queue."""
+        j1 = _make_job(job_id="j1", state="completed")
+        j1.conflict_count = 3
+        j1.error_count = 1
+
+        j2 = _make_job(job_id="j2", state="failed")
+        j2.conflict_count = 1
+        j2.error_count = 0
+
+        j3 = _make_job(job_id="j3", state="pending")
+        j3.conflict_count = 5
+        j3.error_count = 0
+
+        session = self._session_with_models(jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.reconciliation_queue()
+
+        assert result["total_jobs_with_conflicts"] == 2
+        job_ids = [j["job_id"] for j in result["jobs"]]
+        assert "j1" in job_ids
+        assert "j2" in job_ids
+        assert "j3" not in job_ids
+
+    def test_reconciliation_queue_empty(self):
+        """No jobs at all yields empty queue."""
+        session = self._session_with_models(jobs=[])
+        service = DocumentSyncService(session)
+        result = service.reconciliation_queue()
+
+        assert result["total_jobs_with_conflicts"] == 0
+        assert result["jobs"] == []
+
+    def test_reconciliation_queue_no_conflicts(self):
+        """Jobs exist but none have conflicts."""
+        j1 = _make_job(job_id="j1", state="completed")
+        j1.conflict_count = 0
+        j1.error_count = 0
+
+        j2 = _make_job(job_id="j2", state="failed")
+        j2.conflict_count = 0
+        j2.error_count = 2
+
+        session = self._session_with_models(jobs=[j1, j2])
+        service = DocumentSyncService(session)
+        result = service.reconciliation_queue()
+
+        assert result["total_jobs_with_conflicts"] == 0
+        assert result["jobs"] == []
+
+    def test_conflict_resolution_summary(self):
+        """Detailed breakdown includes record-level conflict and error details."""
+        job = _make_job(job_id="j1", site_id="s1", state="completed")
+
+        r_synced = _make_record(
+            record_id="r1", document_id="d1", outcome="synced"
+        )
+        r_conflict = _make_record(
+            record_id="r2",
+            document_id="d2",
+            outcome="conflict",
+            source_checksum="aaa",
+            target_checksum="bbb",
+            conflict_detail="version mismatch",
+        )
+        r_error = _make_record(
+            record_id="r3",
+            document_id="d3",
+            outcome="error",
+            error_detail="timeout",
+        )
+        r_skipped = _make_record(
+            record_id="r4", document_id="d4", outcome="skipped"
+        )
+
+        session = self._session_with_models(
+            jobs=[job], records=[r_synced, r_conflict, r_error, r_skipped]
+        )
+        service = DocumentSyncService(session)
+        result = service.conflict_resolution_summary("j1")
+
+        assert result["job_id"] == "j1"
+        assert result["site_id"] == "s1"
+        assert result["state"] == "completed"
+        assert result["total_records"] == 4
+        assert result["synced"] == 1
+        assert result["conflicts"] == 1
+        assert result["errors"] == 1
+        assert result["skipped"] == 1
+
+        assert len(result["conflict_details"]) == 1
+        assert result["conflict_details"][0]["record_id"] == "r2"
+        assert result["conflict_details"][0]["document_id"] == "d2"
+        assert result["conflict_details"][0]["source_checksum"] == "aaa"
+        assert result["conflict_details"][0]["target_checksum"] == "bbb"
+        assert result["conflict_details"][0]["detail"] == "version mismatch"
+
+        assert len(result["error_details"]) == 1
+        assert result["error_details"][0]["record_id"] == "r3"
+        assert result["error_details"][0]["detail"] == "timeout"
+
+    def test_conflict_resolution_summary_not_found(self):
+        """Raises ValueError when job does not exist."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.conflict_resolution_summary("nonexistent")
+
+    def test_conflict_resolution_summary_no_conflicts(self):
+        """Summary works correctly when job has no conflict records."""
+        job = _make_job(job_id="j1", site_id="s1", state="completed")
+
+        r_synced = _make_record(
+            record_id="r1", document_id="d1", outcome="synced"
+        )
+        r_synced2 = _make_record(
+            record_id="r2", document_id="d2", outcome="synced"
+        )
+
+        session = self._session_with_models(
+            jobs=[job], records=[r_synced, r_synced2]
+        )
+        service = DocumentSyncService(session)
+        result = service.conflict_resolution_summary("j1")
+
+        assert result["total_records"] == 2
+        assert result["synced"] == 2
+        assert result["conflicts"] == 0
+        assert result["errors"] == 0
+        assert result["skipped"] == 0
+        assert result["conflict_details"] == []
+        assert result["error_details"] == []
+
+    def test_site_reconciliation_status(self):
+        """Per-site status aggregates conflict/error counts across jobs."""
+        site = _make_site(site_id="s1", name="HQ", state="active")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.conflict_count = 3
+        j1.error_count = 1
+
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j2.conflict_count = 0
+        j2.error_count = 2
+
+        j3 = _make_job(job_id="j3", site_id="s1", state="pending")
+        j3.conflict_count = 0
+        j3.error_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.site_reconciliation_status("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["site_name"] == "HQ"
+        assert result["state"] == "active"
+        assert result["total_jobs"] == 3
+        assert result["jobs_with_conflicts"] == 1
+        assert result["jobs_with_errors"] == 2
+        assert result["total_unresolved_conflicts"] == 3
+        assert result["total_unresolved_errors"] == 3
+
+    def test_site_reconciliation_status_not_found(self):
+        """Raises ValueError when site does not exist."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.site_reconciliation_status("nonexistent")
+
+    def test_export_reconciliation(self):
+        """Export payload contains queue and per-site breakdown."""
+        site = _make_site(site_id="s1", name="HQ", state="active")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.conflict_count = 2
+        j1.error_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.export_reconciliation()
+
+        assert "reconciliation_queue" in result
+        assert "sites" in result
+        assert result["reconciliation_queue"]["total_jobs_with_conflicts"] == 1
+        assert len(result["sites"]) == 1
+        assert result["sites"][0]["site_id"] == "s1"
+        assert result["sites"][0]["jobs_with_conflicts"] == 1

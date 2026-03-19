@@ -250,3 +250,52 @@ def export_conflicts(
 ):
     service = DocumentSyncService(db)
     return service.export_conflicts()
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation endpoints (C24)
+# ---------------------------------------------------------------------------
+
+
+@document_sync_router.get("/reconciliation/queue")
+def reconciliation_queue(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.reconciliation_queue()
+
+
+@document_sync_router.get("/reconciliation/jobs/{job_id}/summary")
+def reconciliation_job_summary(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.conflict_resolution_summary(job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/reconciliation/sites/{site_id}/status")
+def reconciliation_site_status(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.site_reconciliation_status(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/export/reconciliation")
+def export_reconciliation(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.export_reconciliation()

@@ -326,3 +326,120 @@ def test_export_conflicts():
     assert resp.status_code == 200
     assert resp.json()["total_conflicts"] == 1
     assert len(resp.json()["conflicts"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Reconciliation endpoint tests (C24)
+# ---------------------------------------------------------------------------
+
+
+def test_reconciliation_queue():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.reconciliation_queue.return_value = {
+            "total_jobs_with_conflicts": 2,
+            "jobs": [
+                {"job_id": "j1", "site_id": "s1", "state": "completed",
+                 "conflict_count": 3, "error_count": 1},
+                {"job_id": "j2", "site_id": "s1", "state": "failed",
+                 "conflict_count": 1, "error_count": 0},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/reconciliation/queue")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_jobs_with_conflicts"] == 2
+    assert len(resp.json()["jobs"]) == 2
+
+
+def test_conflict_resolution_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.conflict_resolution_summary.return_value = {
+            "job_id": "j1", "site_id": "s1", "state": "completed",
+            "total_records": 4, "synced": 1, "conflicts": 1,
+            "errors": 1, "skipped": 1,
+            "conflict_details": [
+                {"record_id": "r2", "document_id": "d2",
+                 "source_checksum": "aaa", "target_checksum": "bbb",
+                 "detail": "version mismatch"},
+            ],
+            "error_details": [
+                {"record_id": "r3", "document_id": "d3", "detail": "timeout"},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/reconciliation/jobs/j1/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_records"] == 4
+    assert resp.json()["conflicts"] == 1
+    assert len(resp.json()["conflict_details"]) == 1
+    assert len(resp.json()["error_details"]) == 1
+
+
+def test_conflict_resolution_summary_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.conflict_resolution_summary.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/reconciliation/jobs/bad/summary")
+
+    assert resp.status_code == 404
+
+
+def test_site_reconciliation_status():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_reconciliation_status.return_value = {
+            "site_id": "s1", "site_name": "HQ", "state": "active",
+            "total_jobs": 3, "jobs_with_conflicts": 1,
+            "jobs_with_errors": 2, "total_unresolved_conflicts": 3,
+            "total_unresolved_errors": 3,
+        }
+        resp = client.get("/api/v1/document-sync/reconciliation/sites/s1/status")
+
+    assert resp.status_code == 200
+    assert resp.json()["site_id"] == "s1"
+    assert resp.json()["jobs_with_conflicts"] == 1
+    assert resp.json()["total_unresolved_conflicts"] == 3
+
+
+def test_site_reconciliation_status_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_reconciliation_status.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/reconciliation/sites/bad/status")
+
+    assert resp.status_code == 404
+
+
+def test_export_reconciliation():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_reconciliation.return_value = {
+            "reconciliation_queue": {
+                "total_jobs_with_conflicts": 1,
+                "jobs": [
+                    {"job_id": "j1", "site_id": "s1", "state": "completed",
+                     "conflict_count": 2, "error_count": 0},
+                ],
+            },
+            "sites": [
+                {"site_id": "s1", "site_name": "HQ", "state": "active",
+                 "total_jobs": 1, "jobs_with_conflicts": 1,
+                 "jobs_with_errors": 0, "total_unresolved_conflicts": 2,
+                 "total_unresolved_errors": 0},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/export/reconciliation")
+
+    assert resp.status_code == 200
+    assert "reconciliation_queue" in resp.json()
+    assert "sites" in resp.json()
+    assert resp.json()["reconciliation_queue"]["total_jobs_with_conflicts"] == 1
+    assert len(resp.json()["sites"]) == 1

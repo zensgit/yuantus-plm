@@ -1,5 +1,5 @@
 """
-DocumentSyncService – site management, sync jobs, record tracking, and
+DocumentSyncService -- site management, sync jobs, record tracking, and
 summary export for the document multi-site sync domain.
 """
 from __future__ import annotations
@@ -44,6 +44,9 @@ _JOB_TRANSITIONS: Dict[str, List[str]] = {
     SyncJobState.FAILED.value: [],
     SyncJobState.CANCELLED.value: [],
 }
+
+# States that qualify a job for the reconciliation queue
+_RECONCILIATION_STATES = {SyncJobState.COMPLETED.value, SyncJobState.FAILED.value}
 
 
 class DocumentSyncService:
@@ -420,4 +423,127 @@ class DocumentSyncService:
         return {
             "total_conflicts": len(all_conflicts),
             "conflicts": all_conflicts,
+        }
+
+    # ------------------------------------------------------------------
+    # Reconciliation (C24)
+    # ------------------------------------------------------------------
+
+    def reconciliation_queue(self) -> Dict[str, Any]:
+        """List all jobs with unresolved conflicts (completed/failed with conflict_count > 0)."""
+        all_jobs = self.session.query(SyncJob).all()
+
+        queue_jobs: List[Dict[str, Any]] = []
+        for j in all_jobs:
+            if (
+                j.state in _RECONCILIATION_STATES
+                and (j.conflict_count or 0) > 0
+            ):
+                queue_jobs.append({
+                    "job_id": j.id,
+                    "site_id": j.site_id,
+                    "state": j.state,
+                    "conflict_count": j.conflict_count or 0,
+                    "error_count": j.error_count or 0,
+                })
+
+        return {
+            "total_jobs_with_conflicts": len(queue_jobs),
+            "jobs": queue_jobs,
+        }
+
+    def conflict_resolution_summary(self, job_id: str) -> Dict[str, Any]:
+        """Detailed conflict breakdown for a job, including record-level detail."""
+        job = self.get_job(job_id)
+        if job is None:
+            raise ValueError(f"Job '{job_id}' not found")
+
+        records = self.list_records(job_id)
+
+        synced = 0
+        conflicts = 0
+        errors = 0
+        skipped = 0
+        conflict_details: List[Dict[str, Any]] = []
+        error_details: List[Dict[str, Any]] = []
+
+        for r in records:
+            if r.outcome == SyncRecordOutcome.SYNCED.value:
+                synced += 1
+            elif r.outcome == SyncRecordOutcome.CONFLICT.value:
+                conflicts += 1
+                conflict_details.append({
+                    "record_id": r.id,
+                    "document_id": r.document_id,
+                    "source_checksum": r.source_checksum,
+                    "target_checksum": r.target_checksum,
+                    "detail": r.conflict_detail,
+                })
+            elif r.outcome == SyncRecordOutcome.ERROR.value:
+                errors += 1
+                error_details.append({
+                    "record_id": r.id,
+                    "document_id": r.document_id,
+                    "detail": r.error_detail,
+                })
+            elif r.outcome == SyncRecordOutcome.SKIPPED.value:
+                skipped += 1
+
+        return {
+            "job_id": job.id,
+            "site_id": job.site_id,
+            "state": job.state,
+            "total_records": len(records),
+            "synced": synced,
+            "conflicts": conflicts,
+            "errors": errors,
+            "skipped": skipped,
+            "conflict_details": conflict_details,
+            "error_details": error_details,
+        }
+
+    def site_reconciliation_status(self, site_id: str) -> Dict[str, Any]:
+        """Per-site reconciliation status showing all jobs needing attention."""
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        jobs = (
+            self.session.query(SyncJob)
+            .filter(SyncJob.site_id == site_id)
+            .all()
+        )
+
+        jobs_with_conflicts = 0
+        jobs_with_errors = 0
+        total_unresolved_conflicts = 0
+        total_unresolved_errors = 0
+
+        for j in jobs:
+            conflict_count = j.conflict_count or 0
+            error_count = j.error_count or 0
+            if conflict_count > 0:
+                jobs_with_conflicts += 1
+                total_unresolved_conflicts += conflict_count
+            if error_count > 0:
+                jobs_with_errors += 1
+                total_unresolved_errors += error_count
+
+        return {
+            "site_id": site.id,
+            "site_name": site.name,
+            "state": site.state,
+            "total_jobs": len(jobs),
+            "jobs_with_conflicts": jobs_with_conflicts,
+            "jobs_with_errors": jobs_with_errors,
+            "total_unresolved_conflicts": total_unresolved_conflicts,
+            "total_unresolved_errors": total_unresolved_errors,
+        }
+
+    def export_reconciliation(self) -> Dict[str, Any]:
+        """Export-ready reconciliation payload: queue + per-site breakdown."""
+        sites = self.session.query(SyncSite).all()
+        return {
+            "reconciliation_queue": self.reconciliation_queue(),
+            "sites": [self.site_reconciliation_status(s.id) for s in sites],
         }
