@@ -451,6 +451,31 @@
 - 本轮不把质量统计联到 `parallel_tasks`
 - 本轮不把质量统计回写制造热路径
 
+## Increment 2026-03-19 Merge Prep Broader Regression
+
+### Why
+- `C14/C15/C16` 已进入统一栈，当前最重要的不是继续开新支线，而是证明这条栈足够稳定，可以进入 merge-prep。
+- 统一栈脚本主要覆盖 stack 内模块，还需要额外把 `parallel_tasks` locale/export 这类跨域包一起拉进来。
+
+### Delivered Scope
+- 增加一轮 merge-prep broader regression：
+  - stack 脚本覆盖域
+  - `parallel_tasks` locale/export pack
+- 形成独立 merge-prep 工件：
+  - `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Chosen Defaults
+- merge-prep 热点优先按“最容易冲突且最常变”的文件收敛：
+  - `src/yuantus/api/app.py`
+  - `contracts/claude_allowed_paths.json`
+  - 共享 `PLAN/DESIGN/VERIFICATION`
+  - `docs/DELIVERY_DOC_INDEX.md`
+- 现阶段不再开新 Claude 任务，先把统一栈送进最终回归与合并窗口
+
+### Non-Goals
+- 本轮不做最终主仓合并
+- 本轮不追加新的功能面
+
 ### Why
 - 现有仓库只有 ECO approvals，不存在独立的 generic approvals 模块。
 - 这条线适合用全新模块落地，避免挤占现有热文件。

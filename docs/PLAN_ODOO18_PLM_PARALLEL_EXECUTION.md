@@ -272,6 +272,30 @@
 - Recommendation:
   - pause new Claude feature branches until the current stack enters merge-prep
 
+## Increment 2026-03-19 Codex-Merge-Prep-Broader-Regression
+- Ran a broader merge-prep regression pack on top of the unified stack:
+  - BOM summarized snapshot + delta
+  - quality baseline + analytics + SPC
+  - maintenance
+  - locale/report-locale
+  - subcontracting
+  - file viewer
+  - approvals
+  - parallel tasks locale/export pack
+- Result:
+  - `112 passed, 283 deselected, 62 warnings`
+- Merge hotspots currently expected against `main`:
+  - `src/yuantus/api/app.py`
+  - `contracts/claude_allowed_paths.json`
+  - `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+  - `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+  - `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+  - `docs/DELIVERY_DOC_INDEX.md`
+- No blocking merge-prep issue found on the unified stack branch
+- Current recommendation:
+  - stop opening new Claude feature branches
+  - move to merge-prep and final wider regression
+
 ## Increment 2026-03-19 Codex-C11-C12-Integration
 - Created `feature/codex-stack-c11c12` from the verified `C13` baseline
 - Integrated Claude `C11` commit `c21346b`

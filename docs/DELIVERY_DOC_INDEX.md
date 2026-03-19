@@ -94,6 +94,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - C15 Subcontracting Analytics Export Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C15_SUBCONTRACTING_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
 - C16 Quality SPC Analytics Bootstrap Design: `docs/DESIGN_PARALLEL_C16_QUALITY_SPC_ANALYTICS_BOOTSTRAP_20260319.md`
 - C16 Quality SPC Analytics Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C16_QUALITY_SPC_ANALYTICS_BOOTSTRAP_20260319.md`
+- Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
 - Baseline Filters API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`
