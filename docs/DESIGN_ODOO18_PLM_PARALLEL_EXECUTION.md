@@ -728,3 +728,18 @@
 - candidate stack branch: `feature/codex-stack-c20c21c22`
 - integrated commit: `68e3dbb`
 - combined greenfield regression: `133 passed, 49 warnings in 3.32s`
+
+## Increment 2026-03-19 Main-FastForward-C20-C21-C22
+
+### Decision
+- `C20/C21/C22` 不再停留在候选栈，已经以 fast-forward 方式进入 `main`。
+
+### Why
+- `main` 到 `feature/codex-stack-c20c21c22` 是纯快进关系。
+- 统一栈 `full` 已在候选栈上通过，合并后再跑一轮同口径回归即可完成主线收口。
+
+### Result
+- `main` fast-forward target:
+  - `aebdc09`
+- post-merge unified stack regression on `main`:
+  - `351 passed, 123 warnings in 30.86s`

@@ -164,3 +164,13 @@
 - current gate:
   - `C20/C21/C22` are all now candidate-stack verified
   - next step is merge-prep / rehearsal for this full greenfield second-stage batch
+
+## Actual Main Fast-Forward: C20-C21-C22
+- target branch:
+  - `main`
+- source branch:
+  - `feature/codex-stack-c20c21c22`
+- fast-forward result:
+  - `main` advanced from `dd4b72a` to `aebdc09`
+- post-merge unified stack regression:
+  - `351 passed, 123 warnings in 30.86s`
