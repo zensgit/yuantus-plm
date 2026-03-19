@@ -299,3 +299,52 @@ def export_reconciliation(
 ):
     service = DocumentSyncService(db)
     return service.export_reconciliation()
+
+
+# ---------------------------------------------------------------------------
+# Replay / audit endpoints (C27)
+# ---------------------------------------------------------------------------
+
+
+@document_sync_router.get("/replay/overview")
+def replay_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.replay_overview()
+
+
+@document_sync_router.get("/sites/{site_id}/audit")
+def site_audit(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.site_audit(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/jobs/{job_id}/audit")
+def job_audit(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.job_audit(job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/export/audit")
+def export_audit(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.export_audit()

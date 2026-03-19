@@ -846,3 +846,245 @@ class TestReconciliation:
         assert len(result["sites"]) == 1
         assert result["sites"][0]["site_id"] == "s1"
         assert result["sites"][0]["jobs_with_conflicts"] == 1
+
+
+# ---------------------------------------------------------------------------
+# TestReplayAudit (C27)
+# ---------------------------------------------------------------------------
+
+
+class TestReplayAudit:
+    def _session_with_models(self, sites=None, jobs=None, records=None):
+        """Session with model-aware query routing and session.get support."""
+        session = _mock_session()
+        _sites = sites or []
+        _jobs = jobs or []
+        _records = records or []
+
+        def _get_side_effect(model, pk):
+            if model is SyncSite:
+                return next((s for s in _sites if s.id == pk), None)
+            if model is SyncJob:
+                return next((j for j in _jobs if j.id == pk), None)
+            return None
+
+        session.get.side_effect = _get_side_effect
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is SyncSite:
+                q.all.return_value = _sites
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is SyncJob:
+                q.all.return_value = _jobs
+
+                def filter_side_effect(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = _jobs
+                    fq.filter.return_value = fq
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = filter_side_effect
+                q.order_by.return_value = q
+            elif model is SyncRecord:
+                q.all.return_value = _records
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+        return session
+
+    def test_replay_overview(self):
+        j1 = _make_job(job_id="j1", state="completed")
+        j1.synced_count = 10
+        j1.total_documents = 12
+        j1.conflict_count = 1
+        j1.error_count = 1
+
+        j2 = _make_job(job_id="j2", state="failed")
+        j2.synced_count = 0
+        j2.total_documents = 5
+        j2.conflict_count = 0
+        j2.error_count = 0
+
+        j3 = _make_job(job_id="j3", state="completed")
+        j3.synced_count = 8
+        j3.total_documents = 8
+        j3.conflict_count = 0
+        j3.error_count = 0
+
+        j4 = _make_job(job_id="j4", state="pending")
+        j4.synced_count = 0
+        j4.total_documents = 0
+        j4.conflict_count = 0
+        j4.error_count = 0
+
+        session = self._session_with_models(jobs=[j1, j2, j3, j4])
+        service = DocumentSyncService(session)
+        result = service.replay_overview()
+
+        assert result["total_jobs"] == 4
+        assert result["by_state"]["completed"] == 2
+        assert result["by_state"]["failed"] == 1
+        assert result["by_state"]["pending"] == 1
+        assert result["retryable"] == 1  # j2 failed
+        assert result["replay_candidates"] == 1  # j1 completed with issues
+        assert result["total_synced"] == 18
+        assert result["total_documents"] == 25
+
+    def test_replay_overview_empty(self):
+        session = self._session_with_models(jobs=[])
+        service = DocumentSyncService(session)
+        result = service.replay_overview()
+
+        assert result["total_jobs"] == 0
+        assert result["retryable"] == 0
+        assert result["replay_candidates"] == 0
+
+    def test_site_audit(self):
+        site = _make_site(site_id="s1", name="HQ", state="active")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.conflict_count = 2
+        j1.error_count = 0
+
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j2.synced_count = 0
+        j2.conflict_count = 0
+        j2.error_count = 3
+
+        j3 = _make_job(job_id="j3", site_id="s1", state="cancelled")
+        j3.synced_count = 0
+        j3.conflict_count = 0
+        j3.error_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.site_audit("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["site_name"] == "HQ"
+        assert result["total_jobs"] == 3
+        assert result["completed"] == 1
+        assert result["failed"] == 1
+        assert result["cancelled"] == 1
+        assert result["total_synced"] == 10
+        assert result["total_conflicts"] == 2
+        assert result["total_errors"] == 3
+        # health: 1 completed / 2 finished = 50%
+        assert result["health_pct"] == 50.0
+
+    def test_site_audit_all_completed(self):
+        site = _make_site(site_id="s1", name="HQ", state="active")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.conflict_count = 0
+        j1.error_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.site_audit("s1")
+
+        assert result["health_pct"] == 100.0
+
+    def test_site_audit_no_finished_jobs(self):
+        site = _make_site(site_id="s1", name="HQ", state="active")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
+        j1.synced_count = 0
+        j1.conflict_count = 0
+        j1.error_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.site_audit("s1")
+
+        assert result["health_pct"] == 100.0  # no finished jobs = healthy
+
+    def test_site_audit_not_found(self):
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.site_audit("nonexistent")
+
+    def test_job_audit(self):
+        job = _make_job(job_id="j1", site_id="s1", state="completed")
+        job.conflict_count = 1
+        job.error_count = 1
+
+        r_synced = _make_record(
+            record_id="r1", document_id="d1", outcome="synced",
+            source_checksum="abc", target_checksum="abc",
+        )
+        r_conflict = _make_record(
+            record_id="r2", document_id="d2", outcome="conflict",
+            source_checksum="aaa", target_checksum="bbb",
+        )
+        r_no_checksum = _make_record(
+            record_id="r3", document_id="d3", outcome="synced",
+            source_checksum=None, target_checksum=None,
+        )
+
+        session = self._session_with_models(
+            jobs=[job], records=[r_synced, r_conflict, r_no_checksum]
+        )
+        service = DocumentSyncService(session)
+        result = service.job_audit("j1")
+
+        assert result["job_id"] == "j1"
+        assert result["total_records"] == 3
+        assert result["by_outcome"]["synced"] == 2
+        assert result["by_outcome"]["conflict"] == 1
+        assert result["checksum_mismatches"] == 1  # r_conflict
+        assert result["missing_checksums"] == 1  # r_no_checksum
+        assert result["is_retryable"] is False  # completed, not failed
+        assert result["has_issues"] is True  # conflict_count > 0
+
+    def test_job_audit_failed_retryable(self):
+        job = _make_job(job_id="j1", state="failed")
+        job.conflict_count = 0
+        job.error_count = 0
+
+        session = self._session_with_models(jobs=[job], records=[])
+        service = DocumentSyncService(session)
+        result = service.job_audit("j1")
+
+        assert result["is_retryable"] is True
+        assert result["has_issues"] is False
+
+    def test_job_audit_not_found(self):
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.job_audit("nonexistent")
+
+    def test_export_audit(self):
+        site = _make_site(site_id="s1", name="HQ", state="active")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 5
+        j1.total_documents = 5
+        j1.conflict_count = 0
+        j1.error_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.export_audit()
+
+        assert "replay_overview" in result
+        assert "sites" in result
+        assert result["replay_overview"]["total_jobs"] == 1
+        assert len(result["sites"]) == 1
+        assert result["sites"][0]["site_id"] == "s1"
+        assert result["sites"][0]["health_pct"] == 100.0

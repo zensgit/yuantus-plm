@@ -10,16 +10,16 @@
 - `src/yuantus/meta_engine/tests/test_document_sync_service.py`
 - `src/yuantus/meta_engine/tests/test_document_sync_router.py`
 
-## Suggested Service Methods
+## Implemented Service Methods
 
 | Method | Returns | Purpose |
 |--------|---------|---------|
-| `replay_overview()` | Dict | Replay-eligible jobs, failed job counts, direction breakdown |
-| `site_audit(site_id)` | Dict | Per-site replay backlog, conflict counts, last sync health |
-| `job_audit(job_id)` | Dict | Per-job replay/audit detail and retry eligibility |
-| `export_audit()` | Dict | Export-ready combined replay and audit payload |
+| `replay_overview()` | Dict | Fleet-wide: retryable (failed) + replay candidates (completed with issues) |
+| `site_audit(site_id)` | Dict | Per-site: completed/failed/cancelled counts, health_pct, outcome totals |
+| `job_audit(job_id)` | Dict | Per-job: outcome breakdown, checksum mismatches, is_retryable, has_issues |
+| `export_audit()` | Dict | Export-ready: replay_overview + per-site audit breakdown |
 
-## Suggested API Endpoints
+## Implemented API Endpoints
 
 | Method | Path | Handler | Error |
 |--------|------|---------|-------|
@@ -27,6 +27,10 @@
 | GET | `/sites/{site_id}/audit` | `service.site_audit(site_id)` | ValueError -> 404 |
 | GET | `/jobs/{job_id}/audit` | `service.job_audit(job_id)` | ValueError -> 404 |
 | GET | `/export/audit` | `service.export_audit()` | -- |
+
+## Tests
+- Service: 10 tests in `TestReplayAudit` class
+- Router: 6 tests for all C27 endpoints
 
 ## Non-Goals
 - No changes to `src/yuantus/api/app.py`

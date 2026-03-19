@@ -443,3 +443,115 @@ def test_export_reconciliation():
     assert "sites" in resp.json()
     assert resp.json()["reconciliation_queue"]["total_jobs_with_conflicts"] == 1
     assert len(resp.json()["sites"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Replay / audit endpoint tests (C27)
+# ---------------------------------------------------------------------------
+
+
+def test_replay_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.replay_overview.return_value = {
+            "total_jobs": 4,
+            "by_state": {"completed": 2, "failed": 1, "pending": 1},
+            "retryable": 1,
+            "replay_candidates": 1,
+            "total_synced": 18,
+            "total_documents": 25,
+        }
+        resp = client.get("/api/v1/document-sync/replay/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_jobs"] == 4
+    assert resp.json()["retryable"] == 1
+    assert resp.json()["replay_candidates"] == 1
+
+
+def test_site_audit():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_audit.return_value = {
+            "site_id": "s1", "site_name": "HQ", "state": "active",
+            "total_jobs": 3, "completed": 1, "failed": 1, "cancelled": 1,
+            "total_synced": 10, "total_conflicts": 2, "total_errors": 3,
+            "health_pct": 50.0,
+        }
+        resp = client.get("/api/v1/document-sync/sites/s1/audit")
+
+    assert resp.status_code == 200
+    assert resp.json()["site_id"] == "s1"
+    assert resp.json()["health_pct"] == 50.0
+    assert resp.json()["completed"] == 1
+    assert resp.json()["failed"] == 1
+
+
+def test_site_audit_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_audit.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/sites/bad/audit")
+
+    assert resp.status_code == 404
+
+
+def test_job_audit():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.job_audit.return_value = {
+            "job_id": "j1", "site_id": "s1", "state": "completed",
+            "direction": "push", "total_records": 3,
+            "by_outcome": {"synced": 2, "conflict": 1},
+            "checksum_mismatches": 1, "missing_checksums": 0,
+            "is_retryable": False, "has_issues": True,
+        }
+        resp = client.get("/api/v1/document-sync/jobs/j1/audit")
+
+    assert resp.status_code == 200
+    assert resp.json()["job_id"] == "j1"
+    assert resp.json()["checksum_mismatches"] == 1
+    assert resp.json()["is_retryable"] is False
+    assert resp.json()["has_issues"] is True
+
+
+def test_job_audit_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.job_audit.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/jobs/bad/audit")
+
+    assert resp.status_code == 404
+
+
+def test_export_audit():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_audit.return_value = {
+            "replay_overview": {
+                "total_jobs": 2,
+                "by_state": {"completed": 1, "failed": 1},
+                "retryable": 1, "replay_candidates": 0,
+                "total_synced": 10, "total_documents": 15,
+            },
+            "sites": [
+                {"site_id": "s1", "site_name": "HQ", "state": "active",
+                 "total_jobs": 2, "completed": 1, "failed": 1,
+                 "cancelled": 0, "total_synced": 10,
+                 "total_conflicts": 0, "total_errors": 0,
+                 "health_pct": 50.0},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/export/audit")
+
+    assert resp.status_code == 200
+    assert "replay_overview" in resp.json()
+    assert "sites" in resp.json()
+    assert resp.json()["replay_overview"]["total_jobs"] == 2
+    assert len(resp.json()["sites"]) == 1

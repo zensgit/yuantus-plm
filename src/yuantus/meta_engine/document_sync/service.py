@@ -547,3 +547,132 @@ class DocumentSyncService:
             "reconciliation_queue": self.reconciliation_queue(),
             "sites": [self.site_reconciliation_status(s.id) for s in sites],
         }
+
+    # ------------------------------------------------------------------
+    # Replay / audit (C27)
+    # ------------------------------------------------------------------
+
+    def replay_overview(self) -> Dict[str, Any]:
+        """Fleet-wide replay/retry statistics: retryable, replayable job counts."""
+        jobs = self.session.query(SyncJob).all()
+
+        by_state: Dict[str, int] = {}
+        retryable = 0  # failed jobs that could be retried
+        replay_candidates = 0  # completed jobs with errors/conflicts
+        total_synced = 0
+        total_documents = 0
+
+        for j in jobs:
+            by_state[j.state] = by_state.get(j.state, 0) + 1
+            total_synced += (j.synced_count or 0)
+            total_documents += (j.total_documents or 0)
+
+            if j.state == SyncJobState.FAILED.value:
+                retryable += 1
+            elif j.state == SyncJobState.COMPLETED.value:
+                if (j.error_count or 0) > 0 or (j.conflict_count or 0) > 0:
+                    replay_candidates += 1
+
+        return {
+            "total_jobs": len(jobs),
+            "by_state": by_state,
+            "retryable": retryable,
+            "replay_candidates": replay_candidates,
+            "total_synced": total_synced,
+            "total_documents": total_documents,
+        }
+
+    def site_audit(self, site_id: str) -> Dict[str, Any]:
+        """Per-site audit: job outcome ratios and health score."""
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        jobs = (
+            self.session.query(SyncJob)
+            .filter(SyncJob.site_id == site_id)
+            .all()
+        )
+
+        completed = 0
+        failed = 0
+        cancelled = 0
+        total_synced = 0
+        total_conflicts = 0
+        total_errors = 0
+
+        for j in jobs:
+            if j.state == SyncJobState.COMPLETED.value:
+                completed += 1
+            elif j.state == SyncJobState.FAILED.value:
+                failed += 1
+            elif j.state == SyncJobState.CANCELLED.value:
+                cancelled += 1
+            total_synced += (j.synced_count or 0)
+            total_conflicts += (j.conflict_count or 0)
+            total_errors += (j.error_count or 0)
+
+        finished = completed + failed
+        health_pct = round(
+            completed / finished * 100, 1
+        ) if finished > 0 else 100.0
+
+        return {
+            "site_id": site.id,
+            "site_name": site.name,
+            "state": site.state,
+            "total_jobs": len(jobs),
+            "completed": completed,
+            "failed": failed,
+            "cancelled": cancelled,
+            "total_synced": total_synced,
+            "total_conflicts": total_conflicts,
+            "total_errors": total_errors,
+            "health_pct": health_pct,
+        }
+
+    def job_audit(self, job_id: str) -> Dict[str, Any]:
+        """Per-job audit: record-level outcome breakdown and data integrity checks."""
+        job = self.get_job(job_id)
+        if job is None:
+            raise ValueError(f"Job '{job_id}' not found")
+
+        records = self.list_records(job_id)
+
+        by_outcome: Dict[str, int] = {}
+        checksum_mismatches = 0
+        missing_checksums = 0
+
+        for r in records:
+            by_outcome[r.outcome] = by_outcome.get(r.outcome, 0) + 1
+            if r.source_checksum and r.target_checksum:
+                if r.source_checksum != r.target_checksum:
+                    checksum_mismatches += 1
+            elif r.source_checksum is None and r.target_checksum is None:
+                missing_checksums += 1
+
+        is_retryable = job.state == SyncJobState.FAILED.value
+        has_issues = (
+            (job.error_count or 0) > 0 or (job.conflict_count or 0) > 0
+        )
+
+        return {
+            "job_id": job.id,
+            "site_id": job.site_id,
+            "state": job.state,
+            "direction": job.direction,
+            "total_records": len(records),
+            "by_outcome": by_outcome,
+            "checksum_mismatches": checksum_mismatches,
+            "missing_checksums": missing_checksums,
+            "is_retryable": is_retryable,
+            "has_issues": has_issues,
+        }
+
+    def export_audit(self) -> Dict[str, Any]:
+        """Export-ready audit payload: replay overview + per-site audit."""
+        sites = self.session.query(SyncSite).all()
+        return {
+            "replay_overview": self.replay_overview(),
+            "sites": [self.site_audit(s.id) for s in sites],
+        }
