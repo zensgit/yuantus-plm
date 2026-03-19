@@ -133,6 +133,77 @@ class CADConverterService:
             "freecad_available": self.freecad_available,
         }
 
+    def assess_viewer_readiness(self, file_container: "FileContainer") -> Dict[str, Any]:
+        """Build a consumer-facing readiness descriptor for file viewers."""
+        from yuantus.meta_engine.services.file_service import FileService
+
+        has_geometry = bool(file_container.geometry_path)
+        has_manifest = bool(file_container.cad_manifest_path)
+        has_preview = bool(file_container.preview_path or file_container.preview_data)
+        has_document = bool(file_container.cad_document_path)
+        has_metadata = bool(file_container.cad_metadata_path)
+
+        if has_manifest and has_geometry:
+            viewer_mode = "full"
+        elif has_geometry:
+            viewer_mode = "geometry_only"
+        elif has_manifest:
+            viewer_mode = "manifest_only"
+        elif has_preview:
+            viewer_mode = "preview_only"
+        else:
+            viewer_mode = "none"
+
+        geometry_format = None
+        if has_geometry:
+            ext = Path(file_container.geometry_path).suffix.lower().lstrip(".")
+            if ext in OUTPUT_FORMATS:
+                geometry_format = ext
+
+        available_assets: List[str] = []
+        if has_geometry:
+            file_service = FileService()
+            base_dir = os.path.dirname(file_container.geometry_path)
+            geometry_name = os.path.basename(file_container.geometry_path)
+            available_assets.append(geometry_name)
+            for sidecar_ext in (".bin", ".png", ".jpg", ".ktx2"):
+                sidecar_name = Path(geometry_name).stem + sidecar_ext
+                sidecar_path = (
+                    f"{base_dir}/{sidecar_name}" if base_dir else sidecar_name
+                )
+                try:
+                    if file_service.file_exists(sidecar_path):
+                        available_assets.append(sidecar_name)
+                except Exception:
+                    pass
+
+        conversion_status = getattr(file_container, "conversion_status", None)
+        blocking_reasons: List[str] = []
+        is_native_cad = bool(getattr(file_container, "is_native_cad", False))
+        if is_native_cad and not has_geometry and not has_manifest:
+            if conversion_status in (None, "pending", "queued"):
+                blocking_reasons.append("conversion_pending")
+            elif conversion_status in ("failed", "error", "timeout"):
+                blocking_reasons.append("conversion_failed")
+            else:
+                blocking_reasons.append("geometry_missing")
+
+        return {
+            "viewer_mode": viewer_mode,
+            "geometry_available": has_geometry,
+            "geometry_format": geometry_format,
+            "manifest_available": has_manifest,
+            "preview_available": has_preview,
+            "document_available": has_document,
+            "metadata_available": has_metadata,
+            "available_assets": available_assets,
+            "schema_version": file_container.cad_document_schema_version,
+            "conversion_status": conversion_status,
+            "blocking_reasons": blocking_reasons,
+            "is_viewer_ready": viewer_mode not in ("none", "preview_only")
+            and not blocking_reasons,
+        }
+
     # =========================================================================
     # Job Queue Management (Odoo plm_convert_stack pattern)
     # =========================================================================

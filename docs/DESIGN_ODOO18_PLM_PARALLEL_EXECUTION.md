@@ -279,6 +279,47 @@
 
 ## Claude Task Draft C12
 
+## Increment 2026-03-19 C11-C12 Integration Stack
+
+### Why
+- `C11` 和 `C12` 都已经在 Claude 分支完成，但还没有在统一集成栈上验证。
+- `C11` 不是纯 router 增量，它依赖 `CADConverterService.assess_viewer_readiness(...)`。
+- `C12` 是独立绿地模块，但如果不注册到 `create_app()`，它就只是分支级可用，不是主应用可用。
+
+### Delivered Scope
+- `C11`
+  - `FileMetadata` 增加 `viewer_readiness`
+  - 新增消费端读侧：
+    - `GET /file/{file_id}/consumer-summary`
+    - `POST /file/viewer-readiness/export`
+    - `POST /file/geometry-pack-summary`
+  - 在当前集成栈补回 `CADConverterService.assess_viewer_readiness(...)`
+- `C12`
+  - 新增 `approvals` 绿地模块：
+    - category
+    - request
+    - transition
+    - summary
+  - `approvals_router` 注册进 `create_app()`
+  - app-level router smoke test 覆盖注册结果
+
+### Conflict Resolution
+- `contracts/claude_allowed_paths.json`
+  - 保留 stack 分支已有的完整 `C1-C13` profile
+  - 不接受 `C11/C12` 分支里的收窄版本
+- `src/yuantus/meta_engine/web/file_router.py`
+  - 保留 stack 分支已有 file router 主体
+  - 只并入 `viewer_readiness` field 和 C11 端点块
+
+### Chosen Defaults
+- `C11` 的服务契约只补 `assess_viewer_readiness(...)`
+- 不把 Claude 分支里的其他 CAD conversion rule 扩展一并混入当前栈
+- `C12` 维持 entity-agnostic approval bootstrap，不直接耦合 ECO 热文件
+
+### Non-Goals
+- 本轮不把 approvals 接到 ECO / quality / purchase 写侧
+- 本轮不扩展 C11 到新的 3D 编辑能力
+
 ### Why
 - 现有仓库只有 ECO approvals，不存在独立的 generic approvals 模块。
 - 这条线适合用全新模块落地，避免挤占现有热文件。

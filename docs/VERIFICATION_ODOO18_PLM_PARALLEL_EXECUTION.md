@@ -315,6 +315,72 @@ pytest -q \
   - `breakage incidents export`
 - 还未把 locale 接到 maintenance / BOM / more report pipelines
 
+## Increment 2026-03-19 C11-C12 Integration Stack
+
+### Touched Areas
+- `src/yuantus/meta_engine/services/cad_converter_service.py`
+- `src/yuantus/meta_engine/web/file_router.py`
+- `src/yuantus/meta_engine/tests/test_file_viewer_readiness.py`
+- `src/yuantus/meta_engine/approvals/__init__.py`
+- `src/yuantus/meta_engine/approvals/models.py`
+- `src/yuantus/meta_engine/approvals/service.py`
+- `src/yuantus/meta_engine/web/approvals_router.py`
+- `src/yuantus/meta_engine/tests/test_approvals_service.py`
+- `src/yuantus/meta_engine/tests/test_approvals_router.py`
+- `src/yuantus/api/app.py`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/meta_engine/services/cad_converter_service.py \
+  src/yuantus/meta_engine/web/file_router.py \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/approvals/__init__.py \
+  src/yuantus/meta_engine/approvals/models.py \
+  src/yuantus/meta_engine/approvals/service.py \
+  src/yuantus/meta_engine/web/approvals_router.py \
+  src/yuantus/meta_engine/tests/test_approvals_service.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/api/app.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_service.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_quality_router.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_locale_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `py_compile`: passed
+- `C11 + C12` targeted pack:
+  - `47 passed, 24 warnings`
+- cross-pack regression:
+  - `57 passed, 44 warnings`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- `C11` 当前只验证了 file/viewer 消费侧，不包含更深的 CAD rule stack
+- `C12` 当前是 generic approvals bootstrap，还未接入 ECO/quality 等写侧业务
+
 ## Increment 2026-03-19 C7-C8-C9 Stack Branch
 
 ### Touched Areas
