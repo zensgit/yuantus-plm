@@ -207,3 +207,12 @@
 - resolution:
   - `C23/C24/C25` are now merged on `main`
   - no new post-merge functional regression was observed
+
+## Next Claude Base: C26-C28
+- next Claude base:
+  - `feature/claude-greenfield-base-4`
+- next greenfield batch:
+  - `C26`
+  - `C27`
+  - `C28`
+- this planning step does not reopen active merge-prep on `main`; it only prepares isolated fourth-stage task boundaries

@@ -1832,3 +1832,39 @@ git diff --check
 ### Residual Risks
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
 - no new post-merge functional regression was observed
+
+## Increment 2026-03-19 Codex-Prepare-Next-Claude-Batch-C26-C28
+
+### Touched Areas
+- `main`
+- `contracts/claude_allowed_paths.json`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DELIVERY_DOC_INDEX.md`
+- `docs/DESIGN_PARALLEL_C26_PLM_BOX_RECONCILIATION_AUDIT_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C26_PLM_BOX_RECONCILIATION_AUDIT_BOOTSTRAP_20260319.md`
+- `docs/DESIGN_PARALLEL_C27_DOCUMENT_SYNC_REPLAY_AUDIT_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C27_DOCUMENT_SYNC_REPLAY_AUDIT_BOOTSTRAP_20260319.md`
+- `docs/DESIGN_PARALLEL_C28_CUTTED_PARTS_TEMPLATES_SCENARIOS_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C28_CUTTED_PARTS_TEMPLATES_SCENARIOS_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+python3 -m json.tool contracts/claude_allowed_paths.json >/dev/null
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- added path-guard profiles `C26`, `C27`, `C28`
+- created frozen Claude base branch `feature/claude-greenfield-base-4`
+- prepared shared PLAN / DESIGN / VERIFICATION entries for the next Claude batch
+- added standalone design / verification templates for `C26/C27/C28`
+
+### Residual Risks
+- `C26/C27/C28` are task-prep only at this stage; no implementation has been started
+- the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers outside their own domains
