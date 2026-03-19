@@ -2,7 +2,7 @@
 
 **Branch**: `feature/claude-c7-bom-compare`
 **Date**: 2026-03-18
-**Status**: All 16 tests passing
+**Status**: Codex integration verified, 16 targeted tests passing
 
 ---
 
@@ -46,19 +46,59 @@
 | 5 | `test_compare_bom_summarized_snapshot_diff_export_invalid_format_returns_400` | 400 on xlsx |
 | 6 | `test_compare_bom_summarized_snapshot_missing_returns_404` | 404 for compare + current |
 
-## 5. Execution Log
+## 5. Original Branch Execution Log
 
 ```
 $ python3 -m pytest test_bom_summarized_*.py test_bom_summarized_snapshot_*.py -v
 16 passed, 2 warnings in 51.17s
 ```
 
-## 6. Files Modified
+## 6. Codex Integration Verification (2026-03-19)
+
+### Integration Adjustments
+
+| File | Change |
+|---|---|
+| `src/yuantus/meta_engine/tests/test_bom_summarized_router.py` | Promoted branch-local summarized compare regression to tracked test file |
+| `src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py` | Promoted snapshot CRUD regression to tracked test file |
+| `src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py` | Promoted snapshot diff regression to tracked test file |
+
+### Commands
+
+```bash
+python3 -m py_compile \
+  src/yuantus/meta_engine/web/bom_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py
+
+pytest -q \
+  src/yuantus/meta_engine/tests/test_bom_summarized_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py
+
+git diff --check
+```
+
+### Results
+
+- `py_compile`: passed
+- `pytest -q ...`: `16 passed, 17 warnings in 4.36s`
+- `git diff --check`: passed
+
+Warnings remained pre-existing:
+- `starlette.formparsers` pending deprecation
+- `httpx` `app=` shortcut deprecation
+
+## 7. Files Modified
 
 - `src/yuantus/meta_engine/web/bom_router.py` – added ~350 lines (imports,
   snapshot store, helpers, 8 endpoints)
+- `src/yuantus/meta_engine/tests/test_bom_summarized_router.py` – 4 summarized compare/export tests
+- `src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py` – 6 snapshot CRUD/export tests
+- `src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py` – 6 snapshot diff/export tests
 
-## 7. Known Limitations
+## 8. Known Limitations
 
 - Snapshot store is in-memory; data is lost on process restart.
 - No snapshot deletion endpoint yet.

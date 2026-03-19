@@ -2,7 +2,7 @@
 
 **Branch**: `feature/claude-c7-bom-compare`
 **Date**: 2026-03-18
-**Status**: Implemented & Verified
+**Status**: Implemented, Codex-integrated & Verified
 
 ---
 
@@ -88,3 +88,25 @@ Row-by-row key matching on `line_key`:
 4. **Route ordering** – `/compare/summarized/snapshots/compare` registered
    before `/compare/summarized/snapshots/{snapshot_id}` to avoid path
    parameter capture conflicts.
+
+## 7. Codex Integration Notes (2026-03-19)
+
+Codex-side integration verification made two explicit scope decisions:
+
+1. **Kept C7 isolated to `bom_router.py`**
+   - No service-layer or schema changes were required.
+   - The feature extends the already-registered BOM router surface.
+
+2. **Promoted branch-local tests into tracked integration assets**
+   - The three `test_bom_summarized*.py` files existed only in the
+     working tree, not in the Claude branch commit.
+   - Codex copied them into the integration branch and used them as the
+     authoritative regression pack for C7.
+
+## 8. Final Scope On This Integration Branch
+
+- summarized BOM compare endpoint
+- summarized compare export endpoint
+- summarized snapshot create/list/detail/export
+- snapshot-vs-snapshot diff + export
+- snapshot-vs-current diff + export
