@@ -423,6 +423,77 @@ pytest -q \
 - 这仍是模块级交叉回归，不是主仓最终合并后的全仓回归
 - `C11/C12/C13` 已处于 stack 分支稳定态，但还未进入主仓合并窗口
 
+## Increment 2026-03-19 Wider Cross Regression
+
+### Touched Areas
+- `feature/codex-stack-c11c12`
+- BOM summarized snapshot + delta test pack
+- quality service/router pack
+- maintenance service/router pack
+- locale/report-locale/router pack
+- subcontracting service/router pack
+- file viewer readiness pack
+- approvals service/router pack
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/api/app.py \
+  src/yuantus/meta_engine/services/cad_converter_service.py \
+  src/yuantus/meta_engine/web/file_router.py \
+  src/yuantus/meta_engine/approvals/__init__.py \
+  src/yuantus/meta_engine/approvals/models.py \
+  src/yuantus/meta_engine/approvals/service.py \
+  src/yuantus/meta_engine/web/approvals_router.py \
+  src/yuantus/meta_engine/quality/models.py \
+  src/yuantus/meta_engine/quality/service.py \
+  src/yuantus/meta_engine/web/quality_router.py \
+  src/yuantus/meta_engine/maintenance/models.py \
+  src/yuantus/meta_engine/maintenance/service.py \
+  src/yuantus/meta_engine/web/maintenance_router.py \
+  src/yuantus/meta_engine/locale/service.py \
+  src/yuantus/meta_engine/report_locale/service.py \
+  src/yuantus/meta_engine/web/locale_router.py \
+  src/yuantus/meta_engine/subcontracting/models.py \
+  src/yuantus/meta_engine/subcontracting/service.py \
+  src/yuantus/meta_engine/web/subcontracting_router.py \
+  src/yuantus/meta_engine/web/bom_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_bom_summarized_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_preview.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_router.py \
+  src/yuantus/meta_engine/tests/test_quality_service.py \
+  src/yuantus/meta_engine/tests/test_quality_router.py \
+  src/yuantus/meta_engine/tests/test_maintenance_service.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_locale_service.py \
+  src/yuantus/meta_engine/tests/test_report_locale_service.py \
+  src/yuantus/meta_engine/tests/test_locale_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_service.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_service.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py
+```
+
+### Actual Results
+- `py_compile`: passed
+- wider cross-pack regression:
+  - `177 passed, 62 warnings`
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- 仍未覆盖主仓最终合并后的全仓回归
+- 当前结果证明的是 `C7-C13` 统一 stack 的组合稳定性
+
 ## Increment 2026-03-19 C7-C8-C9 Stack Branch
 
 ### Touched Areas

@@ -135,10 +135,13 @@
   - `98 passed, 200 deselected, 54 warnings`
 
 ## Next Claude Allocation Draft
-- `C11/C12/C13` 已进入 Codex 集成完成态
-- 当前建议：暂不再给 Claude 开新任务
-- 先等待 `feature/codex-stack-c11c12` 完成更大范围交叉回归与后续合并窗口
-- 下一批 Claude 任务需要重新开新边界，不再回写 `C7-C13`
+- `C7-C13` 已进入统一 stack 集成态
+- 经过更大范围交叉回归后，可以重新给 Claude 开新绿地任务
+- 下一批只允许在独立域内扩展，不回写当前 stack 热文件
+- 推荐顺序：
+  - `C14`
+  - `C15`
+  - `C16`
 
 ## Claude Allocation
 - `C7/C8/C9/C10` should not be edited further on Claude branches unless a new bugfix branch is explicitly opened.
@@ -181,6 +184,46 @@
     - do not mutate existing `manufacturing/routing_service.py` in the first increment
 - `C10` has been integrated and verified on the current Codex branch.
 
+## Claude Allocation Next Batch
+- `C14` approvals export / ops-report bootstrap
+  - suggested branch: `feature/claude-c14-approvals-export`
+  - write scope:
+    - `src/yuantus/meta_engine/approvals/`
+    - `src/yuantus/meta_engine/web/approvals_router.py`
+    - `src/yuantus/meta_engine/tests/test_approvals_*.py`
+  - deliverables:
+    - approvals list export
+    - summary export
+    - ops-report/bootstrap diagnostics
+  - non-goals:
+    - no edits to `eco_router.py`
+    - no edits to `eco_service.py`
+- `C15` subcontracting analytics / export bootstrap
+  - suggested branch: `feature/claude-c15-subcontracting-analytics`
+  - write scope:
+    - `src/yuantus/meta_engine/subcontracting/`
+    - `src/yuantus/meta_engine/web/subcontracting_router.py`
+    - `src/yuantus/meta_engine/tests/test_subcontracting_*.py`
+  - deliverables:
+    - queue / order overview
+    - export payload
+    - vendor / receipt analytics read model
+  - non-goals:
+    - no changes to manufacturing core services
+- `C16` quality SPC / analytics bootstrap
+  - suggested branch: `feature/claude-c16-quality-spc`
+  - write scope:
+    - `src/yuantus/meta_engine/quality/`
+    - `src/yuantus/meta_engine/web/quality_router.py`
+    - `src/yuantus/meta_engine/tests/test_quality_*.py`
+  - deliverables:
+    - SPC-oriented aggregates
+    - quality trend/export helpers
+    - alert analytics read model
+  - non-goals:
+    - no edits to `parallel_tasks`
+    - no edits to manufacturing hot paths
+
 ## Increment 2026-03-19 Codex-C11-C12-Integration
 - Created `feature/codex-stack-c11c12` from the verified `C13` baseline
 - Integrated Claude `C11` commit `c21346b`
@@ -219,6 +262,18 @@
   - approvals
 - Result:
   - `86 passed, 60 warnings`
+
+## Increment 2026-03-19 Codex-Wider-Cross-Regression
+- Expanded regression from router-only cross-pack to:
+  - BOM summarized snapshot + delta
+  - quality service/router
+  - maintenance service/router
+  - locale/report-locale/router
+  - subcontracting service/router
+  - file viewer readiness
+  - approvals service/router
+- Result:
+  - `177 passed, 62 warnings`
 
 ## Increment 2026-03-19 Codex-C13-Subcontracting
 - Created `feature/codex-c13-subcontracting-integration` from the verified stack baseline

@@ -343,6 +343,28 @@
 - 本轮不再引入新功能
 - 本轮不新开 `C14+` 任务
 
+## Next Claude Batch C14-C16
+
+### Why
+- `C7-C13` 已经进入统一 stack 验证态，继续让 Claude 回写这些域只会增加冲突。
+- 现在更适合把 Claude 转到新一批低耦合增量：
+  - approvals export
+  - subcontracting analytics
+  - quality SPC analytics
+
+### Task Boundaries
+- `C14`
+  - 只允许扩展 `approvals` 域内部读侧、导出和 ops-report
+- `C15`
+  - 只允许扩展 `subcontracting` 域内部统计、导出和队列概览
+- `C16`
+  - 只允许扩展 `quality` 域内部 SPC / analytics
+
+### Chosen Defaults
+- 不给 Claude 分配新的跨域 orchestration 任务
+- 不让 Claude 修改 `parallel_tasks`、`version`、`benchmark_branches`
+- 继续用 path guard profile 强约束新任务边界
+
 ### Why
 - 现有仓库只有 ECO approvals，不存在独立的 generic approvals 模块。
 - 这条线适合用全新模块落地，避免挤占现有热文件。

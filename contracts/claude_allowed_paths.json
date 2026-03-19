@@ -4,7 +4,7 @@
     "^docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION\\.md$",
     "^docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION\\.md$",
     "^docs/DELIVERY_DOC_INDEX\\.md$",
-    "^docs/(DESIGN|DEV_AND_VERIFICATION)_PARALLEL_C([1-9]|1[0-3])_.*\\.md$",
+    "^docs/(DESIGN|DEV_AND_VERIFICATION)_PARALLEL_C([1-9]|1[0-6])_.*\\.md$",
     "^contracts/claude_allowed_paths\\.json$"
   ],
   "global_deny": [
@@ -164,6 +164,39 @@
         "^src/yuantus/meta_engine/subcontracting/.*",
         "^src/yuantus/meta_engine/web/subcontracting_router\\.py$",
         "^src/yuantus/meta_engine/tests/test_subcontracting_.*\\.py$"
+      ]
+    },
+    "C14": {
+      "description": "Approvals export and ops-report helpers inside the approvals domain",
+      "branch_patterns": [
+        "^feature/claude-c14(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/approvals/.*",
+        "^src/yuantus/meta_engine/web/approvals_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_approvals_.*\\.py$"
+      ]
+    },
+    "C15": {
+      "description": "Subcontracting analytics and export helpers inside the subcontracting domain",
+      "branch_patterns": [
+        "^feature/claude-c15(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/subcontracting/.*",
+        "^src/yuantus/meta_engine/web/subcontracting_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_subcontracting_.*\\.py$"
+      ]
+    },
+    "C16": {
+      "description": "Quality SPC and analytics bootstrap inside the quality domain",
+      "branch_patterns": [
+        "^feature/claude-c16(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/quality/.*",
+        "^src/yuantus/meta_engine/web/quality_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_quality_.*\\.py$"
       ]
     }
   }
