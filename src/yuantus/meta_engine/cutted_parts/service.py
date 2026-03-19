@@ -701,3 +701,169 @@ class CuttedPartsService:
             "material_templates": self.material_templates(),
             "scenarios": scenario_summaries,
         }
+
+    # ------------------------------------------------------------------
+    # Benchmark / Quote (C31)
+    # ------------------------------------------------------------------
+
+    def benchmark_overview(self) -> Dict[str, Any]:
+        """Fleet-wide benchmark: plan counts, cost/waste ranges, best plan."""
+        plans = self.session.query(CutPlan).all()
+
+        completed = [
+            p for p in plans if p.state == CutPlanState.COMPLETED.value
+        ]
+        with_waste = [p for p in plans if p.waste_pct is not None]
+
+        waste_values = [p.waste_pct for p in with_waste]
+        min_waste = min(waste_values) if waste_values else None
+        max_waste = max(waste_values) if waste_values else None
+        avg_waste = (
+            round(sum(waste_values) / len(waste_values), 2)
+            if waste_values
+            else None
+        )
+
+        # Best plan = lowest waste_pct among those with data
+        best_plan_id: Optional[str] = None
+        best_plan_name: Optional[str] = None
+        if with_waste:
+            best = min(with_waste, key=lambda p: p.waste_pct)
+            best_plan_id = best.id
+            best_plan_name = best.name
+
+        # Cost range across plans with material
+        cost_values: List[float] = []
+        for p in plans:
+            if p.material_id:
+                mat = self.session.get(RawMaterial, p.material_id)
+                if mat and mat.cost_per_unit is not None:
+                    cost_values.append(
+                        mat.cost_per_unit * (p.material_quantity or 0.0)
+                    )
+
+        return {
+            "total_plans": len(plans),
+            "completed_plans": len(completed),
+            "plans_with_waste_data": len(with_waste),
+            "min_waste_pct": min_waste,
+            "max_waste_pct": max_waste,
+            "avg_waste_pct": avg_waste,
+            "best_plan_id": best_plan_id,
+            "best_plan_name": best_plan_name,
+            "min_material_cost": min(cost_values) if cost_values else None,
+            "max_material_cost": max(cost_values) if cost_values else None,
+        }
+
+    def quote_summary(self, plan_id: str) -> Dict[str, Any]:
+        """Per-plan quote-ready summary: material, cost, waste, yield."""
+        plan = self.get_plan(plan_id)
+        if plan is None:
+            raise ValueError(f"Plan '{plan_id}' not found")
+
+        cuts = self.list_cuts(plan_id)
+        ok_count = sum(
+            1 for c in cuts if c.status == CutResultStatus.OK.value
+        )
+        scrap_count = sum(
+            1 for c in cuts if c.status == CutResultStatus.SCRAP.value
+        )
+        total_scrap_weight = sum((c.scrap_weight or 0.0) for c in cuts)
+
+        # Material cost
+        material_cost: Optional[float] = None
+        material_name: Optional[str] = None
+        cost_per_unit: Optional[float] = None
+        if plan.material_id:
+            mat = self.session.get(RawMaterial, plan.material_id)
+            if mat:
+                material_name = mat.name
+                cost_per_unit = mat.cost_per_unit
+                if mat.cost_per_unit is not None:
+                    material_cost = mat.cost_per_unit * (
+                        plan.material_quantity or 0.0
+                    )
+
+        cost_per_good_part: Optional[float] = None
+        if material_cost is not None and ok_count > 0:
+            cost_per_good_part = round(material_cost / ok_count, 2)
+
+        yield_pct: Optional[float] = None
+        if len(cuts) > 0:
+            yield_pct = round(ok_count / len(cuts) * 100, 2)
+
+        return {
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "state": plan.state,
+            "material_name": material_name,
+            "material_quantity": plan.material_quantity,
+            "cost_per_unit": cost_per_unit,
+            "material_cost": material_cost,
+            "total_cuts": len(cuts),
+            "ok_count": ok_count,
+            "scrap_count": scrap_count,
+            "total_scrap_weight": total_scrap_weight,
+            "waste_pct": plan.waste_pct,
+            "yield_pct": yield_pct,
+            "cost_per_good_part": cost_per_good_part,
+        }
+
+    def material_benchmarks(self) -> Dict[str, Any]:
+        """Benchmark aggregation by material: avg waste, plan count, cost."""
+        materials = self.session.query(RawMaterial).all()
+        plans = self.session.query(CutPlan).all()
+
+        # Group plans by material_id
+        plans_by_mat: Dict[str, List[CutPlan]] = {}
+        for p in plans:
+            if p.material_id:
+                plans_by_mat.setdefault(p.material_id, []).append(p)
+
+        benchmarks: List[Dict[str, Any]] = []
+        for m in materials:
+            mat_plans = plans_by_mat.get(m.id, [])
+            waste_vals = [
+                p.waste_pct for p in mat_plans if p.waste_pct is not None
+            ]
+            avg_waste = (
+                round(sum(waste_vals) / len(waste_vals), 2)
+                if waste_vals
+                else None
+            )
+            total_cost = None
+            if m.cost_per_unit is not None:
+                total_cost = sum(
+                    m.cost_per_unit * (p.material_quantity or 0.0)
+                    for p in mat_plans
+                )
+
+            benchmarks.append({
+                "material_id": m.id,
+                "material_name": m.name,
+                "material_type": m.material_type,
+                "plan_count": len(mat_plans),
+                "avg_waste_pct": avg_waste,
+                "total_material_cost": total_cost,
+                "stock_quantity": m.stock_quantity or 0.0,
+                "cost_per_unit": m.cost_per_unit,
+            })
+
+        return {
+            "total_materials": len(materials),
+            "benchmarks": benchmarks,
+        }
+
+    def export_quotes(self) -> Dict[str, Any]:
+        """Export-ready payload combining benchmark overview and per-plan
+        quote summaries."""
+        plans = self.session.query(CutPlan).all()
+        quotes = []
+        for p in plans:
+            quotes.append(self.quote_summary(p.id))
+
+        return {
+            "benchmark_overview": self.benchmark_overview(),
+            "material_benchmarks": self.material_benchmarks(),
+            "quotes": quotes,
+        }

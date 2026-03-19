@@ -768,3 +768,186 @@ class TestTemplatesScenarios:
         assert result["template_overview"]["template_count"] == 0
         assert result["material_templates"]["total_materials"] == 0
         assert result["scenarios"] == []
+
+
+# ---------------------------------------------------------------------------
+# Benchmark / Quote (C31)
+# ---------------------------------------------------------------------------
+
+
+class TestBenchmarkQuote:
+
+    def test_benchmark_overview(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        p1 = svc.create_plan(
+            name="Plan A", material_id=mat.id, material_quantity=5.0,
+        )
+        p1.waste_pct = 3.0
+        p1.state = "completed"
+        p2 = svc.create_plan(
+            name="Plan B", material_id=mat.id, material_quantity=8.0,
+        )
+        p2.waste_pct = 7.0
+
+        result = svc.benchmark_overview()
+        assert result["total_plans"] == 2
+        assert result["completed_plans"] == 1
+        assert result["plans_with_waste_data"] == 2
+        assert result["min_waste_pct"] == 3.0
+        assert result["max_waste_pct"] == 7.0
+        assert result["avg_waste_pct"] == 5.0
+        assert result["best_plan_id"] == p1.id
+        assert result["best_plan_name"] == "Plan A"
+        assert result["min_material_cost"] == 50.0  # 10 * 5
+        assert result["max_material_cost"] == 80.0  # 10 * 8
+
+    def test_benchmark_overview_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.benchmark_overview()
+        assert result["total_plans"] == 0
+        assert result["completed_plans"] == 0
+        assert result["min_waste_pct"] is None
+        assert result["max_waste_pct"] is None
+        assert result["avg_waste_pct"] is None
+        assert result["best_plan_id"] is None
+        assert result["min_material_cost"] is None
+
+    def test_benchmark_overview_no_waste_data(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        svc.create_plan(name="No Waste Plan")
+        result = svc.benchmark_overview()
+        assert result["total_plans"] == 1
+        assert result["plans_with_waste_data"] == 0
+        assert result["avg_waste_pct"] is None
+        assert result["best_plan_id"] is None
+
+    def test_quote_summary(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Quote Plan", material_id=mat.id, material_quantity=5.0,
+        )
+        plan.waste_pct = 6.0
+        svc.add_cut(plan.id, status="ok", quantity=3.0)
+        svc.add_cut(plan.id, status="ok", quantity=2.0)
+        svc.add_cut(plan.id, status="scrap", quantity=1.0, scrap_weight=0.5)
+
+        result = svc.quote_summary(plan.id)
+        assert result["plan_id"] == plan.id
+        assert result["plan_name"] == "Quote Plan"
+        assert result["material_name"] == "Steel"
+        assert result["material_cost"] == 50.0
+        assert result["total_cuts"] == 3
+        assert result["ok_count"] == 2
+        assert result["scrap_count"] == 1
+        assert result["total_scrap_weight"] == 0.5
+        assert result["waste_pct"] == 6.0
+        assert result["yield_pct"] == 66.67  # 2/3 * 100
+        assert result["cost_per_good_part"] == 25.0  # 50 / 2
+
+    def test_quote_summary_no_material(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        plan = svc.create_plan(name="No Mat Plan")
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.quote_summary(plan.id)
+        assert result["material_name"] is None
+        assert result["material_cost"] is None
+        assert result["cost_per_good_part"] is None
+        assert result["yield_pct"] == 100.0
+
+    def test_quote_summary_no_cuts(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        plan = svc.create_plan(name="Empty Plan")
+
+        result = svc.quote_summary(plan.id)
+        assert result["total_cuts"] == 0
+        assert result["yield_pct"] is None
+        assert result["cost_per_good_part"] is None
+
+    def test_quote_summary_not_found(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        with pytest.raises(ValueError, match="not found"):
+            svc.quote_summary("nonexistent")
+
+    def test_material_benchmarks(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        m1 = svc.create_material(
+            name="Steel A", material_type="sheet",
+            stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        m2 = svc.create_material(
+            name="Aluminum B", material_type="bar",
+            stock_quantity=50.0, cost_per_unit=20.0,
+        )
+        p1 = svc.create_plan(name="Job 1", material_id=m1.id, material_quantity=3.0)
+        p1.waste_pct = 5.0
+        p2 = svc.create_plan(name="Job 2", material_id=m1.id, material_quantity=7.0)
+        p2.waste_pct = 9.0
+
+        result = svc.material_benchmarks()
+        assert result["total_materials"] == 2
+        assert len(result["benchmarks"]) == 2
+
+        steel = [b for b in result["benchmarks"] if b["material_name"] == "Steel A"][0]
+        assert steel["plan_count"] == 2
+        assert steel["avg_waste_pct"] == 7.0  # (5 + 9) / 2
+        assert steel["total_material_cost"] == 100.0  # 10*3 + 10*7
+
+        alum = [b for b in result["benchmarks"] if b["material_name"] == "Aluminum B"][0]
+        assert alum["plan_count"] == 0
+        assert alum["avg_waste_pct"] is None
+        assert alum["total_material_cost"] == 0.0
+
+    def test_material_benchmarks_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.material_benchmarks()
+        assert result["total_materials"] == 0
+        assert result["benchmarks"] == []
+
+    def test_export_quotes(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Export Plan", material_id=mat.id, material_quantity=4.0,
+        )
+        plan.waste_pct = 5.0
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.export_quotes()
+        assert "benchmark_overview" in result
+        assert "material_benchmarks" in result
+        assert "quotes" in result
+        assert result["benchmark_overview"]["total_plans"] == 1
+        assert result["material_benchmarks"]["total_materials"] == 1
+        assert len(result["quotes"]) == 1
+        assert result["quotes"][0]["plan_id"] == plan.id
+
+    def test_export_quotes_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.export_quotes()
+        assert result["benchmark_overview"]["total_plans"] == 0
+        assert result["material_benchmarks"]["total_materials"] == 0
+        assert result["quotes"] == []
