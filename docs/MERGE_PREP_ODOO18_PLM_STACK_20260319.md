@@ -98,6 +98,19 @@
   - broader merge-prep pack:
     - `112 passed, 283 deselected, 63 warnings in 46.91s`
 
+## Stabilization Refresh
+- cache/worktree cleanup:
+  - removed `__pycache__` and `.pytest_cache` from clean Codex worktrees
+  - removed superseded rehearsal and integration worktrees
+  - restored free space to roughly `4.3Gi`
+- post-cleanup reruns on merged `main`:
+  - expanded stack script:
+    - `305 passed, 103 warnings in 13.98s`
+  - broader merge-prep pack:
+    - `112 passed, 283 deselected, 62 warnings in 17.06s`
+  - note:
+    - the prior `.pytest_cache` `No space left on device` warning did not recur
+
 ## Merge Checklist
 - completed:
   - confirmed target branch `main`
@@ -120,5 +133,4 @@
 - expanded candidate stack is now frozen except merge-prep and review work
 - `C17-C19` are complete and already integrated into the greenfield candidate stack
 - do not open new Claude feature branches until:
-  - post-merge stabilization on `main` is accepted
-  - the disk-pressure warning is triaged
+  - post-merge stabilization on `main` is explicitly accepted

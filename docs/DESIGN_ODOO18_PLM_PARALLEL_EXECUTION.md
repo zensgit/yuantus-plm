@@ -644,3 +644,19 @@
 - 继续保持 `C17/C18/C19` 不注册到 `src/yuantus/api/app.py`
 - 将 `.pytest_cache` 的磁盘写入告警视为环境告警，而不是功能阻塞
 - 在 post-merge 稳定窗口被接受前，不开启新的 Claude feature 分支
+
+## Increment 2026-03-19 Post-Merge Stabilization Hygiene
+
+### Why
+- 实际 `main` 合并后的第一次回归已经通过，但磁盘空间一度触发 `.pytest_cache` 写入告警
+- 在恢复新并行开发之前，需要先证明该问题是环境噪音而不是持续性阻塞
+
+### Delivered Scope
+- 清理 clean Codex worktree 里的 `__pycache__` 与 `.pytest_cache`
+- 移除已完成使命的 rehearsal / integration worktree
+- 在清理后重新运行 merged-`main` 的 full 与 broader regression
+
+### Chosen Defaults
+- 不触碰任何脏 worktree，尤其是 `yuantus-cad-pipeline`
+- 把 rehearsal / superseded integration worktree 视为可回收工件，而不是长期保留资产
+- 在稳定窗口明确接受前，维持“Claude 不开新任务”的冻结策略

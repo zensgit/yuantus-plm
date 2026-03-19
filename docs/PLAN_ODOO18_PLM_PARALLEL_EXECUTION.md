@@ -557,3 +557,17 @@
   - test execution still completed successfully
 - Current policy:
   - do not open new Claude feature branches until post-merge stabilization is accepted
+
+## Increment 2026-03-19 Codex-Post-Merge-Stabilization-Refresh
+- Performed cache/worktree hygiene after the real `main` merge:
+  - removed `__pycache__` and `.pytest_cache` from clean Codex worktrees
+  - removed superseded rehearsal and integration worktrees
+  - restored free space to roughly `4.3Gi`
+- Re-ran merged-`main` validation after cleanup:
+  - expanded stack script:
+    - `305 passed, 103 warnings`
+  - broader merge-prep pack:
+    - `112 passed, 283 deselected, 62 warnings`
+- Operational conclusion:
+  - the prior `.pytest_cache` `No space left on device` warning did not recur
+  - keep Claude frozen until the stabilization window is explicitly accepted
