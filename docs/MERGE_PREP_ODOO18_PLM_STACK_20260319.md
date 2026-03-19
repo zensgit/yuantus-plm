@@ -311,3 +311,12 @@
     - `267 passed, 98 warnings in 2.74s`
   - unified stack full:
     - `485 passed, 172 warnings in 12.59s`
+
+## Next Claude Base: C32-C34
+- next Claude base:
+  - `feature/claude-greenfield-base-6`
+- next greenfield batch:
+  - `C32`
+  - `C33`
+  - `C34`
+- this planning step does not reopen active merge-prep on `main`; it only prepares isolated sixth-stage task boundaries

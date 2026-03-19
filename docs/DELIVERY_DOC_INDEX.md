@@ -124,6 +124,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - C30 Document Sync Drift Snapshots Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C30_DOCUMENT_SYNC_DRIFT_SNAPSHOTS_BOOTSTRAP_20260319.md`
 - C31 Cutted Parts Benchmark Quote Bootstrap Design: `docs/DESIGN_PARALLEL_C31_CUTTED_PARTS_BENCHMARK_QUOTE_BOOTSTRAP_20260319.md`
 - C31 Cutted Parts Benchmark Quote Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C31_CUTTED_PARTS_BENCHMARK_QUOTE_BOOTSTRAP_20260319.md`
+- C32 PLM Box Policy Exceptions Bootstrap Design: `docs/DESIGN_PARALLEL_C32_PLM_BOX_POLICY_EXCEPTIONS_BOOTSTRAP_20260319.md`
+- C32 PLM Box Policy Exceptions Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C32_PLM_BOX_POLICY_EXCEPTIONS_BOOTSTRAP_20260319.md`
+- C33 Document Sync Baseline Lineage Bootstrap Design: `docs/DESIGN_PARALLEL_C33_DOCUMENT_SYNC_BASELINE_LINEAGE_BOOTSTRAP_20260319.md`
+- C33 Document Sync Baseline Lineage Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C33_DOCUMENT_SYNC_BASELINE_LINEAGE_BOOTSTRAP_20260319.md`
+- C34 Cutted Parts Variance Recommendations Bootstrap Design: `docs/DESIGN_PARALLEL_C34_CUTTED_PARTS_VARIANCE_RECOMMENDATIONS_BOOTSTRAP_20260319.md`
+- C34 Cutted Parts Variance Recommendations Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C34_CUTTED_PARTS_VARIANCE_RECOMMENDATIONS_BOOTSTRAP_20260319.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
