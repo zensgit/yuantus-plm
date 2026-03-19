@@ -321,3 +321,48 @@ def box_export_reconciliation(
 ):
     service = BoxService(db)
     return service.export_box_reconciliation()
+
+
+# ---------------------------------------------------------------------------
+# Capacity / Compliance endpoints (C29)
+# ---------------------------------------------------------------------------
+
+
+@box_router.get("/capacity/overview")
+def box_capacity_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.capacity_overview()
+
+
+@box_router.get("/compliance/summary")
+def box_compliance_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.compliance_summary()
+
+
+@box_router.get("/items/{box_id}/capacity")
+def box_item_capacity(
+    box_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    try:
+        return service.box_capacity(box_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@box_router.get("/export/capacity")
+def box_export_capacity(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.export_capacity()

@@ -541,3 +541,141 @@ class BoxService:
             "reconciliation_overview": self.reconciliation_overview(),
             "audit_summary": self.audit_summary(),
         }
+
+    # ------------------------------------------------------------------
+    # Capacity / Compliance (C29)
+    # ------------------------------------------------------------------
+
+    def capacity_overview(self) -> Dict[str, Any]:
+        """Fleet-wide capacity metrics: fill rates and utilization bands."""
+        boxes = self.session.query(BoxItem).all()
+
+        total = len(boxes)
+        with_max_quantity = 0
+        with_weight_limit = 0
+        fill_rates: List[float] = []
+        bands: Dict[str, int] = {"high": 0, "medium": 0, "low": 0}
+
+        for b in boxes:
+            if b.max_quantity is not None:
+                with_max_quantity += 1
+            if b.max_gross_weight is not None:
+                with_weight_limit += 1
+
+            # Fill rate: contents count / max_quantity for boxes that have both
+            if b.max_quantity is not None and b.max_quantity > 0:
+                contents = self.list_contents(b.id)
+                fill_pct = len(contents) / b.max_quantity * 100
+                fill_rates.append(fill_pct)
+                if fill_pct >= 80:
+                    bands["high"] += 1
+                elif fill_pct >= 50:
+                    bands["medium"] += 1
+                else:
+                    bands["low"] += 1
+
+        avg_fill_rate = round(sum(fill_rates) / len(fill_rates), 1) if fill_rates else 0.0
+
+        return {
+            "total": total,
+            "with_max_quantity": with_max_quantity,
+            "with_weight_limit": with_weight_limit,
+            "average_fill_rate": avg_fill_rate,
+            "bands": bands,
+        }
+
+    def compliance_summary(self) -> Dict[str, Any]:
+        """Dimensional compliance checks across all boxes."""
+        boxes = self.session.query(BoxItem).all()
+
+        missing_dimensions = 0
+        missing_weight = 0
+        exceeding_weight_limit = 0
+        over_capacity = 0
+        compliant = 0
+        non_compliant = 0
+
+        for b in boxes:
+            is_compliant = True
+
+            if b.width is None or b.height is None or b.depth is None:
+                missing_dimensions += 1
+                is_compliant = False
+
+            if b.tare_weight is None:
+                missing_weight += 1
+                is_compliant = False
+
+            contents = self.list_contents(b.id)
+            if contents and b.max_gross_weight is None:
+                exceeding_weight_limit += 1
+                is_compliant = False
+
+            if b.max_quantity is not None and len(contents) > b.max_quantity:
+                over_capacity += 1
+                is_compliant = False
+
+            if is_compliant:
+                compliant += 1
+            else:
+                non_compliant += 1
+
+        return {
+            "total": len(boxes),
+            "missing_dimensions": missing_dimensions,
+            "missing_weight": missing_weight,
+            "exceeding_weight_limit": exceeding_weight_limit,
+            "over_capacity": over_capacity,
+            "compliant": compliant,
+            "non_compliant": non_compliant,
+        }
+
+    def box_capacity(self, box_id: str) -> Dict[str, Any]:
+        """Per-box capacity detail with compliance checks."""
+        box = self.get_box(box_id)
+        if box is None:
+            raise ValueError(f"Box '{box_id}' not found")
+
+        contents = self.list_contents(box_id)
+        contents_count = len(contents)
+
+        fill_pct = (
+            round(contents_count / box.max_quantity * 100, 1)
+            if box.max_quantity is not None and box.max_quantity > 0
+            else 0.0
+        )
+
+        dimension_complete = (
+            box.width is not None
+            and box.height is not None
+            and box.depth is not None
+        )
+
+        missing_dims = not dimension_complete
+        missing_wt = box.tare_weight is None
+        over_cap = (
+            box.max_quantity is not None and contents_count > box.max_quantity
+        )
+
+        return {
+            "box_id": box.id,
+            "max_quantity": box.max_quantity,
+            "contents_count": contents_count,
+            "fill_pct": fill_pct,
+            "has_weight_limit": box.max_gross_weight is not None,
+            "tare_weight": box.tare_weight,
+            "max_gross_weight": box.max_gross_weight,
+            "dimension_complete": dimension_complete,
+            "compliance_checks": {
+                "missing_dimensions": missing_dims,
+                "missing_weight": missing_wt,
+                "over_capacity": over_cap,
+            },
+        }
+
+    def export_capacity(self) -> Dict[str, Any]:
+        """Export-ready capacity payload: overview + compliance summary."""
+        return {
+            "capacity_overview": self.capacity_overview(),
+            "compliance_summary": self.compliance_summary(),
+        }

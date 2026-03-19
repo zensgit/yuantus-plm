@@ -768,3 +768,230 @@ class TestReconciliationAudit:
         assert "audit_summary" in result
         assert result["reconciliation_overview"]["total"] == 1
         assert result["audit_summary"]["total"] == 1
+
+
+# ---------------------------------------------------------------------------
+# TestCapacityCompliance (C29)
+# ---------------------------------------------------------------------------
+
+
+class TestCapacityCompliance:
+    def _session_with_boxes_and_contents(self, boxes, contents_map=None):
+        """Session whose query(BoxItem).all() returns boxes and list_contents is routed via contents_map."""
+        session = _mock_session()
+        _contents_map = contents_map or {}
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is BoxItem:
+                q.all.return_value = boxes
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is BoxContent:
+                def content_filter(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = []
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = content_filter
+                q.order_by.return_value = q
+                q.all.return_value = []
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+
+        def get_side_effect(model, pk):
+            if model is BoxItem:
+                return next((b for b in boxes if b.id == pk), None)
+            return None
+
+        session.get.side_effect = get_side_effect
+
+        return session
+
+    def test_capacity_overview(self):
+        b1 = _make_box(box_id="b1")
+        b1.max_quantity = 10
+        b1.max_gross_weight = 50.0
+
+        b2 = _make_box(box_id="b2")
+        b2.max_quantity = 5
+        b2.max_gross_weight = None
+
+        b3 = _make_box(box_id="b3")
+        b3.max_quantity = None
+        b3.max_gross_weight = 20.0
+
+        session = self._session_with_boxes_and_contents([b1, b2, b3])
+        service = BoxService(session)
+        result = service.capacity_overview()
+
+        assert result["total"] == 3
+        assert result["with_max_quantity"] == 2
+        assert result["with_weight_limit"] == 2
+        # No contents mocked -> fill rate = 0 for both boxes with max_quantity
+        assert result["average_fill_rate"] == 0.0
+        assert result["bands"]["low"] == 2  # 0% fill -> low band
+        assert result["bands"]["medium"] == 0
+        assert result["bands"]["high"] == 0
+
+    def test_capacity_overview_empty(self):
+        session = self._session_with_boxes_and_contents([])
+        service = BoxService(session)
+        result = service.capacity_overview()
+
+        assert result["total"] == 0
+        assert result["with_max_quantity"] == 0
+        assert result["with_weight_limit"] == 0
+        assert result["average_fill_rate"] == 0.0
+        assert result["bands"] == {"high": 0, "medium": 0, "low": 0}
+
+    def test_compliance_summary(self):
+        # b1: fully compliant (has dims, tare_weight, no contents so no weight-limit issue)
+        b1 = _make_box(box_id="b1")
+        b1.width = 100.0
+        b1.height = 80.0
+        b1.depth = 50.0
+        b1.tare_weight = 0.5
+        b1.max_gross_weight = 10.0
+        b1.max_quantity = 50
+
+        # b2: missing dimensions, missing tare_weight
+        b2 = _make_box(box_id="b2")
+        b2.width = None
+        b2.height = None
+        b2.depth = None
+        b2.tare_weight = None
+        b2.max_gross_weight = None
+        b2.max_quantity = None
+
+        session = self._session_with_boxes_and_contents([b1, b2])
+        service = BoxService(session)
+        result = service.compliance_summary()
+
+        assert result["total"] == 2
+        assert result["missing_dimensions"] == 1
+        assert result["missing_weight"] == 1
+        assert result["compliant"] == 1
+        assert result["non_compliant"] == 1
+
+    def test_compliance_summary_all_compliant(self):
+        b1 = _make_box(box_id="b1")
+        b1.width = 100.0
+        b1.height = 80.0
+        b1.depth = 50.0
+        b1.tare_weight = 0.5
+        b1.max_gross_weight = 10.0
+        b1.max_quantity = 50
+
+        session = self._session_with_boxes_and_contents([b1])
+        service = BoxService(session)
+        result = service.compliance_summary()
+
+        assert result["total"] == 1
+        assert result["missing_dimensions"] == 0
+        assert result["missing_weight"] == 0
+        assert result["exceeding_weight_limit"] == 0
+        assert result["over_capacity"] == 0
+        assert result["compliant"] == 1
+        assert result["non_compliant"] == 0
+
+    def test_box_capacity(self):
+        session = _mock_session()
+        box = _make_box(state="active")
+        box.max_quantity = 10
+        box.max_gross_weight = 50.0
+        box.tare_weight = 1.0
+        box.width = 100.0
+        box.height = 80.0
+        box.depth = 50.0
+        session.get.return_value = box
+
+        c1 = MagicMock(spec=BoxContent)
+        c1.quantity = 5.0
+        c2 = MagicMock(spec=BoxContent)
+        c2.quantity = 3.0
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = [c1, c2]
+
+        service = BoxService(session)
+        result = service.box_capacity("box-1")
+
+        assert result["box_id"] == "box-1"
+        assert result["max_quantity"] == 10
+        assert result["contents_count"] == 2
+        assert result["fill_pct"] == 20.0
+        assert result["has_weight_limit"] is True
+        assert result["tare_weight"] == 1.0
+        assert result["max_gross_weight"] == 50.0
+        assert result["dimension_complete"] is True
+        assert result["compliance_checks"]["missing_dimensions"] is False
+        assert result["compliance_checks"]["missing_weight"] is False
+        assert result["compliance_checks"]["over_capacity"] is False
+
+    def test_box_capacity_incomplete(self):
+        session = _mock_session()
+        box = _make_box(state="draft")
+        box.max_quantity = None
+        box.max_gross_weight = None
+        box.tare_weight = None
+        box.width = None
+        box.height = None
+        box.depth = None
+        session.get.return_value = box
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = []
+
+        service = BoxService(session)
+        result = service.box_capacity("box-1")
+
+        assert result["box_id"] == "box-1"
+        assert result["max_quantity"] is None
+        assert result["contents_count"] == 0
+        assert result["fill_pct"] == 0.0
+        assert result["has_weight_limit"] is False
+        assert result["tare_weight"] is None
+        assert result["max_gross_weight"] is None
+        assert result["dimension_complete"] is False
+        assert result["compliance_checks"]["missing_dimensions"] is True
+        assert result["compliance_checks"]["missing_weight"] is True
+        assert result["compliance_checks"]["over_capacity"] is False
+
+    def test_box_capacity_not_found(self):
+        session = _mock_session()
+        session.get.return_value = None
+
+        service = BoxService(session)
+        with pytest.raises(ValueError, match="not found"):
+            service.box_capacity("nonexistent")
+
+    def test_export_capacity(self):
+        b1 = _make_box(box_id="b1")
+        b1.max_quantity = 10
+        b1.max_gross_weight = 50.0
+        b1.tare_weight = 1.0
+        b1.width = 100.0
+        b1.height = 80.0
+        b1.depth = 50.0
+
+        session = self._session_with_boxes_and_contents([b1])
+        service = BoxService(session)
+        result = service.export_capacity()
+
+        assert "capacity_overview" in result
+        assert "compliance_summary" in result
+        assert result["capacity_overview"]["total"] == 1
+        assert result["compliance_summary"]["total"] == 1

@@ -10,7 +10,7 @@
 - `src/yuantus/meta_engine/tests/test_box_service.py`
 - `src/yuantus/meta_engine/tests/test_box_router.py`
 
-## Suggested Service Methods
+## Implemented Service Methods
 
 | Method | Returns | Purpose |
 |--------|---------|---------|
@@ -19,7 +19,7 @@
 | `box_capacity(box_id)` | Dict | Per-box capacity utilization and compliance detail |
 | `export_capacity()` | Dict | Export-ready payload combining overview + compliance |
 
-## Suggested API Endpoints
+## Implemented API Endpoints
 
 | Method | Path | Handler | Error |
 |--------|------|---------|-------|
@@ -27,6 +27,25 @@
 | GET | `/compliance/summary` | `service.compliance_summary()` | -- |
 | GET | `/items/{box_id}/capacity` | `service.box_capacity(box_id)` | ValueError -> 404 |
 | GET | `/export/capacity` | `service.export_capacity()` | -- |
+
+## Tests
+
+### Service Tests (TestCapacityCompliance)
+- test_capacity_overview
+- test_capacity_overview_empty
+- test_compliance_summary
+- test_compliance_summary_all_compliant
+- test_box_capacity
+- test_box_capacity_incomplete
+- test_box_capacity_not_found
+- test_export_capacity
+
+### Router Tests
+- test_capacity_overview
+- test_compliance_summary
+- test_box_capacity
+- test_box_capacity_not_found_404
+- test_export_capacity
 
 ## Non-Goals
 - No changes to `src/yuantus/api/app.py`

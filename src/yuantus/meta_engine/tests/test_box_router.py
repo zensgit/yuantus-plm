@@ -494,3 +494,112 @@ def test_export_reconciliation():
     assert "reconciliation_overview" in resp.json()
     assert "audit_summary" in resp.json()
     assert resp.json()["reconciliation_overview"]["total"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Capacity / Compliance endpoint tests (C29)
+# ---------------------------------------------------------------------------
+
+
+def test_capacity_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.capacity_overview.return_value = {
+            "total": 3,
+            "with_max_quantity": 2,
+            "with_weight_limit": 2,
+            "average_fill_rate": 45.0,
+            "bands": {"high": 0, "medium": 1, "low": 1},
+        }
+        resp = client.get("/api/v1/box/capacity/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 3
+    assert resp.json()["with_max_quantity"] == 2
+    assert resp.json()["average_fill_rate"] == 45.0
+    assert resp.json()["bands"]["medium"] == 1
+
+
+def test_compliance_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.compliance_summary.return_value = {
+            "total": 4,
+            "missing_dimensions": 1,
+            "missing_weight": 2,
+            "exceeding_weight_limit": 0,
+            "over_capacity": 1,
+            "compliant": 2,
+            "non_compliant": 2,
+        }
+        resp = client.get("/api/v1/box/compliance/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 4
+    assert resp.json()["missing_dimensions"] == 1
+    assert resp.json()["compliant"] == 2
+    assert resp.json()["non_compliant"] == 2
+
+
+def test_box_capacity():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_capacity.return_value = {
+            "box_id": "box-1",
+            "max_quantity": 10,
+            "contents_count": 2,
+            "fill_pct": 20.0,
+            "has_weight_limit": True,
+            "tare_weight": 1.0,
+            "max_gross_weight": 50.0,
+            "dimension_complete": True,
+            "compliance_checks": {
+                "missing_dimensions": False,
+                "missing_weight": False,
+                "over_capacity": False,
+            },
+        }
+        resp = client.get("/api/v1/box/items/box-1/capacity")
+
+    assert resp.status_code == 200
+    assert resp.json()["box_id"] == "box-1"
+    assert resp.json()["fill_pct"] == 20.0
+    assert resp.json()["dimension_complete"] is True
+    assert resp.json()["compliance_checks"]["over_capacity"] is False
+
+
+def test_box_capacity_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_capacity.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/box/items/nonexistent/capacity")
+
+    assert resp.status_code == 404
+
+
+def test_export_capacity():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_capacity.return_value = {
+            "capacity_overview": {
+                "total": 2, "with_max_quantity": 1, "with_weight_limit": 1,
+                "average_fill_rate": 30.0, "bands": {"high": 0, "medium": 0, "low": 1},
+            },
+            "compliance_summary": {
+                "total": 2, "missing_dimensions": 1, "missing_weight": 0,
+                "exceeding_weight_limit": 0, "over_capacity": 0,
+                "compliant": 1, "non_compliant": 1,
+            },
+        }
+        resp = client.get("/api/v1/box/export/capacity")
+
+    assert resp.status_code == 200
+    assert "capacity_overview" in resp.json()
+    assert "compliance_summary" in resp.json()
+    assert resp.json()["capacity_overview"]["total"] == 2
+    assert resp.json()["compliance_summary"]["compliant"] == 1

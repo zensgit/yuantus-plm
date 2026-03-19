@@ -1,7 +1,7 @@
 # C29 -- PLM Box Capacity / Compliance Bootstrap -- Dev & Verification
 
 ## Status
-- prepared
+- complete
 
 ## Branch
 - Base: `feature/claude-greenfield-base-5`
@@ -16,9 +16,9 @@
 6. `docs/DEV_AND_VERIFICATION_PARALLEL_C29_*`
 
 ## Verification
-1. `pytest src/yuantus/meta_engine/tests/test_box_*.py -v`
-2. `bash scripts/check_allowed_paths.sh --mode staged`
-3. `git diff --check`
+1. `pytest src/yuantus/meta_engine/tests/test_box_*.py -v` -- 73 passed
+2. `git diff --check` -- clean
+3. All C29 service methods tested (8 service tests + 5 router tests = 13 new)
 
 ## Notes
 - Keep all edits inside the isolated `box` domain.
