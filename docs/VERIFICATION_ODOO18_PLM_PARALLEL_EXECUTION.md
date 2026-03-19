@@ -878,3 +878,62 @@ git diff --check
 ### Residual Risks
 - `C10` 目前只完成 locale 域 contract 与独立验证
 - 还未在 BOM / maintenance / quality 等域直接消费 `resolve` / `export-context`
+
+## Increment 2026-03-19 Merge-Prep Final Regression
+
+### Touched Areas
+- `feature/codex-stack-c11c12`
+- `scripts/verify_odoo18_plm_stack.sh`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc pytest -q \
+  src/yuantus/meta_engine/tests/test_bom_summarized_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_router.py \
+  src/yuantus/meta_engine/tests/test_bom_summarized_snapshot_compare_router.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_preview.py \
+  src/yuantus/meta_engine/tests/test_bom_delta_router.py \
+  src/yuantus/meta_engine/tests/test_quality_service.py \
+  src/yuantus/meta_engine/tests/test_quality_router.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_service.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_quality_spc_service.py \
+  src/yuantus/meta_engine/tests/test_maintenance_service.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_locale_service.py \
+  src/yuantus/meta_engine/tests/test_report_locale_service.py \
+  src/yuantus/meta_engine/tests/test_locale_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_service.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_service.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_services.py -k 'locale or report_locale or export_' \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_router.py -k 'locale or export'
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- unified stack script:
+  - `218 passed, 75 warnings in 12.43s`
+- broader merge-prep pack:
+  - `112 passed, 283 deselected, 62 warnings in 15.07s`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- wider final pack 仍不是整仓全量回归
+- 当前主风险已从功能缺陷转移为合并顺序和审阅质量

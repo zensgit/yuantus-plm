@@ -418,3 +418,16 @@
   - `src/yuantus/meta_engine/tests/test_subcontracting_service.py`
   - `src/yuantus/meta_engine/tests/test_subcontracting_router.py`
 - Verified `9 passed, 3 warnings`
+
+## Increment 2026-03-19 Codex-Merge-Prep-Finalization
+- Current unified stack remains `feature/codex-stack-c11c12`
+- Merge rehearsal branch `feature/codex-merge-rehearsal-stack` already proved the stack merges cleanly into `main`
+- Re-ran both regression baselines after freezing the stack and preparing `C17-C19`:
+  - unified stack script:
+    - `218 passed, 75 warnings`
+  - broader merge-prep pack:
+    - `112 passed, 283 deselected, 62 warnings`
+- Current execution policy:
+  - do not stack more Codex feature work on this branch
+  - Claude may open only greenfield branches `C17 -> C18 -> C19`
+  - Codex stays on merge-prep, final review, and later greenfield integration

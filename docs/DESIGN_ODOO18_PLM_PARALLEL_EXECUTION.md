@@ -502,6 +502,26 @@
 - 本轮不把 `C17-C19` 直接叠到统一栈
 - 本轮不定义新的跨域 orchestration
 
+## Merge-Prep Freeze Policy
+
+### Why
+- `feature/codex-merge-rehearsal-stack` 已证明统一栈可无冲突合入 `main`。
+- 当前阶段的主要风险已从功能实现转为：
+  - merge hotspot review
+  - regression drift
+  - branch discipline
+
+### Chosen Defaults
+- `feature/codex-stack-c11c12` 只接受：
+  - merge-prep 文档更新
+  - regression refresh
+  - 必要的 integration bugfix
+- 新功能一律转移到新的绿地 Claude 分支或后续独立 Codex 集成分支
+
+### Non-Goals
+- 本轮不继续在统一栈上叠 `C17-C19` 实现
+- 本轮不把统一栈重新当成主功能开发分支
+
 ### Why
 - 现有仓库只有 ECO approvals，不存在独立的 generic approvals 模块。
 - 这条线适合用全新模块落地，避免挤占现有热文件。
