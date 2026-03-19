@@ -45,7 +45,7 @@
 | C14 | P2 | approvals export / ops-report | `approvals` service + router + tests | completed_on_this_branch |
 | C15 | P2 | subcontracting analytics / export | `subcontracting` service + router + tests | completed_on_this_branch |
 | C16 | P2 | quality SPC / analytics | `quality` analytics services + analytics router + tests | completed_on_this_branch |
-| C17 | P2 | PLM box bootstrap | new `box` module + router + tests | completed_on_c17_branch |
+| C17 | P2 | PLM box bootstrap | new `box` module + router + tests | completed_on_c17_integration_branch |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -341,6 +341,24 @@
 - non-goals:
   - no edits to `src/yuantus/api/app.py`
   - no edits to BOM/manufacturing hot services
+
+## Increment 2026-03-19 Codex-C17-Integration
+- Created `feature/codex-c17-box-integration` from the frozen unified stack baseline `feature/codex-stack-c11c12`
+- Cherry-picked Claude `C17` commit `dfd6a5c`
+- Preserved the original greenfield constraint:
+  - no `src/yuantus/api/app.py` registration
+- Integrated artifacts:
+  - `src/yuantus/meta_engine/box/__init__.py`
+  - `src/yuantus/meta_engine/box/models.py`
+  - `src/yuantus/meta_engine/box/service.py`
+  - `src/yuantus/meta_engine/web/box_router.py`
+  - `src/yuantus/meta_engine/tests/test_box_service.py`
+  - `src/yuantus/meta_engine/tests/test_box_router.py`
+- Verification results on the Codex integration branch:
+  - box targeted pack:
+    - `19 passed, 8 warnings`
+  - light cross-pack regression:
+    - `66 passed, 53 warnings`
 
 ## Increment 2026-03-19 Codex-C11-C12-Integration
 - Created `feature/codex-stack-c11c12` from the verified `C13` baseline

@@ -726,6 +726,67 @@ git diff --check
 ### Residual Risks
 - `C17-C19` 目前只完成了边界与模板准备，尚无实现代码
 
+## Increment 2026-03-19 Codex-C17-Integration
+
+### Touched Areas
+- `feature/codex-c17-box-integration`
+- `src/yuantus/meta_engine/box/__init__.py`
+- `src/yuantus/meta_engine/box/models.py`
+- `src/yuantus/meta_engine/box/service.py`
+- `src/yuantus/meta_engine/web/box_router.py`
+- `src/yuantus/meta_engine/tests/test_box_service.py`
+- `src/yuantus/meta_engine/tests/test_box_router.py`
+- `docs/DESIGN_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile \
+  src/yuantus/meta_engine/box/__init__.py \
+  src/yuantus/meta_engine/box/models.py \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py
+```
+
+```bash
+pytest -q \
+  src/yuantus/meta_engine/tests/test_file_viewer_readiness.py \
+  src/yuantus/meta_engine/tests/test_approvals_router.py \
+  src/yuantus/meta_engine/tests/test_subcontracting_router.py \
+  src/yuantus/meta_engine/tests/test_quality_analytics_router.py \
+  src/yuantus/meta_engine/tests/test_maintenance_router.py \
+  src/yuantus/meta_engine/tests/test_box_router.py
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `py_compile`: passed
+- targeted `C17` pack:
+  - `19 passed, 8 warnings`
+- light cross-pack regression:
+  - `66 passed, 53 warnings`
+- `git diff --check`: passed
+
+### Warnings
+- `starlette.formparsers` pending deprecation for `python_multipart`
+- `httpx` `app=` shortcut deprecation in test client stack
+
+### Residual Risks
+- `C17` 仍保持未注册到 `src/yuantus/api/app.py`
+- 当前只证明 greenfield router/service 与现有已集成子域不冲突，尚未证明全应用接线
+
 ## Increment 2026-03-19 C7-C8-C9 Stack Branch
 
 ### Touched Areas

@@ -21,6 +21,15 @@
 - 不改 `src/yuantus/api/app.py`
 - 不改 `parallel_tasks` / `version` / `benchmark_branches`
 
+## Codex Integration Notes
+- `C17` was integrated on top of the frozen unified stack branch in:
+  - `feature/codex-c17-box-integration`
+- The greenfield isolation contract was preserved:
+  - no app registration
+  - no edits to existing hot subsystems
+- `properties` remains portable across the current test/storage baseline by using:
+  - `JSON().with_variant(JSONB, "postgresql")`
+
 ## Data Model
 
 ### Enums

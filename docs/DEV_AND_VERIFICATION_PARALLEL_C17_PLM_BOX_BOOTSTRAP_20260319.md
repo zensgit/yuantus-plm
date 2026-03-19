@@ -1,11 +1,12 @@
 # C17 – PLM Box Bootstrap – Dev & Verification
 
 ## Status
-- implemented
+- integrated_verified
 
 ## Branch
 - Base: `feature/claude-greenfield-base`
 - Branch: `feature/claude-c17-plm-box`
+- Codex integration branch: `feature/codex-c17-box-integration`
 
 ## Scope
 - `src/yuantus/meta_engine/box/`
@@ -60,3 +61,19 @@
 2. `pytest src/yuantus/meta_engine/tests/test_box_router.py -v`
 3. `bash scripts/check_allowed_paths.sh --mode staged`
 4. `git diff --check`
+
+## Codex Integration Verification
+
+### Commands
+1. `PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc python3 -m py_compile src/yuantus/meta_engine/box/__init__.py src/yuantus/meta_engine/box/models.py src/yuantus/meta_engine/box/service.py src/yuantus/meta_engine/web/box_router.py src/yuantus/meta_engine/tests/test_box_service.py src/yuantus/meta_engine/tests/test_box_router.py`
+2. `pytest -q src/yuantus/meta_engine/tests/test_box_service.py src/yuantus/meta_engine/tests/test_box_router.py`
+3. `pytest -q src/yuantus/meta_engine/tests/test_file_viewer_readiness.py src/yuantus/meta_engine/tests/test_approvals_router.py src/yuantus/meta_engine/tests/test_subcontracting_router.py src/yuantus/meta_engine/tests/test_quality_analytics_router.py src/yuantus/meta_engine/tests/test_maintenance_router.py src/yuantus/meta_engine/tests/test_box_router.py`
+4. `git diff --check`
+
+### Results
+- `py_compile`: passed
+- targeted `C17` pack:
+  - `19 passed, 8 warnings`
+- light cross-pack regression:
+  - `66 passed, 53 warnings`
+- `git diff --check`: passed
