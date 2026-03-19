@@ -174,3 +174,13 @@
   - `main` advanced from `dd4b72a` to `aebdc09`
 - post-merge unified stack regression:
   - `351 passed, 123 warnings in 30.86s`
+
+## Next Greenfield Planning
+- stabilization for `C20/C21/C22` has been accepted on `main`
+- next Claude base:
+  - `feature/claude-greenfield-base-3`
+- next greenfield batch:
+  - `C23`
+  - `C24`
+  - `C25`
+- this planning step does not reopen active merge-prep on `main`; it only prepares isolated task boundaries

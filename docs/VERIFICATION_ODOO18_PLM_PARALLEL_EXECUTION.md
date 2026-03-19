@@ -1660,3 +1660,38 @@ PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-broader PYTEST_ADDOPTS='-p no:cachepro
 
 ### Residual Risks
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+
+## Increment 2026-03-19 Codex-Prepare-Next-Claude-Batch-C23-C25
+
+### Touched Areas
+- `main`
+- `contracts/claude_allowed_paths.json`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DELIVERY_DOC_INDEX.md`
+- `docs/DESIGN_PARALLEL_C23_PLM_BOX_OPS_REPORT_TRANSITIONS_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C23_PLM_BOX_OPS_REPORT_TRANSITIONS_BOOTSTRAP_20260319.md`
+- `docs/DESIGN_PARALLEL_C24_DOCUMENT_SYNC_RECONCILIATION_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C24_DOCUMENT_SYNC_RECONCILIATION_BOOTSTRAP_20260319.md`
+- `docs/DESIGN_PARALLEL_C25_CUTTED_PARTS_COST_UTILIZATION_BOOTSTRAP_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C25_CUTTED_PARTS_COST_UTILIZATION_BOOTSTRAP_20260319.md`
+
+### Verification Commands
+```bash
+python3 -m json.tool contracts/claude_allowed_paths.json >/dev/null
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- added path-guard profiles `C23`, `C24`, `C25`
+- created frozen Claude base branch `feature/claude-greenfield-base-3`
+- prepared shared PLAN / DESIGN / VERIFICATION entries for the next Claude batch
+- added standalone design / verification templates for `C23/C24/C25`
+
+### Residual Risks
+- `C23/C24/C25` are task-prep only at this stage; no implementation has been started
+- the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers outside their own domains

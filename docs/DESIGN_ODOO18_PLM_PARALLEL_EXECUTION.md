@@ -760,3 +760,33 @@
   - `351 passed, 123 warnings in 42.32s`
 - next step:
   - freeze new feature work until the next greenfield batch is explicitly planned
+
+## Next Claude Batch C23-C25
+
+### Why
+- `C20/C21/C22` 已经完成主线合并和稳定窗口确认。
+- 下一批如果继续并行，最稳的路径仍然是延续同一组三个 greenfield 子域，而不是打开新的跨域热文件。
+
+### Task Boundaries
+- `C23`
+  - 只允许扩展 `box` 子域内部 ops-report / transition helpers
+- `C24`
+  - 只允许扩展 `document_sync` 子域内部 reconciliation / conflict-resolution helpers
+- `C25`
+  - 只允许扩展 `cutted_parts` 子域内部 cost / utilization helpers
+
+### Chosen Defaults
+- Claude should branch the next greenfield batch from:
+  - `feature/claude-greenfield-base-3`
+  - source branch: `main`
+- `C23-C25` 一律不允许编辑：
+  - `src/yuantus/api/app.py`
+  - `parallel_tasks`
+  - `version`
+  - `benchmark_branches`
+  - 当前已集成 hot routers outside their own domains
+- 这三条线继续只做域内读侧、统计、导出和状态辅助，不做新的跨域 orchestration
+
+### Non-Goals
+- 本轮不把 `C23-C25` 直接并入 `main`
+- 本轮不触发新的统一栈合并

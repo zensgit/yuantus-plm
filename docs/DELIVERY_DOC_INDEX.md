@@ -247,6 +247,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - Parallel C17 PLM Box Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C17_PLM_BOX_BOOTSTRAP_20260319.md`
 - Parallel C18 Document Sync Bootstrap Design: `docs/DESIGN_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
 - Parallel C18 Document Sync Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C18_DOCUMENT_SYNC_BOOTSTRAP_20260319.md`
+- Parallel C23 PLM Box Ops Report / Transitions Bootstrap Design: `docs/DESIGN_PARALLEL_C23_PLM_BOX_OPS_REPORT_TRANSITIONS_BOOTSTRAP_20260319.md`
+- Parallel C23 PLM Box Ops Report / Transitions Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C23_PLM_BOX_OPS_REPORT_TRANSITIONS_BOOTSTRAP_20260319.md`
+- Parallel C24 Document Sync Reconciliation Bootstrap Design: `docs/DESIGN_PARALLEL_C24_DOCUMENT_SYNC_RECONCILIATION_BOOTSTRAP_20260319.md`
+- Parallel C24 Document Sync Reconciliation Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C24_DOCUMENT_SYNC_RECONCILIATION_BOOTSTRAP_20260319.md`
+- Parallel C25 Cutted Parts Cost / Utilization Bootstrap Design: `docs/DESIGN_PARALLEL_C25_CUTTED_PARTS_COST_UTILIZATION_BOOTSTRAP_20260319.md`
+- Parallel C25 Cutted Parts Cost / Utilization Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C25_CUTTED_PARTS_COST_UTILIZATION_BOOTSTRAP_20260319.md`
 
 ## Optional
 

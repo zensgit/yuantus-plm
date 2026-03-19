@@ -32,6 +32,7 @@
 - `C17/C18/C19` greenfield candidate stack：merged into `main`
 - post-merge stabilization refresh：completed on this branch
 - next Claude greenfield batch `C20/C21/C22`：merged on `main`
+- next Claude greenfield batch `C23/C24/C25`：prepared on this branch
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -54,6 +55,9 @@
 | C20 | P2 | PLM box analytics / export | `box` analytics/read-model/export helpers | merged_on_main_greenfield |
 | C21 | P2 | document sync analytics / export | `document_sync` analytics/conflict/export helpers | merged_on_main_greenfield |
 | C22 | P2 | cutted-parts analytics / export | `cutted_parts` analytics/waste/export helpers | merged_on_main_greenfield |
+| C23 | P3 | PLM box ops-report / transitions | `box` ops-report/state-transition/export helpers | prepared_for_claude |
+| C24 | P3 | document sync reconciliation | `document_sync` reconciliation/conflict-resolution/export helpers | prepared_for_claude |
+| C25 | P3 | cutted-parts cost / utilization | `cutted_parts` utilization/cost/export helpers | prepared_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -669,3 +673,46 @@
 - result:
   - `C20/C21/C22` stabilization window accepted on `main`
   - no new functional regression detected
+
+## Increment 2026-03-19 Next Claude Batch C23-C25
+- `C20/C21/C22` has completed merge and stabilization on `main`
+- next Claude greenfield work should stay within the same isolated domains, but move to third-stage read-side helpers:
+  - `C23`
+  - `C24`
+  - `C25`
+- Claude should branch from:
+  - `feature/claude-greenfield-base-3`
+  - source branch: `main`
+
+### C23
+- task: `PLM box ops-report / transitions bootstrap`
+- suggested branch: `feature/claude-c23-box-ops-report`
+- write scope:
+  - `src/yuantus/meta_engine/box/`
+  - `src/yuantus/meta_engine/web/box_router.py`
+  - `src/yuantus/meta_engine/tests/test_box_*.py`
+- non-goals:
+  - no app registration
+  - no cross-domain integration
+
+### C24
+- task: `document sync reconciliation bootstrap`
+- suggested branch: `feature/claude-c24-document-sync-reconciliation`
+- write scope:
+  - `src/yuantus/meta_engine/document_sync/`
+  - `src/yuantus/meta_engine/web/document_sync_router.py`
+  - `src/yuantus/meta_engine/tests/test_document_sync_*.py`
+- non-goals:
+  - no app registration
+  - no background workers or storage hot-path integration
+
+### C25
+- task: `cutted-parts cost / utilization bootstrap`
+- suggested branch: `feature/claude-c25-cutted-parts-costing`
+- write scope:
+  - `src/yuantus/meta_engine/cutted_parts/`
+  - `src/yuantus/meta_engine/web/cutted_parts_router.py`
+  - `src/yuantus/meta_engine/tests/test_cutted_parts_*.py`
+- non-goals:
+  - no app registration
+  - no optimization solver or BOM/manufacturing hot-path integration
