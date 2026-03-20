@@ -399,3 +399,26 @@
     - `364 passed, 130 warnings in 3.71s`
   - unified stack full:
     - `582 passed, 204 warnings in 13.67s`
+- stabilization status:
+  - accepted
+
+## Next Claude Base: C38-C40
+- next Claude base:
+  - `feature/claude-greenfield-base-8`
+- next greenfield batch:
+  - `C38`
+  - `C39`
+  - `C40`
+- this planning step does not reopen active merge-prep on `main`; it only prepares isolated eighth-stage task boundaries
+
+## Next Candidate Stack: C38-C39-C40
+- candidate branch:
+  - `feature/codex-c38c39-staging`
+- base relation:
+  - planned from the `main` tip created by the `Codex-Prepare-Next-Claude-Batch-C38-C40` step
+- integrated commits:
+  - pending
+- candidate verification:
+  - pending
+- current gate:
+  - `C38/C39/C40` are task-prep only at this point

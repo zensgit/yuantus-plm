@@ -136,6 +136,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - C36 Document Sync Checkpoints Retention Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C36_DOCUMENT_SYNC_CHECKPOINTS_RETENTION_BOOTSTRAP_20260320.md`
 - C37 Cutted Parts Thresholds Envelopes Bootstrap Design: `docs/DESIGN_PARALLEL_C37_CUTTED_PARTS_THRESHOLDS_ENVELOPES_BOOTSTRAP_20260320.md`
 - C37 Cutted Parts Thresholds Envelopes Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C37_CUTTED_PARTS_THRESHOLDS_ENVELOPES_BOOTSTRAP_20260320.md`
+- C38 PLM Box Allocation Custody Bootstrap Design: `docs/DESIGN_PARALLEL_C38_PLM_BOX_ALLOCATION_CUSTODY_BOOTSTRAP_20260320.md`
+- C38 PLM Box Allocation Custody Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C38_PLM_BOX_ALLOCATION_CUSTODY_BOOTSTRAP_20260320.md`
+- C39 Document Sync Freshness Watermarks Bootstrap Design: `docs/DESIGN_PARALLEL_C39_DOCUMENT_SYNC_FRESHNESS_WATERMARKS_BOOTSTRAP_20260320.md`
+- C39 Document Sync Freshness Watermarks Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C39_DOCUMENT_SYNC_FRESHNESS_WATERMARKS_BOOTSTRAP_20260320.md`
+- C40 Cutted Parts Alerts Outliers Bootstrap Design: `docs/DESIGN_PARALLEL_C40_CUTTED_PARTS_ALERTS_OUTLIERS_BOOTSTRAP_20260320.md`
+- C40 Cutted Parts Alerts Outliers Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C40_CUTTED_PARTS_ALERTS_OUTLIERS_BOOTSTRAP_20260320.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
