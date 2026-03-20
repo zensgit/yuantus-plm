@@ -38,7 +38,7 @@
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
 - next Claude greenfield batch `C38/C39/C40`：stabilization accepted on `main`
-- next Claude greenfield batch `C41/C42/C43`：prepared on frozen Claude base
+- next Claude greenfield batch `C41/C42/C43`：`C41/C42` in codex-verified staging; `C43` pending
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -79,8 +79,8 @@
 | C38 | P3 | PLM box allocation / custody | `box` allocation/custody/export helpers | merged_on_main_greenfield |
 | C39 | P3 | document sync freshness / watermarks | `document_sync` freshness/watermark/export helpers | merged_on_main_greenfield |
 | C40 | P3 | cutted-parts alerts / outliers | `cutted_parts` alert/outlier/export helpers | merged_on_main_greenfield |
-| C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | prepared_for_claude |
-| C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | prepared_for_claude |
+| C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | codex_stack_verified |
+| C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | codex_stack_verified |
 | C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | prepared_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
@@ -1375,3 +1375,20 @@
 - non-goals:
   - no app registration
   - no optimization solver or BOM/manufacturing hot-path integration
+
+## Increment 2026-03-20 Codex-C41-C42-Stack-Verification
+- built isolated candidate stack branch:
+  - `feature/codex-c41c42-staging`
+- cherry-picked:
+  - `f1fcb43` `feat(box): add C41 occupancy / turnover bootstrap`
+  - `fd9c58c` `feat(document-sync): add C42 lag / backlog bootstrap`
+- staging commits after integration:
+  - `f8c9753` `feat(box): add C41 occupancy / turnover bootstrap`
+  - `31b98ab` `feat(document-sync): add C42 lag / backlog bootstrap`
+- combined targeted regression:
+  - `291 passed, 110 warnings in 3.37s`
+- unified stack full regression on staging:
+  - `667 passed, 231 warnings in 13.47s`
+- result:
+  - `C41/C42` are now in Codex-verified staging state
+  - `C43` remains pending by design

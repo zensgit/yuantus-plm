@@ -1461,3 +1461,20 @@
 ### Non-Goals
 - 本轮不把 `C41-C43` 直接并入 `main`
 - 本轮不触发新的统一栈合并
+
+## Increment 2026-03-20 Codex-C41-C42-Stack-Verification
+
+### Decision
+- `C41` 与 `C42` 已经不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c41c42-staging` 上完成联合验证。
+- `C43` 继续保持 pending，不与本轮 staging 混并。
+
+### Why
+- `box` 与 `document_sync` 的第九阶段扩展仍然互不写冲突，适合继续并行联合验证。
+- `C43` 继续留在 `cutted_parts` 子域，延后回收可以减少本轮 staging 的扩面和回归压力。
+
+### Result
+- `C41` staging commit: `f8c9753`
+- `C42` staging commit: `31b98ab`
+- combined targeted regression: `291 passed, 110 warnings in 3.37s`
+- unified stack regression on staging: `667 passed, 231 warnings in 13.47s`
