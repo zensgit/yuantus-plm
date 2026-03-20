@@ -39,7 +39,7 @@
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
 - next Claude greenfield batch `C38/C39/C40`：stabilization accepted on `main`
 - next Claude greenfield batch `C41/C42/C43`：stabilization accepted on `main`
-- next Claude greenfield batch `C44/C45/C46`：prepared on frozen Claude base
+- next Claude greenfield batch `C44/C45/C46`：`C44/C45` in codex-verified staging; `C46` pending
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -83,8 +83,8 @@
 | C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | merged_on_main_greenfield |
 | C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | merged_on_main_greenfield |
 | C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | merged_on_main_greenfield |
-| C44 | P3 | PLM box dwell / aging | `box` dwell/aging/export helpers | prepared_for_claude |
-| C45 | P3 | document sync skew / gaps | `document_sync` skew/gap/export helpers | prepared_for_claude |
+| C44 | P3 | PLM box dwell / aging | `box` dwell/aging/export helpers | codex_stack_verified |
+| C45 | P3 | document sync skew / gaps | `document_sync` skew/gap/export helpers | codex_stack_verified |
 | C46 | P3 | cutted-parts saturation / bottlenecks | `cutted_parts` saturation/bottleneck/export helpers | prepared_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
@@ -1488,3 +1488,20 @@
 - non-goals:
   - no app registration
   - no optimization solver or BOM/manufacturing hot-path integration
+
+## Increment 2026-03-20 Codex-C44-C45-Stack-Verification
+- built isolated candidate stack branch:
+  - `feature/codex-c44c45-staging`
+- cherry-picked:
+  - `81e5300` `feat(box): add C44 dwell / aging bootstrap`
+  - `0276af8` `feat(document-sync): add C45 skew / gaps bootstrap`
+- staging commits after integration:
+  - `52f84c5` `feat(box): add C44 dwell / aging bootstrap`
+  - `b7dc629` `feat(document-sync): add C45 skew / gaps bootstrap`
+- combined targeted regression:
+  - `324 passed, 121 warnings in 4.84s`
+- unified stack full regression on staging:
+  - `719 passed, 247 warnings in 13.95s`
+- result:
+  - `C44/C45` are now in Codex-verified staging state
+  - `C46` remains pending by design

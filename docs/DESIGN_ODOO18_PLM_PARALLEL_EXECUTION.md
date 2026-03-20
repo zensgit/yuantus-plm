@@ -1570,3 +1570,20 @@
 ### Non-Goals
 - 本轮不把 `C44-C46` 直接并入 `main`
 - 本轮不触发新的统一栈合并
+
+## Increment 2026-03-20 Codex-C44-C45-Stack-Verification
+
+### Decision
+- `C44/C45` 不再停留在“仅为 Claude 准备好”的状态，而是已经进入 Codex staging 并完成联合验证。
+- `C46` 保持 pending，继续按同一组三域批次的最后一条 greenfield 线处理。
+
+### Why
+- `C44` 与 `C45` 的写域仍然严格分离在 `box` 与 `document_sync`，适合先组成一条隔离候选栈。
+- combined targeted 与 unified full 都稳定通过，说明这两条 tenth-stage greenfield 线已经具备继续进入 merge-prep 的条件。
+
+### Result
+- candidate stack branch: `feature/codex-c44c45-staging`
+- `C44` staging commit: `52f84c5`
+- `C45` staging commit: `b7dc629`
+- combined targeted regression: `324 passed, 121 warnings in 4.84s`
+- unified stack full regression: `719 passed, 247 warnings in 13.95s`

@@ -23,3 +23,11 @@ git diff --check
 ## Codex Integration Target
 - candidate stack branch: `feature/codex-c44c45-staging`
 - Claude branch baseline: `feature/claude-greenfield-base-10`
+
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-c44c45-staging`
+- cherry-pick source: `81e5300`
+- integrated commit: `52f84c5`
+- combined regression with `C45`: `324 passed, 121 warnings in 4.84s`
+- unified stack script on staging: `719 passed, 247 warnings in 13.95s`
+- `git diff --check`: passed

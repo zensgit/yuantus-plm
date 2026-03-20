@@ -508,3 +508,20 @@
   - `C45`
   - `C46`
 - this planning step does not reopen active merge-prep on `main`; it only prepares isolated tenth-stage task boundaries
+
+## Next Candidate Stack: C44-C45
+- candidate branch:
+  - `feature/codex-c44c45-staging`
+- base relation:
+  - fast-forward from `main` baseline `df29d5f`
+- integrated commits:
+  - `52f84c5` `feat(box): add C44 dwell / aging bootstrap`
+  - `b7dc629` `feat(document-sync): add C45 skew / gaps bootstrap`
+- candidate verification:
+  - combined targeted regression:
+    - `324 passed, 121 warnings in 4.84s`
+  - unified stack script on staging branch:
+    - `719 passed, 247 warnings in 13.95s`
+- current gate:
+  - `C44/C45` are now staging-verified
+  - `C46` remains pending by design
