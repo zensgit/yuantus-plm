@@ -603,3 +603,110 @@ def test_export_capacity():
     assert "compliance_summary" in resp.json()
     assert resp.json()["capacity_overview"]["total"] == 2
     assert resp.json()["compliance_summary"]["compliant"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Policy / Exceptions endpoint tests (C32)
+# ---------------------------------------------------------------------------
+
+
+def test_policy_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.policy_overview.return_value = {
+            "total": 3,
+            "with_barcode": 2,
+            "with_material": 2,
+            "with_dimensions": 2,
+            "with_cost": 2,
+            "fully_compliant": 2,
+            "policy_compliance_pct": 66.7,
+        }
+        resp = client.get("/api/v1/box/policy/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 3
+    assert resp.json()["with_barcode"] == 2
+    assert resp.json()["fully_compliant"] == 2
+    assert resp.json()["policy_compliance_pct"] == 66.7
+
+
+def test_exceptions_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.exceptions_summary.return_value = {
+            "missing_barcode": ["b2"],
+            "missing_material": ["b2"],
+            "missing_cost": ["b2"],
+            "archived_active_contents": [],
+            "over_max_quantity": [],
+            "total_exceptions": 3,
+        }
+        resp = client.get("/api/v1/box/exceptions/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_exceptions"] == 3
+    assert "b2" in resp.json()["missing_barcode"]
+    assert resp.json()["archived_active_contents"] == []
+
+
+def test_box_policy_check():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_policy_check.return_value = {
+            "box_id": "box-1",
+            "has_barcode": True,
+            "has_material": True,
+            "has_dimensions": True,
+            "has_cost": True,
+            "has_weight": True,
+            "is_compliant": True,
+            "exceptions": [],
+        }
+        resp = client.get("/api/v1/box/items/box-1/policy-check")
+
+    assert resp.status_code == 200
+    assert resp.json()["box_id"] == "box-1"
+    assert resp.json()["is_compliant"] is True
+    assert resp.json()["exceptions"] == []
+
+
+def test_box_policy_check_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_policy_check.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/box/items/nonexistent/policy-check")
+
+    assert resp.status_code == 404
+
+
+def test_export_exceptions():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_exceptions.return_value = {
+            "policy_overview": {
+                "total": 2, "with_barcode": 1, "with_material": 2,
+                "with_dimensions": 1, "with_cost": 2,
+                "fully_compliant": 1, "policy_compliance_pct": 50.0,
+            },
+            "exceptions_summary": {
+                "missing_barcode": ["b2"],
+                "missing_material": [],
+                "missing_cost": [],
+                "archived_active_contents": [],
+                "over_max_quantity": [],
+                "total_exceptions": 1,
+            },
+        }
+        resp = client.get("/api/v1/box/export/exceptions")
+
+    assert resp.status_code == 200
+    assert "policy_overview" in resp.json()
+    assert "exceptions_summary" in resp.json()
+    assert resp.json()["policy_overview"]["total"] == 2
+    assert resp.json()["exceptions_summary"]["total_exceptions"] == 1

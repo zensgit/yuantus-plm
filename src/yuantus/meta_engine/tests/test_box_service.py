@@ -995,3 +995,224 @@ class TestCapacityCompliance:
         assert "compliance_summary" in result
         assert result["capacity_overview"]["total"] == 1
         assert result["compliance_summary"]["total"] == 1
+
+
+# ---------------------------------------------------------------------------
+# TestPolicyExceptions (C32)
+# ---------------------------------------------------------------------------
+
+
+class TestPolicyExceptions:
+    def _session_with_boxes_and_contents(self, boxes, contents_map=None):
+        """Session whose query(BoxItem).all() returns boxes and list_contents is routed via contents_map."""
+        session = _mock_session()
+        _contents_map = contents_map or {}
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is BoxItem:
+                q.all.return_value = boxes
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is BoxContent:
+                def content_filter(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = []
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = content_filter
+                q.order_by.return_value = q
+                q.all.return_value = []
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+
+        def get_side_effect(model, pk):
+            if model is BoxItem:
+                return next((b for b in boxes if b.id == pk), None)
+            return None
+
+        session.get.side_effect = get_side_effect
+
+        return session
+
+    def test_policy_overview(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.barcode = "BC001"
+        b1.material = "cardboard"
+        b1.width = 100.0
+        b1.height = 80.0
+        b1.depth = 50.0
+        b1.cost = 2.5
+
+        b2 = _make_box(box_id="b2", state="draft")
+        b2.barcode = None
+        b2.material = None
+        b2.width = None
+        b2.height = None
+        b2.depth = None
+        b2.cost = None
+
+        b3 = _make_box(box_id="b3", state="active")
+        b3.barcode = "BC003"
+        b3.material = "wood"
+        b3.width = 200.0
+        b3.height = 150.0
+        b3.depth = 100.0
+        b3.cost = 5.0
+
+        session = self._session_with_boxes_and_contents([b1, b2, b3])
+        service = BoxService(session)
+        result = service.policy_overview()
+
+        assert result["total"] == 3
+        assert result["with_barcode"] == 2
+        assert result["with_material"] == 2
+        assert result["with_dimensions"] == 2
+        assert result["with_cost"] == 2
+        assert result["fully_compliant"] == 2
+        # 2/3 * 100 = 66.7
+        assert result["policy_compliance_pct"] == 66.7
+
+    def test_policy_overview_empty(self):
+        session = self._session_with_boxes_and_contents([])
+        service = BoxService(session)
+        result = service.policy_overview()
+
+        assert result["total"] == 0
+        assert result["with_barcode"] == 0
+        assert result["with_material"] == 0
+        assert result["with_dimensions"] == 0
+        assert result["with_cost"] == 0
+        assert result["fully_compliant"] == 0
+        assert result["policy_compliance_pct"] is None
+
+    def test_exceptions_summary(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.barcode = "BC001"
+        b1.material = "cardboard"
+        b1.cost = 2.5
+
+        b2 = _make_box(box_id="b2", state="draft")
+        b2.barcode = None
+        b2.material = None
+        b2.cost = None
+
+        b3 = _make_box(box_id="b3", state="archived")
+        b3.barcode = "BC003"
+        b3.material = "wood"
+        b3.cost = 5.0
+
+        session = self._session_with_boxes_and_contents([b1, b2, b3])
+        service = BoxService(session)
+        result = service.exceptions_summary()
+
+        assert "b2" in result["missing_barcode"]
+        assert "b2" in result["missing_material"]
+        assert "b2" in result["missing_cost"]
+        assert len(result["missing_barcode"]) == 1
+        assert len(result["missing_material"]) == 1
+        assert len(result["missing_cost"]) == 1
+        assert result["archived_active_contents"] == []  # no contents mocked
+        assert result["over_max_quantity"] == []
+        assert result["total_exceptions"] == 3
+
+    def test_exceptions_summary_clean(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.barcode = "BC001"
+        b1.material = "cardboard"
+        b1.cost = 2.5
+
+        session = self._session_with_boxes_and_contents([b1])
+        service = BoxService(session)
+        result = service.exceptions_summary()
+
+        assert result["missing_barcode"] == []
+        assert result["missing_material"] == []
+        assert result["missing_cost"] == []
+        assert result["archived_active_contents"] == []
+        assert result["over_max_quantity"] == []
+        assert result["total_exceptions"] == 0
+
+    def test_box_policy_check_compliant(self):
+        session = _mock_session()
+        box = _make_box(state="active")
+        box.barcode = "BC001"
+        box.material = "cardboard"
+        box.width = 100.0
+        box.height = 80.0
+        box.depth = 50.0
+        box.cost = 2.5
+        box.tare_weight = 0.5
+        session.get.return_value = box
+
+        service = BoxService(session)
+        result = service.box_policy_check("box-1")
+
+        assert result["box_id"] == "box-1"
+        assert result["has_barcode"] is True
+        assert result["has_material"] is True
+        assert result["has_dimensions"] is True
+        assert result["has_cost"] is True
+        assert result["has_weight"] is True
+        assert result["is_compliant"] is True
+        assert result["exceptions"] == []
+
+    def test_box_policy_check_incomplete(self):
+        session = _mock_session()
+        box = _make_box(state="draft")
+        box.barcode = None
+        box.material = None
+        box.width = None
+        box.height = None
+        box.depth = None
+        box.cost = None
+        box.tare_weight = None
+        session.get.return_value = box
+
+        service = BoxService(session)
+        result = service.box_policy_check("box-1")
+
+        assert result["has_barcode"] is False
+        assert result["has_material"] is False
+        assert result["has_dimensions"] is False
+        assert result["has_cost"] is False
+        assert result["has_weight"] is False
+        assert result["is_compliant"] is False
+        assert "missing_barcode" in result["exceptions"]
+        assert "missing_material" in result["exceptions"]
+        assert "missing_dimensions" in result["exceptions"]
+        assert "missing_cost" in result["exceptions"]
+        assert "missing_weight" in result["exceptions"]
+        assert len(result["exceptions"]) == 5
+
+    def test_box_policy_check_not_found(self):
+        session = _mock_session()
+        session.get.return_value = None
+
+        service = BoxService(session)
+        with pytest.raises(ValueError, match="not found"):
+            service.box_policy_check("nonexistent")
+
+    def test_export_exceptions(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.barcode = "BC001"
+        b1.material = "cardboard"
+        b1.width = 100.0
+        b1.height = 80.0
+        b1.depth = 50.0
+        b1.cost = 2.5
+
+        session = self._session_with_boxes_and_contents([b1])
+        service = BoxService(session)
+        result = service.export_exceptions()
+
+        assert "policy_overview" in result
+        assert "exceptions_summary" in result
+        assert result["policy_overview"]["total"] == 1
+        assert result["exceptions_summary"]["total_exceptions"] == 0

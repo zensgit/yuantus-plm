@@ -679,3 +679,144 @@ class BoxService:
             "capacity_overview": self.capacity_overview(),
             "compliance_summary": self.compliance_summary(),
         }
+
+    # ------------------------------------------------------------------
+    # Policy / Exceptions (C32)
+    # ------------------------------------------------------------------
+
+    def policy_overview(self) -> Dict[str, Any]:
+        """Fleet-wide policy summary: compliance checks across all boxes."""
+        boxes = self.session.query(BoxItem).all()
+
+        total = len(boxes)
+        with_barcode = 0
+        with_material = 0
+        with_dimensions = 0
+        with_cost = 0
+        fully_compliant = 0
+
+        for b in boxes:
+            has_barcode = bool(b.barcode)
+            has_material = bool(b.material)
+            has_dims = (
+                b.width is not None
+                and b.height is not None
+                and b.depth is not None
+            )
+            has_cost = b.cost is not None
+
+            if has_barcode:
+                with_barcode += 1
+            if has_material:
+                with_material += 1
+            if has_dims:
+                with_dimensions += 1
+            if has_cost:
+                with_cost += 1
+            if has_barcode and has_material and has_dims and has_cost:
+                fully_compliant += 1
+
+        policy_compliance_pct = (
+            round(fully_compliant / total * 100, 1) if total > 0 else None
+        )
+
+        return {
+            "total": total,
+            "with_barcode": with_barcode,
+            "with_material": with_material,
+            "with_dimensions": with_dimensions,
+            "with_cost": with_cost,
+            "fully_compliant": fully_compliant,
+            "policy_compliance_pct": policy_compliance_pct,
+        }
+
+    def exceptions_summary(self) -> Dict[str, Any]:
+        """Exception flags across fleet: lists of box IDs with issues."""
+        boxes = self.session.query(BoxItem).all()
+
+        missing_barcode: List[str] = []
+        missing_material: List[str] = []
+        missing_cost: List[str] = []
+        archived_active_contents: List[str] = []
+        over_max_quantity: List[str] = []
+
+        for b in boxes:
+            if not b.barcode:
+                missing_barcode.append(b.id)
+            if not b.material:
+                missing_material.append(b.id)
+            if b.cost is None:
+                missing_cost.append(b.id)
+            if b.state == BoxState.ARCHIVED.value:
+                contents = self.list_contents(b.id)
+                if contents:
+                    archived_active_contents.append(b.id)
+            if b.max_quantity is not None:
+                contents = self.list_contents(b.id)
+                if len(contents) > b.max_quantity:
+                    over_max_quantity.append(b.id)
+
+        total_exceptions = (
+            len(missing_barcode)
+            + len(missing_material)
+            + len(missing_cost)
+            + len(archived_active_contents)
+            + len(over_max_quantity)
+        )
+
+        return {
+            "missing_barcode": missing_barcode,
+            "missing_material": missing_material,
+            "missing_cost": missing_cost,
+            "archived_active_contents": archived_active_contents,
+            "over_max_quantity": over_max_quantity,
+            "total_exceptions": total_exceptions,
+        }
+
+    def box_policy_check(self, box_id: str) -> Dict[str, Any]:
+        """Per-box policy check: field completeness and compliance."""
+        box = self.get_box(box_id)
+        if box is None:
+            raise ValueError(f"Box '{box_id}' not found")
+
+        has_barcode = bool(box.barcode)
+        has_material = bool(box.material)
+        has_dimensions = (
+            box.width is not None
+            and box.height is not None
+            and box.depth is not None
+        )
+        has_cost = box.cost is not None
+        has_weight = box.tare_weight is not None
+
+        exceptions: List[str] = []
+        if not has_barcode:
+            exceptions.append("missing_barcode")
+        if not has_material:
+            exceptions.append("missing_material")
+        if not has_dimensions:
+            exceptions.append("missing_dimensions")
+        if not has_cost:
+            exceptions.append("missing_cost")
+        if not has_weight:
+            exceptions.append("missing_weight")
+
+        is_compliant = len(exceptions) == 0
+
+        return {
+            "box_id": box.id,
+            "has_barcode": has_barcode,
+            "has_material": has_material,
+            "has_dimensions": has_dimensions,
+            "has_cost": has_cost,
+            "has_weight": has_weight,
+            "is_compliant": is_compliant,
+            "exceptions": exceptions,
+        }
+
+    def export_exceptions(self) -> Dict[str, Any]:
+        """Export-ready exceptions payload: policy overview + exceptions summary."""
+        return {
+            "policy_overview": self.policy_overview(),
+            "exceptions_summary": self.exceptions_summary(),
+        }
