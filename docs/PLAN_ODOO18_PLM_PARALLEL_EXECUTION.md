@@ -37,7 +37,7 @@
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
-- next Claude greenfield batch `C38/C39/C40`：prepared from `main`
+- next Claude greenfield batch `C38/C39/C40`：`C38/C39` verified on staging, `C40` pending
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -75,8 +75,8 @@
 | C35 | P3 | PLM box reservations / traceability | `box` reservation/traceability/export helpers | merged_on_main_greenfield |
 | C36 | P3 | document sync checkpoints / retention | `document_sync` checkpoint/retention/export helpers | merged_on_main_greenfield |
 | C37 | P3 | cutted-parts thresholds / envelopes | `cutted_parts` threshold/envelope/export helpers | merged_on_main_greenfield |
-| C38 | P3 | PLM box allocation / custody | `box` allocation/custody/export helpers | prepared_on_main_greenfield |
-| C39 | P3 | document sync freshness / watermarks | `document_sync` freshness/watermark/export helpers | prepared_on_main_greenfield |
+| C38 | P3 | PLM box allocation / custody | `box` allocation/custody/export helpers | codex_stack_verified |
+| C39 | P3 | document sync freshness / watermarks | `document_sync` freshness/watermark/export helpers | codex_stack_verified |
 | C40 | P3 | cutted-parts alerts / outliers | `cutted_parts` alert/outlier/export helpers | prepared_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
@@ -1262,3 +1262,20 @@
 - non-goals:
   - no app registration
   - no optimization solver or BOM/manufacturing hot-path integration
+
+## Increment 2026-03-20 Codex-C38-C39-Stack-Verification
+- built isolated candidate stack branch:
+  - `feature/codex-c38c39-staging`
+- cherry-picked:
+  - `8a1b5f7` `feat(box): add C38 allocation / custody bootstrap`
+  - `872a17b` `feat(document-sync): add C39 freshness / watermarks bootstrap`
+- staging commits after integration:
+  - `1cb1ec1` `feat(box): add C38 allocation / custody bootstrap`
+  - `a1658c2` `feat(document-sync): add C39 freshness / watermarks bootstrap`
+- combined targeted regression:
+  - `259 passed, 99 warnings in 3.50s`
+- unified stack full regression on staging:
+  - `614 passed, 215 warnings in 13.79s`
+- result:
+  - `C38/C39` are now in Codex-verified staging state
+  - `C40` remains pending by design

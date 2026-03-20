@@ -415,10 +415,15 @@
 - candidate branch:
   - `feature/codex-c38c39-staging`
 - base relation:
-  - planned from the `main` tip created by the `Codex-Prepare-Next-Claude-Batch-C38-C40` step
+  - fast-forward from `main` commit `5ef27df`
 - integrated commits:
-  - pending
+  - `1cb1ec1` `feat(box): add C38 allocation / custody bootstrap`
+  - `a1658c2` `feat(document-sync): add C39 freshness / watermarks bootstrap`
 - candidate verification:
-  - pending
+  - combined targeted regression:
+    - `259 passed, 99 warnings in 3.50s`
+  - unified stack script on staging branch:
+    - `614 passed, 215 warnings in 13.79s`
 - current gate:
-  - `C38/C39/C40` are task-prep only at this point
+  - `C38/C39` are now staging-verified
+  - `C40` remains pending by design

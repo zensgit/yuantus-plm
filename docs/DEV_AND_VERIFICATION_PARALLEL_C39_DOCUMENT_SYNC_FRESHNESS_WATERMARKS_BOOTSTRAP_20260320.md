@@ -44,3 +44,13 @@
 python3 -m pytest src/yuantus/meta_engine/tests/test_document_sync_service.py src/yuantus/meta_engine/tests/test_document_sync_router.py -v
 # 145 passed
 ```
+
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-c38c39-staging`
+- cherry-pick source: `872a17b`
+- integrated commit: `a1658c2`
+- combined regression with `C38`:
+  - `259 passed, 99 warnings in 3.50s`
+- unified stack script on staging:
+  - `614 passed, 215 warnings in 13.79s`
+- `git diff --check`: passed

@@ -20,3 +20,13 @@ git diff --check
 - box_custody: with contents, no contents, not found
 - export_custody: with data, empty
 - Router: all 4 endpoints + 404 case
+
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-c38c39-staging`
+- cherry-pick source: `8a1b5f7`
+- integrated commit: `1cb1ec1`
+- combined regression with `C39`:
+  - `259 passed, 99 warnings in 3.50s`
+- unified stack script on staging:
+  - `614 passed, 215 warnings in 13.79s`
+- `git diff --check`: passed

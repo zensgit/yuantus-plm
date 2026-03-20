@@ -1352,3 +1352,20 @@
 ### Non-Goals
 - 本轮不把 `C38-C40` 直接并入 `main`
 - 本轮不触发新的统一栈合并
+
+## Increment 2026-03-20 Codex-C38-C39-Stack-Verification
+
+### Decision
+- `C38` 与 `C39` 已经不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c38c39-staging` 上完成联合验证。
+- `C40` 继续保持 pending，不与本轮 staging 混并。
+
+### Why
+- `box` 与 `document_sync` 的第八阶段扩展仍然互不写冲突，适合继续并行联合验证。
+- `C40` 继续留在 `cutted_parts` 子域，延后回收可以减少本轮 staging 的扩面和回归压力。
+
+### Result
+- `C38` staging commit: `1cb1ec1`
+- `C39` staging commit: `a1658c2`
+- combined targeted regression: `259 passed, 99 warnings in 3.50s`
+- unified stack regression on staging: `614 passed, 215 warnings in 13.79s`
