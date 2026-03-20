@@ -1510,3 +1510,19 @@
 - rehearsal branch: `feature/codex-merge-rehearsal-c41c42c43`
 - rehearsal fast-forward: `88820f2` -> `2245073`
 - rehearsal full regression: `686 passed, 236 warnings in 15.71s`
+
+## Increment 2026-03-20 Main-FastForward-C41-C42-C43
+
+### Decision
+- `C41/C42/C43` 已正式进入 `main`，不再停留在候选或 rehearsal 状态。
+- 这一批 ninth-stage greenfield 扩展已经完成从 Claude 分支到 Codex staging、再到主线落地的完整闭环。
+
+### Why
+- `feature/codex-c41c42c43-staging` 相对 `main` 保持纯快进关系，直接执行真实 fast-forward 即可。
+- post-merge targeted 与 unified full 都稳定通过，说明 rehearsal 的判断在主线上得到验证。
+
+### Result
+- source branch: `feature/codex-c41c42c43-staging`
+- main fast-forward: `88820f2` -> `2db3c5c`
+- post-merge targeted regression: `468 passed, 162 warnings in 3.25s`
+- post-merge unified stack full: `686 passed, 236 warnings in 13.69s`

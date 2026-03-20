@@ -38,7 +38,7 @@
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
 - next Claude greenfield batch `C38/C39/C40`：stabilization accepted on `main`
-- next Claude greenfield batch `C41/C42/C43`：candidate stack rehearsed for `main`
+- next Claude greenfield batch `C41/C42/C43`：merged on `main` and post-merge verified
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -79,9 +79,9 @@
 | C38 | P3 | PLM box allocation / custody | `box` allocation/custody/export helpers | merged_on_main_greenfield |
 | C39 | P3 | document sync freshness / watermarks | `document_sync` freshness/watermark/export helpers | merged_on_main_greenfield |
 | C40 | P3 | cutted-parts alerts / outliers | `cutted_parts` alert/outlier/export helpers | merged_on_main_greenfield |
-| C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | candidate_stack_rehearsed |
-| C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | candidate_stack_rehearsed |
-| C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | candidate_stack_rehearsed |
+| C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | merged_on_main_greenfield |
+| C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | merged_on_main_greenfield |
+| C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | merged_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1420,3 +1420,16 @@
     - `686 passed, 236 warnings in 15.71s`
 - next step:
   - actual fast-forward into `main` if we accept this ninth-stage batch
+
+## Increment 2026-03-20 Main-FastForward-C41-C42-C43
+- source branch:
+  - `feature/codex-c41c42c43-staging`
+- main fast-forward:
+  - `88820f2` -> `2db3c5c`
+- post-merge targeted regression:
+  - `468 passed, 162 warnings in 3.25s`
+- post-merge unified stack full:
+  - `686 passed, 236 warnings in 13.69s`
+- result:
+  - `C41/C42/C43` are now part of `main`
+  - no new regression was introduced by the fast-forward

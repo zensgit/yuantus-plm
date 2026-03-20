@@ -483,7 +483,12 @@
   - unified stack script on rehearsal branch:
     - `686 passed, 236 warnings in 15.71s`
   - rehearsal passed without manual conflict resolution
+- actual main fast-forward:
+  - `88820f2` -> `2db3c5c`
+- post-merge verification:
+  - combined targeted regression:
+    - `468 passed, 162 warnings in 3.25s`
+  - unified stack script on `main`:
+    - `686 passed, 236 warnings in 13.69s`
 - current gate:
-  - `C41/C42/C43` are now candidate-stack rehearsed for `main`
-- next step:
-  - actual fast-forward into `main` if we accept this ninth-stage batch
+  - `C41/C42/C43` are now merged on `main`
