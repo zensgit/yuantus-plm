@@ -828,3 +828,113 @@ def test_export_traceability():
     assert resp.json()["reservations_overview"]["total"] == 2
     assert resp.json()["traceability_summary"]["traceability_pct"] == 66.7
     assert len(resp.json()["per_box_details"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Allocation / Custody endpoint tests (C38)
+# ---------------------------------------------------------------------------
+
+
+def test_allocations_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.allocations_overview.return_value = {
+            "total": 3,
+            "allocated": 1,
+            "unallocated": 2,
+            "allocation_rate": 33.3,
+            "by_state": {"active": 2, "draft": 1},
+        }
+        resp = client.get("/api/v1/box/allocations/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 3
+    assert resp.json()["allocated"] == 1
+    assert resp.json()["unallocated"] == 2
+    assert resp.json()["allocation_rate"] == 33.3
+    assert resp.json()["by_state"]["active"] == 2
+
+
+def test_custody_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.custody_summary.return_value = {
+            "total": 3,
+            "boxes_with_contents": 2,
+            "max_custody_depth": 5,
+            "avg_contents_per_box": 2.33,
+        }
+        resp = client.get("/api/v1/box/custody/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 3
+    assert resp.json()["boxes_with_contents"] == 2
+    assert resp.json()["max_custody_depth"] == 5
+    assert resp.json()["avg_contents_per_box"] == 2.33
+
+
+def test_box_custody():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_custody.return_value = {
+            "box_id": "box-1",
+            "box_name": "Test Box",
+            "state": "active",
+            "custody_depth": 2,
+            "total_quantity": 8.0,
+            "contents": [
+                {"id": "c-1", "item_id": "i-1", "quantity": 5.0, "lot_serial": "LOT-001", "note": None},
+                {"id": "c-2", "item_id": "i-2", "quantity": 3.0, "lot_serial": None, "note": "test"},
+            ],
+        }
+        resp = client.get("/api/v1/box/items/box-1/custody")
+
+    assert resp.status_code == 200
+    assert resp.json()["box_id"] == "box-1"
+    assert resp.json()["custody_depth"] == 2
+    assert resp.json()["total_quantity"] == 8.0
+    assert len(resp.json()["contents"]) == 2
+
+
+def test_box_custody_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_custody.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/box/items/nonexistent/custody")
+
+    assert resp.status_code == 404
+
+
+def test_export_custody():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_custody.return_value = {
+            "allocations_overview": {
+                "total": 2, "allocated": 1, "unallocated": 1,
+                "allocation_rate": 50.0, "by_state": {"active": 1, "draft": 1},
+            },
+            "custody_summary": {
+                "total": 2, "boxes_with_contents": 1,
+                "max_custody_depth": 3, "avg_contents_per_box": 1.5,
+            },
+            "per_box_custody": [
+                {"box_id": "b1", "box_name": "Box 1", "state": "active",
+                 "custody_depth": 3, "total_quantity": 10.0},
+                {"box_id": "b2", "box_name": "Box 2", "state": "draft",
+                 "custody_depth": 0, "total_quantity": 0.0},
+            ],
+        }
+        resp = client.get("/api/v1/box/export/custody")
+
+    assert resp.status_code == 200
+    assert "allocations_overview" in resp.json()
+    assert "custody_summary" in resp.json()
+    assert "per_box_custody" in resp.json()
+    assert resp.json()["allocations_overview"]["total"] == 2
+    assert resp.json()["custody_summary"]["boxes_with_contents"] == 1
+    assert len(resp.json()["per_box_custody"]) == 2

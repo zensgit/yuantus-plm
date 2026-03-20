@@ -1,17 +1,22 @@
-# C38 -- PLM Box Allocation / Custody Bootstrap -- Dev & Verification
+# C38 Dev & Verification: PLM Box Allocation / Custody Bootstrap
 
-## Status
-- prepared
+## Changed Files
+- `src/yuantus/meta_engine/box/service.py` - 4 new methods (C38 section)
+- `src/yuantus/meta_engine/web/box_router.py` - 4 new endpoints (C38 section)
+- `src/yuantus/meta_engine/tests/test_box_service.py` - TestAllocationsCustody class
+- `src/yuantus/meta_engine/tests/test_box_router.py` - 5 endpoint tests (C38 section)
 
-## Branch
-- Base: `feature/claude-greenfield-base-8`
-- Branch: `feature/claude-c38-box-custody`
+## Verification
 
-## Planned Verification
-1. `pytest src/yuantus/meta_engine/tests/test_box_*.py -v`
-2. `bash scripts/check_allowed_paths.sh --mode staged`
-3. `git diff --check`
+```bash
+python3 -m pytest src/yuantus/meta_engine/tests/test_box_service.py -v
+python3 -m pytest src/yuantus/meta_engine/tests/test_box_router.py -v
+git diff --check
+```
 
-## Notes
-- Codex integration verification will be added after Claude completes the branch.
-- Do not register the router in `app.py`.
+## Test Coverage
+- allocations_overview: with data, empty, allocation rate
+- custody_summary: with data, empty
+- box_custody: with contents, no contents, not found
+- export_custody: with data, empty
+- Router: all 4 endpoints + 404 case

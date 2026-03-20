@@ -1,26 +1,37 @@
-# C38 -- PLM Box Allocation / Custody Bootstrap -- Design
+# C38 Design: PLM Box Allocation / Custody Bootstrap
 
-## Goal
-- Extend the isolated `box` domain with allocation, custody, and export-ready helpers.
+## Overview
+Extends the PLM box domain with allocation tracking, custody chain analysis,
+and export helpers for downstream integration.
 
-## Scope
-- `src/yuantus/meta_engine/box/`
-- `src/yuantus/meta_engine/web/box_router.py`
-- `src/yuantus/meta_engine/tests/test_box_*.py`
+## Service Methods
 
-## Planned API
-- `GET /api/v1/box/allocations/overview`
-- `GET /api/v1/box/custody/summary`
-- `GET /api/v1/box/items/{box_id}/custody`
-- `GET /api/v1/box/export/custody`
+### allocations_overview()
+Fleet-wide allocation summary: total boxes, allocated vs unallocated,
+allocation rate, boxes by state.
 
-## Planned Service Methods
-- `allocations_overview()` -- Fleet-wide allocation and assignment summary
-- `custody_summary()` -- Custody completeness and handoff summary
-- `box_custody(box_id)` -- Per-box custody detail
-- `export_custody()` -- Export-ready combined payload
+### custody_summary()
+Custody chain summary: boxes with contents, custody depth stats,
+avg contents per box.
 
-## Constraints
-- No `app.py` registration.
-- No storage, CAD, or workflow hot-path integration.
-- Stay inside the isolated `box` domain.
+### box_custody(box_id)
+Per-box custody detail: box info, contents list, custody depth,
+total quantity. Raises ValueError if box not found.
+
+### export_custody()
+Export-ready payload combining allocations_overview, custody_summary,
+and per-box custody details.
+
+## Router Endpoints
+
+| Method | Path                          | Service Method            |
+|--------|-------------------------------|---------------------------|
+| GET    | /allocations/overview         | allocations_overview()    |
+| GET    | /custody/summary              | custody_summary()         |
+| GET    | /items/{box_id}/custody       | box_custody(box_id)       |
+| GET    | /export/custody               | export_custody()          |
+
+## Patterns
+- Follows established C32/C35 section patterns
+- ValueError -> HTTPException(404)
+- No new models or migrations required

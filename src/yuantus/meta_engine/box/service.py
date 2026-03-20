@@ -971,3 +971,122 @@ class BoxService:
             "traceability_summary": self.traceability_summary(),
             "per_box_details": per_box,
         }
+
+    # ------------------------------------------------------------------
+    # Allocation / Custody helpers (C38)
+    # ------------------------------------------------------------------
+
+    def allocations_overview(self) -> Dict[str, Any]:
+        """Fleet-wide allocation summary: total boxes, allocated vs unallocated,
+        allocation rate, boxes by state."""
+        boxes = self.session.query(BoxItem).all()
+
+        total = len(boxes)
+        allocated = 0
+        unallocated = 0
+        by_state: Dict[str, int] = {}
+
+        for b in boxes:
+            by_state[b.state] = by_state.get(b.state, 0) + 1
+            contents = self.list_contents(b.id)
+            if contents:
+                allocated += 1
+            else:
+                unallocated += 1
+
+        allocation_rate = (
+            round(allocated / total * 100, 1) if total > 0 else 0.0
+        )
+
+        return {
+            "total": total,
+            "allocated": allocated,
+            "unallocated": unallocated,
+            "allocation_rate": allocation_rate,
+            "by_state": by_state,
+        }
+
+    def custody_summary(self) -> Dict[str, Any]:
+        """Custody chain summary: boxes with contents, custody depth stats,
+        avg contents per box."""
+        boxes = self.session.query(BoxItem).all()
+
+        total = len(boxes)
+        boxes_with_contents = 0
+        custody_depths: List[int] = []
+        total_contents_count = 0
+
+        for b in boxes:
+            contents = self.list_contents(b.id)
+            depth = len(contents)
+            if depth > 0:
+                boxes_with_contents += 1
+            custody_depths.append(depth)
+            total_contents_count += depth
+
+        max_custody_depth = max(custody_depths) if custody_depths else 0
+        avg_contents_per_box = (
+            round(total_contents_count / total, 2) if total > 0 else 0.0
+        )
+
+        return {
+            "total": total,
+            "boxes_with_contents": boxes_with_contents,
+            "max_custody_depth": max_custody_depth,
+            "avg_contents_per_box": avg_contents_per_box,
+        }
+
+    def box_custody(self, box_id: str) -> Dict[str, Any]:
+        """Per-box custody detail: box info, contents list, custody depth,
+        total quantity. Raises ValueError if box not found."""
+        box = self.get_box(box_id)
+        if box is None:
+            raise ValueError(f"Box '{box_id}' not found")
+
+        contents = self.list_contents(box_id)
+        total_quantity = 0.0
+        for c in contents:
+            total_quantity += (c.quantity or 0.0)
+
+        return {
+            "box_id": box.id,
+            "box_name": box.name,
+            "state": box.state,
+            "custody_depth": len(contents),
+            "total_quantity": total_quantity,
+            "contents": [
+                {
+                    "id": c.id,
+                    "item_id": c.item_id,
+                    "quantity": c.quantity,
+                    "lot_serial": c.lot_serial,
+                    "note": c.note,
+                }
+                for c in contents
+            ],
+        }
+
+    def export_custody(self) -> Dict[str, Any]:
+        """Export-ready payload combining allocations_overview, custody_summary,
+        and per-box custody details."""
+        boxes = self.session.query(BoxItem).all()
+        per_box: List[Dict[str, Any]] = []
+
+        for b in boxes:
+            contents = self.list_contents(b.id)
+            total_quantity = 0.0
+            for c in contents:
+                total_quantity += (c.quantity or 0.0)
+            per_box.append({
+                "box_id": b.id,
+                "box_name": b.name,
+                "state": b.state,
+                "custody_depth": len(contents),
+                "total_quantity": total_quantity,
+            })
+
+        return {
+            "allocations_overview": self.allocations_overview(),
+            "custody_summary": self.custody_summary(),
+            "per_box_custody": per_box,
+        }

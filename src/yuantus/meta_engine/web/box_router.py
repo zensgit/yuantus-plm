@@ -456,3 +456,48 @@ def box_export_traceability(
 ):
     service = BoxService(db)
     return service.export_traceability()
+
+
+# ---------------------------------------------------------------------------
+# Allocation / Custody endpoints (C38)
+# ---------------------------------------------------------------------------
+
+
+@box_router.get("/allocations/overview")
+def box_allocations_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.allocations_overview()
+
+
+@box_router.get("/custody/summary")
+def box_custody_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.custody_summary()
+
+
+@box_router.get("/items/{box_id}/custody")
+def box_item_custody(
+    box_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    try:
+        return service.box_custody(box_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@box_router.get("/export/custody")
+def box_export_custody(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.export_custody()
