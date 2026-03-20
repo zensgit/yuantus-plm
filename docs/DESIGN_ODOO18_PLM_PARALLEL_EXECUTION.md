@@ -1369,3 +1369,19 @@
 - `C39` staging commit: `a1658c2`
 - combined targeted regression: `259 passed, 99 warnings in 3.50s`
 - unified stack regression on staging: `614 passed, 215 warnings in 13.79s`
+
+## Increment 2026-03-20 Codex-C40-Stack-Verification
+
+### Decision
+- `C40` 已不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c38c39c40-staging` 上完成 `C38/C39/C40` 联合验证。
+- `C38/C39/C40` 现在作为完整的 eighth-stage candidate stack 进入下一步 merge-prep 评估。
+
+### Why
+- `cutted_parts` 的 alert / outlier 读侧增强与现有 `C31/C34/C37` 写域保持一致，不需要触发新的跨域依赖。
+- 在 `C38/C39` 已验证基础上补齐 `C40`，可以直接得到完整的 `box/document_sync/cutted_parts` eighth-stage 绿地候选栈。
+
+### Result
+- `C40` staging commit: `d789b72`
+- combined targeted regression with `C38/C39/C40`: `417 passed, 146 warnings in 7.52s`
+- unified stack regression on staging: `635 passed, 220 warnings in 14.02s`

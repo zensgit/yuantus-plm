@@ -37,7 +37,7 @@
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
-- next Claude greenfield batch `C38/C39/C40`：`C38/C39` verified on staging, `C40` pending
+- next Claude greenfield batch `C38/C39/C40`：`C38/C39/C40` verified on staging
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -77,7 +77,7 @@
 | C37 | P3 | cutted-parts thresholds / envelopes | `cutted_parts` threshold/envelope/export helpers | merged_on_main_greenfield |
 | C38 | P3 | PLM box allocation / custody | `box` allocation/custody/export helpers | codex_stack_verified |
 | C39 | P3 | document sync freshness / watermarks | `document_sync` freshness/watermark/export helpers | codex_stack_verified |
-| C40 | P3 | cutted-parts alerts / outliers | `cutted_parts` alert/outlier/export helpers | prepared_on_main_greenfield |
+| C40 | P3 | cutted-parts alerts / outliers | `cutted_parts` alert/outlier/export helpers | codex_stack_verified |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1279,3 +1279,17 @@
 - result:
   - `C38/C39` are now in Codex-verified staging state
   - `C40` remains pending by design
+
+## Increment 2026-03-20 Codex-C40-Stack-Verification
+- promoted isolated candidate stack branch:
+  - `feature/codex-c38c39c40-staging`
+- cherry-picked:
+  - `3a543bf` `feat(cutted-parts): add C40 alerts / outliers bootstrap`
+- staging commit after integration:
+  - `d789b72` `feat(cutted-parts): add C40 alerts / outliers bootstrap`
+- combined targeted regression with `C38/C39/C40`:
+  - `417 passed, 146 warnings in 7.52s`
+- unified stack full regression on staging:
+  - `635 passed, 220 warnings in 14.02s`
+- result:
+  - `C38/C39/C40` are now in Codex-verified staging state

@@ -413,17 +413,17 @@
 
 ## Next Candidate Stack: C38-C39-C40
 - candidate branch:
-  - `feature/codex-c38c39-staging`
+  - `feature/codex-c38c39c40-staging`
 - base relation:
   - fast-forward from `main` commit `5ef27df`
 - integrated commits:
   - `1cb1ec1` `feat(box): add C38 allocation / custody bootstrap`
   - `a1658c2` `feat(document-sync): add C39 freshness / watermarks bootstrap`
+  - `d789b72` `feat(cutted-parts): add C40 alerts / outliers bootstrap`
 - candidate verification:
   - combined targeted regression:
-    - `259 passed, 99 warnings in 3.50s`
+    - `417 passed, 146 warnings in 7.52s`
   - unified stack script on staging branch:
-    - `614 passed, 215 warnings in 13.79s`
+    - `635 passed, 220 warnings in 14.02s`
 - current gate:
-  - `C38/C39` are now staging-verified
-  - `C40` remains pending by design
+  - `C38/C39/C40` are now staging-verified
