@@ -1275,3 +1275,153 @@ class DocumentSyncService:
             "watermarks_summary": self.watermarks_summary(),
             "sites": [self.site_freshness(s.id) for s in sites],
         }
+
+    # ------------------------------------------------------------------
+    # Lag / Backlog helpers (C42)
+    # ------------------------------------------------------------------
+
+    def lag_overview(self) -> Dict[str, Any]:
+        """Fleet-wide sync lag summary: total sites, sites with pending/failed
+        jobs, avg lag score, worst-lag sites."""
+        sites = self.session.query(SyncSite).all()
+        jobs = self.session.query(SyncJob).all()
+
+        # Group jobs by site_id
+        jobs_by_site: Dict[str, List[SyncJob]] = {}
+        for j in jobs:
+            jobs_by_site.setdefault(j.site_id, []).append(j)
+
+        site_lag_scores: Dict[str, int] = {}
+        sites_with_pending = 0
+        sites_with_failed = 0
+
+        for s in sites:
+            site_jobs = jobs_by_site.get(s.id, [])
+            pending_count = 0
+            failed_count = 0
+            for j in site_jobs:
+                if j.state == SyncJobState.PENDING.value:
+                    pending_count += 1
+                elif j.state == SyncJobState.FAILED.value:
+                    failed_count += 1
+
+            lag = pending_count + failed_count
+            site_lag_scores[s.id] = lag
+
+            if pending_count > 0:
+                sites_with_pending += 1
+            if failed_count > 0:
+                sites_with_failed += 1
+
+        # Average lag across all sites
+        avg_lag: Any = (
+            round(sum(site_lag_scores.values()) / len(site_lag_scores), 1)
+            if site_lag_scores
+            else None
+        )
+
+        # Worst-lag site (most pending+failed)
+        worst_lag_site_id: Any = None
+        if site_lag_scores:
+            worst_lag_site_id = max(
+                site_lag_scores,
+                key=lambda s_id: site_lag_scores[s_id],
+            )
+
+        return {
+            "total_sites": len(sites),
+            "sites_with_pending": sites_with_pending,
+            "sites_with_failed": sites_with_failed,
+            "avg_lag": avg_lag,
+            "worst_lag_site_id": worst_lag_site_id,
+        }
+
+    def backlog_summary(self) -> Dict[str, Any]:
+        """Backlog summary: total pending jobs across sites, sites with
+        backlog above threshold, backlog distribution."""
+        sites = self.session.query(SyncSite).all()
+        jobs = self.session.query(SyncJob).all()
+
+        backlog_threshold = 3
+
+        # Group jobs by site_id
+        jobs_by_site: Dict[str, List[SyncJob]] = {}
+        for j in jobs:
+            jobs_by_site.setdefault(j.site_id, []).append(j)
+
+        total_pending = 0
+        sites_above_threshold = 0
+        backlog_distribution: List[Dict[str, Any]] = []
+
+        for s in sites:
+            site_jobs = jobs_by_site.get(s.id, [])
+            pending = sum(
+                1 for j in site_jobs
+                if j.state == SyncJobState.PENDING.value
+            )
+            total_pending += pending
+
+            if pending > backlog_threshold:
+                sites_above_threshold += 1
+
+            backlog_distribution.append({
+                "site_id": s.id,
+                "pending_count": pending,
+                "above_threshold": pending > backlog_threshold,
+            })
+
+        return {
+            "total_sites": len(sites),
+            "total_pending": total_pending,
+            "backlog_threshold": backlog_threshold,
+            "sites_above_threshold": sites_above_threshold,
+            "backlog_distribution": backlog_distribution,
+        }
+
+    def site_backlog(self, site_id: str) -> Dict[str, Any]:
+        """Per-site backlog detail: site info, pending/failed job counts,
+        backlog depth. Raises ValueError if site not found."""
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        jobs = (
+            self.session.query(SyncJob)
+            .filter(SyncJob.site_id == site_id)
+            .all()
+        )
+
+        pending_count = 0
+        failed_count = 0
+        synced_count = 0
+
+        for j in jobs:
+            if j.state == SyncJobState.PENDING.value:
+                pending_count += 1
+            elif j.state == SyncJobState.FAILED.value:
+                failed_count += 1
+            elif j.state == SyncJobState.COMPLETED.value:
+                synced_count += 1
+
+        backlog_depth = pending_count + failed_count
+
+        return {
+            "site_id": site.id,
+            "site_name": site.name,
+            "state": site.state,
+            "total_jobs": len(jobs),
+            "pending_count": pending_count,
+            "failed_count": failed_count,
+            "synced_count": synced_count,
+            "backlog_depth": backlog_depth,
+        }
+
+    def export_backlog(self) -> Dict[str, Any]:
+        """Export-ready payload combining lag_overview, backlog_summary,
+        and per-site backlog details."""
+        sites = self.session.query(SyncSite).all()
+        return {
+            "lag_overview": self.lag_overview(),
+            "backlog_summary": self.backlog_summary(),
+            "sites": [self.site_backlog(s.id) for s in sites],
+        }

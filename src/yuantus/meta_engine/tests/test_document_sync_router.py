@@ -1090,3 +1090,141 @@ def test_export_watermarks_empty():
     assert resp.json()["freshness_overview"]["avg_freshness_pct"] is None
     assert resp.json()["watermarks_summary"]["site_watermarks"] == []
     assert resp.json()["sites"] == []
+
+
+# ---------------------------------------------------------------------------
+# Lag / Backlog endpoint tests (C42)
+# ---------------------------------------------------------------------------
+
+
+def test_lag_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.lag_overview.return_value = {
+            "total_sites": 2,
+            "sites_with_pending": 1,
+            "sites_with_failed": 1,
+            "avg_lag": 1.0,
+            "worst_lag_site_id": "s1",
+        }
+        resp = client.get("/api/v1/document-sync/lag/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_sites"] == 2
+    assert resp.json()["sites_with_pending"] == 1
+    assert resp.json()["sites_with_failed"] == 1
+    assert resp.json()["avg_lag"] == 1.0
+    assert resp.json()["worst_lag_site_id"] == "s1"
+
+
+def test_backlog_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.backlog_summary.return_value = {
+            "total_sites": 2,
+            "total_pending": 5,
+            "backlog_threshold": 3,
+            "sites_above_threshold": 1,
+            "backlog_distribution": [
+                {"site_id": "s1", "pending_count": 4, "above_threshold": True},
+                {"site_id": "s2", "pending_count": 1, "above_threshold": False},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/backlog/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_sites"] == 2
+    assert resp.json()["total_pending"] == 5
+    assert resp.json()["sites_above_threshold"] == 1
+    assert len(resp.json()["backlog_distribution"]) == 2
+
+
+def test_site_backlog():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_backlog.return_value = {
+            "site_id": "s1", "site_name": "HQ", "state": "active",
+            "total_jobs": 3, "pending_count": 1, "failed_count": 1,
+            "synced_count": 1, "backlog_depth": 2,
+        }
+        resp = client.get("/api/v1/document-sync/sites/s1/backlog")
+
+    assert resp.status_code == 200
+    assert resp.json()["site_id"] == "s1"
+    assert resp.json()["pending_count"] == 1
+    assert resp.json()["failed_count"] == 1
+    assert resp.json()["backlog_depth"] == 2
+
+
+def test_site_backlog_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_backlog.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/sites/bad/backlog")
+
+    assert resp.status_code == 404
+
+
+def test_export_backlog():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_backlog.return_value = {
+            "lag_overview": {
+                "total_sites": 1, "sites_with_pending": 1,
+                "sites_with_failed": 0, "avg_lag": 1.0,
+                "worst_lag_site_id": "s1",
+            },
+            "backlog_summary": {
+                "total_sites": 1, "total_pending": 1,
+                "backlog_threshold": 3, "sites_above_threshold": 0,
+                "backlog_distribution": [
+                    {"site_id": "s1", "pending_count": 1, "above_threshold": False},
+                ],
+            },
+            "sites": [
+                {"site_id": "s1", "site_name": "HQ", "state": "active",
+                 "total_jobs": 2, "pending_count": 1, "failed_count": 0,
+                 "synced_count": 1, "backlog_depth": 1},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/export/backlog")
+
+    assert resp.status_code == 200
+    assert "lag_overview" in resp.json()
+    assert "backlog_summary" in resp.json()
+    assert "sites" in resp.json()
+    assert resp.json()["lag_overview"]["total_sites"] == 1
+    assert resp.json()["backlog_summary"]["total_pending"] == 1
+    assert len(resp.json()["sites"]) == 1
+    assert resp.json()["sites"][0]["site_id"] == "s1"
+
+
+def test_export_backlog_empty():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_backlog.return_value = {
+            "lag_overview": {
+                "total_sites": 0, "sites_with_pending": 0,
+                "sites_with_failed": 0, "avg_lag": None,
+                "worst_lag_site_id": None,
+            },
+            "backlog_summary": {
+                "total_sites": 0, "total_pending": 0,
+                "backlog_threshold": 3, "sites_above_threshold": 0,
+                "backlog_distribution": [],
+            },
+            "sites": [],
+        }
+        resp = client.get("/api/v1/document-sync/export/backlog")
+
+    assert resp.status_code == 200
+    assert resp.json()["lag_overview"]["total_sites"] == 0
+    assert resp.json()["lag_overview"]["avg_lag"] is None
+    assert resp.json()["backlog_summary"]["backlog_distribution"] == []
+    assert resp.json()["sites"] == []

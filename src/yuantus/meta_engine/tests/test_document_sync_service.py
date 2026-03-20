@@ -2142,3 +2142,256 @@ class TestFreshnessWatermarks:
         assert result["watermarks_summary"]["total_sites"] == 0
         assert result["watermarks_summary"]["site_watermarks"] == []
         assert result["sites"] == []
+
+
+# ---------------------------------------------------------------------------
+# TestLagBacklog (C42)
+# ---------------------------------------------------------------------------
+
+
+class TestLagBacklog:
+    def _session_with_models(self, sites=None, jobs=None, records=None):
+        """Session with model-aware query routing and session.get support."""
+        session = _mock_session()
+        _sites = sites or []
+        _jobs = jobs or []
+        _records = records or []
+
+        def _get_side_effect(model, pk):
+            if model is SyncSite:
+                return next((s for s in _sites if s.id == pk), None)
+            if model is SyncJob:
+                return next((j for j in _jobs if j.id == pk), None)
+            return None
+
+        session.get.side_effect = _get_side_effect
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is SyncSite:
+                q.all.return_value = _sites
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is SyncJob:
+                q.all.return_value = _jobs
+
+                def filter_side_effect(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = _jobs
+                    fq.filter.return_value = fq
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = filter_side_effect
+                q.order_by.return_value = q
+            elif model is SyncRecord:
+                q.all.return_value = _records
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+        return session
+
+    # -- lag_overview --
+
+    def test_lag_overview(self):
+        """Sites with pending/failed jobs produce correct lag metrics."""
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="active", direction="pull"),
+        ]
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j3 = _make_job(job_id="j3", site_id="s2", state="completed")
+
+        session = self._session_with_models(sites=sites, jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.lag_overview()
+
+        assert result["total_sites"] == 2
+        assert result["sites_with_pending"] == 1  # s1
+        assert result["sites_with_failed"] == 1  # s1
+        # s1 lag = 2 (pending + failed), s2 lag = 0 => avg = (2+0)/2 = 1.0
+        assert result["avg_lag"] == 1.0
+        assert result["worst_lag_site_id"] == "s1"
+
+    def test_lag_overview_empty(self):
+        """No sites/jobs yields None avg_lag and None worst_lag_site_id."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.lag_overview()
+
+        assert result["total_sites"] == 0
+        assert result["sites_with_pending"] == 0
+        assert result["sites_with_failed"] == 0
+        assert result["avg_lag"] is None
+        assert result["worst_lag_site_id"] is None
+
+    def test_lag_overview_no_lag(self):
+        """All completed jobs produce zero lag."""
+        site = _make_site(site_id="s1", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.lag_overview()
+
+        assert result["total_sites"] == 1
+        assert result["sites_with_pending"] == 0
+        assert result["sites_with_failed"] == 0
+        assert result["avg_lag"] == 0.0
+        assert result["worst_lag_site_id"] == "s1"
+
+    # -- backlog_summary --
+
+    def test_backlog_summary(self):
+        """Sites with pending jobs produce correct backlog metrics."""
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="active", direction="pull"),
+        ]
+
+        # s1: 4 pending jobs (above threshold of 3)
+        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
+        j2 = _make_job(job_id="j2", site_id="s1", state="pending")
+        j3 = _make_job(job_id="j3", site_id="s1", state="pending")
+        j4 = _make_job(job_id="j4", site_id="s1", state="pending")
+        # s2: 1 pending job (below threshold)
+        j5 = _make_job(job_id="j5", site_id="s2", state="pending")
+
+        session = self._session_with_models(
+            sites=sites, jobs=[j1, j2, j3, j4, j5]
+        )
+        service = DocumentSyncService(session)
+        result = service.backlog_summary()
+
+        assert result["total_sites"] == 2
+        assert result["total_pending"] == 5
+        assert result["backlog_threshold"] == 3
+        assert result["sites_above_threshold"] == 1  # s1 has 4 > 3
+        assert len(result["backlog_distribution"]) == 2
+        # Check s1 entry
+        s1_entry = next(
+            d for d in result["backlog_distribution"] if d["site_id"] == "s1"
+        )
+        assert s1_entry["pending_count"] == 4
+        assert s1_entry["above_threshold"] is True
+
+    def test_backlog_summary_empty(self):
+        """No sites yields zero counts and empty distribution."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.backlog_summary()
+
+        assert result["total_sites"] == 0
+        assert result["total_pending"] == 0
+        assert result["backlog_threshold"] == 3
+        assert result["sites_above_threshold"] == 0
+        assert result["backlog_distribution"] == []
+
+    def test_backlog_summary_exceeded_threshold(self):
+        """Single site above threshold is counted."""
+        site = _make_site(site_id="s1", state="active", direction="push")
+
+        # 5 pending jobs > threshold of 3
+        jobs = [
+            _make_job(job_id=f"j{i}", site_id="s1", state="pending")
+            for i in range(5)
+        ]
+
+        session = self._session_with_models(sites=[site], jobs=jobs)
+        service = DocumentSyncService(session)
+        result = service.backlog_summary()
+
+        assert result["total_sites"] == 1
+        assert result["total_pending"] == 5
+        assert result["sites_above_threshold"] == 1
+        assert result["backlog_distribution"][0]["above_threshold"] is True
+
+    # -- site_backlog --
+
+    def test_site_backlog(self):
+        """Site with mixed job states produces correct backlog detail."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j3 = _make_job(job_id="j3", site_id="s1", state="completed")
+
+        session = self._session_with_models(sites=[site], jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.site_backlog("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["site_name"] == "HQ"
+        assert result["state"] == "active"
+        assert result["total_jobs"] == 3
+        assert result["pending_count"] == 1
+        assert result["failed_count"] == 1
+        assert result["synced_count"] == 1
+        assert result["backlog_depth"] == 2  # pending + failed
+
+    def test_site_backlog_no_jobs(self):
+        """Site exists but has no jobs; backlog_depth is 0."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        session = self._session_with_models(sites=[site], jobs=[])
+        service = DocumentSyncService(session)
+        result = service.site_backlog("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["total_jobs"] == 0
+        assert result["pending_count"] == 0
+        assert result["failed_count"] == 0
+        assert result["synced_count"] == 0
+        assert result["backlog_depth"] == 0
+
+    def test_site_backlog_not_found(self):
+        """Raises ValueError when site does not exist."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.site_backlog("nonexistent")
+
+    # -- export_backlog --
+
+    def test_export_backlog(self):
+        """Export combines lag_overview + backlog_summary + per-site backlog."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
+        j2 = _make_job(job_id="j2", site_id="s1", state="completed")
+
+        session = self._session_with_models(sites=[site], jobs=[j1, j2])
+        service = DocumentSyncService(session)
+        result = service.export_backlog()
+
+        assert "lag_overview" in result
+        assert "backlog_summary" in result
+        assert "sites" in result
+        assert result["lag_overview"]["total_sites"] == 1
+        assert result["lag_overview"]["sites_with_pending"] == 1
+        assert result["backlog_summary"]["total_pending"] == 1
+        assert len(result["sites"]) == 1
+        assert result["sites"][0]["site_id"] == "s1"
+        assert result["sites"][0]["pending_count"] == 1
+
+    def test_export_backlog_empty(self):
+        """Export with no data returns empty structures."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.export_backlog()
+
+        assert result["lag_overview"]["total_sites"] == 0
+        assert result["lag_overview"]["avg_lag"] is None
+        assert result["backlog_summary"]["total_sites"] == 0
+        assert result["backlog_summary"]["backlog_distribution"] == []
+        assert result["sites"] == []
