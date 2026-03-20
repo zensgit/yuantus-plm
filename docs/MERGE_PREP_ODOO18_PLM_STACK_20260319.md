@@ -475,5 +475,15 @@
     - `468 passed, 162 warnings in 4.49s`
   - unified stack script on staging branch:
     - `686 passed, 236 warnings in 14.27s`
+- rehearsal branch:
+  - `feature/codex-merge-rehearsal-c41c42c43`
+- rehearsal action:
+  - fast-forwarded `main` baseline `88820f2` to candidate commit `2245073`
+- rehearsal verification:
+  - unified stack script on rehearsal branch:
+    - `686 passed, 236 warnings in 15.71s`
+  - rehearsal passed without manual conflict resolution
 - current gate:
-  - `C41/C42/C43` are now staging-verified
+  - `C41/C42/C43` are now candidate-stack rehearsed for `main`
+- next step:
+  - actual fast-forward into `main` if we accept this ninth-stage batch
