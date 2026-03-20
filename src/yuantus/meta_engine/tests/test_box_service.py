@@ -1599,3 +1599,205 @@ class TestAllocationsCustody:
         assert result["allocated"] == 0
         assert result["unallocated"] == 2
         assert result["allocation_rate"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# TestOccupancyTurnover (C41)
+# ---------------------------------------------------------------------------
+
+
+class TestOccupancyTurnover:
+    def _session_with_boxes_and_contents(self, boxes, contents_map=None):
+        """Session whose query(BoxItem).all() returns boxes and list_contents is routed via contents_map."""
+        session = _mock_session()
+        _contents_map = contents_map or {}
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is BoxItem:
+                q.all.return_value = boxes
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is BoxContent:
+                def content_filter(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = []
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = content_filter
+                q.order_by.return_value = q
+                q.all.return_value = []
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+
+        def get_side_effect(model, pk):
+            if model is BoxItem:
+                return next((b for b in boxes if b.id == pk), None)
+            return None
+
+        session.get.side_effect = get_side_effect
+
+        return session
+
+    def test_occupancy_overview(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.max_quantity = 10
+        b2 = _make_box(box_id="b2", state="draft")
+        b2.max_quantity = 5
+        b3 = _make_box(box_id="b3", state="active")
+        b3.max_quantity = None
+
+        session = self._session_with_boxes_and_contents([b1, b2, b3])
+        service = BoxService(session)
+        result = service.occupancy_overview()
+
+        assert result["total"] == 3
+        # No contents mocked -> all empty
+        assert result["occupied"] == 0
+        assert result["empty"] == 3
+        assert result["occupancy_rate"] == 0.0
+        assert result["avg_fill_level"] == 0.0
+
+    def test_occupancy_overview_empty(self):
+        session = self._session_with_boxes_and_contents([])
+        service = BoxService(session)
+        result = service.occupancy_overview()
+
+        assert result["total"] == 0
+        assert result["occupied"] == 0
+        assert result["empty"] == 0
+        assert result["occupancy_rate"] == 0.0
+        assert result["avg_fill_level"] == 0.0
+
+    def test_occupancy_overview_all_empty_boxes(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.max_quantity = 10
+        b2 = _make_box(box_id="b2", state="active")
+        b2.max_quantity = 20
+
+        session = self._session_with_boxes_and_contents([b1, b2])
+        service = BoxService(session)
+        result = service.occupancy_overview()
+
+        assert result["total"] == 2
+        assert result["occupied"] == 0
+        assert result["empty"] == 2
+        assert result["occupancy_rate"] == 0.0
+        assert result["avg_fill_level"] == 0.0
+
+    def test_turnover_summary(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b2 = _make_box(box_id="b2", state="draft")
+        b3 = _make_box(box_id="b3", state="active")
+
+        session = self._session_with_boxes_and_contents([b1, b2, b3])
+        service = BoxService(session)
+        result = service.turnover_summary()
+
+        assert result["total"] == 3
+        assert result["active_boxes"] == 2
+        # No contents mocked -> avg 0, all active boxes have 0 contents -> low turnover
+        assert result["avg_contents_per_active"] == 0.0
+        assert result["high_turnover"] == 0
+        assert result["low_turnover"] == 2
+
+    def test_turnover_summary_empty(self):
+        session = self._session_with_boxes_and_contents([])
+        service = BoxService(session)
+        result = service.turnover_summary()
+
+        assert result["total"] == 0
+        assert result["active_boxes"] == 0
+        assert result["avg_contents_per_active"] == 0.0
+        assert result["high_turnover"] == 0
+        assert result["low_turnover"] == 0
+
+    def test_box_turnover_with_contents(self):
+        session = _mock_session()
+        box = _make_box(state="active")
+        box.max_quantity = 10
+        session.get.return_value = box
+
+        c1 = MagicMock(spec=BoxContent)
+        c1.quantity = 5.0
+        c2 = MagicMock(spec=BoxContent)
+        c2.quantity = 3.0
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = [c1, c2]
+
+        service = BoxService(session)
+        result = service.box_turnover("box-1")
+
+        assert result["box_id"] == "box-1"
+        assert result["box_name"] == "Test Box"
+        assert result["state"] == "active"
+        assert result["contents_count"] == 2
+        assert result["max_quantity"] == 10
+        assert result["fill_ratio"] == 20.0
+        assert result["classification"] == "normal"
+
+    def test_box_turnover_no_contents(self):
+        session = _mock_session()
+        box = _make_box(state="draft")
+        box.max_quantity = None
+        session.get.return_value = box
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = []
+
+        service = BoxService(session)
+        result = service.box_turnover("box-1")
+
+        assert result["box_id"] == "box-1"
+        assert result["contents_count"] == 0
+        assert result["fill_ratio"] == 0.0
+        assert result["classification"] == "low"
+
+    def test_box_turnover_not_found(self):
+        session = _mock_session()
+        session.get.return_value = None
+
+        service = BoxService(session)
+        with pytest.raises(ValueError, match="not found"):
+            service.box_turnover("nonexistent")
+
+    def test_export_turnover(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.max_quantity = 10
+
+        session = self._session_with_boxes_and_contents([b1])
+        service = BoxService(session)
+        result = service.export_turnover()
+
+        assert "occupancy_overview" in result
+        assert "turnover_summary" in result
+        assert "per_box_turnover" in result
+        assert result["occupancy_overview"]["total"] == 1
+        assert result["turnover_summary"]["total"] == 1
+        assert len(result["per_box_turnover"]) == 1
+        assert result["per_box_turnover"][0]["box_id"] == "b1"
+
+    def test_export_turnover_empty(self):
+        session = self._session_with_boxes_and_contents([])
+        service = BoxService(session)
+        result = service.export_turnover()
+
+        assert "occupancy_overview" in result
+        assert "turnover_summary" in result
+        assert "per_box_turnover" in result
+        assert result["occupancy_overview"]["total"] == 0
+        assert result["turnover_summary"]["total"] == 0
+        assert result["per_box_turnover"] == []

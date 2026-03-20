@@ -1090,3 +1090,151 @@ class BoxService:
             "custody_summary": self.custody_summary(),
             "per_box_custody": per_box,
         }
+
+    # ------------------------------------------------------------------
+    # Occupancy / Turnover helpers (C41)
+    # ------------------------------------------------------------------
+
+    def occupancy_overview(self) -> Dict[str, Any]:
+        """Fleet-wide occupancy summary: total boxes, occupied vs empty,
+        occupancy rate, avg fill level (contents qty / max_quantity)."""
+        boxes = self.session.query(BoxItem).all()
+
+        total = len(boxes)
+        occupied = 0
+        empty = 0
+        fill_levels: List[float] = []
+
+        for b in boxes:
+            contents = self.list_contents(b.id)
+            if contents:
+                occupied += 1
+                if b.max_quantity is not None and b.max_quantity > 0:
+                    total_qty = sum((c.quantity or 0.0) for c in contents)
+                    fill_levels.append(
+                        round(total_qty / b.max_quantity * 100, 1)
+                    )
+            else:
+                empty += 1
+
+        occupancy_rate = (
+            round(occupied / total * 100, 1) if total > 0 else 0.0
+        )
+        avg_fill_level = (
+            round(sum(fill_levels) / len(fill_levels), 1)
+            if fill_levels
+            else 0.0
+        )
+
+        return {
+            "total": total,
+            "occupied": occupied,
+            "empty": empty,
+            "occupancy_rate": occupancy_rate,
+            "avg_fill_level": avg_fill_level,
+        }
+
+    def turnover_summary(self) -> Dict[str, Any]:
+        """Turnover summary across the fleet: boxes by state transition
+        potential, avg contents per active box, high/low turnover detection."""
+        boxes = self.session.query(BoxItem).all()
+
+        total = len(boxes)
+        active_boxes: List[BoxItem] = []
+        active_contents_counts: List[int] = []
+        high_turnover = 0
+        low_turnover = 0
+
+        for b in boxes:
+            if b.state == BoxState.ACTIVE.value:
+                active_boxes.append(b)
+                contents = self.list_contents(b.id)
+                count = len(contents)
+                active_contents_counts.append(count)
+                if count > 5:
+                    high_turnover += 1
+                elif count == 0:
+                    low_turnover += 1
+
+        avg_contents = (
+            round(sum(active_contents_counts) / len(active_contents_counts), 2)
+            if active_contents_counts
+            else 0.0
+        )
+
+        return {
+            "total": total,
+            "active_boxes": len(active_boxes),
+            "avg_contents_per_active": avg_contents,
+            "high_turnover": high_turnover,
+            "low_turnover": low_turnover,
+        }
+
+    def box_turnover(self, box_id: str) -> Dict[str, Any]:
+        """Per-box turnover detail: box info, contents count, fill ratio,
+        turnover classification. Raises ValueError if box not found."""
+        box = self.get_box(box_id)
+        if box is None:
+            raise ValueError(f"Box '{box_id}' not found")
+
+        contents = self.list_contents(box_id)
+        contents_count = len(contents)
+
+        fill_ratio = (
+            round(contents_count / box.max_quantity * 100, 1)
+            if box.max_quantity is not None and box.max_quantity > 0
+            else 0.0
+        )
+
+        if contents_count >= 5:
+            classification = "high"
+        elif contents_count == 0:
+            classification = "low"
+        else:
+            classification = "normal"
+
+        return {
+            "box_id": box.id,
+            "box_name": box.name,
+            "state": box.state,
+            "contents_count": contents_count,
+            "max_quantity": box.max_quantity,
+            "fill_ratio": fill_ratio,
+            "classification": classification,
+        }
+
+    def export_turnover(self) -> Dict[str, Any]:
+        """Export-ready payload combining occupancy_overview, turnover_summary,
+        and per-box turnover details."""
+        boxes = self.session.query(BoxItem).all()
+        per_box: List[Dict[str, Any]] = []
+
+        for b in boxes:
+            contents = self.list_contents(b.id)
+            contents_count = len(contents)
+            fill_ratio = (
+                round(contents_count / b.max_quantity * 100, 1)
+                if b.max_quantity is not None and b.max_quantity > 0
+                else 0.0
+            )
+            if contents_count >= 5:
+                classification = "high"
+            elif contents_count == 0:
+                classification = "low"
+            else:
+                classification = "normal"
+
+            per_box.append({
+                "box_id": b.id,
+                "box_name": b.name,
+                "state": b.state,
+                "contents_count": contents_count,
+                "fill_ratio": fill_ratio,
+                "classification": classification,
+            })
+
+        return {
+            "occupancy_overview": self.occupancy_overview(),
+            "turnover_summary": self.turnover_summary(),
+            "per_box_turnover": per_box,
+        }

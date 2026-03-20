@@ -938,3 +938,114 @@ def test_export_custody():
     assert resp.json()["allocations_overview"]["total"] == 2
     assert resp.json()["custody_summary"]["boxes_with_contents"] == 1
     assert len(resp.json()["per_box_custody"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Occupancy / Turnover endpoint tests (C41)
+# ---------------------------------------------------------------------------
+
+
+def test_occupancy_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.occupancy_overview.return_value = {
+            "total": 3,
+            "occupied": 2,
+            "empty": 1,
+            "occupancy_rate": 66.7,
+            "avg_fill_level": 45.0,
+        }
+        resp = client.get("/api/v1/box/occupancy/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 3
+    assert resp.json()["occupied"] == 2
+    assert resp.json()["empty"] == 1
+    assert resp.json()["occupancy_rate"] == 66.7
+    assert resp.json()["avg_fill_level"] == 45.0
+
+
+def test_turnover_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.turnover_summary.return_value = {
+            "total": 4,
+            "active_boxes": 3,
+            "avg_contents_per_active": 2.67,
+            "high_turnover": 1,
+            "low_turnover": 1,
+        }
+        resp = client.get("/api/v1/box/turnover/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 4
+    assert resp.json()["active_boxes"] == 3
+    assert resp.json()["avg_contents_per_active"] == 2.67
+    assert resp.json()["high_turnover"] == 1
+    assert resp.json()["low_turnover"] == 1
+
+
+def test_box_turnover():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_turnover.return_value = {
+            "box_id": "box-1",
+            "box_name": "Test Box",
+            "state": "active",
+            "contents_count": 3,
+            "max_quantity": 10,
+            "fill_ratio": 30.0,
+            "classification": "normal",
+        }
+        resp = client.get("/api/v1/box/items/box-1/turnover")
+
+    assert resp.status_code == 200
+    assert resp.json()["box_id"] == "box-1"
+    assert resp.json()["contents_count"] == 3
+    assert resp.json()["fill_ratio"] == 30.0
+    assert resp.json()["classification"] == "normal"
+
+
+def test_box_turnover_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_turnover.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/box/items/nonexistent/turnover")
+
+    assert resp.status_code == 404
+
+
+def test_export_turnover():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_turnover.return_value = {
+            "occupancy_overview": {
+                "total": 2, "occupied": 1, "empty": 1,
+                "occupancy_rate": 50.0, "avg_fill_level": 30.0,
+            },
+            "turnover_summary": {
+                "total": 2, "active_boxes": 1,
+                "avg_contents_per_active": 3.0,
+                "high_turnover": 0, "low_turnover": 0,
+            },
+            "per_box_turnover": [
+                {"box_id": "b1", "box_name": "Box 1", "state": "active",
+                 "contents_count": 3, "fill_ratio": 30.0, "classification": "normal"},
+                {"box_id": "b2", "box_name": "Box 2", "state": "draft",
+                 "contents_count": 0, "fill_ratio": 0.0, "classification": "low"},
+            ],
+        }
+        resp = client.get("/api/v1/box/export/turnover")
+
+    assert resp.status_code == 200
+    assert "occupancy_overview" in resp.json()
+    assert "turnover_summary" in resp.json()
+    assert "per_box_turnover" in resp.json()
+    assert resp.json()["occupancy_overview"]["total"] == 2
+    assert resp.json()["turnover_summary"]["active_boxes"] == 1
+    assert len(resp.json()["per_box_turnover"]) == 2

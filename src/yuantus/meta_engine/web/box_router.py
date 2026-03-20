@@ -501,3 +501,48 @@ def box_export_custody(
 ):
     service = BoxService(db)
     return service.export_custody()
+
+
+# ---------------------------------------------------------------------------
+# Occupancy / Turnover endpoints (C41)
+# ---------------------------------------------------------------------------
+
+
+@box_router.get("/occupancy/overview")
+def box_occupancy_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.occupancy_overview()
+
+
+@box_router.get("/turnover/summary")
+def box_turnover_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.turnover_summary()
+
+
+@box_router.get("/items/{box_id}/turnover")
+def box_item_turnover(
+    box_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    try:
+        return service.box_turnover(box_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@box_router.get("/export/turnover")
+def box_export_turnover(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.export_turnover()
