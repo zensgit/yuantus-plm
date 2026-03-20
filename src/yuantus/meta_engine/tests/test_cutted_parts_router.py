@@ -785,3 +785,82 @@ def test_export_outliers():
     assert "alerts_overview" in resp.json()
     assert "outliers_summary" in resp.json()
     assert len(resp.json()["plan_alerts"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Throughput / Cadence endpoints (C43)
+# ---------------------------------------------------------------------------
+
+
+def test_throughput_overview():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.throughput_overview.return_value = {
+            "total_plans": 3, "total_cuts": 10,
+            "avg_cuts_per_plan": 3.33,
+            "max_cuts_plan_id": "p1", "max_cuts_count": 5,
+            "min_cuts_plan_id": "p3", "min_cuts_count": 1,
+            "fleet_yield_pct": 80.0,
+        }
+        resp = client.get("/api/v1/cutted-parts/throughput/overview")
+    assert resp.status_code == 200
+    assert resp.json()["total_plans"] == 3
+    assert resp.json()["total_cuts"] == 10
+    assert resp.json()["fleet_yield_pct"] == 80.0
+
+
+def test_cadence_summary():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.cadence_summary.return_value = {
+            "total_plans": 3,
+            "high_cadence_count": 1, "high_cadence_plan_ids": ["p1"],
+            "medium_cadence_count": 1, "medium_cadence_plan_ids": ["p2"],
+            "low_cadence_count": 1, "low_cadence_plan_ids": ["p3"],
+        }
+        resp = client.get("/api/v1/cutted-parts/cadence/summary")
+    assert resp.status_code == 200
+    assert resp.json()["total_plans"] == 3
+    assert resp.json()["high_cadence_count"] == 1
+
+
+def test_plan_cadence():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.plan_cadence.return_value = {
+            "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
+            "total_cuts": 5, "ok_count": 4, "scrap_count": 1, "rework_count": 0,
+            "yield_pct": 80.0, "cadence_tier": "high",
+        }
+        resp = client.get("/api/v1/cutted-parts/plans/plan-1/cadence")
+    assert resp.status_code == 200
+    assert resp.json()["cadence_tier"] == "high"
+    assert resp.json()["yield_pct"] == 80.0
+
+
+def test_plan_cadence_not_found_404():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.plan_cadence.side_effect = ValueError("Plan 'x' not found")
+        resp = client.get("/api/v1/cutted-parts/plans/x/cadence")
+    assert resp.status_code == 404
+
+
+def test_export_cadence():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_cadence.return_value = {
+            "throughput_overview": {"total_plans": 1},
+            "cadence_summary": {"total_plans": 1},
+            "plan_cadences": [{"plan_id": "p1", "plan_name": "Plan 1", "cadence_tier": "low"}],
+        }
+        resp = client.get("/api/v1/cutted-parts/export/cadence")
+    assert resp.status_code == 200
+    assert "throughput_overview" in resp.json()
+    assert "cadence_summary" in resp.json()
+    assert len(resp.json()["plan_cadences"]) == 1
