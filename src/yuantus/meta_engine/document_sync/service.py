@@ -935,3 +935,158 @@ class DocumentSyncService:
             "baseline_overview": self.baseline_overview(),
             "sites": [self.site_lineage(s.id) for s in sites],
         }
+
+    # ------------------------------------------------------------------
+    # Checkpoints / Retention (C36)
+    # ------------------------------------------------------------------
+
+    def checkpoints_overview(self) -> Dict[str, Any]:
+        """Fleet-wide checkpoint metrics: site counts, job completion rates, retention readiness."""
+        sites = self.session.query(SyncSite).all()
+        jobs = self.session.query(SyncJob).all()
+
+        sites_by_state: Dict[str, int] = {}
+        for s in sites:
+            sites_by_state[s.state] = sites_by_state.get(s.state, 0) + 1
+
+        total_jobs = len(jobs)
+        completed_jobs = 0
+        failed_jobs = 0
+        total_synced = 0
+        total_errors = 0
+
+        for j in jobs:
+            if j.state == SyncJobState.COMPLETED.value:
+                completed_jobs += 1
+            elif j.state == SyncJobState.FAILED.value:
+                failed_jobs += 1
+            total_synced += (j.synced_count or 0)
+            total_errors += (j.error_count or 0)
+
+        completion_rate: Any = (
+            round(completed_jobs / total_jobs * 100, 1)
+            if total_jobs > 0
+            else None
+        )
+
+        retention_ready = total_errors == 0 and completed_jobs > 0
+
+        return {
+            "total_sites": len(sites),
+            "sites_by_state": sites_by_state,
+            "total_jobs": total_jobs,
+            "completed_jobs": completed_jobs,
+            "failed_jobs": failed_jobs,
+            "completion_rate": completion_rate,
+            "total_synced": total_synced,
+            "total_errors": total_errors,
+            "retention_ready": retention_ready,
+        }
+
+    def retention_summary(self) -> Dict[str, Any]:
+        """Retention summary: record age distribution, conflict/error retention metrics."""
+        jobs = self.session.query(SyncJob).all()
+
+        total_records = 0
+        synced_records = 0
+        conflict_records = 0
+        error_records = 0
+        skipped_records = 0
+
+        for j in jobs:
+            synced_records += (j.synced_count or 0)
+            conflict_records += (j.conflict_count or 0)
+            error_records += (j.error_count or 0)
+            skipped_records += (j.skipped_count or 0)
+
+        total_records = synced_records + conflict_records + error_records + skipped_records
+
+        conflict_retention_pct: Any = (
+            round(conflict_records / total_records * 100, 1)
+            if total_records > 0
+            else None
+        )
+
+        error_retention_pct: Any = (
+            round(error_records / total_records * 100, 1)
+            if total_records > 0
+            else None
+        )
+
+        clean_sync_pct: Any = (
+            round(synced_records / total_records * 100, 1)
+            if total_records > 0
+            else None
+        )
+
+        return {
+            "total_records": total_records,
+            "synced_records": synced_records,
+            "conflict_records": conflict_records,
+            "error_records": error_records,
+            "skipped_records": skipped_records,
+            "conflict_retention_pct": conflict_retention_pct,
+            "error_retention_pct": error_retention_pct,
+            "clean_sync_pct": clean_sync_pct,
+        }
+
+    def site_checkpoints(self, site_id: str) -> Dict[str, Any]:
+        """Per-site checkpoint detail: jobs as checkpoints, completion rate, record coverage."""
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        jobs = (
+            self.session.query(SyncJob)
+            .filter(SyncJob.site_id == site_id)
+            .all()
+        )
+
+        total = len(jobs)
+        completed = 0
+        total_synced = 0
+        total_errors = 0
+        total_conflicts = 0
+        checkpoints: List[Dict[str, Any]] = []
+
+        for j in jobs:
+            if j.state == SyncJobState.COMPLETED.value:
+                completed += 1
+            total_synced += (j.synced_count or 0)
+            total_errors += (j.error_count or 0)
+            total_conflicts += (j.conflict_count or 0)
+            checkpoints.append({
+                "job_id": j.id,
+                "state": j.state,
+                "synced_count": j.synced_count or 0,
+                "error_count": j.error_count or 0,
+                "conflict_count": j.conflict_count or 0,
+            })
+
+        completion_rate: Any = (
+            round(completed / total * 100, 1)
+            if total > 0
+            else None
+        )
+
+        return {
+            "site_id": site.id,
+            "site_name": site.name,
+            "state": site.state,
+            "total_checkpoints": total,
+            "completed_checkpoints": completed,
+            "completion_rate": completion_rate,
+            "total_synced": total_synced,
+            "total_errors": total_errors,
+            "total_conflicts": total_conflicts,
+            "checkpoints": checkpoints,
+        }
+
+    def export_retention(self) -> Dict[str, Any]:
+        """Export-ready combined checkpoints + retention + per-site details."""
+        sites = self.session.query(SyncSite).all()
+        return {
+            "checkpoints_overview": self.checkpoints_overview(),
+            "retention_summary": self.retention_summary(),
+            "sites": [self.site_checkpoints(s.id) for s in sites],
+        }

@@ -446,3 +446,48 @@ def export_lineage(
 ):
     service = DocumentSyncService(db)
     return service.export_lineage()
+
+
+# ---------------------------------------------------------------------------
+# Checkpoints / Retention endpoints (C36)
+# ---------------------------------------------------------------------------
+
+
+@document_sync_router.get("/checkpoints/overview")
+def checkpoints_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.checkpoints_overview()
+
+
+@document_sync_router.get("/retention/summary")
+def retention_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.retention_summary()
+
+
+@document_sync_router.get("/sites/{site_id}/checkpoints")
+def site_checkpoints(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.site_checkpoints(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/export/retention")
+def export_retention(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.export_retention()

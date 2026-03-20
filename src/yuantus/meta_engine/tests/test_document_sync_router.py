@@ -787,3 +787,163 @@ def test_export_lineage():
     assert resp.json()["baseline_overview"]["baseline_jobs"] == 1
     assert len(resp.json()["sites"]) == 1
     assert resp.json()["sites"][0]["site_id"] == "s1"
+
+
+# ---------------------------------------------------------------------------
+# Checkpoints / Retention endpoint tests (C36)
+# ---------------------------------------------------------------------------
+
+
+def test_checkpoints_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.checkpoints_overview.return_value = {
+            "total_sites": 2,
+            "sites_by_state": {"active": 1, "disabled": 1},
+            "total_jobs": 4,
+            "completed_jobs": 2,
+            "failed_jobs": 1,
+            "completion_rate": 50.0,
+            "total_synced": 15,
+            "total_errors": 2,
+            "retention_ready": False,
+        }
+        resp = client.get("/api/v1/document-sync/checkpoints/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_sites"] == 2
+    assert resp.json()["total_jobs"] == 4
+    assert resp.json()["completed_jobs"] == 2
+    assert resp.json()["completion_rate"] == 50.0
+    assert resp.json()["retention_ready"] is False
+
+
+def test_retention_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.retention_summary.return_value = {
+            "total_records": 20,
+            "synced_records": 13,
+            "conflict_records": 3,
+            "error_records": 1,
+            "skipped_records": 3,
+            "conflict_retention_pct": 15.0,
+            "error_retention_pct": 5.0,
+            "clean_sync_pct": 65.0,
+        }
+        resp = client.get("/api/v1/document-sync/retention/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_records"] == 20
+    assert resp.json()["synced_records"] == 13
+    assert resp.json()["conflict_retention_pct"] == 15.0
+    assert resp.json()["clean_sync_pct"] == 65.0
+
+
+def test_site_checkpoints():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_checkpoints.return_value = {
+            "site_id": "s1", "site_name": "HQ", "state": "active",
+            "total_checkpoints": 3, "completed_checkpoints": 2,
+            "completion_rate": 66.7,
+            "total_synced": 15, "total_errors": 3, "total_conflicts": 1,
+            "checkpoints": [
+                {"job_id": "j1", "state": "completed",
+                 "synced_count": 10, "error_count": 0, "conflict_count": 1},
+                {"job_id": "j2", "state": "failed",
+                 "synced_count": 0, "error_count": 3, "conflict_count": 0},
+                {"job_id": "j3", "state": "completed",
+                 "synced_count": 5, "error_count": 0, "conflict_count": 0},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/sites/s1/checkpoints")
+
+    assert resp.status_code == 200
+    assert resp.json()["site_id"] == "s1"
+    assert resp.json()["total_checkpoints"] == 3
+    assert resp.json()["completed_checkpoints"] == 2
+    assert resp.json()["completion_rate"] == 66.7
+    assert len(resp.json()["checkpoints"]) == 3
+
+
+def test_site_checkpoints_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_checkpoints.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/sites/bad/checkpoints")
+
+    assert resp.status_code == 404
+
+
+def test_export_retention():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_retention.return_value = {
+            "checkpoints_overview": {
+                "total_sites": 1, "sites_by_state": {"active": 1},
+                "total_jobs": 1, "completed_jobs": 1, "failed_jobs": 0,
+                "completion_rate": 100.0, "total_synced": 10,
+                "total_errors": 0, "retention_ready": True,
+            },
+            "retention_summary": {
+                "total_records": 10, "synced_records": 10,
+                "conflict_records": 0, "error_records": 0,
+                "skipped_records": 0, "conflict_retention_pct": 0.0,
+                "error_retention_pct": 0.0, "clean_sync_pct": 100.0,
+            },
+            "sites": [
+                {"site_id": "s1", "site_name": "HQ", "state": "active",
+                 "total_checkpoints": 1, "completed_checkpoints": 1,
+                 "completion_rate": 100.0, "total_synced": 10,
+                 "total_errors": 0, "total_conflicts": 0,
+                 "checkpoints": [
+                     {"job_id": "j1", "state": "completed",
+                      "synced_count": 10, "error_count": 0, "conflict_count": 0},
+                 ]},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/export/retention")
+
+    assert resp.status_code == 200
+    assert "checkpoints_overview" in resp.json()
+    assert "retention_summary" in resp.json()
+    assert "sites" in resp.json()
+    assert resp.json()["checkpoints_overview"]["total_sites"] == 1
+    assert resp.json()["checkpoints_overview"]["retention_ready"] is True
+    assert resp.json()["retention_summary"]["clean_sync_pct"] == 100.0
+    assert len(resp.json()["sites"]) == 1
+    assert resp.json()["sites"][0]["site_id"] == "s1"
+
+
+def test_export_retention_empty():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_retention.return_value = {
+            "checkpoints_overview": {
+                "total_sites": 0, "sites_by_state": {},
+                "total_jobs": 0, "completed_jobs": 0, "failed_jobs": 0,
+                "completion_rate": None, "total_synced": 0,
+                "total_errors": 0, "retention_ready": False,
+            },
+            "retention_summary": {
+                "total_records": 0, "synced_records": 0,
+                "conflict_records": 0, "error_records": 0,
+                "skipped_records": 0, "conflict_retention_pct": None,
+                "error_retention_pct": None, "clean_sync_pct": None,
+            },
+            "sites": [],
+        }
+        resp = client.get("/api/v1/document-sync/export/retention")
+
+    assert resp.status_code == 200
+    assert resp.json()["checkpoints_overview"]["total_sites"] == 0
+    assert resp.json()["checkpoints_overview"]["retention_ready"] is False
+    assert resp.json()["retention_summary"]["total_records"] == 0
+    assert resp.json()["sites"] == []

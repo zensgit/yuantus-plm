@@ -1592,3 +1592,280 @@ class TestBaselineLineage:
         assert result["baseline_overview"]["total_jobs"] == 0
         assert result["baseline_overview"]["baseline_coverage_pct"] is None
         assert result["sites"] == []
+
+
+# ---------------------------------------------------------------------------
+# TestCheckpointsRetention (C36)
+# ---------------------------------------------------------------------------
+
+
+class TestCheckpointsRetention:
+    def _session_with_models(self, sites=None, jobs=None, records=None):
+        """Session with model-aware query routing and session.get support."""
+        session = _mock_session()
+        _sites = sites or []
+        _jobs = jobs or []
+        _records = records or []
+
+        def _get_side_effect(model, pk):
+            if model is SyncSite:
+                return next((s for s in _sites if s.id == pk), None)
+            if model is SyncJob:
+                return next((j for j in _jobs if j.id == pk), None)
+            return None
+
+        session.get.side_effect = _get_side_effect
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is SyncSite:
+                q.all.return_value = _sites
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is SyncJob:
+                q.all.return_value = _jobs
+
+                def filter_side_effect(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = _jobs
+                    fq.filter.return_value = fq
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = filter_side_effect
+                q.order_by.return_value = q
+            elif model is SyncRecord:
+                q.all.return_value = _records
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+        return session
+
+    def test_checkpoints_overview(self):
+        """Sites with mixed job states produce correct completion rate and retention readiness."""
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="disabled", direction="pull"),
+        ]
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.error_count = 0
+
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j2.synced_count = 0
+        j2.error_count = 2
+
+        j3 = _make_job(job_id="j3", site_id="s2", state="completed")
+        j3.synced_count = 5
+        j3.error_count = 0
+
+        j4 = _make_job(job_id="j4", site_id="s2", state="pending")
+        j4.synced_count = 0
+        j4.error_count = 0
+
+        session = self._session_with_models(sites=sites, jobs=[j1, j2, j3, j4])
+        service = DocumentSyncService(session)
+        result = service.checkpoints_overview()
+
+        assert result["total_sites"] == 2
+        assert result["sites_by_state"] == {"active": 1, "disabled": 1}
+        assert result["total_jobs"] == 4
+        assert result["completed_jobs"] == 2
+        assert result["failed_jobs"] == 1
+        # completion_rate: 2/4 * 100 = 50.0
+        assert result["completion_rate"] == 50.0
+        assert result["total_synced"] == 15  # 10 + 0 + 5 + 0
+        assert result["total_errors"] == 2
+        # retention_ready is False because total_errors > 0
+        assert result["retention_ready"] is False
+
+    def test_checkpoints_overview_empty(self):
+        """No sites/jobs yields None completion rate and not retention_ready."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.checkpoints_overview()
+
+        assert result["total_sites"] == 0
+        assert result["sites_by_state"] == {}
+        assert result["total_jobs"] == 0
+        assert result["completed_jobs"] == 0
+        assert result["failed_jobs"] == 0
+        assert result["completion_rate"] is None
+        assert result["total_synced"] == 0
+        assert result["total_errors"] == 0
+        assert result["retention_ready"] is False
+
+    def test_retention_summary(self):
+        """Jobs with mixed outcomes produce correct retention percentages."""
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 8
+        j1.conflict_count = 1
+        j1.error_count = 1
+        j1.skipped_count = 0
+
+        j2 = _make_job(job_id="j2", site_id="s1", state="completed")
+        j2.synced_count = 5
+        j2.conflict_count = 2
+        j2.error_count = 0
+        j2.skipped_count = 3
+
+        session = self._session_with_models(jobs=[j1, j2])
+        service = DocumentSyncService(session)
+        result = service.retention_summary()
+
+        # total_records: (8+1+1+0) + (5+2+0+3) = 10 + 10 = 20
+        assert result["total_records"] == 20
+        assert result["synced_records"] == 13  # 8 + 5
+        assert result["conflict_records"] == 3  # 1 + 2
+        assert result["error_records"] == 1
+        assert result["skipped_records"] == 3
+        # conflict_retention_pct: 3/20 * 100 = 15.0
+        assert result["conflict_retention_pct"] == 15.0
+        # error_retention_pct: 1/20 * 100 = 5.0
+        assert result["error_retention_pct"] == 5.0
+        # clean_sync_pct: 13/20 * 100 = 65.0
+        assert result["clean_sync_pct"] == 65.0
+
+    def test_retention_summary_no_records(self):
+        """No jobs yields None percentages and zero counts."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.retention_summary()
+
+        assert result["total_records"] == 0
+        assert result["synced_records"] == 0
+        assert result["conflict_records"] == 0
+        assert result["error_records"] == 0
+        assert result["skipped_records"] == 0
+        assert result["conflict_retention_pct"] is None
+        assert result["error_retention_pct"] is None
+        assert result["clean_sync_pct"] is None
+
+    def test_retention_summary_all_synced(self):
+        """All records synced produces 100% clean_sync_pct."""
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.conflict_count = 0
+        j1.error_count = 0
+        j1.skipped_count = 0
+
+        session = self._session_with_models(jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.retention_summary()
+
+        assert result["total_records"] == 10
+        assert result["synced_records"] == 10
+        assert result["clean_sync_pct"] == 100.0
+        assert result["conflict_retention_pct"] == 0.0
+        assert result["error_retention_pct"] == 0.0
+
+    def test_site_checkpoints(self):
+        """Site with multiple jobs produces checkpoint list and completion rate."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.error_count = 0
+        j1.conflict_count = 1
+
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j2.synced_count = 0
+        j2.error_count = 3
+        j2.conflict_count = 0
+
+        j3 = _make_job(job_id="j3", site_id="s1", state="completed")
+        j3.synced_count = 5
+        j3.error_count = 0
+        j3.conflict_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.site_checkpoints("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["site_name"] == "HQ"
+        assert result["state"] == "active"
+        assert result["total_checkpoints"] == 3
+        assert result["completed_checkpoints"] == 2
+        # completion_rate: 2/3 * 100 = 66.7
+        assert result["completion_rate"] == 66.7
+        assert result["total_synced"] == 15  # 10 + 0 + 5
+        assert result["total_errors"] == 3
+        assert result["total_conflicts"] == 1
+        assert len(result["checkpoints"]) == 3
+        assert result["checkpoints"][0]["job_id"] == "j1"
+        assert result["checkpoints"][0]["state"] == "completed"
+        assert result["checkpoints"][0]["synced_count"] == 10
+
+    def test_site_checkpoints_no_jobs(self):
+        """Site exists but has no jobs."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        session = self._session_with_models(sites=[site], jobs=[])
+        service = DocumentSyncService(session)
+        result = service.site_checkpoints("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["total_checkpoints"] == 0
+        assert result["completed_checkpoints"] == 0
+        assert result["completion_rate"] is None
+        assert result["total_synced"] == 0
+        assert result["total_errors"] == 0
+        assert result["total_conflicts"] == 0
+        assert result["checkpoints"] == []
+
+    def test_site_checkpoints_not_found(self):
+        """Raises ValueError when site does not exist."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.site_checkpoints("nonexistent")
+
+    def test_export_retention(self):
+        """Export combines checkpoints_overview + retention_summary + per-site details."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.error_count = 0
+        j1.conflict_count = 0
+        j1.skipped_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.export_retention()
+
+        assert "checkpoints_overview" in result
+        assert "retention_summary" in result
+        assert "sites" in result
+        assert result["checkpoints_overview"]["total_sites"] == 1
+        assert result["checkpoints_overview"]["total_jobs"] == 1
+        assert result["checkpoints_overview"]["completed_jobs"] == 1
+        assert result["checkpoints_overview"]["retention_ready"] is True
+        assert result["retention_summary"]["total_records"] == 10
+        assert result["retention_summary"]["synced_records"] == 10
+        assert len(result["sites"]) == 1
+        assert result["sites"][0]["site_id"] == "s1"
+        assert result["sites"][0]["total_checkpoints"] == 1
+
+    def test_export_retention_empty(self):
+        """Export with no data returns empty structures."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.export_retention()
+
+        assert result["checkpoints_overview"]["total_sites"] == 0
+        assert result["checkpoints_overview"]["total_jobs"] == 0
+        assert result["checkpoints_overview"]["completion_rate"] is None
+        assert result["checkpoints_overview"]["retention_ready"] is False
+        assert result["retention_summary"]["total_records"] == 0
+        assert result["retention_summary"]["clean_sync_pct"] is None
+        assert result["sites"] == []
