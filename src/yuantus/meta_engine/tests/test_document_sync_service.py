@@ -1869,3 +1869,276 @@ class TestCheckpointsRetention:
         assert result["retention_summary"]["total_records"] == 0
         assert result["retention_summary"]["clean_sync_pct"] is None
         assert result["sites"] == []
+
+
+# ---------------------------------------------------------------------------
+# TestFreshnessWatermarks (C39)
+# ---------------------------------------------------------------------------
+
+
+class TestFreshnessWatermarks:
+    def _session_with_models(self, sites=None, jobs=None, records=None):
+        """Session with model-aware query routing and session.get support."""
+        session = _mock_session()
+        _sites = sites or []
+        _jobs = jobs or []
+        _records = records or []
+
+        def _get_side_effect(model, pk):
+            if model is SyncSite:
+                return next((s for s in _sites if s.id == pk), None)
+            if model is SyncJob:
+                return next((j for j in _jobs if j.id == pk), None)
+            return None
+
+        session.get.side_effect = _get_side_effect
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is SyncSite:
+                q.all.return_value = _sites
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is SyncJob:
+                q.all.return_value = _jobs
+
+                def filter_side_effect(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = _jobs
+                    fq.filter.return_value = fq
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = filter_side_effect
+                q.order_by.return_value = q
+            elif model is SyncRecord:
+                q.all.return_value = _records
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+        return session
+
+    # -- freshness_overview --
+
+    def test_freshness_overview(self):
+        """Sites with mixed sync outcomes produce correct freshness metrics."""
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="active", direction="pull"),
+        ]
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 8
+        j1.conflict_count = 1
+        j1.error_count = 1
+        j1.skipped_count = 0
+
+        j2 = _make_job(job_id="j2", site_id="s2", state="completed")
+        j2.synced_count = 10
+        j2.conflict_count = 0
+        j2.error_count = 0
+        j2.skipped_count = 0
+
+        session = self._session_with_models(sites=sites, jobs=[j1, j2])
+        service = DocumentSyncService(session)
+        result = service.freshness_overview()
+
+        assert result["total_sites"] == 2
+        # s1: 8/10 = 80.0%, stale; s2: 10/10 = 100.0%, fresh
+        assert result["stale_site_count"] == 1
+        # avg: (80.0 + 100.0) / 2 = 90.0
+        assert result["avg_freshness_pct"] == 90.0
+        assert result["freshest_site_id"] == "s2"
+        assert result["stalest_site_id"] == "s1"
+
+    def test_freshness_overview_empty(self):
+        """No sites/jobs yields None averages and zero counts."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.freshness_overview()
+
+        assert result["total_sites"] == 0
+        assert result["stale_site_count"] == 0
+        assert result["avg_freshness_pct"] is None
+        assert result["freshest_site_id"] is None
+        assert result["stalest_site_id"] is None
+
+    def test_freshness_overview_all_fresh(self):
+        """All synced records produce 100% freshness and zero stale sites."""
+        site = _make_site(site_id="s1", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.conflict_count = 0
+        j1.error_count = 0
+        j1.skipped_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.freshness_overview()
+
+        assert result["total_sites"] == 1
+        assert result["stale_site_count"] == 0
+        assert result["avg_freshness_pct"] == 100.0
+        assert result["freshest_site_id"] == "s1"
+        assert result["stalest_site_id"] == "s1"
+
+    # -- watermarks_summary --
+
+    def test_watermarks_summary(self):
+        """Sites with varying freshness produce correct watermark data."""
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="active", direction="pull"),
+        ]
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 3
+        j1.conflict_count = 4
+        j1.error_count = 3
+        j1.skipped_count = 0
+
+        j2 = _make_job(job_id="j2", site_id="s2", state="completed")
+        j2.synced_count = 9
+        j2.conflict_count = 0
+        j2.error_count = 1
+        j2.skipped_count = 0
+
+        session = self._session_with_models(sites=sites, jobs=[j1, j2])
+        service = DocumentSyncService(session)
+        result = service.watermarks_summary()
+
+        assert result["total_sites"] == 2
+        assert result["watermark_threshold"] == 50.0
+        # s1: 3/10 = 30.0% < 50 => exceeded
+        # s2: 9/10 = 90.0% >= 50 => not exceeded
+        assert result["exceeded_count"] == 1
+        assert len(result["site_watermarks"]) == 2
+
+    def test_watermarks_summary_empty(self):
+        """No sites yields zero counts and empty watermarks list."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.watermarks_summary()
+
+        assert result["total_sites"] == 0
+        assert result["exceeded_count"] == 0
+        assert result["watermark_threshold"] == 50.0
+        assert result["site_watermarks"] == []
+
+    def test_watermarks_summary_exceeded(self):
+        """All sites below threshold are counted as exceeded."""
+        site = _make_site(site_id="s1", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 2
+        j1.conflict_count = 5
+        j1.error_count = 3
+        j1.skipped_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.watermarks_summary()
+
+        assert result["total_sites"] == 1
+        assert result["exceeded_count"] == 1
+        # s1: 2/10 = 20.0%
+        wm = result["site_watermarks"][0]
+        assert wm["site_id"] == "s1"
+        assert wm["freshness_pct"] == 20.0
+        assert wm["high_watermark"] == 20.0
+        assert wm["low_watermark"] == 80.0
+        assert wm["exceeded"] is True
+
+    # -- site_freshness --
+
+    def test_site_freshness(self):
+        """Site with mixed sync outcomes produces correct freshness detail."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 7
+        j1.conflict_count = 2
+        j1.error_count = 1
+        j1.skipped_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.site_freshness("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["site_name"] == "HQ"
+        assert result["state"] == "active"
+        assert result["direction"] == "push"
+        assert result["total_records"] == 10  # 7+2+1+0
+        assert result["synced_count"] == 7
+        assert result["stale_doc_count"] == 3  # 2+1+0
+        assert result["freshness_pct"] == 70.0
+
+    def test_site_freshness_no_jobs(self):
+        """Site exists but has no jobs yields None freshness."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        session = self._session_with_models(sites=[site], jobs=[])
+        service = DocumentSyncService(session)
+        result = service.site_freshness("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["total_records"] == 0
+        assert result["synced_count"] == 0
+        assert result["stale_doc_count"] == 0
+        assert result["freshness_pct"] is None
+
+    def test_site_freshness_not_found(self):
+        """Raises ValueError when site does not exist."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.site_freshness("nonexistent")
+
+    # -- export_watermarks --
+
+    def test_export_watermarks(self):
+        """Export combines freshness_overview + watermarks_summary + per-site freshness."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.conflict_count = 0
+        j1.error_count = 0
+        j1.skipped_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.export_watermarks()
+
+        assert "freshness_overview" in result
+        assert "watermarks_summary" in result
+        assert "sites" in result
+        assert result["freshness_overview"]["total_sites"] == 1
+        assert result["freshness_overview"]["stale_site_count"] == 0
+        assert result["freshness_overview"]["avg_freshness_pct"] == 100.0
+        assert result["watermarks_summary"]["total_sites"] == 1
+        assert result["watermarks_summary"]["exceeded_count"] == 0
+        assert len(result["sites"]) == 1
+        assert result["sites"][0]["site_id"] == "s1"
+        assert result["sites"][0]["freshness_pct"] == 100.0
+
+    def test_export_watermarks_empty(self):
+        """Export with no data returns empty structures."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.export_watermarks()
+
+        assert result["freshness_overview"]["total_sites"] == 0
+        assert result["freshness_overview"]["avg_freshness_pct"] is None
+        assert result["watermarks_summary"]["total_sites"] == 0
+        assert result["watermarks_summary"]["site_watermarks"] == []
+        assert result["sites"] == []

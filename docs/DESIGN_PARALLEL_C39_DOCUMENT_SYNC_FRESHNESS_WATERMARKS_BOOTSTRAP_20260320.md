@@ -1,26 +1,40 @@
-# C39 -- Document Sync Freshness / Watermarks Bootstrap -- Design
+# C39 — Document Sync Freshness / Watermarks Bootstrap — Design
 
-## Goal
-- Extend the isolated `document_sync` domain with freshness, watermark, and export-ready helpers.
+## Overview
 
-## Scope
-- `src/yuantus/meta_engine/document_sync/`
-- `src/yuantus/meta_engine/web/document_sync_router.py`
-- `src/yuantus/meta_engine/tests/test_document_sync_*.py`
+Extends the document_sync domain with freshness scoring, watermark thresholds,
+and export helpers for fleet-wide document sync health monitoring.
 
-## Planned API
-- `GET /api/v1/document-sync/freshness/overview`
-- `GET /api/v1/document-sync/watermarks/summary`
-- `GET /api/v1/document-sync/sites/{site_id}/freshness`
-- `GET /api/v1/document-sync/export/watermarks`
+## Service Methods
 
-## Planned Service Methods
-- `freshness_overview()` -- Fleet-wide freshness distribution summary
-- `watermarks_summary()` -- Watermark coverage and lag summary
-- `site_freshness(site_id)` -- Per-site freshness detail
-- `export_watermarks()` -- Export-ready freshness/watermark payload
+| Method | Purpose |
+|---|---|
+| `freshness_overview()` | Fleet-wide freshness summary: total sites, stale count, avg freshness %, freshest/stalest sites |
+| `watermarks_summary()` | Watermark thresholds per site: high/low watermarks, exceeded count |
+| `site_freshness(site_id)` | Per-site freshness detail: synced vs stale counts, freshness % |
+| `export_watermarks()` | Combined export payload: freshness overview + watermarks + per-site details |
 
-## Constraints
-- No `app.py` registration.
-- No background workers or storage hot-path integration.
-- Stay inside the isolated `document_sync` domain.
+## Router Endpoints
+
+| Method | Path | Handler |
+|---|---|---|
+| GET | `/freshness/overview` | `freshness_overview` |
+| GET | `/watermarks/summary` | `watermarks_summary` |
+| GET | `/sites/{site_id}/freshness` | `site_freshness` (404 on missing site) |
+| GET | `/export/watermarks` | `export_watermarks` |
+
+## Freshness Model
+
+- **Fresh**: Documents with `synced` outcome
+- **Stale**: Documents with `conflict`, `error`, or `skipped` outcome
+- **Freshness %**: `synced / total_records * 100`
+- **Watermark threshold**: 50% — sites below this are flagged as exceeded
+
+## Data Flow
+
+```
+SyncSite -> SyncJob (per-site) -> aggregate synced/conflict/error/skipped
+    -> compute freshness_pct per site
+    -> derive watermarks (high = freshness%, low = 100 - freshness%)
+    -> flag exceeded if freshness% < threshold
+```

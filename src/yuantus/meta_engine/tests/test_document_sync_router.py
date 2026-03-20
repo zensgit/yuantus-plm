@@ -947,3 +947,146 @@ def test_export_retention_empty():
     assert resp.json()["checkpoints_overview"]["retention_ready"] is False
     assert resp.json()["retention_summary"]["total_records"] == 0
     assert resp.json()["sites"] == []
+
+
+# ---------------------------------------------------------------------------
+# Freshness / Watermarks endpoint tests (C39)
+# ---------------------------------------------------------------------------
+
+
+def test_freshness_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.freshness_overview.return_value = {
+            "total_sites": 2,
+            "stale_site_count": 1,
+            "avg_freshness_pct": 90.0,
+            "freshest_site_id": "s2",
+            "stalest_site_id": "s1",
+        }
+        resp = client.get("/api/v1/document-sync/freshness/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_sites"] == 2
+    assert resp.json()["stale_site_count"] == 1
+    assert resp.json()["avg_freshness_pct"] == 90.0
+    assert resp.json()["freshest_site_id"] == "s2"
+    assert resp.json()["stalest_site_id"] == "s1"
+
+
+def test_watermarks_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.watermarks_summary.return_value = {
+            "total_sites": 2,
+            "exceeded_count": 1,
+            "watermark_threshold": 50.0,
+            "site_watermarks": [
+                {"site_id": "s1", "freshness_pct": 30.0,
+                 "high_watermark": 30.0, "low_watermark": 70.0, "exceeded": True},
+                {"site_id": "s2", "freshness_pct": 90.0,
+                 "high_watermark": 90.0, "low_watermark": 10.0, "exceeded": False},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/watermarks/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_sites"] == 2
+    assert resp.json()["exceeded_count"] == 1
+    assert resp.json()["watermark_threshold"] == 50.0
+    assert len(resp.json()["site_watermarks"]) == 2
+
+
+def test_site_freshness():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_freshness.return_value = {
+            "site_id": "s1", "site_name": "HQ", "state": "active",
+            "direction": "push", "total_records": 10,
+            "synced_count": 7, "stale_doc_count": 3,
+            "freshness_pct": 70.0,
+        }
+        resp = client.get("/api/v1/document-sync/sites/s1/freshness")
+
+    assert resp.status_code == 200
+    assert resp.json()["site_id"] == "s1"
+    assert resp.json()["freshness_pct"] == 70.0
+    assert resp.json()["stale_doc_count"] == 3
+    assert resp.json()["synced_count"] == 7
+
+
+def test_site_freshness_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_freshness.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/sites/bad/freshness")
+
+    assert resp.status_code == 404
+
+
+def test_export_watermarks():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_watermarks.return_value = {
+            "freshness_overview": {
+                "total_sites": 1, "stale_site_count": 0,
+                "avg_freshness_pct": 100.0,
+                "freshest_site_id": "s1", "stalest_site_id": "s1",
+            },
+            "watermarks_summary": {
+                "total_sites": 1, "exceeded_count": 0,
+                "watermark_threshold": 50.0,
+                "site_watermarks": [
+                    {"site_id": "s1", "freshness_pct": 100.0,
+                     "high_watermark": 100.0, "low_watermark": 0.0,
+                     "exceeded": False},
+                ],
+            },
+            "sites": [
+                {"site_id": "s1", "site_name": "HQ", "state": "active",
+                 "direction": "push", "total_records": 10,
+                 "synced_count": 10, "stale_doc_count": 0,
+                 "freshness_pct": 100.0},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/export/watermarks")
+
+    assert resp.status_code == 200
+    assert "freshness_overview" in resp.json()
+    assert "watermarks_summary" in resp.json()
+    assert "sites" in resp.json()
+    assert resp.json()["freshness_overview"]["total_sites"] == 1
+    assert resp.json()["watermarks_summary"]["exceeded_count"] == 0
+    assert len(resp.json()["sites"]) == 1
+    assert resp.json()["sites"][0]["site_id"] == "s1"
+
+
+def test_export_watermarks_empty():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_watermarks.return_value = {
+            "freshness_overview": {
+                "total_sites": 0, "stale_site_count": 0,
+                "avg_freshness_pct": None,
+                "freshest_site_id": None, "stalest_site_id": None,
+            },
+            "watermarks_summary": {
+                "total_sites": 0, "exceeded_count": 0,
+                "watermark_threshold": 50.0,
+                "site_watermarks": [],
+            },
+            "sites": [],
+        }
+        resp = client.get("/api/v1/document-sync/export/watermarks")
+
+    assert resp.status_code == 200
+    assert resp.json()["freshness_overview"]["total_sites"] == 0
+    assert resp.json()["freshness_overview"]["avg_freshness_pct"] is None
+    assert resp.json()["watermarks_summary"]["site_watermarks"] == []
+    assert resp.json()["sites"] == []

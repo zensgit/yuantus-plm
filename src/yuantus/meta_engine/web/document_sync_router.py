@@ -491,3 +491,48 @@ def export_retention(
 ):
     service = DocumentSyncService(db)
     return service.export_retention()
+
+
+# ---------------------------------------------------------------------------
+# Freshness / Watermarks endpoints (C39)
+# ---------------------------------------------------------------------------
+
+
+@document_sync_router.get("/freshness/overview")
+def freshness_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.freshness_overview()
+
+
+@document_sync_router.get("/watermarks/summary")
+def watermarks_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.watermarks_summary()
+
+
+@document_sync_router.get("/sites/{site_id}/freshness")
+def site_freshness(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.site_freshness(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/export/watermarks")
+def export_watermarks(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.export_watermarks()

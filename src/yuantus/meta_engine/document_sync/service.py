@@ -1090,3 +1090,188 @@ class DocumentSyncService:
             "retention_summary": self.retention_summary(),
             "sites": [self.site_checkpoints(s.id) for s in sites],
         }
+
+    # ------------------------------------------------------------------
+    # Freshness / Watermarks helpers (C39)
+    # ------------------------------------------------------------------
+
+    def freshness_overview(self) -> Dict[str, Any]:
+        """Fleet-wide freshness summary: total sites, sites with stale docs,
+        avg freshness score, freshest/stalest sites."""
+        sites = self.session.query(SyncSite).all()
+        jobs = self.session.query(SyncJob).all()
+
+        # Group jobs by site_id
+        jobs_by_site: Dict[str, List[SyncJob]] = {}
+        for j in jobs:
+            jobs_by_site.setdefault(j.site_id, []).append(j)
+
+        site_freshness_scores: Dict[str, float] = {}
+        stale_site_count = 0
+
+        for s in sites:
+            site_jobs = jobs_by_site.get(s.id, [])
+            total_synced = 0
+            total_records = 0
+            for j in site_jobs:
+                synced = j.synced_count or 0
+                conflicts = j.conflict_count or 0
+                errors = j.error_count or 0
+                skipped = j.skipped_count or 0
+                total_synced += synced
+                total_records += synced + conflicts + errors + skipped
+
+            freshness_pct = (
+                round(total_synced / total_records * 100, 1)
+                if total_records > 0
+                else None
+            )
+            site_freshness_scores[s.id] = freshness_pct if freshness_pct is not None else 0.0
+
+            # A site is stale if freshness < 100% (has non-synced records)
+            if freshness_pct is not None and freshness_pct < 100.0:
+                stale_site_count += 1
+
+        # Average freshness across sites with data
+        scores_with_data = [
+            v for s_id, v in site_freshness_scores.items()
+            if jobs_by_site.get(s_id)
+        ]
+        avg_freshness_pct: Any = (
+            round(sum(scores_with_data) / len(scores_with_data), 1)
+            if scores_with_data
+            else None
+        )
+
+        # Freshest / stalest
+        freshest_site_id: Any = None
+        stalest_site_id: Any = None
+        if scores_with_data:
+            freshest_site_id = max(
+                (s_id for s_id in site_freshness_scores if jobs_by_site.get(s_id)),
+                key=lambda s_id: site_freshness_scores[s_id],
+            )
+            stalest_site_id = min(
+                (s_id for s_id in site_freshness_scores if jobs_by_site.get(s_id)),
+                key=lambda s_id: site_freshness_scores[s_id],
+            )
+
+        return {
+            "total_sites": len(sites),
+            "stale_site_count": stale_site_count,
+            "avg_freshness_pct": avg_freshness_pct,
+            "freshest_site_id": freshest_site_id,
+            "stalest_site_id": stalest_site_id,
+        }
+
+    def watermarks_summary(self) -> Dict[str, Any]:
+        """Watermark summary: high/low watermarks per site based on sync lag,
+        sites exceeding watermark threshold."""
+        sites = self.session.query(SyncSite).all()
+        jobs = self.session.query(SyncJob).all()
+
+        watermark_threshold = 50.0
+
+        # Group jobs by site_id
+        jobs_by_site: Dict[str, List[SyncJob]] = {}
+        for j in jobs:
+            jobs_by_site.setdefault(j.site_id, []).append(j)
+
+        exceeded_count = 0
+        site_watermarks: List[Dict[str, Any]] = []
+
+        for s in sites:
+            site_jobs = jobs_by_site.get(s.id, [])
+            total_synced = 0
+            total_records = 0
+            for j in site_jobs:
+                synced = j.synced_count or 0
+                conflicts = j.conflict_count or 0
+                errors = j.error_count or 0
+                skipped = j.skipped_count or 0
+                total_synced += synced
+                total_records += synced + conflicts + errors + skipped
+
+            freshness_pct: Any = (
+                round(total_synced / total_records * 100, 1)
+                if total_records > 0
+                else None
+            )
+
+            high_watermark = freshness_pct if freshness_pct is not None else 0.0
+            low_watermark = round(100.0 - high_watermark, 1)
+            exceeded = (
+                freshness_pct is not None and freshness_pct < watermark_threshold
+            )
+
+            if exceeded:
+                exceeded_count += 1
+
+            site_watermarks.append({
+                "site_id": s.id,
+                "freshness_pct": freshness_pct,
+                "high_watermark": high_watermark,
+                "low_watermark": low_watermark,
+                "exceeded": exceeded,
+            })
+
+        return {
+            "total_sites": len(sites),
+            "exceeded_count": exceeded_count,
+            "watermark_threshold": watermark_threshold,
+            "site_watermarks": site_watermarks,
+        }
+
+    def site_freshness(self, site_id: str) -> Dict[str, Any]:
+        """Per-site freshness detail: site info, document freshness metrics,
+        stale document count. Raises ValueError if site not found."""
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        jobs = (
+            self.session.query(SyncJob)
+            .filter(SyncJob.site_id == site_id)
+            .all()
+        )
+
+        total_synced = 0
+        total_conflicts = 0
+        total_errors = 0
+        total_skipped = 0
+
+        for j in jobs:
+            total_synced += (j.synced_count or 0)
+            total_conflicts += (j.conflict_count or 0)
+            total_errors += (j.error_count or 0)
+            total_skipped += (j.skipped_count or 0)
+
+        total_records = total_synced + total_conflicts + total_errors + total_skipped
+        stale_doc_count = total_conflicts + total_errors + total_skipped
+
+        freshness_pct: Any = (
+            round(total_synced / total_records * 100, 1)
+            if total_records > 0
+            else None
+        )
+
+        return {
+            "site_id": site.id,
+            "site_name": site.name,
+            "state": site.state,
+            "direction": site.direction,
+            "total_records": total_records,
+            "synced_count": total_synced,
+            "stale_doc_count": stale_doc_count,
+            "freshness_pct": freshness_pct,
+        }
+
+    def export_watermarks(self) -> Dict[str, Any]:
+        """Export-ready payload combining freshness_overview, watermarks_summary,
+        and per-site freshness details."""
+        sites = self.session.query(SyncSite).all()
+        return {
+            "freshness_overview": self.freshness_overview(),
+            "watermarks_summary": self.watermarks_summary(),
+            "sites": [self.site_freshness(s.id) for s in sites],
+        }
