@@ -1428,3 +1428,135 @@ class CuttedPartsService:
             "outliers_summary": self.outliers_summary(),
             "plan_alerts": plan_alerts_list,
         }
+
+    # ------------------------------------------------------------------
+    # Throughput / Cadence helpers (C43)
+    # ------------------------------------------------------------------
+
+    def throughput_overview(self) -> Dict[str, Any]:
+        """Fleet-wide throughput summary.
+
+        Computes total cuts across all plans, cuts per plan, yield rate,
+        and identifies highest/lowest throughput plans.
+        """
+        plans = self.session.query(CutPlan).all()
+
+        if not plans:
+            return {
+                "total_plans": 0,
+                "total_cuts": 0,
+                "avg_cuts_per_plan": None,
+                "max_cuts_plan_id": None,
+                "min_cuts_plan_id": None,
+                "fleet_yield_pct": None,
+            }
+
+        plan_cuts: list[tuple] = []  # (plan_id, cut_count, ok_count)
+        total_cuts = 0
+        total_ok = 0
+
+        for p in plans:
+            cuts = self.list_cuts(p.id)
+            n = len(cuts)
+            ok = sum(1 for c in cuts if c.status == "ok")
+            plan_cuts.append((p.id, n, ok))
+            total_cuts += n
+            total_ok += ok
+
+        avg_cuts = round(total_cuts / len(plans), 2)
+        fleet_yield = round(total_ok / total_cuts * 100, 2) if total_cuts > 0 else None
+
+        max_plan = max(plan_cuts, key=lambda x: x[1])
+        min_plan = min(plan_cuts, key=lambda x: x[1])
+
+        return {
+            "total_plans": len(plans),
+            "total_cuts": total_cuts,
+            "avg_cuts_per_plan": avg_cuts,
+            "max_cuts_plan_id": max_plan[0],
+            "max_cuts_count": max_plan[1],
+            "min_cuts_plan_id": min_plan[0],
+            "min_cuts_count": min_plan[1],
+            "fleet_yield_pct": fleet_yield,
+        }
+
+    def cadence_summary(self) -> Dict[str, Any]:
+        """Cadence summary: plans grouped by throughput tier.
+
+        - high: >= 5 cuts
+        - medium: 2-4 cuts
+        - low: 0-1 cuts
+        """
+        plans = self.session.query(CutPlan).all()
+
+        high_ids: list[str] = []
+        medium_ids: list[str] = []
+        low_ids: list[str] = []
+
+        for p in plans:
+            cuts = self.list_cuts(p.id)
+            n = len(cuts)
+            if n >= 5:
+                high_ids.append(p.id)
+            elif n >= 2:
+                medium_ids.append(p.id)
+            else:
+                low_ids.append(p.id)
+
+        return {
+            "total_plans": len(plans),
+            "high_cadence_count": len(high_ids),
+            "high_cadence_plan_ids": high_ids,
+            "medium_cadence_count": len(medium_ids),
+            "medium_cadence_plan_ids": medium_ids,
+            "low_cadence_count": len(low_ids),
+            "low_cadence_plan_ids": low_ids,
+        }
+
+    def plan_cadence(self, plan_id: str) -> Dict[str, Any]:
+        """Per-plan cadence detail: cut count, yield, scrap breakdown,
+        and cadence tier classification."""
+        plan = self.get_plan(plan_id)
+        if plan is None:
+            raise ValueError(f"Plan '{plan_id}' not found")
+
+        cuts = self.list_cuts(plan.id)
+        total = len(cuts)
+        ok_count = sum(1 for c in cuts if c.status == "ok")
+        scrap_count = sum(1 for c in cuts if c.status == "scrap")
+        rework_count = sum(1 for c in cuts if c.status == "rework")
+
+        if total >= 5:
+            tier = "high"
+        elif total >= 2:
+            tier = "medium"
+        else:
+            tier = "low"
+
+        yield_pct = round(ok_count / total * 100, 2) if total > 0 else None
+
+        return {
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "state": plan.state,
+            "total_cuts": total,
+            "ok_count": ok_count,
+            "scrap_count": scrap_count,
+            "rework_count": rework_count,
+            "yield_pct": yield_pct,
+            "cadence_tier": tier,
+        }
+
+    def export_cadence(self) -> Dict[str, Any]:
+        """Export-ready payload combining throughput overview, cadence
+        summary, and per-plan cadence details."""
+        plans = self.session.query(CutPlan).all()
+        plan_cadences = []
+        for p in plans:
+            plan_cadences.append(self.plan_cadence(p.id))
+
+        return {
+            "throughput_overview": self.throughput_overview(),
+            "cadence_summary": self.cadence_summary(),
+            "plan_cadences": plan_cadences,
+        }

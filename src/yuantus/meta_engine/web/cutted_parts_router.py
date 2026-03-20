@@ -519,3 +519,48 @@ def export_outliers(
 ):
     service = CuttedPartsService(db)
     return service.export_outliers()
+
+
+# ---------------------------------------------------------------------------
+# Throughput / Cadence endpoints (C43)
+# ---------------------------------------------------------------------------
+
+
+@cutted_parts_router.get("/throughput/overview")
+def throughput_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    return service.throughput_overview()
+
+
+@cutted_parts_router.get("/cadence/summary")
+def cadence_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    return service.cadence_summary()
+
+
+@cutted_parts_router.get("/plans/{plan_id}/cadence")
+def plan_cadence(
+    plan_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    try:
+        return service.plan_cadence(plan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@cutted_parts_router.get("/export/cadence")
+def export_cadence(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    return service.export_cadence()

@@ -1659,3 +1659,184 @@ class TestAlertsOutliers:
         assert result["alerts_overview"]["total_plans"] == 0
         assert result["outliers_summary"]["total_plans"] == 0
         assert result["plan_alerts"] == []
+
+
+# ---------------------------------------------------------------------------
+# Throughput / Cadence (C43)
+# ---------------------------------------------------------------------------
+
+
+class TestThroughputCadence:
+
+    def test_throughput_overview(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Plan A")
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.5)
+
+        result = svc.throughput_overview()
+        assert result["total_plans"] == 1
+        assert result["total_cuts"] == 3
+        assert result["avg_cuts_per_plan"] == 3.0
+        assert result["max_cuts_plan_id"] == plan.id
+        assert result["max_cuts_count"] == 3
+        assert result["min_cuts_plan_id"] == plan.id
+        assert result["min_cuts_count"] == 3
+        assert result["fleet_yield_pct"] == 66.67  # 2 ok / 3 total
+
+    def test_throughput_overview_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.throughput_overview()
+        assert result["total_plans"] == 0
+        assert result["total_cuts"] == 0
+        assert result["avg_cuts_per_plan"] is None
+        assert result["fleet_yield_pct"] is None
+
+    def test_throughput_overview_no_cuts(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        svc.create_plan(name="Empty Plan")
+
+        result = svc.throughput_overview()
+        assert result["total_plans"] == 1
+        assert result["total_cuts"] == 0
+        assert result["avg_cuts_per_plan"] == 0.0
+        assert result["fleet_yield_pct"] is None
+
+    def test_cadence_summary_high(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="High")
+        for _ in range(5):
+            svc.add_cut(plan.id, status="ok")
+
+        result = svc.cadence_summary()
+        assert result["total_plans"] == 1
+        assert result["high_cadence_count"] == 1
+        assert plan.id in result["high_cadence_plan_ids"]
+        assert result["medium_cadence_count"] == 0
+        assert result["low_cadence_count"] == 0
+
+    def test_cadence_summary_medium(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Medium")
+        for _ in range(3):
+            svc.add_cut(plan.id, status="ok")
+
+        result = svc.cadence_summary()
+        assert result["medium_cadence_count"] == 1
+        assert plan.id in result["medium_cadence_plan_ids"]
+
+    def test_cadence_summary_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.cadence_summary()
+        assert result["total_plans"] == 0
+        assert result["high_cadence_count"] == 0
+        assert result["medium_cadence_count"] == 0
+        assert result["low_cadence_count"] == 0
+
+    def test_cadence_summary_low(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Low")
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.cadence_summary()
+        assert result["low_cadence_count"] == 1
+        assert plan.id in result["low_cadence_plan_ids"]
+
+    def test_plan_cadence(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Test Plan")
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.3)
+
+        result = svc.plan_cadence(plan.id)
+        assert result["plan_id"] == plan.id
+        assert result["plan_name"] == "Test Plan"
+        assert result["total_cuts"] == 3
+        assert result["ok_count"] == 2
+        assert result["scrap_count"] == 1
+        assert result["rework_count"] == 0
+        assert result["yield_pct"] == 66.67
+        assert result["cadence_tier"] == "medium"
+
+    def test_plan_cadence_high_tier(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Busy Plan")
+        for _ in range(6):
+            svc.add_cut(plan.id, status="ok")
+
+        result = svc.plan_cadence(plan.id)
+        assert result["cadence_tier"] == "high"
+        assert result["total_cuts"] == 6
+
+    def test_plan_cadence_low_tier(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Slow Plan")
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.plan_cadence(plan.id)
+        assert result["cadence_tier"] == "low"
+        assert result["total_cuts"] == 1
+
+    def test_plan_cadence_no_cuts(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        plan = svc.create_plan(name="Empty Plan")
+
+        result = svc.plan_cadence(plan.id)
+        assert result["total_cuts"] == 0
+        assert result["yield_pct"] is None
+        assert result["cadence_tier"] == "low"
+
+    def test_plan_cadence_not_found(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        with pytest.raises(ValueError, match="not found"):
+            svc.plan_cadence("nonexistent")
+
+    def test_export_cadence(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Export Plan", material_id=mat.id, material_quantity=4.0,
+        )
+        plan.waste_pct = 5.0
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.export_cadence()
+        assert "throughput_overview" in result
+        assert "cadence_summary" in result
+        assert "plan_cadences" in result
+        assert result["throughput_overview"]["total_plans"] == 1
+        assert len(result["plan_cadences"]) == 1
+        assert result["plan_cadences"][0]["plan_id"] == plan.id
+
+    def test_export_cadence_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.export_cadence()
+        assert result["throughput_overview"]["total_plans"] == 0
+        assert result["cadence_summary"]["total_plans"] == 0
+        assert result["plan_cadences"] == []

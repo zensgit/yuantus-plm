@@ -1,37 +1,45 @@
-# C43 Design: Cutted Parts Throughput / Cadence Bootstrap
+# C43 -- Cutted Parts Throughput / Cadence Bootstrap -- Design
 
-## Overview
-Extends the cutted_parts domain with throughput tracking, cadence summaries,
-and export helpers for downstream planning.
+## Goal
+- Extend the isolated `cutted_parts` domain with throughput tracking, cadence tiering, and export-ready helpers.
+- Keep greenfield isolation: no integration into `app.py`.
 
-## Planned Service Methods
+## Scope
+- `src/yuantus/meta_engine/cutted_parts/service.py`
+- `src/yuantus/meta_engine/web/cutted_parts_router.py`
+- `src/yuantus/meta_engine/tests/test_cutted_parts_service.py`
+- `src/yuantus/meta_engine/tests/test_cutted_parts_router.py`
 
-### throughput_overview()
-Plan-wide throughput summary: total plans, total cuts, avg cuts per plan,
-and throughput distribution.
+## Implemented Service Methods
 
-### cadence_summary()
-Cadence summary: plan density, material usage rhythm,
-and output consistency indicators.
+| Method | Returns | Purpose |
+|--------|---------|---------|
+| `throughput_overview()` | Dict | Fleet-wide throughput: total cuts, avg cuts/plan, max/min plan, fleet yield |
+| `cadence_summary()` | Dict | Plans grouped by cadence tier: high (>=5), medium (2-4), low (0-1) |
+| `plan_cadence(plan_id)` | Dict | Per-plan cadence: cut breakdown, yield, tier classification |
+| `export_cadence()` | Dict | Export-ready throughput + cadence + per-plan cadences |
 
-### plan_cadence(plan_id)
-Per-plan throughput and cadence detail: plan info, cut totals,
-yield context, and cadence indicators. Raises ValueError if plan not found.
+## Implemented API Endpoints
 
-### export_cadence()
-Export-ready payload combining throughput_overview, cadence_summary,
-and per-plan cadence detail.
+| Method | Path | Handler | Error |
+|--------|------|---------|-------|
+| GET | `/throughput/overview` | `service.throughput_overview()` | -- |
+| GET | `/cadence/summary` | `service.cadence_summary()` | -- |
+| GET | `/plans/{plan_id}/cadence` | `service.plan_cadence(plan_id)` | ValueError -> 404 |
+| GET | `/export/cadence` | `service.export_cadence()` | -- |
 
-## Planned Router Endpoints
+## Tests Added
 
-| Method | Path                         | Service Method        |
-|--------|------------------------------|-----------------------|
-| GET    | /throughput/overview         | throughput_overview() |
-| GET    | /cadence/summary             | cadence_summary()     |
-| GET    | /plans/{plan_id}/cadence     | plan_cadence(plan_id) |
-| GET    | /export/cadence              | export_cadence()      |
+### Service (15 tests in TestThroughputCadence)
+- test_throughput_overview, test_throughput_overview_empty, test_throughput_overview_no_cuts
+- test_cadence_summary_high, test_cadence_summary_medium, test_cadence_summary_empty, test_cadence_summary_low
+- test_plan_cadence, test_plan_cadence_high_tier, test_plan_cadence_low_tier, test_plan_cadence_no_cuts, test_plan_cadence_not_found
+- test_export_cadence, test_export_cadence_empty
 
-## Patterns
-- Follows established `C40` / `C37` section patterns
-- ValueError -> HTTPException(404)
-- No new models or migrations required
+### Router (5 tests)
+- test_throughput_overview, test_cadence_summary, test_plan_cadence, test_plan_cadence_not_found_404
+- test_export_cadence
+
+## Non-Goals
+- No changes to `src/yuantus/api/app.py`
+- No optimization solver or BOM/manufacturing hot-path integration
