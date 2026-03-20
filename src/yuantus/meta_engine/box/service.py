@@ -1238,3 +1238,148 @@ class BoxService:
             "turnover_summary": self.turnover_summary(),
             "per_box_turnover": per_box,
         }
+
+    # ------------------------------------------------------------------
+    # Dwell / Aging helpers (C44)
+    # ------------------------------------------------------------------
+
+    def dwell_overview(self) -> Dict[str, Any]:
+        """Fleet-wide dwell summary: total boxes, avg items per box,
+        boxes with high item count (>10), boxes with low item count (<=2)."""
+        boxes = self.session.query(BoxItem).all()
+
+        total = len(boxes)
+        item_counts: List[int] = []
+        high_dwell: List[str] = []
+        low_dwell: List[str] = []
+
+        for b in boxes:
+            contents = self.list_contents(b.id)
+            count = len(contents)
+            item_counts.append(count)
+            if count > 10:
+                high_dwell.append(b.id)
+            if count <= 2:
+                low_dwell.append(b.id)
+
+        avg_items = (
+            round(sum(item_counts) / len(item_counts), 2)
+            if item_counts
+            else 0.0
+        )
+
+        return {
+            "total": total,
+            "avg_items_per_box": avg_items,
+            "high_dwell": len(high_dwell),
+            "high_dwell_ids": high_dwell,
+            "low_dwell": len(low_dwell),
+            "low_dwell_ids": low_dwell,
+        }
+
+    def aging_summary(self) -> Dict[str, Any]:
+        """Aging summary: boxes grouped by age tier based on item count.
+        - mature: >10 items (heavily used)
+        - active: 4-10 items
+        - fresh: 0-3 items (newly created or underutilized)"""
+        boxes = self.session.query(BoxItem).all()
+
+        mature: List[str] = []
+        active: List[str] = []
+        fresh: List[str] = []
+
+        for b in boxes:
+            contents = self.list_contents(b.id)
+            count = len(contents)
+            if count > 10:
+                mature.append(b.id)
+            elif count >= 4:
+                active.append(b.id)
+            else:
+                fresh.append(b.id)
+
+        return {
+            "total": len(boxes),
+            "mature": len(mature),
+            "mature_ids": mature,
+            "active": len(active),
+            "active_ids": active,
+            "fresh": len(fresh),
+            "fresh_ids": fresh,
+        }
+
+    def box_aging(self, box_id: str) -> Dict[str, Any]:
+        """Per-box aging detail: box info, item count, age tier,
+        item breakdown by status. Raises ValueError if box not found."""
+        box = self.get_box(box_id)
+        if box is None:
+            raise ValueError(f"Box '{box_id}' not found")
+
+        contents = self.list_contents(box_id)
+        item_count = len(contents)
+
+        if item_count > 10:
+            age_tier = "mature"
+        elif item_count >= 4:
+            age_tier = "active"
+        else:
+            age_tier = "fresh"
+
+        total_quantity = 0.0
+        for c in contents:
+            total_quantity += (c.quantity or 0.0)
+
+        return {
+            "box_id": box.id,
+            "box_name": box.name,
+            "state": box.state,
+            "item_count": item_count,
+            "age_tier": age_tier,
+            "total_quantity": total_quantity,
+            "contents": [
+                {
+                    "id": c.id,
+                    "item_id": c.item_id,
+                    "quantity": c.quantity,
+                    "lot_serial": c.lot_serial,
+                    "note": c.note,
+                }
+                for c in contents
+            ],
+        }
+
+    def export_aging(self) -> Dict[str, Any]:
+        """Export-ready payload combining dwell_overview, aging_summary,
+        and per-box aging details."""
+        boxes = self.session.query(BoxItem).all()
+        per_box: List[Dict[str, Any]] = []
+
+        for b in boxes:
+            contents = self.list_contents(b.id)
+            item_count = len(contents)
+
+            if item_count > 10:
+                age_tier = "mature"
+            elif item_count >= 4:
+                age_tier = "active"
+            else:
+                age_tier = "fresh"
+
+            total_quantity = 0.0
+            for c in contents:
+                total_quantity += (c.quantity or 0.0)
+
+            per_box.append({
+                "box_id": b.id,
+                "box_name": b.name,
+                "state": b.state,
+                "item_count": item_count,
+                "age_tier": age_tier,
+                "total_quantity": total_quantity,
+            })
+
+        return {
+            "dwell_overview": self.dwell_overview(),
+            "aging_summary": self.aging_summary(),
+            "per_box_aging": per_box,
+        }

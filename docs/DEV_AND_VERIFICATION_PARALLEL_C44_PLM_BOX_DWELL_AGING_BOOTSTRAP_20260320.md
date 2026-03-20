@@ -1,25 +1,24 @@
 # C44 Dev & Verification: PLM Box Dwell / Aging Bootstrap
 
-## Planned Changed Files
-- `src/yuantus/meta_engine/box/service.py` - 4 new methods (C44 section)
-- `src/yuantus/meta_engine/web/box_router.py` - 4 new endpoints (C44 section)
-- `src/yuantus/meta_engine/tests/test_box_service.py` - C44 test class
-- `src/yuantus/meta_engine/tests/test_box_router.py` - C44 endpoint tests
+## Changed Files
+- `src/yuantus/meta_engine/box/service.py` — 4 new methods (C44 section)
+- `src/yuantus/meta_engine/web/box_router.py` — 4 new endpoints (C44 section)
+- `src/yuantus/meta_engine/tests/test_box_service.py` — TestDwellAging class (12 tests)
+- `src/yuantus/meta_engine/tests/test_box_router.py` — 6 C44 endpoint tests
 
 ## Verification
 
 ```bash
 python3 -m pytest src/yuantus/meta_engine/tests/test_box_*.py -v
-bash scripts/check_allowed_paths.sh --mode staged
 git diff --check
 ```
 
-## Planned Coverage
-- dwell_overview: with data, empty, bucket distribution
-- aging_summary: with data, empty
-- box_aging: with contents, empty, not found
+## Test Coverage
+- dwell_overview: with data, empty, high/low dwell detection
+- aging_summary: with data, empty, all tiers
+- box_aging: with items, no items, not found (ValueError)
 - export_aging: with data, empty
-- Router: all 4 endpoints + 404 case
+- Router: all 4 endpoints + 404 case for box_aging
 
 ## Codex Integration Target
 - candidate stack branch: `feature/codex-c44c45-staging`

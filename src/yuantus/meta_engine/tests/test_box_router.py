@@ -1049,3 +1049,116 @@ def test_export_turnover():
     assert resp.json()["occupancy_overview"]["total"] == 2
     assert resp.json()["turnover_summary"]["active_boxes"] == 1
     assert len(resp.json()["per_box_turnover"]) == 2
+
+
+# ---------------------------------------------------------------------------
+# Dwell / Aging endpoints (C44)
+# ---------------------------------------------------------------------------
+
+
+def test_dwell_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.dwell_overview.return_value = {
+            "total": 5,
+            "avg_items_per_box": 3.4,
+            "high_dwell": 1,
+            "high_dwell_ids": ["b1"],
+            "low_dwell": 2,
+            "low_dwell_ids": ["b3", "b4"],
+        }
+        resp = client.get("/api/v1/box/dwell/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 5
+    assert resp.json()["avg_items_per_box"] == 3.4
+    assert resp.json()["high_dwell"] == 1
+    assert resp.json()["low_dwell"] == 2
+
+
+def test_aging_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.aging_summary.return_value = {
+            "total": 6,
+            "mature": 1,
+            "mature_ids": ["b1"],
+            "active": 2,
+            "active_ids": ["b2", "b3"],
+            "fresh": 3,
+            "fresh_ids": ["b4", "b5", "b6"],
+        }
+        resp = client.get("/api/v1/box/aging/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 6
+    assert resp.json()["mature"] == 1
+    assert resp.json()["active"] == 2
+    assert resp.json()["fresh"] == 3
+
+
+def test_box_aging():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_aging.return_value = {
+            "box_id": "box-1",
+            "box_name": "Test Box",
+            "state": "active",
+            "item_count": 5,
+            "age_tier": "active",
+            "total_quantity": 15.0,
+            "contents": [],
+        }
+        resp = client.get("/api/v1/box/items/box-1/aging")
+
+    assert resp.status_code == 200
+    assert resp.json()["box_id"] == "box-1"
+    assert resp.json()["item_count"] == 5
+    assert resp.json()["age_tier"] == "active"
+    assert resp.json()["total_quantity"] == 15.0
+
+
+def test_box_aging_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_aging.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/box/items/nonexistent/aging")
+
+    assert resp.status_code == 404
+
+
+def test_export_aging():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_aging.return_value = {
+            "dwell_overview": {
+                "total": 2, "avg_items_per_box": 4.0,
+                "high_dwell": 0, "high_dwell_ids": [],
+                "low_dwell": 1, "low_dwell_ids": ["b2"],
+            },
+            "aging_summary": {
+                "total": 2, "mature": 0, "mature_ids": [],
+                "active": 1, "active_ids": ["b1"],
+                "fresh": 1, "fresh_ids": ["b2"],
+            },
+            "per_box_aging": [
+                {"box_id": "b1", "box_name": "Box 1", "state": "active",
+                 "item_count": 5, "age_tier": "active", "total_quantity": 10.0},
+                {"box_id": "b2", "box_name": "Box 2", "state": "draft",
+                 "item_count": 1, "age_tier": "fresh", "total_quantity": 2.0},
+            ],
+        }
+        resp = client.get("/api/v1/box/export/aging")
+
+    assert resp.status_code == 200
+    assert "dwell_overview" in resp.json()
+    assert "aging_summary" in resp.json()
+    assert "per_box_aging" in resp.json()
+    assert resp.json()["dwell_overview"]["total"] == 2
+    assert resp.json()["aging_summary"]["active"] == 1
+    assert len(resp.json()["per_box_aging"]) == 2
