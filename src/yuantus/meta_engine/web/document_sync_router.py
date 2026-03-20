@@ -397,3 +397,52 @@ def export_drift(
 ):
     service = DocumentSyncService(db)
     return service.export_drift()
+
+
+# ---------------------------------------------------------------------------
+# Baseline / Lineage endpoints (C33)
+# ---------------------------------------------------------------------------
+
+
+@document_sync_router.get("/baseline/overview")
+def baseline_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.baseline_overview()
+
+
+@document_sync_router.get("/sites/{site_id}/lineage")
+def site_lineage(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.site_lineage(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/jobs/{job_id}/snapshot-lineage")
+def job_snapshot_lineage(
+    job_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.job_snapshot_lineage(job_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/export/lineage")
+def export_lineage(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.export_lineage()

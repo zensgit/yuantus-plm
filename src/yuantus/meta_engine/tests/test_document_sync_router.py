@@ -671,3 +671,119 @@ def test_export_drift():
     assert resp.json()["drift_overview"]["total_sites"] == 1
     assert len(resp.json()["sites"]) == 1
     assert resp.json()["sites"][0]["site_id"] == "s1"
+
+
+# ---------------------------------------------------------------------------
+# Baseline / Lineage endpoint tests (C33)
+# ---------------------------------------------------------------------------
+
+
+def test_baseline_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.baseline_overview.return_value = {
+            "total_sites": 2,
+            "total_jobs": 4,
+            "total_records": 15,
+            "baseline_jobs": 2,
+            "baseline_coverage_pct": 50.0,
+            "sites_with_baseline": 2,
+        }
+        resp = client.get("/api/v1/document-sync/baseline/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_sites"] == 2
+    assert resp.json()["total_jobs"] == 4
+    assert resp.json()["total_records"] == 15
+    assert resp.json()["baseline_jobs"] == 2
+    assert resp.json()["baseline_coverage_pct"] == 50.0
+    assert resp.json()["sites_with_baseline"] == 2
+
+
+def test_site_lineage():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_lineage.return_value = {
+            "site_id": "s1", "site_name": "HQ", "state": "active",
+            "direction": "push", "total_jobs": 3,
+            "completed_jobs": 1, "failed_jobs": 1, "cancelled_jobs": 1,
+            "total_synced": 10, "total_errors": 3, "lineage_depth": 3,
+        }
+        resp = client.get("/api/v1/document-sync/sites/s1/lineage")
+
+    assert resp.status_code == 200
+    assert resp.json()["site_id"] == "s1"
+    assert resp.json()["completed_jobs"] == 1
+    assert resp.json()["failed_jobs"] == 1
+    assert resp.json()["lineage_depth"] == 3
+    assert resp.json()["total_synced"] == 10
+
+
+def test_site_lineage_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_lineage.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/sites/bad/lineage")
+
+    assert resp.status_code == 404
+
+
+def test_job_snapshot_lineage():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.job_snapshot_lineage.return_value = {
+            "job_id": "j1", "state": "completed", "direction": "push",
+            "total_documents": 10, "synced_count": 8,
+            "conflict_count": 1, "error_count": 1, "skipped_count": 0,
+            "is_baseline": True, "completeness_pct": 80.0,
+            "records_by_outcome": {"synced": 1, "conflict": 1, "error": 1},
+        }
+        resp = client.get("/api/v1/document-sync/jobs/j1/snapshot-lineage")
+
+    assert resp.status_code == 200
+    assert resp.json()["job_id"] == "j1"
+    assert resp.json()["is_baseline"] is True
+    assert resp.json()["completeness_pct"] == 80.0
+    assert resp.json()["records_by_outcome"]["synced"] == 1
+
+
+def test_job_snapshot_lineage_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.job_snapshot_lineage.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/jobs/bad/snapshot-lineage")
+
+    assert resp.status_code == 404
+
+
+def test_export_lineage():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_lineage.return_value = {
+            "baseline_overview": {
+                "total_sites": 1, "total_jobs": 1,
+                "total_records": 10, "baseline_jobs": 1,
+                "baseline_coverage_pct": 100.0, "sites_with_baseline": 1,
+            },
+            "sites": [
+                {"site_id": "s1", "site_name": "HQ", "state": "active",
+                 "direction": "push", "total_jobs": 1,
+                 "completed_jobs": 1, "failed_jobs": 0, "cancelled_jobs": 0,
+                 "total_synced": 10, "total_errors": 0, "lineage_depth": 1},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/export/lineage")
+
+    assert resp.status_code == 200
+    assert "baseline_overview" in resp.json()
+    assert "sites" in resp.json()
+    assert resp.json()["baseline_overview"]["total_sites"] == 1
+    assert resp.json()["baseline_overview"]["baseline_jobs"] == 1
+    assert len(resp.json()["sites"]) == 1
+    assert resp.json()["sites"][0]["site_id"] == "s1"

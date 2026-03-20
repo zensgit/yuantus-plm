@@ -811,3 +811,127 @@ class DocumentSyncService:
             "drift_overview": self.drift_overview(),
             "sites": [self.site_snapshots(s.id) for s in sites],
         }
+
+    # ------------------------------------------------------------------
+    # Baseline / Lineage (C33)
+    # ------------------------------------------------------------------
+
+    def baseline_overview(self) -> Dict[str, Any]:
+        """Fleet-wide baseline metrics: coverage and sync totals."""
+        sites = self.session.query(SyncSite).all()
+        jobs = self.session.query(SyncJob).all()
+
+        total_records = 0
+        baseline_jobs = 0
+        sites_with_baseline: set = set()
+
+        for j in jobs:
+            total_records += (j.synced_count or 0)
+            if j.state == SyncJobState.COMPLETED.value:
+                baseline_jobs += 1
+                sites_with_baseline.add(j.site_id)
+
+        total_jobs = len(jobs)
+        baseline_coverage_pct: Any = (
+            round(baseline_jobs / total_jobs * 100, 1)
+            if total_jobs > 0
+            else None
+        )
+
+        return {
+            "total_sites": len(sites),
+            "total_jobs": total_jobs,
+            "total_records": total_records,
+            "baseline_jobs": baseline_jobs,
+            "baseline_coverage_pct": baseline_coverage_pct,
+            "sites_with_baseline": len(sites_with_baseline),
+        }
+
+    def site_lineage(self, site_id: str) -> Dict[str, Any]:
+        """Per-site lineage: job history and sync aggregates."""
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        jobs = (
+            self.session.query(SyncJob)
+            .filter(SyncJob.site_id == site_id)
+            .all()
+        )
+
+        completed = 0
+        failed = 0
+        cancelled = 0
+        total_synced = 0
+        total_errors = 0
+
+        for j in jobs:
+            if j.state == SyncJobState.COMPLETED.value:
+                completed += 1
+            elif j.state == SyncJobState.FAILED.value:
+                failed += 1
+            elif j.state == SyncJobState.CANCELLED.value:
+                cancelled += 1
+            total_synced += (j.synced_count or 0)
+            total_errors += (j.error_count or 0)
+
+        return {
+            "site_id": site.id,
+            "site_name": site.name,
+            "state": site.state,
+            "direction": site.direction,
+            "total_jobs": len(jobs),
+            "completed_jobs": completed,
+            "failed_jobs": failed,
+            "cancelled_jobs": cancelled,
+            "total_synced": total_synced,
+            "total_errors": total_errors,
+            "lineage_depth": len(jobs),
+        }
+
+    def job_snapshot_lineage(self, job_id: str) -> Dict[str, Any]:
+        """Per-job snapshot lineage: completeness and record breakdown."""
+        job = self.get_job(job_id)
+        if job is None:
+            raise ValueError(f"Job '{job_id}' not found")
+
+        total_documents = job.total_documents or 0
+        synced_count = job.synced_count or 0
+        conflict_count = job.conflict_count or 0
+        error_count = job.error_count or 0
+        skipped_count = job.skipped_count or 0
+
+        is_baseline = job.state == SyncJobState.COMPLETED.value
+
+        completeness_pct: Any = (
+            round(synced_count / total_documents * 100, 1)
+            if total_documents > 0
+            else None
+        )
+
+        records = self.list_records(job_id)
+        records_by_outcome: Dict[str, int] = {}
+        for r in records:
+            records_by_outcome[r.outcome] = records_by_outcome.get(r.outcome, 0) + 1
+
+        return {
+            "job_id": job.id,
+            "state": job.state,
+            "direction": job.direction,
+            "total_documents": total_documents,
+            "synced_count": synced_count,
+            "conflict_count": conflict_count,
+            "error_count": error_count,
+            "skipped_count": skipped_count,
+            "is_baseline": is_baseline,
+            "records_by_outcome": records_by_outcome,
+            "completeness_pct": completeness_pct,
+        }
+
+    def export_lineage(self) -> Dict[str, Any]:
+        """Export-ready lineage payload: overview + per-site lineage."""
+        sites = self.session.query(SyncSite).all()
+        return {
+            "baseline_overview": self.baseline_overview(),
+            "sites": [self.site_lineage(s.id) for s in sites],
+        }

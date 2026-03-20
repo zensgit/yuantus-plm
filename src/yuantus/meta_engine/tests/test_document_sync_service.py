@@ -1345,3 +1345,250 @@ class TestDriftSnapshots:
         assert result["drift_overview"]["total_jobs"] == 0
         assert result["drift_overview"]["drift_rate"] is None
         assert result["sites"] == []
+
+
+# ---------------------------------------------------------------------------
+# TestBaselineLineage (C33)
+# ---------------------------------------------------------------------------
+
+
+class TestBaselineLineage:
+    def _session_with_models(self, sites=None, jobs=None, records=None):
+        """Session with model-aware query routing and session.get support."""
+        session = _mock_session()
+        _sites = sites or []
+        _jobs = jobs or []
+        _records = records or []
+
+        def _get_side_effect(model, pk):
+            if model is SyncSite:
+                return next((s for s in _sites if s.id == pk), None)
+            if model is SyncJob:
+                return next((j for j in _jobs if j.id == pk), None)
+            return None
+
+        session.get.side_effect = _get_side_effect
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is SyncSite:
+                q.all.return_value = _sites
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is SyncJob:
+                q.all.return_value = _jobs
+
+                def filter_side_effect(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = _jobs
+                    fq.filter.return_value = fq
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = filter_side_effect
+                q.order_by.return_value = q
+            elif model is SyncRecord:
+                q.all.return_value = _records
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+        return session
+
+    def test_baseline_overview(self):
+        """Sites with completed jobs produce correct baseline_coverage_pct."""
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="active", direction="pull"),
+        ]
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j2.synced_count = 0
+
+        j3 = _make_job(job_id="j3", site_id="s2", state="completed")
+        j3.synced_count = 5
+
+        j4 = _make_job(job_id="j4", site_id="s2", state="pending")
+        j4.synced_count = 0
+
+        session = self._session_with_models(sites=sites, jobs=[j1, j2, j3, j4])
+        service = DocumentSyncService(session)
+        result = service.baseline_overview()
+
+        assert result["total_sites"] == 2
+        assert result["total_jobs"] == 4
+        assert result["total_records"] == 15  # 10 + 0 + 5 + 0
+        assert result["baseline_jobs"] == 2  # j1, j3 completed
+        # baseline_coverage_pct: 2/4 * 100 = 50.0
+        assert result["baseline_coverage_pct"] == 50.0
+        assert result["sites_with_baseline"] == 2  # s1 and s2 each have a completed job
+
+    def test_baseline_overview_empty(self):
+        """No sites/jobs yields None coverage and zero counts."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.baseline_overview()
+
+        assert result["total_sites"] == 0
+        assert result["total_jobs"] == 0
+        assert result["total_records"] == 0
+        assert result["baseline_jobs"] == 0
+        assert result["baseline_coverage_pct"] is None
+        assert result["sites_with_baseline"] == 0
+
+    def test_site_lineage(self):
+        """Site with multiple jobs in various states."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.error_count = 0
+
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j2.synced_count = 0
+        j2.error_count = 3
+
+        j3 = _make_job(job_id="j3", site_id="s1", state="cancelled")
+        j3.synced_count = 0
+        j3.error_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.site_lineage("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["site_name"] == "HQ"
+        assert result["state"] == "active"
+        assert result["direction"] == "push"
+        assert result["total_jobs"] == 3
+        assert result["completed_jobs"] == 1
+        assert result["failed_jobs"] == 1
+        assert result["cancelled_jobs"] == 1
+        assert result["total_synced"] == 10
+        assert result["total_errors"] == 3
+        assert result["lineage_depth"] == 3
+
+    def test_site_lineage_no_jobs(self):
+        """Site exists but has no jobs."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        session = self._session_with_models(sites=[site], jobs=[])
+        service = DocumentSyncService(session)
+        result = service.site_lineage("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["total_jobs"] == 0
+        assert result["completed_jobs"] == 0
+        assert result["failed_jobs"] == 0
+        assert result["cancelled_jobs"] == 0
+        assert result["total_synced"] == 0
+        assert result["total_errors"] == 0
+        assert result["lineage_depth"] == 0
+
+    def test_site_lineage_not_found(self):
+        """Raises ValueError when site does not exist."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.site_lineage("nonexistent")
+
+    def test_job_snapshot_lineage(self):
+        """Completed job with records produces is_baseline=True."""
+        job = _make_job(job_id="j1", site_id="s1", state="completed", direction="push")
+        job.total_documents = 10
+        job.synced_count = 8
+        job.conflict_count = 1
+        job.error_count = 1
+        job.skipped_count = 0
+
+        r_synced = _make_record(record_id="r1", document_id="d1", outcome="synced")
+        r_conflict = _make_record(record_id="r2", document_id="d2", outcome="conflict")
+        r_error = _make_record(record_id="r3", document_id="d3", outcome="error")
+
+        session = self._session_with_models(
+            jobs=[job], records=[r_synced, r_conflict, r_error]
+        )
+        service = DocumentSyncService(session)
+        result = service.job_snapshot_lineage("j1")
+
+        assert result["job_id"] == "j1"
+        assert result["state"] == "completed"
+        assert result["direction"] == "push"
+        assert result["total_documents"] == 10
+        assert result["synced_count"] == 8
+        assert result["conflict_count"] == 1
+        assert result["error_count"] == 1
+        assert result["skipped_count"] == 0
+        assert result["is_baseline"] is True
+        # completeness_pct: 8/10 * 100 = 80.0
+        assert result["completeness_pct"] == 80.0
+        assert result["records_by_outcome"]["synced"] == 1
+        assert result["records_by_outcome"]["conflict"] == 1
+        assert result["records_by_outcome"]["error"] == 1
+
+    def test_job_snapshot_lineage_pending(self):
+        """Non-completed job has is_baseline=False."""
+        job = _make_job(job_id="j1", site_id="s1", state="pending", direction="push")
+        job.total_documents = 0
+        job.synced_count = 0
+        job.conflict_count = 0
+        job.error_count = 0
+        job.skipped_count = 0
+
+        session = self._session_with_models(jobs=[job], records=[])
+        service = DocumentSyncService(session)
+        result = service.job_snapshot_lineage("j1")
+
+        assert result["is_baseline"] is False
+        assert result["completeness_pct"] is None
+        assert result["records_by_outcome"] == {}
+
+    def test_job_snapshot_lineage_not_found(self):
+        """Raises ValueError when job does not exist."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.job_snapshot_lineage("nonexistent")
+
+    def test_export_lineage(self):
+        """Export combines baseline_overview + per-site lineages."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+        j1.synced_count = 10
+        j1.error_count = 0
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.export_lineage()
+
+        assert "baseline_overview" in result
+        assert "sites" in result
+        assert result["baseline_overview"]["total_sites"] == 1
+        assert result["baseline_overview"]["total_jobs"] == 1
+        assert result["baseline_overview"]["baseline_jobs"] == 1
+        assert len(result["sites"]) == 1
+        assert result["sites"][0]["site_id"] == "s1"
+        assert result["sites"][0]["completed_jobs"] == 1
+        assert result["sites"][0]["lineage_depth"] == 1
+
+    def test_export_lineage_empty(self):
+        """Export with no data returns empty structures."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.export_lineage()
+
+        assert result["baseline_overview"]["total_sites"] == 0
+        assert result["baseline_overview"]["total_jobs"] == 0
+        assert result["baseline_overview"]["baseline_coverage_pct"] is None
+        assert result["sites"] == []
