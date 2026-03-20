@@ -1417,3 +1417,47 @@
 - main fast-forward: `5ef27df` -> `d70d102`
 - post-merge targeted regression: `417 passed, 146 warnings in 3.54s`
 - post-merge unified stack full: `635 passed, 220 warnings in 14.89s`
+
+## Increment 2026-03-20 Main-Stability-Refresh-C38-C39-C40
+
+### Decision
+- `C38/C39/C40` 的主线合并结果已完成一次短稳定窗口复核。
+- 当前 `main` 可以继续作为下一批 Claude 绿地任务的冻结出发点。
+
+### Why
+- targeted 与 unified full 的 rerun 都与 post-merge 初次结果保持一致，没有出现新增回归。
+- 继续沿用相同的三域绿地扩展，比切到跨域改造更稳。
+
+### Result
+- targeted greenfield rerun on `main`: `417 passed, 146 warnings in 5.57s`
+- unified stack rerun on `main`: `635 passed, 220 warnings in 13.73s`
+
+## Next Claude Batch C41-C43
+
+### Why
+- `C38/C39/C40` 已经完成主线合并和稳定窗口确认。
+- 下一批如果继续并行，最稳的路径仍然是延续同一组三个 greenfield 子域，而不是引入新的跨域热文件。
+
+### Task Boundaries
+- `C41`
+  - 只允许扩展 `box` 子域内部 occupancy / turnover / export helpers
+- `C42`
+  - 只允许扩展 `document_sync` 子域内部 lag / backlog / export helpers
+- `C43`
+  - 只允许扩展 `cutted_parts` 子域内部 throughput / cadence / export helpers
+
+### Chosen Defaults
+- Claude should branch the next greenfield batch from:
+  - `feature/claude-greenfield-base-9`
+  - source branch: `main`
+- `C41-C43` 一律不允许编辑：
+  - `src/yuantus/api/app.py`
+  - `parallel_tasks`
+  - `version`
+  - `benchmark_branches`
+  - 当前已集成 hot routers outside their own domains
+- 这三条线继续只做域内读侧、统计、导出和状态辅助，不做新的跨域 orchestration
+
+### Non-Goals
+- 本轮不把 `C41-C43` 直接并入 `main`
+- 本轮不触发新的统一栈合并

@@ -2128,6 +2128,81 @@ git diff --check
 ### Residual Risks
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
 
+## Increment 2026-03-20 Main-Stability-Refresh-C38-C39-C40
+
+### Touched Areas
+- `main`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c38c39c40-stability-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c38c39c40-stability-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- combined targeted regression on `main`: `417 passed, 146 warnings in 5.57s`
+- unified stack script on `main`: `635 passed, 220 warnings in 13.73s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- no new stability-window regression was observed
+
+## Increment 2026-03-20 Codex-Prepare-Next-Claude-Batch-C41-C43
+
+### Touched Areas
+- `main`
+- `contracts/claude_allowed_paths.json`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DELIVERY_DOC_INDEX.md`
+- `docs/DESIGN_PARALLEL_C41_PLM_BOX_OCCUPANCY_TURNOVER_BOOTSTRAP_20260320.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C41_PLM_BOX_OCCUPANCY_TURNOVER_BOOTSTRAP_20260320.md`
+- `docs/DESIGN_PARALLEL_C42_DOCUMENT_SYNC_LAG_BACKLOG_BOOTSTRAP_20260320.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C42_DOCUMENT_SYNC_LAG_BACKLOG_BOOTSTRAP_20260320.md`
+- `docs/DESIGN_PARALLEL_C43_CUTTED_PARTS_THROUGHPUT_CADENCE_BOOTSTRAP_20260320.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C43_CUTTED_PARTS_THROUGHPUT_CADENCE_BOOTSTRAP_20260320.md`
+
+### Verification Commands
+```bash
+python3 -m json.tool contracts/claude_allowed_paths.json >/dev/null
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- added path-guard profiles `C41`, `C42`, `C43`
+- created frozen Claude base branch `feature/claude-greenfield-base-9`
+- created Codex staging branch `feature/codex-c41c42-staging`
+- prepared shared PLAN / DESIGN / VERIFICATION entries for the next Claude batch
+- added standalone design / verification templates for `C41/C42/C43`
+
+### Residual Risks
+- this preparation step itself introduces no code changes
+- the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers outside their own domains
+
 ## Increment 2026-03-20 Codex-Merge-Rehearsal-C32-C33-C34
 
 ### Touched Areas

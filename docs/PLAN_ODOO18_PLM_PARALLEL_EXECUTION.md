@@ -37,7 +37,8 @@
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
-- next Claude greenfield batch `C38/C39/C40`：merged on `main` and post-merge verified
+- next Claude greenfield batch `C38/C39/C40`：stabilization accepted on `main`
+- next Claude greenfield batch `C41/C42/C43`：prepared on frozen Claude base
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -78,6 +79,9 @@
 | C38 | P3 | PLM box allocation / custody | `box` allocation/custody/export helpers | merged_on_main_greenfield |
 | C39 | P3 | document sync freshness / watermarks | `document_sync` freshness/watermark/export helpers | merged_on_main_greenfield |
 | C40 | P3 | cutted-parts alerts / outliers | `cutted_parts` alert/outlier/export helpers | merged_on_main_greenfield |
+| C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | prepared_for_claude |
+| C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | prepared_for_claude |
+| C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | prepared_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1320,3 +1324,54 @@
 - result:
   - `C38/C39/C40` are now part of `main`
   - no new regression was introduced by the fast-forward
+
+## Increment 2026-03-20 Main-Stability-Refresh-C38-C39-C40
+- targeted greenfield stability rerun on `main`:
+  - `417 passed, 146 warnings in 5.57s`
+- unified stack stability rerun on `main`:
+  - `635 passed, 220 warnings in 13.73s`
+- result:
+  - `C38/C39/C40` stabilization window accepted on `main`
+
+## Increment 2026-03-20 Next Claude Batch C41-C43
+- `C38/C39/C40` has completed merge and stabilization on `main`
+- next Claude greenfield work should continue the same three isolated domains with a ninth-stage read-side batch:
+  - `C41`
+  - `C42`
+  - `C43`
+- Claude should branch from:
+  - `feature/claude-greenfield-base-9`
+  - source branch: `main`
+
+### C41
+- task: `PLM box occupancy / turnover bootstrap`
+- suggested branch: `feature/claude-c41-box-turnover`
+- write scope:
+  - `src/yuantus/meta_engine/box/`
+  - `src/yuantus/meta_engine/web/box_router.py`
+  - `src/yuantus/meta_engine/tests/test_box_*.py`
+- non-goals:
+  - no app registration
+  - no storage, CAD, or workflow hot-path integration
+
+### C42
+- task: `document sync lag / backlog bootstrap`
+- suggested branch: `feature/claude-c42-document-sync-lag`
+- write scope:
+  - `src/yuantus/meta_engine/document_sync/`
+  - `src/yuantus/meta_engine/web/document_sync_router.py`
+  - `src/yuantus/meta_engine/tests/test_document_sync_*.py`
+- non-goals:
+  - no app registration
+  - no background workers or storage hot-path integration
+
+### C43
+- task: `cutted-parts throughput / cadence bootstrap`
+- suggested branch: `feature/claude-c43-cutted-parts-throughput`
+- write scope:
+  - `src/yuantus/meta_engine/cutted_parts/`
+  - `src/yuantus/meta_engine/web/cutted_parts_router.py`
+  - `src/yuantus/meta_engine/tests/test_cutted_parts_*.py`
+- non-goals:
+  - no app registration
+  - no optimization solver or BOM/manufacturing hot-path integration

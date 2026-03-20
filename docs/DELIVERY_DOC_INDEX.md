@@ -142,6 +142,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - C39 Document Sync Freshness Watermarks Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C39_DOCUMENT_SYNC_FRESHNESS_WATERMARKS_BOOTSTRAP_20260320.md`
 - C40 Cutted Parts Alerts Outliers Bootstrap Design: `docs/DESIGN_PARALLEL_C40_CUTTED_PARTS_ALERTS_OUTLIERS_BOOTSTRAP_20260320.md`
 - C40 Cutted Parts Alerts Outliers Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C40_CUTTED_PARTS_ALERTS_OUTLIERS_BOOTSTRAP_20260320.md`
+- C41 PLM Box Occupancy Turnover Bootstrap Design: `docs/DESIGN_PARALLEL_C41_PLM_BOX_OCCUPANCY_TURNOVER_BOOTSTRAP_20260320.md`
+- C41 PLM Box Occupancy Turnover Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C41_PLM_BOX_OCCUPANCY_TURNOVER_BOOTSTRAP_20260320.md`
+- C42 Document Sync Lag Backlog Bootstrap Design: `docs/DESIGN_PARALLEL_C42_DOCUMENT_SYNC_LAG_BACKLOG_BOOTSTRAP_20260320.md`
+- C42 Document Sync Lag Backlog Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C42_DOCUMENT_SYNC_LAG_BACKLOG_BOOTSTRAP_20260320.md`
+- C43 Cutted Parts Throughput Cadence Bootstrap Design: `docs/DESIGN_PARALLEL_C43_CUTTED_PARTS_THROUGHPUT_CADENCE_BOOTSTRAP_20260320.md`
+- C43 Cutted Parts Throughput Cadence Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C43_CUTTED_PARTS_THROUGHPUT_CADENCE_BOOTSTRAP_20260320.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
