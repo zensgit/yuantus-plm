@@ -148,6 +148,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - C42 Document Sync Lag Backlog Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C42_DOCUMENT_SYNC_LAG_BACKLOG_BOOTSTRAP_20260320.md`
 - C43 Cutted Parts Throughput Cadence Bootstrap Design: `docs/DESIGN_PARALLEL_C43_CUTTED_PARTS_THROUGHPUT_CADENCE_BOOTSTRAP_20260320.md`
 - C43 Cutted Parts Throughput Cadence Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C43_CUTTED_PARTS_THROUGHPUT_CADENCE_BOOTSTRAP_20260320.md`
+- C44 PLM Box Dwell Aging Bootstrap Design: `docs/DESIGN_PARALLEL_C44_PLM_BOX_DWELL_AGING_BOOTSTRAP_20260320.md`
+- C44 PLM Box Dwell Aging Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C44_PLM_BOX_DWELL_AGING_BOOTSTRAP_20260320.md`
+- C45 Document Sync Skew Gaps Bootstrap Design: `docs/DESIGN_PARALLEL_C45_DOCUMENT_SYNC_SKEW_GAPS_BOOTSTRAP_20260320.md`
+- C45 Document Sync Skew Gaps Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C45_DOCUMENT_SYNC_SKEW_GAPS_BOOTSTRAP_20260320.md`
+- C46 Cutted Parts Saturation Bottlenecks Bootstrap Design: `docs/DESIGN_PARALLEL_C46_CUTTED_PARTS_SATURATION_BOTTLENECKS_BOOTSTRAP_20260320.md`
+- C46 Cutted Parts Saturation Bottlenecks Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C46_CUTTED_PARTS_SATURATION_BOTTLENECKS_BOOTSTRAP_20260320.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`

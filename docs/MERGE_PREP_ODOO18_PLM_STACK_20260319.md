@@ -492,3 +492,19 @@
     - `686 passed, 236 warnings in 13.69s`
 - current gate:
   - `C41/C42/C43` are now merged on `main`
+- stabilization rerun:
+  - combined targeted regression:
+    - `468 passed, 162 warnings in 3.71s`
+  - unified stack script on `main`:
+    - `686 passed, 236 warnings in 13.23s`
+- stabilization status:
+  - accepted
+
+## Next Claude Base: C44-C46
+- next Claude base:
+  - `feature/claude-greenfield-base-10`
+- next greenfield batch:
+  - `C44`
+  - `C45`
+  - `C46`
+- this planning step does not reopen active merge-prep on `main`; it only prepares isolated tenth-stage task boundaries
