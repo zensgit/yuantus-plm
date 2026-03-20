@@ -382,3 +382,13 @@
     - `582 passed, 204 warnings in 13.39s`
 - current gate:
   - `C35/C36/C37` are now staging-verified
+- rehearsal branch:
+  - `feature/codex-merge-rehearsal-c35c36c37`
+- rehearsal action:
+  - fast-forwarded `main` baseline `d9fa6e7` to candidate commit `97b1492`
+- rehearsal verification:
+  - unified stack script on rehearsal branch:
+    - `582 passed, 204 warnings in 19.00s`
+  - rehearsal passed without manual conflict resolution
+- next step:
+  - actual fast-forward into `main` if we accept this seventh-stage batch

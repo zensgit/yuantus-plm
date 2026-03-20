@@ -1804,6 +1804,39 @@ git diff --check
 ### Residual Risks
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
 
+## Increment 2026-03-20 Codex-Merge-Rehearsal-C35-C36-C37
+
+### Touched Areas
+- `feature/codex-c35c36c37-staging`
+- `feature/codex-merge-rehearsal-c35c36c37`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+git merge --ff-only feature/codex-c35c36c37-staging
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-merge-c35c36c37-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- rehearsal branch fast-forwarded from `d9fa6e7` to `97b1492`
+- no manual conflict resolution was required
+- unified stack script on `feature/codex-merge-rehearsal-c35c36c37`: `582 passed, 204 warnings in 19.00s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+
 ## Increment 2026-03-20 Codex-Merge-Rehearsal-C32-C33-C34
 
 ### Touched Areas

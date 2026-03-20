@@ -1268,3 +1268,19 @@
 - `C37` staging commit: `f15ad29`
 - combined targeted regression with `C35/C36/C37`: `364 passed, 130 warnings in 8.36s`
 - unified stack regression on staging: `582 passed, 204 warnings in 13.39s`
+
+## Increment 2026-03-20 Codex-Merge-Rehearsal-C35-C36-C37
+
+### Decision
+- `C35/C36/C37` 不再停留在“仅 staging 已验证”，而是已经完成面向 `main` 的 fast-forward rehearsal。
+- 当前 seventh-stage greenfield 批次已经具备进入真实主线合并窗口的条件。
+
+### Why
+- `feature/codex-c35c36c37-staging` 相对 `main` 是纯快进关系。
+- 在 rehearsal 分支 `feature/codex-merge-rehearsal-c35c36c37` 上执行 `--ff-only` 后，没有出现手工冲突。
+- rehearsal 分支上的 unified stack full 结果与候选栈一致，说明候选栈进入主线后的测试面没有新增不稳定因素。
+
+### Result
+- rehearsal branch: `feature/codex-merge-rehearsal-c35c36c37`
+- rehearsal fast-forward: `d9fa6e7` -> `97b1492`
+- rehearsal full regression: `582 passed, 204 warnings in 19.00s`

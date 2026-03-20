@@ -36,7 +36,7 @@
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
-- next Claude greenfield batch `C35/C36/C37`：`C35/C36/C37` verified on staging
+- next Claude greenfield batch `C35/C36/C37`：candidate stack rehearsed for `main`
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -1179,3 +1179,17 @@
   - `582 passed, 204 warnings in 13.39s`
 - result:
   - `C35/C36/C37` are now in Codex-verified staging state
+
+## Increment 2026-03-20 Codex-Merge-Rehearsal-C35-C36-C37
+- candidate branch:
+  - `feature/codex-c35c36c37-staging`
+- rehearsal branch:
+  - `feature/codex-merge-rehearsal-c35c36c37`
+- rehearsal fast-forward:
+  - `d9fa6e7` -> `97b1492`
+- rehearsal result:
+  - no manual conflict resolution required
+  - unified stack full on rehearsal branch:
+    - `582 passed, 204 warnings in 19.00s`
+- next step:
+  - actual fast-forward into `main` if we accept this seventh-stage batch
