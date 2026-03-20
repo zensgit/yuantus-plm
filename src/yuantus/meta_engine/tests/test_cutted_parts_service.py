@@ -951,3 +951,224 @@ class TestBenchmarkQuote:
         assert result["benchmark_overview"]["total_plans"] == 0
         assert result["material_benchmarks"]["total_materials"] == 0
         assert result["quotes"] == []
+
+
+# ---------------------------------------------------------------------------
+# Variance / Recommendations (C34)
+# ---------------------------------------------------------------------------
+
+
+class TestVarianceRecommendations:
+
+    def test_variance_overview(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        p1 = svc.create_plan(
+            name="Plan A", material_id=mat.id, material_quantity=5.0,
+        )
+        p1.waste_pct = 4.0
+        p2 = svc.create_plan(
+            name="Plan B", material_id=mat.id, material_quantity=8.0,
+        )
+        p2.waste_pct = 10.0
+
+        result = svc.variance_overview()
+        assert result["total_plans"] == 2
+        assert result["plans_with_waste_data"] == 2
+        assert result["waste_mean"] == 7.0  # (4 + 10) / 2
+        assert result["waste_std"] == 3.0  # std of [4, 10]
+        assert result["waste_range"] == 6.0  # 10 - 4
+        assert result["cost_mean"] == 65.0  # (50 + 80) / 2
+        assert result["cost_std"] == 15.0  # std of [50, 80]
+
+    def test_variance_overview_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.variance_overview()
+        assert result["total_plans"] == 0
+        assert result["waste_mean"] is None
+        assert result["waste_std"] is None
+        assert result["waste_range"] is None
+        assert result["cost_mean"] is None
+        assert result["cost_std"] is None
+        assert result["outlier_plan_ids"] == []
+        assert result["outlier_count"] == 0
+
+    def test_variance_overview_outliers(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        p1 = svc.create_plan(name="Plan A")
+        p1.waste_pct = 5.0
+        p2 = svc.create_plan(name="Plan B")
+        p2.waste_pct = 5.0
+        p3 = svc.create_plan(name="Outlier")
+        p3.waste_pct = 20.0
+
+        result = svc.variance_overview()
+        # mean = 10.0, std ~ 7.07, threshold = 17.07
+        assert result["outlier_count"] == 1
+        assert p3.id in result["outlier_plan_ids"]
+
+    def test_plan_recommendations(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Good Plan", material_id=mat.id, material_quantity=5.0,
+        )
+        plan.waste_pct = 3.0
+        svc.add_cut(plan.id, status="ok", quantity=3.0)
+        svc.add_cut(plan.id, status="ok", quantity=2.0)
+        svc.add_cut(plan.id, status="ok", quantity=1.0)
+        svc.add_cut(plan.id, status="scrap", quantity=1.0, scrap_weight=0.5)
+
+        result = svc.plan_recommendations(plan.id)
+        assert result["plan_id"] == plan.id
+        assert result["plan_name"] == "Good Plan"
+        assert result["total_cuts"] == 4
+        assert result["ok_count"] == 3
+        assert result["scrap_count"] == 1
+        assert result["total_scrap_weight"] == 0.5
+        assert result["waste_pct"] == 3.0
+        assert result["fleet_avg_waste_pct"] == 3.0
+        assert result["waste_delta"] == 0.0
+        assert result["yield_pct"] == 75.0
+        assert result["severity"] == "ok"
+        assert result["recommendations"] == []
+
+    def test_plan_recommendations_high_waste(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        p1 = svc.create_plan(name="Good Plan")
+        p1.waste_pct = 5.0
+        p2 = svc.create_plan(name="Bad Plan")
+        p2.waste_pct = 20.0  # >1.5x fleet avg of 12.5
+
+        result = svc.plan_recommendations(p2.id)
+        assert result["severity"] == "high"
+        assert any("significantly above" in r for r in result["recommendations"])
+
+    def test_plan_recommendations_high_scrap_rate(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Scrap Plan")
+        # 2 scrap out of 3 total = 66% scrap rate
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.5)
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.3)
+
+        result = svc.plan_recommendations(plan.id)
+        assert result["severity"] == "high"
+        assert any("Scrap rate" in r for r in result["recommendations"])
+
+    def test_plan_recommendations_low_yield(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Low Yield Plan")
+        # 1 ok out of 4 = 25% yield
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="rework")
+        svc.add_cut(plan.id, status="rework")
+        svc.add_cut(plan.id, status="rework")
+
+        result = svc.plan_recommendations(plan.id)
+        assert any("Yield below 50%" in r for r in result["recommendations"])
+        assert result["yield_pct"] == 25.0
+
+    def test_plan_recommendations_not_found(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        with pytest.raises(ValueError, match="not found"):
+            svc.plan_recommendations("nonexistent")
+
+    def test_plan_recommendations_no_cuts(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        plan = svc.create_plan(name="Empty Plan")
+
+        result = svc.plan_recommendations(plan.id)
+        assert result["total_cuts"] == 0
+        assert result["yield_pct"] is None
+        assert result["severity"] == "ok"
+        assert result["recommendations"] == []
+
+    def test_material_variance(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        m1 = svc.create_material(
+            name="Steel A", material_type="sheet",
+            stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        m2 = svc.create_material(
+            name="Aluminum B", material_type="bar",
+            stock_quantity=50.0, cost_per_unit=20.0,
+        )
+        p1 = svc.create_plan(name="Job 1", material_id=m1.id, material_quantity=3.0)
+        p1.waste_pct = 4.0
+        p2 = svc.create_plan(name="Job 2", material_id=m1.id, material_quantity=7.0)
+        p2.waste_pct = 10.0
+
+        result = svc.material_variance()
+        assert result["total_materials"] == 2
+        assert len(result["materials"]) == 2
+
+        steel = [m for m in result["materials"] if m["material_name"] == "Steel A"][0]
+        assert steel["plan_count"] == 2
+        assert steel["waste_mean"] == 7.0  # (4 + 10) / 2
+        assert steel["waste_std"] == 3.0
+        assert steel["total_material_cost"] == 100.0  # 10*3 + 10*7
+
+        alum = [m for m in result["materials"] if m["material_name"] == "Aluminum B"][0]
+        assert alum["plan_count"] == 0
+        assert alum["waste_mean"] is None
+        assert alum["waste_std"] is None
+        assert alum["total_material_cost"] == 0.0
+
+    def test_material_variance_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.material_variance()
+        assert result["total_materials"] == 0
+        assert result["materials"] == []
+
+    def test_export_recommendations(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Export Plan", material_id=mat.id, material_quantity=4.0,
+        )
+        plan.waste_pct = 5.0
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.export_recommendations()
+        assert "variance_overview" in result
+        assert "material_variance" in result
+        assert "recommendations" in result
+        assert result["variance_overview"]["total_plans"] == 1
+        assert result["material_variance"]["total_materials"] == 1
+        assert len(result["recommendations"]) == 1
+        assert result["recommendations"][0]["plan_id"] == plan.id
+
+    def test_export_recommendations_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.export_recommendations()
+        assert result["variance_overview"]["total_plans"] == 0
+        assert result["material_variance"]["total_materials"] == 0
+        assert result["recommendations"] == []

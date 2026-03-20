@@ -384,3 +384,48 @@ def export_quotes(
 ):
     service = CuttedPartsService(db)
     return service.export_quotes()
+
+
+# ---------------------------------------------------------------------------
+# Variance / Recommendations endpoints (C34)
+# ---------------------------------------------------------------------------
+
+
+@cutted_parts_router.get("/variance/overview")
+def variance_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    return service.variance_overview()
+
+
+@cutted_parts_router.get("/plans/{plan_id}/recommendations")
+def plan_recommendations(
+    plan_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    try:
+        return service.plan_recommendations(plan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@cutted_parts_router.get("/materials/variance")
+def material_variance(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    return service.material_variance()
+
+
+@cutted_parts_router.get("/export/recommendations")
+def export_recommendations(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = CuttedPartsService(db)
+    return service.export_recommendations()

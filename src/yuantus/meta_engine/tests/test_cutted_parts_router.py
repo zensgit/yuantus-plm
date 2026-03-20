@@ -532,3 +532,87 @@ def test_export_quotes():
     assert "benchmark_overview" in resp.json()
     assert "material_benchmarks" in resp.json()
     assert len(resp.json()["quotes"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Variance / Recommendations endpoints (C34)
+# ---------------------------------------------------------------------------
+
+
+def test_variance_overview():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.variance_overview.return_value = {
+            "total_plans": 3, "plans_with_waste_data": 2,
+            "waste_mean": 7.0, "waste_std": 3.0, "waste_range": 6.0,
+            "cost_mean": 65.0, "cost_std": 15.0,
+            "outlier_plan_ids": ["p3"], "outlier_count": 1,
+        }
+        resp = client.get("/api/v1/cutted-parts/variance/overview")
+    assert resp.status_code == 200
+    assert resp.json()["total_plans"] == 3
+    assert resp.json()["waste_mean"] == 7.0
+    assert resp.json()["outlier_count"] == 1
+
+
+def test_plan_recommendations():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.plan_recommendations.return_value = {
+            "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
+            "total_cuts": 3, "ok_count": 2, "scrap_count": 1,
+            "total_scrap_weight": 0.5, "waste_pct": 6.0,
+            "fleet_avg_waste_pct": 5.0, "waste_delta": 1.0,
+            "yield_pct": 66.67, "severity": "medium",
+            "recommendations": ["Waste above fleet average — consider material optimization"],
+        }
+        resp = client.get("/api/v1/cutted-parts/plans/plan-1/recommendations")
+    assert resp.status_code == 200
+    assert resp.json()["severity"] == "medium"
+    assert len(resp.json()["recommendations"]) == 1
+
+
+def test_plan_recommendations_not_found_404():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.plan_recommendations.side_effect = ValueError("Plan 'x' not found")
+        resp = client.get("/api/v1/cutted-parts/plans/x/recommendations")
+    assert resp.status_code == 404
+
+
+def test_material_variance():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.material_variance.return_value = {
+            "total_materials": 2,
+            "materials": [
+                {"material_id": "m1", "material_name": "Steel",
+                 "material_type": "sheet", "plan_count": 2,
+                 "waste_mean": 7.0, "waste_std": 3.0,
+                 "total_material_cost": 100.0, "stock_quantity": 100.0},
+            ],
+        }
+        resp = client.get("/api/v1/cutted-parts/materials/variance")
+    assert resp.status_code == 200
+    assert resp.json()["total_materials"] == 2
+    assert len(resp.json()["materials"]) == 1
+
+
+def test_export_recommendations():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_recommendations.return_value = {
+            "variance_overview": {"total_plans": 1},
+            "material_variance": {"total_materials": 1},
+            "recommendations": [{"plan_id": "p1", "plan_name": "Plan 1", "severity": "ok"}],
+        }
+        resp = client.get("/api/v1/cutted-parts/export/recommendations")
+    assert resp.status_code == 200
+    assert "variance_overview" in resp.json()
+    assert "material_variance" in resp.json()
+    assert len(resp.json()["recommendations"]) == 1

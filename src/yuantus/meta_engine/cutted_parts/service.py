@@ -867,3 +867,212 @@ class CuttedPartsService:
             "material_benchmarks": self.material_benchmarks(),
             "quotes": quotes,
         }
+
+    # ------------------------------------------------------------------
+    # Variance / Recommendations (C34)
+    # ------------------------------------------------------------------
+
+    def variance_overview(self) -> Dict[str, Any]:
+        """Fleet-wide variance analysis: waste spread, cost deviation,
+        outlier identification across all plans."""
+        plans = self.session.query(CutPlan).all()
+
+        waste_values = [
+            p.waste_pct for p in plans if p.waste_pct is not None
+        ]
+
+        waste_mean: Optional[float] = None
+        waste_std: Optional[float] = None
+        waste_range: Optional[float] = None
+        if waste_values:
+            waste_mean = round(sum(waste_values) / len(waste_values), 2)
+            variance = sum(
+                (v - waste_mean) ** 2 for v in waste_values
+            ) / len(waste_values)
+            waste_std = round(variance ** 0.5, 2)
+            waste_range = round(max(waste_values) - min(waste_values), 2)
+
+        # Cost variance
+        cost_values: List[float] = []
+        for p in plans:
+            if p.material_id:
+                mat = self.session.get(RawMaterial, p.material_id)
+                if mat and mat.cost_per_unit is not None:
+                    cost_values.append(
+                        mat.cost_per_unit * (p.material_quantity or 0.0)
+                    )
+
+        cost_mean: Optional[float] = None
+        cost_std: Optional[float] = None
+        if cost_values:
+            cost_mean = round(sum(cost_values) / len(cost_values), 2)
+            c_var = sum(
+                (v - cost_mean) ** 2 for v in cost_values
+            ) / len(cost_values)
+            cost_std = round(c_var ** 0.5, 2)
+
+        # Outliers: plans with waste > mean + 1 std
+        outlier_ids: List[str] = []
+        if waste_mean is not None and waste_std is not None and waste_std > 0:
+            threshold = waste_mean + waste_std
+            for p in plans:
+                if p.waste_pct is not None and p.waste_pct > threshold:
+                    outlier_ids.append(p.id)
+
+        return {
+            "total_plans": len(plans),
+            "plans_with_waste_data": len(waste_values),
+            "waste_mean": waste_mean,
+            "waste_std": waste_std,
+            "waste_range": waste_range,
+            "cost_mean": cost_mean,
+            "cost_std": cost_std,
+            "outlier_plan_ids": outlier_ids,
+            "outlier_count": len(outlier_ids),
+        }
+
+    def plan_recommendations(self, plan_id: str) -> Dict[str, Any]:
+        """Per-plan recommendations based on waste/cost/utilization vs fleet."""
+        plan = self.get_plan(plan_id)
+        if plan is None:
+            raise ValueError(f"Plan '{plan_id}' not found")
+
+        cuts = self.list_cuts(plan_id)
+        ok_count = sum(
+            1 for c in cuts if c.status == CutResultStatus.OK.value
+        )
+        scrap_count = sum(
+            1 for c in cuts if c.status == CutResultStatus.SCRAP.value
+        )
+        total_scrap_weight = sum((c.scrap_weight or 0.0) for c in cuts)
+
+        # Fleet averages
+        all_plans = self.session.query(CutPlan).all()
+        waste_values = [
+            p.waste_pct for p in all_plans if p.waste_pct is not None
+        ]
+        fleet_avg_waste = (
+            round(sum(waste_values) / len(waste_values), 2)
+            if waste_values
+            else None
+        )
+
+        # Recommendations based on metrics
+        recommendations: List[str] = []
+        severity: str = "ok"
+
+        if plan.waste_pct is not None and fleet_avg_waste is not None:
+            if plan.waste_pct > fleet_avg_waste * 1.5:
+                recommendations.append(
+                    "Waste significantly above fleet average — review cutting patterns"
+                )
+                severity = "high"
+            elif plan.waste_pct > fleet_avg_waste:
+                recommendations.append(
+                    "Waste above fleet average — consider material optimization"
+                )
+                if severity == "ok":
+                    severity = "medium"
+
+        if len(cuts) > 0 and scrap_count / len(cuts) > 0.3:
+            recommendations.append(
+                "Scrap rate exceeds 30% — inspect tooling or material quality"
+            )
+            severity = "high"
+
+        if len(cuts) > 0 and ok_count / len(cuts) < 0.5:
+            recommendations.append(
+                "Yield below 50% — review process parameters"
+            )
+            if severity == "ok":
+                severity = "medium"
+
+        yield_pct: Optional[float] = None
+        if len(cuts) > 0:
+            yield_pct = round(ok_count / len(cuts) * 100, 2)
+
+        waste_delta: Optional[float] = None
+        if plan.waste_pct is not None and fleet_avg_waste is not None:
+            waste_delta = round(plan.waste_pct - fleet_avg_waste, 2)
+
+        return {
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "state": plan.state,
+            "total_cuts": len(cuts),
+            "ok_count": ok_count,
+            "scrap_count": scrap_count,
+            "total_scrap_weight": total_scrap_weight,
+            "waste_pct": plan.waste_pct,
+            "fleet_avg_waste_pct": fleet_avg_waste,
+            "waste_delta": waste_delta,
+            "yield_pct": yield_pct,
+            "severity": severity,
+            "recommendations": recommendations,
+        }
+
+    def material_variance(self) -> Dict[str, Any]:
+        """Variance analysis by material: waste spread, cost deviation,
+        plan-count distribution."""
+        materials = self.session.query(RawMaterial).all()
+        plans = self.session.query(CutPlan).all()
+
+        plans_by_mat: Dict[str, List[CutPlan]] = {}
+        for p in plans:
+            if p.material_id:
+                plans_by_mat.setdefault(p.material_id, []).append(p)
+
+        items: List[Dict[str, Any]] = []
+        for m in materials:
+            mat_plans = plans_by_mat.get(m.id, [])
+            waste_vals = [
+                p.waste_pct for p in mat_plans if p.waste_pct is not None
+            ]
+
+            waste_mean: Optional[float] = None
+            waste_std: Optional[float] = None
+            if waste_vals:
+                waste_mean = round(
+                    sum(waste_vals) / len(waste_vals), 2
+                )
+                var = sum(
+                    (v - waste_mean) ** 2 for v in waste_vals
+                ) / len(waste_vals)
+                waste_std = round(var ** 0.5, 2)
+
+            total_cost: Optional[float] = None
+            if m.cost_per_unit is not None:
+                total_cost = sum(
+                    m.cost_per_unit * (p.material_quantity or 0.0)
+                    for p in mat_plans
+                )
+
+            items.append({
+                "material_id": m.id,
+                "material_name": m.name,
+                "material_type": m.material_type,
+                "plan_count": len(mat_plans),
+                "waste_mean": waste_mean,
+                "waste_std": waste_std,
+                "total_material_cost": total_cost,
+                "stock_quantity": m.stock_quantity or 0.0,
+            })
+
+        return {
+            "total_materials": len(materials),
+            "materials": items,
+        }
+
+    def export_recommendations(self) -> Dict[str, Any]:
+        """Export-ready payload combining variance overview, material variance,
+        and per-plan recommendations."""
+        plans = self.session.query(CutPlan).all()
+        plan_recs = []
+        for p in plans:
+            plan_recs.append(self.plan_recommendations(p.id))
+
+        return {
+            "variance_overview": self.variance_overview(),
+            "material_variance": self.material_variance(),
+            "recommendations": plan_recs,
+        }
