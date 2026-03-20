@@ -35,7 +35,7 @@
 - next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
-- next Claude greenfield batch `C32/C33/C34`：prepared on `main`; recommend `C32/C33` first, `C34` second
+- next Claude greenfield batch `C32/C33/C34`：`C32/C33` codex-stack verified on staging branch; `C34` pending
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -67,8 +67,8 @@
 | C29 | P3 | PLM box capacity / compliance | `box` capacity/compliance/export helpers | merged_on_main_greenfield |
 | C30 | P3 | document sync drift / snapshots | `document_sync` drift/snapshot/export helpers | merged_on_main_greenfield |
 | C31 | P3 | cutted-parts benchmark / quote | `cutted_parts` benchmark/quote/export helpers | merged_on_main_greenfield |
-| C32 | P3 | PLM box policy / exceptions | `box` policy/exception/export helpers | prepared_for_claude |
-| C33 | P3 | document sync baseline / lineage | `document_sync` baseline/lineage/export helpers | prepared_for_claude |
+| C32 | P3 | PLM box policy / exceptions | `box` policy/exception/export helpers | codex_stack_verified |
+| C33 | P3 | document sync baseline / lineage | `document_sync` baseline/lineage/export helpers | codex_stack_verified |
 | C34 | P3 | cutted-parts variance / recommendations | `cutted_parts` variance/recommendation/export helpers | prepared_for_claude |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
@@ -1034,3 +1034,20 @@
 - non-goals:
   - no app registration
   - no BOM/manufacturing hot-path integration
+
+## Increment 2026-03-20 Codex-C32-C33-Stack-Verification
+- built isolated candidate stack branch:
+  - `feature/codex-c32c33-staging`
+- cherry-picked:
+  - `3c6c869` `feat(box): add C32 policy/exceptions bootstrap`
+  - `a157314` `feat(document-sync): add C33 baseline/lineage bootstrap`
+- staging commits after integration:
+  - `80c2e7e` `feat(box): add C32 policy/exceptions bootstrap`
+  - `c0d3e06` `feat(document-sync): add C33 baseline/lineage bootstrap`
+- combined targeted regression:
+  - `198 passed, 77 warnings in 6.03s`
+- unified stack full regression on staging:
+  - `514 passed, 183 warnings in 11.98s`
+- result:
+  - `C32/C33` are now in Codex-verified staging state
+  - `C34` remains pending by design

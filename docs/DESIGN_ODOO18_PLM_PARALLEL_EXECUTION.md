@@ -1118,3 +1118,20 @@
 ### Non-Goals
 - 本轮不把 `C32-C34` 直接并入 `main`
 - 本轮不触发新的统一栈合并
+
+## Increment 2026-03-20 Codex-C32-C33-Stack-Verification
+
+### Decision
+- `C32` 与 `C33` 已经不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c32c33-staging` 上完成联合验证。
+- `C34` 继续保持 pending，不与本轮 staging 混并。
+
+### Why
+- `box` 与 `document_sync` 的第六阶段扩展仍然互不写冲突，适合继续并行联合验证。
+- `C34` 继续留在 `cutted_parts` 子域，延后回收可以减少本轮 staging 的扩面和回归压力。
+
+### Result
+- `C32` staging commit: `80c2e7e`
+- `C33` staging commit: `c0d3e06`
+- combined targeted regression: `198 passed, 77 warnings in 6.03s`
+- unified stack regression on staging: `514 passed, 183 warnings in 11.98s`

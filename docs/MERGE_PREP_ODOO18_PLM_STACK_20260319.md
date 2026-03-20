@@ -320,3 +320,20 @@
   - `C33`
   - `C34`
 - this planning step does not reopen active merge-prep on `main`; it only prepares isolated sixth-stage task boundaries
+
+## Next Candidate Stack: C32-C33
+- candidate branch:
+  - `feature/codex-c32c33-staging`
+- base relation:
+  - fast-forward from `main` commit `5babffa`
+- integrated commits:
+  - `80c2e7e` `feat(box): add C32 policy/exceptions bootstrap`
+  - `c0d3e06` `feat(document-sync): add C33 baseline/lineage bootstrap`
+- candidate verification:
+  - combined targeted regression:
+    - `198 passed, 77 warnings in 6.03s`
+  - unified stack script on staging branch:
+    - `514 passed, 183 warnings in 11.98s`
+- current gate:
+  - `C32/C33` are now staging-verified
+  - `C34` remains pending before the next promotion step
