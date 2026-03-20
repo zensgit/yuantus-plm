@@ -368,17 +368,17 @@
 
 ## Next Candidate Stack: C35-C36-C37
 - candidate branch:
-  - `feature/codex-c35c36-staging`
+  - `feature/codex-c35c36c37-staging`
 - base relation:
   - fast-forward from `main` commit `d9fa6e7`
 - integrated commits:
   - `bff4ec6` `feat(box): add C35 reservations/traceability analytics`
   - `576b975` `feat(document-sync): add C36 checkpoints/retention analytics`
+  - `f15ad29` `feat(cutted-parts): add C37 thresholds / envelopes bootstrap`
 - candidate verification:
   - combined targeted regression:
-    - `227 passed, 88 warnings in 2.89s`
+    - `364 passed, 130 warnings in 8.36s`
   - unified stack script on staging branch:
-    - `561 passed, 199 warnings in 12.57s`
+    - `582 passed, 204 warnings in 13.39s`
 - current gate:
-  - `C35/C36` are now staging-verified
-  - `C37` remains pending by design
+  - `C35/C36/C37` are now staging-verified

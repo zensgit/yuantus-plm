@@ -36,7 +36,7 @@
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
-- next Claude greenfield batch `C35/C36/C37`：`C35/C36` verified on staging, `C37` pending
+- next Claude greenfield batch `C35/C36/C37`：`C35/C36/C37` verified on staging
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -73,7 +73,7 @@
 | C34 | P3 | cutted-parts variance / recommendations | `cutted_parts` variance/recommendation/export helpers | merged_on_main_greenfield |
 | C35 | P3 | PLM box reservations / traceability | `box` reservation/traceability/export helpers | codex_stack_verified |
 | C36 | P3 | document sync checkpoints / retention | `document_sync` checkpoint/retention/export helpers | codex_stack_verified |
-| C37 | P3 | cutted-parts thresholds / envelopes | `cutted_parts` threshold/envelope/export helpers | prepared_on_main_greenfield |
+| C37 | P3 | cutted-parts thresholds / envelopes | `cutted_parts` threshold/envelope/export helpers | codex_stack_verified |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1165,3 +1165,17 @@
 - result:
   - `C35/C36` are now in Codex-verified staging state
   - `C37` remains pending by design
+
+## Increment 2026-03-20 Codex-C37-Stack-Verification
+- promoted isolated candidate stack branch:
+  - `feature/codex-c35c36c37-staging`
+- cherry-picked:
+  - `3fa66fa` `feat(cutted-parts): add C37 thresholds / envelopes bootstrap`
+- staging commit after integration:
+  - `f15ad29` `feat(cutted-parts): add C37 thresholds / envelopes bootstrap`
+- combined targeted regression with `C35/C36/C37`:
+  - `364 passed, 130 warnings in 8.36s`
+- unified stack full regression on staging:
+  - `582 passed, 204 warnings in 13.39s`
+- result:
+  - `C35/C36/C37` are now in Codex-verified staging state

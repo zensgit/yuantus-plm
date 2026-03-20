@@ -1252,3 +1252,19 @@
 - `C36` staging commit: `576b975`
 - combined targeted regression: `227 passed, 88 warnings in 2.89s`
 - unified stack regression on staging: `561 passed, 199 warnings in 12.57s`
+
+## Increment 2026-03-20 Codex-C37-Stack-Verification
+
+### Decision
+- `C37` 已不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c35c36c37-staging` 上完成 `C35/C36/C37` 联合验证。
+- `C35/C36/C37` 现在作为完整的 seventh-stage candidate stack 进入下一步 merge-prep 评估。
+
+### Why
+- `cutted_parts` 的 threshold / envelope 读侧增强与现有 `C28/C31/C34` 写域保持一致，不需要触发新的跨域依赖。
+- 在 `C35/C36` 已验证基础上补齐 `C37`，可以直接得到完整的 `box/document_sync/cutted_parts` seventh-stage 绿地候选栈。
+
+### Result
+- `C37` staging commit: `f15ad29`
+- combined targeted regression with `C35/C36/C37`: `364 passed, 130 warnings in 8.36s`
+- unified stack regression on staging: `582 passed, 204 warnings in 13.39s`
