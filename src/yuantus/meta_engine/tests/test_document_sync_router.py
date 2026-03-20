@@ -1228,3 +1228,139 @@ def test_export_backlog_empty():
     assert resp.json()["lag_overview"]["avg_lag"] is None
     assert resp.json()["backlog_summary"]["backlog_distribution"] == []
     assert resp.json()["sites"] == []
+
+
+# ---------------------------------------------------------------------------
+# Skew / Gaps endpoint tests (C45)
+# ---------------------------------------------------------------------------
+
+
+def test_skew_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.skew_overview.return_value = {
+            "total_sites": 2,
+            "sites_with_gaps": 1,
+            "avg_gap_count": 1.0,
+            "worst_gap_site_id": "s1",
+        }
+        resp = client.get("/api/v1/document-sync/skew/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_sites"] == 2
+    assert resp.json()["sites_with_gaps"] == 1
+    assert resp.json()["avg_gap_count"] == 1.0
+    assert resp.json()["worst_gap_site_id"] == "s1"
+
+
+def test_gaps_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.gaps_summary.return_value = {
+            "total_sites": 2,
+            "total_gaps": 4,
+            "gap_threshold": 2,
+            "sites_above_threshold": 1,
+            "severity_distribution": {
+                "critical": 0, "warning": 1, "minor": 1, "clean": 0,
+            },
+        }
+        resp = client.get("/api/v1/document-sync/gaps/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_sites"] == 2
+    assert resp.json()["total_gaps"] == 4
+    assert resp.json()["sites_above_threshold"] == 1
+    assert resp.json()["severity_distribution"]["warning"] == 1
+
+
+def test_site_gaps():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_gaps.return_value = {
+            "site_id": "s1", "site_name": "HQ", "state": "active",
+            "total_jobs": 3, "pending_count": 1, "failed_count": 1,
+            "gap_count": 2, "severity": "minor",
+        }
+        resp = client.get("/api/v1/document-sync/sites/s1/gaps")
+
+    assert resp.status_code == 200
+    assert resp.json()["site_id"] == "s1"
+    assert resp.json()["pending_count"] == 1
+    assert resp.json()["failed_count"] == 1
+    assert resp.json()["gap_count"] == 2
+    assert resp.json()["severity"] == "minor"
+
+
+def test_site_gaps_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.site_gaps.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/document-sync/sites/bad/gaps")
+
+    assert resp.status_code == 404
+
+
+def test_export_gaps():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_gaps.return_value = {
+            "skew_overview": {
+                "total_sites": 1, "sites_with_gaps": 1,
+                "avg_gap_count": 1.0, "worst_gap_site_id": "s1",
+            },
+            "gaps_summary": {
+                "total_sites": 1, "total_gaps": 1,
+                "gap_threshold": 2, "sites_above_threshold": 0,
+                "severity_distribution": {
+                    "critical": 0, "warning": 0, "minor": 1, "clean": 0,
+                },
+            },
+            "sites": [
+                {"site_id": "s1", "site_name": "HQ", "state": "active",
+                 "total_jobs": 2, "pending_count": 1, "failed_count": 0,
+                 "gap_count": 1, "severity": "minor"},
+            ],
+        }
+        resp = client.get("/api/v1/document-sync/export/gaps")
+
+    assert resp.status_code == 200
+    assert "skew_overview" in resp.json()
+    assert "gaps_summary" in resp.json()
+    assert "sites" in resp.json()
+    assert resp.json()["skew_overview"]["total_sites"] == 1
+    assert resp.json()["gaps_summary"]["total_gaps"] == 1
+    assert len(resp.json()["sites"]) == 1
+    assert resp.json()["sites"][0]["site_id"] == "s1"
+
+
+def test_export_gaps_empty():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.export_gaps.return_value = {
+            "skew_overview": {
+                "total_sites": 0, "sites_with_gaps": 0,
+                "avg_gap_count": None, "worst_gap_site_id": None,
+            },
+            "gaps_summary": {
+                "total_sites": 0, "total_gaps": 0,
+                "gap_threshold": 2, "sites_above_threshold": 0,
+                "severity_distribution": {
+                    "critical": 0, "warning": 0, "minor": 0, "clean": 0,
+                },
+            },
+            "sites": [],
+        }
+        resp = client.get("/api/v1/document-sync/export/gaps")
+
+    assert resp.status_code == 200
+    assert resp.json()["skew_overview"]["total_sites"] == 0
+    assert resp.json()["skew_overview"]["avg_gap_count"] is None
+    assert resp.json()["gaps_summary"]["severity_distribution"]["clean"] == 0
+    assert resp.json()["sites"] == []

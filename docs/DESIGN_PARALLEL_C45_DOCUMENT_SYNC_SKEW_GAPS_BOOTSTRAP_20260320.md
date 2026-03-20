@@ -4,34 +4,37 @@
 Extends the document sync domain with skew visibility, gap summaries,
 and export helpers for downstream reporting.
 
-## Planned Service Methods
+## Service Methods (Implemented)
 
 ### skew_overview()
-Cross-site skew summary: job skew buckets, delayed distributions,
-and skew severity proxies.
+Fleet-wide skew summary: total sites, sites with sync gaps (pending/failed
+jobs), avg gap count across sites, worst-gap site (most gaps).
 
 ### gaps_summary()
-Gap summary: missing sync windows, incomplete coverage ratios,
-and per-site gap density.
+Gaps summary: total gaps across fleet, sites with gaps above threshold (>2),
+gap distribution by severity (critical >5, warning 3-5, minor 1-2, clean 0).
 
 ### site_gaps(site_id)
-Per-site skew and gap detail: site info, skew markers,
-gap windows, and status counts. Raises ValueError if site not found.
+Per-site gap detail: site info, pending/failed job counts, gap count,
+severity level. Raises ValueError if site not found.
 
 ### export_gaps()
 Export-ready payload combining skew_overview, gaps_summary,
-and per-site gap detail.
+and per-site gap details for all sites.
 
-## Planned Router Endpoints
+## Router Endpoints (Implemented)
 
-| Method | Path                  | Service Method  |
-|--------|-----------------------|-----------------|
-| GET    | /skew/overview        | skew_overview() |
-| GET    | /gaps/summary         | gaps_summary()  |
-| GET    | /sites/{site_id}/gaps | site_gaps()     |
-| GET    | /export/gaps          | export_gaps()   |
+| Method | Path                  | Service Method  | Error Handling       |
+|--------|-----------------------|-----------------|----------------------|
+| GET    | /skew/overview        | skew_overview() | -                    |
+| GET    | /gaps/summary         | gaps_summary()  | -                    |
+| GET    | /sites/{site_id}/gaps | site_gaps()     | ValueError -> 404    |
+| GET    | /export/gaps          | export_gaps()   | -                    |
 
 ## Patterns
 - Follows established `C42` / `C39` section patterns
 - ValueError -> HTTPException(404)
 - No new models or migrations required
+- Gap = job with state "pending" or "failed"
+- Severity thresholds: critical(>5), warning(3-5), minor(1-2), clean(0)
+- Gap threshold for flagging sites: >2 gap jobs

@@ -2395,3 +2395,252 @@ class TestLagBacklog:
         assert result["backlog_summary"]["total_sites"] == 0
         assert result["backlog_summary"]["backlog_distribution"] == []
         assert result["sites"] == []
+
+
+# ---------------------------------------------------------------------------
+# TestSkewGaps (C45)
+# ---------------------------------------------------------------------------
+
+
+class TestSkewGaps:
+    def _session_with_models(self, sites=None, jobs=None, records=None):
+        """Session with model-aware query routing and session.get support."""
+        session = _mock_session()
+        _sites = sites or []
+        _jobs = jobs or []
+        _records = records or []
+
+        def _get_side_effect(model, pk):
+            if model is SyncSite:
+                return next((s for s in _sites if s.id == pk), None)
+            if model is SyncJob:
+                return next((j for j in _jobs if j.id == pk), None)
+            return None
+
+        session.get.side_effect = _get_side_effect
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is SyncSite:
+                q.all.return_value = _sites
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is SyncJob:
+                q.all.return_value = _jobs
+
+                def filter_side_effect(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = _jobs
+                    fq.filter.return_value = fq
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = filter_side_effect
+                q.order_by.return_value = q
+            elif model is SyncRecord:
+                q.all.return_value = _records
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+        return session
+
+    # -- skew_overview --
+
+    def test_skew_overview(self):
+        """Sites with pending/failed jobs produce correct skew metrics."""
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="active", direction="pull"),
+        ]
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j3 = _make_job(job_id="j3", site_id="s2", state="completed")
+
+        session = self._session_with_models(sites=sites, jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.skew_overview()
+
+        assert result["total_sites"] == 2
+        assert result["sites_with_gaps"] == 1  # s1 has gaps
+        # s1 gap = 2, s2 gap = 0 => avg = (2+0)/2 = 1.0
+        assert result["avg_gap_count"] == 1.0
+        assert result["worst_gap_site_id"] == "s1"
+
+    def test_skew_overview_empty(self):
+        """No sites/jobs yields None avg and None worst site."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.skew_overview()
+
+        assert result["total_sites"] == 0
+        assert result["sites_with_gaps"] == 0
+        assert result["avg_gap_count"] is None
+        assert result["worst_gap_site_id"] is None
+
+    def test_skew_overview_no_gaps(self):
+        """All completed jobs produce zero gaps."""
+        site = _make_site(site_id="s1", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
+
+        session = self._session_with_models(sites=[site], jobs=[j1])
+        service = DocumentSyncService(session)
+        result = service.skew_overview()
+
+        assert result["total_sites"] == 1
+        assert result["sites_with_gaps"] == 0
+        assert result["avg_gap_count"] == 0.0
+        assert result["worst_gap_site_id"] == "s1"
+
+    # -- gaps_summary --
+
+    def test_gaps_summary(self):
+        """Sites with gap jobs produce correct summary metrics."""
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="active", direction="pull"),
+        ]
+
+        # s1: 3 pending jobs (above threshold of 2) => warning severity
+        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
+        j2 = _make_job(job_id="j2", site_id="s1", state="pending")
+        j3 = _make_job(job_id="j3", site_id="s1", state="pending")
+        # s2: 1 failed job (below threshold) => minor severity
+        j4 = _make_job(job_id="j4", site_id="s2", state="failed")
+
+        session = self._session_with_models(
+            sites=sites, jobs=[j1, j2, j3, j4]
+        )
+        service = DocumentSyncService(session)
+        result = service.gaps_summary()
+
+        assert result["total_sites"] == 2
+        assert result["total_gaps"] == 4
+        assert result["gap_threshold"] == 2
+        assert result["sites_above_threshold"] == 1  # s1 has 3 > 2
+        assert result["severity_distribution"]["warning"] == 1  # s1: 3 gaps
+        assert result["severity_distribution"]["minor"] == 1  # s2: 1 gap
+
+    def test_gaps_summary_empty(self):
+        """No sites yields zero counts and clean distribution."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.gaps_summary()
+
+        assert result["total_sites"] == 0
+        assert result["total_gaps"] == 0
+        assert result["gap_threshold"] == 2
+        assert result["sites_above_threshold"] == 0
+        assert result["severity_distribution"] == {
+            "critical": 0, "warning": 0, "minor": 0, "clean": 0,
+        }
+
+    def test_gaps_summary_severity_levels(self):
+        """Severity levels: critical(>5), warning(3-5), minor(1-2), clean(0)."""
+        sites = [
+            _make_site(site_id="s1", state="active", direction="push"),
+            _make_site(site_id="s2", state="active", direction="pull"),
+            _make_site(site_id="s3", state="active", direction="push"),
+        ]
+
+        # s1: 6 pending => critical
+        jobs = [_make_job(job_id=f"j{i}", site_id="s1", state="pending") for i in range(6)]
+        # s2: 1 failed => minor
+        jobs.append(_make_job(job_id="j10", site_id="s2", state="failed"))
+        # s3: 0 gaps => clean
+
+        session = self._session_with_models(sites=sites, jobs=jobs)
+        service = DocumentSyncService(session)
+        result = service.gaps_summary()
+
+        assert result["severity_distribution"]["critical"] == 1
+        assert result["severity_distribution"]["minor"] == 1
+        assert result["severity_distribution"]["clean"] == 1
+
+    # -- site_gaps --
+
+    def test_site_gaps(self):
+        """Site with mixed job states produces correct gap detail."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
+        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
+        j3 = _make_job(job_id="j3", site_id="s1", state="completed")
+
+        session = self._session_with_models(sites=[site], jobs=[j1, j2, j3])
+        service = DocumentSyncService(session)
+        result = service.site_gaps("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["site_name"] == "HQ"
+        assert result["state"] == "active"
+        assert result["total_jobs"] == 3
+        assert result["pending_count"] == 1
+        assert result["failed_count"] == 1
+        assert result["gap_count"] == 2  # pending + failed
+        assert result["severity"] == "minor"  # 2 gaps => minor (1-2)
+
+    def test_site_gaps_no_jobs(self):
+        """Site exists but has no jobs; gap_count is 0 and severity is clean."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        session = self._session_with_models(sites=[site], jobs=[])
+        service = DocumentSyncService(session)
+        result = service.site_gaps("s1")
+
+        assert result["site_id"] == "s1"
+        assert result["total_jobs"] == 0
+        assert result["pending_count"] == 0
+        assert result["failed_count"] == 0
+        assert result["gap_count"] == 0
+        assert result["severity"] == "clean"
+
+    def test_site_gaps_not_found(self):
+        """Raises ValueError when site does not exist."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.site_gaps("nonexistent")
+
+    # -- export_gaps --
+
+    def test_export_gaps(self):
+        """Export combines skew_overview + gaps_summary + per-site gaps."""
+        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
+
+        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
+        j2 = _make_job(job_id="j2", site_id="s1", state="completed")
+
+        session = self._session_with_models(sites=[site], jobs=[j1, j2])
+        service = DocumentSyncService(session)
+        result = service.export_gaps()
+
+        assert "skew_overview" in result
+        assert "gaps_summary" in result
+        assert "sites" in result
+        assert result["skew_overview"]["total_sites"] == 1
+        assert result["skew_overview"]["sites_with_gaps"] == 1
+        assert result["gaps_summary"]["total_gaps"] == 1
+        assert len(result["sites"]) == 1
+        assert result["sites"][0]["site_id"] == "s1"
+        assert result["sites"][0]["pending_count"] == 1
+
+    def test_export_gaps_empty(self):
+        """Export with no data returns empty structures."""
+        session = self._session_with_models()
+        service = DocumentSyncService(session)
+        result = service.export_gaps()
+
+        assert result["skew_overview"]["total_sites"] == 0
+        assert result["skew_overview"]["avg_gap_count"] is None
+        assert result["gaps_summary"]["total_sites"] == 0
+        assert result["gaps_summary"]["severity_distribution"]["clean"] == 0
+        assert result["sites"] == []

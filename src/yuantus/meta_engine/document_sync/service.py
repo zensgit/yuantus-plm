@@ -1425,3 +1425,158 @@ class DocumentSyncService:
             "backlog_summary": self.backlog_summary(),
             "sites": [self.site_backlog(s.id) for s in sites],
         }
+
+    # ------------------------------------------------------------------
+    # Skew / Gaps helpers (C45)
+    # ------------------------------------------------------------------
+
+    def skew_overview(self) -> Dict[str, Any]:
+        """Fleet-wide skew summary: total sites, sites with sync gaps,
+        avg gap count, worst-gap sites."""
+        sites = self.session.query(SyncSite).all()
+        jobs = self.session.query(SyncJob).all()
+
+        # Group jobs by site_id
+        jobs_by_site: Dict[str, List[SyncJob]] = {}
+        for j in jobs:
+            jobs_by_site.setdefault(j.site_id, []).append(j)
+
+        site_gap_counts: Dict[str, int] = {}
+        sites_with_gaps = 0
+
+        for s in sites:
+            site_jobs = jobs_by_site.get(s.id, [])
+            gap_count = sum(
+                1 for j in site_jobs
+                if j.state in (SyncJobState.FAILED.value, SyncJobState.PENDING.value)
+            )
+            site_gap_counts[s.id] = gap_count
+
+            if gap_count > 0:
+                sites_with_gaps += 1
+
+        # Average gap count across all sites
+        avg_gap_count: Any = (
+            round(sum(site_gap_counts.values()) / len(site_gap_counts), 1)
+            if site_gap_counts
+            else None
+        )
+
+        # Worst-gap site (most gaps)
+        worst_gap_site_id: Any = None
+        if site_gap_counts:
+            worst_gap_site_id = max(
+                site_gap_counts,
+                key=lambda s_id: site_gap_counts[s_id],
+            )
+
+        return {
+            "total_sites": len(sites),
+            "sites_with_gaps": sites_with_gaps,
+            "avg_gap_count": avg_gap_count,
+            "worst_gap_site_id": worst_gap_site_id,
+        }
+
+    def gaps_summary(self) -> Dict[str, Any]:
+        """Gaps summary: total gaps across sites, sites with gaps above
+        threshold, gap distribution by severity."""
+        sites = self.session.query(SyncSite).all()
+        jobs = self.session.query(SyncJob).all()
+
+        gap_threshold = 2
+
+        # Group jobs by site_id
+        jobs_by_site: Dict[str, List[SyncJob]] = {}
+        for j in jobs:
+            jobs_by_site.setdefault(j.site_id, []).append(j)
+
+        total_gaps = 0
+        sites_above_threshold = 0
+        severity_distribution: Dict[str, int] = {
+            "critical": 0,
+            "warning": 0,
+            "minor": 0,
+            "clean": 0,
+        }
+
+        for s in sites:
+            site_jobs = jobs_by_site.get(s.id, [])
+            gap_count = sum(
+                1 for j in site_jobs
+                if j.state in (SyncJobState.FAILED.value, SyncJobState.PENDING.value)
+            )
+            total_gaps += gap_count
+
+            if gap_count > gap_threshold:
+                sites_above_threshold += 1
+
+            if gap_count > 5:
+                severity_distribution["critical"] += 1
+            elif gap_count >= 3:
+                severity_distribution["warning"] += 1
+            elif gap_count >= 1:
+                severity_distribution["minor"] += 1
+            else:
+                severity_distribution["clean"] += 1
+
+        return {
+            "total_sites": len(sites),
+            "total_gaps": total_gaps,
+            "gap_threshold": gap_threshold,
+            "sites_above_threshold": sites_above_threshold,
+            "severity_distribution": severity_distribution,
+        }
+
+    def site_gaps(self, site_id: str) -> Dict[str, Any]:
+        """Per-site gap detail: site info, gap count, gap severity,
+        document gap details. Raises ValueError if site not found."""
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        jobs = (
+            self.session.query(SyncJob)
+            .filter(SyncJob.site_id == site_id)
+            .all()
+        )
+
+        pending_count = 0
+        failed_count = 0
+
+        for j in jobs:
+            if j.state == SyncJobState.PENDING.value:
+                pending_count += 1
+            elif j.state == SyncJobState.FAILED.value:
+                failed_count += 1
+
+        gap_count = pending_count + failed_count
+
+        if gap_count > 5:
+            severity = "critical"
+        elif gap_count >= 3:
+            severity = "warning"
+        elif gap_count >= 1:
+            severity = "minor"
+        else:
+            severity = "clean"
+
+        return {
+            "site_id": site.id,
+            "site_name": site.name,
+            "state": site.state,
+            "total_jobs": len(jobs),
+            "pending_count": pending_count,
+            "failed_count": failed_count,
+            "gap_count": gap_count,
+            "severity": severity,
+        }
+
+    def export_gaps(self) -> Dict[str, Any]:
+        """Export-ready payload combining skew_overview, gaps_summary,
+        and per-site gap details."""
+        sites = self.session.query(SyncSite).all()
+        return {
+            "skew_overview": self.skew_overview(),
+            "gaps_summary": self.gaps_summary(),
+            "sites": [self.site_gaps(s.id) for s in sites],
+        }
