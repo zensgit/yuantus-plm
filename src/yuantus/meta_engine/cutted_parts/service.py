@@ -1076,3 +1076,180 @@ class CuttedPartsService:
             "material_variance": self.material_variance(),
             "recommendations": plan_recs,
         }
+
+    # ------------------------------------------------------------------
+    # Thresholds / Envelopes helpers (C37)
+    # ------------------------------------------------------------------
+
+    def thresholds_overview(self) -> Dict[str, Any]:
+        """Fleet-wide threshold hit-rate summary.
+
+        Defines waste/scrap/yield thresholds and reports how many plans
+        exceed them.
+        """
+        plans = self.session.query(CutPlan).all()
+        waste_threshold = 10.0   # waste_pct above this is a breach
+        scrap_threshold = 0.30   # scrap rate above 30 %
+        yield_threshold = 50.0   # yield below 50 % is a breach
+
+        waste_breaches: list[str] = []
+        scrap_breaches: list[str] = []
+        yield_breaches: list[str] = []
+
+        for p in plans:
+            cuts = self.list_cuts(p.id)
+            total = len(cuts)
+
+            if (p.waste_pct or 0) > waste_threshold:
+                waste_breaches.append(p.id)
+
+            if total > 0:
+                scrap_count = sum(1 for c in cuts if c.status == "scrap")
+                ok_count = sum(1 for c in cuts if c.status == "ok")
+                scrap_rate = scrap_count / total
+                yield_pct = (ok_count / total) * 100.0
+
+                if scrap_rate > scrap_threshold:
+                    scrap_breaches.append(p.id)
+                if yield_pct < yield_threshold:
+                    yield_breaches.append(p.id)
+
+        return {
+            "total_plans": len(plans),
+            "waste_threshold": waste_threshold,
+            "scrap_threshold": scrap_threshold,
+            "yield_threshold": yield_threshold,
+            "waste_breach_count": len(waste_breaches),
+            "waste_breach_plan_ids": waste_breaches,
+            "scrap_breach_count": len(scrap_breaches),
+            "scrap_breach_plan_ids": scrap_breaches,
+            "yield_breach_count": len(yield_breaches),
+            "yield_breach_plan_ids": yield_breaches,
+        }
+
+    def envelopes_summary(self) -> Dict[str, Any]:
+        """Material and plan envelope summary.
+
+        For each material, computes the waste envelope (min/max waste_pct
+        across plans) and whether the material is within acceptable bounds.
+        """
+        materials = self.session.query(RawMaterial).all()
+        envelope_limit = 15.0  # max acceptable waste_pct
+
+        items: list[dict] = []
+        within_count = 0
+        exceeded_count = 0
+
+        for m in materials:
+            mat_plans = [
+                p for p in self.session.query(CutPlan).all()
+                if p.material_id == m.id
+            ]
+            waste_values = [p.waste_pct for p in mat_plans if p.waste_pct is not None]
+
+            if waste_values:
+                env_min = min(waste_values)
+                env_max = max(waste_values)
+                within = env_max <= envelope_limit
+            else:
+                env_min = None
+                env_max = None
+                within = True  # no data → no breach
+
+            if within:
+                within_count += 1
+            else:
+                exceeded_count += 1
+
+            items.append({
+                "material_id": m.id,
+                "material_name": m.name,
+                "plan_count": len(mat_plans),
+                "envelope_min": env_min,
+                "envelope_max": env_max,
+                "envelope_limit": envelope_limit,
+                "within_envelope": within,
+            })
+
+        return {
+            "total_materials": len(materials),
+            "envelope_limit": envelope_limit,
+            "within_count": within_count,
+            "exceeded_count": exceeded_count,
+            "materials": items,
+        }
+
+    def plan_threshold_check(self, plan_id: str) -> Dict[str, Any]:
+        """Per-plan threshold detail — checks waste, scrap, yield against
+        fleet-defined thresholds and reports pass/fail for each."""
+        plan = self.get_plan(plan_id)
+        if plan is None:
+            raise ValueError(f"Plan '{plan_id}' not found")
+
+        waste_threshold = 10.0
+        scrap_threshold = 0.30
+        yield_threshold = 50.0
+
+        cuts = self.list_cuts(plan.id)
+        total = len(cuts)
+
+        waste_pct = plan.waste_pct or 0.0
+        waste_pass = waste_pct <= waste_threshold
+
+        if total > 0:
+            scrap_count = sum(1 for c in cuts if c.status == "scrap")
+            ok_count = sum(1 for c in cuts if c.status == "ok")
+            scrap_rate = scrap_count / total
+            yield_pct = (ok_count / total) * 100.0
+        else:
+            scrap_count = 0
+            ok_count = 0
+            scrap_rate = 0.0
+            yield_pct = None
+
+        scrap_pass = scrap_rate <= scrap_threshold
+        yield_pass = yield_pct is None or yield_pct >= yield_threshold
+
+        all_pass = waste_pass and scrap_pass and yield_pass
+
+        checks = []
+        if not waste_pass:
+            checks.append(f"Waste {waste_pct:.1f}% exceeds threshold {waste_threshold}%")
+        if not scrap_pass:
+            checks.append(f"Scrap rate {scrap_rate*100:.1f}% exceeds threshold {scrap_threshold*100:.0f}%")
+        if not yield_pass:
+            checks.append(f"Yield {yield_pct:.1f}% below threshold {yield_threshold}%")
+
+        return {
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "state": plan.state,
+            "total_cuts": total,
+            "ok_count": ok_count,
+            "scrap_count": scrap_count,
+            "waste_pct": waste_pct,
+            "waste_threshold": waste_threshold,
+            "waste_pass": waste_pass,
+            "scrap_rate": round(scrap_rate * 100, 2) if total > 0 else 0.0,
+            "scrap_threshold": scrap_threshold * 100,
+            "scrap_pass": scrap_pass,
+            "yield_pct": yield_pct,
+            "yield_threshold": yield_threshold,
+            "yield_pass": yield_pass,
+            "all_pass": all_pass,
+            "failures": checks,
+        }
+
+    def export_envelopes(self) -> Dict[str, Any]:
+        """Export-ready payload combining thresholds overview, envelopes
+        summary, and per-plan threshold checks."""
+        plans = self.session.query(CutPlan).all()
+        plan_checks = []
+        for p in plans:
+            plan_checks.append(self.plan_threshold_check(p.id))
+
+        return {
+            "thresholds_overview": self.thresholds_overview(),
+            "envelopes_summary": self.envelopes_summary(),
+            "plan_checks": plan_checks,
+        }

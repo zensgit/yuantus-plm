@@ -616,3 +616,90 @@ def test_export_recommendations():
     assert "variance_overview" in resp.json()
     assert "material_variance" in resp.json()
     assert len(resp.json()["recommendations"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Thresholds / Envelopes endpoints (C37)
+# ---------------------------------------------------------------------------
+
+
+def test_thresholds_overview():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.thresholds_overview.return_value = {
+            "total_plans": 3,
+            "waste_threshold": 10.0, "scrap_threshold": 0.30, "yield_threshold": 50.0,
+            "waste_breach_count": 1, "waste_breach_plan_ids": ["p2"],
+            "scrap_breach_count": 0, "scrap_breach_plan_ids": [],
+            "yield_breach_count": 1, "yield_breach_plan_ids": ["p3"],
+        }
+        resp = client.get("/api/v1/cutted-parts/thresholds/overview")
+    assert resp.status_code == 200
+    assert resp.json()["total_plans"] == 3
+    assert resp.json()["waste_breach_count"] == 1
+    assert resp.json()["yield_breach_count"] == 1
+
+
+def test_envelopes_summary():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.envelopes_summary.return_value = {
+            "total_materials": 2, "envelope_limit": 15.0,
+            "within_count": 1, "exceeded_count": 1,
+            "materials": [
+                {"material_id": "m1", "material_name": "Steel",
+                 "plan_count": 2, "envelope_min": 4.0, "envelope_max": 12.0,
+                 "envelope_limit": 15.0, "within_envelope": True},
+            ],
+        }
+        resp = client.get("/api/v1/cutted-parts/envelopes/summary")
+    assert resp.status_code == 200
+    assert resp.json()["total_materials"] == 2
+    assert resp.json()["within_count"] == 1
+    assert len(resp.json()["materials"]) == 1
+
+
+def test_plan_threshold_check():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.plan_threshold_check.return_value = {
+            "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
+            "total_cuts": 3, "ok_count": 2, "scrap_count": 1,
+            "waste_pct": 8.0, "waste_threshold": 10.0, "waste_pass": True,
+            "scrap_rate": 33.33, "scrap_threshold": 30.0, "scrap_pass": False,
+            "yield_pct": 66.67, "yield_threshold": 50.0, "yield_pass": True,
+            "all_pass": False,
+            "failures": ["Scrap rate 33.3% exceeds threshold 30%"],
+        }
+        resp = client.get("/api/v1/cutted-parts/plans/plan-1/threshold-check")
+    assert resp.status_code == 200
+    assert resp.json()["all_pass"] is False
+    assert len(resp.json()["failures"]) == 1
+
+
+def test_plan_threshold_check_not_found_404():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.plan_threshold_check.side_effect = ValueError("Plan 'x' not found")
+        resp = client.get("/api/v1/cutted-parts/plans/x/threshold-check")
+    assert resp.status_code == 404
+
+
+def test_export_envelopes():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_envelopes.return_value = {
+            "thresholds_overview": {"total_plans": 1},
+            "envelopes_summary": {"total_materials": 1},
+            "plan_checks": [{"plan_id": "p1", "plan_name": "Plan 1", "all_pass": True}],
+        }
+        resp = client.get("/api/v1/cutted-parts/export/envelopes")
+    assert resp.status_code == 200
+    assert "thresholds_overview" in resp.json()
+    assert "envelopes_summary" in resp.json()
+    assert len(resp.json()["plan_checks"]) == 1

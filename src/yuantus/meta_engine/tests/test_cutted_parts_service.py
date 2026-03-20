@@ -1172,3 +1172,243 @@ class TestVarianceRecommendations:
         assert result["variance_overview"]["total_plans"] == 0
         assert result["material_variance"]["total_materials"] == 0
         assert result["recommendations"] == []
+
+
+# ---------------------------------------------------------------------------
+# Thresholds / Envelopes (C37)
+# ---------------------------------------------------------------------------
+
+
+class TestThresholdsEnvelopes:
+
+    def test_thresholds_overview(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        p1 = svc.create_plan(name="Plan A")
+        p1.waste_pct = 5.0  # within 10% threshold
+        svc.add_cut(p1.id, status="ok")
+        svc.add_cut(p1.id, status="ok")
+
+        p2 = svc.create_plan(name="Plan B")
+        p2.waste_pct = 15.0  # exceeds 10% threshold
+        svc.add_cut(p2.id, status="ok")
+        svc.add_cut(p2.id, status="scrap", scrap_weight=0.5)
+
+        result = svc.thresholds_overview()
+        assert result["total_plans"] == 2
+        assert result["waste_threshold"] == 10.0
+        assert result["waste_breach_count"] == 1
+        assert p2.id in result["waste_breach_plan_ids"]
+        assert p1.id not in result["waste_breach_plan_ids"]
+
+    def test_thresholds_overview_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.thresholds_overview()
+        assert result["total_plans"] == 0
+        assert result["waste_breach_count"] == 0
+        assert result["scrap_breach_count"] == 0
+        assert result["yield_breach_count"] == 0
+
+    def test_thresholds_overview_scrap_breach(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Scrap Plan")
+        # 2 scrap out of 3 = 66.7% > 30% threshold
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.3)
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.4)
+
+        result = svc.thresholds_overview()
+        assert result["scrap_breach_count"] == 1
+        assert plan.id in result["scrap_breach_plan_ids"]
+
+    def test_thresholds_overview_yield_breach(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Low Yield")
+        # 1 ok out of 4 = 25% < 50% threshold
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="rework")
+        svc.add_cut(plan.id, status="rework")
+        svc.add_cut(plan.id, status="rework")
+
+        result = svc.thresholds_overview()
+        assert result["yield_breach_count"] == 1
+        assert plan.id in result["yield_breach_plan_ids"]
+
+    def test_envelopes_summary(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        p1 = svc.create_plan(name="Job 1", material_id=mat.id, material_quantity=3.0)
+        p1.waste_pct = 4.0
+        p2 = svc.create_plan(name="Job 2", material_id=mat.id, material_quantity=7.0)
+        p2.waste_pct = 12.0
+
+        result = svc.envelopes_summary()
+        assert result["total_materials"] == 1
+        assert result["envelope_limit"] == 15.0
+        assert result["within_count"] == 1
+        assert result["exceeded_count"] == 0
+
+        steel = result["materials"][0]
+        assert steel["material_name"] == "Steel"
+        assert steel["plan_count"] == 2
+        assert steel["envelope_min"] == 4.0
+        assert steel["envelope_max"] == 12.0
+        assert steel["within_envelope"] is True
+
+    def test_envelopes_summary_exceeded(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Aluminum", stock_quantity=50.0, cost_per_unit=20.0,
+        )
+        plan = svc.create_plan(name="Bad Job", material_id=mat.id, material_quantity=5.0)
+        plan.waste_pct = 20.0  # exceeds 15% envelope limit
+
+        result = svc.envelopes_summary()
+        assert result["exceeded_count"] == 1
+        alum = result["materials"][0]
+        assert alum["envelope_max"] == 20.0
+        assert alum["within_envelope"] is False
+
+    def test_envelopes_summary_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.envelopes_summary()
+        assert result["total_materials"] == 0
+        assert result["materials"] == []
+
+    def test_envelopes_summary_no_plans(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        svc.create_material(name="Steel", stock_quantity=100.0, cost_per_unit=10.0)
+
+        result = svc.envelopes_summary()
+        assert result["total_materials"] == 1
+        mat = result["materials"][0]
+        assert mat["plan_count"] == 0
+        assert mat["envelope_min"] is None
+        assert mat["envelope_max"] is None
+        assert mat["within_envelope"] is True
+
+    def test_plan_threshold_check_all_pass(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Good Plan")
+        plan.waste_pct = 5.0
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.plan_threshold_check(plan.id)
+        assert result["plan_id"] == plan.id
+        assert result["all_pass"] is True
+        assert result["waste_pass"] is True
+        assert result["scrap_pass"] is True
+        assert result["yield_pass"] is True
+        assert result["failures"] == []
+
+    def test_plan_threshold_check_waste_fail(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="High Waste")
+        plan.waste_pct = 12.0
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.plan_threshold_check(plan.id)
+        assert result["all_pass"] is False
+        assert result["waste_pass"] is False
+        assert any("Waste" in f for f in result["failures"])
+
+    def test_plan_threshold_check_scrap_fail(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Scrap Plan")
+        plan.waste_pct = 5.0
+        # 2 scrap out of 3 = 66.7% > 30%
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.3)
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.4)
+
+        result = svc.plan_threshold_check(plan.id)
+        assert result["all_pass"] is False
+        assert result["scrap_pass"] is False
+        assert any("Scrap rate" in f for f in result["failures"])
+
+    def test_plan_threshold_check_yield_fail(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Low Yield")
+        plan.waste_pct = 5.0
+        # 1 ok out of 4 = 25% < 50%
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="rework")
+        svc.add_cut(plan.id, status="rework")
+        svc.add_cut(plan.id, status="rework")
+
+        result = svc.plan_threshold_check(plan.id)
+        assert result["all_pass"] is False
+        assert result["yield_pass"] is False
+        assert any("Yield" in f for f in result["failures"])
+
+    def test_plan_threshold_check_not_found(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        with pytest.raises(ValueError, match="not found"):
+            svc.plan_threshold_check("nonexistent")
+
+    def test_plan_threshold_check_no_cuts(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        plan = svc.create_plan(name="Empty Plan")
+
+        result = svc.plan_threshold_check(plan.id)
+        assert result["total_cuts"] == 0
+        assert result["yield_pct"] is None
+        assert result["yield_pass"] is True
+        assert result["all_pass"] is True
+        assert result["failures"] == []
+
+    def test_export_envelopes(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Export Plan", material_id=mat.id, material_quantity=4.0,
+        )
+        plan.waste_pct = 5.0
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.export_envelopes()
+        assert "thresholds_overview" in result
+        assert "envelopes_summary" in result
+        assert "plan_checks" in result
+        assert result["thresholds_overview"]["total_plans"] == 1
+        assert result["envelopes_summary"]["total_materials"] == 1
+        assert len(result["plan_checks"]) == 1
+        assert result["plan_checks"][0]["plan_id"] == plan.id
+
+    def test_export_envelopes_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.export_envelopes()
+        assert result["thresholds_overview"]["total_plans"] == 0
+        assert result["envelopes_summary"]["total_materials"] == 0
+        assert result["plan_checks"] == []
