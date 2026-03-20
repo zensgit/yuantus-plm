@@ -337,3 +337,13 @@
     - `532 passed, 188 warnings in 12.93s`
 - current gate:
   - `C32/C33/C34` are now staging-verified
+- rehearsal branch:
+  - `feature/codex-merge-rehearsal-c32c33c34`
+- rehearsal action:
+  - fast-forwarded `main` baseline `5babffa` to candidate commit `0f6e2ee`
+- rehearsal verification:
+  - unified stack script on rehearsal branch:
+    - `532 passed, 188 warnings in 15.72s`
+  - rehearsal passed without manual conflict resolution
+- next step:
+  - actual fast-forward into `main` if we accept this sixth-stage batch
