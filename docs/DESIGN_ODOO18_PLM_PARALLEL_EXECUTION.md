@@ -1135,3 +1135,19 @@
 - `C33` staging commit: `c0d3e06`
 - combined targeted regression: `198 passed, 77 warnings in 6.03s`
 - unified stack regression on staging: `514 passed, 183 warnings in 11.98s`
+
+## Increment 2026-03-20 Codex-C34-Stack-Verification
+
+### Decision
+- `C34` 已不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c32c33c34-staging` 上完成 `C32/C33/C34` 联合验证。
+- `C32/C33/C34` 现在作为完整的 sixth-stage candidate stack 进入下一步 merge-prep 评估。
+
+### Why
+- `cutted_parts` 的 variance / recommendation 读侧增强与现有 `C28/C31` 写域保持一致，不需要触发新的跨域依赖。
+- 在 `C32/C33` 已验证基础上补齐 `C34`，可以直接得到完整的 `box/document_sync/cutted_parts` sixth-stage 绿地候选栈。
+
+### Result
+- `C34` staging commit: `7b50ea2`
+- combined targeted regression with `C32/C33/C34`: `314 passed, 114 warnings in 3.32s`
+- unified stack regression on staging: `532 passed, 188 warnings in 12.93s`
