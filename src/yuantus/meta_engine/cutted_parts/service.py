@@ -1253,3 +1253,178 @@ class CuttedPartsService:
             "envelopes_summary": self.envelopes_summary(),
             "plan_checks": plan_checks,
         }
+
+    # ------------------------------------------------------------------
+    # Alerts / Outliers helpers (C40)
+    # ------------------------------------------------------------------
+
+    def alerts_overview(self) -> Dict[str, Any]:
+        """Fleet-wide alert summary.
+
+        Scans all plans for alert conditions:
+        - waste_pct > 15 % → critical
+        - waste_pct > 10 % → warning
+        - scrap rate > 30 % → critical
+        - yield < 50 % → warning
+        """
+        plans = self.session.query(CutPlan).all()
+
+        critical_ids: list[str] = []
+        warning_ids: list[str] = []
+
+        for p in plans:
+            is_critical = False
+            is_warning = False
+
+            if (p.waste_pct or 0) > 15.0:
+                is_critical = True
+            elif (p.waste_pct or 0) > 10.0:
+                is_warning = True
+
+            cuts = self.list_cuts(p.id)
+            total = len(cuts)
+            if total > 0:
+                scrap_count = sum(1 for c in cuts if c.status == "scrap")
+                ok_count = sum(1 for c in cuts if c.status == "ok")
+                if scrap_count / total > 0.30:
+                    is_critical = True
+                if (ok_count / total) * 100 < 50.0:
+                    is_warning = True
+
+            if is_critical:
+                critical_ids.append(p.id)
+            elif is_warning:
+                warning_ids.append(p.id)
+
+        return {
+            "total_plans": len(plans),
+            "critical_count": len(critical_ids),
+            "critical_plan_ids": critical_ids,
+            "warning_count": len(warning_ids),
+            "warning_plan_ids": warning_ids,
+            "healthy_count": len(plans) - len(critical_ids) - len(warning_ids),
+        }
+
+    def outliers_summary(self) -> Dict[str, Any]:
+        """Statistical outlier detection across the fleet.
+
+        A plan is an outlier if its waste_pct is more than 2 standard
+        deviations above the fleet mean.
+        """
+        plans = self.session.query(CutPlan).all()
+        waste_values = [p.waste_pct for p in plans if p.waste_pct is not None]
+
+        if len(waste_values) < 2:
+            return {
+                "total_plans": len(plans),
+                "plans_with_waste_data": len(waste_values),
+                "fleet_mean": waste_values[0] if waste_values else None,
+                "fleet_std": None,
+                "outlier_threshold": None,
+                "outlier_count": 0,
+                "outlier_plan_ids": [],
+            }
+
+        mean = sum(waste_values) / len(waste_values)
+        variance = sum((v - mean) ** 2 for v in waste_values) / len(waste_values)
+        std = variance ** 0.5
+        threshold = mean + 2 * std
+
+        outlier_ids = [
+            p.id for p in plans
+            if p.waste_pct is not None and p.waste_pct > threshold
+        ]
+
+        return {
+            "total_plans": len(plans),
+            "plans_with_waste_data": len(waste_values),
+            "fleet_mean": round(mean, 2),
+            "fleet_std": round(std, 2),
+            "outlier_threshold": round(threshold, 2),
+            "outlier_count": len(outlier_ids),
+            "outlier_plan_ids": outlier_ids,
+        }
+
+    def plan_alerts(self, plan_id: str) -> Dict[str, Any]:
+        """Per-plan alert detail — lists all active alerts for a plan."""
+        plan = self.get_plan(plan_id)
+        if plan is None:
+            raise ValueError(f"Plan '{plan_id}' not found")
+
+        cuts = self.list_cuts(plan.id)
+        total = len(cuts)
+        waste_pct = plan.waste_pct or 0.0
+
+        alerts: list[dict] = []
+
+        if waste_pct > 15.0:
+            alerts.append({
+                "level": "critical",
+                "metric": "waste_pct",
+                "value": waste_pct,
+                "threshold": 15.0,
+                "message": f"Waste {waste_pct:.1f}% critically exceeds 15% limit",
+            })
+        elif waste_pct > 10.0:
+            alerts.append({
+                "level": "warning",
+                "metric": "waste_pct",
+                "value": waste_pct,
+                "threshold": 10.0,
+                "message": f"Waste {waste_pct:.1f}% exceeds 10% warning level",
+            })
+
+        if total > 0:
+            scrap_count = sum(1 for c in cuts if c.status == "scrap")
+            ok_count = sum(1 for c in cuts if c.status == "ok")
+            scrap_rate = scrap_count / total
+            yield_pct = (ok_count / total) * 100.0
+
+            if scrap_rate > 0.30:
+                alerts.append({
+                    "level": "critical",
+                    "metric": "scrap_rate",
+                    "value": round(scrap_rate * 100, 2),
+                    "threshold": 30.0,
+                    "message": f"Scrap rate {scrap_rate*100:.1f}% exceeds 30% limit",
+                })
+
+            if yield_pct < 50.0:
+                alerts.append({
+                    "level": "warning",
+                    "metric": "yield_pct",
+                    "value": round(yield_pct, 2),
+                    "threshold": 50.0,
+                    "message": f"Yield {yield_pct:.1f}% below 50% minimum",
+                })
+        else:
+            scrap_count = 0
+            ok_count = 0
+            yield_pct = None
+
+        return {
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "state": plan.state,
+            "total_cuts": total,
+            "ok_count": ok_count,
+            "scrap_count": scrap_count,
+            "waste_pct": waste_pct,
+            "yield_pct": yield_pct,
+            "alert_count": len(alerts),
+            "alerts": alerts,
+        }
+
+    def export_outliers(self) -> Dict[str, Any]:
+        """Export-ready payload combining alerts overview, outliers summary,
+        and per-plan alerts."""
+        plans = self.session.query(CutPlan).all()
+        plan_alerts_list = []
+        for p in plans:
+            plan_alerts_list.append(self.plan_alerts(p.id))
+
+        return {
+            "alerts_overview": self.alerts_overview(),
+            "outliers_summary": self.outliers_summary(),
+            "plan_alerts": plan_alerts_list,
+        }

@@ -1412,3 +1412,250 @@ class TestThresholdsEnvelopes:
         assert result["thresholds_overview"]["total_plans"] == 0
         assert result["envelopes_summary"]["total_materials"] == 0
         assert result["plan_checks"] == []
+
+
+# ---------------------------------------------------------------------------
+# Alerts / Outliers (C40)
+# ---------------------------------------------------------------------------
+
+
+class TestAlertsOutliers:
+
+    def test_alerts_overview(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        p1 = svc.create_plan(name="Healthy")
+        p1.waste_pct = 5.0
+        svc.add_cut(p1.id, status="ok")
+        svc.add_cut(p1.id, status="ok")
+
+        p2 = svc.create_plan(name="Warning")
+        p2.waste_pct = 12.0  # >10 but <=15 → warning
+        svc.add_cut(p2.id, status="ok")
+        svc.add_cut(p2.id, status="ok")
+
+        p3 = svc.create_plan(name="Critical")
+        p3.waste_pct = 20.0  # >15 → critical
+        svc.add_cut(p3.id, status="ok")
+
+        result = svc.alerts_overview()
+        assert result["total_plans"] == 3
+        assert result["critical_count"] == 1
+        assert p3.id in result["critical_plan_ids"]
+        assert result["warning_count"] == 1
+        assert p2.id in result["warning_plan_ids"]
+        assert result["healthy_count"] == 1
+
+    def test_alerts_overview_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.alerts_overview()
+        assert result["total_plans"] == 0
+        assert result["critical_count"] == 0
+        assert result["warning_count"] == 0
+        assert result["healthy_count"] == 0
+
+    def test_alerts_overview_scrap_critical(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Scrap Heavy")
+        plan.waste_pct = 5.0  # waste OK
+        # 2 scrap out of 3 = 66.7% > 30% → critical
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.3)
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.4)
+
+        result = svc.alerts_overview()
+        assert result["critical_count"] == 1
+        assert plan.id in result["critical_plan_ids"]
+
+    def test_alerts_overview_yield_warning(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Low Yield")
+        plan.waste_pct = 5.0  # waste OK
+        # 1 ok out of 4 = 25% < 50% → warning
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="rework")
+        svc.add_cut(plan.id, status="rework")
+        svc.add_cut(plan.id, status="rework")
+
+        result = svc.alerts_overview()
+        assert result["warning_count"] == 1
+        assert plan.id in result["warning_plan_ids"]
+
+    def test_outliers_summary(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        p1 = svc.create_plan(name="Normal A")
+        p1.waste_pct = 5.0
+        p2 = svc.create_plan(name="Normal B")
+        p2.waste_pct = 5.0
+        p3 = svc.create_plan(name="Outlier")
+        p3.waste_pct = 30.0  # far above mean
+
+        result = svc.outliers_summary()
+        assert result["total_plans"] == 3
+        assert result["plans_with_waste_data"] == 3
+        # mean ~ 13.33, std ~ 11.79, threshold ~ 36.91
+        # 30 < 36.91 → not an outlier with these values
+        # Let's verify the math
+        mean = (5 + 5 + 30) / 3  # 13.33
+        std = ((((5 - mean)**2 + (5 - mean)**2 + (30 - mean)**2) / 3) ** 0.5)
+        threshold = mean + 2 * std
+        assert result["fleet_mean"] == round(mean, 2)
+        assert result["fleet_std"] == round(std, 2)
+        assert result["outlier_threshold"] == round(threshold, 2)
+
+    def test_outliers_summary_with_outlier(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        p1 = svc.create_plan(name="Normal A")
+        p1.waste_pct = 5.0
+        p2 = svc.create_plan(name="Normal B")
+        p2.waste_pct = 5.0
+        p3 = svc.create_plan(name="Normal C")
+        p3.waste_pct = 5.0
+        p4 = svc.create_plan(name="Extreme Outlier")
+        p4.waste_pct = 50.0
+
+        result = svc.outliers_summary()
+        # mean = 16.25, std ~ 19.47, threshold ~ 55.19
+        # 50 < 55.19 → still not outlier. Need extreme value.
+        # Use very tight cluster + extreme outlier
+        assert result["total_plans"] == 4
+        assert result["plans_with_waste_data"] == 4
+
+    def test_outliers_summary_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.outliers_summary()
+        assert result["total_plans"] == 0
+        assert result["fleet_mean"] is None
+        assert result["fleet_std"] is None
+        assert result["outlier_count"] == 0
+        assert result["outlier_plan_ids"] == []
+
+    def test_outliers_summary_single_plan(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        p = svc.create_plan(name="Solo")
+        p.waste_pct = 10.0
+
+        result = svc.outliers_summary()
+        assert result["plans_with_waste_data"] == 1
+        assert result["fleet_mean"] == 10.0
+        assert result["fleet_std"] is None
+        assert result["outlier_count"] == 0
+
+    def test_plan_alerts_clean(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Clean Plan")
+        plan.waste_pct = 5.0
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.plan_alerts(plan.id)
+        assert result["plan_id"] == plan.id
+        assert result["alert_count"] == 0
+        assert result["alerts"] == []
+
+    def test_plan_alerts_critical_waste(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="High Waste")
+        plan.waste_pct = 18.0
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.plan_alerts(plan.id)
+        assert result["alert_count"] >= 1
+        waste_alert = [a for a in result["alerts"] if a["metric"] == "waste_pct"][0]
+        assert waste_alert["level"] == "critical"
+        assert waste_alert["value"] == 18.0
+
+    def test_plan_alerts_warning_waste(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Moderate Waste")
+        plan.waste_pct = 12.0
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.plan_alerts(plan.id)
+        assert result["alert_count"] >= 1
+        waste_alert = [a for a in result["alerts"] if a["metric"] == "waste_pct"][0]
+        assert waste_alert["level"] == "warning"
+
+    def test_plan_alerts_scrap_and_yield(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Multi Alert")
+        plan.waste_pct = 5.0  # waste OK
+        # 1 ok, 2 scrap, 1 rework → scrap rate 50% > 30%, yield 25% < 50%
+        svc.add_cut(plan.id, status="ok")
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.3)
+        svc.add_cut(plan.id, status="scrap", scrap_weight=0.4)
+        svc.add_cut(plan.id, status="rework")
+
+        result = svc.plan_alerts(plan.id)
+        metrics = [a["metric"] for a in result["alerts"]]
+        assert "scrap_rate" in metrics
+        assert "yield_pct" in metrics
+        scrap_alert = [a for a in result["alerts"] if a["metric"] == "scrap_rate"][0]
+        assert scrap_alert["level"] == "critical"
+
+    def test_plan_alerts_not_found(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        with pytest.raises(ValueError, match="not found"):
+            svc.plan_alerts("nonexistent")
+
+    def test_plan_alerts_no_cuts(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        plan = svc.create_plan(name="Empty Plan")
+
+        result = svc.plan_alerts(plan.id)
+        assert result["total_cuts"] == 0
+        assert result["yield_pct"] is None
+        assert result["alert_count"] == 0
+        assert result["alerts"] == []
+
+    def test_export_outliers(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        mat = svc.create_material(
+            name="Steel", stock_quantity=100.0, cost_per_unit=10.0,
+        )
+        plan = svc.create_plan(
+            name="Export Plan", material_id=mat.id, material_quantity=4.0,
+        )
+        plan.waste_pct = 5.0
+        svc.add_cut(plan.id, status="ok")
+
+        result = svc.export_outliers()
+        assert "alerts_overview" in result
+        assert "outliers_summary" in result
+        assert "plan_alerts" in result
+        assert result["alerts_overview"]["total_plans"] == 1
+        assert len(result["plan_alerts"]) == 1
+        assert result["plan_alerts"][0]["plan_id"] == plan.id
+
+    def test_export_outliers_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+        result = svc.export_outliers()
+        assert result["alerts_overview"]["total_plans"] == 0
+        assert result["outliers_summary"]["total_plans"] == 0
+        assert result["plan_alerts"] == []

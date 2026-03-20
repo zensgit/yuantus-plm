@@ -703,3 +703,85 @@ def test_export_envelopes():
     assert "thresholds_overview" in resp.json()
     assert "envelopes_summary" in resp.json()
     assert len(resp.json()["plan_checks"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Alerts / Outliers endpoints (C40)
+# ---------------------------------------------------------------------------
+
+
+def test_alerts_overview():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.alerts_overview.return_value = {
+            "total_plans": 3,
+            "critical_count": 1, "critical_plan_ids": ["p3"],
+            "warning_count": 1, "warning_plan_ids": ["p2"],
+            "healthy_count": 1,
+        }
+        resp = client.get("/api/v1/cutted-parts/alerts/overview")
+    assert resp.status_code == 200
+    assert resp.json()["total_plans"] == 3
+    assert resp.json()["critical_count"] == 1
+    assert resp.json()["healthy_count"] == 1
+
+
+def test_outliers_summary():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.outliers_summary.return_value = {
+            "total_plans": 4, "plans_with_waste_data": 4,
+            "fleet_mean": 10.0, "fleet_std": 5.0,
+            "outlier_threshold": 20.0,
+            "outlier_count": 1, "outlier_plan_ids": ["p4"],
+        }
+        resp = client.get("/api/v1/cutted-parts/outliers/summary")
+    assert resp.status_code == 200
+    assert resp.json()["total_plans"] == 4
+    assert resp.json()["outlier_count"] == 1
+
+
+def test_plan_alerts():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.plan_alerts.return_value = {
+            "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
+            "total_cuts": 3, "ok_count": 2, "scrap_count": 1,
+            "waste_pct": 18.0, "yield_pct": 66.67,
+            "alert_count": 1,
+            "alerts": [{"level": "critical", "metric": "waste_pct",
+                        "value": 18.0, "threshold": 15.0,
+                        "message": "Waste 18.0% critically exceeds 15% limit"}],
+        }
+        resp = client.get("/api/v1/cutted-parts/plans/plan-1/alerts")
+    assert resp.status_code == 200
+    assert resp.json()["alert_count"] == 1
+    assert resp.json()["alerts"][0]["level"] == "critical"
+
+
+def test_plan_alerts_not_found_404():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.plan_alerts.side_effect = ValueError("Plan 'x' not found")
+        resp = client.get("/api/v1/cutted-parts/plans/x/alerts")
+    assert resp.status_code == 404
+
+
+def test_export_outliers():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_outliers.return_value = {
+            "alerts_overview": {"total_plans": 1},
+            "outliers_summary": {"total_plans": 1},
+            "plan_alerts": [{"plan_id": "p1", "plan_name": "Plan 1", "alert_count": 0}],
+        }
+        resp = client.get("/api/v1/cutted-parts/export/outliers")
+    assert resp.status_code == 200
+    assert "alerts_overview" in resp.json()
+    assert "outliers_summary" in resp.json()
+    assert len(resp.json()["plan_alerts"]) == 1
