@@ -820,3 +820,154 @@ class BoxService:
             "policy_overview": self.policy_overview(),
             "exceptions_summary": self.exceptions_summary(),
         }
+
+    # ------------------------------------------------------------------
+    # Reservations / Traceability (C35)
+    # ------------------------------------------------------------------
+
+    def reservations_overview(self) -> Dict[str, Any]:
+        """Fleet-wide reservation metrics: box counts by state, content fill rates, reservation readiness."""
+        boxes = self.session.query(BoxItem).all()
+
+        total = len(boxes)
+        by_state: Dict[str, int] = {}
+        reserved = 0  # boxes that have at least one content line
+        unreserved = 0
+        fill_rates: List[float] = []
+
+        for b in boxes:
+            by_state[b.state] = by_state.get(b.state, 0) + 1
+            contents = self.list_contents(b.id)
+            if contents:
+                reserved += 1
+                if b.max_quantity is not None and b.max_quantity > 0:
+                    fill_rates.append(
+                        round(len(contents) / b.max_quantity * 100, 1)
+                    )
+            else:
+                unreserved += 1
+
+        avg_fill_rate = (
+            round(sum(fill_rates) / len(fill_rates), 1) if fill_rates else 0.0
+        )
+
+        return {
+            "total": total,
+            "by_state": by_state,
+            "reserved": reserved,
+            "unreserved": unreserved,
+            "average_fill_rate": avg_fill_rate,
+        }
+
+    def traceability_summary(self) -> Dict[str, Any]:
+        """Traceability summary: content lineage counts, boxes with lot/serial tracking."""
+        boxes = self.session.query(BoxItem).all()
+
+        total_contents = 0
+        with_lot_serial = 0
+        without_lot_serial = 0
+        boxes_with_traceability = 0
+        boxes_without_traceability = 0
+
+        for b in boxes:
+            contents = self.list_contents(b.id)
+            box_has_trace = False
+            for c in contents:
+                total_contents += 1
+                if c.lot_serial:
+                    with_lot_serial += 1
+                    box_has_trace = True
+                else:
+                    without_lot_serial += 1
+            if contents:
+                if box_has_trace:
+                    boxes_with_traceability += 1
+                else:
+                    boxes_without_traceability += 1
+
+        traceability_pct = (
+            round(with_lot_serial / total_contents * 100, 1)
+            if total_contents > 0
+            else 0.0
+        )
+
+        return {
+            "total_contents": total_contents,
+            "with_lot_serial": with_lot_serial,
+            "without_lot_serial": without_lot_serial,
+            "boxes_with_traceability": boxes_with_traceability,
+            "boxes_without_traceability": boxes_without_traceability,
+            "traceability_pct": traceability_pct,
+        }
+
+    def box_reservations(self, box_id: str) -> Dict[str, Any]:
+        """Per-box reservation detail: contents, fill rate, lot/serial coverage."""
+        box = self.get_box(box_id)
+        if box is None:
+            raise ValueError(f"Box '{box_id}' not found")
+
+        contents = self.list_contents(box_id)
+        contents_count = len(contents)
+        lot_serial_count = sum(1 for c in contents if c.lot_serial)
+
+        fill_pct = (
+            round(contents_count / box.max_quantity * 100, 1)
+            if box.max_quantity is not None and box.max_quantity > 0
+            else 0.0
+        )
+
+        lot_serial_pct = (
+            round(lot_serial_count / contents_count * 100, 1)
+            if contents_count > 0
+            else 0.0
+        )
+
+        return {
+            "box_id": box.id,
+            "box_name": box.name,
+            "state": box.state,
+            "contents_count": contents_count,
+            "max_quantity": box.max_quantity,
+            "fill_pct": fill_pct,
+            "lot_serial_count": lot_serial_count,
+            "lot_serial_pct": lot_serial_pct,
+            "contents": [
+                {
+                    "id": c.id,
+                    "item_id": c.item_id,
+                    "quantity": c.quantity,
+                    "lot_serial": c.lot_serial,
+                    "note": c.note,
+                }
+                for c in contents
+            ],
+        }
+
+    def export_traceability(self) -> Dict[str, Any]:
+        """Export-ready combined reservations + traceability + per-box details."""
+        boxes = self.session.query(BoxItem).all()
+        per_box: List[Dict[str, Any]] = []
+
+        for b in boxes:
+            contents = self.list_contents(b.id)
+            if contents:
+                contents_count = len(contents)
+                lot_serial_count = sum(1 for c in contents if c.lot_serial)
+                fill_pct = (
+                    round(contents_count / b.max_quantity * 100, 1)
+                    if b.max_quantity is not None and b.max_quantity > 0
+                    else 0.0
+                )
+                per_box.append({
+                    "box_id": b.id,
+                    "box_name": b.name,
+                    "contents_count": contents_count,
+                    "lot_serial_count": lot_serial_count,
+                    "fill_pct": fill_pct,
+                })
+
+        return {
+            "reservations_overview": self.reservations_overview(),
+            "traceability_summary": self.traceability_summary(),
+            "per_box_details": per_box,
+        }

@@ -710,3 +710,121 @@ def test_export_exceptions():
     assert "exceptions_summary" in resp.json()
     assert resp.json()["policy_overview"]["total"] == 2
     assert resp.json()["exceptions_summary"]["total_exceptions"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Reservations / Traceability endpoint tests (C35)
+# ---------------------------------------------------------------------------
+
+
+def test_reservations_overview():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.reservations_overview.return_value = {
+            "total": 3,
+            "by_state": {"active": 2, "draft": 1},
+            "reserved": 2,
+            "unreserved": 1,
+            "average_fill_rate": 35.0,
+        }
+        resp = client.get("/api/v1/box/reservations/overview")
+
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 3
+    assert resp.json()["reserved"] == 2
+    assert resp.json()["unreserved"] == 1
+    assert resp.json()["average_fill_rate"] == 35.0
+    assert resp.json()["by_state"]["active"] == 2
+
+
+def test_traceability_summary():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.traceability_summary.return_value = {
+            "total_contents": 10,
+            "with_lot_serial": 6,
+            "without_lot_serial": 4,
+            "boxes_with_traceability": 3,
+            "boxes_without_traceability": 1,
+            "traceability_pct": 60.0,
+        }
+        resp = client.get("/api/v1/box/traceability/summary")
+
+    assert resp.status_code == 200
+    assert resp.json()["total_contents"] == 10
+    assert resp.json()["with_lot_serial"] == 6
+    assert resp.json()["without_lot_serial"] == 4
+    assert resp.json()["traceability_pct"] == 60.0
+
+
+def test_box_reservations():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_reservations.return_value = {
+            "box_id": "box-1",
+            "box_name": "Test Box",
+            "state": "active",
+            "contents_count": 2,
+            "max_quantity": 10,
+            "fill_pct": 20.0,
+            "lot_serial_count": 1,
+            "lot_serial_pct": 50.0,
+            "contents": [
+                {"id": "c-1", "item_id": "i-1", "quantity": 5.0, "lot_serial": "LOT-001", "note": None},
+                {"id": "c-2", "item_id": "i-2", "quantity": 3.0, "lot_serial": None, "note": "test"},
+            ],
+        }
+        resp = client.get("/api/v1/box/items/box-1/reservations")
+
+    assert resp.status_code == 200
+    assert resp.json()["box_id"] == "box-1"
+    assert resp.json()["contents_count"] == 2
+    assert resp.json()["fill_pct"] == 20.0
+    assert resp.json()["lot_serial_count"] == 1
+    assert resp.json()["lot_serial_pct"] == 50.0
+    assert len(resp.json()["contents"]) == 2
+
+
+def test_box_reservations_not_found_404():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.box_reservations.side_effect = ValueError("not found")
+        resp = client.get("/api/v1/box/items/nonexistent/reservations")
+
+    assert resp.status_code == 404
+
+
+def test_export_traceability():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+        svc_cls.return_value.export_traceability.return_value = {
+            "reservations_overview": {
+                "total": 2, "by_state": {"active": 1, "draft": 1},
+                "reserved": 1, "unreserved": 1, "average_fill_rate": 20.0,
+            },
+            "traceability_summary": {
+                "total_contents": 3, "with_lot_serial": 2,
+                "without_lot_serial": 1,
+                "boxes_with_traceability": 1,
+                "boxes_without_traceability": 0,
+                "traceability_pct": 66.7,
+            },
+            "per_box_details": [
+                {"box_id": "b1", "box_name": "Box 1",
+                 "contents_count": 3, "lot_serial_count": 2, "fill_pct": 30.0},
+            ],
+        }
+        resp = client.get("/api/v1/box/export/traceability")
+
+    assert resp.status_code == 200
+    assert "reservations_overview" in resp.json()
+    assert "traceability_summary" in resp.json()
+    assert "per_box_details" in resp.json()
+    assert resp.json()["reservations_overview"]["total"] == 2
+    assert resp.json()["traceability_summary"]["traceability_pct"] == 66.7
+    assert len(resp.json()["per_box_details"]) == 1

@@ -411,3 +411,48 @@ def box_export_exceptions(
 ):
     service = BoxService(db)
     return service.export_exceptions()
+
+
+# ---------------------------------------------------------------------------
+# Reservations / Traceability endpoints (C35)
+# ---------------------------------------------------------------------------
+
+
+@box_router.get("/reservations/overview")
+def box_reservations_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.reservations_overview()
+
+
+@box_router.get("/traceability/summary")
+def box_traceability_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.traceability_summary()
+
+
+@box_router.get("/items/{box_id}/reservations")
+def box_item_reservations(
+    box_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    try:
+        return service.box_reservations(box_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@box_router.get("/export/traceability")
+def box_export_traceability(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = BoxService(db)
+    return service.export_traceability()

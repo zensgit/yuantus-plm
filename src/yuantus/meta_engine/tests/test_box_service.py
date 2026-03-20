@@ -1216,3 +1216,183 @@ class TestPolicyExceptions:
         assert "exceptions_summary" in result
         assert result["policy_overview"]["total"] == 1
         assert result["exceptions_summary"]["total_exceptions"] == 0
+
+
+# ---------------------------------------------------------------------------
+# TestReservationsTraceability (C35)
+# ---------------------------------------------------------------------------
+
+
+class TestReservationsTraceability:
+    def _session_with_boxes_and_contents(self, boxes, contents_map=None):
+        """Session whose query(BoxItem).all() returns boxes and list_contents is routed via contents_map."""
+        session = _mock_session()
+        _contents_map = contents_map or {}
+
+        def mock_query(model):
+            q = MagicMock()
+            if model is BoxItem:
+                q.all.return_value = boxes
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            elif model is BoxContent:
+                def content_filter(*args, **kwargs):
+                    fq = MagicMock()
+                    fq.all.return_value = []
+                    fq.order_by.return_value = fq
+                    return fq
+
+                q.filter.side_effect = content_filter
+                q.order_by.return_value = q
+                q.all.return_value = []
+            else:
+                q.all.return_value = []
+                q.filter.return_value = q
+                q.order_by.return_value = q
+            return q
+
+        session.query.side_effect = mock_query
+
+        def get_side_effect(model, pk):
+            if model is BoxItem:
+                return next((b for b in boxes if b.id == pk), None)
+            return None
+
+        session.get.side_effect = get_side_effect
+
+        return session
+
+    def test_reservations_overview(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.max_quantity = 10
+
+        b2 = _make_box(box_id="b2", state="draft")
+        b2.max_quantity = 5
+
+        b3 = _make_box(box_id="b3", state="active")
+        b3.max_quantity = None
+
+        session = self._session_with_boxes_and_contents([b1, b2, b3])
+        service = BoxService(session)
+        result = service.reservations_overview()
+
+        assert result["total"] == 3
+        assert result["by_state"]["active"] == 2
+        assert result["by_state"]["draft"] == 1
+        # No contents mocked -> all unreserved
+        assert result["reserved"] == 0
+        assert result["unreserved"] == 3
+        assert result["average_fill_rate"] == 0.0
+
+    def test_reservations_overview_empty(self):
+        session = self._session_with_boxes_and_contents([])
+        service = BoxService(session)
+        result = service.reservations_overview()
+
+        assert result["total"] == 0
+        assert result["by_state"] == {}
+        assert result["reserved"] == 0
+        assert result["unreserved"] == 0
+        assert result["average_fill_rate"] == 0.0
+
+    def test_traceability_summary(self):
+        # No contents mocked -> all zeroes
+        b1 = _make_box(box_id="b1", state="active")
+        b2 = _make_box(box_id="b2", state="draft")
+
+        session = self._session_with_boxes_and_contents([b1, b2])
+        service = BoxService(session)
+        result = service.traceability_summary()
+
+        assert result["total_contents"] == 0
+        assert result["with_lot_serial"] == 0
+        assert result["without_lot_serial"] == 0
+        assert result["boxes_with_traceability"] == 0
+        assert result["boxes_without_traceability"] == 0
+        assert result["traceability_pct"] == 0.0
+
+    def test_traceability_summary_no_lots(self):
+        session = self._session_with_boxes_and_contents([])
+        service = BoxService(session)
+        result = service.traceability_summary()
+
+        assert result["total_contents"] == 0
+        assert result["with_lot_serial"] == 0
+        assert result["without_lot_serial"] == 0
+        assert result["traceability_pct"] == 0.0
+
+    def test_box_reservations(self):
+        session = _mock_session()
+        box = _make_box(state="active")
+        box.max_quantity = 10
+        session.get.return_value = box
+
+        c1 = MagicMock(spec=BoxContent)
+        c1.id = "c-1"
+        c1.item_id = "item-1"
+        c1.quantity = 5.0
+        c1.lot_serial = "LOT-001"
+        c1.note = None
+        c2 = MagicMock(spec=BoxContent)
+        c2.id = "c-2"
+        c2.item_id = "item-2"
+        c2.quantity = 3.0
+        c2.lot_serial = None
+        c2.note = "test note"
+
+        query_mock = MagicMock()
+        session.query.return_value = query_mock
+        query_mock.filter.return_value = query_mock
+        query_mock.order_by.return_value = query_mock
+        query_mock.all.return_value = [c1, c2]
+
+        service = BoxService(session)
+        result = service.box_reservations("box-1")
+
+        assert result["box_id"] == "box-1"
+        assert result["box_name"] == "Test Box"
+        assert result["state"] == "active"
+        assert result["contents_count"] == 2
+        assert result["max_quantity"] == 10
+        assert result["fill_pct"] == 20.0
+        assert result["lot_serial_count"] == 1
+        assert result["lot_serial_pct"] == 50.0
+        assert len(result["contents"]) == 2
+        assert result["contents"][0]["lot_serial"] == "LOT-001"
+        assert result["contents"][1]["lot_serial"] is None
+
+    def test_box_reservations_not_found(self):
+        session = _mock_session()
+        session.get.return_value = None
+
+        service = BoxService(session)
+        with pytest.raises(ValueError, match="not found"):
+            service.box_reservations("nonexistent")
+
+    def test_export_traceability(self):
+        b1 = _make_box(box_id="b1", state="active")
+        b1.max_quantity = 10
+
+        session = self._session_with_boxes_and_contents([b1])
+        service = BoxService(session)
+        result = service.export_traceability()
+
+        assert "reservations_overview" in result
+        assert "traceability_summary" in result
+        assert "per_box_details" in result
+        assert result["reservations_overview"]["total"] == 1
+        assert result["traceability_summary"]["total_contents"] == 0
+        # No contents mocked -> per_box_details is empty (only boxes with contents included)
+        assert result["per_box_details"] == []
+
+    def test_export_traceability_empty(self):
+        session = self._session_with_boxes_and_contents([])
+        service = BoxService(session)
+        result = service.export_traceability()
+
+        assert "reservations_overview" in result
+        assert "traceability_summary" in result
+        assert "per_box_details" in result
+        assert result["reservations_overview"]["total"] == 0
+        assert result["traceability_summary"]["total_contents"] == 0
+        assert result["per_box_details"] == []
