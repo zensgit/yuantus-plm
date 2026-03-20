@@ -35,7 +35,7 @@
 - next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
-- next Claude greenfield batch `C32/C33/C34`：candidate stack rehearsed; `main` still frozen
+- next Claude greenfield batch `C32/C33/C34`：merged on `main` and post-merge verified
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -67,9 +67,9 @@
 | C29 | P3 | PLM box capacity / compliance | `box` capacity/compliance/export helpers | merged_on_main_greenfield |
 | C30 | P3 | document sync drift / snapshots | `document_sync` drift/snapshot/export helpers | merged_on_main_greenfield |
 | C31 | P3 | cutted-parts benchmark / quote | `cutted_parts` benchmark/quote/export helpers | merged_on_main_greenfield |
-| C32 | P3 | PLM box policy / exceptions | `box` policy/exception/export helpers | codex_stack_verified |
-| C33 | P3 | document sync baseline / lineage | `document_sync` baseline/lineage/export helpers | codex_stack_verified |
-| C34 | P3 | cutted-parts variance / recommendations | `cutted_parts` variance/recommendation/export helpers | codex_stack_verified |
+| C32 | P3 | PLM box policy / exceptions | `box` policy/exception/export helpers | merged_on_main_greenfield |
+| C33 | P3 | document sync baseline / lineage | `document_sync` baseline/lineage/export helpers | merged_on_main_greenfield |
+| C34 | P3 | cutted-parts variance / recommendations | `cutted_parts` variance/recommendation/export helpers | merged_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1079,3 +1079,17 @@
     - `532 passed, 188 warnings in 15.72s`
 - next step:
   - actual fast-forward into `main` if we accept this sixth-stage batch
+
+## Increment 2026-03-20 Main-FastForward-C32-C33-C34
+- `main` advanced from:
+  - `5babffa`
+  - to `45dc112`
+- source staging branch:
+  - `feature/codex-c32c33c34-staging`
+- post-merge targeted greenfield rerun on `main`:
+  - `314 passed, 114 warnings in 3.61s`
+- post-merge unified stack rerun on `main`:
+  - `532 passed, 188 warnings in 13.07s`
+- result:
+  - `C32/C33/C34` are now part of `main`
+  - no new post-merge functional regression was observed

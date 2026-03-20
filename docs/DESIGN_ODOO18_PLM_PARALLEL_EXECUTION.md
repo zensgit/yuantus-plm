@@ -1167,3 +1167,26 @@
 - rehearsal branch: `feature/codex-merge-rehearsal-c32c33c34`
 - rehearsal fast-forward: `5babffa` -> `0f6e2ee`
 - rehearsal full regression: `532 passed, 188 warnings in 15.72s`
+
+## Increment 2026-03-20 Main-FastForward-C32-C33-C34
+
+### Decision
+- `C32/C33/C34` 不再停留在候选栈 / rehearsal 状态，而是作为第六阶段 greenfield 批次正式进入 `main`。
+- `main` 现在直接承载：
+  - `C32`
+  - `C33`
+  - `C34`
+
+### Why
+- `feature/codex-c32c33c34-staging` 相对 `main` 是纯快进关系，实际合并不需要额外冲突修复。
+- 合并前候选栈已完成：
+  - 联合定向回归
+  - unified stack full regression
+  - 面向 `main` 的 fast-forward rehearsal
+- 合并后在 `main` 上再次重跑 targeted greenfield pack 和 unified stack，结果保持稳定。
+
+### Result
+- merged main commit: `45dc112`
+- source staging branch: `feature/codex-c32c33c34-staging`
+- post-merge targeted greenfield rerun on `main`: `314 passed, 114 warnings in 3.61s`
+- post-merge unified stack rerun on `main`: `532 passed, 188 warnings in 13.07s`

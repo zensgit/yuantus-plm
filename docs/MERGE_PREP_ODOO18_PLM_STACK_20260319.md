@@ -346,4 +346,11 @@
     - `532 passed, 188 warnings in 15.72s`
   - rehearsal passed without manual conflict resolution
 - next step:
-  - actual fast-forward into `main` if we accept this sixth-stage batch
+  - actual fast-forward into `main` completed
+- main fast-forward:
+  - `5babffa` -> `45dc112`
+- post-merge verification on `main`:
+  - targeted greenfield rerun:
+    - `314 passed, 114 warnings in 3.61s`
+  - unified stack full:
+    - `532 passed, 188 warnings in 13.07s`
