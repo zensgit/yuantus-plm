@@ -392,3 +392,10 @@
   - rehearsal passed without manual conflict resolution
 - next step:
   - actual fast-forward into `main` if we accept this seventh-stage batch
+- main fast-forward:
+  - `d9fa6e7` -> `d9abd0c`
+- post-merge verification on `main`:
+  - targeted greenfield rerun:
+    - `364 passed, 130 warnings in 3.71s`
+  - unified stack full:
+    - `582 passed, 204 warnings in 13.67s`

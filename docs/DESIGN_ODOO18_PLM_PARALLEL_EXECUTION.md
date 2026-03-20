@@ -1284,3 +1284,26 @@
 - rehearsal branch: `feature/codex-merge-rehearsal-c35c36c37`
 - rehearsal fast-forward: `d9fa6e7` -> `97b1492`
 - rehearsal full regression: `582 passed, 204 warnings in 19.00s`
+
+## Increment 2026-03-20 Main-FastForward-C35-C36-C37
+
+### Decision
+- `C35/C36/C37` 不再停留在候选栈 / rehearsal 状态，而是作为第七阶段 greenfield 批次正式进入 `main`。
+- `main` 现在直接承载：
+  - `C35`
+  - `C36`
+  - `C37`
+
+### Why
+- `feature/codex-c35c36c37-staging` 相对 `main` 是纯快进关系，实际合并不需要额外冲突修复。
+- 合并前候选栈已完成：
+  - 联合定向回归
+  - unified stack full regression
+  - 面向 `main` 的 fast-forward rehearsal
+- 合并后在 `main` 上再次重跑 targeted greenfield pack 和 unified stack，结果保持稳定。
+
+### Result
+- merged main commit: `d9abd0c`
+- source staging branch: `feature/codex-c35c36c37-staging`
+- post-merge targeted greenfield rerun on `main`: `364 passed, 130 warnings in 3.71s`
+- post-merge unified stack rerun on `main`: `582 passed, 204 warnings in 13.67s`

@@ -36,7 +36,7 @@
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
-- next Claude greenfield batch `C35/C36/C37`：candidate stack rehearsed for `main`
+- next Claude greenfield batch `C35/C36/C37`：merged on `main` and post-merge verified
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -71,9 +71,9 @@
 | C32 | P3 | PLM box policy / exceptions | `box` policy/exception/export helpers | merged_on_main_greenfield |
 | C33 | P3 | document sync baseline / lineage | `document_sync` baseline/lineage/export helpers | merged_on_main_greenfield |
 | C34 | P3 | cutted-parts variance / recommendations | `cutted_parts` variance/recommendation/export helpers | merged_on_main_greenfield |
-| C35 | P3 | PLM box reservations / traceability | `box` reservation/traceability/export helpers | codex_stack_verified |
-| C36 | P3 | document sync checkpoints / retention | `document_sync` checkpoint/retention/export helpers | codex_stack_verified |
-| C37 | P3 | cutted-parts thresholds / envelopes | `cutted_parts` threshold/envelope/export helpers | codex_stack_verified |
+| C35 | P3 | PLM box reservations / traceability | `box` reservation/traceability/export helpers | merged_on_main_greenfield |
+| C36 | P3 | document sync checkpoints / retention | `document_sync` checkpoint/retention/export helpers | merged_on_main_greenfield |
+| C37 | P3 | cutted-parts thresholds / envelopes | `cutted_parts` threshold/envelope/export helpers | merged_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1193,3 +1193,17 @@
     - `582 passed, 204 warnings in 19.00s`
 - next step:
   - actual fast-forward into `main` if we accept this seventh-stage batch
+
+## Increment 2026-03-20 Main-FastForward-C35-C36-C37
+- `main` advanced from:
+  - `d9fa6e7`
+  - to `d9abd0c`
+- source staging branch:
+  - `feature/codex-c35c36c37-staging`
+- post-merge targeted greenfield rerun on `main`:
+  - `364 passed, 130 warnings in 3.71s`
+- post-merge unified stack rerun on `main`:
+  - `582 passed, 204 warnings in 13.67s`
+- result:
+  - `C35/C36/C37` are now part of `main`
+  - no new post-merge functional regression was observed
