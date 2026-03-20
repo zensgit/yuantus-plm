@@ -370,10 +370,15 @@
 - candidate branch:
   - `feature/codex-c35c36-staging`
 - base relation:
-  - planned from the `main` tip created by the `Codex-Prepare-Next-Claude-Batch-C35-C37` step
+  - fast-forward from `main` commit `d9fa6e7`
 - integrated commits:
-  - pending
+  - `bff4ec6` `feat(box): add C35 reservations/traceability analytics`
+  - `576b975` `feat(document-sync): add C36 checkpoints/retention analytics`
 - candidate verification:
-  - pending
+  - combined targeted regression:
+    - `227 passed, 88 warnings in 2.89s`
+  - unified stack script on staging branch:
+    - `561 passed, 199 warnings in 12.57s`
 - current gate:
-  - `C35/C36/C37` are task-prep only at this point
+  - `C35/C36` are now staging-verified
+  - `C37` remains pending by design

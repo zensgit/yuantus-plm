@@ -44,3 +44,13 @@
 ## Notes
 - Router is NOT registered in `app.py` (greenfield constraint).
 - All C36 methods follow established patterns from C21/C24/C27/C30/C33.
+
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-c35c36-staging`
+- cherry-pick source: `bd3e14a`
+- integrated commit: `576b975`
+- combined regression with `C35`:
+  - `227 passed, 88 warnings in 2.89s`
+- unified stack script on staging:
+  - `561 passed, 199 warnings in 12.57s`
+- `git diff --check`: passed

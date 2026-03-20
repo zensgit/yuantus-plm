@@ -36,7 +36,7 @@
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
-- next Claude greenfield batch `C35/C36/C37`：prepared from `main`
+- next Claude greenfield batch `C35/C36/C37`：`C35/C36` verified on staging, `C37` pending
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -71,8 +71,8 @@
 | C32 | P3 | PLM box policy / exceptions | `box` policy/exception/export helpers | merged_on_main_greenfield |
 | C33 | P3 | document sync baseline / lineage | `document_sync` baseline/lineage/export helpers | merged_on_main_greenfield |
 | C34 | P3 | cutted-parts variance / recommendations | `cutted_parts` variance/recommendation/export helpers | merged_on_main_greenfield |
-| C35 | P3 | PLM box reservations / traceability | `box` reservation/traceability/export helpers | prepared_on_main_greenfield |
-| C36 | P3 | document sync checkpoints / retention | `document_sync` checkpoint/retention/export helpers | prepared_on_main_greenfield |
+| C35 | P3 | PLM box reservations / traceability | `box` reservation/traceability/export helpers | codex_stack_verified |
+| C36 | P3 | document sync checkpoints / retention | `document_sync` checkpoint/retention/export helpers | codex_stack_verified |
 | C37 | P3 | cutted-parts thresholds / envelopes | `cutted_parts` threshold/envelope/export helpers | prepared_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
@@ -1148,3 +1148,20 @@
 - non-goals:
   - no app registration
   - no optimization solver or BOM/manufacturing hot-path integration
+
+## Increment 2026-03-20 Codex-C35-C36-Stack-Verification
+- built isolated candidate stack branch:
+  - `feature/codex-c35c36-staging`
+- cherry-picked:
+  - `d346de8` `feat(box): add C35 reservations/traceability analytics`
+  - `bd3e14a` `feat(document-sync): add C36 checkpoints/retention analytics`
+- staging commits after integration:
+  - `bff4ec6` `feat(box): add C35 reservations/traceability analytics`
+  - `576b975` `feat(document-sync): add C36 checkpoints/retention analytics`
+- combined targeted regression:
+  - `227 passed, 88 warnings in 2.89s`
+- unified stack full regression on staging:
+  - `561 passed, 199 warnings in 12.57s`
+- result:
+  - `C35/C36` are now in Codex-verified staging state
+  - `C37` remains pending by design

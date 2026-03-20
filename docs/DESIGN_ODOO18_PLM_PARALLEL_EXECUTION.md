@@ -1235,3 +1235,20 @@
 ### Non-Goals
 - 本轮不把 `C35-C37` 直接并入 `main`
 - 本轮不触发新的统一栈合并
+
+## Increment 2026-03-20 Codex-C35-C36-Stack-Verification
+
+### Decision
+- `C35` 与 `C36` 已经不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c35c36-staging` 上完成联合验证。
+- `C37` 继续保持 pending，不与本轮 staging 混并。
+
+### Why
+- `box` 与 `document_sync` 的第七阶段扩展仍然互不写冲突，适合继续并行联合验证。
+- `C37` 继续留在 `cutted_parts` 子域，延后回收可以减少本轮 staging 的扩面和回归压力。
+
+### Result
+- `C35` staging commit: `bff4ec6`
+- `C36` staging commit: `576b975`
+- combined targeted regression: `227 passed, 88 warnings in 2.89s`
+- unified stack regression on staging: `561 passed, 199 warnings in 12.57s`

@@ -1698,6 +1698,57 @@ git diff --check
 - this preparation step itself introduces no code changes
 - the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers outside their own domains
 
+## Increment 2026-03-20 Codex-C35-C36-Stack-Verification
+
+### Touched Areas
+- `feature/codex-c35c36-staging`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C35_PLM_BOX_RESERVATIONS_TRACEABILITY_BOOTSTRAP_20260320.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C36_DOCUMENT_SYNC_CHECKPOINTS_RETENTION_BOOTSTRAP_20260320.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c35c36 python3 -m py_compile \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c35c36-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c35c36-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `py_compile`: passed
+- combined targeted regression on staging: `227 passed, 88 warnings in 2.89s`
+- unified stack script on staging: `561 passed, 199 warnings in 12.57s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- `C37` had not been integrated yet at this point in the timeline
+
 ## Increment 2026-03-20 Codex-Merge-Rehearsal-C32-C33-C34
 
 ### Touched Areas

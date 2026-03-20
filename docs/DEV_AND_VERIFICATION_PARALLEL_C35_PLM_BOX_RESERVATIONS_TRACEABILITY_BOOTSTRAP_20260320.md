@@ -39,3 +39,13 @@
 ## Notes
 - Router is NOT registered in `app.py` (greenfield pattern).
 - All existing C17/C20/C23/C26/C29/C32 tests continue to pass.
+
+## Codex Integration Verification
+- candidate stack branch: `feature/codex-c35c36-staging`
+- cherry-pick source: `d346de8`
+- integrated commit: `bff4ec6`
+- combined regression with `C36`:
+  - `227 passed, 88 warnings in 2.89s`
+- unified stack script on staging:
+  - `561 passed, 199 warnings in 12.57s`
+- `git diff --check`: passed
