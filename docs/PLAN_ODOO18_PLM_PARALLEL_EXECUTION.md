@@ -37,7 +37,7 @@
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
-- next Claude greenfield batch `C38/C39/C40`：candidate stack rehearsed for `main`
+- next Claude greenfield batch `C38/C39/C40`：merged on `main` and post-merge verified
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -75,9 +75,9 @@
 | C35 | P3 | PLM box reservations / traceability | `box` reservation/traceability/export helpers | merged_on_main_greenfield |
 | C36 | P3 | document sync checkpoints / retention | `document_sync` checkpoint/retention/export helpers | merged_on_main_greenfield |
 | C37 | P3 | cutted-parts thresholds / envelopes | `cutted_parts` threshold/envelope/export helpers | merged_on_main_greenfield |
-| C38 | P3 | PLM box allocation / custody | `box` allocation/custody/export helpers | codex_stack_verified |
-| C39 | P3 | document sync freshness / watermarks | `document_sync` freshness/watermark/export helpers | codex_stack_verified |
-| C40 | P3 | cutted-parts alerts / outliers | `cutted_parts` alert/outlier/export helpers | codex_stack_verified |
+| C38 | P3 | PLM box allocation / custody | `box` allocation/custody/export helpers | merged_on_main_greenfield |
+| C39 | P3 | document sync freshness / watermarks | `document_sync` freshness/watermark/export helpers | merged_on_main_greenfield |
+| C40 | P3 | cutted-parts alerts / outliers | `cutted_parts` alert/outlier/export helpers | merged_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1307,3 +1307,16 @@
     - `635 passed, 220 warnings in 16.36s`
 - next step:
   - actual fast-forward into `main` if we accept this eighth-stage batch
+
+## Increment 2026-03-20 Main-FastForward-C38-C39-C40
+- source branch:
+  - `feature/codex-c38c39c40-staging`
+- main fast-forward:
+  - `5ef27df` -> `d70d102`
+- post-merge targeted regression:
+  - `417 passed, 146 warnings in 3.54s`
+- post-merge unified stack full:
+  - `635 passed, 220 warnings in 14.89s`
+- result:
+  - `C38/C39/C40` are now part of `main`
+  - no new regression was introduced by the fast-forward
