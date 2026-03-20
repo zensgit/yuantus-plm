@@ -1478,3 +1478,19 @@
 - `C42` staging commit: `31b98ab`
 - combined targeted regression: `291 passed, 110 warnings in 3.37s`
 - unified stack regression on staging: `667 passed, 231 warnings in 13.47s`
+
+## Increment 2026-03-20 Codex-C43-Stack-Verification
+
+### Decision
+- `C43` 已不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c41c42c43-staging` 上完成 `C41/C42/C43` 联合验证。
+- `C41/C42/C43` 现在作为完整的 ninth-stage candidate stack 进入下一步 merge-prep 评估。
+
+### Why
+- `cutted_parts` 的 throughput / cadence 读侧增强与现有 `C31/C34/C37/C40` 写域保持一致，不需要触发新的跨域依赖。
+- 在 `C41/C42` 已验证基础上补齐 `C43`，可以直接得到完整的 `box/document_sync/cutted_parts` ninth-stage 绿地候选栈。
+
+### Result
+- `C43` staging commit: `3f6d4ae`
+- combined targeted regression with `C41/C42/C43`: `468 passed, 162 warnings in 4.49s`
+- unified stack regression on staging: `686 passed, 236 warnings in 14.27s`

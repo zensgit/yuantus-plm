@@ -461,19 +461,19 @@
   - `C43`
 - this planning step does not reopen active merge-prep on `main`; it only prepares isolated ninth-stage task boundaries
 
-## Next Candidate Stack: C41-C42
+## Next Candidate Stack: C41-C42-C43
 - candidate branch:
-  - `feature/codex-c41c42-staging`
+  - `feature/codex-c41c42c43-staging`
 - base relation:
   - fast-forward from `main` commit `88820f2`
 - integrated commits:
   - `f8c9753` `feat(box): add C41 occupancy / turnover bootstrap`
   - `31b98ab` `feat(document-sync): add C42 lag / backlog bootstrap`
+  - `3f6d4ae` `feat(cutted-parts): add C43 throughput / cadence bootstrap`
 - candidate verification:
   - combined targeted regression:
-    - `291 passed, 110 warnings in 3.37s`
+    - `468 passed, 162 warnings in 4.49s`
   - unified stack script on staging branch:
-    - `667 passed, 231 warnings in 13.47s`
+    - `686 passed, 236 warnings in 14.27s`
 - current gate:
-  - `C41/C42` are now staging-verified
-  - `C43` remains pending by design
+  - `C41/C42/C43` are now staging-verified

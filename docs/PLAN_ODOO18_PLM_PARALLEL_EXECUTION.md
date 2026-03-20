@@ -38,7 +38,7 @@
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
 - next Claude greenfield batch `C38/C39/C40`：stabilization accepted on `main`
-- next Claude greenfield batch `C41/C42/C43`：`C41/C42` in codex-verified staging; `C43` pending
+- next Claude greenfield batch `C41/C42/C43`：candidate stack promoted and codex-verified
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -81,7 +81,7 @@
 | C40 | P3 | cutted-parts alerts / outliers | `cutted_parts` alert/outlier/export helpers | merged_on_main_greenfield |
 | C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | codex_stack_verified |
 | C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | codex_stack_verified |
-| C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | prepared_for_claude |
+| C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | codex_stack_verified |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1392,3 +1392,17 @@
 - result:
   - `C41/C42` are now in Codex-verified staging state
   - `C43` remains pending by design
+
+## Increment 2026-03-20 Codex-C43-Stack-Verification
+- promoted isolated candidate stack branch:
+  - `feature/codex-c41c42c43-staging`
+- cherry-picked:
+  - `022a34f` `feat(cutted-parts): add C43 throughput / cadence bootstrap`
+- staging commit after integration:
+  - `3f6d4ae` `feat(cutted-parts): add C43 throughput / cadence bootstrap`
+- combined targeted regression with `C41/C42/C43`:
+  - `468 passed, 162 warnings in 4.49s`
+- unified stack full regression on staging:
+  - `686 passed, 236 warnings in 14.27s`
+- result:
+  - `C41/C42/C43` are now in Codex-verified staging state
