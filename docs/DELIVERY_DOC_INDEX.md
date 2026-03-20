@@ -130,6 +130,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - C33 Document Sync Baseline Lineage Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C33_DOCUMENT_SYNC_BASELINE_LINEAGE_BOOTSTRAP_20260319.md`
 - C34 Cutted Parts Variance Recommendations Bootstrap Design: `docs/DESIGN_PARALLEL_C34_CUTTED_PARTS_VARIANCE_RECOMMENDATIONS_BOOTSTRAP_20260319.md`
 - C34 Cutted Parts Variance Recommendations Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C34_CUTTED_PARTS_VARIANCE_RECOMMENDATIONS_BOOTSTRAP_20260319.md`
+- C35 PLM Box Reservations Traceability Bootstrap Design: `docs/DESIGN_PARALLEL_C35_PLM_BOX_RESERVATIONS_TRACEABILITY_BOOTSTRAP_20260320.md`
+- C35 PLM Box Reservations Traceability Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C35_PLM_BOX_RESERVATIONS_TRACEABILITY_BOOTSTRAP_20260320.md`
+- C36 Document Sync Checkpoints Retention Bootstrap Design: `docs/DESIGN_PARALLEL_C36_DOCUMENT_SYNC_CHECKPOINTS_RETENTION_BOOTSTRAP_20260320.md`
+- C36 Document Sync Checkpoints Retention Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C36_DOCUMENT_SYNC_CHECKPOINTS_RETENTION_BOOTSTRAP_20260320.md`
+- C37 Cutted Parts Thresholds Envelopes Bootstrap Design: `docs/DESIGN_PARALLEL_C37_CUTTED_PARTS_THRESHOLDS_ENVELOPES_BOOTSTRAP_20260320.md`
+- C37 Cutted Parts Thresholds Envelopes Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C37_CUTTED_PARTS_THRESHOLDS_ENVELOPES_BOOTSTRAP_20260320.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`

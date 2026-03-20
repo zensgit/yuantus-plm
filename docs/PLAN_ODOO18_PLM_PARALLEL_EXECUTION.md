@@ -35,7 +35,8 @@
 - next Claude greenfield batch `C23/C24/C25`：merged on `main` and post-merge verified
 - next Claude greenfield batch `C26/C27/C28`：merged on `main` and stabilization accepted
 - next Claude greenfield batch `C29/C30/C31`：stabilization accepted on `main`
-- next Claude greenfield batch `C32/C33/C34`：merged on `main` and post-merge verified
+- next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
+- next Claude greenfield batch `C35/C36/C37`：prepared from `main`
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -70,6 +71,9 @@
 | C32 | P3 | PLM box policy / exceptions | `box` policy/exception/export helpers | merged_on_main_greenfield |
 | C33 | P3 | document sync baseline / lineage | `document_sync` baseline/lineage/export helpers | merged_on_main_greenfield |
 | C34 | P3 | cutted-parts variance / recommendations | `cutted_parts` variance/recommendation/export helpers | merged_on_main_greenfield |
+| C35 | P3 | PLM box reservations / traceability | `box` reservation/traceability/export helpers | prepared_on_main_greenfield |
+| C36 | P3 | document sync checkpoints / retention | `document_sync` checkpoint/retention/export helpers | prepared_on_main_greenfield |
+| C37 | P3 | cutted-parts thresholds / envelopes | `cutted_parts` threshold/envelope/export helpers | prepared_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1093,3 +1097,54 @@
 - result:
   - `C32/C33/C34` are now part of `main`
   - no new post-merge functional regression was observed
+
+## Increment 2026-03-20 Main-Stability-Refresh-C32-C33-C34
+- targeted greenfield stability rerun on `main`:
+  - `314 passed, 114 warnings in 2.99s`
+- unified stack stability rerun on `main`:
+  - `532 passed, 188 warnings in 13.07s`
+- result:
+  - `C32/C33/C34` stabilization window accepted on `main`
+
+## Increment 2026-03-20 Next Claude Batch C35-C37
+- `C32/C33/C34` has completed merge and stabilization on `main`
+- next Claude greenfield work should continue the same three isolated domains with a seventh-stage read-side batch:
+  - `C35`
+  - `C36`
+  - `C37`
+- Claude should branch from:
+  - `feature/claude-greenfield-base-7`
+  - source branch: `main`
+
+### C35
+- task: `PLM box reservations / traceability bootstrap`
+- suggested branch: `feature/claude-c35-box-traceability`
+- write scope:
+  - `src/yuantus/meta_engine/box/`
+  - `src/yuantus/meta_engine/web/box_router.py`
+  - `src/yuantus/meta_engine/tests/test_box_*.py`
+- non-goals:
+  - no app registration
+  - no storage, CAD, or workflow hot-path integration
+
+### C36
+- task: `document sync checkpoints / retention bootstrap`
+- suggested branch: `feature/claude-c36-document-sync-checkpoints`
+- write scope:
+  - `src/yuantus/meta_engine/document_sync/`
+  - `src/yuantus/meta_engine/web/document_sync_router.py`
+  - `src/yuantus/meta_engine/tests/test_document_sync_*.py`
+- non-goals:
+  - no app registration
+  - no background workers or storage hot-path integration
+
+### C37
+- task: `cutted-parts thresholds / envelopes bootstrap`
+- suggested branch: `feature/claude-c37-cutted-parts-thresholds`
+- write scope:
+  - `src/yuantus/meta_engine/cutted_parts/`
+  - `src/yuantus/meta_engine/web/cutted_parts_router.py`
+  - `src/yuantus/meta_engine/tests/test_cutted_parts_*.py`
+- non-goals:
+  - no app registration
+  - no optimization solver or BOM/manufacturing hot-path integration
