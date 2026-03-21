@@ -525,3 +525,37 @@
 - current gate:
   - `C44/C45` are now staging-verified
   - `C46` remains pending by design
+
+## Next Candidate Stack: C44-C45-C46
+- candidate branch:
+  - `feature/codex-c44c45c46-staging`
+- base relation:
+  - fast-forward from `main` commit `df29d5f`
+- integrated commits:
+  - `52f84c5` `feat(box): add C44 dwell / aging bootstrap`
+  - `b7dc629` `feat(document-sync): add C45 skew / gaps bootstrap`
+  - `2df0bf7` `feat(cutted_parts): add C46 saturation bottlenecks`
+  - `d2363d7` `docs(cutted_parts): record C46 staging verification`
+  - `7da729f` `docs(benchmark): add target matrix`
+  - `8c114bb` `docs(benchmark): add capability checklists`
+  - `ad99773` `docs(benchmark): add child checklist template`
+- candidate verification:
+  - combined targeted regression:
+    - `516 passed in 8.81s`
+  - unified stack script on staging branch:
+    - `734 passed, 252 warnings in 15.52s`
+- rehearsal branch:
+  - `feature/codex-merge-rehearsal-c44c45c46`
+- rehearsal action:
+  - fast-forwarded `main` baseline `df29d5f` to candidate commit `ad99773`
+- rehearsal verification:
+  - unified stack script on rehearsal branch:
+    - `734 passed, 252 warnings in 12.95s`
+  - rehearsal passed without manual conflict resolution
+- actual main fast-forward:
+  - pending operator execution
+- post-merge verification:
+  - pending on `main`
+- current gate:
+  - `C44/C45/C46` are now merge-prep-verified on staging and rehearsal branches
+  - final `main` fast-forward and stabilization rerun remain intentionally pending

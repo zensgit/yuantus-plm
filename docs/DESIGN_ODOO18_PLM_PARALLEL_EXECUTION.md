@@ -1587,3 +1587,28 @@
 - `C45` staging commit: `b7dc629`
 - combined targeted regression: `324 passed, 121 warnings in 4.84s`
 - unified stack full regression: `719 passed, 247 warnings in 13.95s`
+
+## Increment 2026-03-21 Codex-C44-C45-C46-Merge-Prep
+
+### Decision
+- `C44/C45/C46` 不再作为“下一条待接入 greenfield 线”看待，而是作为完整 tenth-stage candidate stack 进入 merge-prep。
+- 在 `main` 未实际 fast-forward 之前，不再继续给这三个域追加新功能；当前优先级是 final merge 和稳定窗口，而不是继续扩 scope。
+- 后续方向按 benchmark 分层固定：`Aras` 只负责产品级验收口径，`Odoo18 PLM` 负责 `meta_engine` 并行增量基线，`DocDoku` 负责 `file-cad` 合同与体验边界。
+
+### Why
+- `box`、`document_sync`、`cutted_parts` 三个域在本轮仍然保持域内读侧、统计、导出和状态辅助模式，没有重新打开跨域 orchestration。
+- staging 上的 targeted regression 与 unified full regression 都通过，说明三域组合后的候选栈已经具备 merge-prep 信号。
+- isolated rehearsal worktree 能够从 `main@df29d5f` 对 `feature/codex-c44c45c46-staging` 做 `ff-only` 预演，并通过 unified full regression，说明当前候选栈没有结构性合并阻塞。
+- benchmark matrix、capability checklists、child checklist template 已经把 “Aras / Odoo18 PLM / DocDoku” 三层口径拆开，后续开发不需要再混 benchmark。
+
+### Result
+- candidate stack branch: `feature/codex-c44c45c46-staging`
+- rehearsal branch: `feature/codex-merge-rehearsal-c44c45c46`
+- candidate head: `ad99773`
+- combined targeted regression on staging: `516 passed in 8.81s`
+- unified stack full regression on staging: `734 passed, 252 warnings in 15.52s`
+- rehearsal full regression: `734 passed, 252 warnings in 12.95s`
+- next step:
+  - perform final operator fast-forward onto `main`
+  - rerun `main` targeted/full verification and stabilization refresh
+  - after stabilization, open the next increment only through the benchmark child checklist template

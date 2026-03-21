@@ -39,7 +39,7 @@
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
 - next Claude greenfield batch `C38/C39/C40`：stabilization accepted on `main`
 - next Claude greenfield batch `C41/C42/C43`：stabilization accepted on `main`
-- next Claude greenfield batch `C44/C45/C46`：completed on codex staging `feature/codex-c44c45c46-staging`; next step is merge-prep
+- next Claude greenfield batch `C44/C45/C46`：merge-prep verified on `feature/codex-c44c45c46-staging` plus rehearsal branch `feature/codex-merge-rehearsal-c44c45c46`; next step is final fast-forward onto `main`
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -83,9 +83,9 @@
 | C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | merged_on_main_greenfield |
 | C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | merged_on_main_greenfield |
 | C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | merged_on_main_greenfield |
-| C44 | P3 | PLM box dwell / aging | `box` dwell/aging/export helpers | codex_stack_verified |
-| C45 | P3 | document sync skew / gaps | `document_sync` skew/gap/export helpers | codex_stack_verified |
-| C46 | P3 | cutted-parts saturation / bottlenecks | `cutted_parts` saturation/bottleneck/export helpers | codex_stack_verified |
+| C44 | P3 | PLM box dwell / aging | `box` dwell/aging/export helpers | merge_prep_verified |
+| C45 | P3 | document sync skew / gaps | `document_sync` skew/gap/export helpers | merge_prep_verified |
+| C46 | P3 | cutted-parts saturation / bottlenecks | `cutted_parts` saturation/bottleneck/export helpers | merge_prep_verified |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1505,3 +1505,27 @@
 - result:
   - `C44/C45` are now in Codex-verified staging state
   - `C46` remains pending by design
+
+## Increment 2026-03-21 Codex-C44-C45-C46-Merge-Prep
+- built full tenth-stage candidate stack branch:
+  - `feature/codex-c44c45c46-staging`
+- integrated and closure commits:
+  - `52f84c5` `feat(box): add C44 dwell / aging bootstrap`
+  - `b7dc629` `feat(document-sync): add C45 skew / gaps bootstrap`
+  - `2df0bf7` `feat(cutted_parts): add C46 saturation bottlenecks`
+  - `d2363d7` `docs(cutted_parts): record C46 staging verification`
+  - `7da729f` `docs(benchmark): add target matrix`
+  - `8c114bb` `docs(benchmark): add capability checklists`
+  - `ad99773` `docs(benchmark): add child checklist template`
+- combined targeted regression on staging:
+  - `516 passed in 8.81s`
+- unified stack full regression on staging:
+  - `734 passed, 252 warnings in 15.52s`
+- isolated merge rehearsal:
+  - branch: `feature/codex-merge-rehearsal-c44c45c46`
+  - fast-forward: `df29d5f` -> `ad99773`
+  - unified stack full regression on rehearsal branch:
+    - `734 passed, 252 warnings in 12.95s`
+- result:
+  - `C44/C45/C46` are now merge-prep verified
+  - final `main` fast-forward and stabilization rerun remain intentionally pending

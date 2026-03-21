@@ -38,6 +38,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Package Tree: `docs/DELIVERY_TREE_20260202.md`
 - Delivery Upgrade Guide: `docs/DELIVERY_UPGRADE_GUIDE_20260202.md`
 - Delivery Version Docs Map: `docs/DELIVERY_VERSION_DOCS_MAP_20260202.md`
+- Development Direction (Benchmark-Driven): `docs/DEVELOPMENT_DIRECTION_BENCHMARK_DRIVEN_20260321.md`
 - Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`
 - Week Plan & Verification (Enhancements): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202_FEATURES2.md`
 - Week Plan & Verification (Enhancements 2026-02-03): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260203_ENHANCEMENTS.md`

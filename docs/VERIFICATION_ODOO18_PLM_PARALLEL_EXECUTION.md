@@ -1751,6 +1751,79 @@ git diff --check
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
 - `C46` is not integrated yet at this point, by design
 
+## Increment 2026-03-21 Codex-C44-C45-C46-Stack-Verification
+
+### Touched Areas
+- `feature/codex-c44c45c46-staging`
+- `docs/BENCHMARK_TARGET_MATRIX_20260321.md`
+- `docs/CAPABILITY_BENCHMARK_CHECKLISTS_20260321.md`
+- `docs/BENCHMARK_CHILD_CHECKLIST_TEMPLATE_20260321.md`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c44c45c46-target PYTEST_ADDOPTS='-p no:cacheprovider' python3 -m pytest -q \
+  src/yuantus/meta_engine/tests/test_box_*.py \
+  src/yuantus/meta_engine/tests/test_document_sync_*.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_*.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c44c45c46-full2 PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- candidate branch head: `ad99773`
+- combined targeted regression on staging: `516 passed in 8.81s`
+- unified stack script on staging: `734 passed, 252 warnings in 15.52s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- `main` has not been fast-forwarded yet at this point; this section only proves candidate-stack readiness
+
+## Increment 2026-03-21 Codex-Merge-Rehearsal-C44-C45-C46
+
+### Touched Areas
+- `feature/codex-c44c45c46-staging`
+- `feature/codex-merge-rehearsal-c44c45c46`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+git merge --ff-only feature/codex-c44c45c46-staging
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-merge-c44c45c46-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- rehearsal branch fast-forwarded from `df29d5f` to `ad99773`
+- no manual conflict resolution was required
+- unified stack script on `feature/codex-merge-rehearsal-c44c45c46`: `734 passed, 252 warnings in 12.95s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- final `main` fast-forward and stabilization rerun remain intentionally pending
+
 ## Increment 2026-03-20 Codex-C41-C42-Stack-Verification
 
 ### Touched Areas
