@@ -22,9 +22,9 @@
 
 ## 2. 参考材料现状
 
-当前主线仓库并没有顶层 `references/` 目录。
+当前 clean main worktree 并没有顶层 `references/` 目录。
 
-这意味着，现阶段能直接复核的 reference material 主要来自三类资产：
+这意味着，在这个 worktree 里能直接复核的 reference material 主要来自三类资产：
 
 - `docs/REFERENCE_NOTES.md`
 - `docs/DESIGN_PARALLEL_P3_ODOO18_REFERENCE_PARALLEL_TRACKS_20260306.md`
@@ -38,7 +38,19 @@
 - `docs/DESIGN_DOCDOKU_ALIGNMENT_20260129.md` 中的 CAD/UI contract 映射
 - `docs/DESIGN_PARALLEL_P3_ODOO18_REFERENCE_PARALLEL_TRACKS_20260306.md` 中的 Odoo18 并行增量映射
 
-因此，这份文档不假装自己重新审阅了一个当前不存在的本地 `references/` 镜像，而是基于仓库里仍然可验证的 reference notes、映射文档、以及带来源标记的实现来判断超越路径。
+不过，主仓库路径 `/Users/huazhou/Downloads/Github/Yuantus/references` 里的原始参考镜像仍然存在。
+
+本次判断除依赖上述仓库内文档和实现外，还额外抽查了三个原始锚点：
+
+- `references/odoo18-enterprise-main/addons/plm_document_multi_site/models/ir_attachment.py`
+- `references/odoo18-enterprise-main/addons/plm_compare_bom/wizard/compare_bom.py`
+- `references/docdoku-plm/docdoku-plm-conversion-service/conversion-service/src/main/java/com/docdoku/plm/conversion/service/App.java`
+
+因此，这份文档不是只基于二手摘要，而是结合了：
+
+- clean worktree 里的 reference notes 和 benchmark 文档
+- 当前实现里带来源标记的模型与服务代码
+- 主仓库 reference mirrors 里的原始参考代码锚点
 
 ## 3. 深读后的判断
 
