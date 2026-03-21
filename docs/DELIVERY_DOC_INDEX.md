@@ -40,6 +40,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Delivery Upgrade Guide: `docs/DELIVERY_UPGRADE_GUIDE_20260202.md`
 - Delivery Version Docs Map: `docs/DELIVERY_VERSION_DOCS_MAP_20260202.md`
 - Development Direction (Benchmark-Driven): `docs/DEVELOPMENT_DIRECTION_BENCHMARK_DRIVEN_20260321.md`
+- Development Direction (Operations Detail Surpass): `docs/DEVELOPMENT_DIRECTION_OPERATIONS_DETAIL_SURPASS_20260321.md`
 - Development Strategy (Parity To Surpass): `docs/DEVELOPMENT_STRATEGY_PARITY_TO_SURPASS_20260321.md`
 - Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`
 - Week Plan & Verification (Enhancements): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202_FEATURES2.md`
