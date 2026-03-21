@@ -39,7 +39,7 @@
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
 - next Claude greenfield batch `C38/C39/C40`：stabilization accepted on `main`
 - next Claude greenfield batch `C41/C42/C43`：stabilization accepted on `main`
-- next Claude greenfield batch `C44/C45/C46`：merge-prep verified on `feature/codex-c44c45c46-staging` plus rehearsal branch `feature/codex-merge-rehearsal-c44c45c46`; next step is final fast-forward onto `main`
+- next Claude greenfield batch `C44/C45/C46`：stabilization accepted on `main`
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -83,9 +83,9 @@
 | C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | merged_on_main_greenfield |
 | C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | merged_on_main_greenfield |
 | C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | merged_on_main_greenfield |
-| C44 | P3 | PLM box dwell / aging | `box` dwell/aging/export helpers | merge_prep_verified |
-| C45 | P3 | document sync skew / gaps | `document_sync` skew/gap/export helpers | merge_prep_verified |
-| C46 | P3 | cutted-parts saturation / bottlenecks | `cutted_parts` saturation/bottleneck/export helpers | merge_prep_verified |
+| C44 | P3 | PLM box dwell / aging | `box` dwell/aging/export helpers | merged_on_main_greenfield |
+| C45 | P3 | document sync skew / gaps | `document_sync` skew/gap/export helpers | merged_on_main_greenfield |
+| C46 | P3 | cutted-parts saturation / bottlenecks | `cutted_parts` saturation/bottleneck/export helpers | merged_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1529,3 +1529,17 @@
 - result:
   - `C44/C45/C46` are now merge-prep verified
   - final `main` fast-forward and stabilization rerun remain intentionally pending
+
+## Increment 2026-03-21 Main-Stability-Refresh-C44-C45-C46
+- fast-forwarded `main`:
+  - `df29d5f` -> `03341b1`
+- post-merge targeted regression on `main`:
+  - `516 passed in 6.45s`
+- post-merge unified stack full regression on `main`:
+  - `734 passed, 252 warnings in 14.99s`
+- stabilization targeted regression on `main`:
+  - `516 passed in 5.07s`
+- stabilization unified stack full regression on `main`:
+  - `734 passed, 252 warnings in 12.49s`
+- result:
+  - `C44/C45/C46` stabilization window accepted on `main`

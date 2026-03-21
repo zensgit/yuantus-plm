@@ -1824,6 +1824,80 @@ git diff --check
 - warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
 - final `main` fast-forward and stabilization rerun remain intentionally pending
 
+## Increment 2026-03-21 Main-FastForward-C44-C45-C46
+
+### Touched Areas
+- `main`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+git merge --ff-only feature/codex-c44c45c46-staging
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c44c45c46-target PYTEST_ADDOPTS='-p no:cacheprovider' python3 -m pytest -q \
+  src/yuantus/meta_engine/tests/test_box_*.py \
+  src/yuantus/meta_engine/tests/test_document_sync_*.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_*.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c44c45c46-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `main` fast-forwarded from `df29d5f` to `03341b1`
+- combined targeted regression on `main`: `516 passed in 6.45s`
+- unified stack script on `main`: `734 passed, 252 warnings in 14.99s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+
+## Increment 2026-03-21 Main-Stability-Refresh-C44-C45-C46
+
+### Touched Areas
+- `main`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c44c45c46-stability-target PYTEST_ADDOPTS='-p no:cacheprovider' python3 -m pytest -q \
+  src/yuantus/meta_engine/tests/test_box_*.py \
+  src/yuantus/meta_engine/tests/test_document_sync_*.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_*.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c44c45c46-stability-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- combined targeted regression on `main`: `516 passed in 5.07s`
+- unified stack script on `main`: `734 passed, 252 warnings in 12.49s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- no new stability-window regression was observed on `main`
+
 ## Increment 2026-03-20 Codex-C41-C42-Stack-Verification
 
 ### Touched Areas

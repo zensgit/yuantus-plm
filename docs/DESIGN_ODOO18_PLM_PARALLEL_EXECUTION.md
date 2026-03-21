@@ -1612,3 +1612,24 @@
   - perform final operator fast-forward onto `main`
   - rerun `main` targeted/full verification and stabilization refresh
   - after stabilization, open the next increment only through the benchmark child checklist template
+
+## Increment 2026-03-21 Main-Integration-C44-C45-C46
+
+### Decision
+- `C44/C45/C46` 已经完成 `main` fast-forward 和稳定窗口确认，不再停留在 merge-prep 状态。
+- 这三个域后续不再以“补本轮收口”为主，而是要么等待下一个 Odoo18-style bounded increment，要么保持冻结状态直到新的 benchmark child checklist 被明确写出。
+
+### Why
+- `main` 上的 targeted regression 与 unified full regression 都通过，说明 staging 候选栈在真实主线基线上没有引入新的功能性阻塞。
+- 第二轮 stability rerun 继续通过，说明当前 tenth-stage stack 已具备进入下一轮并行规划的稳定性信号。
+- 由于 benchmark direction 已经固定，后续扩展不需要再讨论 `Aras/Odoo18/DocDoku` 混口径，只需要选择下一条主 benchmark 线。
+
+### Result
+- `main` fast-forward: `df29d5f` -> `03341b1`
+- post-merge targeted regression on `main`: `516 passed in 6.45s`
+- post-merge unified full regression on `main`: `734 passed, 252 warnings in 14.99s`
+- stabilization targeted regression on `main`: `516 passed in 5.07s`
+- stabilization unified full regression on `main`: `734 passed, 252 warnings in 12.49s`
+- next step:
+  - keep `box/document_sync/cutted_parts` closed until the next bounded Odoo18-style increment is explicitly chosen
+  - allow `file-cad` DocDoku-aligned contract convergence to be prepared in parallel

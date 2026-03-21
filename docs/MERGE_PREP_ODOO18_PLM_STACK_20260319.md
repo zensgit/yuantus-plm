@@ -553,9 +553,18 @@
     - `734 passed, 252 warnings in 12.95s`
   - rehearsal passed without manual conflict resolution
 - actual main fast-forward:
-  - pending operator execution
+  - `df29d5f` -> `03341b1`
 - post-merge verification:
-  - pending on `main`
+  - combined targeted regression:
+    - `516 passed in 6.45s`
+  - unified stack script on `main`:
+    - `734 passed, 252 warnings in 14.99s`
 - current gate:
-  - `C44/C45/C46` are now merge-prep-verified on staging and rehearsal branches
-  - final `main` fast-forward and stabilization rerun remain intentionally pending
+  - `C44/C45/C46` are now merged on `main`
+- stabilization rerun:
+  - combined targeted regression:
+    - `516 passed in 5.07s`
+  - unified stack script on `main`:
+    - `734 passed, 252 warnings in 12.49s`
+- stabilization status:
+  - accepted
