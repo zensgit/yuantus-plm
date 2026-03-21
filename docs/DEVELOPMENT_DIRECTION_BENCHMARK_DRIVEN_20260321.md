@@ -6,13 +6,12 @@ This document turns the benchmark matrix into an execution direction.
 
 The repository is already clear that `Aras Innovator`, `Odoo18 PLM`, and
 `DocDoku` are not interchangeable targets. The practical problem is choosing
-what each one should drive after `C44/C45/C46` reaches merge-prep.
+what each one should drive after `C44/C45/C46` stabilizes on `main`.
 
 ## Current State
 
-- `C44/C45/C46` is now merge-prep-verified on `feature/codex-c44c45c46-staging`
-  and the isolated rehearsal branch
-  `feature/codex-merge-rehearsal-c44c45c46`
+- as of `2026-03-21`, `C44/C45/C46` has completed merge-prep, merged onto
+  `main`, and passed the stabilization window
 - `box`, `document_sync`, and `cutted_parts` have reached a stable Odoo18-style
   read-side/report/export line through `C46`
 - benchmark ownership is now explicit:
@@ -25,6 +24,7 @@ what each one should drive after `C44/C45/C46` reaches merge-prep.
 ### 1. Keep `Aras Innovator` as the product-level north star
 
 Use `Aras` to answer product questions:
+
 - are we covering the mechanical-industry closed loop
 - are we moving the roadmap and scorecard forward
 - can we demonstrate parity and differentiated evidence
@@ -35,15 +35,18 @@ already narrows milestone acceptance back to the mechanical core loop:
 `Part/BOM/Rev/ECO/Doc/CAD`.
 
 This means the next Aras-facing work should be:
+
 - stronger proof on the existing scorecard
 - closed-loop demo evidence
 - strict-gate, performance, and verification evidence
 
 It should not be:
+
 - new cross-domain hot-path rewrites
 - broad competitor-driven feature shopping
 
 Repository anchors:
+
 - `docs/DEVELOPMENT_ROADMAP_ARAS_PARITY.md`
 - `docs/ARAS_PARITY_SCORECARD.md`
 - `docs/DEVELOPMENT_PLAN.md`
@@ -60,8 +63,10 @@ the next operations/manufacturing visibility gaps worth expressing inside
 Yuantus".
 
 Immediate rule:
-- do not open a new `Cxx` in these three domains until `C44/C45/C46` finishes
-  the final `main` fast-forward and stabilization window
+
+- do not reopen multi-domain `Cxx` batching immediately after `C46`
+- pick one bounded Odoo18-style increment first, then prove it with the same
+  merge-prep and stabilization discipline
 
 After that, the next Odoo-driven lane should prioritize one of two shapes only:
 
@@ -78,6 +83,7 @@ Those three items already appear as `P0` in the Odoo reference track notes and
 fit the repo's preference for bounded, reviewable increments.
 
 Repository anchors:
+
 - `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
 - `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
 - `docs/DESIGN_PARALLEL_P3_ODOO18_REFERENCE_PARALLEL_TRACKS_20260306.md`
@@ -90,6 +96,7 @@ Repository anchors:
 selection, and connector capability discovery.
 
 The most concrete near-term gap is already documented:
+
 - design expects a consolidated `GET /api/v1/cad/capabilities` contract
 - current code still exposes `GET /api/v1/file/supported-formats`
 
@@ -98,11 +105,13 @@ the DocDoku lane. The optional `cad_bom` schema validation gap belongs on the
 same lane.
 
 This lane should keep the repository's existing boundary:
+
 - core remains the source of truth for Item/BOM/Version/ECO/File relationships
 - CAD conversion, geometry, preview, ML, and similar systems stay as derived
   data producers around the core
 
 Repository anchors:
+
 - `docs/DESIGN_DOCDOKU_ALIGNMENT_20260129.md`
 - `docs/DESIGN_CAD_CONNECTOR_PLUGIN_SPEC_20260127.md`
 - `docs/DEVELOPMENT_PLAN.md`
@@ -111,6 +120,7 @@ Repository anchors:
 ### 4. Use one primary benchmark per increment
 
 Future increments should choose one benchmark only:
+
 - `Aras` if the work changes product parity position or scorecard language
 - `Odoo18 PLM` if the work extends the current `meta_engine` operating line
 - `DocDoku` if the work changes CAD/file preview, conversion, or connector
@@ -121,29 +131,37 @@ the others as secondary references only. Do not leave the benchmark implicit.
 
 ## Recommended Parallel Lanes
 
-### Lane A: Finalize `C44/C45/C46`
-- final operator fast-forward onto `main`
-- rerun `main` targeted/full verification
-- accept stabilization window
+### Lane A: `file-cad` contract convergence
+
+- canonicalize `GET /api/v1/cad/capabilities` as the autodiscovery contract
+- add direct Python contract tests for the consolidated capabilities payload
+- mark `GET /api/v1/file/supported-formats` as legacy/deprecated
 
 ### Lane B: Next Odoo-driven increment
-- start only after Lane A stabilizes
+
+- start as a single bounded increment, not another wide batch
 - use the benchmark child checklist first
-- prefer one bounded visibility/control increment, not another wide batch
+- default candidate order:
+  - `checkout gate strictness modes`
+  - `breakage grouped counters`
+  - `BOM compare mode switch`
 
-### Lane C: `file-cad` contract convergence
-- add consolidated CAD capabilities contract
-- add optional `cad_bom` contract validation
-- keep CAD behavior aligned to the DocDoku-style UI/integration contract
+### Lane C: Aras-facing product proof
 
-### Lane D: Aras-facing product proof
 - refresh scorecard evidence after merges
 - strengthen closed-loop demos and verification artifacts
 - keep acceptance tied to the mechanical core loop
 
+### Lane D: delivery and ops hardening
+
+- keep upgrade/rollback/runbook artifacts current
+- keep benchmark child checklist mandatory before new bounded increments
+- preserve strict-gate, performance, and delivery evidence as first-class output
+
 ## Non-Directions
 
 Do not do these:
+
 - do not mix `Aras`, `Odoo18 PLM`, and `DocDoku` into a single requirement line
 - do not reopen `src/yuantus/api/app.py` or other hot shared files for routine
   benchmark-driven increments
@@ -154,8 +172,14 @@ Do not do these:
 ## Conclusion
 
 The practical development direction is:
-- merge and stabilize `C44/C45/C46`
-- keep the next `meta_engine` wave on the Odoo18-style isolated increment path
+
+- keep the next `meta_engine` wave on the Odoo18-style single-increment path
 - run `file-cad` as a separate DocDoku contract-convergence track
+- treat “surpass Aras” as an evidence problem, not a feature-sprawl problem
 - measure overall product progress against Aras, not against day-to-day feature
   noise
+
+## See Also
+
+- `docs/DEVELOPMENT_STRATEGY_PARITY_TO_SURPASS_20260321.md`
+- `docs/DELIVERY_PLAN_PARITY_TO_SURPASS_20260321.md`
