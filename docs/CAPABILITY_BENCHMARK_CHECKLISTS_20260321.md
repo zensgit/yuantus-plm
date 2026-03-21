@@ -167,3 +167,5 @@ Use this quick gate before starting the next parallel increment:
 
 If future parallel work continues immediately, create one short child checklist per
 domain increment and attach it to the next `Cxx` design doc before code starts.
+Use `docs/BENCHMARK_CHILD_CHECKLIST_TEMPLATE_20260321.md` as the default
+starting point.

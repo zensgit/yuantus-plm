@@ -39,7 +39,7 @@
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
 - next Claude greenfield batch `C38/C39/C40`：stabilization accepted on `main`
 - next Claude greenfield batch `C41/C42/C43`：stabilization accepted on `main`
-- next Claude greenfield batch `C44/C45/C46`：`C44/C45` in codex-verified staging; `C46` pending
+- next Claude greenfield batch `C44/C45/C46`：completed on codex staging `feature/codex-c44c45c46-staging`; next step is merge-prep
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -85,7 +85,7 @@
 | C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | merged_on_main_greenfield |
 | C44 | P3 | PLM box dwell / aging | `box` dwell/aging/export helpers | codex_stack_verified |
 | C45 | P3 | document sync skew / gaps | `document_sync` skew/gap/export helpers | codex_stack_verified |
-| C46 | P3 | cutted-parts saturation / bottlenecks | `cutted_parts` saturation/bottleneck/export helpers | prepared_for_claude |
+| C46 | P3 | cutted-parts saturation / bottlenecks | `cutted_parts` saturation/bottleneck/export helpers | codex_stack_verified |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
