@@ -16,4 +16,8 @@ Expose a single endpoint that summarizes CAD connector formats, extensions, feat
 
 ## Notes
 - This endpoint reflects configuration (no health checks).
+- `status` is derived from configuration and fallback behavior only:
+  - `ok`: configured non-local path is available
+  - `degraded`: local fallback only
+  - `disabled`: no usable path is configured
 - BOM capability is marked available only when CAD connector service is configured.
