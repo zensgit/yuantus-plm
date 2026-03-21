@@ -45,6 +45,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`
 - Week Plan & Verification (Enhancements): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202_FEATURES2.md`
 - Week Plan & Verification (Enhancements 2026-02-03): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260203_ENHANCEMENTS.md`
+- Reference Code Surpass Matrix: `docs/REFERENCE_CODE_SURPASS_MATRIX_20260321.md`
+- Reference-Grounded Surpass Backlog: `docs/REFERENCE_GROUNDED_SURPASS_BACKLOG_20260321.md`
 - Release Notes: `docs/RELEASE_NOTES_v0.1.3_update_20260306.md` (latest), `docs/RELEASE_NOTES_v0.1.3_update_20260204.md`, `docs/RELEASE_NOTES_v0.1.3_update_20260203.md`, `docs/RELEASE_NOTES_v0.1.3_update_20260202.md`, `docs/RELEASE_NOTES_v0.1.3_update_20260201.md`, `docs/RELEASE_NOTES_v0.1.3.md`
 - Verification Summary: `docs/VERIFICATION_RESULTS.md`
 
