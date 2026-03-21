@@ -10,6 +10,7 @@ from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import Identity, get_current_identity
+from yuantus.api.warning_headers import append_quota_warning
 from yuantus.config import get_settings
 from yuantus.database import SessionLocal as GlobalSessionLocal
 from yuantus.database import get_db
@@ -453,7 +454,7 @@ def _apply_quota_limits(
         return
     if quota_service.mode == "soft":
         if response is not None:
-            response.headers["X-Quota-Warning"] = QuotaService.build_warning(decisions)
+            append_quota_warning(response, QuotaService.build_warning(decisions))
         return
     detail = {
         "code": "QUOTA_EXCEEDED",

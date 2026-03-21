@@ -5,6 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from yuantus.database import get_db
+from yuantus.api.warning_headers import append_doc_sync_checkout_warning
 from yuantus.meta_engine.version.service import (
     VersionService,
     VersionError,
@@ -195,8 +196,8 @@ def checkout(
             )
         if gate.get("blocking"):
             if normalized_strictness_mode == "warn":
-                response.headers["X-Doc-Sync-Checkout-Warning"] = (
-                    "Checkout allowed despite doc-sync backlog"
+                append_doc_sync_checkout_warning(
+                    response, "Checkout allowed despite doc-sync backlog"
                 )
             else:
                 block_on_dead_letter_only = bool(
