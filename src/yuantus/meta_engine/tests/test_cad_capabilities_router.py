@@ -81,21 +81,29 @@ def test_cad_capabilities_endpoint_returns_consolidated_contract_shape():
         "available": True,
         "modes": ["local", "cad_ml", "connector"],
         "note": None,
+        "status": "ok",
+        "degraded_reason": None,
     }
     assert body["features"]["bom"] == {
         "available": True,
         "modes": ["connector"],
         "note": "Requires CAD connector service",
+        "status": "ok",
+        "degraded_reason": None,
     }
     assert body["features"]["manifest"] == {
         "available": True,
         "modes": ["cadgf"],
         "note": "CADGF router produces manifest/document/metadata",
+        "status": "ok",
+        "degraded_reason": None,
     }
     assert body["features"]["metadata"] == {
         "available": True,
         "modes": ["extract", "cadgf"],
         "note": None,
+        "status": "ok",
+        "degraded_reason": None,
     }
     assert body["integrations"] == {
         "cad_connector": {
@@ -103,19 +111,27 @@ def test_cad_capabilities_endpoint_returns_consolidated_contract_shape():
             "enabled": True,
             "mode": "required",
             "base_url": "http://cad-connector.local",
+            "status": "ok",
+            "degraded_reason": None,
         },
         "cad_extractor": {
             "configured": True,
             "mode": "required",
             "base_url": "http://cad-extractor.local",
+            "status": "ok",
+            "degraded_reason": None,
         },
         "cad_ml": {
             "configured": True,
             "base_url": "http://cad-ml.local",
+            "status": "ok",
+            "degraded_reason": None,
         },
         "cadgf_router": {
             "configured": True,
             "base_url": "http://cadgf.local",
+            "status": "ok",
+            "degraded_reason": None,
         },
     }
 
@@ -151,17 +167,25 @@ def test_cad_capabilities_endpoint_disables_connector_backed_modes_when_unconfig
     body = response.json()
 
     assert body["features"]["preview"]["modes"] == ["local"]
+    assert body["features"]["preview"]["status"] == "degraded"
+    assert body["features"]["preview"]["degraded_reason"] == "local fallback only"
     assert body["features"]["geometry"]["modes"] == ["local"]
+    assert body["features"]["geometry"]["status"] == "degraded"
     assert body["features"]["extract"]["modes"] == ["local"]
+    assert body["features"]["extract"]["status"] == "degraded"
     assert body["features"]["bom"] == {
         "available": False,
         "modes": [],
         "note": "Requires CAD connector service",
+        "status": "disabled",
+        "degraded_reason": "CAD connector service not configured",
     }
     assert body["features"]["metadata"] == {
         "available": True,
         "modes": ["extract"],
         "note": None,
+        "status": "degraded",
+        "degraded_reason": "local fallback only",
     }
     assert body["integrations"] == {
         "cad_connector": {
@@ -169,19 +193,27 @@ def test_cad_capabilities_endpoint_disables_connector_backed_modes_when_unconfig
             "enabled": False,
             "mode": "optional",
             "base_url": None,
+            "status": "degraded",
+            "degraded_reason": "local fallback only",
         },
         "cad_extractor": {
             "configured": False,
             "mode": "optional",
             "base_url": None,
+            "status": "degraded",
+            "degraded_reason": "local fallback only",
         },
         "cad_ml": {
             "configured": False,
             "base_url": None,
+            "status": "degraded",
+            "degraded_reason": "local fallback only",
         },
         "cadgf_router": {
             "configured": False,
             "base_url": None,
+            "status": "disabled",
+            "degraded_reason": "CADGF router not configured",
         },
     }
 
