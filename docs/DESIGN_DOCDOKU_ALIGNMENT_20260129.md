@@ -27,7 +27,8 @@ Align Yuantus CAD integration and UI contract with DocDoku-style expectations ac
 - Viewer flow uses `cad_manifest_url` and `cad_viewer_url` for UI launch.
 
 ## Gaps / Next Iteration
-- Expose a consolidated **"cad capabilities"** endpoint (formats + features) for UI autodiscovery.
+- Treat `GET /api/v1/cad/capabilities` as the canonical autodiscovery contract and
+  keep legacy discovery surfaces out of new UI integrations.
 - Add optional `cad_bom` schema validation (nodes/edges contract).
 
 ## Verification
