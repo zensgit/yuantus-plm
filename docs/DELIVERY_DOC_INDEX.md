@@ -7,6 +7,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Changelog: `CHANGELOG.md`
 - Aras Parity Scorecard: `docs/ARAS_PARITY_SCORECARD.md`
 - Benchmark Target Matrix: `docs/BENCHMARK_TARGET_MATRIX_20260321.md`
+- Capability Benchmark Checklists: `docs/CAPABILITY_BENCHMARK_CHECKLISTS_20260321.md`
 - Delivery Acceptance Checklist: `docs/DELIVERY_ACCEPTANCE_CHECKLIST_20260202.md`
 - Delivery Acceptance Guide: `docs/DELIVERY_ACCEPTANCE_GUIDE_20260202.md`
 - Delivery API Examples: `docs/DELIVERY_API_EXAMPLES_20260202.md`
