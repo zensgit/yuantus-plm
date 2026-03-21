@@ -32,6 +32,7 @@ import io
 from urllib.parse import quote
 
 from yuantus.database import get_db
+from yuantus.api.warning_headers import append_quota_warning
 from yuantus.config import get_settings
 from yuantus.context import get_request_context
 from yuantus.meta_engine.models.file import (
@@ -469,7 +470,7 @@ async def upload_file(
             )
             if decisions:
                 if quota_service.mode == "soft":
-                    response.headers["X-Quota-Warning"] = QuotaService.build_warning(decisions)
+                    append_quota_warning(response, QuotaService.build_warning(decisions))
                 else:
                     detail = {
                         "code": "QUOTA_EXCEEDED",

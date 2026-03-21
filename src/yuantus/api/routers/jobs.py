@@ -10,6 +10,7 @@ from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.api.warning_headers import append_quota_warning
 from yuantus.context import get_request_context
 from yuantus.database import get_db
 from yuantus.meta_engine.models.job import ConversionJob
@@ -164,7 +165,7 @@ def create_job(
         decisions = quota_service.evaluate(tenant_id, deltas={"active_jobs": 1})
         if decisions:
             if quota_service.mode == "soft":
-                response.headers["X-Quota-Warning"] = QuotaService.build_warning(decisions)
+                append_quota_warning(response, QuotaService.build_warning(decisions))
             else:
                 detail = {
                     "code": "QUOTA_EXCEEDED",
