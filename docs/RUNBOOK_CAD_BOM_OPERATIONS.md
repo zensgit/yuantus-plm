@@ -43,6 +43,12 @@ Expected meanings:
   operator attention
 - `blocked`: the proof surface is missing critical evidence such as trustworthy
   asset output or viewer readiness
+- `decision_validity_status=active`: current decision is usable now.
+- `decision_validity_status=expiring`: decision is within the expiry window and
+  renewal is recommended.
+- `decision_validity_status=expired`: decision expired and renewal is required.
+- `decision_validity_status=missing_expiry`: waived decision has no expiry and must
+  be renewed before handoff.
 
 ## 2. Record or inspect proof acknowledgement / waiver
 
@@ -91,6 +97,8 @@ Focus on:
 - `entries[*].decision`
 - `entries[*].scope`
 - `entries[*].issue_codes`
+- `entries[*].validity_status`
+- `entries[*].renewal_required`
 - `entries[*].covers_current_proof`
 
 Expected meanings:
@@ -293,8 +301,14 @@ Common failure codes:
   - inspect `review.state` and `history` before accepting recovery
 - `operator_proof.decision_status=open`
   - record an acknowledgement or waiver before handoff if the current proof is intentionally accepted
+- `operator_proof.decision_validity_status=expired`
+  - decision expired; run renew flow.
+- `operator_proof.decision_validity_status=expiring`
+  - decision still usable but renewal is recommended.
 - `active_decision.covers_current_proof=false`
   - old acknowledgement no longer matches current proof; re-export and re-record a fresh decision
+- `operator_proof.decision_validity_status=missing_expiry`
+  - waived decision has no expiry; renew required before handoff.
 
 - `contract_invalid`
   - inspect `import_result.contract_validation`
@@ -325,6 +339,8 @@ Escalate to a deeper connector/source investigation when:
   recovery actions
 - `operator_proof.requires_operator_decision=true` and no responsible operator
   can record a decision
+- `operator_proof.decision_renewal_required=true` and no defined renewal path
+  for this service boundary
 - `mismatch.status` remains `mismatch` after drift review and reimport
 - `issue_codes` change unexpectedly across repeated exports
 - `history` shows repeated reimport requests without quality improvement
@@ -334,3 +350,51 @@ Escalate to a deeper connector/source investigation when:
 For generic CAD job failures outside BOM import, also use:
 
 - `docs/RUNBOOK_JOBS_DIAG.md`
+
+## 11. Renew an expired or expiring decision
+
+Use the existing decision endpoint to renew:
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/files/<file_id>/proof/decisions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{
+    "decision": "waived",
+    "scope": "full_proof",
+    "reason_code": "downstream_lag",
+    "comment": "renew decision for new conversion window",
+    "renew_from_decision_id": "proof-decision-id",
+    "expires_at": "2026-03-30T12:00:00Z"
+  }'
+```
+
+For acknowledgement renew:
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/files/<file_id>/proof/decisions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{
+    "decision": "acknowledged",
+    "scope": "full_proof",
+    "comment": "renew acknowledgement after mismatch review",
+    "renew_from_decision_id": "proof-decision-id"
+  }'
+```
+
+Renewal checks:
+
+- `renew_from_decision_id` must match a current decision entry.
+- New `expires_at` must be later than the previous expiry when renewing waiver.
+- `proof_decisions` will record `cad_operator_proof_waiver_renewed` or
+  `cad_operator_proof_acknowledgement_renewed` in `audit_action`.
+
+Decision visibility checks:
+
+- `/proof` should show `decision_validity_status=active` or `expiring` after renewal.
+- `/proof/decisions` should show `renewed_from_decision_id` for the new entry.
+- `.../bom/export` should show renewed decision in `operator_proof.json` and
+  `proof_manifest`.

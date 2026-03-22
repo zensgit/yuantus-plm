@@ -128,10 +128,10 @@
     “当前 CAD asset set 是否可信、BOM 是否漂移、证据在哪里、下一步该看哪里”
 - Still missing:
   - callback/result evidence bundle
-  - decision expiry / renewal automation
+  - proof-consumer adoption evidence
   - proof-consumer adoption evidence in UI/support flows
 - Best next bounded increment:
-  - `cad proof decision expiry / renewal governance`
+  - `proof-consumer adoption evidence`
 
 ### 6. CAD BOM contract 已经进入“mismatch + proof”阶段，但还没完成全链路领先
 
@@ -156,8 +156,9 @@
 - Still missing:
   - mismatch acknowledgement / waiver audit trail
   - asset-quality proof linking BOM mismatch, geometry readiness, and conversion result metadata
+  - decision expiry / renewal governance
 - Best next bounded increment:
-  - `cad asset quality metadata (bbox/lod/result)`
+  - `cad proof decision expiry / renewal governance`
 
 ### 7. Warning taxonomy 已经出现雏形，但还没统一成平台能力
 
