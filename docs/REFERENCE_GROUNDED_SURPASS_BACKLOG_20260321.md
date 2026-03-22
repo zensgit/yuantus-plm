@@ -139,13 +139,15 @@
   - `GET /api/v1/cad/files/{file_id}/bom` 现在额外暴露 coarse `summary`
   - partial/invalid import 会把 `cad_review_state` 自动翻到 `pending`
   - `POST /api/v1/cad/files/{file_id}/bom/reimport` 提供有边界的恢复入口
+  - `GET /api/v1/cad/files/{file_id}/bom/export` 现在提供 evidence-grade `zip|json` bundle
+  - `docs/RUNBOOK_CAD_BOM_OPERATIONS.md` 已把 inspection/export/review/reimport 收口为 operator 手册
 - Why this can surpass:
   - 如果把 CAD BOM 从“文件结果”升级成“可校验 contract + operator explainability”，就比参考代码更易落地
 - Still missing:
-  - runbook for import failure / mismatch recovery
-  - export/evidence pack for CAD BOM operator scenarios
+  - mismatch-oriented recovery grouping
+  - scenario-grade proof bundle tying export output to regression evidence
 - Best next bounded increment:
-  - `cad_bom runbook + operator export bundle`
+  - `cad_bom mismatch recovery + proof bundle`
 
 ### 7. Warning taxonomy 已经出现雏形，但还没统一成平台能力
 

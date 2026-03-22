@@ -1,4 +1,7 @@
 import json
+import io
+import zipfile
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -7,11 +10,12 @@ from fastapi.testclient import TestClient
 
 from yuantus.api.dependencies.auth import CurrentUser, get_current_user
 from yuantus.database import get_db
+from yuantus.meta_engine.models.cad_audit import CadChangeLog
 from yuantus.meta_engine.models.file import ItemFile
 from yuantus.meta_engine.web.cad_router import router as cad_router
 
 
-def _cad_client(*, file_container, jobs=None, item_file_rows=None) -> TestClient:
+def _cad_client(*, file_container, jobs=None, item_file_rows=None, history_logs=None) -> TestClient:
     mock_db = MagicMock()
     mock_db.get.return_value = file_container
 
@@ -26,9 +30,17 @@ def _cad_client(*, file_container, jobs=None, item_file_rows=None) -> TestClient
     item_file_query.order_by.return_value = item_file_query
     item_file_query.all.return_value = item_file_rows or []
 
+    history_query = MagicMock()
+    history_query.filter.return_value = history_query
+    history_query.order_by.return_value = history_query
+    history_query.limit.return_value = history_query
+    history_query.all.return_value = history_logs or []
+
     def _query(model):
         if model is ItemFile:
             return item_file_query
+        if model is CadChangeLog:
+            return history_query
         return job_query
 
     mock_db.query.side_effect = _query
@@ -210,3 +222,175 @@ def test_reimport_cad_bom_returns_400_when_attached_item_resolution_is_ambiguous
     detail = response.json()["detail"]
     assert detail["code"] == "cad_bom_reimport_item_ambiguous"
     assert detail["context"]["item_ids"] == ["item-a", "item-b"]
+
+
+def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
+    file_container = SimpleNamespace(
+        id="file-5",
+        filename="assy.step",
+        cad_bom_path="/vault/file-5.json",
+        cad_connector_id="step",
+        cad_format="STEP",
+        document_type="3d",
+        cad_review_state="pending",
+        cad_review_note="needs operator cleanup",
+        cad_review_by_id=9,
+        cad_reviewed_at=datetime(2026, 3, 22, 10, 0, 0),
+    )
+    client = _cad_client(
+        file_container=file_container,
+        history_logs=[
+            SimpleNamespace(
+                id="log-1",
+                action="cad_bom_reimport_requested",
+                payload={"job_id": "job-r1"},
+                created_at=datetime(2026, 3, 22, 9, 30, 0),
+                user_id=7,
+            )
+        ],
+    )
+    stored_payload = {
+        "file_id": "file-5",
+        "item_id": "item-5",
+        "imported_at": "2026-03-22T09:00:00Z",
+        "import_result": {
+            "ok": True,
+            "errors": ["line skipped"],
+            "contract_validation": {
+                "schema": "nodes_edges_v1",
+                "status": "invalid",
+                "shape": "graph",
+                "raw_counts": {"nodes": 3, "edges": 2},
+                "accepted_counts": {"nodes": 2, "edges": 1},
+                "root": "assy-root",
+                "root_source": "inferred",
+                "issues": ["edge[0] child not found: child-missing"],
+            },
+        },
+        "bom": {"nodes": [{"id": "assy-root"}], "edges": [], "root": "assy-root"},
+    }
+
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+        def _download(_path, output_stream):
+            output_stream.write(json.dumps(stored_payload).encode("utf-8"))
+
+        file_service_cls.return_value.download_file.side_effect = _download
+        response = client.get("/api/v1/cad/files/file-5/bom/export?export_format=zip")
+
+    assert response.status_code == 200
+    assert response.headers.get("content-disposition", "").endswith("cad-bom-ops-file-5.zip\"")
+
+    zf = zipfile.ZipFile(io.BytesIO(response.content))
+    names = set(zf.namelist())
+    assert "bundle.json" in names
+    assert "summary.json" in names
+    assert "review.json" in names
+    assert "history.csv" in names
+    assert "recovery_actions.csv" in names
+    assert "README.txt" in names
+
+    bundle = json.loads(zf.read("bundle.json"))
+    assert bundle["file"]["file_id"] == "file-5"
+    assert bundle["review"]["state"] == "pending"
+    assert bundle["cad_bom"]["summary"]["status"] == "degraded"
+    assert bundle["history"][0]["action"] == "cad_bom_reimport_requested"
+
+    history_csv = zf.read("history.csv").decode("utf-8-sig")
+    assert history_csv.splitlines()[0] == "id,action,created_at,user_id,payload"
+    assert "cad_bom_reimport_requested" in history_csv
+
+    readme = zf.read("README.txt").decode("utf-8")
+    assert "structured_bom_url=/api/v1/cad/files/file-5/bom" in readme
+    assert "reimport_url=/api/v1/cad/files/file-5/bom/reimport" in readme
+
+
+def test_export_cad_bom_bundle_json_supports_job_fallback():
+    file_container = SimpleNamespace(
+        id="file-6",
+        filename="assy2.step",
+        cad_bom_path=None,
+        cad_connector_id="step",
+        cad_format="STEP",
+        document_type="3d",
+        cad_review_state="approved",
+        cad_review_note="accepted",
+        cad_review_by_id=11,
+        cad_reviewed_at=datetime(2026, 3, 22, 11, 0, 0),
+    )
+    client = _cad_client(
+        file_container=file_container,
+        jobs=[
+            SimpleNamespace(
+                id="job-6",
+                status="completed",
+                created_at=datetime(2026, 3, 22, 8, 0, 0),
+                completed_at=datetime(2026, 3, 22, 8, 5, 0),
+                payload={
+                    "file_id": "file-6",
+                    "item_id": "item-6",
+                    "result": {
+                        "import_result": {
+                            "ok": True,
+                            "contract_validation": {
+                                "schema": "nodes_edges_v1",
+                                "status": "valid",
+                                "shape": "tree",
+                                "raw_counts": {"nodes": 2, "edges": 1},
+                                "accepted_counts": {"nodes": 2, "edges": 1},
+                                "root": "assy-root",
+                                "root_source": "payload",
+                                "issues": [],
+                            },
+                        },
+                        "bom": {
+                            "root": {"id": "assy-root", "children": [{"id": "child-1"}]},
+                        },
+                    },
+                },
+            )
+        ],
+        history_logs=[],
+    )
+
+    response = client.get("/api/v1/cad/files/file-6/bom/export?export_format=json")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["file"]["file_id"] == "file-6"
+    assert body["file"]["has_stored_artifact"] is False
+    assert body["cad_bom"]["job_id"] == "job-6"
+    assert body["cad_bom"]["summary"]["status"] == "ready"
+    assert body["review"]["state"] == "approved"
+    assert body["links"]["raw_bom_url"] is None
+
+
+def test_export_cad_bom_bundle_rejects_unsupported_format():
+    file_container = SimpleNamespace(
+        id="file-7",
+        filename="assy3.step",
+        cad_bom_path="/vault/file-7.json",
+        cad_connector_id="step",
+        cad_format="STEP",
+        document_type="3d",
+        cad_review_state=None,
+        cad_review_note=None,
+        cad_review_by_id=None,
+        cad_reviewed_at=None,
+    )
+    client = _cad_client(file_container=file_container)
+    stored_payload = {
+        "file_id": "file-7",
+        "item_id": "item-7",
+        "import_result": {"ok": True, "contract_validation": {"status": "valid", "issues": []}},
+        "bom": {"nodes": [], "edges": []},
+    }
+
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+        def _download(_path, output_stream):
+            output_stream.write(json.dumps(stored_payload).encode("utf-8"))
+
+        file_service_cls.return_value.download_file.side_effect = _download
+        response = client.get("/api/v1/cad/files/file-7/bom/export?export_format=xlsx")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Unsupported export format"

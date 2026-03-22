@@ -98,6 +98,7 @@ RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
 - `docs/ERROR_CODES_JOBS.md` (Jobs error codes)
 - `docs/OPS_RUNBOOK_MT.md` (Multi-tenancy ops)
 - `docs/RUNBOOK_BACKUP_RESTORE.md` (Backup/restore)
+- `docs/RUNBOOK_CAD_BOM_OPERATIONS.md` (CAD BOM export/review/reimport)
 - `docs/RUNBOOK_CI_CHANGE_SCOPE.md` (CI/regression skip rules + force full runs)
 - `docs/RUNBOOK_JOBS_DIAG.md` (Jobs/CAD failure diagnostics)
 - `docs/RUNBOOK_PARALLEL_BRANCH_OBSERVABILITY_20260228.md` (Parallel branch observability and incident handling)

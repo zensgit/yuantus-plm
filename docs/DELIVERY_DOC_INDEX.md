@@ -58,6 +58,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Multi‑Tenancy Ops Runbook: `docs/OPS_RUNBOOK_MT.md`
 - Production Readiness Check: `docs/PROD_READINESS_CHECK.md`
 - Backup & Restore Runbook: `docs/RUNBOOK_BACKUP_RESTORE.md`
+- CAD BOM Operations Runbook: `docs/RUNBOOK_CAD_BOM_OPERATIONS.md`
 - CI/Regression Change Scope Runbook: `docs/RUNBOOK_CI_CHANGE_SCOPE.md`
 - Jobs Diagnostics Runbook: `docs/RUNBOOK_JOBS_DIAG.md`
 - Parallel Branch Observability Runbook: `docs/RUNBOOK_PARALLEL_BRANCH_OBSERVABILITY_20260228.md`
@@ -80,6 +81,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- CAD BOM Operator Export Bundle Design: `docs/DESIGN_CAD_BOM_OPERATOR_EXPORT_BUNDLE_20260322.md`
 - CAD BOM Recovery Surfacing Design: `docs/DESIGN_CAD_BOM_RECOVERY_SURFACING_20260322.md`
 - Odoo18 PLM Parallel Execution Design: `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
 - C10 Locale Resolver Export Helpers Design: `docs/DESIGN_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
@@ -130,6 +132,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - BOM Substitutes API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_SUBSTITUTES_E2E_20260214.md`
 - BOM Tree API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_TREE_E2E_20260214.md`
 - BOM Weight Rollup API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_WEIGHT_ROLLUP_E2E_20260214.md`
+- CAD BOM Operator Export Bundle Verification: `docs/DEV_AND_VERIFICATION_CAD_BOM_OPERATOR_EXPORT_BUNDLE_20260322.md`
 - CAD BOM Recovery Surfacing Verification: `docs/DEV_AND_VERIFICATION_CAD_BOM_RECOVERY_SURFACING_20260322.md`
 - CAD Dedup (SimilarityRecord -> Part Equivalent) (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
 - CAD Dedup Vision (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_VISION_S3_PG_MINIO_20260212.md`

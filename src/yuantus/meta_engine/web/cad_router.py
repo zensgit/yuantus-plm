@@ -6,6 +6,7 @@ import json
 import os
 import re
 import uuid
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -22,6 +23,7 @@ from fastapi import (
     Response,
     UploadFile,
 )
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
@@ -398,6 +400,27 @@ class CadBomReimportResponse(BaseModel):
     job_status: str
 
 
+class CadBomBundleFileInfo(BaseModel):
+    file_id: str
+    filename: Optional[str] = None
+    cad_connector_id: Optional[str] = None
+    cad_format: Optional[str] = None
+    document_type: Optional[str] = None
+    cad_review_state: Optional[str] = None
+    cad_review_note: Optional[str] = None
+    has_stored_artifact: bool = False
+
+
+class CadBomOperatorBundleResponse(BaseModel):
+    bundle_version: str = "cad_bom_operator_bundle_v1"
+    exported_at: datetime
+    file: CadBomBundleFileInfo
+    cad_bom: CadBomResponse
+    review: CadReviewResponse
+    history: List[CadChangeLogEntry] = Field(default_factory=list)
+    links: Dict[str, Optional[str]] = Field(default_factory=dict)
+
+
 class CadPropertiesResponse(BaseModel):
     file_id: str
     properties: Dict[str, Any] = Field(default_factory=dict)
@@ -463,6 +486,32 @@ def _load_cad_bom_wrapper(file_container: FileContainer) -> Optional[Dict[str, A
     if not isinstance(payload, dict):
         raise HTTPException(status_code=500, detail="CAD BOM invalid JSON")
     return payload
+
+
+def _csv_bytes(*, rows: List[Dict[str, Any]], columns: List[str]) -> bytes:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(list(columns))
+    for row in rows:
+        out_row: List[str] = []
+        for col in columns:
+            value = (row or {}).get(col)
+            if isinstance(value, (dict, list)):
+                out_row.append(json.dumps(value, ensure_ascii=False, default=str))
+            elif value is None:
+                out_row.append("")
+            else:
+                out_row.append(str(value))
+        writer.writerow(out_row)
+    return buffer.getvalue().encode("utf-8-sig")
+
+
+def _zip_bytes(*, files: Dict[str, bytes]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for name, content in files.items():
+            zf.writestr(name, content or b"")
+    return buffer.getvalue()
 
 
 def _resolve_cad_bom_item_id(
@@ -532,6 +581,100 @@ class CadChangeLogResponse(BaseModel):
 class CadMeshStatsResponse(BaseModel):
     file_id: str
     stats: Dict[str, Any]
+
+
+def _build_cad_review_response(file_container: FileContainer) -> CadReviewResponse:
+    reviewed_at = file_container.cad_reviewed_at
+    return CadReviewResponse(
+        file_id=file_container.id,
+        state=file_container.cad_review_state,
+        note=file_container.cad_review_note,
+        reviewed_at=reviewed_at.isoformat() if reviewed_at else None,
+        reviewed_by_id=file_container.cad_review_by_id,
+    )
+
+
+def _load_cad_history_entries(
+    *,
+    file_container: FileContainer,
+    db: Session,
+    limit: int,
+) -> List[CadChangeLogEntry]:
+    logs = (
+        db.query(CadChangeLog)
+        .filter(CadChangeLog.file_id == file_container.id)
+        .order_by(CadChangeLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return [
+        CadChangeLogEntry(
+            id=log.id,
+            action=log.action,
+            payload=log.payload or {},
+            created_at=log.created_at.isoformat(),
+            user_id=log.user_id,
+        )
+        for log in logs
+    ]
+
+
+def _build_cad_bom_response(
+    *,
+    file_container: FileContainer,
+    db: Session,
+) -> CadBomResponse:
+    if file_container.cad_bom_path:
+        payload = _load_cad_bom_wrapper(file_container)
+        return CadBomResponse(
+            file_id=file_container.id,
+            item_id=payload.get("item_id"),
+            imported_at=payload.get("imported_at"),
+            import_result=payload.get("import_result") or {},
+            bom=payload.get("bom") or {},
+            job_status="completed",
+            summary=build_cad_bom_operator_summary(
+                import_result=payload.get("import_result") or {},
+                bom_payload=payload.get("bom") or {},
+                has_artifact=True,
+            ),
+        )
+
+    jobs = (
+        db.query(ConversionJob)
+        .filter(ConversionJob.task_type == "cad_bom")
+        .order_by(ConversionJob.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    matched_job = None
+    for job in jobs:
+        payload = job.payload or {}
+        if str(payload.get("file_id") or "") == file_container.id:
+            matched_job = job
+            break
+
+    if not matched_job:
+        raise HTTPException(status_code=404, detail="No cad_bom data found")
+
+    payload = matched_job.payload or {}
+    result = payload.get("result") or {}
+    imported_at = matched_job.completed_at or matched_job.created_at
+
+    return CadBomResponse(
+        file_id=file_container.id,
+        item_id=payload.get("item_id"),
+        job_id=matched_job.id,
+        job_status=matched_job.status,
+        imported_at=imported_at.isoformat() if imported_at else None,
+        import_result=result.get("import_result") or {},
+        bom=result.get("bom") or {},
+        summary=build_cad_bom_operator_summary(
+            import_result=result.get("import_result") or {},
+            bom_payload=result.get("bom") or {},
+            has_artifact=bool(file_container.cad_bom_path),
+        ),
+    )
 
 
 def _calculate_checksum(content: bytes) -> str:
@@ -1295,57 +1438,139 @@ def get_cad_bom(
     file_container = db.get(FileContainer, file_id)
     if not file_container:
         raise HTTPException(status_code=404, detail="File not found")
+    return _build_cad_bom_response(file_container=file_container, db=db)
 
-    if file_container.cad_bom_path:
-        payload = _load_cad_bom_wrapper(file_container)
-        return CadBomResponse(
-            file_id=file_container.id,
-            item_id=payload.get("item_id"),
-            imported_at=payload.get("imported_at"),
-            import_result=payload.get("import_result") or {},
-            bom=payload.get("bom") or {},
-            job_status="completed",
-            summary=build_cad_bom_operator_summary(
-                import_result=payload.get("import_result") or {},
-                bom_payload=payload.get("bom") or {},
-                has_artifact=True,
-            ),
-        )
 
-    jobs = (
-        db.query(ConversionJob)
-        .filter(ConversionJob.task_type == "cad_bom")
-        .order_by(ConversionJob.created_at.desc())
-        .limit(50)
-        .all()
+@router.get("/files/{file_id}/bom/export")
+def export_cad_bom_bundle(
+    file_id: str,
+    export_format: str = Query("zip", description="zip|json"),
+    history_limit: int = Query(20, ge=1, le=200),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    cad_bom = _build_cad_bom_response(file_container=file_container, db=db)
+    review = _build_cad_review_response(file_container)
+    history_entries = _load_cad_history_entries(
+        file_container=file_container,
+        db=db,
+        limit=history_limit,
     )
-    matched_job = None
-    for job in jobs:
-        payload = job.payload or {}
-        if str(payload.get("file_id") or "") == file_id:
-            matched_job = job
-            break
 
-    if not matched_job:
-        raise HTTPException(status_code=404, detail="No cad_bom data found")
-
-    payload = matched_job.payload or {}
-    result = payload.get("result") or {}
-    imported_at = matched_job.completed_at or matched_job.created_at
-
-    return CadBomResponse(
-        file_id=file_container.id,
-        item_id=payload.get("item_id"),
-        job_id=matched_job.id,
-        job_status=matched_job.status,
-        imported_at=imported_at.isoformat() if imported_at else None,
-        import_result=result.get("import_result") or {},
-        bom=result.get("bom") or {},
-        summary=build_cad_bom_operator_summary(
-            import_result=result.get("import_result") or {},
-            bom_payload=result.get("bom") or {},
-            has_artifact=bool(file_container.cad_bom_path),
+    bundle = CadBomOperatorBundleResponse(
+        exported_at=datetime.utcnow(),
+        file=CadBomBundleFileInfo(
+            file_id=file_container.id,
+            filename=getattr(file_container, "filename", None),
+            cad_connector_id=file_container.cad_connector_id,
+            cad_format=file_container.cad_format,
+            document_type=file_container.document_type,
+            cad_review_state=file_container.cad_review_state,
+            cad_review_note=file_container.cad_review_note,
+            has_stored_artifact=bool(file_container.cad_bom_path),
         ),
+        cad_bom=cad_bom,
+        review=review,
+        history=history_entries,
+        links={
+            "structured_bom_url": f"/api/v1/cad/files/{file_id}/bom",
+            "raw_bom_url": (
+                f"/api/v1/file/{file_id}/cad_bom" if file_container.cad_bom_path else None
+            ),
+            "review_url": f"/api/v1/cad/files/{file_id}/review",
+            "history_url": f"/api/v1/cad/files/{file_id}/history?limit={history_limit}",
+            "reimport_url": f"/api/v1/cad/files/{file_id}/bom/reimport",
+            "file_url": f"/api/v1/file/{file_id}",
+        },
+    )
+    payload = bundle.model_dump(mode="json")
+    fmt = (export_format or "").strip().lower()
+
+    if fmt in {"json", "application/json"}:
+        content = json.dumps(payload, ensure_ascii=False, default=str, indent=2).encode("utf-8")
+        headers = {"Content-Disposition": f'attachment; filename="cad-bom-ops-{file_id}.json"'}
+        return Response(content=content, media_type="application/json", headers=headers)
+
+    if fmt != "zip":
+        raise HTTPException(status_code=400, detail="Unsupported export format")
+
+    history_rows = [entry.model_dump(mode="json") for entry in history_entries]
+    recovery_rows = list(cad_bom.summary.get("recovery_actions") or [])
+    issue_rows = [
+        {"code": code}
+        for code in (cad_bom.summary.get("issue_codes") or [])
+    ]
+    bundle_bytes = _zip_bytes(
+        files={
+            "bundle.json": json.dumps(payload, ensure_ascii=False, default=str, indent=2).encode(
+                "utf-8"
+            ),
+            "file.json": json.dumps(
+                bundle.file.model_dump(mode="json"),
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "summary.json": json.dumps(
+                cad_bom.summary,
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "review.json": json.dumps(
+                review.model_dump(mode="json"),
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "import_result.json": json.dumps(
+                cad_bom.import_result,
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "bom.json": json.dumps(
+                cad_bom.bom,
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "history.json": json.dumps(
+                history_rows,
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "history.csv": _csv_bytes(
+                rows=history_rows,
+                columns=["id", "action", "created_at", "user_id", "payload"],
+            ),
+            "recovery_actions.csv": _csv_bytes(
+                rows=recovery_rows,
+                columns=["code", "label"],
+            ),
+            "issue_codes.csv": _csv_bytes(rows=issue_rows, columns=["code"]),
+            "README.txt": (
+                "YuantusPLM CAD BOM operator bundle\n"
+                f"file_id={file_id}\n"
+                f"exported_at={bundle.exported_at.isoformat()}\n"
+                f"structured_bom_url=/api/v1/cad/files/{file_id}/bom\n"
+                f"raw_bom_url={bundle.links['raw_bom_url'] or ''}\n"
+                f"review_url=/api/v1/cad/files/{file_id}/review\n"
+                f"history_url=/api/v1/cad/files/{file_id}/history?limit={history_limit}\n"
+                f"reimport_url=/api/v1/cad/files/{file_id}/bom/reimport\n"
+            ).encode("utf-8"),
+        }
+    )
+    headers = {"Content-Disposition": f'attachment; filename="cad-bom-ops-{file_id}.zip"'}
+    return StreamingResponse(
+        io.BytesIO(bundle_bytes),
+        media_type="application/zip",
+        headers=headers,
     )
 
 
@@ -1581,15 +1806,7 @@ def get_cad_review(
     file_container = db.get(FileContainer, file_id)
     if not file_container:
         raise HTTPException(status_code=404, detail="File not found")
-
-    reviewed_at = file_container.cad_reviewed_at
-    return CadReviewResponse(
-        file_id=file_container.id,
-        state=file_container.cad_review_state,
-        note=file_container.cad_review_note,
-        reviewed_at=reviewed_at.isoformat() if reviewed_at else None,
-        reviewed_by_id=file_container.cad_review_by_id,
-    )
+    return _build_cad_review_response(file_container)
 
 
 @router.post("/files/{file_id}/review", response_model=CadReviewResponse)
@@ -1667,25 +1884,14 @@ def get_cad_history(
     file_container = db.get(FileContainer, file_id)
     if not file_container:
         raise HTTPException(status_code=404, detail="File not found")
-
-    logs = (
-        db.query(CadChangeLog)
-        .filter(CadChangeLog.file_id == file_container.id)
-        .order_by(CadChangeLog.created_at.desc())
-        .limit(limit)
-        .all()
+    return CadChangeLogResponse(
+        file_id=file_container.id,
+        entries=_load_cad_history_entries(
+            file_container=file_container,
+            db=db,
+            limit=limit,
+        ),
     )
-    entries = [
-        CadChangeLogEntry(
-            id=log.id,
-            action=log.action,
-            payload=log.payload or {},
-            created_at=log.created_at.isoformat(),
-            user_id=log.user_id,
-        )
-        for log in logs
-    ]
-    return CadChangeLogResponse(file_id=file_container.id, entries=entries)
 
 
 @router.get("/files/{file_id}/mesh-stats", response_model=CadMeshStatsResponse)
