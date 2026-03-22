@@ -86,6 +86,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CAD BOM Mismatch Proof Bundle Design: `docs/DESIGN_CAD_BOM_MISMATCH_PROOF_BUNDLE_20260322.md`
 - CAD BOM Operator Export Bundle Design: `docs/DESIGN_CAD_BOM_OPERATOR_EXPORT_BUNDLE_20260322.md`
 - CAD BOM Recovery Surfacing Design: `docs/DESIGN_CAD_BOM_RECOVERY_SURFACING_20260322.md`
+- CAD Operator Proof Acknowledgement / Waiver Design: `docs/DESIGN_CAD_OPERATOR_PROOF_ACKNOWLEDGEMENT_WAIVER_20260322.md`
 - Odoo18 PLM Parallel Execution Design: `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
 - C10 Locale Resolver Export Helpers Design: `docs/DESIGN_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
 - C11 File Viewer Consumer Design: `docs/DESIGN_PARALLEL_C11_FILE_VIEWER_CONSUMER_20260319.md`
@@ -142,6 +143,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CAD BOM Recovery Surfacing Verification: `docs/DEV_AND_VERIFICATION_CAD_BOM_RECOVERY_SURFACING_20260322.md`
 - CAD Dedup (SimilarityRecord -> Part Equivalent) (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
 - CAD Dedup Vision (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_VISION_S3_PG_MINIO_20260212.md`
+- CAD Operator Proof Acknowledgement / Waiver Verification: `docs/DEV_AND_VERIFICATION_CAD_OPERATOR_PROOF_ACKNOWLEDGEMENT_WAIVER_20260322.md`
 - CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`
 - CI/Regression Change Scope + Release Orchestration Script: `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_RUNBOOK_RELEASE_ORCH_SCRIPT_20260210.md`
 - CI Concurrency + Runbooks: `docs/DEV_AND_VERIFICATION_CI_CONCURRENCY_RUNBOOKS_20260210.md`

@@ -128,9 +128,10 @@
     “当前 CAD asset set 是否可信、BOM 是否漂移、证据在哪里、下一步该看哪里”
 - Still missing:
   - callback/result evidence bundle
-  - operator acknowledgement / waiver trail for degraded assets
+  - decision expiry / renewal automation
+  - proof-consumer adoption evidence in UI/support flows
 - Best next bounded increment:
-  - `cad proof acknowledgement / waiver trail`
+  - `cad proof decision expiry / renewal governance`
 
 ### 6. CAD BOM contract 已经进入“mismatch + proof”阶段，但还没完成全链路领先
 
@@ -226,7 +227,7 @@
 默认顺序建议固定为：
 
 1. merge 当前 `cad_bom mismatch proof` 分支
-2. 做 `cad proof acknowledgement / waiver trail`
+2. 做 `cad proof decision expiry / renewal governance`
 3. 做 `doc_sync governance presets + warning telemetry`
 4. 做 `viewer readiness operator pack`
 5. 做 `bom compare guided apply-preview + operator evidence`

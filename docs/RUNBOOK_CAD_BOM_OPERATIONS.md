@@ -23,9 +23,12 @@ curl -s 'http://127.0.0.1:7910/api/v1/cad/files/<file_id>/proof?history_limit=20
 Focus on:
 
 - `operator_proof.status`
+- `operator_proof.decision_status`
+- `operator_proof.requires_operator_decision`
 - `operator_proof.proof_gaps`
 - `operator_proof.issue_codes`
 - `operator_proof.next_actions`
+- `active_decision`
 - `asset_quality.status`
 - `asset_quality.result.status`
 - `viewer_readiness.viewer_mode`
@@ -41,7 +44,63 @@ Expected meanings:
 - `blocked`: the proof surface is missing critical evidence such as trustworthy
   asset output or viewer readiness
 
-## 2. Read the derived CAD BOM surface
+## 2. Record or inspect proof acknowledgement / waiver
+
+Read decision trail:
+
+```bash
+curl -s 'http://127.0.0.1:7910/api/v1/cad/files/<file_id>/proof/decisions?history_limit=20' \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+Record a bounded acknowledgement:
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/files/<file_id>/proof/decisions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{
+    "decision":"acknowledged",
+    "scope":"full_proof",
+    "comment":"accepted during staged rollout monitoring"
+  }'
+```
+
+Record a bounded waiver:
+
+```bash
+curl -s -X POST http://127.0.0.1:7910/api/v1/cad/files/<file_id>/proof/decisions \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1' \
+  -d '{
+    "decision":"waived",
+    "scope":"full_proof",
+    "comment":"accepted while downstream BOM catches up",
+    "reason_code":"downstream_lag",
+    "expires_at":"2026-03-29T12:00:00Z"
+  }'
+```
+
+Focus on:
+
+- `current_fingerprint`
+- `active_decision`
+- `entries[*].decision`
+- `entries[*].scope`
+- `entries[*].issue_codes`
+- `entries[*].covers_current_proof`
+
+Expected meanings:
+
+- `decision_status=open`: proof 仍需 operator decision
+- `decision_status=acknowledged`: 当前 proof 已被显式确认，但技术风险仍存在
+- `decision_status=waived`: 当前 proof 已被带 reason 的 bounded waiver 覆盖
+- `covers_current_proof=false`: 旧 decision 已不再覆盖最新 proof，需要重新确认
+
+## 3. Read the derived CAD BOM surface
 
 Use the structured operator surface first:
 
@@ -69,7 +128,7 @@ Expected meanings:
 - `empty`: connector returned no usable BOM
 - `missing`: no CAD BOM artifact or job result is available
 
-## 3. Read the dedicated mismatch surface
+## 4. Read the dedicated mismatch surface
 
 Use the mismatch surface when you need to know whether the current derived CAD
 BOM still matches the live BOM:
@@ -100,7 +159,7 @@ Expected meanings:
 - `missing`: the CAD BOM payload is empty, so no live-vs-CAD mismatch analysis
   could be produced
 
-## 4. Export an operator evidence bundle
+## 5. Export an operator evidence bundle
 
 JSON:
 
@@ -124,6 +183,9 @@ Bundle contents:
 - `bundle.json`
 - `file.json`
 - `operator_proof.json`
+- `active_decision.json`
+- `proof_decisions.json`
+- `proof_decisions.csv`
 - `viewer_readiness.json`
 - `asset_quality.json`
 - `asset_quality_issue_codes.csv`
@@ -156,7 +218,7 @@ Use this bundle for:
 Always export the bundle before applying recovery actions when
 `operator_proof.status!=ready` or `mismatch.status=mismatch`.
 
-## 5. Check review status
+## 6. Check review status
 
 ```bash
 curl -s http://127.0.0.1:7910/api/v1/cad/files/<file_id>/review \
@@ -174,7 +236,7 @@ Focus on:
 If a partial or invalid import was produced by the async pipeline, the system
 can automatically flip the file to `pending`.
 
-## 6. Check CAD history
+## 7. Check CAD history
 
 ```bash
 curl -s 'http://127.0.0.1:7910/api/v1/cad/files/<file_id>/history?limit=20' \
@@ -185,10 +247,12 @@ curl -s 'http://127.0.0.1:7910/api/v1/cad/files/<file_id>/history?limit=20' \
 Typical useful actions:
 
 - `cad_bom_reimport_requested`
+- `cad_operator_proof_acknowledged`
+- `cad_operator_proof_waived`
 - `cad_review_update`
 - other CAD pipeline audit entries already emitted for the file
 
-## 7. Reimport with bounded recovery
+## 8. Reimport with bounded recovery
 
 If `summary.recovery_actions` indicates reimport is appropriate:
 
@@ -215,7 +279,7 @@ Common failure codes:
 - `cad_bom_reimport_item_missing`
 - `cad_bom_reimport_item_ambiguous`
 
-## 8. Triage shortcuts by issue code
+## 9. Triage shortcuts by issue code
 
 - `asset_quality_missing`
   - open `/proof` and confirm whether geometry/metadata evidence exists at all
@@ -227,6 +291,10 @@ Common failure codes:
   - inspect `operator_proof.proof_gaps`, then `mismatch.grouped_counters`
 - `cad_review_pending`
   - inspect `review.state` and `history` before accepting recovery
+- `operator_proof.decision_status=open`
+  - record an acknowledgement or waiver before handoff if the current proof is intentionally accepted
+- `active_decision.covers_current_proof=false`
+  - old acknowledgement no longer matches current proof; re-export and re-record a fresh decision
 
 - `contract_invalid`
   - inspect `import_result.contract_validation`
@@ -248,13 +316,15 @@ Common failure codes:
   - inspect `mismatch.grouped_counters.quantity` and `mismatch_delta.csv`
   - review quantity/UOM drift before reimport
 
-## 9. When to escalate
+## 10. When to escalate
 
 Escalate to a deeper connector/source investigation when:
 
 - `summary.status` remains `degraded` after a clean reimport
 - `operator_proof.status` remains `blocked` or `needs_review` after expected
   recovery actions
+- `operator_proof.requires_operator_decision=true` and no responsible operator
+  can record a decision
 - `mismatch.status` remains `mismatch` after drift review and reimport
 - `issue_codes` change unexpectedly across repeated exports
 - `history` shows repeated reimport requests without quality improvement

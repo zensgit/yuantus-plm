@@ -122,7 +122,14 @@ def _sample_viewer_readiness(*, asset_quality=None, viewer_mode="full", is_viewe
     }
 
 
-def _cad_client(*, file_container, jobs=None, item_file_rows=None, history_logs=None) -> TestClient:
+def _cad_client(
+    *,
+    file_container,
+    jobs=None,
+    item_file_rows=None,
+    history_logs=None,
+    return_db=False,
+):
     mock_db = MagicMock()
     mock_db.get.return_value = file_container
 
@@ -172,7 +179,10 @@ def _cad_client(*, file_container, jobs=None, item_file_rows=None, history_logs=
     app.include_router(cad_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
-    return TestClient(app)
+    client = TestClient(app)
+    if return_db:
+        return client, mock_db
+    return client
 
 
 def test_get_cad_bom_returns_stored_contract_validation_summary():
@@ -392,10 +402,322 @@ def test_get_cad_operator_proof_returns_linked_asset_quality_and_mismatch_surfac
     assert body["viewer_readiness"]["viewer_mode"] == "full"
     assert body["cad_bom"]["mismatch"]["status"] == "mismatch"
     assert body["operator_proof"]["status"] == "needs_review"
+    assert body["operator_proof"]["decision_status"] == "open"
+    assert body["operator_proof"]["requires_operator_decision"] is True
     assert "asset_quality_degraded" in body["operator_proof"]["proof_gaps"]
     assert "cad_bom_live_mismatch" in body["operator_proof"]["proof_gaps"]
     assert body["links"]["proof_url"] == "/api/v1/cad/files/file-proof-1/proof?history_limit=20"
+    assert (
+        body["links"]["proof_decisions_url"]
+        == "/api/v1/cad/files/file-proof-1/proof/decisions?history_limit=20"
+    )
     assert body["proof_manifest"]["bundle_kind"] == "cad_operator_proof_bundle"
+    assert body["proof_manifest"]["decision_status"] == "open"
+    assert body["proof_decisions"] == []
+    assert body["active_decision"] is None
+
+
+def test_get_cad_operator_proof_returns_active_waiver_for_current_fingerprint():
+    file_container = SimpleNamespace(
+        id="file-proof-2",
+        filename="assy-proof.step",
+        cad_bom_path="/vault/file-proof-2.json",
+        cad_connector_id="step",
+        cad_format="STEP",
+        document_type="3d",
+        cad_review_state="pending",
+        cad_review_note="needs proof review",
+        cad_review_by_id=None,
+        cad_reviewed_at=None,
+    )
+    stored_payload = {
+        "file_id": "file-proof-2",
+        "item_id": "item-proof-2",
+        "imported_at": "2026-03-22T09:00:00Z",
+        "import_result": {"ok": True},
+        "bom": {"nodes": [{"id": "assy-root"}], "edges": [], "root": "assy-root"},
+    }
+    asset_quality = _sample_asset_quality(
+        status="degraded",
+        result_status="complete",
+        converter_status="degraded",
+        issue_codes=["conversion_result_degraded"],
+    )
+    viewer_readiness = _sample_viewer_readiness(
+        asset_quality=asset_quality,
+        viewer_mode="full",
+        is_viewer_ready=True,
+    )
+    mismatch = _sample_mismatch(
+        status="mismatch",
+        total_ops=1,
+        updates=1,
+        issue_codes=["live_bom_quantity_mismatch"],
+        risk_level="medium",
+    )
+    history_client = _cad_client(
+        file_container=file_container,
+        history_logs=[
+            SimpleNamespace(
+                id="log-proof-waiver",
+                action="cad_operator_proof_waived",
+                payload={
+                    "decision": "waived",
+                    "scope": "full_proof",
+                    "comment": "accepted during staged rollout",
+                    "reason_code": "pilot_rollout",
+                    "issue_codes": [
+                        "conversion_result_degraded",
+                        "asset_quality_degraded",
+                        "live_bom_quantity_mismatch",
+                        "cad_bom_live_mismatch",
+                        "cad_review_pending",
+                    ],
+                    "proof_fingerprint": "proof-fp-1",
+                    "proof_status": "needs_review",
+                    "proof_gaps": [
+                        "asset_quality_degraded",
+                        "cad_bom_live_mismatch",
+                        "cad_review_pending",
+                    ],
+                    "asset_quality_status": "degraded",
+                    "mismatch_status": "mismatch",
+                    "review_state": "pending",
+                },
+                created_at=datetime(2026, 3, 22, 10, 0, 0),
+                user_id=9,
+            )
+        ],
+    )
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value=mismatch,
+        ):
+            with patch(
+                "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+                return_value=viewer_readiness,
+            ):
+                with patch(
+                    "yuantus.meta_engine.web.cad_router._compute_operator_proof_fingerprint",
+                    return_value="proof-fp-1",
+                ):
+                    file_service_cls.return_value.download_file.side_effect = (
+                        lambda _path, output_stream: output_stream.write(
+                            json.dumps(stored_payload).encode("utf-8")
+                        )
+                    )
+                    response = history_client.get("/api/v1/cad/files/file-proof-2/proof")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["operator_proof"]["decision_status"] == "waived"
+    assert body["operator_proof"]["requires_operator_decision"] is False
+    assert body["active_decision"]["decision"] == "waived"
+    assert body["active_decision"]["reason_code"] == "pilot_rollout"
+    assert body["active_decision"]["covers_current_proof"] is True
+    assert body["proof_manifest"]["active_decision_status"] == "waived"
+    assert body["proof_manifest"]["active_decision_covers_current_proof"] is True
+
+
+def test_get_cad_operator_proof_decisions_returns_current_entries():
+    file_container = SimpleNamespace(
+        id="file-proof-2b",
+        filename="assy-proof.step",
+        cad_bom_path="/vault/file-proof-2b.json",
+        cad_connector_id="step",
+        cad_format="STEP",
+        document_type="3d",
+        cad_review_state="pending",
+        cad_review_note="needs proof review",
+        cad_review_by_id=None,
+        cad_reviewed_at=None,
+    )
+    stored_payload = {
+        "file_id": "file-proof-2b",
+        "item_id": "item-proof-2b",
+        "imported_at": "2026-03-22T09:00:00Z",
+        "import_result": {"ok": True},
+        "bom": {"nodes": [{"id": "assy-root"}], "edges": [], "root": "assy-root"},
+    }
+    viewer_readiness = _sample_viewer_readiness(
+        asset_quality=_sample_asset_quality(
+            status="degraded",
+            result_status="complete",
+            converter_status="degraded",
+            issue_codes=["conversion_result_degraded"],
+        ),
+        viewer_mode="full",
+        is_viewer_ready=True,
+    )
+    client = _cad_client(
+        file_container=file_container,
+        history_logs=[
+            SimpleNamespace(
+                id="log-proof-ack",
+                action="cad_operator_proof_acknowledged",
+                payload={
+                    "decision": "acknowledged",
+                    "scope": "full_proof",
+                    "comment": "accepted for support handoff",
+                    "reason_code": "support_handoff",
+                    "issue_codes": [
+                        "conversion_result_degraded",
+                        "asset_quality_degraded",
+                        "live_bom_quantity_mismatch",
+                        "cad_bom_live_mismatch",
+                        "cad_review_pending",
+                    ],
+                    "proof_fingerprint": "proof-fp-2b",
+                    "proof_status": "needs_review",
+                    "proof_gaps": [
+                        "asset_quality_degraded",
+                        "cad_bom_live_mismatch",
+                        "cad_review_pending",
+                    ],
+                    "asset_quality_status": "degraded",
+                    "mismatch_status": "mismatch",
+                    "review_state": "pending",
+                },
+                created_at=datetime(2026, 3, 22, 10, 15, 0),
+                user_id=9,
+            )
+        ],
+    )
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value=_sample_mismatch(
+                status="mismatch",
+                total_ops=1,
+                updates=1,
+                issue_codes=["live_bom_quantity_mismatch"],
+                risk_level="medium",
+            ),
+        ):
+            with patch(
+                "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+                return_value=viewer_readiness,
+            ):
+                with patch(
+                    "yuantus.meta_engine.web.cad_router._compute_operator_proof_fingerprint",
+                    return_value="proof-fp-2b",
+                ):
+                    file_service_cls.return_value.download_file.side_effect = (
+                        lambda _path, output_stream: output_stream.write(
+                            json.dumps(stored_payload).encode("utf-8")
+                        )
+                    )
+                    response = client.get(
+                        "/api/v1/cad/files/file-proof-2b/proof/decisions?history_limit=20"
+                    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["current_fingerprint"] == "proof-fp-2b"
+    assert body["active_decision"]["decision"] == "acknowledged"
+    assert body["entries"][0]["decision"] == "acknowledged"
+    assert body["entries"][0]["is_current"] is True
+    assert body["entries"][0]["covers_current_proof"] is True
+
+
+def test_record_cad_operator_proof_decision_logs_current_snapshot():
+    file_container = SimpleNamespace(
+        id="file-proof-3",
+        filename="assy-proof.step",
+        cad_bom_path="/vault/file-proof-3.json",
+        cad_connector_id="step",
+        cad_format="STEP",
+        document_type="3d",
+        cad_review_state="pending",
+        cad_review_note="needs proof review",
+        cad_review_by_id=None,
+        cad_reviewed_at=None,
+    )
+    client, mock_db = _cad_client(
+        file_container=file_container,
+        history_logs=[],
+        return_db=True,
+    )
+    stored_payload = {
+        "file_id": "file-proof-3",
+        "item_id": "item-proof-3",
+        "imported_at": "2026-03-22T09:00:00Z",
+        "import_result": {"ok": True},
+        "bom": {"nodes": [{"id": "assy-root"}], "edges": [], "root": "assy-root"},
+    }
+    asset_quality = _sample_asset_quality(
+        status="degraded",
+        result_status="complete",
+        converter_status="degraded",
+        issue_codes=["conversion_result_degraded"],
+    )
+    viewer_readiness = _sample_viewer_readiness(
+        asset_quality=asset_quality,
+        viewer_mode="full",
+        is_viewer_ready=True,
+    )
+
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value=_sample_mismatch(
+                status="mismatch",
+                total_ops=1,
+                updates=1,
+                issue_codes=["live_bom_quantity_mismatch"],
+                risk_level="medium",
+            ),
+        ):
+            with patch(
+                "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+                return_value=viewer_readiness,
+            ):
+                with patch(
+                    "yuantus.meta_engine.web.cad_router._compute_operator_proof_fingerprint",
+                    return_value="proof-fp-ack-1",
+                ):
+                    file_service_cls.return_value.download_file.side_effect = (
+                        lambda _path, output_stream: output_stream.write(
+                            json.dumps(stored_payload).encode("utf-8")
+                        )
+                    )
+                    response = client.post(
+                        "/api/v1/cad/files/file-proof-3/proof/decisions",
+                        json={
+                            "decision": "waived",
+                            "scope": "full_proof",
+                            "comment": "accepted while downstream live BOM catches up",
+                            "reason_code": "downstream_lag",
+                            "issue_codes": [
+                                "conversion_result_degraded",
+                                "live_bom_quantity_mismatch",
+                                "asset_quality_degraded",
+                                "cad_bom_live_mismatch",
+                                "cad_review_pending",
+                            ],
+                            "expires_at": "2026-03-29T12:00:00Z",
+                        },
+                    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["decision"] == "waived"
+    assert body["proof_fingerprint"] == "proof-fp-ack-1"
+    assert body["covers_current_proof"] is True
+    logged_entry = next(
+        call.args[0]
+        for call in mock_db.add.call_args_list
+        if getattr(call.args[0], "action", None) == "cad_operator_proof_waived"
+    )
+    assert logged_entry.action == "cad_operator_proof_waived"
+    assert logged_entry.payload["reason_code"] == "downstream_lag"
+    assert logged_entry.payload["proof_fingerprint"] == "proof-fp-ack-1"
+    assert logged_entry.payload["proof_status"] == "needs_review"
+    assert logged_entry.payload["links"]["proof_decisions_url"].endswith(
+        "/api/v1/cad/files/file-proof-3/proof/decisions?history_limit=50"
+    )
+    mock_db.commit.assert_called_once()
 
 
 def test_reimport_cad_bom_uses_stored_item_id_and_logs_request():
@@ -487,7 +809,38 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
                 payload={"job_id": "job-r1"},
                 created_at=datetime(2026, 3, 22, 9, 30, 0),
                 user_id=7,
-            )
+            ),
+            SimpleNamespace(
+                id="log-2",
+                action="cad_operator_proof_acknowledged",
+                payload={
+                    "decision": "acknowledged",
+                    "scope": "full_proof",
+                    "comment": "tracked in rollout checklist",
+                    "reason_code": "rollout_tracking",
+                    "issue_codes": [
+                        "conversion_result_degraded",
+                        "mesh_stats_missing",
+                        "live_bom_structure_mismatch",
+                        "live_bom_quantity_mismatch",
+                        "asset_quality_degraded",
+                        "cad_bom_live_mismatch",
+                        "cad_review_pending",
+                    ],
+                    "proof_fingerprint": "proof-fp-export-1",
+                    "proof_status": "needs_review",
+                    "proof_gaps": [
+                        "asset_quality_degraded",
+                        "cad_bom_live_mismatch",
+                        "cad_review_pending",
+                    ],
+                    "asset_quality_status": "degraded",
+                    "mismatch_status": "mismatch",
+                    "review_state": "pending",
+                },
+                created_at=datetime(2026, 3, 22, 9, 45, 0),
+                user_id=9,
+            ),
         ],
     )
     stored_payload = {
@@ -561,11 +914,15 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
                 "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
                 return_value=viewer_readiness,
             ):
-                def _download(_path, output_stream):
-                    output_stream.write(json.dumps(stored_payload).encode("utf-8"))
+                with patch(
+                    "yuantus.meta_engine.web.cad_router._compute_operator_proof_fingerprint",
+                    return_value="proof-fp-export-1",
+                ):
+                    def _download(_path, output_stream):
+                        output_stream.write(json.dumps(stored_payload).encode("utf-8"))
 
-                file_service_cls.return_value.download_file.side_effect = _download
-                response = client.get("/api/v1/cad/files/file-5/bom/export?export_format=zip")
+                    file_service_cls.return_value.download_file.side_effect = _download
+                    response = client.get("/api/v1/cad/files/file-5/bom/export?export_format=zip")
 
     assert response.status_code == 200
     assert response.headers.get("content-disposition", "").endswith("cad-bom-ops-file-5.zip\"")
@@ -574,6 +931,9 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     names = set(zf.namelist())
     assert "bundle.json" in names
     assert "operator_proof.json" in names
+    assert "active_decision.json" in names
+    assert "proof_decisions.json" in names
+    assert "proof_decisions.csv" in names
     assert "viewer_readiness.json" in names
     assert "asset_quality.json" in names
     assert "asset_quality_issue_codes.csv" in names
@@ -598,12 +958,16 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     assert bundle["cad_bom"]["summary"]["status"] == "degraded"
     assert bundle["cad_bom"]["mismatch"]["status"] == "mismatch"
     assert bundle["operator_proof"]["status"] == "needs_review"
+    assert bundle["operator_proof"]["decision_status"] == "acknowledged"
     assert bundle["proof_manifest"]["bundle_kind"] == "cad_operator_proof_bundle"
     assert bundle["proof_manifest"]["operator_proof_status"] == "needs_review"
+    assert bundle["proof_manifest"]["decision_status"] == "acknowledged"
+    assert bundle["proof_manifest"]["active_decision_status"] == "acknowledged"
     assert bundle["proof_manifest"]["asset_quality_status"] == "degraded"
     assert bundle["proof_manifest"]["mismatch_grouped_counters"]["structure"] == 1
     assert bundle["proof_manifest"]["mismatch_line_key"] == "child_id_find_refdes"
     assert bundle["proof_manifest"]["proof_files"][-1] == "README.txt"
+    assert bundle["active_decision"]["decision"] == "acknowledged"
     assert bundle["history"][0]["action"] == "cad_bom_reimport_requested"
 
     history_csv = zf.read("history.csv").decode("utf-8-sig")
@@ -614,10 +978,12 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     assert "structured_bom_url=/api/v1/cad/files/file-5/bom" in readme
     assert "mismatch_url=/api/v1/cad/files/file-5/bom/mismatch" in readme
     assert "proof_url=/api/v1/cad/files/file-5/proof?history_limit=20" in readme
+    assert "proof_decisions_url=/api/v1/cad/files/file-5/proof/decisions?history_limit=20" in readme
     assert "asset_quality_url=/api/v1/file/file-5/asset_quality" in readme
     assert "viewer_readiness_url=/api/v1/file/file-5/viewer_readiness" in readme
     assert "reimport_url=/api/v1/cad/files/file-5/bom/reimport" in readme
     assert "operator_proof_status=needs_review" in readme
+    assert "decision_status=acknowledged" in readme
     assert "asset_quality_status=degraded" in readme
     assert "mismatch_status=mismatch" in readme
     assert "proof_manifest_file=proof_manifest.json" in readme
@@ -696,6 +1062,7 @@ def test_export_cad_bom_bundle_json_supports_job_fallback():
     assert body["cad_bom"]["summary"]["status"] == "ready"
     assert body["cad_bom"]["mismatch"]["status"] == "match"
     assert body["operator_proof"]["status"] == "ready"
+    assert body["operator_proof"]["decision_status"] == "not_required"
     assert body["proof_manifest"]["bundle_kind"] == "cad_operator_proof_bundle"
     assert body["proof_manifest"]["mismatch_status"] == "match"
     assert body["review"]["state"] == "approved"

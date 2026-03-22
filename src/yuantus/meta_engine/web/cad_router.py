@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 import os
@@ -60,6 +61,12 @@ from yuantus.security.auth.quota_service import QuotaService
 
 router = APIRouter(prefix="/cad", tags=["CAD"])
 VAULT_DIR = get_settings().LOCAL_STORAGE_PATH
+CAD_PROOF_DECISION_ACTIONS = {
+    "cad_operator_proof_acknowledged": "acknowledged",
+    "cad_operator_proof_waived": "waived",
+}
+CAD_PROOF_ALLOWED_DECISIONS = set(CAD_PROOF_DECISION_ACTIONS.values())
+CAD_PROOF_ALLOWED_SCOPES = {"full_proof", "selected_gaps"}
 
 """
 CAD Connector API
@@ -193,16 +200,19 @@ def _log_cad_change(
     action: str,
     payload: Dict[str, Any],
     user: CurrentUser,
-) -> None:
+) -> CadChangeLog:
     entry = CadChangeLog(
+        id=str(uuid.uuid4()),
         file_id=file_container.id,
         action=action,
         payload=payload,
+        created_at=datetime.utcnow(),
         tenant_id=user.tenant_id,
         org_id=user.org_id,
         user_id=user.id,
     )
     db.add(entry)
+    return entry
 
 
 def _diff_dicts(
@@ -415,6 +425,42 @@ class CadBomBundleFileInfo(BaseModel):
     has_stored_artifact: bool = False
 
 
+class CadProofDecisionEntry(BaseModel):
+    id: str
+    decision: str
+    scope: str = "full_proof"
+    comment: Optional[str] = None
+    reason_code: Optional[str] = None
+    issue_codes: List[str] = Field(default_factory=list)
+    proof_fingerprint: Optional[str] = None
+    proof_status: Optional[str] = None
+    proof_gaps: List[str] = Field(default_factory=list)
+    asset_quality_status: Optional[str] = None
+    mismatch_status: Optional[str] = None
+    review_state: Optional[str] = None
+    expires_at: Optional[str] = None
+    created_at: str
+    user_id: Optional[int] = None
+    is_current: bool = False
+    covers_current_proof: bool = False
+
+
+class CadProofDecisionRequest(BaseModel):
+    decision: str
+    comment: str
+    reason_code: Optional[str] = None
+    scope: str = "full_proof"
+    issue_codes: List[str] = Field(default_factory=list)
+    expires_at: Optional[str] = None
+
+
+class CadProofDecisionListResponse(BaseModel):
+    file_id: str
+    current_fingerprint: Optional[str] = None
+    active_decision: Optional[CadProofDecisionEntry] = None
+    entries: List[CadProofDecisionEntry] = Field(default_factory=list)
+
+
 class CadBomOperatorBundleResponse(BaseModel):
     bundle_version: str = "cad_operator_proof_bundle_v1"
     exported_at: datetime
@@ -423,6 +469,8 @@ class CadBomOperatorBundleResponse(BaseModel):
     asset_quality: Dict[str, Any] = Field(default_factory=dict)
     cad_bom: CadBomResponse
     operator_proof: Dict[str, Any] = Field(default_factory=dict)
+    active_decision: Optional[CadProofDecisionEntry] = None
+    proof_decisions: List[CadProofDecisionEntry] = Field(default_factory=list)
     review: CadReviewResponse
     history: List[CadChangeLogEntry] = Field(default_factory=list)
     proof_manifest: Dict[str, Any] = Field(default_factory=dict)
@@ -434,6 +482,7 @@ def _mismatch_links(file_id: str, history_limit: int) -> Dict[str, str]:
         "bom_url": f"/api/v1/cad/files/{file_id}/bom",
         "mismatch_url": f"/api/v1/cad/files/{file_id}/bom/mismatch",
         "proof_url": f"/api/v1/cad/files/{file_id}/proof?history_limit={history_limit}",
+        "proof_decisions_url": f"/api/v1/cad/files/{file_id}/proof/decisions?history_limit={history_limit}",
         "export_url": f"/api/v1/cad/files/{file_id}/bom/export",
         "asset_quality_url": f"/api/v1/file/{file_id}/asset_quality",
         "viewer_readiness_url": f"/api/v1/file/{file_id}/viewer_readiness",
@@ -469,6 +518,91 @@ def _dedupe_text(values: List[Any]) -> List[str]:
         seen.add(text)
         out.append(text)
     return out
+
+
+def _compute_operator_proof_fingerprint(operator_proof: Dict[str, Any]) -> str:
+    fingerprint_payload = {
+        "status": operator_proof.get("status"),
+        "asset_quality_status": operator_proof.get("asset_quality_status"),
+        "asset_result_status": operator_proof.get("asset_result_status"),
+        "converter_result_status": operator_proof.get("converter_result_status"),
+        "viewer_mode": operator_proof.get("viewer_mode"),
+        "is_viewer_ready": bool(operator_proof.get("is_viewer_ready")),
+        "cad_bom_status": operator_proof.get("cad_bom_status"),
+        "mismatch_status": operator_proof.get("mismatch_status"),
+        "review_state": operator_proof.get("review_state"),
+        "proof_gaps": sorted(_dedupe_text(list(operator_proof.get("proof_gaps") or []))),
+        "issue_codes": sorted(_dedupe_text(list(operator_proof.get("issue_codes") or []))),
+        "components": operator_proof.get("components") or {},
+        "file_context": operator_proof.get("file_context") or {},
+    }
+    raw = json.dumps(
+        fingerprint_payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _normalize_optional_iso_datetime(value: Optional[str]) -> Optional[str]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    normalized = text.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized).isoformat()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid expires_at: {text}") from exc
+
+
+def _build_cad_proof_decision_entries(
+    *,
+    history_entries: List[CadChangeLogEntry],
+    current_fingerprint: str,
+    current_issue_codes: List[str],
+) -> List[CadProofDecisionEntry]:
+    current_issue_set = set(_dedupe_text(current_issue_codes))
+    decisions: List[CadProofDecisionEntry] = []
+    for entry in history_entries:
+        decision = CAD_PROOF_DECISION_ACTIONS.get(entry.action)
+        if not decision:
+            continue
+        payload = entry.payload or {}
+        issue_codes = _dedupe_text(list(payload.get("issue_codes") or []))
+        proof_gaps = _dedupe_text(list(payload.get("proof_gaps") or []))
+        proof_fingerprint = str(payload.get("proof_fingerprint") or "").strip() or None
+        is_current = proof_fingerprint == current_fingerprint
+        decision_issue_set = set(issue_codes)
+        covers_current_proof = bool(
+            is_current
+            and (
+                str(payload.get("scope") or "full_proof") == "full_proof"
+                or (current_issue_set and current_issue_set.issubset(decision_issue_set))
+            )
+        )
+        decisions.append(
+            CadProofDecisionEntry(
+                id=entry.id,
+                decision=decision,
+                scope=str(payload.get("scope") or "full_proof"),
+                comment=str(payload.get("comment") or "").strip() or None,
+                reason_code=str(payload.get("reason_code") or "").strip() or None,
+                issue_codes=issue_codes,
+                proof_fingerprint=proof_fingerprint,
+                proof_status=str(payload.get("proof_status") or "").strip() or None,
+                proof_gaps=proof_gaps,
+                asset_quality_status=str(payload.get("asset_quality_status") or "").strip() or None,
+                mismatch_status=str(payload.get("mismatch_status") or "").strip() or None,
+                review_state=str(payload.get("review_state") or "").strip() or None,
+                expires_at=str(payload.get("expires_at") or "").strip() or None,
+                created_at=entry.created_at,
+                user_id=entry.user_id,
+                is_current=is_current,
+                covers_current_proof=covers_current_proof,
+            )
+        )
+    return decisions
 
 
 def _build_cad_operator_proof(
@@ -600,10 +734,72 @@ def _build_cad_operator_bundle(
         asset_quality=asset_quality,
         review=review,
     )
+    proof_fingerprint = _compute_operator_proof_fingerprint(operator_proof)
+    operator_proof["proof_fingerprint"] = proof_fingerprint
+    proof_decisions = _build_cad_proof_decision_entries(
+        history_entries=history_entries,
+        current_fingerprint=proof_fingerprint,
+        current_issue_codes=list(operator_proof.get("issue_codes") or []),
+    )
+    active_decision = next(
+        (entry for entry in proof_decisions if entry.is_current),
+        None,
+    )
+    if active_decision:
+        operator_proof["decision_status"] = active_decision.decision
+        operator_proof["has_active_decision"] = True
+        operator_proof["active_decision_id"] = active_decision.id
+        operator_proof["active_decision_scope"] = active_decision.scope
+        operator_proof["active_decision_covers_current_proof"] = bool(
+            active_decision.covers_current_proof
+        )
+        operator_proof["requires_operator_decision"] = bool(
+            operator_proof.get("status") != "ready"
+            and not active_decision.covers_current_proof
+        )
+    else:
+        operator_proof["decision_status"] = (
+            "not_required" if operator_proof.get("status") == "ready" else "open"
+        )
+        operator_proof["has_active_decision"] = False
+        operator_proof["active_decision_id"] = None
+        operator_proof["active_decision_scope"] = None
+        operator_proof["active_decision_covers_current_proof"] = False
+        operator_proof["requires_operator_decision"] = bool(
+            operator_proof.get("status") != "ready"
+        )
+    governance_actions: List[Dict[str, str]] = []
+    if operator_proof.get("status") != "ready":
+        if active_decision and not active_decision.covers_current_proof:
+            governance_actions.append(
+                {
+                    "code": "complete_operator_proof_decision",
+                    "label": "Record a full-proof acknowledgement or waiver for the remaining gaps.",
+                }
+            )
+        elif not active_decision:
+            governance_actions.extend(
+                [
+                    {
+                        "code": "acknowledge_operator_proof",
+                        "label": "Record an acknowledgement for the current CAD proof gaps.",
+                    },
+                    {
+                        "code": "waive_operator_proof",
+                        "label": "Record a bounded waiver with reason and review scope.",
+                    },
+                ]
+            )
+    operator_proof["next_actions"] = _dedupe_code_rows(
+        list(operator_proof.get("next_actions") or []) + governance_actions
+    )
     proof_files = [
         "bundle.json",
         "file.json",
         "operator_proof.json",
+        "active_decision.json",
+        "proof_decisions.json",
+        "proof_decisions.csv",
         "viewer_readiness.json",
         "asset_quality.json",
         "asset_quality_issue_codes.csv",
@@ -631,9 +827,23 @@ def _build_cad_operator_bundle(
         "bundle_version": 1,
         "file_id": file_container.id,
         "generated_at": datetime.utcnow().isoformat(),
+        "proof_fingerprint": proof_fingerprint,
         "operator_proof_status": operator_proof.get("status"),
+        "decision_status": operator_proof.get("decision_status"),
         "proof_gaps": operator_proof.get("proof_gaps") or [],
         "needs_operator_review": bool(operator_proof.get("needs_operator_review")),
+        "requires_operator_decision": bool(
+            operator_proof.get("requires_operator_decision")
+        ),
+        "proof_decision_count": len(proof_decisions),
+        "active_decision_id": active_decision.id if active_decision else None,
+        "active_decision_status": active_decision.decision if active_decision else None,
+        "active_decision_scope": active_decision.scope if active_decision else None,
+        "active_decision_reason_code": active_decision.reason_code if active_decision else None,
+        "active_decision_expires_at": active_decision.expires_at if active_decision else None,
+        "active_decision_covers_current_proof": bool(
+            active_decision.covers_current_proof if active_decision else False
+        ),
         "asset_quality_status": asset_quality.get("status"),
         "asset_result_status": asset_quality.get("result_status"),
         "converter_result_status": (asset_quality.get("result") or {}).get("status"),
@@ -656,6 +866,9 @@ def _build_cad_operator_bundle(
         "structured_bom_url": f"/api/v1/cad/files/{file_container.id}/bom",
         "mismatch_url": f"/api/v1/cad/files/{file_container.id}/bom/mismatch",
         "proof_url": f"/api/v1/cad/files/{file_container.id}/proof?history_limit={history_limit}",
+        "proof_decisions_url": (
+            f"/api/v1/cad/files/{file_container.id}/proof/decisions?history_limit={history_limit}"
+        ),
         "raw_bom_url": (
             f"/api/v1/file/{file_container.id}/cad_bom"
             if file_container.cad_bom_path
@@ -684,6 +897,8 @@ def _build_cad_operator_bundle(
         asset_quality=asset_quality,
         cad_bom=cad_bom,
         operator_proof=operator_proof,
+        active_decision=active_decision,
+        proof_decisions=proof_decisions,
         review=review,
         history=history_entries,
         proof_manifest=proof_manifest,
@@ -1759,6 +1974,142 @@ def get_cad_operator_proof(
     )
 
 
+@router.get("/files/{file_id}/proof/decisions", response_model=CadProofDecisionListResponse)
+def get_cad_operator_proof_decisions(
+    file_id: str,
+    history_limit: int = Query(20, ge=1, le=200),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CadProofDecisionListResponse:
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+    bundle = _build_cad_operator_bundle(
+        file_container=file_container,
+        db=db,
+        history_limit=history_limit,
+    )
+    return CadProofDecisionListResponse(
+        file_id=file_container.id,
+        current_fingerprint=str(bundle.operator_proof.get("proof_fingerprint") or "").strip() or None,
+        active_decision=bundle.active_decision,
+        entries=bundle.proof_decisions,
+    )
+
+
+@router.post("/files/{file_id}/proof/decisions", response_model=CadProofDecisionEntry)
+def record_cad_operator_proof_decision(
+    file_id: str,
+    payload: CadProofDecisionRequest,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CadProofDecisionEntry:
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    bundle = _build_cad_operator_bundle(
+        file_container=file_container,
+        db=db,
+        history_limit=50,
+    )
+    operator_proof = bundle.operator_proof
+    if operator_proof.get("status") == "ready":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "cad_operator_proof_ready_no_decision_required",
+                "context": {"file_id": file_container.id},
+            },
+        )
+
+    decision = str(payload.decision or "").strip().lower()
+    if decision not in CAD_PROOF_ALLOWED_DECISIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid proof decision: {decision}")
+
+    scope = str(payload.scope or "full_proof").strip().lower() or "full_proof"
+    if scope not in CAD_PROOF_ALLOWED_SCOPES:
+        raise HTTPException(status_code=400, detail=f"Invalid proof scope: {scope}")
+
+    comment = str(payload.comment or "").strip()
+    if not comment:
+        raise HTTPException(status_code=400, detail="Proof decision comment is required")
+
+    reason_code = str(payload.reason_code or "").strip() or None
+    if decision == "waived" and not reason_code:
+        raise HTTPException(status_code=400, detail="Proof waiver reason_code is required")
+
+    current_issue_codes = _dedupe_text(list(operator_proof.get("issue_codes") or []))
+    decision_issue_codes = _dedupe_text(list(payload.issue_codes or [])) or current_issue_codes
+    unknown_issue_codes = sorted(set(decision_issue_codes) - set(current_issue_codes))
+    if unknown_issue_codes:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "cad_operator_proof_issue_codes_unknown",
+                "context": {
+                    "file_id": file_container.id,
+                    "issue_codes": unknown_issue_codes,
+                },
+            },
+        )
+
+    expires_at = _normalize_optional_iso_datetime(payload.expires_at)
+    action = next(
+        key for key, value in CAD_PROOF_DECISION_ACTIONS.items() if value == decision
+    )
+    entry = _log_cad_change(
+        db,
+        file_container,
+        action,
+        {
+            "decision": decision,
+            "scope": scope,
+            "comment": comment,
+            "reason_code": reason_code,
+            "issue_codes": decision_issue_codes,
+            "proof_fingerprint": operator_proof.get("proof_fingerprint"),
+            "proof_status": operator_proof.get("status"),
+            "proof_gaps": operator_proof.get("proof_gaps") or [],
+            "asset_quality_status": operator_proof.get("asset_quality_status"),
+            "mismatch_status": operator_proof.get("mismatch_status"),
+            "review_state": operator_proof.get("review_state"),
+            "expires_at": expires_at,
+            "links": {
+                "proof_url": bundle.links.get("proof_url"),
+                "proof_decisions_url": bundle.links.get("proof_decisions_url"),
+                "export_url": f"/api/v1/cad/files/{file_container.id}/bom/export",
+            },
+        },
+        user,
+    )
+    db.add(file_container)
+    db.commit()
+
+    return CadProofDecisionEntry(
+        id=entry.id,
+        decision=decision,
+        scope=scope,
+        comment=comment,
+        reason_code=reason_code,
+        issue_codes=decision_issue_codes,
+        proof_fingerprint=str(operator_proof.get("proof_fingerprint") or "").strip() or None,
+        proof_status=str(operator_proof.get("status") or "").strip() or None,
+        proof_gaps=_dedupe_text(list(operator_proof.get("proof_gaps") or [])),
+        asset_quality_status=str(operator_proof.get("asset_quality_status") or "").strip() or None,
+        mismatch_status=str(operator_proof.get("mismatch_status") or "").strip() or None,
+        review_state=str(operator_proof.get("review_state") or "").strip() or None,
+        expires_at=expires_at,
+        created_at=entry.created_at.isoformat(),
+        user_id=user.id,
+        is_current=True,
+        covers_current_proof=bool(
+            scope == "full_proof"
+            or set(current_issue_codes).issubset(set(decision_issue_codes))
+        ),
+    )
+
+
 @router.get("/files/{file_id}/bom/export")
 def export_cad_bom_bundle(
     file_id: str,
@@ -1791,6 +2142,7 @@ def export_cad_bom_bundle(
     review = bundle.review
     history_entries = bundle.history
     history_rows = [entry.model_dump(mode="json") for entry in history_entries]
+    proof_decision_rows = [entry.model_dump(mode="json") for entry in bundle.proof_decisions]
     recovery_rows = list(cad_bom.summary.get("recovery_actions") or [])
     issue_rows = [
         {"code": code}
@@ -1820,6 +2172,18 @@ def export_cad_bom_bundle(
             ).encode("utf-8"),
             "operator_proof.json": json.dumps(
                 bundle.operator_proof,
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "active_decision.json": json.dumps(
+                bundle.active_decision.model_dump(mode="json") if bundle.active_decision else {},
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "proof_decisions.json": json.dumps(
+                proof_decision_rows,
                 ensure_ascii=False,
                 default=str,
                 indent=2,
@@ -1881,6 +2245,28 @@ def export_cad_bom_bundle(
             "history.csv": _csv_bytes(
                 rows=history_rows,
                 columns=["id", "action", "created_at", "user_id", "payload"],
+            ),
+            "proof_decisions.csv": _csv_bytes(
+                rows=proof_decision_rows,
+                columns=[
+                    "id",
+                    "decision",
+                    "scope",
+                    "comment",
+                    "reason_code",
+                    "issue_codes",
+                    "proof_fingerprint",
+                    "proof_status",
+                    "proof_gaps",
+                    "asset_quality_status",
+                    "mismatch_status",
+                    "review_state",
+                    "expires_at",
+                    "created_at",
+                    "user_id",
+                    "is_current",
+                    "covers_current_proof",
+                ],
             ),
             "recovery_actions.csv": _csv_bytes(
                 rows=recovery_rows,
@@ -1954,6 +2340,7 @@ def export_cad_bom_bundle(
                 f"structured_bom_url=/api/v1/cad/files/{file_id}/bom\n"
                 f"mismatch_url=/api/v1/cad/files/{file_id}/bom/mismatch\n"
                 f"proof_url=/api/v1/cad/files/{file_id}/proof?history_limit={history_limit}\n"
+                f"proof_decisions_url=/api/v1/cad/files/{file_id}/proof/decisions?history_limit={history_limit}\n"
                 f"raw_bom_url={bundle.links['raw_bom_url'] or ''}\n"
                 f"asset_quality_url=/api/v1/file/{file_id}/asset_quality\n"
                 f"viewer_readiness_url=/api/v1/file/{file_id}/viewer_readiness\n"
@@ -1961,6 +2348,8 @@ def export_cad_bom_bundle(
                 f"history_url=/api/v1/cad/files/{file_id}/history?limit={history_limit}\n"
                 f"reimport_url=/api/v1/cad/files/{file_id}/bom/reimport\n"
                 f"operator_proof_status={bundle.operator_proof.get('status') or 'unavailable'}\n"
+                f"decision_status={bundle.operator_proof.get('decision_status') or 'unavailable'}\n"
+                f"active_decision_id={bundle.operator_proof.get('active_decision_id') or ''}\n"
                 f"asset_quality_status={bundle.asset_quality.get('status') or 'unavailable'}\n"
                 f"mismatch_status={cad_bom.mismatch.get('status') or 'unavailable'}\n"
                 f"proof_manifest_file=proof_manifest.json\n"
