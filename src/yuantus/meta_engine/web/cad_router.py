@@ -8,7 +8,7 @@ import os
 import re
 import uuid
 import zipfile
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import quote
@@ -63,10 +63,13 @@ router = APIRouter(prefix="/cad", tags=["CAD"])
 VAULT_DIR = get_settings().LOCAL_STORAGE_PATH
 CAD_PROOF_DECISION_ACTIONS = {
     "cad_operator_proof_acknowledged": "acknowledged",
+    "cad_operator_proof_acknowledgement_renewed": "acknowledged",
     "cad_operator_proof_waived": "waived",
+    "cad_operator_proof_waiver_renewed": "waived",
 }
 CAD_PROOF_ALLOWED_DECISIONS = set(CAD_PROOF_DECISION_ACTIONS.values())
 CAD_PROOF_ALLOWED_SCOPES = {"full_proof", "selected_gaps"}
+CAD_PROOF_RENEWAL_WINDOW_HOURS = 72
 
 """
 CAD Connector API
@@ -427,6 +430,7 @@ class CadBomBundleFileInfo(BaseModel):
 
 class CadProofDecisionEntry(BaseModel):
     id: str
+    audit_action: Optional[str] = None
     decision: str
     scope: str = "full_proof"
     comment: Optional[str] = None
@@ -439,10 +443,16 @@ class CadProofDecisionEntry(BaseModel):
     mismatch_status: Optional[str] = None
     review_state: Optional[str] = None
     expires_at: Optional[str] = None
+    validity_status: str = "no_expiry"
+    expires_in_seconds: Optional[int] = None
+    renewal_required: bool = False
+    renewal_recommended: bool = False
+    renewed_from_decision_id: Optional[str] = None
     created_at: str
     user_id: Optional[int] = None
     is_current: bool = False
     covers_current_proof: bool = False
+    is_superseded: bool = False
 
 
 class CadProofDecisionRequest(BaseModel):
@@ -452,6 +462,7 @@ class CadProofDecisionRequest(BaseModel):
     scope: str = "full_proof"
     issue_codes: List[str] = Field(default_factory=list)
     expires_at: Optional[str] = None
+    renew_from_decision_id: Optional[str] = None
 
 
 class CadProofDecisionListResponse(BaseModel):
@@ -551,9 +562,93 @@ def _normalize_optional_iso_datetime(value: Optional[str]) -> Optional[str]:
         return None
     normalized = text.replace("Z", "+00:00")
     try:
-        return datetime.fromisoformat(normalized).isoformat()
+        parsed = datetime.fromisoformat(normalized)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid expires_at: {text}") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _parse_optional_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _get_decision_validity(
+    *,
+    decision: str,
+    expires_at: Optional[str],
+    now: datetime,
+) -> Dict[str, Any]:
+    expires_at_dt = _parse_optional_iso_datetime(expires_at)
+    if expires_at_dt is None:
+        if decision == "waived":
+            return {
+                "validity_status": "missing_expiry",
+                "expires_in_seconds": None,
+                "renewal_required": True,
+                "renewal_recommended": False,
+            }
+        return {
+            "validity_status": "no_expiry",
+            "expires_in_seconds": None,
+            "renewal_required": False,
+            "renewal_recommended": False,
+        }
+    expires_in_seconds = int((expires_at_dt - now).total_seconds())
+    if expires_in_seconds <= 0:
+        validity_status = "expired"
+    elif expires_in_seconds <= CAD_PROOF_RENEWAL_WINDOW_HOURS * 3600:
+        validity_status = "expiring"
+    else:
+        validity_status = "active"
+    return {
+        "validity_status": validity_status,
+        "expires_in_seconds": expires_in_seconds,
+        "renewal_required": validity_status == "expired",
+        "renewal_recommended": validity_status == "expiring",
+    }
+
+
+def _normalize_proof_scope(scope: Optional[str]) -> str:
+    normalized = str(scope or "full_proof").strip().lower() or "full_proof"
+    if normalized not in CAD_PROOF_ALLOWED_SCOPES:
+        raise HTTPException(status_code=400, detail=f"Invalid proof scope: {normalized}")
+    return normalized
+
+
+def _resolve_proof_decision_issue_codes(
+    *,
+    current_issue_codes: List[str],
+    requested_issue_codes: List[str],
+    file_id: str,
+) -> List[str]:
+    decision_issue_codes = _dedupe_text(list(requested_issue_codes or [])) or _dedupe_text(
+        list(current_issue_codes or [])
+    )
+    unknown_issue_codes = sorted(set(decision_issue_codes) - set(current_issue_codes))
+    if unknown_issue_codes:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "cad_operator_proof_issue_codes_unknown",
+                "context": {
+                    "file_id": file_id,
+                    "issue_codes": unknown_issue_codes,
+                },
+            },
+        )
+    return decision_issue_codes
 
 
 def _build_cad_proof_decision_entries(
@@ -563,6 +658,7 @@ def _build_cad_proof_decision_entries(
     current_issue_codes: List[str],
 ) -> List[CadProofDecisionEntry]:
     current_issue_set = set(_dedupe_text(current_issue_codes))
+    now = _utc_now()
     decisions: List[CadProofDecisionEntry] = []
     for entry in history_entries:
         decision = CAD_PROOF_DECISION_ACTIONS.get(entry.action)
@@ -574,6 +670,11 @@ def _build_cad_proof_decision_entries(
         proof_fingerprint = str(payload.get("proof_fingerprint") or "").strip() or None
         is_current = proof_fingerprint == current_fingerprint
         decision_issue_set = set(issue_codes)
+        validity = _get_decision_validity(
+            decision=decision,
+            expires_at=str(payload.get("expires_at") or "").strip() or None,
+            now=now,
+        )
         covers_current_proof = bool(
             is_current
             and (
@@ -584,6 +685,7 @@ def _build_cad_proof_decision_entries(
         decisions.append(
             CadProofDecisionEntry(
                 id=entry.id,
+                audit_action=entry.action,
                 decision=decision,
                 scope=str(payload.get("scope") or "full_proof"),
                 comment=str(payload.get("comment") or "").strip() or None,
@@ -596,12 +698,25 @@ def _build_cad_proof_decision_entries(
                 mismatch_status=str(payload.get("mismatch_status") or "").strip() or None,
                 review_state=str(payload.get("review_state") or "").strip() or None,
                 expires_at=str(payload.get("expires_at") or "").strip() or None,
+                validity_status=str(validity["validity_status"]),
+                expires_in_seconds=validity["expires_in_seconds"],
+                renewal_required=bool(validity["renewal_required"]),
+                renewal_recommended=bool(validity["renewal_recommended"]),
+                renewed_from_decision_id=str(payload.get("renewed_from_decision_id") or "").strip()
+                or None,
                 created_at=entry.created_at,
                 user_id=entry.user_id,
                 is_current=is_current,
                 covers_current_proof=covers_current_proof,
             )
         )
+    renewed_from_ids = {
+        decision.renewed_from_decision_id
+        for decision in decisions
+        if decision.renewed_from_decision_id
+    }
+    for decision in decisions:
+        decision.is_superseded = decision.id in renewed_from_ids
     return decisions
 
 
@@ -747,30 +862,61 @@ def _build_cad_operator_bundle(
     )
     if active_decision:
         operator_proof["decision_status"] = active_decision.decision
+        operator_proof["decision_validity_status"] = active_decision.validity_status
         operator_proof["has_active_decision"] = True
         operator_proof["active_decision_id"] = active_decision.id
         operator_proof["active_decision_scope"] = active_decision.scope
         operator_proof["active_decision_covers_current_proof"] = bool(
             active_decision.covers_current_proof
         )
+        operator_proof["active_decision_expires_at"] = active_decision.expires_at
+        operator_proof["active_decision_expires_in_seconds"] = active_decision.expires_in_seconds
+        operator_proof["decision_renewal_required"] = bool(active_decision.renewal_required)
+        operator_proof["decision_renewal_recommended"] = bool(
+            active_decision.renewal_recommended
+        )
         operator_proof["requires_operator_decision"] = bool(
             operator_proof.get("status") != "ready"
-            and not active_decision.covers_current_proof
+            and (
+                not active_decision.covers_current_proof
+                or active_decision.renewal_required
+            )
         )
     else:
         operator_proof["decision_status"] = (
             "not_required" if operator_proof.get("status") == "ready" else "open"
         )
+        operator_proof["decision_validity_status"] = (
+            "not_required" if operator_proof.get("status") == "ready" else "missing"
+        )
         operator_proof["has_active_decision"] = False
         operator_proof["active_decision_id"] = None
         operator_proof["active_decision_scope"] = None
         operator_proof["active_decision_covers_current_proof"] = False
+        operator_proof["active_decision_expires_at"] = None
+        operator_proof["active_decision_expires_in_seconds"] = None
+        operator_proof["decision_renewal_required"] = False
+        operator_proof["decision_renewal_recommended"] = False
         operator_proof["requires_operator_decision"] = bool(
             operator_proof.get("status") != "ready"
         )
     governance_actions: List[Dict[str, str]] = []
     if operator_proof.get("status") != "ready":
-        if active_decision and not active_decision.covers_current_proof:
+        if active_decision and active_decision.renewal_required:
+            governance_actions.append(
+                {
+                    "code": "renew_operator_proof_decision",
+                    "label": "Renew the expired proof acknowledgement or waiver for the current CAD proof.",
+                }
+            )
+        elif active_decision and active_decision.renewal_recommended:
+            governance_actions.append(
+                {
+                    "code": "review_operator_proof_decision_expiry",
+                    "label": "Review and renew the proof decision before the validity window expires.",
+                }
+            )
+        elif active_decision and not active_decision.covers_current_proof:
             governance_actions.append(
                 {
                     "code": "complete_operator_proof_decision",
@@ -830,10 +976,17 @@ def _build_cad_operator_bundle(
         "proof_fingerprint": proof_fingerprint,
         "operator_proof_status": operator_proof.get("status"),
         "decision_status": operator_proof.get("decision_status"),
+        "decision_validity_status": operator_proof.get("decision_validity_status"),
         "proof_gaps": operator_proof.get("proof_gaps") or [],
         "needs_operator_review": bool(operator_proof.get("needs_operator_review")),
         "requires_operator_decision": bool(
             operator_proof.get("requires_operator_decision")
+        ),
+        "decision_renewal_required": bool(
+            operator_proof.get("decision_renewal_required")
+        ),
+        "decision_renewal_recommended": bool(
+            operator_proof.get("decision_renewal_recommended")
         ),
         "proof_decision_count": len(proof_decisions),
         "active_decision_id": active_decision.id if active_decision else None,
@@ -841,6 +994,12 @@ def _build_cad_operator_bundle(
         "active_decision_scope": active_decision.scope if active_decision else None,
         "active_decision_reason_code": active_decision.reason_code if active_decision else None,
         "active_decision_expires_at": active_decision.expires_at if active_decision else None,
+        "active_decision_validity_status": (
+            active_decision.validity_status if active_decision else None
+        ),
+        "active_decision_renewed_from_id": (
+            active_decision.renewed_from_decision_id if active_decision else None
+        ),
         "active_decision_covers_current_proof": bool(
             active_decision.covers_current_proof if active_decision else False
         ),
@@ -2027,9 +2186,7 @@ def record_cad_operator_proof_decision(
     if decision not in CAD_PROOF_ALLOWED_DECISIONS:
         raise HTTPException(status_code=400, detail=f"Invalid proof decision: {decision}")
 
-    scope = str(payload.scope or "full_proof").strip().lower() or "full_proof"
-    if scope not in CAD_PROOF_ALLOWED_SCOPES:
-        raise HTTPException(status_code=400, detail=f"Invalid proof scope: {scope}")
+    scope = _normalize_proof_scope(payload.scope)
 
     comment = str(payload.comment or "").strip()
     if not comment:
@@ -2038,25 +2195,105 @@ def record_cad_operator_proof_decision(
     reason_code = str(payload.reason_code or "").strip() or None
     if decision == "waived" and not reason_code:
         raise HTTPException(status_code=400, detail="Proof waiver reason_code is required")
-
-    current_issue_codes = _dedupe_text(list(operator_proof.get("issue_codes") or []))
-    decision_issue_codes = _dedupe_text(list(payload.issue_codes or [])) or current_issue_codes
-    unknown_issue_codes = sorted(set(decision_issue_codes) - set(current_issue_codes))
-    if unknown_issue_codes:
+    expires_at = _normalize_optional_iso_datetime(payload.expires_at)
+    if decision == "waived" and not expires_at:
+        raise HTTPException(status_code=400, detail="Proof waiver expires_at is required")
+    expires_at_dt = _parse_optional_iso_datetime(expires_at)
+    if decision == "waived" and expires_at_dt and expires_at_dt <= _utc_now():
         raise HTTPException(
             status_code=400,
-            detail={
-                "code": "cad_operator_proof_issue_codes_unknown",
-                "context": {
-                    "file_id": file_container.id,
-                    "issue_codes": unknown_issue_codes,
-                },
-            },
+            detail="Proof waiver expires_at must be in the future",
         )
 
-    expires_at = _normalize_optional_iso_datetime(payload.expires_at)
-    action = next(
-        key for key, value in CAD_PROOF_DECISION_ACTIONS.items() if value == decision
+    current_issue_codes = _dedupe_text(list(operator_proof.get("issue_codes") or []))
+    decision_issue_codes = _resolve_proof_decision_issue_codes(
+        current_issue_codes=current_issue_codes,
+        requested_issue_codes=list(payload.issue_codes or []),
+        file_id=file_container.id,
+    )
+
+    renew_from_decision_id = str(payload.renew_from_decision_id or "").strip() or None
+    renewed_from_entry: Optional[CadProofDecisionEntry] = None
+    if renew_from_decision_id:
+        renewed_from_entry = next(
+            (entry for entry in bundle.proof_decisions if entry.id == renew_from_decision_id),
+            None,
+        )
+        if not renewed_from_entry:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "cad_operator_proof_renewal_not_found",
+                    "context": {
+                        "file_id": file_container.id,
+                        "decision_id": renew_from_decision_id,
+                    },
+                },
+            )
+        if not renewed_from_entry.is_current:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "cad_operator_proof_renewal_not_current",
+                    "context": {
+                        "file_id": file_container.id,
+                        "decision_id": renew_from_decision_id,
+                    },
+                },
+            )
+        if renewed_from_entry.is_superseded:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "cad_operator_proof_renewal_superseded",
+                    "context": {
+                        "file_id": file_container.id,
+                        "decision_id": renew_from_decision_id,
+                    },
+                },
+            )
+        if renewed_from_entry.decision != decision:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "cad_operator_proof_renewal_decision_mismatch",
+                    "context": {
+                        "file_id": file_container.id,
+                        "decision_id": renew_from_decision_id,
+                        "decision": decision,
+                        "expected_decision": renewed_from_entry.decision,
+                    },
+                },
+            )
+        prior_expires_at = _parse_optional_iso_datetime(renewed_from_entry.expires_at)
+        next_expires_at = expires_at_dt
+        if renewed_from_entry.expires_at and not next_expires_at:
+            raise HTTPException(
+                status_code=400,
+                detail="Renewed proof decision must include expires_at when renewing an expiring decision",
+            )
+        if prior_expires_at and next_expires_at and next_expires_at <= prior_expires_at:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "cad_operator_proof_renewal_expiry_not_extended",
+                    "context": {
+                        "file_id": file_container.id,
+                        "decision_id": renew_from_decision_id,
+                        "prior_expires_at": renewed_from_entry.expires_at,
+                        "expires_at": expires_at,
+                    },
+                },
+            )
+
+    action = (
+        "cad_operator_proof_acknowledgement_renewed"
+        if renew_from_decision_id and decision == "acknowledged"
+        else "cad_operator_proof_waiver_renewed"
+        if renew_from_decision_id and decision == "waived"
+        else "cad_operator_proof_acknowledged"
+        if decision == "acknowledged"
+        else "cad_operator_proof_waived"
     )
     entry = _log_cad_change(
         db,
@@ -2075,6 +2312,7 @@ def record_cad_operator_proof_decision(
             "mismatch_status": operator_proof.get("mismatch_status"),
             "review_state": operator_proof.get("review_state"),
             "expires_at": expires_at,
+            "renewed_from_decision_id": renew_from_decision_id,
             "links": {
                 "proof_url": bundle.links.get("proof_url"),
                 "proof_decisions_url": bundle.links.get("proof_decisions_url"),
@@ -2086,8 +2324,14 @@ def record_cad_operator_proof_decision(
     db.add(file_container)
     db.commit()
 
+    validity = _get_decision_validity(
+        decision=decision,
+        expires_at=expires_at,
+        now=_utc_now(),
+    )
     return CadProofDecisionEntry(
         id=entry.id,
+        audit_action=action,
         decision=decision,
         scope=scope,
         comment=comment,
@@ -2100,6 +2344,11 @@ def record_cad_operator_proof_decision(
         mismatch_status=str(operator_proof.get("mismatch_status") or "").strip() or None,
         review_state=str(operator_proof.get("review_state") or "").strip() or None,
         expires_at=expires_at,
+        validity_status=str(validity["validity_status"]),
+        expires_in_seconds=validity["expires_in_seconds"],
+        renewal_required=bool(validity["renewal_required"]),
+        renewal_recommended=bool(validity["renewal_recommended"]),
+        renewed_from_decision_id=renew_from_decision_id,
         created_at=entry.created_at.isoformat(),
         user_id=user.id,
         is_current=True,
@@ -2250,6 +2499,7 @@ def export_cad_bom_bundle(
                 rows=proof_decision_rows,
                 columns=[
                     "id",
+                    "audit_action",
                     "decision",
                     "scope",
                     "comment",
@@ -2262,6 +2512,11 @@ def export_cad_bom_bundle(
                     "mismatch_status",
                     "review_state",
                     "expires_at",
+                    "validity_status",
+                    "expires_in_seconds",
+                    "renewal_required",
+                    "renewal_recommended",
+                    "renewed_from_decision_id",
                     "created_at",
                     "user_id",
                     "is_current",
@@ -2349,6 +2604,7 @@ def export_cad_bom_bundle(
                 f"reimport_url=/api/v1/cad/files/{file_id}/bom/reimport\n"
                 f"operator_proof_status={bundle.operator_proof.get('status') or 'unavailable'}\n"
                 f"decision_status={bundle.operator_proof.get('decision_status') or 'unavailable'}\n"
+                f"decision_validity_status={bundle.operator_proof.get('decision_validity_status') or 'unavailable'}\n"
                 f"active_decision_id={bundle.operator_proof.get('active_decision_id') or ''}\n"
                 f"asset_quality_status={bundle.asset_quality.get('status') or 'unavailable'}\n"
                 f"mismatch_status={cad_bom.mismatch.get('status') or 'unavailable'}\n"

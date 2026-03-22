@@ -1,7 +1,7 @@
 import json
 import io
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -512,12 +512,122 @@ def test_get_cad_operator_proof_returns_active_waiver_for_current_fingerprint():
     assert response.status_code == 200
     body = response.json()
     assert body["operator_proof"]["decision_status"] == "waived"
-    assert body["operator_proof"]["requires_operator_decision"] is False
+    assert body["operator_proof"]["decision_validity_status"] == "missing_expiry"
+    assert body["operator_proof"]["decision_renewal_required"] is True
+    assert body["operator_proof"]["requires_operator_decision"] is True
     assert body["active_decision"]["decision"] == "waived"
     assert body["active_decision"]["reason_code"] == "pilot_rollout"
     assert body["active_decision"]["covers_current_proof"] is True
     assert body["proof_manifest"]["active_decision_status"] == "waived"
     assert body["proof_manifest"]["active_decision_covers_current_proof"] is True
+
+
+def test_get_cad_operator_proof_marks_expired_waiver_for_renewal():
+    file_container = SimpleNamespace(
+        id="file-proof-expired",
+        filename="assy-proof.step",
+        cad_bom_path="/vault/file-proof-expired.json",
+        cad_connector_id="step",
+        cad_format="STEP",
+        document_type="3d",
+        cad_review_state="pending",
+        cad_review_note="needs proof review",
+        cad_review_by_id=None,
+        cad_reviewed_at=None,
+    )
+    stored_payload = {
+        "file_id": "file-proof-expired",
+        "item_id": "item-proof-expired",
+        "imported_at": "2026-03-22T09:00:00Z",
+        "import_result": {"ok": True},
+        "bom": {"nodes": [{"id": "assy-root"}], "edges": [], "root": "assy-root"},
+    }
+    viewer_readiness = _sample_viewer_readiness(
+        asset_quality=_sample_asset_quality(
+            status="degraded",
+            result_status="complete",
+            converter_status="degraded",
+            issue_codes=["conversion_result_degraded"],
+        ),
+        viewer_mode="full",
+        is_viewer_ready=True,
+    )
+    client = _cad_client(
+        file_container=file_container,
+        history_logs=[
+            SimpleNamespace(
+                id="log-proof-expired",
+                action="cad_operator_proof_waived",
+                payload={
+                    "decision": "waived",
+                    "scope": "full_proof",
+                    "comment": "temporary waiver expired",
+                    "reason_code": "pilot_rollout",
+                    "issue_codes": [
+                        "conversion_result_degraded",
+                        "asset_quality_degraded",
+                        "live_bom_quantity_mismatch",
+                        "cad_bom_live_mismatch",
+                        "cad_review_pending",
+                    ],
+                    "proof_fingerprint": "proof-fp-expired",
+                    "proof_status": "needs_review",
+                    "proof_gaps": [
+                        "asset_quality_degraded",
+                        "cad_bom_live_mismatch",
+                        "cad_review_pending",
+                    ],
+                    "asset_quality_status": "degraded",
+                    "mismatch_status": "mismatch",
+                    "review_state": "pending",
+                    "expires_at": "2026-03-20T12:00:00+00:00",
+                },
+                created_at=datetime(2026, 3, 20, 8, 0, 0),
+                user_id=9,
+            )
+        ],
+    )
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value=_sample_mismatch(
+                status="mismatch",
+                total_ops=1,
+                updates=1,
+                issue_codes=["live_bom_quantity_mismatch"],
+                risk_level="medium",
+            ),
+        ):
+            with patch(
+                "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+                return_value=viewer_readiness,
+            ):
+                with patch(
+                    "yuantus.meta_engine.web.cad_router._compute_operator_proof_fingerprint",
+                    return_value="proof-fp-expired",
+                ):
+                    with patch(
+                        "yuantus.meta_engine.web.cad_router._utc_now",
+                        return_value=datetime(2026, 3, 22, 12, 0, 0, tzinfo=timezone.utc),
+                    ):
+                        file_service_cls.return_value.download_file.side_effect = (
+                            lambda _path, output_stream: output_stream.write(
+                                json.dumps(stored_payload).encode("utf-8")
+                            )
+                        )
+                        response = client.get("/api/v1/cad/files/file-proof-expired/proof")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["operator_proof"]["decision_status"] == "waived"
+    assert body["operator_proof"]["decision_validity_status"] == "expired"
+    assert body["operator_proof"]["decision_renewal_required"] is True
+    assert body["operator_proof"]["requires_operator_decision"] is True
+    action_codes = [row["code"] for row in body["operator_proof"]["next_actions"]]
+    assert "renew_operator_proof_decision" in action_codes
+    assert body["active_decision"]["validity_status"] == "expired"
+    assert body["proof_manifest"]["decision_validity_status"] == "expired"
+    assert body["proof_manifest"]["decision_renewal_required"] is True
 
 
 def test_get_cad_operator_proof_decisions_returns_current_entries():
@@ -578,6 +688,7 @@ def test_get_cad_operator_proof_decisions_returns_current_entries():
                     "asset_quality_status": "degraded",
                     "mismatch_status": "mismatch",
                     "review_state": "pending",
+                    "expires_at": "2026-03-24T12:00:00+00:00",
                 },
                 created_at=datetime(2026, 3, 22, 10, 15, 0),
                 user_id=9,
@@ -603,22 +714,94 @@ def test_get_cad_operator_proof_decisions_returns_current_entries():
                     "yuantus.meta_engine.web.cad_router._compute_operator_proof_fingerprint",
                     return_value="proof-fp-2b",
                 ):
-                    file_service_cls.return_value.download_file.side_effect = (
-                        lambda _path, output_stream: output_stream.write(
-                            json.dumps(stored_payload).encode("utf-8")
+                    with patch(
+                        "yuantus.meta_engine.web.cad_router._utc_now",
+                        return_value=datetime(2026, 3, 22, 12, 0, 0, tzinfo=timezone.utc),
+                    ):
+                        file_service_cls.return_value.download_file.side_effect = (
+                            lambda _path, output_stream: output_stream.write(
+                                json.dumps(stored_payload).encode("utf-8")
+                            )
                         )
-                    )
-                    response = client.get(
-                        "/api/v1/cad/files/file-proof-2b/proof/decisions?history_limit=20"
-                    )
+                        response = client.get(
+                            "/api/v1/cad/files/file-proof-2b/proof/decisions?history_limit=20"
+                        )
 
     assert response.status_code == 200
     body = response.json()
     assert body["current_fingerprint"] == "proof-fp-2b"
     assert body["active_decision"]["decision"] == "acknowledged"
+    assert body["active_decision"]["validity_status"] == "expiring"
+    assert body["active_decision"]["renewal_recommended"] is True
     assert body["entries"][0]["decision"] == "acknowledged"
     assert body["entries"][0]["is_current"] is True
     assert body["entries"][0]["covers_current_proof"] is True
+
+
+def test_record_cad_operator_proof_waiver_requires_expires_at():
+    file_container = SimpleNamespace(
+        id="file-proof-3b",
+        filename="assy-proof.step",
+        cad_bom_path="/vault/file-proof-3b.json",
+        cad_connector_id="step",
+        cad_format="STEP",
+        document_type="3d",
+        cad_review_state="pending",
+        cad_review_note="needs proof review",
+        cad_review_by_id=None,
+        cad_reviewed_at=None,
+    )
+    client = _cad_client(file_container=file_container, history_logs=[])
+    stored_payload = {
+        "file_id": "file-proof-3b",
+        "item_id": "item-proof-3b",
+        "imported_at": "2026-03-22T09:00:00Z",
+        "import_result": {"ok": True},
+        "bom": {"nodes": [{"id": "assy-root"}], "edges": [], "root": "assy-root"},
+    }
+    viewer_readiness = _sample_viewer_readiness(
+        asset_quality=_sample_asset_quality(
+            status="degraded",
+            result_status="complete",
+            converter_status="degraded",
+            issue_codes=["conversion_result_degraded"],
+        ),
+        viewer_mode="full",
+        is_viewer_ready=True,
+    )
+
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value=_sample_mismatch(
+                status="mismatch",
+                total_ops=1,
+                updates=1,
+                issue_codes=["live_bom_quantity_mismatch"],
+                risk_level="medium",
+            ),
+        ):
+            with patch(
+                "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+                return_value=viewer_readiness,
+            ):
+                file_service_cls.return_value.download_file.side_effect = (
+                    lambda _path, output_stream: output_stream.write(
+                        json.dumps(stored_payload).encode("utf-8")
+                    )
+                )
+                response = client.post(
+                    "/api/v1/cad/files/file-proof-3b/proof/decisions",
+                    json={
+                        "decision": "waived",
+                        "scope": "full_proof",
+                        "comment": "missing expiry should fail",
+                        "reason_code": "downstream_lag",
+                    },
+                )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Proof waiver expires_at is required"
 
 
 def test_record_cad_operator_proof_decision_logs_current_snapshot():
@@ -717,6 +900,135 @@ def test_record_cad_operator_proof_decision_logs_current_snapshot():
     assert logged_entry.payload["links"]["proof_decisions_url"].endswith(
         "/api/v1/cad/files/file-proof-3/proof/decisions?history_limit=50"
     )
+    mock_db.commit.assert_called_once()
+
+
+def test_record_cad_operator_proof_decision_renewal_logs_renewed_action():
+    file_container = SimpleNamespace(
+        id="file-proof-renew",
+        filename="assy-proof.step",
+        cad_bom_path="/vault/file-proof-renew.json",
+        cad_connector_id="step",
+        cad_format="STEP",
+        document_type="3d",
+        cad_review_state="pending",
+        cad_review_note="needs proof review",
+        cad_review_by_id=None,
+        cad_reviewed_at=None,
+    )
+    client, mock_db = _cad_client(
+        file_container=file_container,
+        history_logs=[
+            SimpleNamespace(
+                id="log-proof-renew-1",
+                action="cad_operator_proof_waived",
+                payload={
+                    "decision": "waived",
+                    "scope": "full_proof",
+                    "comment": "temporary waiver",
+                    "reason_code": "pilot_rollout",
+                    "issue_codes": [
+                        "conversion_result_degraded",
+                        "live_bom_quantity_mismatch",
+                        "asset_quality_degraded",
+                        "cad_bom_live_mismatch",
+                        "cad_review_pending",
+                    ],
+                    "proof_fingerprint": "proof-fp-renew-1",
+                    "proof_status": "needs_review",
+                    "proof_gaps": [
+                        "asset_quality_degraded",
+                        "cad_bom_live_mismatch",
+                        "cad_review_pending",
+                    ],
+                    "asset_quality_status": "degraded",
+                    "mismatch_status": "mismatch",
+                    "review_state": "pending",
+                    "expires_at": "2026-03-24T12:00:00+00:00",
+                },
+                created_at=datetime(2026, 3, 22, 9, 0, 0),
+                user_id=9,
+            )
+        ],
+        return_db=True,
+    )
+    stored_payload = {
+        "file_id": "file-proof-renew",
+        "item_id": "item-proof-renew",
+        "imported_at": "2026-03-22T09:00:00Z",
+        "import_result": {"ok": True},
+        "bom": {"nodes": [{"id": "assy-root"}], "edges": [], "root": "assy-root"},
+    }
+    viewer_readiness = _sample_viewer_readiness(
+        asset_quality=_sample_asset_quality(
+            status="degraded",
+            result_status="complete",
+            converter_status="degraded",
+            issue_codes=["conversion_result_degraded"],
+        ),
+        viewer_mode="full",
+        is_viewer_ready=True,
+    )
+
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value=_sample_mismatch(
+                status="mismatch",
+                total_ops=1,
+                updates=1,
+                issue_codes=["live_bom_quantity_mismatch"],
+                risk_level="medium",
+            ),
+        ):
+            with patch(
+                "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+                return_value=viewer_readiness,
+            ):
+                with patch(
+                    "yuantus.meta_engine.web.cad_router._compute_operator_proof_fingerprint",
+                    return_value="proof-fp-renew-1",
+                ):
+                    with patch(
+                        "yuantus.meta_engine.web.cad_router._utc_now",
+                        return_value=datetime(2026, 3, 22, 12, 0, 0, tzinfo=timezone.utc),
+                    ):
+                        file_service_cls.return_value.download_file.side_effect = (
+                            lambda _path, output_stream: output_stream.write(
+                                json.dumps(stored_payload).encode("utf-8")
+                            )
+                        )
+                        response = client.post(
+                            "/api/v1/cad/files/file-proof-renew/proof/decisions",
+                            json={
+                                "decision": "waived",
+                                "scope": "full_proof",
+                                "comment": "extended waiver after supplier confirmation",
+                                "reason_code": "supplier_hold",
+                                "renew_from_decision_id": "log-proof-renew-1",
+                                "issue_codes": [
+                                    "conversion_result_degraded",
+                                    "live_bom_quantity_mismatch",
+                                    "asset_quality_degraded",
+                                    "cad_bom_live_mismatch",
+                                    "cad_review_pending",
+                                ],
+                                "expires_at": "2026-04-02T12:00:00Z",
+                            },
+                        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["audit_action"] == "cad_operator_proof_waiver_renewed"
+    assert body["renewed_from_decision_id"] == "log-proof-renew-1"
+    assert body["validity_status"] == "active"
+    logged_entry = next(
+        call.args[0]
+        for call in mock_db.add.call_args_list
+        if getattr(call.args[0], "action", None) == "cad_operator_proof_waiver_renewed"
+    )
+    assert logged_entry.payload["renewed_from_decision_id"] == "log-proof-renew-1"
+    assert logged_entry.payload["expires_at"] == "2026-04-02T12:00:00+00:00"
     mock_db.commit.assert_called_once()
 
 
@@ -959,9 +1271,11 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     assert bundle["cad_bom"]["mismatch"]["status"] == "mismatch"
     assert bundle["operator_proof"]["status"] == "needs_review"
     assert bundle["operator_proof"]["decision_status"] == "acknowledged"
+    assert bundle["operator_proof"]["decision_validity_status"] == "no_expiry"
     assert bundle["proof_manifest"]["bundle_kind"] == "cad_operator_proof_bundle"
     assert bundle["proof_manifest"]["operator_proof_status"] == "needs_review"
     assert bundle["proof_manifest"]["decision_status"] == "acknowledged"
+    assert bundle["proof_manifest"]["decision_validity_status"] == "no_expiry"
     assert bundle["proof_manifest"]["active_decision_status"] == "acknowledged"
     assert bundle["proof_manifest"]["asset_quality_status"] == "degraded"
     assert bundle["proof_manifest"]["mismatch_grouped_counters"]["structure"] == 1
@@ -984,6 +1298,7 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     assert "reimport_url=/api/v1/cad/files/file-5/bom/reimport" in readme
     assert "operator_proof_status=needs_review" in readme
     assert "decision_status=acknowledged" in readme
+    assert "decision_validity_status=no_expiry" in readme
     assert "asset_quality_status=degraded" in readme
     assert "mismatch_status=mismatch" in readme
     assert "proof_manifest_file=proof_manifest.json" in readme
