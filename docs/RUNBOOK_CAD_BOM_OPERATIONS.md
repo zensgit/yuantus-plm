@@ -26,6 +26,9 @@ Focus on:
 - `summary.recovery_actions`
 - `summary.root` / `summary.root_source`
 - `import_result.contract_validation`
+- `mismatch.status`
+- `mismatch.mismatch_groups`
+- `mismatch.grouped_counters`
 
 Expected meanings:
 
@@ -34,7 +37,38 @@ Expected meanings:
 - `empty`: connector returned no usable BOM
 - `missing`: no CAD BOM artifact or job result is available
 
-## 2. Export an operator evidence bundle
+## 2. Read the dedicated mismatch surface
+
+Use the mismatch surface when you need to know whether the current derived CAD
+BOM still matches the live BOM:
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/cad/files/<file_id>/bom/mismatch \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'x-tenant-id: tenant-1' -H 'x-org-id: org-1'
+```
+
+Focus on:
+
+- `status`
+- `reason`
+- `analysis_scope`
+- `line_key`
+- `grouped_counters`
+- `mismatch_groups`
+- `issue_codes`
+- `recovery_actions`
+
+Expected meanings:
+
+- `match`: derived CAD BOM and live BOM align for the current compare key
+- `mismatch`: drift exists and should be reviewed before recovery
+- `unresolved`: comparison could not be completed, usually because item binding
+  or root binding is missing
+- `missing`: the CAD BOM payload is empty, so no live-vs-CAD mismatch analysis
+  could be produced
+
+## 3. Export an operator evidence bundle
 
 JSON:
 
@@ -61,10 +95,18 @@ Bundle contents:
 - `review.json`
 - `import_result.json`
 - `bom.json`
+- `mismatch.json`
+- `live_bom.json`
 - `history.json`
 - `history.csv`
 - `recovery_actions.csv`
 - `issue_codes.csv`
+- `mismatch_delta.csv`
+- `mismatch_rows.csv`
+- `mismatch_issue_codes.csv`
+- `mismatch_recovery_actions.csv`
+- `mismatch_delta_preview.json`
+- `proof_manifest.json`
 - `README.txt`
 
 Use this bundle for:
@@ -74,7 +116,10 @@ Use this bundle for:
 - regression attachment
 - customer-facing private deployment verification
 
-## 3. Check review status
+Always export the bundle before applying recovery actions when
+`mismatch.status=mismatch`.
+
+## 4. Check review status
 
 ```bash
 curl -s http://127.0.0.1:7910/api/v1/cad/files/<file_id>/review \
@@ -92,7 +137,7 @@ Focus on:
 If a partial or invalid import was produced by the async pipeline, the system
 can automatically flip the file to `pending`.
 
-## 4. Check CAD history
+## 5. Check CAD history
 
 ```bash
 curl -s 'http://127.0.0.1:7910/api/v1/cad/files/<file_id>/history?limit=20' \
@@ -106,7 +151,7 @@ Typical useful actions:
 - `cad_review_update`
 - other CAD pipeline audit entries already emitted for the file
 
-## 5. Reimport with bounded recovery
+## 6. Reimport with bounded recovery
 
 If `summary.recovery_actions` indicates reimport is appropriate:
 
@@ -133,7 +178,7 @@ Common failure codes:
 - `cad_bom_reimport_item_missing`
 - `cad_bom_reimport_item_ambiguous`
 
-## 6. Triage shortcuts by issue code
+## 7. Triage shortcuts by issue code
 
 - `contract_invalid`
   - inspect `import_result.contract_validation`
@@ -148,12 +193,19 @@ Common failure codes:
   - inspect connector/import errors before re-run
 - `skipped_lines`
   - verify whether skipped relationships were expected
+- `live_bom_structure_mismatch`
+  - inspect `mismatch.grouped_counters.structure`
+  - export the proof bundle before reimport
+- `live_bom_quantity_mismatch`
+  - inspect `mismatch.grouped_counters.quantity` and `mismatch_delta.csv`
+  - review quantity/UOM drift before reimport
 
-## 7. When to escalate
+## 8. When to escalate
 
 Escalate to a deeper connector/source investigation when:
 
 - `summary.status` remains `degraded` after a clean reimport
+- `mismatch.status` remains `mismatch` after drift review and reimport
 - `issue_codes` change unexpectedly across repeated exports
 - `history` shows repeated reimport requests without quality improvement
 - the structured bundle contradicts the raw `/api/v1/file/<file_id>/cad_bom`

@@ -46,6 +46,7 @@ from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.schemas.aml import AMLAction, GenericItem
 from yuantus.meta_engine.services.cad_service import CadService
 from yuantus.meta_engine.services.cad_bom_import_service import (
+    build_cad_bom_mismatch_analysis,
     build_cad_bom_operator_summary,
 )
 from yuantus.meta_engine.services.engine import AMLEngine
@@ -387,6 +388,7 @@ class CadBomResponse(BaseModel):
     import_result: Dict[str, Any] = Field(default_factory=dict)
     bom: Dict[str, Any] = Field(default_factory=dict)
     summary: Dict[str, Any] = Field(default_factory=dict)
+    mismatch: Dict[str, Any] = Field(default_factory=dict)
 
 
 class CadBomReimportRequest(BaseModel):
@@ -418,7 +420,19 @@ class CadBomOperatorBundleResponse(BaseModel):
     cad_bom: CadBomResponse
     review: CadReviewResponse
     history: List[CadChangeLogEntry] = Field(default_factory=list)
+    proof_manifest: Dict[str, Any] = Field(default_factory=dict)
     links: Dict[str, Optional[str]] = Field(default_factory=dict)
+
+
+def _mismatch_links(file_id: str, history_limit: int) -> Dict[str, str]:
+    return {
+        "bom_url": f"/api/v1/cad/files/{file_id}/bom",
+        "mismatch_url": f"/api/v1/cad/files/{file_id}/bom/mismatch",
+        "export_url": f"/api/v1/cad/files/{file_id}/bom/export",
+        "review_url": f"/api/v1/cad/files/{file_id}/review",
+        "history_url": f"/api/v1/cad/files/{file_id}/history?limit={history_limit}",
+        "reimport_url": f"/api/v1/cad/files/{file_id}/bom/reimport",
+    }
 
 
 class CadPropertiesResponse(BaseModel):
@@ -626,6 +640,11 @@ def _build_cad_bom_response(
 ) -> CadBomResponse:
     if file_container.cad_bom_path:
         payload = _load_cad_bom_wrapper(file_container)
+        mismatch = build_cad_bom_mismatch_analysis(
+            session=db,
+            root_item_id=payload.get("item_id"),
+            bom_payload=payload.get("bom") or {},
+        )
         return CadBomResponse(
             file_id=file_container.id,
             item_id=payload.get("item_id"),
@@ -638,6 +657,7 @@ def _build_cad_bom_response(
                 bom_payload=payload.get("bom") or {},
                 has_artifact=True,
             ),
+            mismatch=mismatch,
         )
 
     jobs = (
@@ -660,6 +680,11 @@ def _build_cad_bom_response(
     payload = matched_job.payload or {}
     result = payload.get("result") or {}
     imported_at = matched_job.completed_at or matched_job.created_at
+    mismatch = build_cad_bom_mismatch_analysis(
+        session=db,
+        root_item_id=payload.get("item_id"),
+        bom_payload=result.get("bom") or {},
+    )
 
     return CadBomResponse(
         file_id=file_container.id,
@@ -674,6 +699,7 @@ def _build_cad_bom_response(
             bom_payload=result.get("bom") or {},
             has_artifact=bool(file_container.cad_bom_path),
         ),
+        mismatch=mismatch,
     )
 
 
@@ -1441,6 +1467,25 @@ def get_cad_bom(
     return _build_cad_bom_response(file_container=file_container, db=db)
 
 
+@router.get("/files/{file_id}/bom/mismatch")
+def get_cad_bom_mismatch(
+    file_id: str,
+    history_limit: int = Query(20, ge=1, le=200),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    cad_bom = _build_cad_bom_response(file_container=file_container, db=db)
+    mismatch = dict(cad_bom.mismatch or {})
+    mismatch["file_id"] = file_container.id
+    mismatch["item_id"] = cad_bom.item_id
+    mismatch["links"] = _mismatch_links(file_id, history_limit)
+    return mismatch
+
+
 @router.get("/files/{file_id}/bom/export")
 def export_cad_bom_bundle(
     file_id: str,
@@ -1460,6 +1505,44 @@ def export_cad_bom_bundle(
         db=db,
         limit=history_limit,
     )
+    proof_files = [
+        "bundle.json",
+        "file.json",
+        "summary.json",
+        "review.json",
+        "import_result.json",
+        "bom.json",
+        "mismatch.json",
+        "live_bom.json",
+        "history.json",
+        "history.csv",
+        "recovery_actions.csv",
+        "issue_codes.csv",
+        "mismatch_delta.csv",
+        "mismatch_rows.csv",
+        "mismatch_issue_codes.csv",
+        "mismatch_recovery_actions.csv",
+        "mismatch_delta_preview.json",
+        "proof_manifest.json",
+        "README.txt",
+    ]
+    proof_manifest = {
+        "bundle_kind": "cad_bom_mismatch_proof",
+        "bundle_version": 1,
+        "file_id": file_id,
+        "generated_at": datetime.utcnow().isoformat(),
+        "summary_status": cad_bom.summary.get("status"),
+        "mismatch_status": cad_bom.mismatch.get("status"),
+        "mismatch_reason": cad_bom.mismatch.get("reason"),
+        "mismatch_line_key": cad_bom.mismatch.get("line_key"),
+        "mismatch_analysis_scope": cad_bom.mismatch.get("analysis_scope"),
+        "mismatch_recoverable": bool(cad_bom.mismatch.get("recoverable")),
+        "mismatch_grouped_counters": cad_bom.mismatch.get("grouped_counters") or {},
+        "mismatch_issue_codes": cad_bom.mismatch.get("issue_codes") or [],
+        "history_entries": len(history_entries),
+        "has_stored_artifact": bool(file_container.cad_bom_path),
+        "proof_files": proof_files,
+    }
 
     bundle = CadBomOperatorBundleResponse(
         exported_at=datetime.utcnow(),
@@ -1476,8 +1559,10 @@ def export_cad_bom_bundle(
         cad_bom=cad_bom,
         review=review,
         history=history_entries,
+        proof_manifest=proof_manifest,
         links={
             "structured_bom_url": f"/api/v1/cad/files/{file_id}/bom",
+            "mismatch_url": f"/api/v1/cad/files/{file_id}/bom/mismatch",
             "raw_bom_url": (
                 f"/api/v1/file/{file_id}/cad_bom" if file_container.cad_bom_path else None
             ),
@@ -1504,6 +1589,12 @@ def export_cad_bom_bundle(
         {"code": code}
         for code in (cad_bom.summary.get("issue_codes") or [])
     ]
+    mismatch_rows = list(cad_bom.mismatch.get("rows") or [])
+    mismatch_issue_rows = [
+        {"code": code}
+        for code in (cad_bom.mismatch.get("issue_codes") or [])
+    ]
+    mismatch_recovery_rows = list(cad_bom.mismatch.get("recovery_actions") or [])
     bundle_bytes = _zip_bytes(
         files={
             "bundle.json": json.dumps(payload, ensure_ascii=False, default=str, indent=2).encode(
@@ -1539,6 +1630,18 @@ def export_cad_bom_bundle(
                 default=str,
                 indent=2,
             ).encode("utf-8"),
+            "mismatch.json": json.dumps(
+                cad_bom.mismatch,
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "live_bom.json": json.dumps(
+                cad_bom.mismatch.get("live_bom") or {},
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
             "history.json": json.dumps(
                 history_rows,
                 ensure_ascii=False,
@@ -1554,15 +1657,70 @@ def export_cad_bom_bundle(
                 columns=["code", "label"],
             ),
             "issue_codes.csv": _csv_bytes(rows=issue_rows, columns=["code"]),
+            "mismatch_delta.csv": _csv_bytes(
+                rows=mismatch_rows,
+                columns=[
+                    "line_key",
+                    "parent_id",
+                    "child_id",
+                    "status",
+                    "quantity_before",
+                    "quantity_after",
+                    "quantity_delta",
+                    "uom_before",
+                    "uom_after",
+                    "severity",
+                    "change_fields",
+                ],
+            ),
+            "mismatch_rows.csv": _csv_bytes(
+                rows=mismatch_rows,
+                columns=[
+                    "line_key",
+                    "parent_id",
+                    "child_id",
+                    "status",
+                    "quantity_before",
+                    "quantity_after",
+                    "quantity_delta",
+                    "uom_before",
+                    "uom_after",
+                    "severity",
+                    "change_fields",
+                ],
+            ),
+            "mismatch_issue_codes.csv": _csv_bytes(
+                rows=mismatch_issue_rows,
+                columns=["code"],
+            ),
+            "mismatch_recovery_actions.csv": _csv_bytes(
+                rows=mismatch_recovery_rows,
+                columns=["code", "label"],
+            ),
+            "mismatch_delta_preview.json": json.dumps(
+                cad_bom.mismatch.get("delta_preview") or {},
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "proof_manifest.json": json.dumps(
+                proof_manifest,
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
             "README.txt": (
                 "YuantusPLM CAD BOM operator bundle\n"
                 f"file_id={file_id}\n"
                 f"exported_at={bundle.exported_at.isoformat()}\n"
                 f"structured_bom_url=/api/v1/cad/files/{file_id}/bom\n"
+                f"mismatch_url=/api/v1/cad/files/{file_id}/bom/mismatch\n"
                 f"raw_bom_url={bundle.links['raw_bom_url'] or ''}\n"
                 f"review_url=/api/v1/cad/files/{file_id}/review\n"
                 f"history_url=/api/v1/cad/files/{file_id}/history?limit={history_limit}\n"
                 f"reimport_url=/api/v1/cad/files/{file_id}/bom/reimport\n"
+                f"mismatch_status={cad_bom.mismatch.get('status') or 'unavailable'}\n"
+                f"proof_manifest_file=proof_manifest.json\n"
             ).encode("utf-8"),
         }
     )

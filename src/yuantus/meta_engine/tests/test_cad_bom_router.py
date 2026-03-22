@@ -15,6 +15,53 @@ from yuantus.meta_engine.models.file import ItemFile
 from yuantus.meta_engine.web.cad_router import router as cad_router
 
 
+def _sample_mismatch(
+    *,
+    status="match",
+    total_ops=0,
+    adds=0,
+    removes=0,
+    updates=0,
+    issue_codes=None,
+    recovery_actions=None,
+    rows=None,
+    risk_level="none",
+):
+    return {
+        "status": status,
+        "reason": None,
+        "analysis_scope": "full_payload",
+        "root_item_id": "item-1",
+        "line_key": "child_id_find_refdes",
+        "recoverable": total_ops > 0,
+        "contract_status": "valid",
+        "summary": {
+            "total_ops": total_ops,
+            "adds": adds,
+            "removes": removes,
+            "updates": updates,
+            "risk_level": risk_level,
+        },
+        "compare_summary": {"added": adds, "removed": removes, "changed": updates},
+        "grouped_counters": {
+            "structure": adds + removes,
+            "quantity": updates,
+            "uom": 0,
+            "other": 0,
+        },
+        "rows": rows or [],
+        "delta_preview": {"summary": {"total_ops": total_ops, "risk_level": risk_level}},
+        "issue_codes": issue_codes or [],
+        "mismatch_groups": (
+            ["missing_in_live_bom"] * bool(adds)
+            + ["extra_in_live_bom"] * bool(removes)
+            + ["line_value_mismatch"] * bool(updates)
+        ),
+        "recovery_actions": recovery_actions or [],
+        "live_bom": {"id": "item-1", "children": []},
+    }
+
+
 def _cad_client(*, file_container, jobs=None, item_file_rows=None, history_logs=None) -> TestClient:
     mock_db = MagicMock()
     mock_db.get.return_value = file_container
@@ -91,11 +138,23 @@ def test_get_cad_bom_returns_stored_contract_validation_summary():
     }
 
     with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
-        def _download(_path, output_stream):
-            output_stream.write(json.dumps(stored_payload).encode("utf-8"))
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value=_sample_mismatch(
+                status="mismatch",
+                total_ops=1,
+                updates=1,
+                issue_codes=["live_bom_quantity_mismatch"],
+                recovery_actions=[{"code": "review_live_bom_quantities", "label": "Review drift."}],
+                rows=[{"line_key": "assy-root::child-1", "status": "changed"}],
+                risk_level="medium",
+            ),
+        ):
+            def _download(_path, output_stream):
+                output_stream.write(json.dumps(stored_payload).encode("utf-8"))
 
-        file_service_cls.return_value.download_file.side_effect = _download
-        response = client.get("/api/v1/cad/files/file-1/bom")
+            file_service_cls.return_value.download_file.side_effect = _download
+            response = client.get("/api/v1/cad/files/file-1/bom")
 
     assert response.status_code == 200
     body = response.json()
@@ -107,6 +166,8 @@ def test_get_cad_bom_returns_stored_contract_validation_summary():
     assert body["summary"]["status"] == "degraded"
     assert body["summary"]["needs_operator_review"] is True
     assert body["summary"]["issue_codes"] == ["contract_invalid", "edge_reference_missing"]
+    assert body["mismatch"]["status"] == "mismatch"
+    assert body["mismatch"]["issue_codes"] == ["live_bom_quantity_mismatch"]
     action_codes = [action["code"] for action in body["summary"]["recovery_actions"]]
     assert "repair_edge_references" in action_codes
     assert "inspect_raw_cad_bom" in action_codes
@@ -145,7 +206,11 @@ def test_get_cad_bom_job_fallback_preserves_contract_validation():
         ],
     )
 
-    response = client.get("/api/v1/cad/files/file-2/bom")
+    with patch(
+        "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+        return_value=_sample_mismatch(status="match"),
+    ):
+        response = client.get("/api/v1/cad/files/file-2/bom")
 
     assert response.status_code == 200
     body = response.json()
@@ -155,6 +220,39 @@ def test_get_cad_bom_job_fallback_preserves_contract_validation():
     assert body["import_result"]["contract_validation"]["shape"] == "tree"
     assert body["summary"]["status"] == "ready"
     assert body["summary"]["needs_operator_review"] is False
+    assert body["mismatch"]["status"] == "match"
+
+
+def test_get_cad_bom_mismatch_returns_links_and_unresolved_status():
+    client = _cad_client(file_container=SimpleNamespace(id="file-m1", cad_bom_path="/vault/file-m1.json"))
+    stored_payload = {
+        "file_id": "file-m1",
+        "item_id": None,
+        "import_result": {"ok": True},
+        "bom": {"nodes": [{"id": "assy-root"}], "edges": [], "root": "assy-root"},
+    }
+
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value={
+                **_sample_mismatch(status="unresolved"),
+                "reason": "item_binding_missing",
+                "recoverable": False,
+            },
+        ):
+            def _download(_path, output_stream):
+                output_stream.write(json.dumps(stored_payload).encode("utf-8"))
+
+            file_service_cls.return_value.download_file.side_effect = _download
+            response = client.get("/api/v1/cad/files/file-m1/bom/mismatch")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "unresolved"
+    assert body["reason"] == "item_binding_missing"
+    assert body["links"]["mismatch_url"] == "/api/v1/cad/files/file-m1/bom/mismatch"
+    assert body["links"]["reimport_url"] == "/api/v1/cad/files/file-m1/bom/reimport"
 
 
 def test_reimport_cad_bom_uses_stored_item_id_and_logs_request():
@@ -271,11 +369,41 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     }
 
     with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
-        def _download(_path, output_stream):
-            output_stream.write(json.dumps(stored_payload).encode("utf-8"))
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value=_sample_mismatch(
+                status="mismatch",
+                total_ops=2,
+                adds=1,
+                updates=1,
+                issue_codes=["live_bom_structure_mismatch", "live_bom_quantity_mismatch"],
+                recovery_actions=[
+                    {"code": "review_live_bom_structure", "label": "Review structure."},
+                    {"code": "review_live_bom_quantities", "label": "Review quantities."},
+                ],
+                rows=[
+                    {
+                        "line_key": "assy-root::child-1",
+                        "parent_id": "item-root",
+                        "child_id": "item-child",
+                        "status": "changed",
+                        "quantity_before": 1.0,
+                        "quantity_after": 2.0,
+                        "quantity_delta": 1.0,
+                        "uom_before": "EA",
+                        "uom_after": "EA",
+                        "severity": "major",
+                        "change_fields": ["quantity"],
+                    }
+                ],
+                risk_level="high",
+            ),
+        ):
+            def _download(_path, output_stream):
+                output_stream.write(json.dumps(stored_payload).encode("utf-8"))
 
-        file_service_cls.return_value.download_file.side_effect = _download
-        response = client.get("/api/v1/cad/files/file-5/bom/export?export_format=zip")
+            file_service_cls.return_value.download_file.side_effect = _download
+            response = client.get("/api/v1/cad/files/file-5/bom/export?export_format=zip")
 
     assert response.status_code == 200
     assert response.headers.get("content-disposition", "").endswith("cad-bom-ops-file-5.zip\"")
@@ -283,6 +411,12 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     zf = zipfile.ZipFile(io.BytesIO(response.content))
     names = set(zf.namelist())
     assert "bundle.json" in names
+    assert "mismatch.json" in names
+    assert "live_bom.json" in names
+    assert "mismatch_delta.csv" in names
+    assert "mismatch_rows.csv" in names
+    assert "mismatch_delta_preview.json" in names
+    assert "proof_manifest.json" in names
     assert "summary.json" in names
     assert "review.json" in names
     assert "history.csv" in names
@@ -293,6 +427,11 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     assert bundle["file"]["file_id"] == "file-5"
     assert bundle["review"]["state"] == "pending"
     assert bundle["cad_bom"]["summary"]["status"] == "degraded"
+    assert bundle["cad_bom"]["mismatch"]["status"] == "mismatch"
+    assert bundle["proof_manifest"]["bundle_kind"] == "cad_bom_mismatch_proof"
+    assert bundle["proof_manifest"]["mismatch_grouped_counters"]["structure"] == 1
+    assert bundle["proof_manifest"]["mismatch_line_key"] == "child_id_find_refdes"
+    assert bundle["proof_manifest"]["proof_files"][-1] == "README.txt"
     assert bundle["history"][0]["action"] == "cad_bom_reimport_requested"
 
     history_csv = zf.read("history.csv").decode("utf-8-sig")
@@ -301,7 +440,10 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
 
     readme = zf.read("README.txt").decode("utf-8")
     assert "structured_bom_url=/api/v1/cad/files/file-5/bom" in readme
+    assert "mismatch_url=/api/v1/cad/files/file-5/bom/mismatch" in readme
     assert "reimport_url=/api/v1/cad/files/file-5/bom/reimport" in readme
+    assert "mismatch_status=mismatch" in readme
+    assert "proof_manifest_file=proof_manifest.json" in readme
 
 
 def test_export_cad_bom_bundle_json_supports_job_fallback():
@@ -352,7 +494,11 @@ def test_export_cad_bom_bundle_json_supports_job_fallback():
         history_logs=[],
     )
 
-    response = client.get("/api/v1/cad/files/file-6/bom/export?export_format=json")
+    with patch(
+        "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+        return_value=_sample_mismatch(status="match"),
+    ):
+        response = client.get("/api/v1/cad/files/file-6/bom/export?export_format=json")
 
     assert response.status_code == 200
     body = response.json()
@@ -360,6 +506,8 @@ def test_export_cad_bom_bundle_json_supports_job_fallback():
     assert body["file"]["has_stored_artifact"] is False
     assert body["cad_bom"]["job_id"] == "job-6"
     assert body["cad_bom"]["summary"]["status"] == "ready"
+    assert body["cad_bom"]["mismatch"]["status"] == "match"
+    assert body["proof_manifest"]["mismatch_status"] == "match"
     assert body["review"]["state"] == "approved"
     assert body["links"]["raw_bom_url"] is None
 
@@ -386,11 +534,15 @@ def test_export_cad_bom_bundle_rejects_unsupported_format():
     }
 
     with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
-        def _download(_path, output_stream):
-            output_stream.write(json.dumps(stored_payload).encode("utf-8"))
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value=_sample_mismatch(status="match"),
+        ):
+            def _download(_path, output_stream):
+                output_stream.write(json.dumps(stored_payload).encode("utf-8"))
 
-        file_service_cls.return_value.download_file.side_effect = _download
-        response = client.get("/api/v1/cad/files/file-7/bom/export?export_format=xlsx")
+            file_service_cls.return_value.download_file.side_effect = _download
+            response = client.get("/api/v1/cad/files/file-7/bom/export?export_format=xlsx")
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Unsupported export format"

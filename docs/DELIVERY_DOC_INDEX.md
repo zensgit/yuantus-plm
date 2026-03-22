@@ -81,6 +81,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- CAD BOM Mismatch Proof Bundle Design: `docs/DESIGN_CAD_BOM_MISMATCH_PROOF_BUNDLE_20260322.md`
 - CAD BOM Operator Export Bundle Design: `docs/DESIGN_CAD_BOM_OPERATOR_EXPORT_BUNDLE_20260322.md`
 - CAD BOM Recovery Surfacing Design: `docs/DESIGN_CAD_BOM_RECOVERY_SURFACING_20260322.md`
 - Odoo18 PLM Parallel Execution Design: `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
@@ -132,6 +133,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - BOM Substitutes API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_SUBSTITUTES_E2E_20260214.md`
 - BOM Tree API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_TREE_E2E_20260214.md`
 - BOM Weight Rollup API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_WEIGHT_ROLLUP_E2E_20260214.md`
+- CAD BOM Mismatch Proof Bundle Verification: `docs/DEV_AND_VERIFICATION_CAD_BOM_MISMATCH_PROOF_BUNDLE_20260322.md`
 - CAD BOM Operator Export Bundle Verification: `docs/DEV_AND_VERIFICATION_CAD_BOM_OPERATOR_EXPORT_BUNDLE_20260322.md`
 - CAD BOM Recovery Surfacing Verification: `docs/DEV_AND_VERIFICATION_CAD_BOM_RECOVERY_SURFACING_20260322.md`
 - CAD Dedup (SimilarityRecord -> Part Equivalent) (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`

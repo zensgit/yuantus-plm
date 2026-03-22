@@ -125,7 +125,7 @@
 - Best next bounded increment:
   - `cad asset quality metadata (bbox/lod/result)`
 
-### 6. CAD BOM contract 是现成的功能延伸点，但还没有验证到“可宣称领先”
+### 6. CAD BOM contract 已经进入“mismatch + proof”阶段，但还没完成全链路领先
 
 - Benchmark anchor:
   - DocDoku 与 CAD connector pipeline 都强调 normalized derived outputs
@@ -140,14 +140,16 @@
   - partial/invalid import 会把 `cad_review_state` 自动翻到 `pending`
   - `POST /api/v1/cad/files/{file_id}/bom/reimport` 提供有边界的恢复入口
   - `GET /api/v1/cad/files/{file_id}/bom/export` 现在提供 evidence-grade `zip|json` bundle
+  - `GET /api/v1/cad/files/{file_id}/bom/mismatch` 现在提供 read-only mismatch surface
+  - proof bundle 现在额外提供 `mismatch.json`、`live_bom.json`、`mismatch_delta.csv`、`proof_manifest.json`
   - `docs/RUNBOOK_CAD_BOM_OPERATIONS.md` 已把 inspection/export/review/reimport 收口为 operator 手册
 - Why this can surpass:
   - 如果把 CAD BOM 从“文件结果”升级成“可校验 contract + operator explainability”，就比参考代码更易落地
 - Still missing:
-  - mismatch-oriented recovery grouping
-  - scenario-grade proof bundle tying export output to regression evidence
+  - mismatch acknowledgement / waiver audit trail
+  - asset-quality proof linking BOM mismatch, geometry readiness, and conversion result metadata
 - Best next bounded increment:
-  - `cad_bom mismatch recovery + proof bundle`
+  - `cad asset quality metadata (bbox/lod/result)`
 
 ### 7. Warning taxonomy 已经出现雏形，但还没统一成平台能力
 
@@ -216,11 +218,11 @@
 
 默认顺序建议固定为：
 
-1. merge 当前 `file-cad` + `checkout strictness` 分支
-2. 做 `cad capabilities health/degraded contract`
-3. 做 `cad_bom mismatch recovery + operator surfacing`
-4. 做 `doc_sync governance presets + warning telemetry`
-5. 做 `operator proof bundle`
+1. merge 当前 `cad_bom mismatch proof` 分支
+2. 做 `cad asset quality metadata (bbox/lod/result)`
+3. 做 `doc_sync governance presets + warning telemetry`
+4. 做 `viewer readiness operator pack`
+5. 做 `bom compare guided apply-preview + operator evidence`
 
 ## 6. Relation To Other Docs
 

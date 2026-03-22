@@ -378,6 +378,363 @@ def build_cad_bom_operator_summary(
     }
 
 
+def _find_existing_part_by_number(session: Session, item_number: Optional[str]) -> Optional[Item]:
+    item_number = _normalize_text(item_number)
+    if not item_number:
+        return None
+    existing = (
+        session.query(Item)
+        .filter(Item.item_type_id == "Part")
+        .filter(_json_text(Item.properties["item_number"]) == item_number)
+        .first()
+    )
+    if existing:
+        return existing
+    return (
+        session.query(Item)
+        .filter(Item.item_type_id == "Part")
+        .filter(_json_text(Item.properties["drawing_no"]) == item_number)
+        .first()
+    )
+
+
+def _cad_bom_node_item_number(node: Dict[str, Any]) -> Optional[str]:
+    return _normalize_text(
+        _extract_node_value(
+            node,
+            "part_number",
+            "item_number",
+            "number",
+            "drawing_no",
+            "id",
+        )
+    )
+
+
+def _cad_bom_node_name(node: Dict[str, Any], matched_item: Optional[Item]) -> Optional[str]:
+    if matched_item:
+        props = matched_item.properties or {}
+        return _normalize_text(props.get("name") or props.get("description"))
+    return _normalize_text(_extract_node_value(node, "description", "name", "title"))
+
+
+def _cad_bom_compare_result_to_rows(compare_result: Dict[str, Any]) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+
+    for entry in compare_result.get("added") or []:
+        props = entry.get("properties") or {}
+        rows.append(
+            {
+                "line_key": entry.get("line_key"),
+                "parent_id": entry.get("parent_id"),
+                "child_id": entry.get("child_id"),
+                "status": "added",
+                "quantity_before": None,
+                "quantity_after": props.get("quantity"),
+                "quantity_delta": props.get("quantity"),
+                "uom_before": None,
+                "uom_after": props.get("uom"),
+                "severity": None,
+                "change_fields": [],
+            }
+        )
+
+    for entry in compare_result.get("removed") or []:
+        props = entry.get("properties") or {}
+        quantity = props.get("quantity")
+        rows.append(
+            {
+                "line_key": entry.get("line_key"),
+                "parent_id": entry.get("parent_id"),
+                "child_id": entry.get("child_id"),
+                "status": "removed",
+                "quantity_before": quantity,
+                "quantity_after": None,
+                "quantity_delta": -float(quantity) if quantity is not None else None,
+                "uom_before": props.get("uom"),
+                "uom_after": None,
+                "severity": None,
+                "change_fields": [],
+            }
+        )
+
+    for entry in compare_result.get("changed") or []:
+        before = entry.get("before") or {}
+        after = entry.get("after") or {}
+        quantity_before = before.get("quantity")
+        quantity_after = after.get("quantity")
+        rows.append(
+            {
+                "line_key": entry.get("line_key"),
+                "parent_id": entry.get("parent_id"),
+                "child_id": entry.get("child_id"),
+                "status": "changed",
+                "quantity_before": quantity_before,
+                "quantity_after": quantity_after,
+                "quantity_delta": (
+                    float(quantity_after) - float(quantity_before)
+                    if quantity_before is not None and quantity_after is not None
+                    else None
+                ),
+                "uom_before": before.get("uom"),
+                "uom_after": after.get("uom"),
+                "severity": entry.get("severity"),
+                "change_fields": [
+                    change.get("field")
+                    for change in (entry.get("changes") or [])
+                    if change.get("field")
+                ],
+            }
+        )
+
+    return rows
+
+
+def _empty_cad_bom_mismatch_analysis(
+    *,
+    status: str,
+    reason: Optional[str],
+    analysis_scope: str,
+    root_item_id: Optional[str],
+    contract_status: Optional[str] = None,
+) -> Dict[str, Any]:
+    summary = {"total_ops": 0, "adds": 0, "removes": 0, "updates": 0, "risk_level": "none"}
+    return {
+        "status": status,
+        "reason": reason,
+        "analysis_scope": analysis_scope,
+        "root_item_id": root_item_id,
+        "line_key": "child_id_find_refdes",
+        "recoverable": False,
+        "contract_status": contract_status,
+        "summary": summary,
+        "compare_summary": {"added": 0, "removed": 0, "changed": 0},
+        "grouped_counters": {"structure": 0, "quantity": 0, "uom": 0, "other": 0},
+        "rows": [],
+        "delta_preview": {"summary": summary},
+        "issue_codes": [],
+        "mismatch_groups": [],
+        "recovery_actions": [],
+        "live_bom": {},
+    }
+
+
+def _build_cad_bom_compare_tree(
+    *,
+    session: Session,
+    root_item_id: str,
+    bom_payload: Optional[Dict[str, Any]],
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any], str, Optional[str]]:
+    root_item = session.get(Item, root_item_id)
+    if not root_item:
+        return None, {}, "unavailable", "item_not_found"
+
+    nodes, edges, root_node_id, validation = prepare_cad_bom_payload(bom_payload or {})
+    if not nodes or not root_node_id:
+        if validation.get("status") == "empty":
+            return None, validation, "unavailable", "empty_bom"
+        if validation.get("status") == "invalid":
+            return None, validation, "unavailable", "root_binding_invalid"
+        return None, validation, "unavailable", "missing_bom_payload"
+
+    nodes_by_id = {str(node.get("id")): node for node in nodes if node.get("id")}
+    edges_by_parent: Dict[str, List[Tuple[int, Dict[str, Any]]]] = {}
+    for index, edge in enumerate(edges):
+        parent_id = _normalize_text(_extract_node_value(edge, "parent", "from", "source"))
+        child_id = _normalize_text(_extract_node_value(edge, "child", "to", "target"))
+        if not parent_id or not child_id:
+            continue
+        if parent_id not in nodes_by_id or child_id not in nodes_by_id:
+            continue
+        edges_by_parent.setdefault(parent_id, []).append((index, edge))
+
+    analysis_scope = "accepted_subset" if validation.get("status") == "invalid" else "full_payload"
+
+    def _relationship_props(edge: Dict[str, Any]) -> Dict[str, Any]:
+        props: Dict[str, Any] = {
+            "quantity": _parse_quantity(_extract_node_value(edge, "quantity", "qty"), default=1.0),
+            "uom": _normalize_text(_extract_node_value(edge, "uom")) or "EA",
+        }
+        find_num = _normalize_text(_extract_node_value(edge, "find_num"))
+        if find_num:
+            props["find_num"] = find_num
+        refdes = _normalize_refdes(_extract_node_value(edge, "refdes"))
+        if refdes:
+            props["refdes"] = refdes
+        return props
+
+    def _build_node(node_id: str, path: Set[str]) -> Dict[str, Any]:
+        node = nodes_by_id[node_id]
+        matched_item = _find_existing_part_by_number(session, _cad_bom_node_item_number(node))
+        if node_id == root_node_id:
+            matched_item = root_item
+
+        item_number = (
+            _normalize_text((matched_item.properties or {}).get("item_number"))
+            if matched_item
+            else _cad_bom_node_item_number(node)
+        )
+        item_name = _cad_bom_node_name(node, matched_item)
+        tree_node = {
+            "id": matched_item.id if matched_item else f"cad-node::{node_id}",
+            "config_id": matched_item.config_id if matched_item else f"cad-config::{node_id}",
+            "item_number": item_number,
+            "name": item_name,
+            "children": [],
+        }
+
+        if node_id in path:
+            return tree_node
+
+        next_path = set(path)
+        next_path.add(node_id)
+        for index, edge in edges_by_parent.get(node_id, []):
+            child_id = _normalize_text(_extract_node_value(edge, "child", "to", "target"))
+            if not child_id or child_id not in nodes_by_id:
+                continue
+            tree_node["children"].append(
+                {
+                    "relationship": {
+                        "id": f"cad-bom::{node_id}::{child_id}::{index}",
+                        "properties": _relationship_props(edge),
+                    },
+                    "child": _build_node(child_id, next_path),
+                }
+            )
+        return tree_node
+
+    return _build_node(root_node_id, set()), validation, analysis_scope, None
+
+
+def build_cad_bom_mismatch_analysis(
+    *,
+    session: Session,
+    root_item_id: Optional[str],
+    bom_payload: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    if not _normalize_text(root_item_id):
+        return _empty_cad_bom_mismatch_analysis(
+            status="unresolved",
+            reason="item_binding_missing",
+            analysis_scope="unavailable",
+            root_item_id=root_item_id,
+        )
+
+    cad_tree, validation, analysis_scope, failure_reason = _build_cad_bom_compare_tree(
+        session=session,
+        root_item_id=str(root_item_id),
+        bom_payload=bom_payload,
+    )
+    if not cad_tree:
+        status = "missing" if failure_reason == "empty_bom" else "unresolved"
+        return _empty_cad_bom_mismatch_analysis(
+            status=status,
+            reason=failure_reason or "cad_bom_unavailable",
+            analysis_scope=analysis_scope,
+            root_item_id=root_item_id,
+            contract_status=validation.get("status") if isinstance(validation, dict) else None,
+        )
+
+    bom_service = BOMService(session)
+    live_tree = bom_service.get_bom_structure(str(root_item_id), levels=-1)
+    compare_result = bom_service.compare_bom_trees(
+        live_tree,
+        cad_tree,
+        include_relationship_props=["quantity", "uom", "find_num", "refdes"],
+        line_key="child_id_find_refdes",
+        aggregate_quantities=False,
+    )
+    delta_preview = bom_service.build_delta_preview(compare_result)
+    summary = delta_preview.get("summary") or {}
+    compare_summary = compare_result.get("summary") or {}
+    rows = _cad_bom_compare_result_to_rows(compare_result)
+    quantity_updates = 0
+    uom_updates = 0
+    other_updates = 0
+    for entry in compare_result.get("changed") or []:
+        fields = {
+            str(change.get("field"))
+            for change in (entry.get("changes") or [])
+            if change.get("field")
+        }
+        if "quantity" in fields:
+            quantity_updates += 1
+        if "uom" in fields:
+            uom_updates += 1
+        if fields - {"quantity", "uom"}:
+            other_updates += 1
+
+    issue_codes: List[str] = []
+    recovery_actions: List[Dict[str, str]] = []
+    seen_action_codes: Set[str] = set()
+    mismatch_groups: List[str] = []
+    if summary.get("adds") or summary.get("removes"):
+        if summary.get("adds"):
+            mismatch_groups.append("missing_in_live_bom")
+        if summary.get("removes"):
+            mismatch_groups.append("extra_in_live_bom")
+        issue_codes.append("live_bom_structure_mismatch")
+        _append_recovery_action(
+            recovery_actions,
+            seen_action_codes,
+            code="review_live_bom_structure",
+            label="Review structural drift between current live BOM and imported CAD BOM.",
+        )
+    if summary.get("updates"):
+        mismatch_groups.append("line_value_mismatch")
+        issue_codes.append("live_bom_quantity_mismatch")
+        _append_recovery_action(
+            recovery_actions,
+            seen_action_codes,
+            code="review_live_bom_quantities",
+            label="Review quantity or UOM drift between current live BOM and imported CAD BOM.",
+        )
+    if issue_codes:
+        _append_recovery_action(
+            recovery_actions,
+            seen_action_codes,
+            code="open_cad_bom_mismatch_surface",
+            label="Open the CAD BOM mismatch surface and inspect grouped mismatch counters.",
+        )
+    if summary.get("total_ops"):
+        _append_recovery_action(
+            recovery_actions,
+            seen_action_codes,
+            code="export_mismatch_proof_bundle",
+            label="Export the CAD BOM proof bundle before applying recovery actions.",
+        )
+        _append_recovery_action(
+            recovery_actions,
+            seen_action_codes,
+            code="rerun_cad_bom_import_after_drift_review",
+            label="Re-run CAD BOM import only after live BOM drift is reviewed and accepted.",
+        )
+
+    return {
+        "status": "match" if int(summary.get("total_ops") or 0) == 0 else "mismatch",
+        "reason": None,
+        "analysis_scope": analysis_scope,
+        "root_item_id": root_item_id,
+        "line_key": "child_id_find_refdes",
+        "recoverable": int(summary.get("total_ops") or 0) > 0,
+        "contract_status": validation.get("status"),
+        "summary": summary,
+        "compare_summary": compare_summary,
+        "grouped_counters": {
+            "structure": int(summary.get("adds") or 0) + int(summary.get("removes") or 0),
+            "quantity": quantity_updates,
+            "uom": uom_updates,
+            "other": other_updates,
+        },
+        "rows": rows,
+        "delta_preview": delta_preview,
+        "issue_codes": issue_codes,
+        "mismatch_groups": mismatch_groups,
+        "recovery_actions": recovery_actions,
+        "live_bom": live_tree,
+    }
+
+
 class CadBomImportService:
     def __init__(self, session: Session) -> None:
         self.session = session

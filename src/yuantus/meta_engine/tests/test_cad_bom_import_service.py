@@ -1,10 +1,11 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.services.cad_bom_import_service import (
     CadBomImportService,
+    build_cad_bom_mismatch_analysis,
     build_cad_bom_operator_summary,
     prepare_cad_bom_payload,
 )
@@ -145,3 +146,95 @@ def test_build_cad_bom_operator_summary_returns_recovery_actions_for_invalid_con
     assert "review_import_errors" in codes
     assert "inspect_raw_cad_bom" in codes
     assert "rerun_cad_bom_import" in codes
+
+
+def test_build_cad_bom_mismatch_analysis_reports_quantity_drift_against_live_bom():
+    root_item = SimpleNamespace(
+        id="item-root",
+        config_id="cfg-root",
+        properties={"item_number": "ASSY-1", "name": "Assembly"},
+    )
+    child_item = SimpleNamespace(
+        id="item-child",
+        config_id="cfg-child",
+        properties={"item_number": "CH-1", "name": "Child"},
+    )
+    session = MagicMock()
+
+    def _get(model, key):
+        if model is Item and key == "item-root":
+            return root_item
+        return None
+
+    session.get.side_effect = _get
+    item_query = MagicMock()
+    item_query.filter.return_value = item_query
+    item_query.first.return_value = child_item
+    session.query.return_value = item_query
+
+    live_tree = {
+        "id": "item-root",
+        "config_id": "cfg-root",
+        "item_number": "ASSY-1",
+        "name": "Assembly",
+        "children": [
+            {
+                "relationship": {
+                    "id": "rel-live-1",
+                    "properties": {"quantity": 1.0, "uom": "EA"},
+                },
+                "child": {
+                    "id": "item-child",
+                    "config_id": "cfg-child",
+                    "item_number": "CH-1",
+                    "name": "Child",
+                    "children": [],
+                },
+            }
+        ],
+    }
+
+    with patch(
+        "yuantus.meta_engine.services.cad_bom_import_service.BOMService.get_bom_structure",
+        return_value=live_tree,
+    ):
+        analysis = build_cad_bom_mismatch_analysis(
+            session=session,
+            root_item_id="item-root",
+            bom_payload={
+                "nodes": [
+                    {"id": "assy-root", "part_number": "ASSY-1"},
+                    {"id": "child-1", "part_number": "CH-1"},
+                ],
+                "edges": [{"parent": "assy-root", "child": "child-1", "qty": 2, "uom": "EA"}],
+            },
+        )
+
+    assert analysis["status"] == "mismatch"
+    assert analysis["analysis_scope"] == "full_payload"
+    assert analysis["line_key"] == "child_id_find_refdes"
+    assert analysis["recoverable"] is True
+    assert analysis["summary"]["updates"] == 1
+    assert analysis["compare_summary"]["changed"] == 1
+    assert analysis["grouped_counters"]["quantity"] == 1
+    assert analysis["mismatch_groups"] == ["line_value_mismatch"]
+    assert analysis["issue_codes"] == ["live_bom_quantity_mismatch"]
+    action_codes = [action["code"] for action in analysis["recovery_actions"]]
+    assert "review_live_bom_quantities" in action_codes
+    assert "open_cad_bom_mismatch_surface" in action_codes
+    assert "export_mismatch_proof_bundle" in action_codes
+
+
+def test_build_cad_bom_mismatch_analysis_returns_unresolved_contract_without_item_binding():
+    analysis = build_cad_bom_mismatch_analysis(
+        session=MagicMock(),
+        root_item_id=None,
+        bom_payload={"nodes": [{"id": "root"}], "edges": []},
+    )
+
+    assert analysis["status"] == "unresolved"
+    assert analysis["reason"] == "item_binding_missing"
+    assert analysis["line_key"] == "child_id_find_refdes"
+    assert analysis["summary"]["total_ops"] == 0
+    assert analysis["delta_preview"]["summary"]["risk_level"] == "none"
+    assert analysis["live_bom"] == {}
