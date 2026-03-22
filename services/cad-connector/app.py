@@ -156,7 +156,17 @@ def _build_artifacts(base_url: str, artifact_id: str, mode: str, attributes: Dic
             "gltf_url": f"{base_url}/artifacts/{artifact_id}/mesh.gltf",
             "bin_url": f"{base_url}/artifacts/{artifact_id}/mesh.bin",
             "bbox": [0, 0, 0, 1, 1, 1],
+            "lods": [
+                {
+                    "level": 0,
+                    "ratio": 1.0,
+                    "gltf_url": f"{base_url}/artifacts/{artifact_id}/mesh.gltf",
+                    "bin_url": f"{base_url}/artifacts/{artifact_id}/mesh.bin",
+                }
+            ],
         }
+        artifacts["mesh_stats"] = {"triangle_count": 12, "entity_count": 1}
+        artifacts["result"] = {"status": "ok", "error_output": None, "warnings": []}
     if include_preview:
         artifacts["preview"] = {"png_url": f"{base_url}/artifacts/{artifact_id}/preview.png"}
     if include_extract:

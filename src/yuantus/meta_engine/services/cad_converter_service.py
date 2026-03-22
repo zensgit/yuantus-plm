@@ -11,13 +11,15 @@ Provides:
 import logging
 import os
 import uuid
+import io
+import json
 import hashlib
+import shutil
 import subprocess
 import tempfile
-import shutil
-from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -133,6 +135,310 @@ class CADConverterService:
             "freecad_available": self.freecad_available,
         }
 
+    def _load_json_asset(self, asset_path: Optional[str]) -> Optional[Dict[str, Any]]:
+        if not asset_path:
+            return None
+        from yuantus.meta_engine.services.file_service import FileService
+
+        file_service = FileService()
+        output_stream = io.BytesIO()
+        try:
+            file_service.download_file(asset_path, output_stream)
+        except Exception:
+            return None
+        raw_payload = output_stream.getvalue()
+        if not raw_payload:
+            return None
+        try:
+            payload = json.loads(raw_payload.decode("utf-8"))
+        except Exception:
+            return None
+        return payload if isinstance(payload, dict) else None
+
+    def _extract_bbox(self, metadata_payload: Optional[Dict[str, Any]]) -> Optional[Any]:
+        if not isinstance(metadata_payload, dict):
+            return None
+        return metadata_payload.get("bounds") or metadata_payload.get("bbox")
+
+    def _extract_lod_contract(
+        self,
+        *,
+        manifest_payload: Optional[Dict[str, Any]],
+        metadata_payload: Optional[Dict[str, Any]],
+        geometry_name: Optional[str],
+        has_geometry: bool,
+    ) -> Dict[str, Any]:
+        candidates: List[tuple[str, Any]] = []
+        if isinstance(manifest_payload, dict):
+            candidates.extend(
+                [
+                    ("manifest", manifest_payload.get("lods")),
+                    ("manifest", manifest_payload.get("converted_file_lods")),
+                    (
+                        "manifest",
+                        (manifest_payload.get("artifacts") or {}).get("lods")
+                        if isinstance(manifest_payload.get("artifacts"), dict)
+                        else None,
+                    ),
+                ]
+            )
+        if isinstance(metadata_payload, dict):
+            candidates.extend(
+                [
+                    ("mesh_metadata", metadata_payload.get("lod")),
+                    ("mesh_metadata", metadata_payload.get("lods")),
+                    ("mesh_metadata", metadata_payload.get("levels")),
+                ]
+            )
+
+        for source, value in candidates:
+            if isinstance(value, dict) and value:
+                levels = sorted(str(key) for key in value.keys())
+                return {
+                    "status": "available",
+                    "source": source,
+                    "count": len(levels),
+                    "levels": levels,
+                    "files": value,
+                }
+            if isinstance(value, list) and value:
+                levels = [str(entry) for entry in value]
+                return {
+                    "status": "available",
+                    "source": source,
+                    "count": len(levels),
+                    "levels": levels,
+                    "files": {},
+                }
+
+        if has_geometry and geometry_name:
+            return {
+                "status": "single_asset",
+                "source": "geometry",
+                "count": 1,
+                "levels": ["0"],
+                "files": {"0": geometry_name},
+            }
+
+        return {
+            "status": "missing",
+            "source": None,
+            "count": 0,
+            "levels": [],
+            "files": {},
+        }
+
+    def assess_asset_quality(self, file_container: "FileContainer") -> Dict[str, Any]:
+        """Build an operator-facing CAD asset quality contract."""
+        from yuantus.meta_engine.services.file_service import FileService
+
+        file_service = FileService()
+        has_geometry = bool(file_container.geometry_path)
+        has_manifest = bool(file_container.cad_manifest_path)
+        has_document = bool(file_container.cad_document_path)
+        has_metadata = bool(file_container.cad_metadata_path)
+        geometry_name = (
+            os.path.basename(file_container.geometry_path)
+            if file_container.geometry_path
+            else None
+        )
+
+        available_assets: List[str] = []
+        if has_geometry and geometry_name:
+            available_assets.append(geometry_name)
+            base_dir = os.path.dirname(file_container.geometry_path)
+            for sidecar_ext in (".bin", ".png", ".jpg", ".ktx2"):
+                sidecar_name = Path(geometry_name).stem + sidecar_ext
+                sidecar_path = f"{base_dir}/{sidecar_name}" if base_dir else sidecar_name
+                try:
+                    if file_service.file_exists(sidecar_path):
+                        available_assets.append(sidecar_name)
+                except Exception:
+                    pass
+
+        manifest_payload = self._load_json_asset(file_container.cad_manifest_path)
+        metadata_payload = self._load_json_asset(file_container.cad_metadata_path)
+        bbox = self._extract_bbox(metadata_payload)
+        result_payload = (
+            metadata_payload.get("result")
+            if isinstance(metadata_payload, dict)
+            and isinstance(metadata_payload.get("result"), dict)
+            else {}
+        )
+        mesh_stats_payload = (
+            metadata_payload.get("mesh_stats")
+            if isinstance(metadata_payload, dict)
+            and isinstance(metadata_payload.get("mesh_stats"), dict)
+            else {}
+        )
+
+        triangle_count = None
+        entity_count = None
+        if isinstance(metadata_payload, dict):
+            triangle_count = metadata_payload.get("triangle_count")
+            if triangle_count is None:
+                triangle_count = mesh_stats_payload.get("triangle_count")
+            if triangle_count is None and isinstance(metadata_payload.get("triangles"), list):
+                triangle_count = len(metadata_payload.get("triangles") or [])
+            if triangle_count is None and isinstance(metadata_payload.get("faces"), list):
+                triangle_count = len(metadata_payload.get("faces") or [])
+            entity_value = metadata_payload.get("entities")
+            if isinstance(entity_value, list):
+                entity_count = len(entity_value)
+            if entity_count is None:
+                entity_count = mesh_stats_payload.get("entity_count")
+
+        lod = self._extract_lod_contract(
+            manifest_payload=manifest_payload,
+            metadata_payload=metadata_payload,
+            geometry_name=geometry_name,
+            has_geometry=has_geometry,
+        )
+
+        proof_files: List[str] = []
+        for filename, enabled in (
+            ("manifest.json", has_manifest),
+            ("document.json", has_document),
+            ("mesh_metadata.json", has_metadata),
+        ):
+            if enabled:
+                proof_files.append(filename)
+        for asset_name in available_assets:
+            if asset_name not in proof_files:
+                proof_files.append(asset_name)
+
+        issue_codes: List[str] = []
+        if not has_geometry:
+            issue_codes.append("geometry_missing")
+        manifest_expected = bool(has_manifest) or (
+            str(getattr(file_container, "document_type", "")).lower()
+            == DocumentType.CAD_2D.value
+        )
+        if manifest_expected and not has_manifest:
+            issue_codes.append("manifest_missing")
+        if not has_metadata:
+            issue_codes.append("mesh_metadata_missing")
+        if has_metadata and bbox is None:
+            issue_codes.append("bbox_missing")
+        if has_metadata and triangle_count is None and entity_count is None:
+            issue_codes.append("mesh_stats_missing")
+        if result_payload.get("status") == "failed":
+            issue_codes.insert(0, "conversion_result_failed")
+        elif result_payload.get("status") == "degraded":
+            issue_codes.append("conversion_result_degraded")
+
+        conversion_status = getattr(file_container, "conversion_status", None)
+        if not proof_files:
+            if conversion_status in (None, "pending", "queued"):
+                issue_codes.insert(0, "conversion_pending")
+            elif conversion_status in ("failed", "error", "timeout"):
+                issue_codes.insert(0, "conversion_failed")
+            else:
+                issue_codes.insert(0, "asset_result_missing")
+
+        result_status = "missing"
+        if proof_files:
+            complete = (
+                has_geometry
+                and (has_manifest or not manifest_expected)
+                and has_metadata
+                and bbox is not None
+                and (
+                    triangle_count is not None
+                    or entity_count is not None
+                    or bool(result_payload)
+                )
+            )
+            result_status = "complete" if complete else "partial"
+
+        if result_status == "complete":
+            status = "ok"
+        elif result_status == "partial":
+            status = "degraded"
+        else:
+            status = "missing"
+
+        converter_result_status = str(result_payload.get("status") or "").lower()
+        if converter_result_status == "failed":
+            status = "missing"
+        elif converter_result_status == "degraded" and status == "ok":
+            status = "degraded"
+
+        recovery_actions: List[Dict[str, str]] = []
+        seen_codes: set[str] = set()
+
+        def _append_action(code: str, label: str) -> None:
+            if code in seen_codes:
+                return
+            seen_codes.add(code)
+            recovery_actions.append({"code": code, "label": label})
+
+        if any(code in issue_codes for code in ("conversion_failed", "geometry_missing", "asset_result_missing")):
+            _append_action(
+                "rerun_cad_geometry",
+                "Re-run CAD geometry conversion and verify geometry assets are produced.",
+            )
+        if any(code in issue_codes for code in ("conversion_result_failed", "conversion_result_degraded")):
+            _append_action(
+                "inspect_converter_result",
+                "Inspect converter result status, warnings, and error output for the current CAD asset set.",
+            )
+        if "manifest_missing" in issue_codes:
+            _append_action(
+                "inspect_cad_manifest_output",
+                "Inspect manifest generation and verify manifest.json is stored and rewritable.",
+            )
+        if any(code in issue_codes for code in ("mesh_metadata_missing", "bbox_missing", "mesh_stats_missing")):
+            _append_action(
+                "inspect_mesh_metadata_output",
+                "Inspect mesh_metadata generation and verify bbox/statistics are emitted.",
+            )
+        if issue_codes:
+            _append_action(
+                "open_asset_quality_surface",
+                "Open the asset-quality surface and review proof files, bbox, and LOD status.",
+            )
+
+        return {
+            "status": status,
+            "result_status": result_status,
+            "geometry_format": Path(file_container.geometry_path).suffix.lower().lstrip(".")
+            if has_geometry
+            else None,
+            "schema_version": file_container.cad_document_schema_version,
+            "result": {
+                "status": result_payload.get("status")
+                or ("failed" if "conversion_failed" in issue_codes else status),
+                "conversion_status": conversion_status,
+                "error_output": result_payload.get("error_output"),
+                "warnings": result_payload.get("warnings") or [],
+            },
+            "bbox": bbox,
+            "bbox_source": "mesh_metadata" if bbox is not None else None,
+            "triangle_count": triangle_count,
+            "entity_count": entity_count,
+            "lod": lod,
+            "proof_files": proof_files,
+            "issue_codes": issue_codes,
+            "recovery_actions": recovery_actions,
+            "links": {
+                "geometry_url": (
+                    f"/api/v1/file/{file_container.id}/geometry" if has_geometry else None
+                ),
+                "manifest_url": (
+                    f"/api/v1/file/{file_container.id}/cad_manifest" if has_manifest else None
+                ),
+                "document_url": (
+                    f"/api/v1/file/{file_container.id}/cad_document" if has_document else None
+                ),
+                "metadata_url": (
+                    f"/api/v1/file/{file_container.id}/cad_metadata" if has_metadata else None
+                ),
+                "viewer_readiness_url": f"/api/v1/file/{file_container.id}/viewer_readiness",
+                "asset_quality_url": f"/api/v1/file/{file_container.id}/asset_quality",
+            },
+        }
+
     def assess_viewer_readiness(self, file_container: "FileContainer") -> Dict[str, Any]:
         """Build a consumer-facing readiness descriptor for file viewers."""
         from yuantus.meta_engine.services.file_service import FileService
@@ -200,6 +506,7 @@ class CADConverterService:
             "schema_version": file_container.cad_document_schema_version,
             "conversion_status": conversion_status,
             "blocking_reasons": blocking_reasons,
+            "asset_quality": self.assess_asset_quality(file_container),
             "is_viewer_ready": viewer_mode not in ("none", "preview_only")
             and not blocking_reasons,
         }

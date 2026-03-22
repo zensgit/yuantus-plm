@@ -269,6 +269,55 @@ def _call_cad_connector_convert(
         raise JobFatalError("CAD connector returned invalid payload")
     return resp
 
+
+def _normalize_connector_lods(geometry: Dict[str, Any]) -> list[Dict[str, Any]]:
+    lods = geometry.get("lods") or geometry.get("lod")
+    if isinstance(lods, list):
+        return [entry for entry in lods if isinstance(entry, dict)]
+    if isinstance(lods, dict):
+        normalized: list[Dict[str, Any]] = []
+        for level, value in lods.items():
+            row: Dict[str, Any] = {"level": level}
+            if isinstance(value, dict):
+                row.update(value)
+            elif isinstance(value, str):
+                row["gltf_url"] = value
+            normalized.append(row)
+        return normalized
+    return []
+
+
+def _build_connector_asset_quality_metadata(
+    *,
+    file_container: FileContainer,
+    response_payload: Dict[str, Any],
+) -> Dict[str, Any]:
+    artifacts = response_payload.get("artifacts") or {}
+    geometry = artifacts.get("geometry") or {}
+    result = artifacts.get("result") or {}
+    mesh_stats = artifacts.get("mesh_stats") or {}
+    if not isinstance(result, dict):
+        result = {}
+    if not isinstance(mesh_stats, dict):
+        mesh_stats = {}
+
+    return {
+        "kind": "cad_quality",
+        "source": "connector",
+        "file_id": file_container.id,
+        "bbox": geometry.get("bbox"),
+        "lods": _normalize_connector_lods(geometry),
+        "mesh_stats": {
+            "triangle_count": mesh_stats.get("triangle_count"),
+            "entity_count": mesh_stats.get("entity_count"),
+        },
+        "result": {
+            "status": result.get("status") or "ok",
+            "error_output": result.get("error_output"),
+            "warnings": result.get("warnings") or [],
+        },
+    }
+
 def _is_missing_storage_error(exc: Exception) -> bool:
     if isinstance(exc, FileNotFoundError):
         return True
@@ -771,6 +820,22 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                         file_service,
                         f"geometry/{file_container.id[:2]}/{file_container.id}.bin",
                     )
+                quality_payload = _build_connector_asset_quality_metadata(
+                    file_container=file_container,
+                    response_payload=resp,
+                )
+                quality_key = f"cad_metadata/{file_container.id[:2]}/{file_container.id}.json"
+                file_container.cad_metadata_path = file_service.upload_file(
+                    io.BytesIO(
+                        json.dumps(
+                            quality_payload,
+                            ensure_ascii=False,
+                            default=str,
+                            indent=2,
+                        ).encode("utf-8")
+                    ),
+                    quality_key,
+                )
                 file_container.conversion_status = ConversionStatus.COMPLETED.value
                 file_container.conversion_error = None
                 session.add(file_container)
@@ -781,6 +846,7 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                     "geometry_path": file_container.geometry_path,
                     "geometry_url": f"/api/v1/file/{file_container.id}/geometry",
                     "target_format": suffix,
+                    "cad_metadata_url": f"/api/v1/file/{file_container.id}/cad_metadata",
                     "source": "connector",
                 }
         except Exception as exc:

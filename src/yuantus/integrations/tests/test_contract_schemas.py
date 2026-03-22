@@ -90,8 +90,18 @@ def test_cad_connector_convert_schema() -> None:
                 "gltf_url": "https://example.com/mesh.gltf",
                 "bin_url": "https://example.com/mesh.bin",
                 "bbox": [0, 0, 0, 1, 1, 1],
+                "lods": [
+                    {
+                        "level": 0,
+                        "ratio": 1.0,
+                        "gltf_url": "https://example.com/mesh.gltf",
+                        "bin_url": "https://example.com/mesh.bin",
+                    }
+                ],
             },
             "preview": {"png_url": "https://example.com/preview.png"},
+            "result": {"status": "ok", "error_output": None, "warnings": []},
+            "mesh_stats": {"triangle_count": 12, "entity_count": 1},
             "attributes": {"part_number": "P-1001", "revision": "A"},
             "bom": {"nodes": [], "edges": []},
         },

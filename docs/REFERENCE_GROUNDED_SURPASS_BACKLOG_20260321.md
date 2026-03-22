@@ -107,23 +107,29 @@
 - Best next bounded increment:
   - `viewer readiness operator pack`
 
-### 5. CAD conversion 质量证据仍然落后于 DocDoku 的 bbox / LOD / callback 叙事
+### 5. CAD conversion 质量证据已经进入 `bbox/lod/result` contract 阶段，但还没形成统一 proof surface
 
 - Benchmark anchor:
   - DocDoku `App.java` 包含 temp dir、converter selection、bbox、LOD、callback
-- Yuantus partial implementation:
+- Yuantus current implementation:
   - `src/yuantus/meta_engine/services/cad_converter_service.py`
   - `src/yuantus/meta_engine/tasks/cad_pipeline_tasks.py`
+  - `src/yuantus/meta_engine/web/file_router.py`
   - `src/yuantus/meta_engine/models/file.py`
   - 代码和文档里已经明确借鉴了 conversion queue / derived asset pattern
+  - 当前增量已把 connector-backed `bbox/lod/result` 持久化到 `cad_metadata_path`
+  - 当前增量已新增 `GET /api/v1/file/{file_id}/asset_quality`
+  - `viewer_readiness`、`consumer-summary`、`viewer-readiness/export` 现在都能消费
+    同一个 `asset_quality` contract
 - Why this can surpass:
-  - 如果把 conversion result 做成可复核的 asset-quality contract，Yuantus 的 explainability 可能更强
+  - 现在 Yuantus 不只是“转换成功/失败”，而是已经能稳定回答
+    “当前 CAD asset set 是否可信、证据在哪里、下一步该看哪里”
 - Still missing:
-  - bbox / LOD persisted contract
+  - asset-quality proof linking into CAD BOM mismatch/export bundle
   - callback/result evidence bundle
-  - direct tests proving asset-quality metadata stability
+  - operator acknowledgement / waiver trail for degraded assets
 - Best next bounded increment:
-  - `cad asset quality metadata (bbox/lod/result)`
+  - `cad asset quality proof linking + operator surfacing`
 
 ### 6. CAD BOM contract 已经进入“mismatch + proof”阶段，但还没完成全链路领先
 
@@ -219,7 +225,7 @@
 默认顺序建议固定为：
 
 1. merge 当前 `cad_bom mismatch proof` 分支
-2. 做 `cad asset quality metadata (bbox/lod/result)`
+2. 做 `cad asset quality proof linking + operator surfacing`
 3. 做 `doc_sync governance presets + warning telemetry`
 4. 做 `viewer readiness operator pack`
 5. 做 `bom compare guided apply-preview + operator evidence`

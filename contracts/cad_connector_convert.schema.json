@@ -16,6 +16,21 @@
             "glb_url": { "type": "string" },
             "obj_url": { "type": "string" },
             "bin_url": { "type": "string" },
+            "lods": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "level": { "type": ["integer", "string"] },
+                  "ratio": { "type": "number" },
+                  "gltf_url": { "type": "string" },
+                  "glb_url": { "type": "string" },
+                  "obj_url": { "type": "string" },
+                  "bin_url": { "type": "string" }
+                },
+                "additionalProperties": true
+              }
+            },
             "bbox": {
               "type": "array",
               "items": { "type": "number" },
@@ -31,6 +46,26 @@
             "png_url": { "type": "string" },
             "jpg_url": { "type": "string" },
             "jpeg_url": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "result": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string" },
+            "error_output": { "type": ["string", "null"] },
+            "warnings": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": true
+        },
+        "mesh_stats": {
+          "type": "object",
+          "properties": {
+            "triangle_count": { "type": ["integer", "null"] },
+            "entity_count": { "type": ["integer", "null"] }
           },
           "additionalProperties": true
         },

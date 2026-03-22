@@ -655,6 +655,22 @@ async def get_viewer_readiness(file_id: str, db: Session = Depends(get_db)):
     return converter.assess_viewer_readiness(file_container)
 
 
+@file_router.get("/{file_id}/asset_quality")
+async def get_asset_quality(file_id: str, db: Session = Depends(get_db)):
+    """Return CAD asset quality metadata for operator and UI inspection."""
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+    converter = CADConverterService(db, vault_base_path=VAULT_DIR)
+    quality = converter.assess_asset_quality(file_container)
+    quality["file_id"] = file_id
+    quality["filename"] = file_container.filename
+    quality["document_type"] = file_container.document_type
+    quality["cad_format"] = file_container.cad_format
+    quality["cad_connector_id"] = file_container.cad_connector_id
+    return quality
+
+
 @file_router.get("/{file_id}/geometry/assets")
 async def list_geometry_assets(file_id: str, db: Session = Depends(get_db)):
     """List available geometry assets (textures, sidecars) for a file."""
@@ -696,6 +712,7 @@ async def get_consumer_summary(file_id: str, db: Session = Depends(get_db)):
         "is_viewer_ready": readiness["is_viewer_ready"],
         "geometry_format": readiness.get("geometry_format"),
         "assets": readiness.get("available_assets", []),
+        "asset_quality": readiness.get("asset_quality") or {},
         "blocking_reasons": readiness.get("blocking_reasons", []),
         "urls": {
             "geometry": f"/api/v1/file/{file_id}/geometry" if readiness["geometry_available"] else None,
@@ -703,6 +720,7 @@ async def get_consumer_summary(file_id: str, db: Session = Depends(get_db)):
             "manifest": f"/api/v1/file/{file_id}/cad_manifest" if readiness["manifest_available"] else None,
             "download": f"/api/v1/file/{file_id}/download",
             "viewer_readiness": f"/api/v1/file/{file_id}/viewer_readiness",
+            "asset_quality": f"/api/v1/file/{file_id}/asset_quality",
         },
     }
 
@@ -730,16 +748,21 @@ async def export_viewer_readiness(
             rows.append({
                 "file_id": fid, "filename": None, "viewer_mode": "not_found",
                 "is_viewer_ready": False, "geometry_format": None,
+                "asset_quality_status": "missing",
+                "asset_result_status": "missing",
                 "blocking_reasons": ["file_not_found"],
             })
             continue
         readiness = converter.assess_viewer_readiness(fc)
+        asset_quality = readiness.get("asset_quality") or {}
         rows.append({
             "file_id": fid,
             "filename": fc.filename,
             "viewer_mode": readiness["viewer_mode"],
             "is_viewer_ready": readiness["is_viewer_ready"],
             "geometry_format": readiness.get("geometry_format"),
+            "asset_quality_status": asset_quality.get("status"),
+            "asset_result_status": asset_quality.get("result_status"),
             "blocking_reasons": readiness.get("blocking_reasons", []),
         })
 
@@ -748,7 +771,8 @@ async def export_viewer_readiness(
         buf = io.StringIO()
         writer = _csv.DictWriter(buf, fieldnames=[
             "file_id", "filename", "viewer_mode", "is_viewer_ready",
-            "geometry_format", "blocking_reasons",
+            "geometry_format", "asset_quality_status", "asset_result_status",
+            "blocking_reasons",
         ])
         writer.writeheader()
         for row in rows:

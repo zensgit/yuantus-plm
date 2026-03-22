@@ -7,6 +7,7 @@ Covers:
   - viewer_readiness field in FileMetadata response
 """
 
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -79,6 +80,20 @@ def _client_with_file_container(fc):
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = override_user
     return TestClient(app), mock_db
+
+
+def _mock_file_service(*, existing_paths=None, payloads=None):
+    existing_paths = set(existing_paths or [])
+    payloads = payloads or {}
+    file_service = MagicMock()
+    file_service.file_exists.side_effect = lambda path: path in existing_paths
+
+    def _download(path, output_stream):
+        payload = payloads[path]
+        output_stream.write(json.dumps(payload).encode("utf-8"))
+
+    file_service.download_file.side_effect = _download
+    return file_service
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +208,135 @@ class TestAssessViewerReadiness:
 
         assert result["schema_version"] == 3
 
+    def test_asset_quality_complete_with_bbox_and_single_asset_lod(self):
+        fc = _make_file_container(
+            geometry_path="/vault/fc-1/mesh.gltf",
+            cad_manifest_path="/vault/fc-1/manifest.json",
+            cad_document_path="/vault/fc-1/document.json",
+            cad_metadata_path="/vault/fc-1/mesh_metadata.json",
+            cad_document_schema_version=5,
+        )
+        service = CADConverterService(MagicMock())
+        manifest_payload = {"artifacts": {"mesh_gltf": "mesh.gltf"}}
+        metadata_payload = {
+            "kind": "cad_mesh",
+            "triangle_count": 12,
+            "bounds": [0, 0, 0, 1, 1, 1],
+            "entities": [{"id": 1}, {"id": 2}],
+        }
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService",
+        ) as MockFS:
+            MockFS.return_value.file_exists.side_effect = (
+                lambda path: path == "/vault/fc-1/mesh.bin"
+            )
+            with patch.object(
+                CADConverterService,
+                "_load_json_asset",
+                side_effect=[manifest_payload, metadata_payload],
+            ):
+                result = service.assess_asset_quality(fc)
+
+        assert result["status"] == "ok"
+        assert result["result_status"] == "complete"
+        assert result["bbox"] == [0, 0, 0, 1, 1, 1]
+        assert result["triangle_count"] == 12
+        assert result["entity_count"] == 2
+        assert result["lod"]["status"] == "single_asset"
+        assert result["lod"]["levels"] == ["0"]
+        assert "mesh.bin" in result["proof_files"]
+
+    def test_asset_quality_uses_connector_metadata_and_degrades_on_converter_result(self):
+        fc = _make_file_container(
+            geometry_path="/vault/fc-1/mesh.gltf",
+            cad_metadata_path="/vault/fc-1/mesh_metadata.json",
+            conversion_status="completed",
+        )
+        service = CADConverterService(MagicMock())
+        metadata_payload = {
+            "kind": "cad_quality",
+            "bbox": [0, 0, 0, 5, 5, 5],
+            "lods": [
+                {"level": 0, "ratio": 1.0},
+                {"level": 1, "ratio": 0.5},
+            ],
+            "mesh_stats": {"triangle_count": 64, "entity_count": 3},
+            "result": {
+                "status": "degraded",
+                "error_output": None,
+                "warnings": ["lod fallback used"],
+            },
+        }
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService",
+        ) as MockFS:
+            MockFS.return_value.file_exists.side_effect = (
+                lambda path: path == "/vault/fc-1/mesh.bin"
+            )
+            with patch.object(
+                CADConverterService,
+                "_load_json_asset",
+                side_effect=[None, metadata_payload],
+            ):
+                result = service.assess_asset_quality(fc)
+
+        assert result["status"] == "degraded"
+        assert result["result_status"] == "complete"
+        assert result["lod"]["status"] == "available"
+        assert result["lod"]["source"] == "mesh_metadata"
+        assert result["lod"]["count"] == 2
+        assert result["triangle_count"] == 64
+        assert result["result"]["status"] == "degraded"
+        assert result["result"]["warnings"] == ["lod fallback used"]
+        assert "conversion_result_degraded" in result["issue_codes"]
+        assert any(
+            action["code"] == "inspect_converter_result"
+            for action in result["recovery_actions"]
+        )
+
+    def test_asset_quality_degraded_when_mesh_metadata_missing(self):
+        fc = _make_file_container(
+            geometry_path="/vault/fc-1/mesh.gltf",
+            cad_manifest_path="/vault/fc-1/manifest.json",
+        )
+        service = CADConverterService(MagicMock())
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService",
+        ) as MockFS:
+            MockFS.return_value.file_exists.return_value = False
+            with patch.object(
+                CADConverterService,
+                "_load_json_asset",
+                side_effect=[{"artifacts": {"mesh_gltf": "mesh.gltf"}}, None],
+            ):
+                result = service.assess_asset_quality(fc)
+
+        assert result["status"] == "degraded"
+        assert result["result_status"] == "partial"
+        assert "mesh_metadata_missing" in result["issue_codes"]
+        assert any(
+            action["code"] == "inspect_mesh_metadata_output"
+            for action in result["recovery_actions"]
+        )
+
+    def test_asset_quality_missing_when_conversion_failed(self):
+        fc = _make_file_container(conversion_status="failed")
+        service = CADConverterService(MagicMock())
+        file_service = _mock_file_service()
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService",
+            return_value=file_service,
+        ):
+            result = service.assess_asset_quality(fc)
+
+        assert result["status"] == "missing"
+        assert result["result_status"] == "missing"
+        assert result["issue_codes"][0] == "conversion_failed"
+        assert any(
+            action["code"] == "rerun_cad_geometry"
+            for action in result["recovery_actions"]
+        )
+
 
 # ---------------------------------------------------------------------------
 # Router-level tests
@@ -217,12 +361,49 @@ class TestViewerReadinessEndpoint:
         body = resp.json()
         assert body["viewer_mode"] == "full"
         assert body["is_viewer_ready"] is True
+        assert body["asset_quality"]["status"] in {"degraded", "missing", "ok"}
 
     def test_viewer_readiness_404_for_missing_file(self):
         client, mock_db = _client_with_file_container(None)
         mock_db.get.return_value = None
         resp = client.get("/api/v1/file/missing/viewer_readiness")
         assert resp.status_code == 404
+
+    def test_asset_quality_endpoint_returns_operator_contract(self):
+        fc = _make_file_container(
+            geometry_path="/vault/fc-1/mesh.gltf",
+            cad_manifest_path="/vault/fc-1/manifest.json",
+            cad_metadata_path="/vault/fc-1/mesh_metadata.json",
+            cad_document_path="/vault/fc-1/document.json",
+            cad_document_schema_version=7,
+        )
+        client, _db = _client_with_file_container(fc)
+        manifest_payload = {"artifacts": {"mesh_gltf": "mesh.gltf"}}
+        metadata_payload = {
+            "kind": "cad_mesh",
+            "triangle_count": 24,
+            "bbox": [0, 0, 0, 10, 10, 1],
+        }
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService",
+        ) as MockFS:
+            MockFS.return_value.file_exists.side_effect = (
+                lambda path: path == "/vault/fc-1/mesh.bin"
+            )
+            with patch.object(
+                CADConverterService,
+                "_load_json_asset",
+                side_effect=[manifest_payload, metadata_payload],
+            ):
+                resp = client.get("/api/v1/file/fc-1/asset_quality")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["file_id"] == "fc-1"
+        assert body["status"] == "ok"
+        assert body["lod"]["status"] == "single_asset"
+        assert body["links"]["asset_quality_url"] == "/api/v1/file/fc-1/asset_quality"
+        assert body["triangle_count"] == 24
 
 
 class TestGeometryAssetsEndpoint:
@@ -280,6 +461,7 @@ class TestFileMetadataViewerReadinessField:
         assert vr is not None
         assert vr["viewer_mode"] == "full"
         assert vr["is_viewer_ready"] is True
+        assert "asset_quality" in vr
         assert body["cad_review_state"] == "pending"
 
 
@@ -307,8 +489,10 @@ class TestConsumerSummaryEndpoint:
         assert body["file_id"] == "fc-1"
         assert body["viewer_mode"] == "full"
         assert body["is_viewer_ready"] is True
+        assert "asset_quality" in body
         assert body["urls"]["geometry"] is not None
         assert body["urls"]["manifest"] is not None
+        assert body["urls"]["asset_quality"] is not None
         assert body["urls"]["download"] is not None
 
     def test_consumer_summary_none_mode(self):
@@ -350,6 +534,7 @@ class TestViewerReadinessExport:
         assert body["total"] == 1
         assert body["ready_count"] == 1
         assert body["files"][0]["viewer_mode"] == "geometry_only"
+        assert body["files"][0]["asset_quality_status"] in {"degraded", "missing", "ok"}
 
     def test_export_missing_file_included(self):
         client, mock_db = _client_with_file_container(None)
