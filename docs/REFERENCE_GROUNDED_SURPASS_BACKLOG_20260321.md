@@ -136,14 +136,16 @@
   - `src/yuantus/meta_engine/services/cad_bom_import_service.py`
   - 现有 `cad_bom_path`、下载接口、导入服务、URL 暴露
   - `import_result.contract_validation` 现在已经覆盖 shape、accepted counts、root binding、issues
+  - `GET /api/v1/cad/files/{file_id}/bom` 现在额外暴露 coarse `summary`
+  - partial/invalid import 会把 `cad_review_state` 自动翻到 `pending`
+  - `POST /api/v1/cad/files/{file_id}/bom/reimport` 提供有边界的恢复入口
 - Why this can surpass:
   - 如果把 CAD BOM 从“文件结果”升级成“可校验 contract + operator explainability”，就比参考代码更易落地
 - Still missing:
-  - nodes/edges contract tests
   - runbook for import failure / mismatch recovery
-  - operator surfacing beyond raw/import payloads
+  - export/evidence pack for CAD BOM operator scenarios
 - Best next bounded increment:
-  - `cad_bom mismatch recovery + operator surfacing`
+  - `cad_bom runbook + operator export bundle`
 
 ### 7. Warning taxonomy 已经出现雏形，但还没统一成平台能力
 

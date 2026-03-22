@@ -27,7 +27,10 @@ from yuantus.meta_engine.services.cadgf_converter_service import (
     CadgfConversionError,
 )
 from yuantus.meta_engine.services.cad_service import CadService, normalize_cad_attributes
-from yuantus.meta_engine.services.cad_bom_import_service import CadBomImportService
+from yuantus.meta_engine.services.cad_bom_import_service import (
+    CadBomImportService,
+    build_cad_bom_operator_summary,
+)
 from yuantus.meta_engine.services.file_service import FileService
 from yuantus.meta_engine.services.job_errors import JobFatalError
 from yuantus.context import get_request_context
@@ -1338,6 +1341,11 @@ def cad_bom(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
         user_id=payload.get("user_id"),
         roles=payload.get("roles"),
     )
+    bom_summary = build_cad_bom_operator_summary(
+        import_result=import_result,
+        bom_payload=bom_payload,
+        has_artifact=True,
+    )
 
     stored_payload = {
         "kind": "cad_bom",
@@ -1346,6 +1354,7 @@ def cad_bom(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
         "imported_at": datetime.utcnow().isoformat() + "Z",
         "import_result": import_result,
         "bom": bom_payload,
+        "summary": bom_summary,
     }
     bom_key = f"cad_bom/{file_container.id[:2]}/{file_container.id}.json"
     stored_key = file_service.upload_file(
@@ -1354,6 +1363,11 @@ def cad_bom(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
         metadata={"content-type": "application/json"},
     )
     file_container.cad_bom_path = stored_key
+    if bom_summary.get("needs_operator_review"):
+        file_container.cad_review_state = "pending"
+        file_container.cad_review_note = "CAD BOM import requires operator review"
+        file_container.cad_review_by_id = None
+        file_container.cad_reviewed_at = None
     session.add(file_container)
     session.flush()
 
@@ -1363,4 +1377,5 @@ def cad_bom(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
         "item_id": item_id,
         "cad_bom_path": stored_key,
         "import_result": import_result,
+        "summary": bom_summary,
     }

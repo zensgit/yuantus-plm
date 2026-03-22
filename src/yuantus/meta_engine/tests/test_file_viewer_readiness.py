@@ -265,6 +265,7 @@ class TestFileMetadataViewerReadinessField:
         fc = _make_file_container(
             geometry_path="/vault/fc-1/model.obj",
             cad_manifest_path="/vault/fc-1/manifest.json",
+            cad_review_state="pending",
         )
         client, _db = _client_with_file_container(fc)
         with patch(
@@ -279,6 +280,7 @@ class TestFileMetadataViewerReadinessField:
         assert vr is not None
         assert vr["viewer_mode"] == "full"
         assert vr["is_viewer_ready"] is True
+        assert body["cad_review_state"] == "pending"
 
 
 # ---------------------------------------------------------------------------

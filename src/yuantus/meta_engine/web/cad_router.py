@@ -43,6 +43,9 @@ from yuantus.meta_engine.models.job import ConversionJob
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.schemas.aml import AMLAction, GenericItem
 from yuantus.meta_engine.services.cad_service import CadService
+from yuantus.meta_engine.services.cad_bom_import_service import (
+    build_cad_bom_operator_summary,
+)
 from yuantus.meta_engine.services.engine import AMLEngine
 from yuantus.meta_engine.services.file_service import FileService
 from yuantus.meta_engine.services.job_errors import JobFatalError
@@ -381,6 +384,18 @@ class CadBomResponse(BaseModel):
     imported_at: Optional[str] = None
     import_result: Dict[str, Any] = Field(default_factory=dict)
     bom: Dict[str, Any] = Field(default_factory=dict)
+    summary: Dict[str, Any] = Field(default_factory=dict)
+
+
+class CadBomReimportRequest(BaseModel):
+    item_id: Optional[str] = None
+
+
+class CadBomReimportResponse(BaseModel):
+    file_id: str
+    item_id: str
+    job_id: str
+    job_status: str
 
 
 class CadPropertiesResponse(BaseModel):
@@ -429,6 +444,69 @@ class CadReviewResponse(BaseModel):
 class CadReviewRequest(BaseModel):
     state: str
     note: Optional[str] = None
+
+
+def _load_cad_bom_wrapper(file_container: FileContainer) -> Optional[Dict[str, Any]]:
+    if not file_container.cad_bom_path:
+        return None
+    file_service = FileService()
+    output_stream = io.BytesIO()
+    try:
+        file_service.download_file(file_container.cad_bom_path, output_stream)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"CAD BOM download failed: {exc}") from exc
+    output_stream.seek(0)
+    try:
+        payload = json.load(output_stream)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="CAD BOM invalid JSON") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=500, detail="CAD BOM invalid JSON")
+    return payload
+
+
+def _resolve_cad_bom_item_id(
+    *,
+    file_container: FileContainer,
+    request_item_id: Optional[str],
+    db: Session,
+) -> str:
+    item_id = (request_item_id or "").strip()
+    if item_id:
+        return item_id
+
+    wrapper = _load_cad_bom_wrapper(file_container)
+    stored_item_id = str((wrapper or {}).get("item_id") or "").strip()
+    if stored_item_id:
+        return stored_item_id
+
+    attached_rows = (
+        db.query(ItemFile)
+        .filter(ItemFile.file_id == file_container.id)
+        .order_by(ItemFile.created_at.asc())
+        .all()
+    )
+    item_ids = sorted({str(row.item_id).strip() for row in attached_rows if str(row.item_id).strip()})
+    if len(item_ids) == 1:
+        return item_ids[0]
+    if len(item_ids) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "cad_bom_reimport_item_ambiguous",
+                "context": {
+                    "file_id": file_container.id,
+                    "item_ids": item_ids,
+                },
+            },
+        )
+    raise HTTPException(
+        status_code=400,
+        detail={
+            "code": "cad_bom_reimport_item_missing",
+            "context": {"file_id": file_container.id},
+        },
+    )
 
 
 class CadDiffResponse(BaseModel):
@@ -1219,17 +1297,7 @@ def get_cad_bom(
         raise HTTPException(status_code=404, detail="File not found")
 
     if file_container.cad_bom_path:
-        file_service = FileService()
-        output_stream = io.BytesIO()
-        try:
-            file_service.download_file(file_container.cad_bom_path, output_stream)
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"CAD BOM download failed: {exc}") from exc
-        output_stream.seek(0)
-        try:
-            payload = json.load(output_stream)
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail="CAD BOM invalid JSON") from exc
+        payload = _load_cad_bom_wrapper(file_container)
         return CadBomResponse(
             file_id=file_container.id,
             item_id=payload.get("item_id"),
@@ -1237,6 +1305,11 @@ def get_cad_bom(
             import_result=payload.get("import_result") or {},
             bom=payload.get("bom") or {},
             job_status="completed",
+            summary=build_cad_bom_operator_summary(
+                import_result=payload.get("import_result") or {},
+                bom_payload=payload.get("bom") or {},
+                has_artifact=True,
+            ),
         )
 
     jobs = (
@@ -1268,6 +1341,71 @@ def get_cad_bom(
         imported_at=imported_at.isoformat() if imported_at else None,
         import_result=result.get("import_result") or {},
         bom=result.get("bom") or {},
+        summary=build_cad_bom_operator_summary(
+            import_result=result.get("import_result") or {},
+            bom_payload=result.get("bom") or {},
+            has_artifact=bool(file_container.cad_bom_path),
+        ),
+    )
+
+
+@router.post("/files/{file_id}/bom/reimport", response_model=CadBomReimportResponse)
+def reimport_cad_bom(
+    file_id: str,
+    payload: CadBomReimportRequest,
+    request: Request,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CadBomReimportResponse:
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    item_id = _resolve_cad_bom_item_id(
+        file_container=file_container,
+        request_item_id=payload.item_id,
+        db=db,
+    )
+    job_service = JobService(db)
+    auth_header = request.headers.get("authorization")
+    try:
+        job = job_service.create_job(
+            task_type="cad_bom",
+            payload={
+                "file_id": file_container.id,
+                "item_id": item_id,
+                "source_path": file_container.system_path,
+                "cad_connector_id": file_container.cad_connector_id,
+                "cad_format": file_container.cad_format,
+                "document_type": file_container.document_type,
+                "tenant_id": user.tenant_id,
+                "org_id": user.org_id,
+                "user_id": user.id,
+                "roles": list(user.roles or []),
+                "authorization": auth_header,
+            },
+            user_id=user.id,
+            priority=27,
+            dedupe=True,
+        )
+    except QuotaExceededError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.to_dict()) from exc
+
+    _log_cad_change(
+        db,
+        file_container,
+        "cad_bom_reimport_requested",
+        {"item_id": item_id, "job_id": job.id},
+        user,
+    )
+    db.add(file_container)
+    db.commit()
+
+    return CadBomReimportResponse(
+        file_id=file_container.id,
+        item_id=item_id,
+        job_id=job.id,
+        job_status=job.status,
     )
 
 

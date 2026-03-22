@@ -80,6 +80,7 @@ This index aggregates all delivery‑related documents for private deployments.
 
 ## Development & Verification
 
+- CAD BOM Recovery Surfacing Design: `docs/DESIGN_CAD_BOM_RECOVERY_SURFACING_20260322.md`
 - Odoo18 PLM Parallel Execution Design: `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
 - C10 Locale Resolver Export Helpers Design: `docs/DESIGN_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
 - C11 File Viewer Consumer Design: `docs/DESIGN_PARALLEL_C11_FILE_VIEWER_CONSUMER_20260319.md`
@@ -129,6 +130,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - BOM Substitutes API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_SUBSTITUTES_E2E_20260214.md`
 - BOM Tree API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_TREE_E2E_20260214.md`
 - BOM Weight Rollup API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_WEIGHT_ROLLUP_E2E_20260214.md`
+- CAD BOM Recovery Surfacing Verification: `docs/DEV_AND_VERIFICATION_CAD_BOM_RECOVERY_SURFACING_20260322.md`
 - CAD Dedup (SimilarityRecord -> Part Equivalent) (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
 - CAD Dedup Vision (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_VISION_S3_PG_MINIO_20260212.md`
 - CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`

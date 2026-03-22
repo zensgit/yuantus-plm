@@ -5,6 +5,7 @@ from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.services.cad_bom_import_service import (
     CadBomImportService,
+    build_cad_bom_operator_summary,
     prepare_cad_bom_payload,
 )
 
@@ -104,3 +105,43 @@ def test_import_bom_records_contract_validation_for_invalid_entries_without_cras
     assert "duplicate node id: child-1" in validation["issues"]
     assert "edge[0] must be an object" in validation["issues"]
     assert "edge[1] child not found: missing-child" in validation["issues"]
+
+
+def test_build_cad_bom_operator_summary_returns_recovery_actions_for_invalid_contract():
+    summary = build_cad_bom_operator_summary(
+        import_result={
+            "created_lines": 1,
+            "skipped_lines": 2,
+            "errors": ["BOM relationship already exists"],
+            "contract_validation": {
+                "schema": "nodes_edges_v1",
+                "status": "invalid",
+                "shape": "graph",
+                "raw_counts": {"nodes": 4, "edges": 3},
+                "accepted_counts": {"nodes": 2, "edges": 1},
+                "root": None,
+                "root_source": None,
+                "issues": [
+                    "duplicate node id: assy-root",
+                    "ambiguous root binding: top-a, top-b",
+                    "edge[1] child not found: child-missing",
+                ],
+            },
+        },
+        bom_payload={"nodes": [{"id": "top-a"}], "edges": []},
+        has_artifact=True,
+    )
+
+    assert summary["status"] == "degraded"
+    assert summary["recoverable"] is True
+    assert summary["issue_count"] == 3
+    assert summary["error_count"] == 1
+    assert summary["skipped_lines"] == 2
+    assert summary["accepted_counts"] == {"nodes": 2, "edges": 1}
+    codes = [action["code"] for action in summary["recovery_actions"]]
+    assert "dedupe_node_ids" in codes
+    assert "repair_root_binding" in codes
+    assert "repair_edge_references" in codes
+    assert "review_import_errors" in codes
+    assert "inspect_raw_cad_bom" in codes
+    assert "rerun_cad_bom_import" in codes

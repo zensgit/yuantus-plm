@@ -225,6 +225,159 @@ def prepare_cad_bom_payload(
     return nodes, edges, root, validation
 
 
+def _append_recovery_action(
+    actions: List[Dict[str, str]],
+    seen_codes: Set[str],
+    *,
+    code: str,
+    label: str,
+) -> None:
+    if code in seen_codes:
+        return
+    actions.append({"code": code, "label": label})
+    seen_codes.add(code)
+
+
+def build_cad_bom_operator_summary(
+    *,
+    import_result: Optional[Dict[str, Any]],
+    bom_payload: Optional[Dict[str, Any]] = None,
+    has_artifact: bool,
+) -> Dict[str, Any]:
+    result = import_result if isinstance(import_result, dict) else {}
+    validation = result.get("contract_validation")
+    if not isinstance(validation, dict):
+        _nodes, _edges, _root, validation = prepare_cad_bom_payload(bom_payload or {})
+
+    issues = list(validation.get("issues") or [])
+    errors = [str(err) for err in (result.get("errors") or []) if str(err).strip()]
+    created_lines = int(result.get("created_lines") or 0)
+    created_items = int(result.get("created_items") or 0)
+    existing_items = int(result.get("existing_items") or 0)
+    skipped_lines = int(result.get("skipped_lines") or 0)
+    contract_status = str(validation.get("status") or "missing")
+    actions: List[Dict[str, str]] = []
+    action_codes: Set[str] = set()
+    issue_codes: List[str] = []
+    issue_code_set: Set[str] = set()
+
+    def _append_issue_code(code: str) -> None:
+        if code in issue_code_set:
+            return
+        issue_codes.append(code)
+        issue_code_set.add(code)
+
+    if not has_artifact and not result and not bom_payload:
+        status = "missing"
+        recoverable = True
+        _append_issue_code("missing_bom_artifact")
+        _append_recovery_action(
+            actions,
+            action_codes,
+            code="request_cad_bom_import",
+            label="Request CAD BOM extraction/import for this file.",
+        )
+    elif result.get("note") == "empty_bom" or contract_status == "empty":
+        status = "empty"
+        recoverable = True
+        _append_issue_code("empty_bom")
+        _append_recovery_action(
+            actions,
+            action_codes,
+            code="verify_connector_bom_support",
+            label="Verify that the connector and source assembly actually expose a BOM.",
+        )
+        _append_recovery_action(
+            actions,
+            action_codes,
+            code="rerun_cad_bom_import",
+            label="Re-run the CAD BOM import after confirming source assembly content.",
+        )
+    elif contract_status == "invalid" or errors or skipped_lines:
+        status = "degraded"
+        recoverable = True
+        if contract_status == "invalid":
+            _append_issue_code("contract_invalid")
+    else:
+        status = "ready"
+        recoverable = False
+
+    issue_text = " | ".join(issues)
+    if "duplicate node id" in issue_text:
+        _append_issue_code("duplicate_node_ids")
+        _append_recovery_action(
+            actions,
+            action_codes,
+            code="dedupe_node_ids",
+            label="Deduplicate CAD BOM node identifiers before re-import.",
+        )
+    if (
+        "root not found" in issue_text
+        or "missing root binding" in issue_text
+        or "ambiguous root binding" in issue_text
+    ):
+        _append_issue_code("root_binding_invalid")
+        _append_recovery_action(
+            actions,
+            action_codes,
+            code="repair_root_binding",
+            label="Provide a single explicit root assembly node before re-import.",
+        )
+    if "parent not found" in issue_text or "child not found" in issue_text:
+        _append_issue_code("edge_reference_missing")
+        _append_recovery_action(
+            actions,
+            action_codes,
+            code="repair_edge_references",
+            label="Repair parent/child references so every BOM edge points to a known node.",
+        )
+    if errors or skipped_lines:
+        if errors:
+            _append_issue_code("import_errors")
+        if skipped_lines:
+            _append_issue_code("skipped_lines")
+        _append_recovery_action(
+            actions,
+            action_codes,
+            code="review_import_errors",
+            label="Review import errors and skipped BOM lines before re-running the job.",
+        )
+    if has_artifact and (issues or errors):
+        _append_recovery_action(
+            actions,
+            action_codes,
+            code="inspect_raw_cad_bom",
+            label="Download and inspect the raw CAD BOM artifact to confirm connector output.",
+        )
+    if recoverable and has_artifact:
+        _append_recovery_action(
+            actions,
+            action_codes,
+            code="rerun_cad_bom_import",
+            label="Re-run the CAD BOM import after correcting contract or import issues.",
+        )
+
+    return {
+        "status": status,
+        "needs_operator_review": recoverable and status != "missing",
+        "recoverable": recoverable,
+        "has_artifact": has_artifact,
+        "contract_status": contract_status,
+        "issue_count": len(issues),
+        "issue_codes": issue_codes,
+        "error_count": len(errors),
+        "created_items": created_items,
+        "existing_items": existing_items,
+        "created_lines": created_lines,
+        "skipped_lines": skipped_lines,
+        "raw_counts": validation.get("raw_counts") or {"nodes": 0, "edges": 0},
+        "accepted_counts": validation.get("accepted_counts") or {"nodes": 0, "edges": 0},
+        "root": validation.get("root"),
+        "root_source": validation.get("root_source"),
+        "recovery_actions": actions,
+    }
+
+
 class CadBomImportService:
     def __init__(self, session: Session) -> None:
         self.session = session
