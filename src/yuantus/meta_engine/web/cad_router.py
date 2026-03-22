@@ -49,6 +49,7 @@ from yuantus.meta_engine.services.cad_bom_import_service import (
     build_cad_bom_mismatch_analysis,
     build_cad_bom_operator_summary,
 )
+from yuantus.meta_engine.services.cad_converter_service import CADConverterService
 from yuantus.meta_engine.services.engine import AMLEngine
 from yuantus.meta_engine.services.file_service import FileService
 from yuantus.meta_engine.services.job_errors import JobFatalError
@@ -58,6 +59,7 @@ from yuantus.security.auth.database import get_identity_db
 from yuantus.security.auth.quota_service import QuotaService
 
 router = APIRouter(prefix="/cad", tags=["CAD"])
+VAULT_DIR = get_settings().LOCAL_STORAGE_PATH
 
 """
 CAD Connector API
@@ -414,10 +416,13 @@ class CadBomBundleFileInfo(BaseModel):
 
 
 class CadBomOperatorBundleResponse(BaseModel):
-    bundle_version: str = "cad_bom_operator_bundle_v1"
+    bundle_version: str = "cad_operator_proof_bundle_v1"
     exported_at: datetime
     file: CadBomBundleFileInfo
+    viewer_readiness: Dict[str, Any] = Field(default_factory=dict)
+    asset_quality: Dict[str, Any] = Field(default_factory=dict)
     cad_bom: CadBomResponse
+    operator_proof: Dict[str, Any] = Field(default_factory=dict)
     review: CadReviewResponse
     history: List[CadChangeLogEntry] = Field(default_factory=list)
     proof_manifest: Dict[str, Any] = Field(default_factory=dict)
@@ -428,11 +433,262 @@ def _mismatch_links(file_id: str, history_limit: int) -> Dict[str, str]:
     return {
         "bom_url": f"/api/v1/cad/files/{file_id}/bom",
         "mismatch_url": f"/api/v1/cad/files/{file_id}/bom/mismatch",
+        "proof_url": f"/api/v1/cad/files/{file_id}/proof?history_limit={history_limit}",
         "export_url": f"/api/v1/cad/files/{file_id}/bom/export",
+        "asset_quality_url": f"/api/v1/file/{file_id}/asset_quality",
+        "viewer_readiness_url": f"/api/v1/file/{file_id}/viewer_readiness",
         "review_url": f"/api/v1/cad/files/{file_id}/review",
         "history_url": f"/api/v1/cad/files/{file_id}/history?limit={history_limit}",
         "reimport_url": f"/api/v1/cad/files/{file_id}/bom/reimport",
     }
+
+
+def _dedupe_code_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    seen: set[tuple[str, str]] = set()
+    deduped: List[Dict[str, str]] = []
+    for row in rows:
+        code = str((row or {}).get("code") or "").strip()
+        label = str((row or {}).get("label") or "").strip()
+        if not code:
+            continue
+        key = (code, label)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append({"code": code, "label": label})
+    return deduped
+
+
+def _dedupe_text(values: List[Any]) -> List[str]:
+    seen: set[str] = set()
+    out: List[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        out.append(text)
+    return out
+
+
+def _build_cad_operator_proof(
+    *,
+    file_container: FileContainer,
+    cad_bom: CadBomResponse,
+    viewer_readiness: Dict[str, Any],
+    asset_quality: Dict[str, Any],
+    review: CadReviewResponse,
+) -> Dict[str, Any]:
+    proof_gaps: List[str] = []
+
+    def _append_gap(code: str) -> None:
+        if code not in proof_gaps:
+            proof_gaps.append(code)
+
+    asset_status = str(asset_quality.get("status") or "missing")
+    asset_result_status = str(asset_quality.get("result_status") or "missing")
+    converter_result_status = str(
+        (asset_quality.get("result") or {}).get("status") or "missing"
+    )
+    viewer_mode = str(viewer_readiness.get("viewer_mode") or "none")
+    is_viewer_ready = bool(viewer_readiness.get("is_viewer_ready"))
+    bom_status = str((cad_bom.summary or {}).get("status") or "missing")
+    mismatch_status = str((cad_bom.mismatch or {}).get("status") or "missing")
+    review_state = str(review.state or "").strip().lower() or None
+
+    if asset_status == "missing":
+        _append_gap("asset_quality_missing")
+    elif asset_status == "degraded":
+        _append_gap("asset_quality_degraded")
+    if converter_result_status == "failed":
+        _append_gap("converter_result_failed")
+    elif converter_result_status == "degraded":
+        _append_gap("converter_result_degraded")
+    if not is_viewer_ready:
+        _append_gap("viewer_not_ready")
+    if bom_status == "missing":
+        _append_gap("cad_bom_missing")
+    elif bom_status == "empty":
+        _append_gap("cad_bom_empty")
+    elif bom_status == "degraded":
+        _append_gap("cad_bom_degraded")
+    if mismatch_status == "mismatch":
+        _append_gap("cad_bom_live_mismatch")
+    elif mismatch_status == "unresolved":
+        _append_gap("cad_bom_mismatch_unresolved")
+    if review_state == "pending":
+        _append_gap("cad_review_pending")
+
+    blocked_codes = {
+        "asset_quality_missing",
+        "converter_result_failed",
+        "viewer_not_ready",
+    }
+    if any(code in blocked_codes for code in proof_gaps):
+        status = "blocked"
+    elif proof_gaps:
+        status = "needs_review"
+    else:
+        status = "ready"
+
+    next_actions = _dedupe_code_rows(
+        list(asset_quality.get("recovery_actions") or [])
+        + list((cad_bom.summary or {}).get("recovery_actions") or [])
+        + list((cad_bom.mismatch or {}).get("recovery_actions") or [])
+    )
+
+    issue_codes = _dedupe_text(
+        list(asset_quality.get("issue_codes") or [])
+        + list((cad_bom.summary or {}).get("issue_codes") or [])
+        + list((cad_bom.mismatch or {}).get("issue_codes") or [])
+        + proof_gaps
+    )
+
+    return {
+        "status": status,
+        "asset_quality_status": asset_status,
+        "asset_result_status": asset_result_status,
+        "converter_result_status": converter_result_status,
+        "viewer_mode": viewer_mode,
+        "is_viewer_ready": is_viewer_ready,
+        "cad_bom_status": bom_status,
+        "mismatch_status": mismatch_status,
+        "review_state": review_state,
+        "needs_operator_review": status != "ready",
+        "requires_export_before_recovery": status != "ready",
+        "proof_gaps": proof_gaps,
+        "issue_codes": issue_codes,
+        "next_actions": next_actions,
+        "components": {
+            "asset_quality": asset_status,
+            "viewer_readiness": viewer_mode,
+            "cad_bom": bom_status,
+            "mismatch": mismatch_status,
+            "review": review_state,
+        },
+        "file_context": {
+            "file_id": file_container.id,
+            "cad_connector_id": file_container.cad_connector_id,
+            "cad_format": file_container.cad_format,
+            "document_type": file_container.document_type,
+        },
+    }
+
+
+def _build_cad_operator_bundle(
+    *,
+    file_container: FileContainer,
+    db: Session,
+    history_limit: int,
+) -> CadBomOperatorBundleResponse:
+    cad_bom = _build_cad_bom_response(file_container=file_container, db=db)
+    review = _build_cad_review_response(file_container)
+    history_entries = _load_cad_history_entries(
+        file_container=file_container,
+        db=db,
+        limit=history_limit,
+    )
+    converter = CADConverterService(db, vault_base_path=VAULT_DIR)
+    viewer_readiness = converter.assess_viewer_readiness(file_container)
+    asset_quality = dict(viewer_readiness.get("asset_quality") or {})
+    if not asset_quality:
+        asset_quality = converter.assess_asset_quality(file_container)
+    operator_proof = _build_cad_operator_proof(
+        file_container=file_container,
+        cad_bom=cad_bom,
+        viewer_readiness=viewer_readiness,
+        asset_quality=asset_quality,
+        review=review,
+    )
+    proof_files = [
+        "bundle.json",
+        "file.json",
+        "operator_proof.json",
+        "viewer_readiness.json",
+        "asset_quality.json",
+        "asset_quality_issue_codes.csv",
+        "asset_quality_recovery_actions.csv",
+        "summary.json",
+        "review.json",
+        "import_result.json",
+        "bom.json",
+        "mismatch.json",
+        "live_bom.json",
+        "history.json",
+        "history.csv",
+        "recovery_actions.csv",
+        "issue_codes.csv",
+        "mismatch_delta.csv",
+        "mismatch_rows.csv",
+        "mismatch_issue_codes.csv",
+        "mismatch_recovery_actions.csv",
+        "mismatch_delta_preview.json",
+        "proof_manifest.json",
+        "README.txt",
+    ]
+    proof_manifest = {
+        "bundle_kind": "cad_operator_proof_bundle",
+        "bundle_version": 1,
+        "file_id": file_container.id,
+        "generated_at": datetime.utcnow().isoformat(),
+        "operator_proof_status": operator_proof.get("status"),
+        "proof_gaps": operator_proof.get("proof_gaps") or [],
+        "needs_operator_review": bool(operator_proof.get("needs_operator_review")),
+        "asset_quality_status": asset_quality.get("status"),
+        "asset_result_status": asset_quality.get("result_status"),
+        "converter_result_status": (asset_quality.get("result") or {}).get("status"),
+        "viewer_mode": viewer_readiness.get("viewer_mode"),
+        "viewer_ready": bool(viewer_readiness.get("is_viewer_ready")),
+        "summary_status": cad_bom.summary.get("status"),
+        "mismatch_status": cad_bom.mismatch.get("status"),
+        "mismatch_reason": cad_bom.mismatch.get("reason"),
+        "mismatch_line_key": cad_bom.mismatch.get("line_key"),
+        "mismatch_analysis_scope": cad_bom.mismatch.get("analysis_scope"),
+        "mismatch_recoverable": bool(cad_bom.mismatch.get("recoverable")),
+        "mismatch_grouped_counters": cad_bom.mismatch.get("grouped_counters") or {},
+        "mismatch_issue_codes": cad_bom.mismatch.get("issue_codes") or [],
+        "asset_issue_codes": asset_quality.get("issue_codes") or [],
+        "history_entries": len(history_entries),
+        "has_stored_artifact": bool(file_container.cad_bom_path),
+        "proof_files": proof_files,
+    }
+    links = {
+        "structured_bom_url": f"/api/v1/cad/files/{file_container.id}/bom",
+        "mismatch_url": f"/api/v1/cad/files/{file_container.id}/bom/mismatch",
+        "proof_url": f"/api/v1/cad/files/{file_container.id}/proof?history_limit={history_limit}",
+        "raw_bom_url": (
+            f"/api/v1/file/{file_container.id}/cad_bom"
+            if file_container.cad_bom_path
+            else None
+        ),
+        "asset_quality_url": f"/api/v1/file/{file_container.id}/asset_quality",
+        "viewer_readiness_url": f"/api/v1/file/{file_container.id}/viewer_readiness",
+        "review_url": f"/api/v1/cad/files/{file_container.id}/review",
+        "history_url": f"/api/v1/cad/files/{file_container.id}/history?limit={history_limit}",
+        "reimport_url": f"/api/v1/cad/files/{file_container.id}/bom/reimport",
+        "file_url": f"/api/v1/file/{file_container.id}",
+    }
+    return CadBomOperatorBundleResponse(
+        exported_at=datetime.utcnow(),
+        file=CadBomBundleFileInfo(
+            file_id=file_container.id,
+            filename=getattr(file_container, "filename", None),
+            cad_connector_id=file_container.cad_connector_id,
+            cad_format=file_container.cad_format,
+            document_type=file_container.document_type,
+            cad_review_state=file_container.cad_review_state,
+            cad_review_note=file_container.cad_review_note,
+            has_stored_artifact=bool(file_container.cad_bom_path),
+        ),
+        viewer_readiness=viewer_readiness,
+        asset_quality=asset_quality,
+        cad_bom=cad_bom,
+        operator_proof=operator_proof,
+        review=review,
+        history=history_entries,
+        proof_manifest=proof_manifest,
+        links=links,
+    )
 
 
 class CadPropertiesResponse(BaseModel):
@@ -1486,6 +1742,23 @@ def get_cad_bom_mismatch(
     return mismatch
 
 
+@router.get("/files/{file_id}/proof", response_model=CadBomOperatorBundleResponse)
+def get_cad_operator_proof(
+    file_id: str,
+    history_limit: int = Query(20, ge=1, le=200),
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CadBomOperatorBundleResponse:
+    file_container = db.get(FileContainer, file_id)
+    if not file_container:
+        raise HTTPException(status_code=404, detail="File not found")
+    return _build_cad_operator_bundle(
+        file_container=file_container,
+        db=db,
+        history_limit=history_limit,
+    )
+
+
 @router.get("/files/{file_id}/bom/export")
 def export_cad_bom_bundle(
     file_id: str,
@@ -1498,79 +1771,10 @@ def export_cad_bom_bundle(
     if not file_container:
         raise HTTPException(status_code=404, detail="File not found")
 
-    cad_bom = _build_cad_bom_response(file_container=file_container, db=db)
-    review = _build_cad_review_response(file_container)
-    history_entries = _load_cad_history_entries(
+    bundle = _build_cad_operator_bundle(
         file_container=file_container,
         db=db,
-        limit=history_limit,
-    )
-    proof_files = [
-        "bundle.json",
-        "file.json",
-        "summary.json",
-        "review.json",
-        "import_result.json",
-        "bom.json",
-        "mismatch.json",
-        "live_bom.json",
-        "history.json",
-        "history.csv",
-        "recovery_actions.csv",
-        "issue_codes.csv",
-        "mismatch_delta.csv",
-        "mismatch_rows.csv",
-        "mismatch_issue_codes.csv",
-        "mismatch_recovery_actions.csv",
-        "mismatch_delta_preview.json",
-        "proof_manifest.json",
-        "README.txt",
-    ]
-    proof_manifest = {
-        "bundle_kind": "cad_bom_mismatch_proof",
-        "bundle_version": 1,
-        "file_id": file_id,
-        "generated_at": datetime.utcnow().isoformat(),
-        "summary_status": cad_bom.summary.get("status"),
-        "mismatch_status": cad_bom.mismatch.get("status"),
-        "mismatch_reason": cad_bom.mismatch.get("reason"),
-        "mismatch_line_key": cad_bom.mismatch.get("line_key"),
-        "mismatch_analysis_scope": cad_bom.mismatch.get("analysis_scope"),
-        "mismatch_recoverable": bool(cad_bom.mismatch.get("recoverable")),
-        "mismatch_grouped_counters": cad_bom.mismatch.get("grouped_counters") or {},
-        "mismatch_issue_codes": cad_bom.mismatch.get("issue_codes") or [],
-        "history_entries": len(history_entries),
-        "has_stored_artifact": bool(file_container.cad_bom_path),
-        "proof_files": proof_files,
-    }
-
-    bundle = CadBomOperatorBundleResponse(
-        exported_at=datetime.utcnow(),
-        file=CadBomBundleFileInfo(
-            file_id=file_container.id,
-            filename=getattr(file_container, "filename", None),
-            cad_connector_id=file_container.cad_connector_id,
-            cad_format=file_container.cad_format,
-            document_type=file_container.document_type,
-            cad_review_state=file_container.cad_review_state,
-            cad_review_note=file_container.cad_review_note,
-            has_stored_artifact=bool(file_container.cad_bom_path),
-        ),
-        cad_bom=cad_bom,
-        review=review,
-        history=history_entries,
-        proof_manifest=proof_manifest,
-        links={
-            "structured_bom_url": f"/api/v1/cad/files/{file_id}/bom",
-            "mismatch_url": f"/api/v1/cad/files/{file_id}/bom/mismatch",
-            "raw_bom_url": (
-                f"/api/v1/file/{file_id}/cad_bom" if file_container.cad_bom_path else None
-            ),
-            "review_url": f"/api/v1/cad/files/{file_id}/review",
-            "history_url": f"/api/v1/cad/files/{file_id}/history?limit={history_limit}",
-            "reimport_url": f"/api/v1/cad/files/{file_id}/bom/reimport",
-            "file_url": f"/api/v1/file/{file_id}",
-        },
+        history_limit=history_limit,
     )
     payload = bundle.model_dump(mode="json")
     fmt = (export_format or "").strip().lower()
@@ -1583,12 +1787,20 @@ def export_cad_bom_bundle(
     if fmt != "zip":
         raise HTTPException(status_code=400, detail="Unsupported export format")
 
+    cad_bom = bundle.cad_bom
+    review = bundle.review
+    history_entries = bundle.history
     history_rows = [entry.model_dump(mode="json") for entry in history_entries]
     recovery_rows = list(cad_bom.summary.get("recovery_actions") or [])
     issue_rows = [
         {"code": code}
         for code in (cad_bom.summary.get("issue_codes") or [])
     ]
+    asset_quality_rows = [
+        {"code": code}
+        for code in (bundle.asset_quality.get("issue_codes") or [])
+    ]
+    asset_recovery_rows = list(bundle.asset_quality.get("recovery_actions") or [])
     mismatch_rows = list(cad_bom.mismatch.get("rows") or [])
     mismatch_issue_rows = [
         {"code": code}
@@ -1602,6 +1814,24 @@ def export_cad_bom_bundle(
             ),
             "file.json": json.dumps(
                 bundle.file.model_dump(mode="json"),
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "operator_proof.json": json.dumps(
+                bundle.operator_proof,
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "viewer_readiness.json": json.dumps(
+                bundle.viewer_readiness,
+                ensure_ascii=False,
+                default=str,
+                indent=2,
+            ).encode("utf-8"),
+            "asset_quality.json": json.dumps(
+                bundle.asset_quality,
                 ensure_ascii=False,
                 default=str,
                 indent=2,
@@ -1657,6 +1887,14 @@ def export_cad_bom_bundle(
                 columns=["code", "label"],
             ),
             "issue_codes.csv": _csv_bytes(rows=issue_rows, columns=["code"]),
+            "asset_quality_issue_codes.csv": _csv_bytes(
+                rows=asset_quality_rows,
+                columns=["code"],
+            ),
+            "asset_quality_recovery_actions.csv": _csv_bytes(
+                rows=asset_recovery_rows,
+                columns=["code", "label"],
+            ),
             "mismatch_delta.csv": _csv_bytes(
                 rows=mismatch_rows,
                 columns=[
@@ -1704,21 +1942,26 @@ def export_cad_bom_bundle(
                 indent=2,
             ).encode("utf-8"),
             "proof_manifest.json": json.dumps(
-                proof_manifest,
+                bundle.proof_manifest,
                 ensure_ascii=False,
                 default=str,
                 indent=2,
             ).encode("utf-8"),
             "README.txt": (
-                "YuantusPLM CAD BOM operator bundle\n"
+                "YuantusPLM CAD operator proof bundle\n"
                 f"file_id={file_id}\n"
                 f"exported_at={bundle.exported_at.isoformat()}\n"
                 f"structured_bom_url=/api/v1/cad/files/{file_id}/bom\n"
                 f"mismatch_url=/api/v1/cad/files/{file_id}/bom/mismatch\n"
+                f"proof_url=/api/v1/cad/files/{file_id}/proof?history_limit={history_limit}\n"
                 f"raw_bom_url={bundle.links['raw_bom_url'] or ''}\n"
+                f"asset_quality_url=/api/v1/file/{file_id}/asset_quality\n"
+                f"viewer_readiness_url=/api/v1/file/{file_id}/viewer_readiness\n"
                 f"review_url=/api/v1/cad/files/{file_id}/review\n"
                 f"history_url=/api/v1/cad/files/{file_id}/history?limit={history_limit}\n"
                 f"reimport_url=/api/v1/cad/files/{file_id}/bom/reimport\n"
+                f"operator_proof_status={bundle.operator_proof.get('status') or 'unavailable'}\n"
+                f"asset_quality_status={bundle.asset_quality.get('status') or 'unavailable'}\n"
                 f"mismatch_status={cad_bom.mismatch.get('status') or 'unavailable'}\n"
                 f"proof_manifest_file=proof_manifest.json\n"
             ).encode("utf-8"),

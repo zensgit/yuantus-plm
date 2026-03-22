@@ -62,6 +62,66 @@ def _sample_mismatch(
     }
 
 
+def _sample_asset_quality(
+    *,
+    status="ok",
+    result_status="complete",
+    converter_status="ok",
+    issue_codes=None,
+    recovery_actions=None,
+):
+    return {
+        "status": status,
+        "result_status": result_status,
+        "geometry_format": "gltf",
+        "schema_version": 7,
+        "result": {
+            "status": converter_status,
+            "conversion_status": "completed",
+            "error_output": None,
+            "warnings": [],
+        },
+        "bbox": [0, 0, 0, 10, 20, 30],
+        "bbox_source": "mesh_metadata",
+        "triangle_count": 420,
+        "entity_count": 12,
+        "lod": {
+            "status": "available",
+            "source": "mesh_metadata",
+            "count": 2,
+            "levels": ["0", "1"],
+            "files": {},
+        },
+        "proof_files": ["mesh.gltf", "mesh.bin", "mesh_metadata.json"],
+        "issue_codes": issue_codes or [],
+        "recovery_actions": recovery_actions or [],
+        "links": {
+            "geometry_url": "/api/v1/file/file-1/geometry",
+            "manifest_url": "/api/v1/file/file-1/cad_manifest",
+            "document_url": "/api/v1/file/file-1/cad_document",
+            "metadata_url": "/api/v1/file/file-1/cad_metadata",
+            "viewer_readiness_url": "/api/v1/file/file-1/viewer_readiness",
+            "asset_quality_url": "/api/v1/file/file-1/asset_quality",
+        },
+    }
+
+
+def _sample_viewer_readiness(*, asset_quality=None, viewer_mode="full", is_viewer_ready=True):
+    return {
+        "viewer_mode": viewer_mode,
+        "geometry_available": True,
+        "manifest_available": True,
+        "preview_available": False,
+        "available_assets": ["mesh.gltf", "mesh.bin"],
+        "geometry_format": "gltf",
+        "schema_version": 7,
+        "conversion_status": "completed",
+        "blocking_reasons": [] if is_viewer_ready else ["conversion_pending"],
+        "asset_quality": asset_quality or _sample_asset_quality(),
+        "is_viewer_ready": is_viewer_ready,
+    }
+
+
 def _cad_client(*, file_container, jobs=None, item_file_rows=None, history_logs=None) -> TestClient:
     mock_db = MagicMock()
     mock_db.get.return_value = file_container
@@ -255,6 +315,89 @@ def test_get_cad_bom_mismatch_returns_links_and_unresolved_status():
     assert body["links"]["reimport_url"] == "/api/v1/cad/files/file-m1/bom/reimport"
 
 
+def test_get_cad_operator_proof_returns_linked_asset_quality_and_mismatch_surface():
+    file_container = SimpleNamespace(
+        id="file-proof-1",
+        filename="assy-proof.step",
+        cad_bom_path="/vault/file-proof-1.json",
+        cad_connector_id="step",
+        cad_format="STEP",
+        document_type="3d",
+        cad_review_state="pending",
+        cad_review_note="needs proof review",
+        cad_review_by_id=None,
+        cad_reviewed_at=None,
+    )
+    client = _cad_client(
+        file_container=file_container,
+        history_logs=[
+            SimpleNamespace(
+                id="log-proof-1",
+                action="cad_bom_reimport_requested",
+                payload={"job_id": "job-proof-1"},
+                created_at=datetime(2026, 3, 22, 9, 30, 0),
+                user_id=7,
+            )
+        ],
+    )
+    stored_payload = {
+        "file_id": "file-proof-1",
+        "item_id": "item-proof-1",
+        "imported_at": "2026-03-22T09:00:00Z",
+        "import_result": {"ok": True},
+        "bom": {"nodes": [{"id": "assy-root"}], "edges": [], "root": "assy-root"},
+    }
+    asset_quality = _sample_asset_quality(
+        status="degraded",
+        result_status="complete",
+        converter_status="degraded",
+        issue_codes=["conversion_result_degraded"],
+        recovery_actions=[
+            {"code": "inspect_converter_result", "label": "Inspect converter result."}
+        ],
+    )
+    viewer_readiness = _sample_viewer_readiness(
+        asset_quality=asset_quality,
+        viewer_mode="full",
+        is_viewer_ready=True,
+    )
+
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+        with patch(
+            "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
+            return_value=_sample_mismatch(
+                status="mismatch",
+                total_ops=1,
+                updates=1,
+                issue_codes=["live_bom_quantity_mismatch"],
+                recovery_actions=[
+                    {"code": "review_live_bom_quantities", "label": "Review quantities."}
+                ],
+                risk_level="medium",
+            ),
+        ):
+            with patch(
+                "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+                return_value=viewer_readiness,
+            ):
+                def _download(_path, output_stream):
+                    output_stream.write(json.dumps(stored_payload).encode("utf-8"))
+
+                file_service_cls.return_value.download_file.side_effect = _download
+                response = client.get("/api/v1/cad/files/file-proof-1/proof")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["asset_quality"]["status"] == "degraded"
+    assert body["viewer_readiness"]["viewer_mode"] == "full"
+    assert body["cad_bom"]["mismatch"]["status"] == "mismatch"
+    assert body["operator_proof"]["status"] == "needs_review"
+    assert "asset_quality_degraded" in body["operator_proof"]["proof_gaps"]
+    assert "cad_bom_live_mismatch" in body["operator_proof"]["proof_gaps"]
+    assert body["links"]["proof_url"] == "/api/v1/cad/files/file-proof-1/proof?history_limit=20"
+    assert body["proof_manifest"]["bundle_kind"] == "cad_operator_proof_bundle"
+
+
 def test_reimport_cad_bom_uses_stored_item_id_and_logs_request():
     file_container = SimpleNamespace(
         id="file-3",
@@ -367,6 +510,21 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
         },
         "bom": {"nodes": [{"id": "assy-root"}], "edges": [], "root": "assy-root"},
     }
+    asset_quality = _sample_asset_quality(
+        status="degraded",
+        result_status="partial",
+        converter_status="degraded",
+        issue_codes=["conversion_result_degraded", "mesh_stats_missing"],
+        recovery_actions=[
+            {"code": "inspect_converter_result", "label": "Inspect converter result."},
+            {"code": "inspect_mesh_metadata_output", "label": "Inspect mesh metadata."},
+        ],
+    )
+    viewer_readiness = _sample_viewer_readiness(
+        asset_quality=asset_quality,
+        viewer_mode="full",
+        is_viewer_ready=True,
+    )
 
     with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
         with patch(
@@ -399,11 +557,15 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
                 risk_level="high",
             ),
         ):
-            def _download(_path, output_stream):
-                output_stream.write(json.dumps(stored_payload).encode("utf-8"))
+            with patch(
+                "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+                return_value=viewer_readiness,
+            ):
+                def _download(_path, output_stream):
+                    output_stream.write(json.dumps(stored_payload).encode("utf-8"))
 
-            file_service_cls.return_value.download_file.side_effect = _download
-            response = client.get("/api/v1/cad/files/file-5/bom/export?export_format=zip")
+                file_service_cls.return_value.download_file.side_effect = _download
+                response = client.get("/api/v1/cad/files/file-5/bom/export?export_format=zip")
 
     assert response.status_code == 200
     assert response.headers.get("content-disposition", "").endswith("cad-bom-ops-file-5.zip\"")
@@ -411,6 +573,11 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     zf = zipfile.ZipFile(io.BytesIO(response.content))
     names = set(zf.namelist())
     assert "bundle.json" in names
+    assert "operator_proof.json" in names
+    assert "viewer_readiness.json" in names
+    assert "asset_quality.json" in names
+    assert "asset_quality_issue_codes.csv" in names
+    assert "asset_quality_recovery_actions.csv" in names
     assert "mismatch.json" in names
     assert "live_bom.json" in names
     assert "mismatch_delta.csv" in names
@@ -426,9 +593,14 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     bundle = json.loads(zf.read("bundle.json"))
     assert bundle["file"]["file_id"] == "file-5"
     assert bundle["review"]["state"] == "pending"
+    assert bundle["asset_quality"]["status"] == "degraded"
+    assert bundle["viewer_readiness"]["viewer_mode"] == "full"
     assert bundle["cad_bom"]["summary"]["status"] == "degraded"
     assert bundle["cad_bom"]["mismatch"]["status"] == "mismatch"
-    assert bundle["proof_manifest"]["bundle_kind"] == "cad_bom_mismatch_proof"
+    assert bundle["operator_proof"]["status"] == "needs_review"
+    assert bundle["proof_manifest"]["bundle_kind"] == "cad_operator_proof_bundle"
+    assert bundle["proof_manifest"]["operator_proof_status"] == "needs_review"
+    assert bundle["proof_manifest"]["asset_quality_status"] == "degraded"
     assert bundle["proof_manifest"]["mismatch_grouped_counters"]["structure"] == 1
     assert bundle["proof_manifest"]["mismatch_line_key"] == "child_id_find_refdes"
     assert bundle["proof_manifest"]["proof_files"][-1] == "README.txt"
@@ -441,7 +613,12 @@ def test_export_cad_bom_bundle_zip_includes_summary_review_and_history():
     readme = zf.read("README.txt").decode("utf-8")
     assert "structured_bom_url=/api/v1/cad/files/file-5/bom" in readme
     assert "mismatch_url=/api/v1/cad/files/file-5/bom/mismatch" in readme
+    assert "proof_url=/api/v1/cad/files/file-5/proof?history_limit=20" in readme
+    assert "asset_quality_url=/api/v1/file/file-5/asset_quality" in readme
+    assert "viewer_readiness_url=/api/v1/file/file-5/viewer_readiness" in readme
     assert "reimport_url=/api/v1/cad/files/file-5/bom/reimport" in readme
+    assert "operator_proof_status=needs_review" in readme
+    assert "asset_quality_status=degraded" in readme
     assert "mismatch_status=mismatch" in readme
     assert "proof_manifest_file=proof_manifest.json" in readme
 
@@ -493,20 +670,33 @@ def test_export_cad_bom_bundle_json_supports_job_fallback():
         ],
         history_logs=[],
     )
+    viewer_readiness = _sample_viewer_readiness(
+        asset_quality=_sample_asset_quality(),
+        viewer_mode="full",
+        is_viewer_ready=True,
+    )
 
     with patch(
         "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
         return_value=_sample_mismatch(status="match"),
     ):
-        response = client.get("/api/v1/cad/files/file-6/bom/export?export_format=json")
+        with patch(
+            "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+            return_value=viewer_readiness,
+        ):
+            response = client.get("/api/v1/cad/files/file-6/bom/export?export_format=json")
 
     assert response.status_code == 200
     body = response.json()
     assert body["file"]["file_id"] == "file-6"
     assert body["file"]["has_stored_artifact"] is False
+    assert body["viewer_readiness"]["viewer_mode"] == "full"
+    assert body["asset_quality"]["status"] == "ok"
     assert body["cad_bom"]["job_id"] == "job-6"
     assert body["cad_bom"]["summary"]["status"] == "ready"
     assert body["cad_bom"]["mismatch"]["status"] == "match"
+    assert body["operator_proof"]["status"] == "ready"
+    assert body["proof_manifest"]["bundle_kind"] == "cad_operator_proof_bundle"
     assert body["proof_manifest"]["mismatch_status"] == "match"
     assert body["review"]["state"] == "approved"
     assert body["links"]["raw_bom_url"] is None
@@ -538,11 +728,19 @@ def test_export_cad_bom_bundle_rejects_unsupported_format():
             "yuantus.meta_engine.web.cad_router.build_cad_bom_mismatch_analysis",
             return_value=_sample_mismatch(status="match"),
         ):
-            def _download(_path, output_stream):
-                output_stream.write(json.dumps(stored_payload).encode("utf-8"))
+            with patch(
+                "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+                return_value=_sample_viewer_readiness(
+                    asset_quality=_sample_asset_quality(),
+                    viewer_mode="full",
+                    is_viewer_ready=True,
+                ),
+            ):
+                def _download(_path, output_stream):
+                    output_stream.write(json.dumps(stored_payload).encode("utf-8"))
 
-            file_service_cls.return_value.download_file.side_effect = _download
-            response = client.get("/api/v1/cad/files/file-7/bom/export?export_format=xlsx")
+                file_service_cls.return_value.download_file.side_effect = _download
+                response = client.get("/api/v1/cad/files/file-7/bom/export?export_format=xlsx")
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Unsupported export format"

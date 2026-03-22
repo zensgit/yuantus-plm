@@ -107,7 +107,7 @@
 - Best next bounded increment:
   - `viewer readiness operator pack`
 
-### 5. CAD conversion 质量证据已经进入 `bbox/lod/result` contract 阶段，但还没形成统一 proof surface
+### 5. CAD conversion 质量证据已经进入 unified proof surface 阶段，但还没完成闭环治理
 
 - Benchmark anchor:
   - DocDoku `App.java` 包含 temp dir、converter selection、bbox、LOD、callback
@@ -121,15 +121,16 @@
   - 当前增量已新增 `GET /api/v1/file/{file_id}/asset_quality`
   - `viewer_readiness`、`consumer-summary`、`viewer-readiness/export` 现在都能消费
     同一个 `asset_quality` contract
+  - 当前增量已新增 `GET /api/v1/cad/files/{file_id}/proof`
+  - 当前增量已把 `asset_quality` / `viewer_readiness` 接入 `cad_bom` proof bundle
 - Why this can surpass:
   - 现在 Yuantus 不只是“转换成功/失败”，而是已经能稳定回答
-    “当前 CAD asset set 是否可信、证据在哪里、下一步该看哪里”
+    “当前 CAD asset set 是否可信、BOM 是否漂移、证据在哪里、下一步该看哪里”
 - Still missing:
-  - asset-quality proof linking into CAD BOM mismatch/export bundle
   - callback/result evidence bundle
   - operator acknowledgement / waiver trail for degraded assets
 - Best next bounded increment:
-  - `cad asset quality proof linking + operator surfacing`
+  - `cad proof acknowledgement / waiver trail`
 
 ### 6. CAD BOM contract 已经进入“mismatch + proof”阶段，但还没完成全链路领先
 
@@ -225,7 +226,7 @@
 默认顺序建议固定为：
 
 1. merge 当前 `cad_bom mismatch proof` 分支
-2. 做 `cad asset quality proof linking + operator surfacing`
+2. 做 `cad proof acknowledgement / waiver trail`
 3. 做 `doc_sync governance presets + warning telemetry`
 4. 做 `viewer readiness operator pack`
 5. 做 `bom compare guided apply-preview + operator evidence`

@@ -221,6 +221,7 @@ def test_build_cad_bom_mismatch_analysis_reports_quantity_drift_against_live_bom
     assert analysis["issue_codes"] == ["live_bom_quantity_mismatch"]
     action_codes = [action["code"] for action in analysis["recovery_actions"]]
     assert "review_live_bom_quantities" in action_codes
+    assert "open_cad_operator_proof_surface" in action_codes
     assert "open_cad_bom_mismatch_surface" in action_codes
     assert "export_mismatch_proof_bundle" in action_codes
 

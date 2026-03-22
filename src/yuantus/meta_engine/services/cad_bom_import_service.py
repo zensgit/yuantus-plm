@@ -693,6 +693,12 @@ def build_cad_bom_mismatch_analysis(
         _append_recovery_action(
             recovery_actions,
             seen_action_codes,
+            code="open_cad_operator_proof_surface",
+            label="Open the unified CAD operator proof surface and inspect asset quality, mismatch, and review context.",
+        )
+        _append_recovery_action(
+            recovery_actions,
+            seen_action_codes,
             code="open_cad_bom_mismatch_surface",
             label="Open the CAD BOM mismatch surface and inspect grouped mismatch counters.",
         )
