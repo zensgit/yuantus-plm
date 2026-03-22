@@ -135,14 +135,15 @@
   - `src/yuantus/meta_engine/web/file_router.py`
   - `src/yuantus/meta_engine/services/cad_bom_import_service.py`
   - 现有 `cad_bom_path`、下载接口、导入服务、URL 暴露
+  - `import_result.contract_validation` 现在已经覆盖 shape、accepted counts、root binding、issues
 - Why this can surpass:
   - 如果把 CAD BOM 从“文件结果”升级成“可校验 contract + operator explainability”，就比参考代码更易落地
 - Still missing:
-  - schema validation
   - nodes/edges contract tests
   - runbook for import failure / mismatch recovery
+  - operator surfacing beyond raw/import payloads
 - Best next bounded increment:
-  - `cad_bom schema validation`
+  - `cad_bom mismatch recovery + operator surfacing`
 
 ### 7. Warning taxonomy 已经出现雏形，但还没统一成平台能力
 
@@ -213,7 +214,7 @@
 
 1. merge 当前 `file-cad` + `checkout strictness` 分支
 2. 做 `cad capabilities health/degraded contract`
-3. 做 `cad_bom schema validation`
+3. 做 `cad_bom mismatch recovery + operator surfacing`
 4. 做 `doc_sync governance presets + warning telemetry`
 5. 做 `operator proof bundle`
 

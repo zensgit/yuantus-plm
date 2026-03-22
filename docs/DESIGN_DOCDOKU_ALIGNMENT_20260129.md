@@ -29,7 +29,9 @@ Align Yuantus CAD integration and UI contract with DocDoku-style expectations ac
 ## Gaps / Next Iteration
 - Treat `GET /api/v1/cad/capabilities` as the canonical autodiscovery contract and
   keep legacy discovery surfaces out of new UI integrations.
-- Add optional `cad_bom` schema validation (nodes/edges contract).
+- `cad_bom` now records `import_result.contract_validation` for normalized
+  `nodes/edges` structure, including shape, accepted counts, root binding, and
+  issues.
 
 ## Verification
 - `docs/VERIFICATION_CAD_CONNECTOR_MATRIX_20260129_2116.md`

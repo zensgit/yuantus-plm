@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
@@ -108,6 +108,123 @@ def _normalize_bom_payload(payload: Dict[str, Any]) -> Tuple[List[Dict[str, Any]
     return flat_nodes, flat_edges, root_id
 
 
+CAD_BOM_CONTRACT_SCHEMA = "nodes_edges_v1"
+
+
+def _detect_bom_payload_shape(payload: Dict[str, Any]) -> str:
+    if not payload:
+        return "empty"
+    if isinstance(payload.get("nodes"), list) and isinstance(payload.get("edges"), list):
+        return "graph"
+    if isinstance(payload.get("root"), dict) or (
+        "children" in payload and isinstance(payload.get("children"), list)
+    ):
+        return "tree"
+    return "unknown"
+
+
+def prepare_cad_bom_payload(
+    bom_payload: Optional[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Optional[str], Dict[str, Any]]:
+    payload = bom_payload if isinstance(bom_payload, dict) else {}
+    shape = _detect_bom_payload_shape(payload)
+    raw_nodes, raw_edges, raw_root = _normalize_bom_payload(payload)
+    issues: List[str] = []
+    nodes: List[Dict[str, Any]] = []
+    edges: List[Dict[str, Any]] = []
+    node_ids: Set[str] = set()
+
+    if shape == "unknown":
+        issues.append("payload must expose nodes/edges arrays or a nested root/children tree")
+
+    for index, raw_node in enumerate(raw_nodes):
+        if not isinstance(raw_node, dict):
+            issues.append(f"node[{index}] must be an object")
+            continue
+        node_id = _normalize_text(
+            _extract_node_value(
+                raw_node, "id", "uid", "node_id", "part_number", "item_number", "number"
+            )
+        )
+        if not node_id:
+            issues.append(f"node[{index}] missing id")
+            continue
+        if node_id in node_ids:
+            issues.append(f"duplicate node id: {node_id}")
+            continue
+        node_copy = dict(raw_node)
+        node_copy["id"] = node_id
+        nodes.append(node_copy)
+        node_ids.add(node_id)
+
+    accepted_edge_count = 0
+    indegree = {node_id: 0 for node_id in node_ids}
+
+    for index, raw_edge in enumerate(raw_edges):
+        if not isinstance(raw_edge, dict):
+            issues.append(f"edge[{index}] must be an object")
+            continue
+        edges.append(raw_edge)
+        parent = _normalize_text(_extract_node_value(raw_edge, "parent", "from", "source"))
+        child = _normalize_text(_extract_node_value(raw_edge, "child", "to", "target"))
+        if not parent:
+            issues.append(f"edge[{index}] missing parent")
+            continue
+        if not child:
+            issues.append(f"edge[{index}] missing child")
+            continue
+        if parent not in node_ids:
+            issues.append(f"edge[{index}] parent not found: {parent}")
+            continue
+        if child not in node_ids:
+            issues.append(f"edge[{index}] child not found: {child}")
+            continue
+        indegree[child] = indegree.get(child, 0) + 1
+        accepted_edge_count += 1
+
+    root = raw_root if raw_root in node_ids else None
+    root_source: Optional[str] = None
+    if root:
+        root_source = "payload"
+    elif raw_root:
+        issues.append(f"root not found: {raw_root}")
+
+    if not root and node_ids:
+        root_candidates = sorted(node_id for node_id, degree in indegree.items() if degree == 0)
+        if len(root_candidates) == 1:
+            root = root_candidates[0]
+            root_source = "inferred"
+        elif len(root_candidates) == 0:
+            issues.append("missing root binding: no zero-indegree node found")
+        else:
+            issues.append(f"ambiguous root binding: {', '.join(root_candidates)}")
+
+    if not nodes and not edges:
+        status = "empty" if not issues else "invalid"
+    elif issues:
+        status = "invalid"
+    else:
+        status = "valid"
+
+    validation = {
+        "schema": CAD_BOM_CONTRACT_SCHEMA,
+        "status": status,
+        "shape": shape,
+        "raw_counts": {
+            "nodes": len(raw_nodes),
+            "edges": len(raw_edges),
+        },
+        "accepted_counts": {
+            "nodes": len(nodes),
+            "edges": accepted_edge_count,
+        },
+        "root": root,
+        "root_source": root_source,
+        "issues": issues,
+    }
+    return nodes, edges, root, validation
+
+
 class CadBomImportService:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -131,8 +248,10 @@ class CadBomImportService:
         if not part_type:
             raise ValueError("Part ItemType not found")
 
-        nodes, edges, root_node_id = _normalize_bom_payload(bom_payload or {})
-        if not nodes and not edges:
+        nodes, edges, root_node_id, contract_validation = prepare_cad_bom_payload(
+            bom_payload or {}
+        )
+        if contract_validation["status"] == "empty":
             return {
                 "ok": True,
                 "created_items": 0,
@@ -141,6 +260,7 @@ class CadBomImportService:
                 "skipped_lines": 0,
                 "errors": [],
                 "note": "empty_bom",
+                "contract_validation": contract_validation,
             }
 
         prop_names = {prop.name for prop in (part_type.properties or [])}
@@ -217,7 +337,11 @@ class CadBomImportService:
         errors: List[str] = []
 
         for node in nodes:
-            node_id = str(node.get("id") or node.get("uid") or node.get("node_id") or "")
+            node_id = _normalize_text(
+                _extract_node_value(
+                    node, "id", "uid", "node_id", "part_number", "item_number", "number"
+                )
+            ) or ""
             if not node_id:
                 continue
 
@@ -255,13 +379,13 @@ class CadBomImportService:
         skipped_lines = 0
 
         for edge in edges:
-            parent_id = _extract_node_value(edge, "parent", "from", "source")
-            child_id = _extract_node_value(edge, "child", "to", "target")
+            parent_id = _normalize_text(_extract_node_value(edge, "parent", "from", "source"))
+            child_id = _normalize_text(_extract_node_value(edge, "child", "to", "target"))
             if not parent_id or not child_id:
                 skipped_lines += 1
                 continue
-            parent_item_id = node_map.get(str(parent_id), root_item_id if str(parent_id) == root_node_id else None)
-            child_item_id = node_map.get(str(child_id))
+            parent_item_id = node_map.get(parent_id, root_item_id if parent_id == root_node_id else None)
+            child_item_id = node_map.get(child_id)
             if not parent_item_id or not child_item_id:
                 skipped_lines += 1
                 continue
@@ -293,4 +417,5 @@ class CadBomImportService:
             "created_lines": created_lines,
             "skipped_lines": skipped_lines,
             "errors": errors,
+            "contract_validation": contract_validation,
         }
