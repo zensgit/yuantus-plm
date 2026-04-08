@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import contextlib
 import os
+import shutil
 import socket
+import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 import requests
 import uvicorn
-
-from yuantus.api.app import create_app
+from sqlalchemy.orm import sessionmaker
 
 PACT_DOCS_URL = "https://docs.pact.io/implementation_guides/python/docs/provider"
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -41,15 +42,138 @@ def _provider_state_handler(
     parameters: dict[str, Any] | None,
 ) -> None:
     """
-    Minimal state handler scaffold for Pact provider verification.
+    Provider state handler.
 
-    Extend this mapping when Metasheet consumer tests begin declaring provider
-    states. For now we accept no-op setup/teardown so the verifier skeleton can
-    land before the first pact artifact is committed.
+    For Wave 1 we pre-seed all required data once at the top of the test
+    (see `_seed_pact_fixtures`) rather than seeding per-state. The handler
+    therefore stays a no-op; the state names exist for documentation and
+    for future Wave 2 work where some interactions may need per-state
+    isolation.
     """
 
     _ = (state, action, parameters)
     return None
+
+
+# ---------------------------------------------------------------------------
+# Test database isolation
+# ---------------------------------------------------------------------------
+
+
+@contextlib.contextmanager
+def _isolated_test_database():
+    """
+    Spin up an ephemeral SQLite database scoped to a tempdir, and patch all
+    yuantus globals so the FastAPI app's lifespan and request handlers use it.
+
+    On exit, restore the original env vars / globals and delete the tempdir.
+
+    Why this is necessary:
+      - `yuantus.database.engine` is created at module import time from the
+        process-wide DATABASE_URL. Setting an env var after the import has
+        no effect on that already-bound engine. We have to reassign the
+        module-level globals after changing the env var.
+      - `yuantus.security.auth.database` caches its engine via _engine /
+        _sessionmaker globals; we have to reset those too.
+      - `get_settings` is `@lru_cache`d, so the cache must be cleared.
+      - We force `TENANCY_MODE=single` so the verifier does not need to
+        understand multi-tenant DB routing.
+    """
+    tmpdir = tempfile.mkdtemp(prefix="yuantus_pact_")
+    db_path = os.path.join(tmpdir, "pact_meta.db")
+    identity_db_path = os.path.join(tmpdir, "pact_identity.db")
+
+    # Settings uses env_prefix="YUANTUS_", so all overrides MUST use that
+    # prefix. Without the prefix the values are silently ignored and the
+    # .env file's defaults (db-per-tenant-org, yuantus_mt_skip.db, ...) win.
+    saved_env = {
+        key: os.environ.get(key)
+        for key in (
+            "YUANTUS_DATABASE_URL",
+            "YUANTUS_IDENTITY_DATABASE_URL",
+            "YUANTUS_TENANCY_MODE",
+            "YUANTUS_ENVIRONMENT",
+            "YUANTUS_SCHEMA_MODE",
+            "YUANTUS_AUTH_MODE",
+        )
+    }
+    os.environ["YUANTUS_DATABASE_URL"] = f"sqlite:///{db_path}"
+    os.environ["YUANTUS_IDENTITY_DATABASE_URL"] = f"sqlite:///{identity_db_path}"
+    os.environ["YUANTUS_TENANCY_MODE"] = "single"
+    os.environ["YUANTUS_ENVIRONMENT"] = "dev"
+    os.environ["YUANTUS_SCHEMA_MODE"] = "create_all"
+    os.environ["YUANTUS_AUTH_MODE"] = "optional"
+
+    # Clear cached settings so the new env vars take effect.
+    from yuantus.config import get_settings
+    get_settings.cache_clear()
+
+    # Reset the module-level engine in yuantus.database. The default
+    # `engine` was created at import time from whatever DATABASE_URL was
+    # then. Now we rebuild it against the new tempdir.
+    import yuantus.database as db_mod
+
+    saved_db_engine = db_mod.engine
+    saved_db_sessionlocal = db_mod.SessionLocal
+    saved_tenant_engines = dict(db_mod._tenant_engines)
+    saved_tenant_sessions = dict(db_mod._tenant_sessions)
+    saved_tenant_init_done = set(db_mod._tenant_init_done)
+
+    db_mod.engine = db_mod.create_db_engine()
+    db_mod.SessionLocal = sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        expire_on_commit=False,
+        bind=db_mod.engine,
+    )
+    db_mod._tenant_engines.clear()
+    db_mod._tenant_sessions.clear()
+    db_mod._tenant_init_done.clear()
+
+    # Reset the identity DB cache so init_identity_db rebuilds against the
+    # new IDENTITY_DATABASE_URL.
+    import yuantus.security.auth.database as id_mod
+
+    saved_id_engine = id_mod._engine
+    saved_id_sessionmaker = id_mod._sessionmaker
+    saved_id_engine_url = id_mod._engine_url
+    id_mod._engine = None
+    id_mod._sessionmaker = None
+    id_mod._engine_url = None
+
+    try:
+        yield {
+            "tmpdir": tmpdir,
+            "db_path": db_path,
+            "identity_db_path": identity_db_path,
+        }
+    finally:
+        # Restore yuantus.database globals
+        db_mod.engine = saved_db_engine
+        db_mod.SessionLocal = saved_db_sessionlocal
+        db_mod._tenant_engines.clear()
+        db_mod._tenant_engines.update(saved_tenant_engines)
+        db_mod._tenant_sessions.clear()
+        db_mod._tenant_sessions.update(saved_tenant_sessions)
+        db_mod._tenant_init_done.clear()
+        db_mod._tenant_init_done.update(saved_tenant_init_done)
+
+        # Restore identity DB
+        id_mod._engine = saved_id_engine
+        id_mod._sessionmaker = saved_id_sessionmaker
+        id_mod._engine_url = saved_id_engine_url
+
+        # Restore env vars
+        for key, value in saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+        get_settings.cache_clear()
+
+        # Cleanup tempdir
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def _wait_for_ready(
@@ -95,10 +219,229 @@ def _wait_for_ready(
     ) from last_error
 
 
+# ---------------------------------------------------------------------------
+# Test data seeding
+# ---------------------------------------------------------------------------
+
+
+# Constants used by both the pact JSON examples and the seed function. The
+# pact request bodies hard-code these values, so seed must match exactly.
+PACT_TENANT_ID = "tenant-1"
+PACT_USERNAME = "metasheet-svc"
+PACT_PASSWORD = "secret"
+PACT_ITEM_TYPE = "Part"
+PACT_ITEM_ID_PRIMARY = "01H000000000000000000000P1"
+PACT_ITEM_ID_SECONDARY = "01H000000000000000000000P2"
+PACT_BOM_RELATIONSHIP_TYPE = "Part BOM"
+
+
+def _seed_pact_fixtures() -> None:
+    """
+    Pre-seed the isolated test databases with everything every Wave 1 P0
+    interaction needs. Called once after the FastAPI app has been created
+    but before the server thread starts handling requests.
+
+    Wave 1.5 milestones:
+      - M2: identity tenant + user for /auth/login
+      - M3: ItemType('Part') + Item for /search and /aml/apply
+      - M4: ItemType('Part BOM') + child Item + BOM relationship for /bom/{id}/tree
+      - M5: second comparable Item for /bom/compare
+    """
+    _seed_identity_user()
+    _seed_meta_engine_data()
+
+
+def _seed_meta_engine_data() -> None:
+    """
+    Seed the meta engine database with the ItemType + Item rows the pact
+    interactions need. Uses direct SQLAlchemy writes to bypass the AML
+    engine's permission/lifecycle/validation pipeline — those subsystems
+    are not the target of the pact contract test, the field shapes are.
+    """
+    import sys
+    import uuid
+    import yuantus.database as db_mod
+    from yuantus.database import init_db
+    from yuantus.meta_engine.models.item import Item
+    from yuantus.meta_engine.models.meta_schema import ItemType
+
+    sys.stderr.write(
+        f"[seed] db_mod.engine.url={db_mod.engine.url}\n"
+    )
+    init_db(create_tables=True, bind_engine=db_mod.engine)
+
+    # Use the module-level SessionLocal, which we reassigned in
+    # _isolated_test_database to bind to the temp DB.
+    #
+    # Seed in two phases to avoid SQLAlchemy ORM flush-ordering issues:
+    # the Item model's circular relationships (current_version_id,
+    # source_id, related_id) confuse the topological sorter, so we
+    # commit ItemTypes first, then Items in a second session.
+
+    # Phase A: create ItemTypes
+    with db_mod.SessionLocal() as session:
+        if session.get(ItemType, PACT_ITEM_TYPE) is None:
+            session.add(
+                ItemType(
+                    id=PACT_ITEM_TYPE,
+                    label="Part",
+                    is_relationship=False,
+                    is_versionable=True,
+                    properties_schema={},
+                    methods={},
+                )
+            )
+        if session.get(ItemType, PACT_BOM_RELATIONSHIP_TYPE) is None:
+            session.add(
+                ItemType(
+                    id=PACT_BOM_RELATIONSHIP_TYPE,
+                    label="Part BOM",
+                    is_relationship=True,
+                    is_versionable=False,
+                    source_item_type_id=PACT_ITEM_TYPE,
+                    related_item_type_id=PACT_ITEM_TYPE,
+                    properties_schema={},
+                    methods={},
+                )
+            )
+        session.commit()
+        sys.stderr.write("[seed] ItemTypes committed\n")
+
+    # Phase B: create Items (parent, child, BOM relationship)
+    with db_mod.SessionLocal() as session:
+        if session.get(Item, PACT_ITEM_ID_PRIMARY) is None:
+            session.add(
+                Item(
+                    id=PACT_ITEM_ID_PRIMARY,
+                    item_type_id=PACT_ITEM_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Released",
+                    is_versionable=True,
+                    properties={
+                        "item_number": "P-0001",
+                        "name": "Mounting Bracket",
+                        "description": "Steel mounting bracket",
+                    },
+                )
+            )
+        if session.get(Item, PACT_ITEM_ID_SECONDARY) is None:
+            session.add(
+                Item(
+                    id=PACT_ITEM_ID_SECONDARY,
+                    item_type_id=PACT_ITEM_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Released",
+                    is_versionable=True,
+                    properties={
+                        "item_number": "P-0002",
+                        "name": "Bolt M6",
+                    },
+                )
+            )
+        # BOM relationship: P1 → P2
+        bom_rel_id = "01H000000000000000000000R1"
+        if session.get(Item, bom_rel_id) is None:
+            session.add(
+                Item(
+                    id=bom_rel_id,
+                    item_type_id=PACT_BOM_RELATIONSHIP_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Released",
+                    is_versionable=False,
+                    source_id=PACT_ITEM_ID_PRIMARY,
+                    related_id=PACT_ITEM_ID_SECONDARY,
+                    properties={
+                        "quantity": 4,
+                        "uom": "ea",
+                        "find_num": "10",
+                        "refdes": "B1",
+                    },
+                )
+            )
+        session.commit()
+        sys.stderr.write("[seed] Items + BOM relationship committed\n")
+
+
+def _seed_identity_user() -> None:
+    """Create the test tenant and user that the auth/login pact uses."""
+    from yuantus.security.auth.database import (
+        get_identity_db_session,
+        init_identity_db,
+    )
+    from yuantus.security.auth.service import AuthService
+
+    init_identity_db(create_tables=True)
+
+    with get_identity_db_session() as session:
+        service = AuthService(session)
+        service.ensure_tenant(PACT_TENANT_ID)
+        # create_user raises if the user already exists; that's fine in a
+        # fresh isolated DB but we guard with a query in case of re-entry.
+        from yuantus.security.auth.models import AuthUser
+
+        existing = (
+            session.query(AuthUser)
+            .filter(
+                AuthUser.tenant_id == PACT_TENANT_ID,
+                AuthUser.username == PACT_USERNAME,
+            )
+            .first()
+        )
+        if existing is None:
+            service.create_user(
+                tenant_id=PACT_TENANT_ID,
+                username=PACT_USERNAME,
+                password=PACT_PASSWORD,
+                email="metasheet-svc@test.local",
+                is_superuser=True,
+            )
+
+
+def _override_current_user(app) -> None:
+    """
+    Bypass JWT authentication for non-login endpoints by injecting a fake
+    superuser via FastAPI dependency overrides. The actual /auth/login
+    endpoint is unaffected because it does not depend on get_current_user.
+    """
+    from yuantus.api.dependencies.auth import (
+        CurrentUser,
+        get_current_user,
+        get_current_user_optional,
+    )
+
+    fake_user = CurrentUser(
+        id=1,
+        tenant_id=PACT_TENANT_ID,
+        org_id="org-1",
+        username=PACT_USERNAME,
+        email="metasheet-svc@test.local",
+        roles=["admin", "superuser"],
+        is_superuser=True,
+    )
+
+    def _override():
+        return fake_user
+
+    app.dependency_overrides[get_current_user] = _override
+    app.dependency_overrides[get_current_user_optional] = _override
+
+
 @contextlib.contextmanager
 def _running_provider(base_host: str = DEFAULT_HOST):
+    # Import lazily so that _isolated_test_database has already overridden
+    # DATABASE_URL / IDENTITY_DATABASE_URL by the time create_app() runs.
+    from yuantus.api.app import create_app
+
     port = _find_free_port(base_host)
     app = create_app()
+    _seed_pact_fixtures()
+    _override_current_user(app)
     config = uvicorn.Config(app, host=base_host, port=port, log_level="error")
     server = uvicorn.Server(config)
     server.install_signal_handlers = lambda: None  # type: ignore[assignment]
@@ -167,6 +510,7 @@ def test_yuantus_provider_verifies_local_pacts():
         verifier = verifier.add_source(str(path))
     verifier = verifier.state_handler(_provider_state_handler, teardown=True)
 
-    with _running_provider() as base_url:
-        verifier = verifier.add_transport(url=base_url)
-        verifier.verify()
+    with _isolated_test_database():
+        with _running_provider() as base_url:
+            verifier = verifier.add_transport(url=base_url)
+            verifier.verify()
