@@ -41,6 +41,7 @@ BASELINE_RELEASE_RULES_DEFAULT: List[str] = [
 ECO_APPLY_RULES_DEFAULT: List[str] = [
     "eco.exists",
     "eco.state_approved",
+    "eco.activity_blockers_clear",
     "eco.required_fields_present",
     "eco.product_exists",
     "eco.target_version_exists",

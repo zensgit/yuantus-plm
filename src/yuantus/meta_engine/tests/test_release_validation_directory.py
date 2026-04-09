@@ -47,6 +47,10 @@ def test_ruleset_directory_lists_builtin_kinds_and_readiness_rulesets():
     assert "default" in ruleset_ids
     assert "readiness" in ruleset_ids
 
+    eco_apply_kind = next(k for k in data["kinds"] if k["kind"] == "eco_apply")
+    eco_apply_default = next(r for r in eco_apply_kind["rulesets"] if r["ruleset_id"] == "default")
+    assert "eco.activity_blockers_clear" in eco_apply_default["rule_ids"]
+
 
 def test_ruleset_directory_rejects_unknown_rule_ids(monkeypatch):
     monkeypatch.setenv(
@@ -69,4 +73,3 @@ def test_ruleset_directory_rejects_unknown_rule_ids(monkeypatch):
     assert "unknown rule ids" in (resp.json().get("detail") or "")
 
     get_settings.cache_clear()
-
