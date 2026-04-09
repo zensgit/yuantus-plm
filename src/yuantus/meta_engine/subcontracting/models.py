@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import enum
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 
@@ -53,6 +53,24 @@ class SubcontractOrderEvent(Base):
     quantity = Column(Float, default=0.0, nullable=False)
     reference = Column(String(200), nullable=True)
     note = Column(Text, nullable=True)
+    properties = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_by_id = Column(Integer, ForeignKey("rbac_users.id"), nullable=True)
+
+
+class SubcontractApprovalRoleMapping(Base):
+    __tablename__ = "meta_subcontract_approval_role_mappings"
+
+    id = Column(String, primary_key=True)
+    role_code = Column(String(100), nullable=False, index=True)
+    scope_type = Column(String(30), nullable=False, index=True)
+    scope_value = Column(String(200), nullable=True, index=True)
+    owner = Column(String(200), nullable=True)
+    team = Column(String(200), nullable=True)
+    required = Column(Boolean, default=False, nullable=False)
+    sequence = Column(Integer, default=10, nullable=False)
+    fallback_role = Column(String(100), nullable=True)
+    active = Column(Boolean, default=True, nullable=False)
     properties = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     created_by_id = Column(Integer, ForeignKey("rbac_users.id"), nullable=True)
