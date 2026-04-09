@@ -110,6 +110,7 @@ Final checklist:
 
 - `docs/PR_155_FINAL_REVIEW_CHECKLIST_20260409.md`
 - `docs/PR_TRIAGE_SUMMARY_20260409.md`
+- `docs/PR_REVIEWER_ASSIGNMENT_PLAN_20260409.md`
 
 Branch closeout summary:
 

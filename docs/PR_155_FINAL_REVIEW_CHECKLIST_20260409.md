@@ -67,3 +67,4 @@ Expected clean-scope result:
 - use `docs/SPLIT_PR_REVIEW_ORDER_20260409.md` for the shortest review order across
   `#155`, `#156`, `#157`, and `#158`
 - use `docs/PR_TRIAGE_SUMMARY_20260409.md` for the one-page PR-level triage view
+- use `docs/PR_REVIEWER_ASSIGNMENT_PLAN_20260409.md` for concern-based reviewer routing
