@@ -831,6 +831,14 @@ def test_breakage_metrics_groups_supports_mbom_and_routing_dimensions():
     ) as service_cls:
         service_cls.return_value.metrics_groups.side_effect = [
             {
+                "group_by": "bom_id",
+                "total_groups": 1,
+                "groups": [{"group_by": "bom_id", "group_value": "bom-root-1", "count": 2}],
+                "trend_window_days": 14,
+                "filters": {},
+                "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
+            },
+            {
                 "group_by": "mbom_id",
                 "total_groups": 1,
                 "groups": [{"group_by": "mbom_id", "group_value": "mbom-1", "count": 2}],
@@ -849,6 +857,9 @@ def test_breakage_metrics_groups_supports_mbom_and_routing_dimensions():
                 "pagination": {"page": 1, "page_size": 20, "pages": 1, "total": 1},
             },
         ]
+        bom_resp = client.get(
+            "/api/v1/breakages/metrics/groups?group_by=bom_id&trend_window_days=14"
+        )
         mbom_resp = client.get(
             "/api/v1/breakages/metrics/groups?group_by=mbom_id&trend_window_days=14"
         )
@@ -856,19 +867,26 @@ def test_breakage_metrics_groups_supports_mbom_and_routing_dimensions():
             "/api/v1/breakages/metrics/groups?group_by=routing_id&trend_window_days=14"
         )
 
+    assert bom_resp.status_code == 200
+    assert bom_resp.json()["group_by"] == "bom_id"
+    assert bom_resp.json()["groups"][0]["group_value"] == "bom-root-1"
     assert mbom_resp.status_code == 200
     assert mbom_resp.json()["group_by"] == "mbom_id"
     assert mbom_resp.json()["groups"][0]["group_value"] == "mbom-1"
     assert routing_resp.status_code == 200
     assert routing_resp.json()["group_by"] == "routing_id"
     assert routing_resp.json()["groups"][0]["group_value"] == "routing-1"
-    assert service_cls.return_value.metrics_groups.call_count == 2
+    assert service_cls.return_value.metrics_groups.call_count == 3
     assert (
         service_cls.return_value.metrics_groups.call_args_list[0].kwargs["group_by"]
-        == "mbom_id"
+        == "bom_id"
     )
     assert (
         service_cls.return_value.metrics_groups.call_args_list[1].kwargs["group_by"]
+        == "mbom_id"
+    )
+    assert (
+        service_cls.return_value.metrics_groups.call_args_list[2].kwargs["group_by"]
         == "routing_id"
     )
 
@@ -881,7 +899,7 @@ def test_breakage_metrics_groups_invalid_request_maps_contract_error():
         "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.metrics_groups.side_effect = ValueError(
-            "group_by must be one of: batch_code, bom_line_item_id, mbom_id, product_item_id, responsibility, routing_id"
+            "group_by must be one of: batch_code, bom_id, bom_line_item_id, mbom_id, product_item_id, responsibility, routing_id"
         )
         resp = client.get(
             "/api/v1/breakages/metrics/groups?group_by=oops&trend_window_days=14"
@@ -890,6 +908,7 @@ def test_breakage_metrics_groups_invalid_request_maps_contract_error():
     assert resp.status_code == 400
     detail = resp.json().get("detail") or {}
     assert detail.get("code") == "breakage_metrics_invalid_request"
+    assert "bom_id" in (detail.get("message") or "")
     assert "mbom_id" in (detail.get("message") or "")
     assert "routing_id" in (detail.get("message") or "")
     assert detail.get("context", {}).get("group_by") == "oops"
@@ -997,13 +1016,17 @@ def test_breakage_list_supports_bom_line_filter():
         service_cls.return_value.list_incidents.return_value = [
             SimpleNamespace(
                 id="inc-1",
+                incident_code="BRK-000101",
                 description="bearing crack",
                 severity="high",
                 status="open",
                 product_item_id="p-1",
+                bom_id="bom-root-1",
                 bom_line_item_id="bom-1",
                 production_order_id=None,
                 version_id=None,
+                routing_id="routing-1",
+                mbom_id="mbom-1",
                 batch_code="batch-1",
                 customer_name=None,
                 responsibility="supplier-a",
@@ -1011,12 +1034,28 @@ def test_breakage_list_supports_bom_line_filter():
                 updated_at=None,
             )
         ]
+        service_cls.return_value.build_latest_helpdesk_summary_map.return_value = {
+            "inc-1": {
+                "job_id": "job-hd-1",
+                "sync_status": "completed",
+                "provider": "jira",
+                "external_ticket_id": "HD-101",
+                "provider_ticket_status": "assigned",
+                "provider_assignee": "owner-a",
+            }
+        }
         resp = client.get("/api/v1/breakages?bom_line_item_id=bom-1")
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 1
+    assert body["incidents"][0]["incident_code"] == "BRK-000101"
+    assert body["incidents"][0]["bom_id"] == "bom-root-1"
+    assert body["incidents"][0]["mbom_id"] == "mbom-1"
+    assert body["incidents"][0]["routing_id"] == "routing-1"
     assert body["incidents"][0]["bom_line_item_id"] == "bom-1"
+    assert body["incidents"][0]["helpdesk_ticket_summary"]["external_ticket_id"] == "HD-101"
+    assert body["incidents"][0]["helpdesk_ticket_summary"]["provider_assignee"] == "owner-a"
     assert body["operator_id"] == 3
     service_cls.return_value.list_incidents.assert_called_once_with(
         status=None,
@@ -1025,6 +1064,71 @@ def test_breakage_list_supports_bom_line_filter():
         bom_line_item_id="bom-1",
         batch_code=None,
         responsibility=None,
+    )
+    service_cls.return_value.build_latest_helpdesk_summary_map.assert_called_once_with(
+        ["inc-1"]
+    )
+
+
+def test_breakage_create_supports_identity_and_dimension_fields():
+    user = SimpleNamespace(id=3, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+    ) as service_cls:
+        service_cls.return_value.create_incident.return_value = SimpleNamespace(
+            id="inc-1",
+            incident_code="BRK-000001",
+            description="bearing crack",
+            severity="high",
+            status="open",
+            product_item_id="p-1",
+            bom_id="bom-root-1",
+            bom_line_item_id="bom-1",
+            routing_id="routing-1",
+            production_order_id="routing-1",
+            mbom_id="mbom-1",
+            version_id="mbom-1",
+            created_at=None,
+        )
+        resp = client.post(
+            "/api/v1/breakages",
+            json={
+                "description": "bearing crack",
+                "severity": "high",
+                "product_item_id": "p-1",
+                "bom_id": "bom-root-1",
+                "bom_line_item_id": "bom-1",
+                "routing_id": "routing-1",
+                "mbom_id": "mbom-1",
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["incident_code"] == "BRK-000001"
+    assert body["bom_id"] == "bom-root-1"
+    assert body["mbom_id"] == "mbom-1"
+    assert body["routing_id"] == "routing-1"
+    assert body["production_order_id"] == "routing-1"
+    assert body["version_id"] == "mbom-1"
+    assert db.commit.called
+    service_cls.return_value.create_incident.assert_called_once_with(
+        description="bearing crack",
+        severity="high",
+        status="open",
+        product_item_id="p-1",
+        bom_id="bom-root-1",
+        bom_line_item_id="bom-1",
+        routing_id="routing-1",
+        mbom_id="mbom-1",
+        production_order_id=None,
+        version_id=None,
+        batch_code=None,
+        customer_name=None,
+        responsibility=None,
+        created_by_id=3,
     )
 
 
@@ -1935,6 +2039,123 @@ def test_workflow_rule_invalid_payload_returns_contract_error():
     detail = resp.json().get("detail") or {}
     assert detail.get("code") == "invalid_workflow_rule"
     assert detail.get("context", {}).get("name") == "r1"
+
+
+def test_workflow_rule_upsert_accepts_match_predicates():
+    user = SimpleNamespace(id=9, roles=["admin"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.WorkflowCustomActionService"
+    ) as service_cls:
+        service_cls.return_value.create_rule.return_value = SimpleNamespace(
+            id="rule-1",
+            name="r1",
+            target_object="ECO",
+            workflow_map_id="wf-map-1",
+            from_state="draft",
+            to_state="progress",
+            trigger_phase="before",
+            action_type="emit_event",
+            action_params={
+                "priority": 25,
+                "timeout_s": 5.0,
+                "max_retries": 0,
+                "match_predicates": {
+                    "stage_id": "stage-2",
+                    "eco_priority": "high",
+                    "actor_roles": ["qa"],
+                    "product_id": "item-1",
+                    "eco_type": "bom",
+                },
+            },
+            fail_strategy="warn",
+            is_enabled=True,
+        )
+        resp = client.post(
+            "/api/v1/workflow-actions/rules",
+            json={
+                "name": "r1",
+                "target_object": "ECO",
+                "workflow_map_id": "wf-map-1",
+                "from_state": "draft",
+                "to_state": "progress",
+                "trigger_phase": "before",
+                "action_type": "emit_event",
+                "action_params": {"event": "eco.transition"},
+                "match_predicates": {
+                    "stage_id": "stage-2",
+                    "eco_priority": "high",
+                    "actor_roles": ["qa"],
+                    "product_id": "item-1",
+                    "eco_type": "bom",
+                },
+                "fail_strategy": "warn",
+            },
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["workflow_map_id"] == "wf-map-1"
+    assert body["match_predicates"] == {
+        "stage_id": "stage-2",
+        "eco_priority": "high",
+        "actor_roles": ["qa"],
+        "product_id": "item-1",
+        "eco_type": "bom",
+    }
+    assert db.commit.called
+    service_cls.return_value.create_rule.assert_called_once_with(
+        name="r1",
+        target_object="ECO",
+        workflow_map_id="wf-map-1",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"event": "eco.transition"},
+        match_predicates={
+            "stage_id": "stage-2",
+            "eco_priority": "high",
+            "actor_roles": ["qa"],
+            "product_id": "item-1",
+            "eco_type": "bom",
+        },
+        fail_strategy="warn",
+        is_enabled=True,
+    )
+
+
+def test_workflow_execute_injects_actor_roles_into_context():
+    user = SimpleNamespace(id=9, roles=["planner", "qa"], is_superuser=False)
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.parallel_tasks_router.WorkflowCustomActionService"
+    ) as service_cls:
+        service_cls.return_value.evaluate_transition.return_value = []
+        resp = client.post(
+            "/api/v1/workflow-actions/execute",
+            json={
+                "object_id": "eco-1",
+                "target_object": "ECO",
+                "from_state": "draft",
+                "to_state": "progress",
+                "trigger_phase": "before",
+                "context": {"source": "manual"},
+            },
+        )
+
+    assert resp.status_code == 200
+    assert db.commit.called
+    service_cls.return_value.evaluate_transition.assert_called_once_with(
+        object_id="eco-1",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        context={"source": "manual", "actor_roles": ["planner", "qa"]},
+    )
 
 
 def test_workflow_execute_failure_returns_contract_error():

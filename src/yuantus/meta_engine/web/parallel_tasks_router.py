@@ -1046,6 +1046,7 @@ class WorkflowActionRuleRequest(BaseModel):
     trigger_phase: str = "before"
     action_type: str
     action_params: Optional[Dict[str, Any]] = None
+    match_predicates: Optional[Dict[str, Any]] = None
     fail_strategy: str = "block"
     is_enabled: bool = True
 
@@ -1076,6 +1077,7 @@ async def upsert_workflow_action_rule(
             trigger_phase=payload.trigger_phase,
             action_type=payload.action_type,
             action_params=payload.action_params,
+            match_predicates=payload.match_predicates,
             fail_strategy=payload.fail_strategy,
             is_enabled=payload.is_enabled,
         )
@@ -1096,10 +1098,14 @@ async def upsert_workflow_action_rule(
     conflict_scope = params.get("conflict_scope")
     if not isinstance(conflict_scope, dict):
         conflict_scope = {}
+    match_predicates = params.get("match_predicates")
+    if not isinstance(match_predicates, dict):
+        match_predicates = {}
     return {
         "id": rule.id,
         "name": rule.name,
         "target_object": rule.target_object,
+        "workflow_map_id": rule.workflow_map_id,
         "from_state": rule.from_state,
         "to_state": rule.to_state,
         "trigger_phase": rule.trigger_phase,
@@ -1108,6 +1114,7 @@ async def upsert_workflow_action_rule(
         "execution_priority": int(params.get("priority") or 100),
         "timeout_s": float(params.get("timeout_s") or 5.0),
         "max_retries": int(params.get("max_retries") or 0),
+        "match_predicates": match_predicates,
         "conflict_count": int(conflict_scope.get("count") or 0),
         "is_enabled": bool(rule.is_enabled),
         "operator_id": int(user.id),
@@ -1129,6 +1136,9 @@ async def list_workflow_action_rules(
         conflict_scope = params.get("conflict_scope")
         if not isinstance(conflict_scope, dict):
             conflict_scope = {}
+        match_predicates = params.get("match_predicates")
+        if not isinstance(match_predicates, dict):
+            match_predicates = {}
         rows.append(
             {
                 "id": rule.id,
@@ -1140,6 +1150,7 @@ async def list_workflow_action_rules(
                 "trigger_phase": rule.trigger_phase,
                 "action_type": rule.action_type,
                 "action_params": params,
+                "match_predicates": match_predicates,
                 "fail_strategy": rule.fail_strategy,
                 "execution_priority": int(params.get("priority") or 100),
                 "timeout_s": float(params.get("timeout_s") or 5.0),
@@ -1162,6 +1173,8 @@ async def execute_workflow_actions(
     user: CurrentUser = Depends(get_current_user),
 ):
     service = WorkflowCustomActionService(db)
+    runtime_context = dict(payload.context or {})
+    runtime_context.setdefault("actor_roles", _as_roles(user))
     try:
         runs = service.evaluate_transition(
             object_id=payload.object_id,
@@ -1169,7 +1182,7 @@ async def execute_workflow_actions(
             from_state=payload.from_state,
             to_state=payload.to_state,
             trigger_phase=payload.trigger_phase,
-            context=payload.context,
+            context=runtime_context,
         )
         db.commit()
     except ValueError as exc:
@@ -1577,7 +1590,10 @@ class BreakageCreateRequest(BaseModel):
     severity: str = "medium"
     status: str = "open"
     product_item_id: Optional[str] = None
+    bom_id: Optional[str] = None
     bom_line_item_id: Optional[str] = None
+    routing_id: Optional[str] = None
+    mbom_id: Optional[str] = None
     production_order_id: Optional[str] = None
     version_id: Optional[str] = None
     batch_code: Optional[str] = None
@@ -1745,7 +1761,7 @@ async def get_breakage_metrics_groups(
     group_by: str = Query(
         "responsibility",
         description=(
-            "product_item_id|batch_code|bom_line_item_id|mbom_id|responsibility|routing_id"
+            "bom_id|product_item_id|batch_code|bom_line_item_id|mbom_id|responsibility|routing_id"
         ),
     ),
     status: Optional[str] = Query(None),
@@ -1869,7 +1885,7 @@ async def export_breakage_metrics_groups(
     group_by: str = Query(
         "responsibility",
         description=(
-            "product_item_id|batch_code|bom_line_item_id|mbom_id|responsibility|routing_id"
+            "bom_id|product_item_id|batch_code|bom_line_item_id|mbom_id|responsibility|routing_id"
         ),
     ),
     status: Optional[str] = Query(None),
@@ -1953,7 +1969,10 @@ async def create_breakage_incident(
             severity=payload.severity,
             status=payload.status,
             product_item_id=payload.product_item_id,
+            bom_id=payload.bom_id,
             bom_line_item_id=payload.bom_line_item_id,
+            routing_id=payload.routing_id,
+            mbom_id=payload.mbom_id,
             production_order_id=payload.production_order_id,
             version_id=payload.version_id,
             batch_code=payload.batch_code,
@@ -1972,15 +1991,26 @@ async def create_breakage_incident(
                 "severity": payload.severity,
                 "status": payload.status,
                 "product_item_id": payload.product_item_id,
+                "bom_id": payload.bom_id,
+                "mbom_id": payload.mbom_id or payload.version_id,
+                "routing_id": payload.routing_id or payload.production_order_id,
             },
         )
     return {
         "id": incident.id,
+        "incident_code": getattr(incident, "incident_code", None),
         "description": incident.description,
         "severity": incident.severity,
         "status": incident.status,
         "product_item_id": incident.product_item_id,
+        "bom_id": getattr(incident, "bom_id", None),
         "bom_line_item_id": incident.bom_line_item_id,
+        "routing_id": getattr(incident, "routing_id", None)
+        or incident.production_order_id,
+        "mbom_id": getattr(incident, "mbom_id", None) or incident.version_id,
+        "production_order_id": getattr(incident, "routing_id", None)
+        or incident.production_order_id,
+        "version_id": getattr(incident, "mbom_id", None) or incident.version_id,
         "created_at": incident.created_at.isoformat() if incident.created_at else None,
     }
 
@@ -2005,21 +2035,34 @@ async def list_breakage_incidents(
         batch_code=batch_code,
         responsibility=responsibility,
     )
+    latest_helpdesk_summary_by_incident = service.build_latest_helpdesk_summary_map(
+        [incident.id for incident in incidents]
+    )
     return {
         "total": len(incidents),
         "incidents": [
             {
                 "id": incident.id,
+                "incident_code": getattr(incident, "incident_code", None),
                 "description": incident.description,
                 "severity": incident.severity,
                 "status": incident.status,
                 "product_item_id": incident.product_item_id,
+                "bom_id": getattr(incident, "bom_id", None),
                 "bom_line_item_id": incident.bom_line_item_id,
-                "production_order_id": incident.production_order_id,
-                "version_id": incident.version_id,
+                "routing_id": getattr(incident, "routing_id", None)
+                or incident.production_order_id,
+                "mbom_id": getattr(incident, "mbom_id", None) or incident.version_id,
+                "production_order_id": getattr(incident, "routing_id", None)
+                or incident.production_order_id,
+                "version_id": getattr(incident, "mbom_id", None) or incident.version_id,
                 "batch_code": incident.batch_code,
                 "customer_name": incident.customer_name,
                 "responsibility": incident.responsibility,
+                "helpdesk_ticket_summary": (
+                    dict(latest_helpdesk_summary_by_incident.get(str(incident.id)) or {})
+                    or None
+                ),
                 "created_at": (
                     incident.created_at.isoformat() if incident.created_at else None
                 ),

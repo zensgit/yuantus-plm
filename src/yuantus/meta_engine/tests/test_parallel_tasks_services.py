@@ -566,6 +566,224 @@ def test_document_multi_site_checkout_gate_supports_thresholds_and_dead_letter_p
         service.evaluate_checkout_sync_gate(item_id=item_id, site_id=site.id, max_pending=-1)
 
 
+def test_document_multi_site_checkout_gate_warn_mode_returns_warning_without_blocking(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-checkout-warn-mode",
+        endpoint="https://checkout-warn.example.test/plm",
+        auth_secret="checkout-token",
+    )
+    session.commit()
+
+    item_id = "item-checkout-warn-mode-1"
+    service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=[item_id],
+        idempotency_key="checkout-warn-mode-pending",
+    )
+    session.commit()
+
+    gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        mode="warn",
+        max_pending=0,
+    )
+
+    assert gate["mode"] == "warn"
+    assert gate["verdict"] == "warn"
+    assert gate["threshold_exceeded"] is True
+    assert gate["warning"] is True
+    assert gate["blocking"] is False
+    assert gate["policy"]["mode"] == "warn"
+    assert gate["blocking_reasons"] == [
+        {"status": "pending", "count": 1, "threshold": 0}
+    ]
+
+    with pytest.raises(ValueError, match="mode must be block or warn"):
+        service.evaluate_checkout_sync_gate(
+            item_id=item_id,
+            site_id=site.id,
+            mode="invalid",
+        )
+
+
+def test_document_multi_site_checkout_gate_supports_direction_threshold_overrides(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-checkout-direction-thresholds",
+        endpoint="https://checkout-direction-thresholds.example.test/plm",
+        auth_secret="checkout-token",
+    )
+    session.commit()
+
+    item_id = "item-checkout-direction-thresholds-1"
+    service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=[item_id],
+        idempotency_key="checkout-direction-thresholds-push",
+    )
+    service.enqueue_sync(
+        site_id=site.id,
+        direction="pull",
+        document_ids=[item_id],
+        idempotency_key="checkout-direction-thresholds-pull",
+    )
+    session.commit()
+
+    direction_thresholds = {
+        "push": {"pending": 1},
+        "pull": {"pending": 0},
+    }
+
+    push_gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        direction="push",
+        direction_thresholds=direction_thresholds,
+        max_pending=0,
+    )
+    assert push_gate["effective_direction"] == "push"
+    assert push_gate["thresholds"]["pending"] == 1
+    assert push_gate["blocking"] is False
+    assert push_gate["direction_thresholds"] == direction_thresholds
+
+    pull_gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        direction="pull",
+        direction_thresholds=direction_thresholds,
+        max_pending=0,
+    )
+    assert pull_gate["effective_direction"] == "pull"
+    assert pull_gate["thresholds"]["pending"] == 0
+    assert pull_gate["blocking"] is True
+    assert pull_gate["blocking_reasons"] == [
+        {"status": "pending", "count": 1, "threshold": 0}
+    ]
+
+    with pytest.raises(ValueError, match="direction_thresholds keys must be push or pull"):
+        service.evaluate_checkout_sync_gate(
+            item_id=item_id,
+            site_id=site.id,
+            direction_thresholds={"sideways": {"pending": 1}},
+        )
+
+
+def test_document_multi_site_checkout_gate_direction_filter(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-checkout-direction",
+        endpoint="https://checkout-direction.example.test/plm",
+        auth_secret="checkout-token",
+    )
+    session.commit()
+
+    item_id = "item-checkout-direction-1"
+    service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=[item_id],
+        idempotency_key="checkout-direction-push",
+    )
+    service.enqueue_sync(
+        site_id=site.id,
+        direction="pull",
+        document_ids=[item_id],
+        idempotency_key="checkout-direction-pull",
+    )
+    session.commit()
+
+    # Without direction: sees both push + pull pending jobs
+    all_gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+    )
+    assert all_gate["direction"] is None
+    assert all_gate["blocking_counts"]["pending"] == 2
+    assert all_gate["blocking"] is True
+
+    # With direction=push: sees only push job
+    push_gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        direction="push",
+        max_pending=0,
+    )
+    assert push_gate["direction"] == "push"
+    assert push_gate["blocking_counts"]["pending"] == 1
+    assert push_gate["blocking"] is True
+
+    # With direction=pull: sees only pull job
+    pull_gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        direction="pull",
+        max_pending=0,
+    )
+    assert pull_gate["direction"] == "pull"
+    assert pull_gate["blocking_counts"]["pending"] == 1
+    assert pull_gate["blocking"] is True
+
+    # Tolerant push threshold: push not blocking
+    tolerant_push = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        direction="push",
+        max_pending=1,
+    )
+    assert tolerant_push["blocking"] is False
+
+    # Invalid direction raises ValueError
+    with pytest.raises(ValueError, match="direction must be push or pull"):
+        service.evaluate_checkout_sync_gate(
+            item_id=item_id,
+            site_id=site.id,
+            direction="invalid",
+        )
+
+
+def test_document_multi_site_checkout_gate_defaults_to_site_direction(session):
+    service = DocumentMultiSiteService(session)
+    site = service.upsert_remote_site(
+        name="site-checkout-direction-default",
+        endpoint="https://checkout-direction-default.example.test/plm",
+        auth_secret="checkout-token",
+        metadata_json={"direction": "push"},
+    )
+    session.commit()
+
+    item_id = "item-checkout-direction-default-1"
+    service.enqueue_sync(
+        site_id=site.id,
+        direction="push",
+        document_ids=[item_id],
+        idempotency_key="checkout-direction-default-push",
+    )
+    service.enqueue_sync(
+        site_id=site.id,
+        direction="pull",
+        document_ids=[item_id],
+        idempotency_key="checkout-direction-default-pull",
+    )
+    session.commit()
+
+    gate = service.evaluate_checkout_sync_gate(
+        item_id=item_id,
+        site_id=site.id,
+        max_pending=0,
+    )
+
+    assert gate["direction"] is None
+    assert gate["effective_direction"] == "push"
+    assert gate["blocking_counts"]["pending"] == 1
+    assert gate["blocking"] is True
+    assert len(gate["blocking_jobs"]) == 1
+    assert gate["blocking_jobs"][0]["task_type"] == "document_sync_push"
+
+
 def test_document_multi_site_probe_remote_site_supports_basic_auth_and_legacy_path(session):
     service = DocumentMultiSiteService(session)
     site = service.upsert_remote_site(
@@ -1177,6 +1395,201 @@ def test_workflow_custom_actions_timeout_is_enforced(session):
     assert (runs[0].result or {}).get("result_code") == "WARN"
 
 
+def test_workflow_custom_actions_match_runtime_scope_predicates(session):
+    service = WorkflowCustomActionService(session)
+    generic = service.create_rule(
+        name="rule-generic",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"event": "generic", "priority": 40},
+        fail_strategy="warn",
+    )
+    scoped = service.create_rule(
+        name="rule-workflow-map",
+        target_object="ECO",
+        workflow_map_id="wf-map-1",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"event": "scoped", "priority": 10},
+        fail_strategy="warn",
+    )
+    stage = service.create_rule(
+        name="rule-stage",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"event": "stage", "priority": 20},
+        match_predicates={"stage_id": "stage-2"},
+        fail_strategy="warn",
+    )
+    priority = service.create_rule(
+        name="rule-priority",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"event": "priority", "priority": 30},
+        match_predicates={"eco_priority": "urgent"},
+        fail_strategy="warn",
+    )
+    session.commit()
+
+    runs = service.evaluate_transition(
+        object_id="eco-runtime-1",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        context={
+            "workflow_map_id": "wf-map-1",
+            "stage_id": "stage-2",
+            "eco_priority": "urgent",
+        },
+    )
+    session.commit()
+
+    assert [run.rule_id for run in runs] == [scoped.id, stage.id, priority.id, generic.id]
+
+    filtered = service.evaluate_transition(
+        object_id="eco-runtime-2",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        context={
+            "workflow_map_id": "wf-map-2",
+            "stage_id": "stage-9",
+            "eco_priority": "normal",
+        },
+    )
+    session.commit()
+
+    assert [run.rule_id for run in filtered] == [generic.id]
+
+
+def test_workflow_custom_actions_validate_match_predicates(session):
+    service = WorkflowCustomActionService(session)
+
+    with pytest.raises(
+        ValueError,
+        match="match_predicates only supports: actor_roles, eco_priority, eco_type, product_id, stage_id",
+    ):
+        service.create_rule(
+            name="rule-invalid-predicate",
+            target_object="ECO",
+            from_state="draft",
+            to_state="progress",
+            trigger_phase="before",
+            action_type="emit_event",
+            match_predicates={"actor_role": "qa"},
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="match_predicates.eco_priority must be one of: low, normal, high, urgent",
+    ):
+        service.create_rule(
+            name="rule-invalid-priority",
+            target_object="ECO",
+            from_state="draft",
+            to_state="progress",
+            trigger_phase="before",
+            action_type="emit_event",
+            match_predicates={"eco_priority": "critical"},
+        )
+
+    with pytest.raises(
+        ValueError, match="match_predicates.eco_type must be one of: bom, product, document"
+    ):
+        service.create_rule(
+            name="rule-invalid-eco-type",
+            target_object="ECO",
+            from_state="draft",
+            to_state="progress",
+            trigger_phase="before",
+            action_type="emit_event",
+            match_predicates={"eco_type": "service"},
+        )
+
+
+def test_workflow_custom_actions_match_context_predicates(session):
+    service = WorkflowCustomActionService(session)
+    actor_rule = service.create_rule(
+        name="rule-actor-role",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"event": "actor", "priority": 10},
+        match_predicates={"actor_roles": ["planner", "qa"]},
+        fail_strategy="warn",
+    )
+    product_rule = service.create_rule(
+        name="rule-product",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"event": "product", "priority": 20},
+        match_predicates={"product_id": "item-1"},
+        fail_strategy="warn",
+    )
+    type_rule = service.create_rule(
+        name="rule-eco-type",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        action_type="emit_event",
+        action_params={"event": "type", "priority": 30},
+        match_predicates={"eco_type": "document"},
+        fail_strategy="warn",
+    )
+    session.commit()
+
+    runs = service.evaluate_transition(
+        object_id="eco-context-1",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        context={
+            "actor_roles": ["Engineer", "Planner"],
+            "product_id": "item-1",
+            "eco_type": "document",
+        },
+    )
+    session.commit()
+
+    assert [run.rule_id for run in runs] == [actor_rule.id, product_rule.id, type_rule.id]
+
+    filtered = service.evaluate_transition(
+        object_id="eco-context-2",
+        target_object="ECO",
+        from_state="draft",
+        to_state="progress",
+        trigger_phase="before",
+        context={
+            "actor_roles": ["engineer"],
+            "product_id": "item-9",
+            "eco_type": "bom",
+        },
+    )
+    session.commit()
+
+    assert filtered == []
+
+
 def test_consumption_plan_variance_dashboard(session):
     service = ConsumptionPlanService(session)
     plan = service.create_plan(name="plan-1", planned_quantity=10.0, uom="ea")
@@ -1247,9 +1660,10 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
     service.create_incident(
         description="bearing crack",
         product_item_id="p-1",
+        bom_id="bom-root-1",
         bom_line_item_id="bom-1",
-        production_order_id="routing-1",
-        version_id="mbom-1",
+        routing_id="routing-1",
+        mbom_id="mbom-1",
         severity="high",
         batch_code="b-1",
         responsibility="supplier-a",
@@ -1257,9 +1671,10 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
     service.create_incident(
         description="bearing crack",
         product_item_id="p-1",
+        bom_id="bom-root-1",
         bom_line_item_id="bom-1",
-        production_order_id="routing-1",
-        version_id="mbom-1",
+        routing_id="routing-1",
+        mbom_id="mbom-1",
         severity="high",
         batch_code="b-1",
         responsibility="supplier-a",
@@ -1267,9 +1682,10 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
     service.create_incident(
         description="wire short",
         product_item_id="p-2",
+        bom_id="bom-root-2",
         bom_line_item_id="bom-2",
-        production_order_id="routing-2",
-        version_id="mbom-2",
+        routing_id="routing-2",
+        mbom_id="mbom-2",
         severity="medium",
         batch_code="b-2",
         responsibility="line-b",
@@ -1300,11 +1716,13 @@ def test_breakage_metrics_include_repeat_rate_and_hotspot(session):
     assert metrics["by_product_item"]["p-1"] == 2
     assert metrics["by_batch_code"]["b-1"] == 2
     assert metrics["by_bom_line_item"]["bom-1"] == 2
+    assert metrics["by_bom_id"]["bom-root-1"] == 2
     assert metrics["by_mbom_id"]["mbom-1"] == 2
     assert metrics["by_routing_id"]["routing-1"] == 2
     assert metrics["top_product_items"][0]["product_item_id"] == "p-1"
     assert metrics["top_batch_codes"][0]["batch_code"] == "b-1"
     assert metrics["top_bom_line_items"][0]["bom_line_item_id"] == "bom-1"
+    assert metrics["top_bom_ids"][0]["bom_id"] == "bom-root-1"
     assert metrics["top_mbom_ids"][0]["mbom_id"] == "mbom-1"
     assert metrics["top_routing_ids"][0]["routing_id"] == "routing-1"
 
@@ -1320,27 +1738,30 @@ def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
     service.create_incident(
         description="group-a-1",
         product_item_id="p-g-1",
+        bom_id="bom-root-g-1",
         bom_line_item_id="bom-g-1",
-        production_order_id="routing-g-1",
-        version_id="mbom-g-1",
+        routing_id="routing-g-1",
+        mbom_id="mbom-g-1",
         batch_code="b-g-1",
         responsibility="supplier-a",
     )
     service.create_incident(
         description="group-a-2",
         product_item_id="p-g-1",
+        bom_id="bom-root-g-1",
         bom_line_item_id="bom-g-1",
-        production_order_id="routing-g-1",
-        version_id="mbom-g-1",
+        routing_id="routing-g-1",
+        mbom_id="mbom-g-1",
         batch_code="b-g-1",
         responsibility="supplier-a",
     )
     service.create_incident(
         description="group-b-1",
         product_item_id="p-g-2",
+        bom_id="bom-root-g-2",
         bom_line_item_id="bom-g-2",
-        production_order_id="routing-g-2",
-        version_id="mbom-g-2",
+        routing_id="routing-g-2",
+        mbom_id="mbom-g-2",
         batch_code="b-g-2",
         responsibility="supplier-b",
     )
@@ -1368,6 +1789,10 @@ def test_breakage_metrics_groups_supports_group_by_and_pagination(session):
     assert groups_bom_line["groups"][0]["group_value"] == "bom-g-1"
     assert groups_bom_line["groups"][0]["count"] == 2
 
+    groups_bom = service.metrics_groups(group_by="bom_id")
+    assert groups_bom["groups"][0]["group_value"] == "bom-root-g-1"
+    assert groups_bom["groups"][0]["count"] == 2
+
     groups_mbom = service.metrics_groups(group_by="mbom_id")
     assert groups_mbom["groups"][0]["group_value"] == "mbom-g-1"
     assert groups_mbom["groups"][0]["count"] == 2
@@ -1391,6 +1816,7 @@ def test_breakage_metrics_groups_rejects_invalid_group_by(session):
         service.metrics_groups(group_by="invalid")
     error = str(exc_info.value)
     assert "group_by must be one of" in error
+    assert "bom_id" in error
     assert "mbom_id" in error
     assert "routing_id" in error
 
@@ -1476,6 +1902,7 @@ def test_breakage_metrics_export_json_csv_md(session):
     assert "top_product_items" in md_text
     assert "top_batch_codes" in md_text
     assert "top_bom_line_items" in md_text
+    assert "top_bom_ids" in md_text
     assert "top_mbom_ids" in md_text
     assert "top_routing_ids" in md_text
     exported_md_locale = service.export_metrics(
@@ -1612,6 +2039,9 @@ def test_breakage_incidents_export_supports_bom_line_filter_and_formats(session)
     incident_a = service.create_incident(
         description="incident-a",
         product_item_id="p-list-1",
+        bom_id="bom-root-list-1",
+        mbom_id="mbom-list-1",
+        routing_id="routing-list-1",
         bom_line_item_id="bom-list-1",
         batch_code="batch-list-1",
         responsibility="supplier-list",
@@ -1622,6 +2052,26 @@ def test_breakage_incidents_export_supports_bom_line_filter_and_formats(session)
         bom_line_item_id="bom-list-2",
         batch_code="batch-list-2",
         responsibility="supplier-list",
+    )
+    job = service.enqueue_helpdesk_stub_sync(
+        incident_a.id,
+        user_id=7,
+        provider="jira",
+    )
+    session.commit()
+    service.record_helpdesk_sync_result(
+        incident_a.id,
+        sync_status="completed",
+        job_id=job.id,
+        external_ticket_id="HD-LIST-1",
+        user_id=7,
+    )
+    service.apply_helpdesk_ticket_update(
+        incident_a.id,
+        provider_ticket_status="assigned",
+        job_id=job.id,
+        provider_assignee="qa-list-owner",
+        user_id=7,
     )
     session.add(
         ReportLocaleProfile(
@@ -1648,6 +2098,17 @@ def test_breakage_incidents_export_supports_bom_line_filter_and_formats(session)
     assert exported_json["media_type"] == "application/json"
     assert exported_json["filename"] == "breakage-incidents.json"
     assert '"bom_line_item_id": "bom-list-1"' in exported_json["content"].decode("utf-8")
+    assert '"incident_code": "BRK-000001"' in exported_json["content"].decode("utf-8")
+    assert '"bom_id": "bom-root-list-1"' in exported_json["content"].decode("utf-8")
+    assert '"mbom_id": "mbom-list-1"' in exported_json["content"].decode("utf-8")
+    assert '"routing_id": "routing-list-1"' in exported_json["content"].decode("utf-8")
+    assert '"helpdesk_ticket_summary"' in exported_json["content"].decode("utf-8")
+    assert '"external_ticket_id": "HD-LIST-1"' in exported_json["content"].decode(
+        "utf-8"
+    )
+    assert '"provider_assignee": "qa-list-owner"' in exported_json["content"].decode(
+        "utf-8"
+    )
     exported_json_locale = service.export_incidents(
         bom_line_item_id="bom-list-1",
         page=1,
@@ -1673,6 +2134,14 @@ def test_breakage_incidents_export_supports_bom_line_filter_and_formats(session)
     assert exported_csv["media_type"] == "text/csv"
     assert exported_csv["filename"] == "breakage-incidents.csv"
     assert "bom_line_item_id_filter" in csv_text
+    assert "incident_code" in csv_text
+    assert "bom_id" in csv_text
+    assert "mbom_id" in csv_text
+    assert "routing_id" in csv_text
+    assert "helpdesk_external_ticket_id" in csv_text
+    assert "helpdesk_provider_assignee" in csv_text
+    assert "HD-LIST-1" in csv_text
+    assert "qa-list-owner" in csv_text
     assert "bom-list-1" in csv_text
 
     exported_md = service.export_incidents(
@@ -1685,7 +2154,11 @@ def test_breakage_incidents_export_supports_bom_line_filter_and_formats(session)
     assert exported_md["media_type"] == "text/markdown"
     assert exported_md["filename"] == "breakage-incidents.md"
     assert md_text.startswith("# Breakage Incidents")
+    assert "BRK-000001" in md_text
+    assert "bom-root-list-1" in md_text
     assert "bom-list-1" in md_text
+    assert "HD-LIST-1" in md_text
+    assert "qa-list-owner" in md_text
     exported_md_locale = service.export_incidents(
         bom_line_item_id="bom-list-1",
         page=1,
@@ -2243,9 +2716,10 @@ def test_breakage_cockpit_and_export_supports_formats(session):
         severity="high",
         status="open",
         product_item_id="p-cockpit-1",
+        bom_id="bom-root-cockpit-1",
         bom_line_item_id="bom-cockpit-1",
-        production_order_id="routing-cockpit-1",
-        version_id="mbom-cockpit-1",
+        routing_id="routing-cockpit-1",
+        mbom_id="mbom-cockpit-1",
         batch_code="batch-cockpit-1",
         responsibility="supplier-cockpit",
     )
@@ -2254,9 +2728,10 @@ def test_breakage_cockpit_and_export_supports_formats(session):
         severity="medium",
         status="closed",
         product_item_id="p-cockpit-2",
+        bom_id="bom-root-cockpit-2",
         bom_line_item_id="bom-cockpit-2",
-        production_order_id="routing-cockpit-2",
-        version_id="mbom-cockpit-2",
+        routing_id="routing-cockpit-2",
+        mbom_id="mbom-cockpit-2",
         batch_code="batch-cockpit-2",
         responsibility="supplier-cockpit",
     )
@@ -2303,10 +2778,16 @@ def test_breakage_cockpit_and_export_supports_formats(session):
     )
     assert cockpit["total"] == 2
     assert cockpit["metrics"]["by_responsibility"]["supplier-cockpit"] == 2
+    assert cockpit["metrics"]["by_bom_id"]["bom-root-cockpit-1"] == 1
+    assert cockpit["metrics"]["by_bom_id"]["bom-root-cockpit-2"] == 1
     assert cockpit["metrics"]["by_mbom_id"]["mbom-cockpit-1"] == 1
     assert cockpit["metrics"]["by_mbom_id"]["mbom-cockpit-2"] == 1
     assert cockpit["metrics"]["by_routing_id"]["routing-cockpit-1"] == 1
     assert cockpit["metrics"]["by_routing_id"]["routing-cockpit-2"] == 1
+    assert any(
+        row.get("bom_id") == "bom-root-cockpit-1"
+        for row in cockpit["metrics"]["top_bom_ids"]
+    )
     assert any(
         row.get("mbom_id") == "mbom-cockpit-1"
         for row in cockpit["metrics"]["top_mbom_ids"]
@@ -2322,6 +2803,17 @@ def test_breakage_cockpit_and_export_supports_formats(session):
     assert cockpit["helpdesk_sync_summary"]["by_provider_ticket_status"]["resolved"] == 1
     assert cockpit["helpdesk_sync_summary"]["by_provider_ticket_status"]["failed"] == 1
     assert cockpit["helpdesk_sync_summary"]["with_provider_ticket_status"] == 2
+    assert any(
+        row.get("helpdesk_ticket_summary", {}).get("external_ticket_id") == "HD-CP-1"
+        for row in cockpit["incidents"]
+        if isinstance(row.get("helpdesk_ticket_summary"), dict)
+    )
+    assert any(
+        row.get("helpdesk_ticket_summary", {}).get("provider_assignee")
+        == "supplier-cockpit"
+        for row in cockpit["incidents"]
+        if isinstance(row.get("helpdesk_ticket_summary"), dict)
+    )
 
     exported_json = service.export_cockpit(
         responsibility="supplier-cockpit",
@@ -2331,6 +2823,10 @@ def test_breakage_cockpit_and_export_supports_formats(session):
     assert exported_json["media_type"] == "application/json"
     assert exported_json["filename"] == "breakage-cockpit.json"
     assert '"helpdesk_sync_summary"' in exported_json["content"].decode("utf-8")
+    assert '"helpdesk_ticket_summary"' in exported_json["content"].decode("utf-8")
+    assert '"external_ticket_id": "HD-CP-1"' in exported_json["content"].decode(
+        "utf-8"
+    )
 
     exported_csv = service.export_cockpit(
         responsibility="supplier-cockpit",
@@ -2353,6 +2849,33 @@ def test_breakage_cockpit_and_export_supports_formats(session):
     md_text = exported_md["content"].decode("utf-8")
     assert md_text.startswith("# Breakage Cockpit")
     assert "helpdesk_sync_summary" in md_text
+
+
+def test_breakage_incident_identity_and_dimensions_normalize_aliases(session):
+    service = BreakageIncidentService(session)
+    incident = service.create_incident(
+        description="identity-check",
+        bom_id="bom-root-identity-1",
+        mbom_id="mbom-identity-1",
+        routing_id="routing-identity-1",
+        product_item_id="p-identity-1",
+        bom_line_item_id="bom-line-identity-1",
+    )
+    session.commit()
+
+    serialized = service.export_incidents(export_format="json")
+    payload = json.loads(serialized["content"].decode("utf-8"))
+    row = payload["incidents"][0]
+
+    assert incident.incident_code == "BRK-000001"
+    assert incident.version_id == "mbom-identity-1"
+    assert incident.production_order_id == "routing-identity-1"
+    assert row["incident_code"] == "BRK-000001"
+    assert row["bom_id"] == "bom-root-identity-1"
+    assert row["mbom_id"] == "mbom-identity-1"
+    assert row["routing_id"] == "routing-identity-1"
+    assert row["version_id"] == "mbom-identity-1"
+    assert row["production_order_id"] == "routing-identity-1"
 
 
 def test_workorder_doc_pack_supports_inherited_links_and_zip_export(session):

@@ -31,6 +31,8 @@ class SiteCreateRequest(BaseModel):
     description: Optional[str] = None
     direction: str = "push"
     is_primary: bool = False
+    auth_type: Optional[str] = None
+    auth_config: Optional[Dict[str, Any]] = None
     properties: Optional[Dict[str, Any]] = None
 
 
@@ -47,6 +49,15 @@ class JobCreateRequest(BaseModel):
 
 
 def _site_dict(site: SyncSite) -> Dict[str, Any]:
+    auth_type = getattr(site, "auth_type", None)
+    auth_config = getattr(site, "auth_config", None) or {}
+    masked_auth_config: Optional[Dict[str, Any]] = None
+    if auth_type == "basic":
+        masked_auth_config = {
+            "username": auth_config.get("username"),
+            "has_password": bool(auth_config.get("password")),
+        }
+
     return {
         "id": site.id,
         "name": site.name,
@@ -54,6 +65,8 @@ def _site_dict(site: SyncSite) -> Dict[str, Any]:
         "base_url": site.base_url,
         "site_code": site.site_code,
         "state": site.state,
+        "auth_type": auth_type,
+        "auth_config": masked_auth_config,
         "direction": site.direction,
         "is_primary": site.is_primary,
     }
@@ -91,6 +104,8 @@ def create_site(
             site_code=request.site_code,
             base_url=request.base_url,
             description=request.description,
+            auth_type=request.auth_type,
+            auth_config=request.auth_config,
             direction=request.direction,
             is_primary=request.is_primary,
             properties=request.properties,
@@ -126,6 +141,54 @@ def get_site(
     if site is None:
         raise HTTPException(status_code=404, detail=f"Site '{site_id}' not found")
     return _site_dict(site)
+
+
+@document_sync_router.post("/sites/{site_id}/mirror-probe")
+def mirror_probe_site(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """BasicAuth outbound mirror probe for a sync site.
+
+    Returns probe outcome (status_code, endpoint, remote_overview if JSON).
+    All validation / connectivity / auth failures map to HTTP 400.
+    Password is never echoed in the response.
+    """
+    service = DocumentSyncService(db)
+    try:
+        result = service.mirror_probe(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return result
+
+
+@document_sync_router.post("/sites/{site_id}/mirror-execute")
+def mirror_execute_site(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """BasicAuth outbound mirror execute for a sync site.
+
+    Creates a local SyncJob, calls the remote overview endpoint with
+    BasicAuth, maps the remote payload onto job aggregates, and transitions
+    the job to ``completed`` (success) or ``failed`` (any remote-side error).
+
+    Pre-job ValueError (missing site / base_url / basic auth contract) maps
+    to HTTP 400. Remote-side failures do not raise — they land as ``failed``
+    jobs with the error detail in ``job.properties.mirror_error``.
+
+    Password is never echoed in the response.
+    """
+    service = DocumentSyncService(db)
+    try:
+        result = service.mirror_execute(site_id)
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc))
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -536,93 +599,3 @@ def export_watermarks(
 ):
     service = DocumentSyncService(db)
     return service.export_watermarks()
-
-
-# ---------------------------------------------------------------------------
-# Lag / Backlog endpoints (C42)
-# ---------------------------------------------------------------------------
-
-
-@document_sync_router.get("/lag/overview")
-def lag_overview(
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    service = DocumentSyncService(db)
-    return service.lag_overview()
-
-
-@document_sync_router.get("/backlog/summary")
-def backlog_summary(
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    service = DocumentSyncService(db)
-    return service.backlog_summary()
-
-
-@document_sync_router.get("/sites/{site_id}/backlog")
-def site_backlog(
-    site_id: str,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    service = DocumentSyncService(db)
-    try:
-        return service.site_backlog(site_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-
-
-@document_sync_router.get("/export/backlog")
-def export_backlog(
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    service = DocumentSyncService(db)
-    return service.export_backlog()
-
-
-# ---------------------------------------------------------------------------
-# Skew / Gaps endpoints (C45)
-# ---------------------------------------------------------------------------
-
-
-@document_sync_router.get("/skew/overview")
-def skew_overview(
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    service = DocumentSyncService(db)
-    return service.skew_overview()
-
-
-@document_sync_router.get("/gaps/summary")
-def gaps_summary(
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    service = DocumentSyncService(db)
-    return service.gaps_summary()
-
-
-@document_sync_router.get("/sites/{site_id}/gaps")
-def site_gaps(
-    site_id: str,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    service = DocumentSyncService(db)
-    try:
-        return service.site_gaps(site_id)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-
-
-@document_sync_router.get("/export/gaps")
-def export_gaps(
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-):
-    service = DocumentSyncService(db)
-    return service.export_gaps()

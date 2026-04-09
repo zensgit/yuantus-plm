@@ -7,6 +7,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Dict, List, Optional
 
+import httpx
 from sqlalchemy.orm import Session
 
 from yuantus.meta_engine.document_sync.models import (
@@ -18,6 +19,13 @@ from yuantus.meta_engine.document_sync.models import (
     SyncRecordOutcome,
     SyncSite,
 )
+
+_SITE_AUTH_TYPES = {"none", "basic"}
+_BASIC_AUTH_KEYS = {"username", "password"}
+
+# Default outbound BasicAuth probe configuration
+_MIRROR_PROBE_PATH = "/api/v1/document-sync/overview"
+_MIRROR_PROBE_TIMEOUT_S = 10.0
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +63,45 @@ class DocumentSyncService:
     def __init__(self, session: Session) -> None:
         self.session = session
 
+    def _normalize_site_auth(
+        self,
+        *,
+        auth_type: Optional[str] = None,
+        auth_config: Optional[Dict[str, Any]] = None,
+    ) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
+        normalized_type = str(auth_type or "none").strip().lower()
+        if normalized_type not in _SITE_AUTH_TYPES:
+            raise ValueError(
+                f"Invalid auth_type '{auth_type}'. Must be one of: {sorted(_SITE_AUTH_TYPES)}"
+            )
+
+        if auth_config is not None and not isinstance(auth_config, dict):
+            raise ValueError("auth_config must be an object when provided")
+
+        if normalized_type == "none":
+            if auth_config:
+                raise ValueError("auth_config requires auth_type='basic'")
+            return None, None
+
+        config = auth_config or {}
+        unexpected = sorted(set(config.keys()) - _BASIC_AUTH_KEYS)
+        if unexpected:
+            raise ValueError(
+                f"Unsupported auth_config keys for basic auth: {unexpected}"
+            )
+
+        username = str(config.get("username") or "").strip()
+        password = str(config.get("password") or "").strip()
+        if not username or not password:
+            raise ValueError(
+                "Basic auth requires non-empty username and password"
+            )
+
+        return normalized_type, {
+            "username": username,
+            "password": password,
+        }
+
     # ------------------------------------------------------------------
     # Site CRUD
     # ------------------------------------------------------------------
@@ -68,6 +115,8 @@ class DocumentSyncService:
         description: Optional[str] = None,
         direction: str = SyncDirection.PUSH.value,
         is_primary: bool = False,
+        auth_type: Optional[str] = None,
+        auth_config: Optional[Dict[str, Any]] = None,
         properties: Optional[Dict[str, Any]] = None,
         created_by_id: Optional[int] = None,
     ) -> SyncSite:
@@ -77,6 +126,11 @@ class DocumentSyncService:
                 f"Invalid direction '{direction}'. Must be one of: {sorted(valid_dirs)}"
             )
 
+        normalized_auth_type, normalized_auth_config = self._normalize_site_auth(
+            auth_type=auth_type,
+            auth_config=auth_config,
+        )
+
         site = SyncSite(
             id=str(uuid.uuid4()),
             name=name,
@@ -84,6 +138,8 @@ class DocumentSyncService:
             base_url=base_url,
             description=description,
             state=SiteState.ACTIVE.value,
+            auth_type=normalized_auth_type,
+            auth_config=normalized_auth_config,
             direction=direction,
             is_primary=is_primary,
             properties=properties,
@@ -113,6 +169,15 @@ class DocumentSyncService:
         site = self.get_site(site_id)
         if site is None:
             return None
+
+        if "auth_type" in fields or "auth_config" in fields:
+            normalized_auth_type, normalized_auth_config = self._normalize_site_auth(
+                auth_type=fields.get("auth_type", site.auth_type),
+                auth_config=fields.get("auth_config", site.auth_config),
+            )
+            fields["auth_type"] = normalized_auth_type
+            fields["auth_config"] = normalized_auth_config
+
         for key, value in fields.items():
             if hasattr(site, key) and key not in ("id", "created_at", "created_by_id"):
                 setattr(site, key, value)
@@ -135,6 +200,203 @@ class DocumentSyncService:
         site.state = target_state
         self.session.flush()
         return site
+
+    # ------------------------------------------------------------------
+    # BasicAuth outbound mirror probe
+    # ------------------------------------------------------------------
+
+    def mirror_probe(self, site_id: str) -> Dict[str, Any]:
+        """Perform a minimal BasicAuth outbound HTTP probe against a site.
+
+        Validates the site has a usable BasicAuth contract and a base_url,
+        then issues a GET against `{base_url}/api/v1/document-sync/overview`
+        with a 10s timeout. Returns a small JSON-friendly payload describing
+        the probe outcome. All failures are surfaced as ValueError so that
+        the router can map them to HTTP 400.
+
+        The site's password is never echoed in the response.
+        """
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        base_url = (site.base_url or "").strip()
+        if not base_url:
+            raise ValueError(
+                f"Site '{site_id}' has no base_url configured for mirror probe"
+            )
+
+        if site.auth_type != "basic":
+            raise ValueError(
+                f"Site '{site_id}' is not configured with auth_type='basic'"
+            )
+
+        auth_config = site.auth_config or {}
+        username = str(auth_config.get("username") or "").strip()
+        password = str(auth_config.get("password") or "").strip()
+        if not username or not password:
+            raise ValueError(
+                f"Site '{site_id}' basic auth contract is missing username or password"
+            )
+
+        endpoint = f"{base_url.rstrip('/')}{_MIRROR_PROBE_PATH}"
+
+        try:
+            with httpx.Client(timeout=_MIRROR_PROBE_TIMEOUT_S) as client:
+                response = client.get(
+                    endpoint,
+                    auth=httpx.BasicAuth(username, password),
+                )
+        except httpx.RequestError as exc:
+            raise ValueError(
+                f"Mirror probe to '{endpoint}' failed: {type(exc).__name__}"
+            ) from exc
+
+        status_code = response.status_code
+        if status_code in (401, 403):
+            raise ValueError(
+                f"Mirror probe to '{endpoint}' rejected by remote ({status_code})"
+            )
+
+        remote_overview: Optional[Dict[str, Any]] = None
+        if 200 <= status_code < 300:
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise ValueError(
+                    f"Mirror probe to '{endpoint}' returned non-JSON 2xx body"
+                ) from exc
+            if isinstance(payload, dict):
+                remote_overview = payload
+
+        return {
+            "ok": 200 <= status_code < 300,
+            "site_id": site.id,
+            "endpoint": endpoint,
+            "status_code": status_code,
+            "remote_overview": remote_overview,
+        }
+
+    def mirror_execute(self, site_id: str) -> Dict[str, Any]:
+        """Run a minimal BasicAuth mirror execute against a site's remote
+        overview, recording the outcome as a local ``SyncJob``.
+
+        This is a "read-through execute": the remote ``GET overview`` payload
+        is mapped onto the local ``SyncJob`` aggregates so operators can see
+        connectivity, credential validity, and remote workload state in a
+        single uniform job row. No ``SyncRecord`` rows are fabricated when
+        the remote does not expose per-document detail.
+
+        Pre-job validation (site missing / no base_url / no basic auth
+        contract) raises ``ValueError``. Once the local job has been created,
+        any remote-side failure (request error, 401/403, non-JSON 2xx, other
+        non-2xx) is captured into ``job.properties`` and the job is
+        transitioned to ``failed`` instead of raising 500.
+        """
+        site = self.get_site(site_id)
+        if site is None:
+            raise ValueError(f"Site '{site_id}' not found")
+
+        base_url = (site.base_url or "").strip()
+        if not base_url:
+            raise ValueError(
+                f"Site '{site_id}' has no base_url configured for mirror execute"
+            )
+
+        if site.auth_type != "basic":
+            raise ValueError(
+                f"Site '{site_id}' is not configured with auth_type='basic'"
+            )
+
+        auth_config = site.auth_config or {}
+        username = str(auth_config.get("username") or "").strip()
+        password = str(auth_config.get("password") or "").strip()
+        if not username or not password:
+            raise ValueError(
+                f"Site '{site_id}' basic auth contract is missing username or password"
+            )
+
+        endpoint = f"{base_url.rstrip('/')}{_MIRROR_PROBE_PATH}"
+
+        # Pre-validation passed: create the job (reuses create_job semantics
+        # incl. site-active check) and transition to RUNNING.
+        job = self.create_job(site_id=site_id, direction=site.direction)
+        self.transition_job_state(job.id, SyncJobState.RUNNING.value)
+
+        status_code: Optional[int] = None
+        remote_overview: Optional[Dict[str, Any]] = None
+        error_detail: Optional[str] = None
+
+        try:
+            with httpx.Client(timeout=_MIRROR_PROBE_TIMEOUT_S) as client:
+                response = client.get(
+                    endpoint,
+                    auth=httpx.BasicAuth(username, password),
+                )
+            status_code = response.status_code
+            if status_code in (401, 403):
+                error_detail = f"rejected by remote ({status_code})"
+            elif 200 <= status_code < 300:
+                try:
+                    payload = response.json()
+                except ValueError:
+                    error_detail = "non-JSON 2xx body"
+                else:
+                    if isinstance(payload, dict):
+                        remote_overview = payload
+                    else:
+                        error_detail = "non-dict 2xx body"
+            else:
+                error_detail = f"remote status {status_code}"
+        except httpx.RequestError as exc:
+            error_detail = f"request failed: {type(exc).__name__}"
+
+        properties: Dict[str, Any] = {
+            "mirror_endpoint": endpoint,
+            "mirror_status_code": status_code,
+            "remote_overview": remote_overview,
+        }
+        if error_detail:
+            properties["mirror_error"] = error_detail
+
+        if remote_overview is not None and error_detail is None:
+            total_documents = int(remote_overview.get("total_jobs") or 0)
+            conflict_count = int(remote_overview.get("total_conflicts") or 0)
+            error_count = int(remote_overview.get("total_errors") or 0)
+            synced_count = max(
+                total_documents - conflict_count - error_count, 0
+            )
+
+            job.total_documents = total_documents
+            job.conflict_count = conflict_count
+            job.error_count = error_count
+            job.synced_count = synced_count
+            job.properties = properties
+            self.transition_job_state(job.id, SyncJobState.COMPLETED.value)
+            final_state = SyncJobState.COMPLETED.value
+        else:
+            job.properties = properties
+            self.transition_job_state(job.id, SyncJobState.FAILED.value)
+            final_state = SyncJobState.FAILED.value
+
+        summary: Dict[str, Any] = {
+            "total_documents": job.total_documents or 0,
+            "synced_count": job.synced_count or 0,
+            "conflict_count": job.conflict_count or 0,
+            "error_count": job.error_count or 0,
+            "remote_overview": remote_overview,
+            "mirror_error": error_detail,
+        }
+
+        return {
+            "ok": final_state == SyncJobState.COMPLETED.value,
+            "job_id": job.id,
+            "site_id": site.id,
+            "state": final_state,
+            "endpoint": endpoint,
+            "status_code": status_code,
+            "summary": summary,
+        }
 
     # ------------------------------------------------------------------
     # Job CRUD
@@ -1274,309 +1536,4 @@ class DocumentSyncService:
             "freshness_overview": self.freshness_overview(),
             "watermarks_summary": self.watermarks_summary(),
             "sites": [self.site_freshness(s.id) for s in sites],
-        }
-
-    # ------------------------------------------------------------------
-    # Lag / Backlog helpers (C42)
-    # ------------------------------------------------------------------
-
-    def lag_overview(self) -> Dict[str, Any]:
-        """Fleet-wide sync lag summary: total sites, sites with pending/failed
-        jobs, avg lag score, worst-lag sites."""
-        sites = self.session.query(SyncSite).all()
-        jobs = self.session.query(SyncJob).all()
-
-        # Group jobs by site_id
-        jobs_by_site: Dict[str, List[SyncJob]] = {}
-        for j in jobs:
-            jobs_by_site.setdefault(j.site_id, []).append(j)
-
-        site_lag_scores: Dict[str, int] = {}
-        sites_with_pending = 0
-        sites_with_failed = 0
-
-        for s in sites:
-            site_jobs = jobs_by_site.get(s.id, [])
-            pending_count = 0
-            failed_count = 0
-            for j in site_jobs:
-                if j.state == SyncJobState.PENDING.value:
-                    pending_count += 1
-                elif j.state == SyncJobState.FAILED.value:
-                    failed_count += 1
-
-            lag = pending_count + failed_count
-            site_lag_scores[s.id] = lag
-
-            if pending_count > 0:
-                sites_with_pending += 1
-            if failed_count > 0:
-                sites_with_failed += 1
-
-        # Average lag across all sites
-        avg_lag: Any = (
-            round(sum(site_lag_scores.values()) / len(site_lag_scores), 1)
-            if site_lag_scores
-            else None
-        )
-
-        # Worst-lag site (most pending+failed)
-        worst_lag_site_id: Any = None
-        if site_lag_scores:
-            worst_lag_site_id = max(
-                site_lag_scores,
-                key=lambda s_id: site_lag_scores[s_id],
-            )
-
-        return {
-            "total_sites": len(sites),
-            "sites_with_pending": sites_with_pending,
-            "sites_with_failed": sites_with_failed,
-            "avg_lag": avg_lag,
-            "worst_lag_site_id": worst_lag_site_id,
-        }
-
-    def backlog_summary(self) -> Dict[str, Any]:
-        """Backlog summary: total pending jobs across sites, sites with
-        backlog above threshold, backlog distribution."""
-        sites = self.session.query(SyncSite).all()
-        jobs = self.session.query(SyncJob).all()
-
-        backlog_threshold = 3
-
-        # Group jobs by site_id
-        jobs_by_site: Dict[str, List[SyncJob]] = {}
-        for j in jobs:
-            jobs_by_site.setdefault(j.site_id, []).append(j)
-
-        total_pending = 0
-        sites_above_threshold = 0
-        backlog_distribution: List[Dict[str, Any]] = []
-
-        for s in sites:
-            site_jobs = jobs_by_site.get(s.id, [])
-            pending = sum(
-                1 for j in site_jobs
-                if j.state == SyncJobState.PENDING.value
-            )
-            total_pending += pending
-
-            if pending > backlog_threshold:
-                sites_above_threshold += 1
-
-            backlog_distribution.append({
-                "site_id": s.id,
-                "pending_count": pending,
-                "above_threshold": pending > backlog_threshold,
-            })
-
-        return {
-            "total_sites": len(sites),
-            "total_pending": total_pending,
-            "backlog_threshold": backlog_threshold,
-            "sites_above_threshold": sites_above_threshold,
-            "backlog_distribution": backlog_distribution,
-        }
-
-    def site_backlog(self, site_id: str) -> Dict[str, Any]:
-        """Per-site backlog detail: site info, pending/failed job counts,
-        backlog depth. Raises ValueError if site not found."""
-        site = self.get_site(site_id)
-        if site is None:
-            raise ValueError(f"Site '{site_id}' not found")
-
-        jobs = (
-            self.session.query(SyncJob)
-            .filter(SyncJob.site_id == site_id)
-            .all()
-        )
-
-        pending_count = 0
-        failed_count = 0
-        synced_count = 0
-
-        for j in jobs:
-            if j.state == SyncJobState.PENDING.value:
-                pending_count += 1
-            elif j.state == SyncJobState.FAILED.value:
-                failed_count += 1
-            elif j.state == SyncJobState.COMPLETED.value:
-                synced_count += 1
-
-        backlog_depth = pending_count + failed_count
-
-        return {
-            "site_id": site.id,
-            "site_name": site.name,
-            "state": site.state,
-            "total_jobs": len(jobs),
-            "pending_count": pending_count,
-            "failed_count": failed_count,
-            "synced_count": synced_count,
-            "backlog_depth": backlog_depth,
-        }
-
-    def export_backlog(self) -> Dict[str, Any]:
-        """Export-ready payload combining lag_overview, backlog_summary,
-        and per-site backlog details."""
-        sites = self.session.query(SyncSite).all()
-        return {
-            "lag_overview": self.lag_overview(),
-            "backlog_summary": self.backlog_summary(),
-            "sites": [self.site_backlog(s.id) for s in sites],
-        }
-
-    # ------------------------------------------------------------------
-    # Skew / Gaps helpers (C45)
-    # ------------------------------------------------------------------
-
-    def skew_overview(self) -> Dict[str, Any]:
-        """Fleet-wide skew summary: total sites, sites with sync gaps,
-        avg gap count, worst-gap sites."""
-        sites = self.session.query(SyncSite).all()
-        jobs = self.session.query(SyncJob).all()
-
-        # Group jobs by site_id
-        jobs_by_site: Dict[str, List[SyncJob]] = {}
-        for j in jobs:
-            jobs_by_site.setdefault(j.site_id, []).append(j)
-
-        site_gap_counts: Dict[str, int] = {}
-        sites_with_gaps = 0
-
-        for s in sites:
-            site_jobs = jobs_by_site.get(s.id, [])
-            gap_count = sum(
-                1 for j in site_jobs
-                if j.state in (SyncJobState.FAILED.value, SyncJobState.PENDING.value)
-            )
-            site_gap_counts[s.id] = gap_count
-
-            if gap_count > 0:
-                sites_with_gaps += 1
-
-        # Average gap count across all sites
-        avg_gap_count: Any = (
-            round(sum(site_gap_counts.values()) / len(site_gap_counts), 1)
-            if site_gap_counts
-            else None
-        )
-
-        # Worst-gap site (most gaps)
-        worst_gap_site_id: Any = None
-        if site_gap_counts:
-            worst_gap_site_id = max(
-                site_gap_counts,
-                key=lambda s_id: site_gap_counts[s_id],
-            )
-
-        return {
-            "total_sites": len(sites),
-            "sites_with_gaps": sites_with_gaps,
-            "avg_gap_count": avg_gap_count,
-            "worst_gap_site_id": worst_gap_site_id,
-        }
-
-    def gaps_summary(self) -> Dict[str, Any]:
-        """Gaps summary: total gaps across sites, sites with gaps above
-        threshold, gap distribution by severity."""
-        sites = self.session.query(SyncSite).all()
-        jobs = self.session.query(SyncJob).all()
-
-        gap_threshold = 2
-
-        # Group jobs by site_id
-        jobs_by_site: Dict[str, List[SyncJob]] = {}
-        for j in jobs:
-            jobs_by_site.setdefault(j.site_id, []).append(j)
-
-        total_gaps = 0
-        sites_above_threshold = 0
-        severity_distribution: Dict[str, int] = {
-            "critical": 0,
-            "warning": 0,
-            "minor": 0,
-            "clean": 0,
-        }
-
-        for s in sites:
-            site_jobs = jobs_by_site.get(s.id, [])
-            gap_count = sum(
-                1 for j in site_jobs
-                if j.state in (SyncJobState.FAILED.value, SyncJobState.PENDING.value)
-            )
-            total_gaps += gap_count
-
-            if gap_count > gap_threshold:
-                sites_above_threshold += 1
-
-            if gap_count > 5:
-                severity_distribution["critical"] += 1
-            elif gap_count >= 3:
-                severity_distribution["warning"] += 1
-            elif gap_count >= 1:
-                severity_distribution["minor"] += 1
-            else:
-                severity_distribution["clean"] += 1
-
-        return {
-            "total_sites": len(sites),
-            "total_gaps": total_gaps,
-            "gap_threshold": gap_threshold,
-            "sites_above_threshold": sites_above_threshold,
-            "severity_distribution": severity_distribution,
-        }
-
-    def site_gaps(self, site_id: str) -> Dict[str, Any]:
-        """Per-site gap detail: site info, gap count, gap severity,
-        document gap details. Raises ValueError if site not found."""
-        site = self.get_site(site_id)
-        if site is None:
-            raise ValueError(f"Site '{site_id}' not found")
-
-        jobs = (
-            self.session.query(SyncJob)
-            .filter(SyncJob.site_id == site_id)
-            .all()
-        )
-
-        pending_count = 0
-        failed_count = 0
-
-        for j in jobs:
-            if j.state == SyncJobState.PENDING.value:
-                pending_count += 1
-            elif j.state == SyncJobState.FAILED.value:
-                failed_count += 1
-
-        gap_count = pending_count + failed_count
-
-        if gap_count > 5:
-            severity = "critical"
-        elif gap_count >= 3:
-            severity = "warning"
-        elif gap_count >= 1:
-            severity = "minor"
-        else:
-            severity = "clean"
-
-        return {
-            "site_id": site.id,
-            "site_name": site.name,
-            "state": site.state,
-            "total_jobs": len(jobs),
-            "pending_count": pending_count,
-            "failed_count": failed_count,
-            "gap_count": gap_count,
-            "severity": severity,
-        }
-
-    def export_gaps(self) -> Dict[str, Any]:
-        """Export-ready payload combining skew_overview, gaps_summary,
-        and per-site gap details."""
-        sites = self.session.query(SyncSite).all()
-        return {
-            "skew_overview": self.skew_overview(),
-            "gaps_summary": self.gaps_summary(),
-            "sites": [self.site_gaps(s.id) for s in sites],
         }

@@ -5,7 +5,6 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from yuantus.database import get_db
-from yuantus.api.warning_headers import append_doc_sync_checkout_warning
 from yuantus.meta_engine.version.service import (
     VersionService,
     VersionError,
@@ -108,13 +107,14 @@ def create_initial_version(
 @version_router.post("/items/{item_id}/checkout")
 def checkout(
     item_id: str,
-    user_id: int = Depends(get_current_user_id),
-    *,
     response: Response,
+    user_id: int = Depends(get_current_user_id),
     comment: Optional[str] = Body(None),
     version_id: Optional[str] = Body(None),
-    doc_sync_strictness_mode: str = Body("block"),
     doc_sync_site_id: Optional[str] = Body(None),
+    doc_sync_direction: Optional[str] = Body(None),
+    doc_sync_gate_mode: str = Body("block"),
+    doc_sync_direction_thresholds: Optional[Dict[str, Dict[str, int]]] = Body(None),
     doc_sync_document_ids: Optional[List[str]] = Body(None),
     doc_sync_window_days: int = Body(7),
     doc_sync_limit: int = Body(200),
@@ -125,21 +125,6 @@ def checkout(
     doc_sync_max_dead_letter: int = Body(0),
     db: Session = Depends(get_db),
 ):
-    normalized_strictness_mode = str(doc_sync_strictness_mode or "block").strip().lower()
-    if normalized_strictness_mode not in {"block", "warn"}:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "code": "doc_sync_checkout_gate_invalid",
-                "message": "doc_sync_strictness_mode must be one of: block, warn",
-                "context": {
-                    "item_id": item_id,
-                    "mode": doc_sync_strictness_mode,
-                    "allowed_modes": ["block", "warn"],
-                },
-            },
-        )
-
     if doc_sync_site_id:
         gate_document_ids = {
             str(doc_id).strip()
@@ -165,6 +150,9 @@ def checkout(
             gate = doc_sync_service.evaluate_checkout_sync_gate(
                 item_id=item_id,
                 site_id=doc_sync_site_id,
+                direction=doc_sync_direction,
+                mode=doc_sync_gate_mode,
+                direction_thresholds=doc_sync_direction_thresholds,
                 version_id=normalized_version_id,
                 document_ids=sorted(gate_document_ids),
                 window_days=doc_sync_window_days,
@@ -184,6 +172,8 @@ def checkout(
                     "context": {
                         "item_id": item_id,
                         "site_id": doc_sync_site_id,
+                        "gate_mode": doc_sync_gate_mode,
+                        "direction_thresholds": doc_sync_direction_thresholds,
                         "window_days": doc_sync_window_days,
                         "limit": doc_sync_limit,
                         "block_on_dead_letter_only": doc_sync_block_on_dead_letter_only,
@@ -195,25 +185,27 @@ def checkout(
                 },
             )
         if gate.get("blocking"):
-            if normalized_strictness_mode == "warn":
-                append_doc_sync_checkout_warning(
-                    response, "Checkout allowed despite doc-sync backlog"
-                )
-            else:
-                block_on_dead_letter_only = bool(
-                    (gate.get("policy") or {}).get("block_on_dead_letter_only")
-                )
-                message = "Checkout blocked by doc-sync backlog"
-                if block_on_dead_letter_only:
-                    message = "Checkout blocked by doc-sync dead-letter backlog"
-                raise HTTPException(
-                    status_code=409,
-                    detail={
-                        "code": "doc_sync_checkout_blocked",
-                        "message": message,
-                        "context": gate,
-                    },
-                )
+            block_on_dead_letter_only = bool(
+                (gate.get("policy") or {}).get("block_on_dead_letter_only")
+            )
+            message = "Checkout blocked by doc-sync backlog"
+            if block_on_dead_letter_only:
+                message = "Checkout blocked by doc-sync dead-letter backlog"
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "doc_sync_checkout_blocked",
+                    "message": message,
+                    "context": gate,
+                },
+            )
+        if gate.get("warning"):
+            response.headers["X-Doc-Sync-Gate-Verdict"] = str(
+                gate.get("verdict") or "warn"
+            )
+            response.headers["X-Doc-Sync-Gate-Threshold-Hits"] = str(
+                len(gate.get("blocking_reasons") or [])
+            )
 
     service = VersionService(db)
     try:

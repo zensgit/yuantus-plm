@@ -49,6 +49,7 @@ class ECOState(str, Enum):
 
     DRAFT = "draft"
     PROGRESS = "progress"
+    SUSPENDED = "suspended"
     CONFLICT = "conflict"
     APPROVED = "approved"
     DONE = "done"

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from yuantus.api.app import create_app
 from yuantus.meta_engine.web.document_sync_router import document_sync_router
 
 
@@ -44,7 +45,8 @@ def _client_with_mocks():
 _FAKE_SITE = SimpleNamespace(
     id="site-1", name="HQ", description=None,
     base_url="https://hq.example.com", site_code="HQ",
-    state="active", direction="push", is_primary=True,
+    state="active", auth_type=None, auth_config=None,
+    direction="push", is_primary=True,
 )
 
 _FAKE_JOB = SimpleNamespace(
@@ -76,6 +78,44 @@ def test_create_site():
     assert db.commit.called
 
 
+def test_create_site_masks_basic_auth_password():
+    client, db = _client_with_mocks()
+    basic_site = SimpleNamespace(
+        id="site-1",
+        name="HQ",
+        description=None,
+        base_url="https://hq.example.com",
+        site_code="HQ",
+        state="active",
+        auth_type="basic",
+        auth_config={"username": "mirror-user", "password": "secret"},
+        direction="push",
+        is_primary=True,
+    )
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.create_site.return_value = basic_site
+
+        resp = client.post(
+            "/api/v1/document-sync/sites",
+            json={
+                "name": "HQ",
+                "site_code": "HQ",
+                "auth_type": "basic",
+                "auth_config": {"username": "mirror-user", "password": "secret"},
+            },
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["auth_type"] == "basic"
+    assert resp.json()["auth_config"] == {
+        "username": "mirror-user",
+        "has_password": True,
+    }
+    assert "secret" not in resp.text
+    assert db.commit.called
+
+
 def test_list_sites():
     client, _db = _client_with_mocks()
 
@@ -86,6 +126,34 @@ def test_list_sites():
 
     assert resp.status_code == 200
     assert resp.json()["count"] == 1
+
+
+def test_list_sites_masks_basic_auth_password():
+    client, _db = _client_with_mocks()
+    basic_site = SimpleNamespace(
+        id="site-1",
+        name="HQ",
+        description=None,
+        base_url="https://hq.example.com",
+        site_code="HQ",
+        state="active",
+        auth_type="basic",
+        auth_config={"username": "mirror-user", "password": "secret"},
+        direction="push",
+        is_primary=True,
+    )
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.list_sites.return_value = [basic_site]
+
+        resp = client.get("/api/v1/document-sync/sites")
+
+    assert resp.status_code == 200
+    assert resp.json()["sites"][0]["auth_config"] == {
+        "username": "mirror-user",
+        "has_password": True,
+    }
+    assert "secret" not in resp.text
 
 
 def test_get_site():
@@ -100,6 +168,35 @@ def test_get_site():
     assert resp.json()["id"] == "site-1"
 
 
+def test_get_site_masks_basic_auth_password():
+    client, _db = _client_with_mocks()
+    basic_site = SimpleNamespace(
+        id="site-1",
+        name="HQ",
+        description=None,
+        base_url="https://hq.example.com",
+        site_code="HQ",
+        state="active",
+        auth_type="basic",
+        auth_config={"username": "mirror-user", "password": "secret"},
+        direction="push",
+        is_primary=True,
+    )
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.get_site.return_value = basic_site
+
+        resp = client.get("/api/v1/document-sync/sites/site-1")
+
+    assert resp.status_code == 200
+    assert resp.json()["auth_type"] == "basic"
+    assert resp.json()["auth_config"] == {
+        "username": "mirror-user",
+        "has_password": True,
+    }
+    assert "secret" not in resp.text
+
+
 def test_get_site_not_found():
     client, _db = _client_with_mocks()
 
@@ -109,6 +206,118 @@ def test_get_site_not_found():
         resp = client.get("/api/v1/document-sync/sites/nonexistent")
 
     assert resp.status_code == 404
+
+
+def test_document_sync_routes_registered_in_create_app():
+    app = create_app()
+    paths = {route.path for route in app.routes}
+
+    assert "/api/v1/document-sync/sites" in paths
+    assert "/api/v1/document-sync/jobs" in paths
+    assert "/api/v1/document-sync/overview" in paths
+
+
+# ---------------------------------------------------------------------------
+# Mirror probe tests
+# ---------------------------------------------------------------------------
+
+
+def test_mirror_probe_site_success():
+    client, _db = _client_with_mocks()
+
+    probe_payload = {
+        "ok": True,
+        "site_id": "site-1",
+        "endpoint": "https://hq.example.com/api/v1/document-sync/overview",
+        "status_code": 200,
+        "remote_overview": {"total_sites": 3, "total_jobs": 7},
+    }
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.mirror_probe.return_value = probe_payload
+
+        resp = client.post("/api/v1/document-sync/sites/site-1/mirror-probe")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["site_id"] == "site-1"
+    assert body["status_code"] == 200
+    assert body["endpoint"].endswith("/api/v1/document-sync/overview")
+    assert body["remote_overview"] == {"total_sites": 3, "total_jobs": 7}
+
+
+def test_mirror_probe_site_value_error_maps_to_http_400():
+    client, _db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.mirror_probe.side_effect = ValueError(
+            "Site 'site-1' has no base_url configured for mirror probe"
+        )
+
+        resp = client.post("/api/v1/document-sync/sites/site-1/mirror-probe")
+
+    assert resp.status_code == 400
+    assert "no base_url" in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# Mirror execute tests
+# ---------------------------------------------------------------------------
+
+
+def test_mirror_execute_site_success():
+    client, db = _client_with_mocks()
+
+    execute_payload = {
+        "ok": True,
+        "job_id": "job-mirror-1",
+        "site_id": "site-1",
+        "state": "completed",
+        "endpoint": "https://hq.example.com/api/v1/document-sync/overview",
+        "status_code": 200,
+        "summary": {
+            "total_documents": 12,
+            "synced_count": 9,
+            "conflict_count": 2,
+            "error_count": 1,
+            "remote_overview": {"total_jobs": 12},
+            "mirror_error": None,
+        },
+    }
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.mirror_execute.return_value = execute_payload
+
+        resp = client.post("/api/v1/document-sync/sites/site-1/mirror-execute")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ok"] is True
+    assert body["job_id"] == "job-mirror-1"
+    assert body["site_id"] == "site-1"
+    assert body["state"] == "completed"
+    assert body["status_code"] == 200
+    assert body["endpoint"].endswith("/api/v1/document-sync/overview")
+    assert body["summary"]["total_documents"] == 12
+    assert body["summary"]["conflict_count"] == 2
+    assert body["summary"]["error_count"] == 1
+    assert db.commit.called
+
+
+def test_mirror_execute_site_value_error_maps_to_http_400():
+    client, db = _client_with_mocks()
+
+    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+        svc_cls.return_value.mirror_execute.side_effect = ValueError(
+            "Site 'site-1' has no base_url configured for mirror execute"
+        )
+
+        resp = client.post("/api/v1/document-sync/sites/site-1/mirror-execute")
+
+    assert resp.status_code == 400
+    assert "no base_url" in resp.json()["detail"]
+    assert db.rollback.called
 
 
 # ---------------------------------------------------------------------------
@@ -1089,278 +1298,4 @@ def test_export_watermarks_empty():
     assert resp.json()["freshness_overview"]["total_sites"] == 0
     assert resp.json()["freshness_overview"]["avg_freshness_pct"] is None
     assert resp.json()["watermarks_summary"]["site_watermarks"] == []
-    assert resp.json()["sites"] == []
-
-
-# ---------------------------------------------------------------------------
-# Lag / Backlog endpoint tests (C42)
-# ---------------------------------------------------------------------------
-
-
-def test_lag_overview():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.lag_overview.return_value = {
-            "total_sites": 2,
-            "sites_with_pending": 1,
-            "sites_with_failed": 1,
-            "avg_lag": 1.0,
-            "worst_lag_site_id": "s1",
-        }
-        resp = client.get("/api/v1/document-sync/lag/overview")
-
-    assert resp.status_code == 200
-    assert resp.json()["total_sites"] == 2
-    assert resp.json()["sites_with_pending"] == 1
-    assert resp.json()["sites_with_failed"] == 1
-    assert resp.json()["avg_lag"] == 1.0
-    assert resp.json()["worst_lag_site_id"] == "s1"
-
-
-def test_backlog_summary():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.backlog_summary.return_value = {
-            "total_sites": 2,
-            "total_pending": 5,
-            "backlog_threshold": 3,
-            "sites_above_threshold": 1,
-            "backlog_distribution": [
-                {"site_id": "s1", "pending_count": 4, "above_threshold": True},
-                {"site_id": "s2", "pending_count": 1, "above_threshold": False},
-            ],
-        }
-        resp = client.get("/api/v1/document-sync/backlog/summary")
-
-    assert resp.status_code == 200
-    assert resp.json()["total_sites"] == 2
-    assert resp.json()["total_pending"] == 5
-    assert resp.json()["sites_above_threshold"] == 1
-    assert len(resp.json()["backlog_distribution"]) == 2
-
-
-def test_site_backlog():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.site_backlog.return_value = {
-            "site_id": "s1", "site_name": "HQ", "state": "active",
-            "total_jobs": 3, "pending_count": 1, "failed_count": 1,
-            "synced_count": 1, "backlog_depth": 2,
-        }
-        resp = client.get("/api/v1/document-sync/sites/s1/backlog")
-
-    assert resp.status_code == 200
-    assert resp.json()["site_id"] == "s1"
-    assert resp.json()["pending_count"] == 1
-    assert resp.json()["failed_count"] == 1
-    assert resp.json()["backlog_depth"] == 2
-
-
-def test_site_backlog_not_found_404():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.site_backlog.side_effect = ValueError("not found")
-        resp = client.get("/api/v1/document-sync/sites/bad/backlog")
-
-    assert resp.status_code == 404
-
-
-def test_export_backlog():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.export_backlog.return_value = {
-            "lag_overview": {
-                "total_sites": 1, "sites_with_pending": 1,
-                "sites_with_failed": 0, "avg_lag": 1.0,
-                "worst_lag_site_id": "s1",
-            },
-            "backlog_summary": {
-                "total_sites": 1, "total_pending": 1,
-                "backlog_threshold": 3, "sites_above_threshold": 0,
-                "backlog_distribution": [
-                    {"site_id": "s1", "pending_count": 1, "above_threshold": False},
-                ],
-            },
-            "sites": [
-                {"site_id": "s1", "site_name": "HQ", "state": "active",
-                 "total_jobs": 2, "pending_count": 1, "failed_count": 0,
-                 "synced_count": 1, "backlog_depth": 1},
-            ],
-        }
-        resp = client.get("/api/v1/document-sync/export/backlog")
-
-    assert resp.status_code == 200
-    assert "lag_overview" in resp.json()
-    assert "backlog_summary" in resp.json()
-    assert "sites" in resp.json()
-    assert resp.json()["lag_overview"]["total_sites"] == 1
-    assert resp.json()["backlog_summary"]["total_pending"] == 1
-    assert len(resp.json()["sites"]) == 1
-    assert resp.json()["sites"][0]["site_id"] == "s1"
-
-
-def test_export_backlog_empty():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.export_backlog.return_value = {
-            "lag_overview": {
-                "total_sites": 0, "sites_with_pending": 0,
-                "sites_with_failed": 0, "avg_lag": None,
-                "worst_lag_site_id": None,
-            },
-            "backlog_summary": {
-                "total_sites": 0, "total_pending": 0,
-                "backlog_threshold": 3, "sites_above_threshold": 0,
-                "backlog_distribution": [],
-            },
-            "sites": [],
-        }
-        resp = client.get("/api/v1/document-sync/export/backlog")
-
-    assert resp.status_code == 200
-    assert resp.json()["lag_overview"]["total_sites"] == 0
-    assert resp.json()["lag_overview"]["avg_lag"] is None
-    assert resp.json()["backlog_summary"]["backlog_distribution"] == []
-    assert resp.json()["sites"] == []
-
-
-# ---------------------------------------------------------------------------
-# Skew / Gaps endpoint tests (C45)
-# ---------------------------------------------------------------------------
-
-
-def test_skew_overview():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.skew_overview.return_value = {
-            "total_sites": 2,
-            "sites_with_gaps": 1,
-            "avg_gap_count": 1.0,
-            "worst_gap_site_id": "s1",
-        }
-        resp = client.get("/api/v1/document-sync/skew/overview")
-
-    assert resp.status_code == 200
-    assert resp.json()["total_sites"] == 2
-    assert resp.json()["sites_with_gaps"] == 1
-    assert resp.json()["avg_gap_count"] == 1.0
-    assert resp.json()["worst_gap_site_id"] == "s1"
-
-
-def test_gaps_summary():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.gaps_summary.return_value = {
-            "total_sites": 2,
-            "total_gaps": 4,
-            "gap_threshold": 2,
-            "sites_above_threshold": 1,
-            "severity_distribution": {
-                "critical": 0, "warning": 1, "minor": 1, "clean": 0,
-            },
-        }
-        resp = client.get("/api/v1/document-sync/gaps/summary")
-
-    assert resp.status_code == 200
-    assert resp.json()["total_sites"] == 2
-    assert resp.json()["total_gaps"] == 4
-    assert resp.json()["sites_above_threshold"] == 1
-    assert resp.json()["severity_distribution"]["warning"] == 1
-
-
-def test_site_gaps():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.site_gaps.return_value = {
-            "site_id": "s1", "site_name": "HQ", "state": "active",
-            "total_jobs": 3, "pending_count": 1, "failed_count": 1,
-            "gap_count": 2, "severity": "minor",
-        }
-        resp = client.get("/api/v1/document-sync/sites/s1/gaps")
-
-    assert resp.status_code == 200
-    assert resp.json()["site_id"] == "s1"
-    assert resp.json()["pending_count"] == 1
-    assert resp.json()["failed_count"] == 1
-    assert resp.json()["gap_count"] == 2
-    assert resp.json()["severity"] == "minor"
-
-
-def test_site_gaps_not_found_404():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.site_gaps.side_effect = ValueError("not found")
-        resp = client.get("/api/v1/document-sync/sites/bad/gaps")
-
-    assert resp.status_code == 404
-
-
-def test_export_gaps():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.export_gaps.return_value = {
-            "skew_overview": {
-                "total_sites": 1, "sites_with_gaps": 1,
-                "avg_gap_count": 1.0, "worst_gap_site_id": "s1",
-            },
-            "gaps_summary": {
-                "total_sites": 1, "total_gaps": 1,
-                "gap_threshold": 2, "sites_above_threshold": 0,
-                "severity_distribution": {
-                    "critical": 0, "warning": 0, "minor": 1, "clean": 0,
-                },
-            },
-            "sites": [
-                {"site_id": "s1", "site_name": "HQ", "state": "active",
-                 "total_jobs": 2, "pending_count": 1, "failed_count": 0,
-                 "gap_count": 1, "severity": "minor"},
-            ],
-        }
-        resp = client.get("/api/v1/document-sync/export/gaps")
-
-    assert resp.status_code == 200
-    assert "skew_overview" in resp.json()
-    assert "gaps_summary" in resp.json()
-    assert "sites" in resp.json()
-    assert resp.json()["skew_overview"]["total_sites"] == 1
-    assert resp.json()["gaps_summary"]["total_gaps"] == 1
-    assert len(resp.json()["sites"]) == 1
-    assert resp.json()["sites"][0]["site_id"] == "s1"
-
-
-def test_export_gaps_empty():
-    client, _db = _client_with_mocks()
-
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
-        svc_cls.return_value.export_gaps.return_value = {
-            "skew_overview": {
-                "total_sites": 0, "sites_with_gaps": 0,
-                "avg_gap_count": None, "worst_gap_site_id": None,
-            },
-            "gaps_summary": {
-                "total_sites": 0, "total_gaps": 0,
-                "gap_threshold": 2, "sites_above_threshold": 0,
-                "severity_distribution": {
-                    "critical": 0, "warning": 0, "minor": 0, "clean": 0,
-                },
-            },
-            "sites": [],
-        }
-        resp = client.get("/api/v1/document-sync/export/gaps")
-
-    assert resp.status_code == 200
-    assert resp.json()["skew_overview"]["total_sites"] == 0
-    assert resp.json()["skew_overview"]["avg_gap_count"] is None
-    assert resp.json()["gaps_summary"]["severity_distribution"]["clean"] == 0
     assert resp.json()["sites"] == []

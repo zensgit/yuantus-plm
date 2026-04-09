@@ -7,6 +7,7 @@ Covers:
   - viewer_readiness field in FileMetadata response
 """
 
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -292,6 +293,10 @@ class TestConsumerSummaryEndpoint:
         fc = _make_file_container(
             geometry_path="/vault/fc-1/model.obj",
             cad_manifest_path="/vault/fc-1/manifest.json",
+            cad_review_by_id=7,
+            cad_review_state="approved",
+            cad_review_note="ready",
+            cad_reviewed_at=datetime(2026, 3, 19, 12, 0, 0),
         )
         client, _db = _client_with_file_container(fc)
         with patch(
@@ -308,6 +313,11 @@ class TestConsumerSummaryEndpoint:
         assert body["urls"]["geometry"] is not None
         assert body["urls"]["manifest"] is not None
         assert body["urls"]["download"] is not None
+        assert "proof" in body
+        assert body["proof"]["review"]["state"] == "approved"
+        assert body["proof"]["review"]["reviewed_by"] == {"id": 7}
+        assert body["proof"]["review"]["reviewed_at"] == "2026-03-19T12:00:00"
+        assert body["proof"]["audit"]["enabled"] is False
 
     def test_consumer_summary_none_mode(self):
         fc = _make_file_container()
@@ -319,12 +329,80 @@ class TestConsumerSummaryEndpoint:
         assert body["viewer_mode"] == "none"
         assert body["is_viewer_ready"] is False
         assert body["urls"]["geometry"] is None
+        assert "proof" in body
 
     def test_consumer_summary_404(self):
         client, mock_db = _client_with_file_container(None)
         mock_db.get.return_value = None
         resp = client.get("/api/v1/file/missing/consumer-summary")
         assert resp.status_code == 404
+
+    def test_consumer_summary_with_audit(self):
+        fc = _make_file_container(
+            geometry_path="/vault/fc-1/model.obj",
+            cad_review_by_id=7,
+            cad_review_state="approved",
+            cad_reviewed_at=datetime(2026, 3, 19, 12, 0, 0),
+        )
+        client, mock_db = _client_with_file_container(fc)
+        log_item = SimpleNamespace(
+            id="log-1",
+            action="cad_review_update",
+            created_at=datetime(2026, 3, 19, 12, 0, 1),
+            user_id=7,
+            payload={"note": "approved"},
+        )
+        (
+            mock_db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        ).all.return_value = [log_item]
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService"
+        ) as MockFS:
+            MockFS.return_value.file_exists.return_value = False
+            resp = client.get(
+                "/api/v1/file/fc-1/consumer-summary"
+                "?include_audit=true&include_reviewer_profile=true"
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["proof"]["audit"]["enabled"] is True
+        assert body["proof"]["audit"]["history_count"] == 1
+        assert body["proof"]["audit"]["history"][0]["action"] == "cad_review_update"
+        assert body["proof"]["audit"]["history"][0]["id"] == "log-1"
+
+    def test_consumer_summary_with_audit_history_limit(self):
+        fc = _make_file_container(
+            geometry_path="/vault/fc-1/model.obj",
+            cad_review_by_id=7,
+            cad_review_state="approved",
+            cad_reviewed_at=datetime(2026, 3, 19, 12, 0, 0),
+        )
+        client, mock_db = _client_with_file_container(fc)
+        (
+            mock_db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        ).all.return_value = [
+            SimpleNamespace(
+                id="log-1",
+                action="cad_review_update",
+                created_at=datetime(2026, 3, 19, 12, 0, 1),
+                user_id=7,
+                payload={"note": "approved"},
+            ),
+        ]
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService"
+        ) as MockFS:
+            MockFS.return_value.file_exists.return_value = False
+            resp = client.get(
+                "/api/v1/file/fc-1/consumer-summary?include_audit=true&history_limit=1"
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["proof"]["audit"]["enabled"] is True
+        assert body["proof"]["audit"]["history_count"] == 1
+        assert body["proof"]["audit"]["history"][0]["id"] == "log-1"
 
 
 class TestViewerReadinessExport:
@@ -347,7 +425,28 @@ class TestViewerReadinessExport:
         body = resp.json()
         assert body["total"] == 1
         assert body["ready_count"] == 1
+        assert body["not_found_count"] == 0
+        assert body["requested_file_count"] == 1
+        assert "generated_at" in body
         assert body["files"][0]["viewer_mode"] == "geometry_only"
+
+    def test_export_csv_format_case_insensitive(self):
+        fc = _make_file_container(geometry_path="/vault/fc-1/model.obj")
+        client, mock_db = _client_with_file_container(fc)
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService"
+        ) as MockFS:
+            MockFS.return_value.file_exists.return_value = False
+            resp = client.post(
+                "/api/v1/file/viewer-readiness/export?export_format=CSV",
+                json={"file_ids": ["fc-1"]},
+            )
+
+        assert resp.status_code == 200
+        assert "text/csv" in resp.headers.get("content-type", "")
+        content = resp.content.decode("utf-8")
+        assert "file_id" in content
+        assert "fc-1" in content
 
     def test_export_missing_file_included(self):
         client, mock_db = _client_with_file_container(None)
@@ -361,6 +460,7 @@ class TestViewerReadinessExport:
         body = resp.json()
         assert body["total"] == 1
         assert body["not_ready_count"] == 1
+        assert body["not_found_count"] == 1
         assert body["files"][0]["viewer_mode"] == "not_found"
 
     def test_export_csv_format(self):
@@ -389,6 +489,76 @@ class TestViewerReadinessExport:
         )
         assert resp.status_code == 400
 
+    def test_export_invalid_payload_type(self):
+        client, _ = _client_with_file_container(None)
+        resp = client.post(
+            "/api/v1/file/viewer-readiness/export",
+            json={"file_ids": "fc-1"},
+        )
+        assert resp.status_code == 422
+
+    def test_export_invalid_export_format(self):
+        fc = _make_file_container(geometry_path="/vault/fc-1/model.obj")
+        client, _ = _client_with_file_container(fc)
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService"
+        ) as MockFS:
+            MockFS.return_value.file_exists.return_value = False
+            resp = client.post(
+                "/api/v1/file/viewer-readiness/export?export_format=xml",
+                json={"file_ids": ["fc-1"]},
+            )
+
+        assert resp.status_code == 400
+
+    def test_export_invalid_batch_size_400(self):
+        client, _ = _client_with_file_container(None)
+        resp = client.post(
+            "/api/v1/file/viewer-readiness/export",
+            json={"file_ids": ["x"] * 201},
+        )
+        assert resp.status_code == 400
+
+    def test_export_invalid_history_limit(self):
+        fc = _make_file_container(geometry_path="/vault/fc-1/model.obj")
+        client, _ = _client_with_file_container(fc)
+        resp = client.post(
+            "/api/v1/file/viewer-readiness/export?include_audit=true&history_limit=0",
+            json={"file_ids": ["fc-1"]},
+        )
+        assert resp.status_code == 422
+
+    def test_export_csv_with_audit_columns(self):
+        fc = _make_file_container(
+            geometry_path="/vault/fc-1/model.obj",
+            cad_review_by_id=8,
+            cad_review_state="approved",
+        )
+        client, mock_db = _client_with_file_container(fc)
+        log_item = SimpleNamespace(
+            id="log-1",
+            action="cad_review_update",
+            created_at=datetime(2026, 3, 19, 12, 0, 1),
+            user_id=8,
+            payload={"note": "approved"},
+        )
+        (
+            mock_db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        ).all.return_value = [log_item]
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService"
+        ) as MockFS:
+            MockFS.return_value.file_exists.return_value = False
+            resp = client.post(
+                "/api/v1/file/viewer-readiness/export?export_format=csv&include_audit=true",
+                json={"file_ids": ["fc-1"]},
+            )
+
+        assert resp.status_code == 200
+        assert "history_count" in resp.text
+        assert "history_latest_action" in resp.text
+        assert "cad_review_update" in resp.text
+
 
 class TestGeometryPackSummary:
 
@@ -413,6 +583,7 @@ class TestGeometryPackSummary:
         assert body["viewer_ready_count"] == 1
         assert body["format_counts"]["glb"] == 1
         assert body["pack"][0]["file_id"] == "fc-1"
+        assert "proof" in body["pack"][0]
 
     def test_pack_summary_missing_file(self):
         client, mock_db = _client_with_file_container(None)
@@ -426,7 +597,9 @@ class TestGeometryPackSummary:
         body = resp.json()
         assert body["total_files"] == 1
         assert body["files_found"] == 0
+        assert body["not_found_count"] == 1
         assert body["pack"][0]["found"] is False
+        assert body["audited_files"] == 0
 
     def test_pack_summary_empty_400(self):
         client, _ = _client_with_file_container(None)
@@ -435,3 +608,40 @@ class TestGeometryPackSummary:
             json={"file_ids": []},
         )
         assert resp.status_code == 400
+
+    def test_pack_summary_with_audit_and_no_assets(self):
+        fc = _make_file_container(
+            geometry_path="/vault/fc-1/model.obj",
+            cad_review_by_id=9,
+            cad_review_state="approved",
+        )
+        client, mock_db = _client_with_file_container(fc)
+        (
+            mock_db.query.return_value.filter.return_value.order_by.return_value.limit.return_value
+        ).all.return_value = []
+        resp = client.post(
+            "/api/v1/file/geometry-pack-summary?include_audit=true&include_assets=false",
+            json={"file_ids": ["fc-1"]},
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["audited_files"] == 1
+        assert body["pack"][0]["proof"]["audit"]["enabled"] is True
+        assert body["pack"][0]["assets"] == []
+
+    def test_pack_summary_assets_toggle(self):
+        fc = _make_file_container(geometry_path="/vault/fc-1/model.obj")
+        client, _ = _client_with_file_container(fc)
+        with patch(
+            "yuantus.meta_engine.services.file_service.FileService"
+        ) as MockFS:
+            MockFS.return_value.file_exists.return_value = False
+            resp = client.post(
+                "/api/v1/file/geometry-pack-summary?include_assets=false",
+                json={"file_ids": ["fc-1"]},
+            )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["pack"][0]["assets"] == []

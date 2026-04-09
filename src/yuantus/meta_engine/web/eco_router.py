@@ -85,6 +85,18 @@ class RejectRequest(BaseModel):
     comment: str = Field(..., min_length=1)
 
 
+class SuspendRequest(BaseModel):
+    """Schema for suspend action."""
+
+    reason: Optional[str] = None
+
+
+class UnsuspendRequest(BaseModel):
+    """Schema for unsuspend action."""
+
+    resume_state: Optional[str] = None
+
+
 class StageCreate(BaseModel):
     """Schema for creating a stage."""
 
@@ -123,6 +135,15 @@ def _ensure_can_apply_eco(service: ECOService, *, eco_id: str, user_id: int) -> 
     try:
         service.permission_service.check_permission(
             user_id, "execute", "ECO", resource_id=eco_id, field="apply"
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
+
+
+def _ensure_can_unsuspend_eco(service: ECOService, *, eco_id: str, user_id: int) -> None:
+    try:
+        service.permission_service.check_permission(
+            user_id, "execute", "ECO", resource_id=eco_id, field="unsuspend"
         )
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
@@ -895,6 +916,39 @@ async def get_eco_apply_diagnostics(
     )
 
 
+@eco_router.get("/{eco_id}/unsuspend-diagnostics", response_model=ReleaseDiagnosticsResponse)
+async def get_eco_unsuspend_diagnostics(
+    eco_id: str,
+    resume_state: Optional[str] = Query(None),
+    ruleset_id: str = Query("default"),
+    user_id: int = Depends(get_current_user_id_optional),
+    db: Session = Depends(get_db),
+) -> ReleaseDiagnosticsResponse:
+    service = ECOService(db)
+    eco = service.get_eco(eco_id)
+    if eco:
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        _ensure_can_unsuspend_eco(service, eco_id=eco_id, user_id=int(user_id))
+
+    diagnostics = service.get_unsuspend_diagnostics(
+        eco_id,
+        int(user_id or 0),
+        resume_state=resume_state,
+        ruleset_id=ruleset_id,
+    )
+    errors = [issue_to_response(issue) for issue in (diagnostics.get("errors") or [])]
+    warnings = [issue_to_response(issue) for issue in (diagnostics.get("warnings") or [])]
+    return ReleaseDiagnosticsResponse(
+        ok=len(errors) == 0,
+        resource_type="eco",
+        resource_id=eco_id,
+        ruleset_id=str(diagnostics.get("ruleset_id") or ruleset_id),
+        errors=errors,
+        warnings=warnings,
+    )
+
+
 @eco_router.post("/{eco_id}/cancel", response_model=Dict[str, Any])
 async def cancel_eco(
     eco_id: str,
@@ -908,6 +962,81 @@ async def cancel_eco(
         eco = service.action_cancel(eco_id, user_id, reason)
         db.commit()
         return eco.to_dict()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@eco_router.post("/{eco_id}/suspend", response_model=Dict[str, Any])
+async def suspend_eco(
+    eco_id: str,
+    data: SuspendRequest,
+    user_id: int = Depends(get_current_user_id_optional),
+    db: Session = Depends(get_db),
+):
+    """Suspend an ECO without canceling it."""
+    service = ECOService(db)
+    try:
+        eco = service.action_suspend(eco_id, user_id, data.reason)
+        db.commit()
+        return eco.to_dict()
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@eco_router.post("/{eco_id}/unsuspend", response_model=Dict[str, Any])
+async def unsuspend_eco(
+    eco_id: str,
+    data: UnsuspendRequest,
+    force: bool = Query(False),
+    ruleset_id: str = Query("default"),
+    user_id: int = Depends(get_current_user_id_optional),
+    db: Session = Depends(get_db),
+):
+    """Unsuspend an ECO and resume it into a working state."""
+    service = ECOService(db)
+    try:
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        if not force:
+            eco = service.get_eco(eco_id)
+            if eco:
+                _ensure_can_unsuspend_eco(service, eco_id=eco_id, user_id=int(user_id))
+            diagnostics = service.get_unsuspend_diagnostics(
+                eco_id,
+                int(user_id),
+                resume_state=data.resume_state,
+                ruleset_id=ruleset_id,
+            )
+            err_count = len(diagnostics.get("errors") or [])
+            warn_count = len(diagnostics.get("warnings") or [])
+            if err_count:
+                resume_query = (
+                    f"&resume_state={data.resume_state}" if data.resume_state else ""
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"ECO unsuspend blocked: errors={err_count}, warnings={warn_count}. "
+                        f"Run /api/v1/eco/{eco_id}/unsuspend-diagnostics?ruleset_id={ruleset_id}{resume_query} for details."
+                    ),
+                )
+
+        eco = service.action_unsuspend(
+            eco_id,
+            int(user_id),
+            resume_state=data.resume_state,
+        )
+        db.commit()
+        return eco.to_dict()
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -951,14 +1080,24 @@ async def get_bom_changes(eco_id: str, db: Session = Depends(get_db)):
 
 
 @eco_router.post("/{eco_id}/compute-changes", response_model=List[Dict[str, Any]])
-async def compute_bom_changes(eco_id: str, db: Session = Depends(get_db)):
+async def compute_bom_changes(
+    eco_id: str,
+    compare_mode: Optional[str] = Query(
+        None,
+        description=(
+            "Optional compare mode: only_product, summarized, by_item, num_qty, "
+            "by_position, by_reference, by_find_refdes"
+        ),
+    ),
+    db: Session = Depends(get_db),
+):
     """
     Compute BOM differences between source and target versions.
     Creates/updates ECOBOMChange records.
     """
     service = ECOService(db)
     try:
-        changes = service.compute_bom_changes(eco_id)
+        changes = service.compute_bom_changes(eco_id, compare_mode=compare_mode)
         db.commit()
         return [c.to_dict() for c in changes]
     except ValueError as e:
