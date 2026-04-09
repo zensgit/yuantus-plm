@@ -110,6 +110,7 @@ def _stable_hash(values: Iterable[str]) -> str:
 class DocumentMultiSiteService:
     TASK_PREFIX = "document_sync_"
     _ALLOWED_DIRECTIONS = {"push", "pull"}
+    _ALLOWED_CHECKOUT_GATE_MODES = {"block", "warn"}
     _ALLOWED_JOB_STATUS = {
         JobStatus.PENDING.value,
         JobStatus.PROCESSING.value,
@@ -189,6 +190,55 @@ class DocumentMultiSiteService:
             raise ValueError(f"{name} must be a non-negative integer") from exc
         if normalized < 0:
             raise ValueError(f"{name} must be a non-negative integer")
+        return normalized
+
+    def _site_default_direction(self, site: Optional[RemoteSite]) -> Optional[str]:
+        if site is None:
+            return None
+        metadata = site.metadata_json if isinstance(site.metadata_json, dict) else {}
+        direction = str(metadata.get("direction") or "").strip().lower() or None
+        if direction in self._ALLOWED_DIRECTIONS:
+            return direction
+        if direction == "bidirectional":
+            return None
+        return None
+
+    def _normalize_checkout_gate_mode(self, mode: Any) -> str:
+        normalized = str(mode or "block").strip().lower() or "block"
+        if normalized not in self._ALLOWED_CHECKOUT_GATE_MODES:
+            raise ValueError("mode must be block or warn")
+        return normalized
+
+    def _normalize_direction_thresholds(
+        self,
+        direction_thresholds: Any,
+    ) -> Dict[str, Dict[str, int]]:
+        if direction_thresholds is None:
+            return {}
+        if not isinstance(direction_thresholds, dict):
+            raise ValueError("direction_thresholds must be an object")
+
+        normalized: Dict[str, Dict[str, int]] = {}
+        for raw_direction, raw_thresholds in direction_thresholds.items():
+            direction_key = str(raw_direction or "").strip().lower()
+            if direction_key not in self._ALLOWED_DIRECTIONS:
+                raise ValueError("direction_thresholds keys must be push or pull")
+            if not isinstance(raw_thresholds, dict):
+                raise ValueError(
+                    f"direction_thresholds[{direction_key}] must be an object"
+                )
+            current: Dict[str, int] = {}
+            for status, raw_value in raw_thresholds.items():
+                status_key = str(status or "").strip().lower()
+                if status_key not in {"pending", "processing", "failed", "dead_letter"}:
+                    raise ValueError(
+                        "direction_thresholds status keys must be pending, processing, failed, or dead_letter"
+                    )
+                current[status_key] = self._normalize_non_negative_int(
+                    raw_value,
+                    name=f"direction_thresholds[{direction_key}][{status_key}]",
+                )
+            normalized[direction_key] = current
         return normalized
 
     def _normalize_remote_auth_mode(self, auth_mode: str) -> str:
@@ -752,6 +802,9 @@ class DocumentMultiSiteService:
         *,
         item_id: str,
         site_id: str,
+        direction: Optional[str] = None,
+        mode: str = "block",
+        direction_thresholds: Optional[Dict[str, Dict[str, int]]] = None,
         version_id: Optional[str] = None,
         document_ids: Optional[List[str]] = None,
         window_days: int = 7,
@@ -768,6 +821,12 @@ class DocumentMultiSiteService:
         normalized_site_id = str(site_id or "").strip()
         if not normalized_site_id:
             raise ValueError("site_id must not be empty")
+        site = self.get_remote_site(normalized_site_id)
+        normalized_direction = str(direction or "").strip().lower() or None
+        if normalized_direction and normalized_direction not in self._ALLOWED_DIRECTIONS:
+            raise ValueError("direction must be push or pull")
+        normalized_mode = self._normalize_checkout_gate_mode(mode)
+        effective_direction = normalized_direction or self._site_default_direction(site)
         normalized_version_id = str(version_id or "").strip() or None
         monitored_document_ids = {
             str(doc_id).strip()
@@ -792,15 +851,29 @@ class DocumentMultiSiteService:
                 max_dead_letter, name="max_dead_letter"
             ),
         }
+        normalized_direction_thresholds = self._normalize_direction_thresholds(
+            direction_thresholds
+        )
+        effective_thresholds = dict(thresholds)
+        if effective_direction and normalized_direction_thresholds.get(effective_direction):
+            effective_thresholds.update(normalized_direction_thresholds[effective_direction])
         dead_letter_only = bool(block_on_dead_letter_only)
         since = _utcnow() - timedelta(days=normalized_window_days)
 
-        query = (
-            self.session.query(ConversionJob)
-            .filter(ConversionJob.task_type.like(f"{self.TASK_PREFIX}%"))
-            .filter(ConversionJob.created_at >= since)
-            .order_by(ConversionJob.created_at.desc())
-        )
+        if effective_direction:
+            query = (
+                self.session.query(ConversionJob)
+                .filter(ConversionJob.task_type == f"{self.TASK_PREFIX}{effective_direction}")
+                .filter(ConversionJob.created_at >= since)
+                .order_by(ConversionJob.created_at.desc())
+            )
+        else:
+            query = (
+                self.session.query(ConversionJob)
+                .filter(ConversionJob.task_type.like(f"{self.TASK_PREFIX}%"))
+                .filter(ConversionJob.created_at >= since)
+                .order_by(ConversionJob.created_at.desc())
+            )
 
         pending_views: List[Dict[str, Any]] = []
         dead_letter_views: List[Dict[str, Any]] = []
@@ -855,12 +928,19 @@ class DocumentMultiSiteService:
             {
                 "status": status,
                 "count": int(counts.get(status) or 0),
-                "threshold": int(thresholds.get(status) or 0),
+                "threshold": int(effective_thresholds.get(status) or 0),
             }
             for status in considered
-            if int(counts.get(status) or 0) > int(thresholds.get(status) or 0)
+            if int(counts.get(status) or 0) > int(effective_thresholds.get(status) or 0)
         ]
-        blocking = bool(blocking_reasons)
+        threshold_exceeded = bool(blocking_reasons)
+        warning = threshold_exceeded and normalized_mode == "warn"
+        blocking = threshold_exceeded and normalized_mode == "block"
+        verdict = "clear"
+        if blocking:
+            verdict = "block"
+        elif warning:
+            verdict = "warn"
 
         if dead_letter_only:
             blocking_views = dead_letter_views[:cap]
@@ -869,15 +949,25 @@ class DocumentMultiSiteService:
         return {
             "item_id": normalized_item_id,
             "site_id": normalized_site_id,
+            "direction": normalized_direction,
+            "effective_direction": effective_direction,
+            "mode": normalized_mode,
+            "verdict": verdict,
+            "direction_thresholds": normalized_direction_thresholds,
             "version_id": normalized_version_id,
             "monitored_document_ids": sorted(monitored_document_ids),
             "matched_document_ids": sorted(matched_document_ids),
             "window_days": normalized_window_days,
             "since": since.isoformat(),
             "checked_at": _utcnow().isoformat(),
-            "policy": {"block_on_dead_letter_only": dead_letter_only},
-            "thresholds": thresholds,
+            "policy": {
+                "block_on_dead_letter_only": dead_letter_only,
+                "mode": normalized_mode,
+            },
+            "thresholds": effective_thresholds,
             "blocking_reasons": blocking_reasons,
+            "threshold_exceeded": threshold_exceeded,
+            "warning": warning,
             "blocking": blocking,
             "blocking_total": len(blocking_views),
             "blocking_counts": counts,
@@ -1915,6 +2005,15 @@ class WorkflowCustomActionService:
     _ALLOWED_TYPES = {"emit_event", "create_job", "set_eco_priority"}
     _ALLOWED_PHASES = {"before", "after"}
     _ALLOWED_FAIL = {"block", "warn", "retry"}
+    _ALLOWED_MATCH_PREDICATES = {
+        "stage_id",
+        "eco_priority",
+        "actor_roles",
+        "product_id",
+        "eco_type",
+    }
+    _ALLOWED_ECO_PRIORITIES = {"low", "normal", "high", "urgent"}
+    _ALLOWED_ECO_TYPES = {"bom", "product", "document"}
     _RESULT_OK = "OK"
     _RESULT_WARN = "WARN"
     _RESULT_BLOCK = "BLOCK"
@@ -1957,13 +2056,175 @@ class WorkflowCustomActionService:
         return value
 
     def _normalize_action_params(
-        self, params: Optional[Dict[str, Any]], fail_strategy: str
+        self,
+        params: Optional[Dict[str, Any]],
+        fail_strategy: str,
+        match_predicates: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         normalized = dict(params or {})
         normalized["priority"] = self._normalize_priority(normalized)
         normalized["timeout_s"] = self._normalize_timeout_s(normalized)
         normalized["max_retries"] = self._normalize_retry_max(fail_strategy, normalized)
+        raw_match_predicates = (
+            match_predicates
+            if match_predicates is not None
+            else normalized.get("match_predicates")
+        )
+        normalized_match_predicates = self._normalize_match_predicates(raw_match_predicates)
+        if normalized_match_predicates:
+            normalized["match_predicates"] = normalized_match_predicates
+        else:
+            normalized.pop("match_predicates", None)
         return normalized
+
+    def _normalize_optional_string(self, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    def _normalize_string_list(
+        self,
+        value: Any,
+        *,
+        field: str,
+        lowercase: bool = False,
+    ) -> List[str]:
+        if value is None:
+            return []
+        if not isinstance(value, (list, tuple, set)):
+            raise ValueError(f"{field} must be an array of strings")
+        seen = set()
+        normalized: List[str] = []
+        for raw in value:
+            item = self._normalize_optional_string(raw)
+            if not item:
+                continue
+            if lowercase:
+                item = item.lower()
+            if item in seen:
+                continue
+            seen.add(item)
+            normalized.append(item)
+        return normalized
+
+    def _normalize_match_predicates(
+        self, match_predicates: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        if match_predicates is None:
+            return {}
+        if not isinstance(match_predicates, dict):
+            raise ValueError("match_predicates must be an object")
+
+        unsupported = sorted(
+            key
+            for key in match_predicates.keys()
+            if key not in self._ALLOWED_MATCH_PREDICATES
+        )
+        if unsupported:
+            raise ValueError(
+                "match_predicates only supports: actor_roles, eco_priority, eco_type, product_id, stage_id"
+            )
+
+        normalized: Dict[str, Any] = {}
+        stage_id = self._normalize_optional_string(match_predicates.get("stage_id"))
+        if stage_id:
+            normalized["stage_id"] = stage_id
+
+        eco_priority = self._normalize_optional_string(
+            match_predicates.get("eco_priority")
+        )
+        if eco_priority:
+            eco_priority = eco_priority.lower()
+            if eco_priority not in self._ALLOWED_ECO_PRIORITIES:
+                raise ValueError(
+                    "match_predicates.eco_priority must be one of: low, normal, high, urgent"
+                )
+            normalized["eco_priority"] = eco_priority
+
+        actor_roles = self._normalize_string_list(
+            match_predicates.get("actor_roles"),
+            field="match_predicates.actor_roles",
+            lowercase=True,
+        )
+        if actor_roles:
+            normalized["actor_roles"] = actor_roles
+
+        product_id = self._normalize_optional_string(match_predicates.get("product_id"))
+        if product_id:
+            normalized["product_id"] = product_id
+
+        eco_type = self._normalize_optional_string(match_predicates.get("eco_type"))
+        if eco_type:
+            eco_type = eco_type.lower()
+            if eco_type not in self._ALLOWED_ECO_TYPES:
+                raise ValueError(
+                    "match_predicates.eco_type must be one of: bom, product, document"
+                )
+            normalized["eco_type"] = eco_type
+
+        return normalized
+
+    def _rule_match_predicates(self, rule: WorkflowCustomActionRule) -> Dict[str, Any]:
+        params = rule.action_params if isinstance(rule.action_params, dict) else {}
+        predicates = params.get("match_predicates")
+        try:
+            return self._normalize_match_predicates(predicates)
+        except ValueError:
+            return {}
+
+    def _normalize_runtime_context(self, context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        normalized = dict(context or {})
+        normalized["workflow_map_id"] = self._normalize_optional_string(
+            normalized.get("workflow_map_id")
+        )
+        normalized["stage_id"] = self._normalize_optional_string(normalized.get("stage_id"))
+        eco_priority = self._normalize_optional_string(normalized.get("eco_priority"))
+        normalized["eco_priority"] = eco_priority.lower() if eco_priority else None
+        normalized["product_id"] = self._normalize_optional_string(normalized.get("product_id"))
+        eco_type = self._normalize_optional_string(normalized.get("eco_type"))
+        normalized["eco_type"] = eco_type.lower() if eco_type else None
+        normalized["actor_roles"] = self._normalize_string_list(
+            normalized.get("actor_roles"),
+            field="context.actor_roles",
+            lowercase=True,
+        )
+        return normalized
+
+    def _rule_matches_runtime_scope(
+        self,
+        *,
+        rule: WorkflowCustomActionRule,
+        context: Dict[str, Any],
+    ) -> bool:
+        workflow_map_id = self._normalize_optional_string(rule.workflow_map_id)
+        if workflow_map_id and workflow_map_id != context.get("workflow_map_id"):
+            return False
+
+        predicates = self._rule_match_predicates(rule)
+        stage_id = predicates.get("stage_id")
+        if stage_id and stage_id != context.get("stage_id"):
+            return False
+
+        eco_priority = predicates.get("eco_priority")
+        if eco_priority and eco_priority != context.get("eco_priority"):
+            return False
+
+        product_id = predicates.get("product_id")
+        if product_id and product_id != context.get("product_id"):
+            return False
+
+        eco_type = predicates.get("eco_type")
+        if eco_type and eco_type != context.get("eco_type"):
+            return False
+
+        actor_roles = predicates.get("actor_roles") or []
+        if actor_roles:
+            runtime_roles = set(context.get("actor_roles") or [])
+            if not runtime_roles.intersection(actor_roles):
+                return False
+
+        return True
 
     def _rule_priority(self, rule: WorkflowCustomActionRule) -> int:
         params = rule.action_params if isinstance(rule.action_params, dict) else {}
@@ -2020,6 +2281,7 @@ class WorkflowCustomActionService:
         trigger_phase: str,
         action_type: str,
         action_params: Optional[Dict[str, Any]] = None,
+        match_predicates: Optional[Dict[str, Any]] = None,
         fail_strategy: str = "block",
         workflow_map_id: Optional[str] = None,
         is_enabled: bool = True,
@@ -2035,7 +2297,11 @@ class WorkflowCustomActionService:
         normalized_fail = (fail_strategy or "block").strip().lower()
         if normalized_fail not in self._ALLOWED_FAIL:
             raise ValueError("fail_strategy must be one of: block, warn, retry")
-        normalized_params = self._normalize_action_params(action_params, normalized_fail)
+        normalized_params = self._normalize_action_params(
+            action_params,
+            normalized_fail,
+            match_predicates,
+        )
 
         existing = (
             self.session.query(WorkflowCustomActionRule)
@@ -2114,11 +2380,17 @@ class WorkflowCustomActionService:
             WorkflowCustomActionRule.trigger_phase == normalized_phase,
         )
         rules = query.order_by(WorkflowCustomActionRule.name.asc()).all()
+        normalized_context = self._normalize_runtime_context(context)
         matched: List[WorkflowCustomActionRule] = []
         for rule in rules:
             if rule.from_state and str(rule.from_state) != str(from_state):
                 continue
             if rule.to_state and str(rule.to_state) != str(to_state):
+                continue
+            if not self._rule_matches_runtime_scope(
+                rule=rule,
+                context=normalized_context,
+            ):
                 continue
             matched.append(rule)
 
@@ -2138,7 +2410,7 @@ class WorkflowCustomActionService:
                 from_state=from_state,
                 to_state=to_state,
                 trigger_phase=normalized_phase,
-                context=context or {},
+                context=normalized_context,
                 execution_order=idx,
             )
             runs.append(run)
@@ -2666,12 +2938,13 @@ class BreakageIncidentService:
         self._incidents_export_task_type = "breakage_incidents_export"
         self._incidents_export_cleanup_task_type = "breakage_incidents_export_cleanup"
         self._group_by_fields = {
+            "bom_id": "bom_id",
             "product_item_id": "product_item_id",
             "batch_code": "batch_code",
             "bom_line_item_id": "bom_line_item_id",
-            "mbom_id": "version_id",
+            "mbom_id": "mbom_id",
             "responsibility": "responsibility",
-            "routing_id": "production_order_id",
+            "routing_id": "routing_id",
         }
 
     def _normalize_trend_window_days(self, window_days: int) -> int:
@@ -2708,6 +2981,92 @@ class BreakageIncidentService:
         if normalized not in {"json", "csv", "md"}:
             raise ValueError("export_format must be json, csv or md")
         return normalized
+
+    def _next_incident_code(self) -> str:
+        max_sequence = 0
+        for (raw_code,) in self.session.query(BreakageIncident.incident_code).all():
+            normalized = str(raw_code or "").strip().upper()
+            if not normalized.startswith("BRK-"):
+                continue
+            suffix = normalized[4:]
+            if suffix.isdigit():
+                max_sequence = max(max_sequence, int(suffix))
+        return f"BRK-{max_sequence + 1:06d}"
+
+    def _resolve_incident_dimensions(
+        self,
+        *,
+        bom_id: Optional[str] = None,
+        mbom_id: Optional[str] = None,
+        version_id: Optional[str] = None,
+        routing_id: Optional[str] = None,
+        production_order_id: Optional[str] = None,
+    ) -> Dict[str, Optional[str]]:
+        normalized_bom_id = str(bom_id or "").strip() or None
+        normalized_mbom_id = str(mbom_id or "").strip() or None
+        normalized_version_id = str(version_id or "").strip() or None
+        normalized_routing_id = str(routing_id or "").strip() or None
+        normalized_production_order_id = (
+            str(production_order_id or "").strip() or None
+        )
+
+        if (
+            normalized_mbom_id
+            and normalized_version_id
+            and normalized_mbom_id != normalized_version_id
+        ):
+            raise ValueError("mbom_id and version_id must match when both are provided")
+        if (
+            normalized_routing_id
+            and normalized_production_order_id
+            and normalized_routing_id != normalized_production_order_id
+        ):
+            raise ValueError(
+                "routing_id and production_order_id must match when both are provided"
+            )
+
+        normalized_mbom = normalized_mbom_id or normalized_version_id
+        normalized_routing = normalized_routing_id or normalized_production_order_id
+        return {
+            "bom_id": normalized_bom_id,
+            "mbom_id": normalized_mbom,
+            "version_id": normalized_mbom,
+            "routing_id": normalized_routing,
+            "production_order_id": normalized_routing,
+        }
+
+    def _incident_code(self, incident: BreakageIncident) -> Optional[str]:
+        normalized = str(getattr(incident, "incident_code", None) or "").strip()
+        if normalized:
+            return normalized
+        incident_id = str(getattr(incident, "id", None) or "").strip()
+        if not incident_id:
+            return None
+        compact = incident_id.replace("-", "").upper()
+        return f"BRK-{compact[:8]}"
+
+    def _incident_bom_id(self, incident: BreakageIncident) -> Optional[str]:
+        return str(getattr(incident, "bom_id", None) or "").strip() or None
+
+    def _incident_mbom_id(self, incident: BreakageIncident) -> Optional[str]:
+        return (
+            str(
+                getattr(incident, "mbom_id", None)
+                or getattr(incident, "version_id", None)
+                or ""
+            ).strip()
+            or None
+        )
+
+    def _incident_routing_id(self, incident: BreakageIncident) -> Optional[str]:
+        return (
+            str(
+                getattr(incident, "routing_id", None)
+                or getattr(incident, "production_order_id", None)
+                or ""
+            ).strip()
+            or None
+        )
 
     def _apply_incident_filters(
         self,
@@ -2751,7 +3110,10 @@ class BreakageIncidentService:
         severity: str = "medium",
         status: str = "open",
         product_item_id: Optional[str] = None,
+        bom_id: Optional[str] = None,
         bom_line_item_id: Optional[str] = None,
+        routing_id: Optional[str] = None,
+        mbom_id: Optional[str] = None,
         production_order_id: Optional[str] = None,
         version_id: Optional[str] = None,
         batch_code: Optional[str] = None,
@@ -2759,15 +3121,26 @@ class BreakageIncidentService:
         responsibility: Optional[str] = None,
         created_by_id: Optional[int] = None,
     ) -> BreakageIncident:
+        dimensions = self._resolve_incident_dimensions(
+            bom_id=bom_id,
+            mbom_id=mbom_id,
+            version_id=version_id,
+            routing_id=routing_id,
+            production_order_id=production_order_id,
+        )
         incident = BreakageIncident(
             id=_uuid(),
+            incident_code=self._next_incident_code(),
             description=description.strip(),
             severity=(severity or "medium").strip().lower(),
             status=(status or "open").strip().lower(),
             product_item_id=product_item_id,
+            bom_id=dimensions["bom_id"],
             bom_line_item_id=bom_line_item_id,
-            production_order_id=production_order_id,
-            version_id=version_id,
+            production_order_id=dimensions["production_order_id"],
+            version_id=dimensions["version_id"],
+            mbom_id=dimensions["mbom_id"],
+            routing_id=dimensions["routing_id"],
             batch_code=batch_code,
             customer_name=customer_name,
             responsibility=responsibility,
@@ -2806,21 +3179,95 @@ class BreakageIncidentService:
         )
 
     def _serialize_incident(self, incident: BreakageIncident) -> Dict[str, Any]:
+        incident_code = self._incident_code(incident)
+        bom_id = self._incident_bom_id(incident)
+        mbom_id = self._incident_mbom_id(incident)
+        routing_id = self._incident_routing_id(incident)
         return {
             "id": incident.id,
+            "incident_code": incident_code,
             "description": incident.description,
             "severity": incident.severity,
             "status": incident.status,
             "product_item_id": incident.product_item_id,
+            "bom_id": bom_id,
             "bom_line_item_id": incident.bom_line_item_id,
-            "production_order_id": incident.production_order_id,
-            "version_id": incident.version_id,
+            "production_order_id": routing_id,
+            "version_id": mbom_id,
+            "mbom_id": mbom_id,
+            "routing_id": routing_id,
             "batch_code": incident.batch_code,
             "customer_name": incident.customer_name,
             "responsibility": incident.responsibility,
             "created_at": incident.created_at.isoformat() if incident.created_at else None,
             "updated_at": incident.updated_at.isoformat() if incident.updated_at else None,
         }
+
+    def _summarize_latest_helpdesk_job(
+        self, job_view: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        return {
+            "job_id": job_view.get("id"),
+            "job_status": job_view.get("status"),
+            "sync_status": job_view.get("sync_status"),
+            "provider": job_view.get("provider"),
+            "external_ticket_id": job_view.get("external_ticket_id"),
+            "provider_ticket_status": job_view.get("provider_ticket_status"),
+            "provider_assignee": job_view.get("provider_assignee"),
+            "provider_ticket_updated_at": job_view.get("provider_ticket_updated_at"),
+            "failure_category": job_view.get("failure_category"),
+            "last_error": job_view.get("last_error"),
+            "updated_at": (
+                job_view.get("completed_at")
+                or job_view.get("started_at")
+                or job_view.get("created_at")
+            ),
+        }
+
+    def build_latest_helpdesk_summary_map(
+        self, incident_ids: Iterable[str]
+    ) -> Dict[str, Dict[str, Any]]:
+        incident_id_set = {
+            str(incident_id or "").strip()
+            for incident_id in incident_ids
+            if str(incident_id or "").strip()
+        }
+        if not incident_id_set:
+            return {}
+
+        jobs = (
+            self.session.query(ConversionJob)
+            .filter(ConversionJob.task_type == self._helpdesk_task_type)
+            .order_by(ConversionJob.created_at.desc())
+            .all()
+        )
+        summary_by_incident: Dict[str, Dict[str, Any]] = {}
+        for job in jobs:
+            payload = job.payload if isinstance(job.payload, dict) else {}
+            incident_id = str(payload.get("incident_id") or "").strip()
+            if (
+                not incident_id
+                or incident_id not in incident_id_set
+                or incident_id in summary_by_incident
+            ):
+                continue
+            job_view = self._build_helpdesk_sync_job_view(job)
+            summary_by_incident[incident_id] = self._summarize_latest_helpdesk_job(
+                job_view
+            )
+        return summary_by_incident
+
+    def serialize_incident_view(
+        self,
+        incident: BreakageIncident,
+        *,
+        helpdesk_summary: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        row = self._serialize_incident(incident)
+        row["helpdesk_ticket_summary"] = (
+            dict(helpdesk_summary) if isinstance(helpdesk_summary, dict) else None
+        )
+        return row
 
     def export_incidents(
         self,
@@ -2854,7 +3301,16 @@ class BreakageIncidentService:
             current_page = total_pages
         offset = (current_page - 1) * current_page_size
         incidents_page = incidents_all[offset : offset + current_page_size]
-        serialized = [self._serialize_incident(incident) for incident in incidents_page]
+        helpdesk_summary_by_incident = self.build_latest_helpdesk_summary_map(
+            incident.id for incident in incidents_page
+        )
+        serialized = [
+            self.serialize_incident_view(
+                incident,
+                helpdesk_summary=helpdesk_summary_by_incident.get(str(incident.id)),
+            )
+            for incident in incidents_page
+        ]
         exported = {
             "total": total,
             "filters": {
@@ -2895,16 +3351,26 @@ class BreakageIncidentService:
                 csv_io,
                 fieldnames=[
                     "id",
+                    "incident_code",
                     "description",
                     "severity",
                     "status",
                     "product_item_id",
+                    "bom_id",
                     "bom_line_item_id",
                     "production_order_id",
                     "version_id",
+                    "mbom_id",
+                    "routing_id",
                     "batch_code",
                     "customer_name",
                     "responsibility",
+                    "helpdesk_external_ticket_id",
+                    "helpdesk_provider",
+                    "helpdesk_provider_ticket_status",
+                    "helpdesk_provider_assignee",
+                    "helpdesk_sync_status",
+                    "helpdesk_job_id",
                     "created_at",
                     "updated_at",
                     "status_filter",
@@ -2917,9 +3383,26 @@ class BreakageIncidentService:
             )
             writer.writeheader()
             for row in serialized:
+                helpdesk_summary = (
+                    row.get("helpdesk_ticket_summary")
+                    if isinstance(row.get("helpdesk_ticket_summary"), dict)
+                    else {}
+                )
                 writer.writerow(
                     {
-                        **row,
+                        **{k: v for k, v in row.items() if k != "helpdesk_ticket_summary"},
+                        "helpdesk_external_ticket_id": helpdesk_summary.get(
+                            "external_ticket_id"
+                        ),
+                        "helpdesk_provider": helpdesk_summary.get("provider"),
+                        "helpdesk_provider_ticket_status": helpdesk_summary.get(
+                            "provider_ticket_status"
+                        ),
+                        "helpdesk_provider_assignee": helpdesk_summary.get(
+                            "provider_assignee"
+                        ),
+                        "helpdesk_sync_status": helpdesk_summary.get("sync_status"),
+                        "helpdesk_job_id": helpdesk_summary.get("job_id"),
                         "status_filter": status,
                         "severity_filter": severity,
                         "product_item_id_filter": product_item_id,
@@ -2957,15 +3440,24 @@ class BreakageIncidentService:
                 )
             lines.extend(
                 [
-                    "| ID | Status | Severity | Product | BOM Line | Batch | Responsibility |",
-                    "| --- | --- | --- | --- | --- | --- | --- |",
+                    "| Code | ID | Status | Severity | Product | BOM | MBOM | Routing | BOM Line | Batch | Responsibility | Ticket | Provider | Ticket Status | Assignee | Sync |",
+                    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
                 ]
             )
             for row in serialized:
+                helpdesk_summary = (
+                    row.get("helpdesk_ticket_summary")
+                    if isinstance(row.get("helpdesk_ticket_summary"), dict)
+                    else {}
+                )
                 lines.append(
-                    f"| {row['id'] or ''} | {row['status'] or ''} | {row['severity'] or ''} | "
-                    f"{row['product_item_id'] or ''} | {row['bom_line_item_id'] or ''} | "
-                    f"{row['batch_code'] or ''} | {row['responsibility'] or ''} |"
+                    f"| {row['incident_code'] or ''} | {row['id'] or ''} | {row['status'] or ''} | "
+                    f"{row['severity'] or ''} | {row['product_item_id'] or ''} | {row['bom_id'] or ''} | "
+                    f"{row['mbom_id'] or ''} | {row['routing_id'] or ''} | {row['bom_line_item_id'] or ''} | "
+                    f"{row['batch_code'] or ''} | {row['responsibility'] or ''} | "
+                    f"{helpdesk_summary.get('external_ticket_id') or ''} | {helpdesk_summary.get('provider') or ''} | "
+                    f"{helpdesk_summary.get('provider_ticket_status') or ''} | {helpdesk_summary.get('provider_assignee') or ''} | "
+                    f"{helpdesk_summary.get('sync_status') or ''} |"
                 )
             return {
                 "content": ("\n".join(lines) + "\n").encode("utf-8"),
@@ -3466,6 +3958,9 @@ class BreakageIncidentService:
             page=current_page,
             page_size=current_page_size,
         )
+        latest_helpdesk_summary_by_incident = self.build_latest_helpdesk_summary_map(
+            incident.id for incident in incidents_all
+        )
         helpdesk_sync_summary = self._build_helpdesk_sync_summary(
             incident_ids={str(incident.id) for incident in incidents_all}
         )
@@ -3497,7 +3992,15 @@ class BreakageIncidentService:
                 "repeated_failure_rate": metrics.get("repeated_failure_rate") or 0.0,
                 "helpdesk_failed_jobs": helpdesk_sync_summary.get("failed_jobs") or 0,
             },
-            "incidents": [self._serialize_incident(incident) for incident in incidents_page],
+            "incidents": [
+                self.serialize_incident_view(
+                    incident,
+                    helpdesk_summary=latest_helpdesk_summary_by_incident.get(
+                        str(incident.id)
+                    ),
+                )
+                for incident in incidents_page
+            ],
             "metrics": {
                 "total": metrics.get("total") or 0,
                 "repeated_event_count": metrics.get("repeated_event_count") or 0,
@@ -3508,11 +4011,13 @@ class BreakageIncidentService:
                 "by_product_item": metrics.get("by_product_item") or {},
                 "by_batch_code": metrics.get("by_batch_code") or {},
                 "by_bom_line_item": metrics.get("by_bom_line_item") or {},
+                "by_bom_id": metrics.get("by_bom_id") or {},
                 "by_mbom_id": metrics.get("by_mbom_id") or {},
                 "by_routing_id": metrics.get("by_routing_id") or {},
                 "top_product_items": metrics.get("top_product_items") or [],
                 "top_batch_codes": metrics.get("top_batch_codes") or [],
                 "top_bom_line_items": metrics.get("top_bom_line_items") or [],
+                "top_bom_ids": metrics.get("top_bom_ids") or [],
                 "top_mbom_ids": metrics.get("top_mbom_ids") or [],
                 "top_routing_ids": metrics.get("top_routing_ids") or [],
                 "hotspot_components": metrics.get("hotspot_components") or [],
@@ -3570,10 +4075,14 @@ class BreakageIncidentService:
                 csv_io,
                 fieldnames=[
                     "id",
+                    "incident_code",
                     "description",
                     "status",
                     "severity",
                     "product_item_id",
+                    "bom_id",
+                    "mbom_id",
+                    "routing_id",
                     "bom_line_item_id",
                     "batch_code",
                     "responsibility",
@@ -3591,10 +4100,14 @@ class BreakageIncidentService:
                 writer.writerow(
                     {
                         "id": row.get("id"),
+                        "incident_code": row.get("incident_code"),
                         "description": row.get("description"),
                         "status": row.get("status"),
                         "severity": row.get("severity"),
                         "product_item_id": row.get("product_item_id"),
+                        "bom_id": row.get("bom_id"),
+                        "mbom_id": row.get("mbom_id"),
+                        "routing_id": row.get("routing_id"),
                         "bom_line_item_id": row.get("bom_line_item_id"),
                         "batch_code": row.get("batch_code"),
                         "responsibility": row.get("responsibility"),
@@ -3622,13 +4135,14 @@ class BreakageIncidentService:
                 f"- kpis: {json.dumps(kpis, ensure_ascii=False)}",
                 f"- helpdesk_sync_summary: {json.dumps(helpdesk, ensure_ascii=False)}",
                 "",
-                "| ID | Status | Severity | Product | BOM Line | Batch | Responsibility |",
-                "| --- | --- | --- | --- | --- | --- | --- |",
+                "| Code | ID | Status | Severity | Product | BOM | MBOM | Routing | BOM Line | Batch | Responsibility |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
             ]
             for row in incidents:
                 lines.append(
-                    f"| {row.get('id') or ''} | {row.get('status') or ''} | {row.get('severity') or ''} | "
-                    f"{row.get('product_item_id') or ''} | {row.get('bom_line_item_id') or ''} | "
+                    f"| {row.get('incident_code') or ''} | {row.get('id') or ''} | {row.get('status') or ''} | "
+                    f"{row.get('severity') or ''} | {row.get('product_item_id') or ''} | {row.get('bom_id') or ''} | "
+                    f"{row.get('mbom_id') or ''} | {row.get('routing_id') or ''} | {row.get('bom_line_item_id') or ''} | "
                     f"{row.get('batch_code') or ''} | {row.get('responsibility') or ''} |"
                 )
             return {
@@ -3722,15 +4236,20 @@ class BreakageIncidentService:
             for incident in incidents
             if incident.bom_line_item_id
         )
-        by_mbom_id = Counter(
-            str(incident.version_id)
+        by_bom_id = Counter(
+            str(self._incident_bom_id(incident))
             for incident in incidents
-            if incident.version_id
+            if self._incident_bom_id(incident)
+        )
+        by_mbom_id = Counter(
+            str(self._incident_mbom_id(incident))
+            for incident in incidents
+            if self._incident_mbom_id(incident)
         )
         by_routing_id = Counter(
-            str(incident.production_order_id)
+            str(self._incident_routing_id(incident))
             for incident in incidents
-            if incident.production_order_id
+            if self._incident_routing_id(incident)
         )
         top_product_items = [
             {"product_item_id": item_id, "count": count}
@@ -3743,6 +4262,10 @@ class BreakageIncidentService:
         top_bom_line_items = [
             {"bom_line_item_id": item_id, "count": count}
             for item_id, count in by_bom_line_item.most_common(10)
+        ]
+        top_bom_ids = [
+            {"bom_id": bom_id, "count": count}
+            for bom_id, count in by_bom_id.most_common(10)
         ]
         top_mbom_ids = [
             {"mbom_id": mbom_id, "count": count}
@@ -3776,21 +4299,7 @@ class BreakageIncidentService:
         offset = (current_page - 1) * current_page_size
         page_rows = incidents[offset : offset + current_page_size]
 
-        incidents_page = [
-            {
-                "id": incident.id,
-                "description": incident.description,
-                "status": incident.status,
-                "severity": incident.severity,
-                "product_item_id": incident.product_item_id,
-                "bom_line_item_id": incident.bom_line_item_id,
-                "batch_code": incident.batch_code,
-                "responsibility": incident.responsibility,
-                "created_at": incident.created_at.isoformat() if incident.created_at else None,
-                "updated_at": incident.updated_at.isoformat() if incident.updated_at else None,
-            }
-            for incident in page_rows
-        ]
+        incidents_page = [self._serialize_incident(incident) for incident in page_rows]
 
         return {
             "total": total,
@@ -3802,11 +4311,13 @@ class BreakageIncidentService:
             "by_product_item": dict(by_product_item),
             "by_batch_code": dict(by_batch_code),
             "by_bom_line_item": dict(by_bom_line_item),
+            "by_bom_id": dict(by_bom_id),
             "by_mbom_id": dict(by_mbom_id),
             "by_routing_id": dict(by_routing_id),
             "top_product_items": top_product_items,
             "top_batch_codes": top_batch_codes,
             "top_bom_line_items": top_bom_line_items,
+            "top_bom_ids": top_bom_ids,
             "top_mbom_ids": top_mbom_ids,
             "top_routing_ids": top_routing_ids,
             "hotspot_components": hotspot_components,
@@ -4105,6 +4616,11 @@ class BreakageIncidentService:
                 if isinstance(metrics.get("by_bom_line_item"), dict)
                 else {}
             )
+            by_bom_id = (
+                metrics.get("by_bom_id")
+                if isinstance(metrics.get("by_bom_id"), dict)
+                else {}
+            )
             by_mbom_id = (
                 metrics.get("by_mbom_id")
                 if isinstance(metrics.get("by_mbom_id"), dict)
@@ -4128,6 +4644,11 @@ class BreakageIncidentService:
             top_bom_line_items = (
                 metrics.get("top_bom_line_items")
                 if isinstance(metrics.get("top_bom_line_items"), list)
+                else []
+            )
+            top_bom_ids = (
+                metrics.get("top_bom_ids")
+                if isinstance(metrics.get("top_bom_ids"), list)
                 else []
             )
             top_mbom_ids = (
@@ -4171,6 +4692,7 @@ class BreakageIncidentService:
                     f"- by_bom_line_item: "
                     f"{json.dumps(by_bom_line_item, ensure_ascii=False)}"
                 ),
+                f"- by_bom_id: {json.dumps(by_bom_id, ensure_ascii=False)}",
                 f"- by_mbom_id: {json.dumps(by_mbom_id, ensure_ascii=False)}",
                 f"- by_routing_id: {json.dumps(by_routing_id, ensure_ascii=False)}",
                 (
@@ -4185,6 +4707,7 @@ class BreakageIncidentService:
                     f"- top_bom_line_items: "
                     f"{json.dumps(top_bom_line_items, ensure_ascii=False)}"
                 ),
+                f"- top_bom_ids: {json.dumps(top_bom_ids, ensure_ascii=False)}",
                 f"- top_mbom_ids: {json.dumps(top_mbom_ids, ensure_ascii=False)}",
                 (
                     f"- top_routing_ids: "

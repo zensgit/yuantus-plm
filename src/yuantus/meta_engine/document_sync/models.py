@@ -80,6 +80,8 @@ class SyncSite(Base):
     base_url = Column(String(500), nullable=True)
     site_code = Column(String(60), nullable=False, unique=True)
     state = Column(String(30), default=SiteState.ACTIVE.value, nullable=False)
+    auth_type = Column(String(30), nullable=True)
+    auth_config = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
 
     # Capabilities
     direction = Column(

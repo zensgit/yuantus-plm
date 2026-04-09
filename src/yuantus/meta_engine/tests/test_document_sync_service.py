@@ -1,8 +1,9 @@
 """Tests for DocumentSyncService (C18 Document Multi-Site Sync Bootstrap)."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from yuantus.meta_engine.document_sync.models import (
@@ -39,6 +40,8 @@ def _make_site(site_id="site-1", name="HQ", state="active", direction="push"):
     site.base_url = "https://hq.example.com"
     site.site_code = "HQ"
     site.state = state
+    site.auth_type = None
+    site.auth_config = None
     site.direction = direction
     site.is_primary = True
     site.properties = None
@@ -142,6 +145,479 @@ class TestSiteCRUD:
 
         with pytest.raises(ValueError, match="Invalid direction"):
             service.create_site(name="Bad", site_code="X", direction="warp")
+
+    def test_create_site_with_basic_auth_contract(self):
+        session = _mock_session()
+        service = DocumentSyncService(session)
+
+        site = service.create_site(
+            name="Factory A",
+            site_code="FA",
+            auth_type="basic",
+            auth_config={"username": "mirror-user", "password": "secret"},
+        )
+
+        assert site.auth_type == "basic"
+        assert site.auth_config == {
+            "username": "mirror-user",
+            "password": "secret",
+        }
+
+    def test_create_site_basic_auth_requires_username_and_password(self):
+        session = _mock_session()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="Basic auth requires non-empty username and password"):
+            service.create_site(
+                name="Factory A",
+                site_code="FA",
+                auth_type="basic",
+                auth_config={"username": "mirror-user"},
+            )
+
+    def test_create_site_auth_config_requires_basic_type(self):
+        session = _mock_session()
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="auth_config requires auth_type='basic'"):
+            service.create_site(
+                name="Factory A",
+                site_code="FA",
+                auth_config={"username": "mirror-user", "password": "secret"},
+            )
+
+    def test_update_site_normalizes_basic_auth_contract(self):
+        session = _mock_session()
+        fake_site = _make_site()
+        session.get.return_value = fake_site
+
+        service = DocumentSyncService(session)
+        result = service.update_site(
+            "site-1",
+            auth_type="basic",
+            auth_config={"username": "mirror-user", "password": "secret"},
+        )
+
+        assert result is not None
+        assert fake_site.auth_type == "basic"
+        assert fake_site.auth_config == {
+            "username": "mirror-user",
+            "password": "secret",
+        }
+
+
+# ---------------------------------------------------------------------------
+# TestMirrorProbe
+# ---------------------------------------------------------------------------
+
+
+def _make_basic_auth_site(
+    site_id="site-mirror",
+    base_url="https://hq.example.com/",
+    username="mirror-user",
+    password="secret",
+    direction="push",
+    state="active",
+):
+    site = MagicMock(spec=SyncSite)
+    site.id = site_id
+    site.base_url = base_url
+    site.auth_type = "basic"
+    site.auth_config = {"username": username, "password": password}
+    site.direction = direction
+    site.state = state
+    return site
+
+
+class _FakeProbeResponse:
+    def __init__(self, status_code, json_payload=None, raise_on_json=False):
+        self.status_code = status_code
+        self._payload = json_payload
+        self._raise_on_json = raise_on_json
+
+    def json(self):
+        if self._raise_on_json:
+            raise ValueError("not json")
+        return self._payload
+
+
+class _FakeClientCM:
+    def __init__(self, response=None, exc=None):
+        self._response = response
+        self._exc = exc
+        self.captured_url = None
+        self.captured_auth = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def get(self, url, auth=None):
+        self.captured_url = url
+        self.captured_auth = auth
+        if self._exc is not None:
+            raise self._exc
+        return self._response
+
+
+class TestMirrorProbe:
+    def test_mirror_probe_success_returns_remote_overview(self):
+        session = _mock_session()
+        site = _make_basic_auth_site()
+        session.get.return_value = site
+        service = DocumentSyncService(session)
+
+        fake_response = _FakeProbeResponse(
+            status_code=200,
+            json_payload={"total_sites": 3, "total_jobs": 7},
+        )
+        fake_client = _FakeClientCM(response=fake_response)
+        with patch("httpx.Client", return_value=fake_client):
+            result = service.mirror_probe("site-mirror")
+
+        assert result["ok"] is True
+        assert result["site_id"] == "site-mirror"
+        assert result["status_code"] == 200
+        assert result["endpoint"] == (
+            "https://hq.example.com/api/v1/document-sync/overview"
+        )
+        assert result["remote_overview"] == {"total_sites": 3, "total_jobs": 7}
+        # BasicAuth was passed (not asserting credential bytes — just type)
+        assert isinstance(fake_client.captured_auth, httpx.BasicAuth)
+        # Password is not echoed anywhere in the response payload
+        assert "secret" not in str(result)
+
+    def test_mirror_probe_missing_site_raises(self):
+        session = _mock_session()
+        session.get.return_value = None
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.mirror_probe("missing")
+
+    def test_mirror_probe_missing_base_url_raises(self):
+        session = _mock_session()
+        site = _make_basic_auth_site(base_url="")
+        session.get.return_value = site
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="no base_url"):
+            service.mirror_probe("site-mirror")
+
+    def test_mirror_probe_missing_basic_auth_contract_raises(self):
+        session = _mock_session()
+        site = _make_basic_auth_site()
+        site.auth_type = None
+        site.auth_config = None
+        session.get.return_value = site
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="auth_type='basic'"):
+            service.mirror_probe("site-mirror")
+
+    def test_mirror_probe_basic_auth_missing_password_raises(self):
+        session = _mock_session()
+        site = _make_basic_auth_site()
+        site.auth_config = {"username": "mirror-user", "password": ""}
+        session.get.return_value = site
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="missing username or password"):
+            service.mirror_probe("site-mirror")
+
+    def test_mirror_probe_401_maps_to_value_error(self):
+        session = _mock_session()
+        site = _make_basic_auth_site()
+        session.get.return_value = site
+        service = DocumentSyncService(session)
+
+        fake_response = _FakeProbeResponse(status_code=401)
+        fake_client = _FakeClientCM(response=fake_response)
+        with patch("httpx.Client", return_value=fake_client):
+            with pytest.raises(ValueError, match="rejected by remote \\(401\\)"):
+                service.mirror_probe("site-mirror")
+
+    def test_mirror_probe_403_maps_to_value_error(self):
+        session = _mock_session()
+        site = _make_basic_auth_site()
+        session.get.return_value = site
+        service = DocumentSyncService(session)
+
+        fake_response = _FakeProbeResponse(status_code=403)
+        fake_client = _FakeClientCM(response=fake_response)
+        with patch("httpx.Client", return_value=fake_client):
+            with pytest.raises(ValueError, match="rejected by remote \\(403\\)"):
+                service.mirror_probe("site-mirror")
+
+    def test_mirror_probe_request_error_maps_to_value_error(self):
+        session = _mock_session()
+        site = _make_basic_auth_site()
+        session.get.return_value = site
+        service = DocumentSyncService(session)
+
+        fake_client = _FakeClientCM(
+            exc=httpx.ConnectError("conn refused")
+        )
+        with patch("httpx.Client", return_value=fake_client):
+            with pytest.raises(ValueError, match="failed: ConnectError"):
+                service.mirror_probe("site-mirror")
+
+    def test_mirror_probe_non_json_2xx_body_maps_to_value_error(self):
+        session = _mock_session()
+        site = _make_basic_auth_site()
+        session.get.return_value = site
+        service = DocumentSyncService(session)
+
+        fake_response = _FakeProbeResponse(status_code=200, raise_on_json=True)
+        fake_client = _FakeClientCM(response=fake_response)
+        with patch("httpx.Client", return_value=fake_client):
+            with pytest.raises(ValueError, match="non-JSON 2xx body"):
+                service.mirror_probe("site-mirror")
+
+
+# ---------------------------------------------------------------------------
+# TestMirrorExecute
+# ---------------------------------------------------------------------------
+
+
+def _execute_session(site, *, site_state="active"):
+    """Mock session that dispatches session.get on model type:
+    SyncSite -> the configured site, SyncJob -> the most recently added
+    SyncJob (matches DocumentSyncService.create_job + transition_job_state).
+    """
+    session = _mock_session()
+    site.state = site_state
+
+    def _get(model, _id):
+        if model is SyncSite:
+            return site
+        if model is SyncJob:
+            for obj in reversed(session._added):
+                if isinstance(obj, SyncJob):
+                    return obj
+            return None
+        return None
+
+    session.get.side_effect = _get
+    return session
+
+
+class TestMirrorExecute:
+    def test_mirror_execute_success_creates_completed_job(self):
+        site = _make_basic_auth_site()
+        site.direction = "push"
+        session = _execute_session(site)
+        service = DocumentSyncService(session)
+
+        remote_payload = {
+            "total_sites": 5,
+            "total_jobs": 12,
+            "total_conflicts": 2,
+            "total_errors": 1,
+            "jobs_by_state": {"completed": 10, "failed": 2},
+        }
+        fake_response = _FakeProbeResponse(
+            status_code=200, json_payload=remote_payload
+        )
+        fake_client = _FakeClientCM(response=fake_response)
+        with patch("httpx.Client", return_value=fake_client):
+            result = service.mirror_execute("site-mirror")
+
+        assert result["ok"] is True
+        assert result["state"] == "completed"
+        assert result["site_id"] == "site-mirror"
+        assert result["status_code"] == 200
+        assert result["endpoint"].endswith("/api/v1/document-sync/overview")
+
+        # Job aggregates were mapped from remote overview
+        assert result["summary"]["total_documents"] == 12
+        assert result["summary"]["conflict_count"] == 2
+        assert result["summary"]["error_count"] == 1
+        assert result["summary"]["synced_count"] == 9  # 12 - 2 - 1
+        assert result["summary"]["remote_overview"] == remote_payload
+        assert result["summary"]["mirror_error"] is None
+
+        # The created SyncJob carries the same aggregates and properties
+        created_jobs = [obj for obj in session._added if isinstance(obj, SyncJob)]
+        assert len(created_jobs) == 1
+        job = created_jobs[0]
+        assert job.state == "completed"
+        assert job.direction == "push"
+        assert job.total_documents == 12
+        assert job.conflict_count == 2
+        assert job.error_count == 1
+        assert job.synced_count == 9
+        assert job.properties["mirror_endpoint"].endswith(
+            "/api/v1/document-sync/overview"
+        )
+        assert job.properties["mirror_status_code"] == 200
+        assert job.properties["remote_overview"] == remote_payload
+        assert "mirror_error" not in job.properties
+
+        # Password is not echoed anywhere
+        assert "secret" not in str(result)
+
+    def test_mirror_execute_request_error_marks_job_failed(self):
+        site = _make_basic_auth_site()
+        session = _execute_session(site)
+        service = DocumentSyncService(session)
+
+        fake_client = _FakeClientCM(exc=httpx.ConnectError("conn refused"))
+        with patch("httpx.Client", return_value=fake_client):
+            result = service.mirror_execute("site-mirror")
+
+        assert result["ok"] is False
+        assert result["state"] == "failed"
+        assert result["status_code"] is None
+        assert "ConnectError" in result["summary"]["mirror_error"]
+
+        created_jobs = [obj for obj in session._added if isinstance(obj, SyncJob)]
+        assert len(created_jobs) == 1
+        job = created_jobs[0]
+        assert job.state == "failed"
+        assert job.properties["mirror_status_code"] is None
+        assert "ConnectError" in job.properties["mirror_error"]
+
+    def test_mirror_execute_401_marks_job_failed(self):
+        site = _make_basic_auth_site()
+        session = _execute_session(site)
+        service = DocumentSyncService(session)
+
+        fake_response = _FakeProbeResponse(status_code=401)
+        fake_client = _FakeClientCM(response=fake_response)
+        with patch("httpx.Client", return_value=fake_client):
+            result = service.mirror_execute("site-mirror")
+
+        assert result["ok"] is False
+        assert result["state"] == "failed"
+        assert result["status_code"] == 401
+        assert "401" in result["summary"]["mirror_error"]
+
+        created_jobs = [obj for obj in session._added if isinstance(obj, SyncJob)]
+        job = created_jobs[0]
+        assert job.state == "failed"
+        assert job.properties["mirror_status_code"] == 401
+
+    def test_mirror_execute_403_marks_job_failed(self):
+        site = _make_basic_auth_site()
+        session = _execute_session(site)
+        service = DocumentSyncService(session)
+
+        fake_response = _FakeProbeResponse(status_code=403)
+        fake_client = _FakeClientCM(response=fake_response)
+        with patch("httpx.Client", return_value=fake_client):
+            result = service.mirror_execute("site-mirror")
+
+        assert result["ok"] is False
+        assert result["state"] == "failed"
+        assert result["status_code"] == 403
+        assert "403" in result["summary"]["mirror_error"]
+
+    def test_mirror_execute_non_json_2xx_marks_job_failed(self):
+        site = _make_basic_auth_site()
+        session = _execute_session(site)
+        service = DocumentSyncService(session)
+
+        fake_response = _FakeProbeResponse(status_code=200, raise_on_json=True)
+        fake_client = _FakeClientCM(response=fake_response)
+        with patch("httpx.Client", return_value=fake_client):
+            result = service.mirror_execute("site-mirror")
+
+        assert result["ok"] is False
+        assert result["state"] == "failed"
+        assert result["status_code"] == 200
+        assert result["summary"]["mirror_error"] == "non-JSON 2xx body"
+
+        created_jobs = [obj for obj in session._added if isinstance(obj, SyncJob)]
+        job = created_jobs[0]
+        assert job.state == "failed"
+        assert job.properties["mirror_error"] == "non-JSON 2xx body"
+
+    def test_mirror_execute_non_dict_2xx_marks_job_failed(self):
+        site = _make_basic_auth_site()
+        session = _execute_session(site)
+        service = DocumentSyncService(session)
+
+        # 2xx with valid JSON, but the body is a list, not a dict.
+        fake_response = _FakeProbeResponse(
+            status_code=200, json_payload=["not", "a", "dict"]
+        )
+        fake_client = _FakeClientCM(response=fake_response)
+        with patch("httpx.Client", return_value=fake_client):
+            result = service.mirror_execute("site-mirror")
+
+        assert result["ok"] is False
+        assert result["state"] == "failed"
+        assert result["status_code"] == 200
+        assert result["summary"]["mirror_error"] == "non-dict 2xx body"
+        assert result["summary"]["remote_overview"] is None
+
+        created_jobs = [obj for obj in session._added if isinstance(obj, SyncJob)]
+        job = created_jobs[0]
+        assert job.state == "failed"
+        assert job.properties["mirror_status_code"] == 200
+        assert job.properties["mirror_error"] == "non-dict 2xx body"
+        assert job.properties["remote_overview"] is None
+
+    def test_mirror_execute_generic_non_2xx_marks_job_failed(self):
+        site = _make_basic_auth_site()
+        session = _execute_session(site)
+        service = DocumentSyncService(session)
+
+        # Remote returns 500: not 401/403, not 2xx — falls through to the
+        # generic "remote status <code>" branch.
+        fake_response = _FakeProbeResponse(status_code=500)
+        fake_client = _FakeClientCM(response=fake_response)
+        with patch("httpx.Client", return_value=fake_client):
+            result = service.mirror_execute("site-mirror")
+
+        assert result["ok"] is False
+        assert result["state"] == "failed"
+        assert result["status_code"] == 500
+        assert result["summary"]["mirror_error"] == "remote status 500"
+        assert result["summary"]["remote_overview"] is None
+
+        created_jobs = [obj for obj in session._added if isinstance(obj, SyncJob)]
+        job = created_jobs[0]
+        assert job.state == "failed"
+        assert job.properties["mirror_status_code"] == 500
+        assert job.properties["mirror_error"] == "remote status 500"
+        assert job.properties["remote_overview"] is None
+
+    def test_mirror_execute_missing_site_raises_before_job(self):
+        session = _mock_session()
+        session.get.return_value = None
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            service.mirror_execute("missing")
+
+        # No SyncJob was created
+        assert not [obj for obj in session._added if isinstance(obj, SyncJob)]
+
+    def test_mirror_execute_missing_base_url_raises_before_job(self):
+        site = _make_basic_auth_site(base_url="")
+        session = _execute_session(site)
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="no base_url"):
+            service.mirror_execute("site-mirror")
+
+        assert not [obj for obj in session._added if isinstance(obj, SyncJob)]
+
+    def test_mirror_execute_missing_basic_auth_contract_raises_before_job(self):
+        site = _make_basic_auth_site()
+        site.auth_type = None
+        site.auth_config = None
+        session = _execute_session(site)
+        service = DocumentSyncService(session)
+
+        with pytest.raises(ValueError, match="auth_type='basic'"):
+            service.mirror_execute("site-mirror")
+
+        assert not [obj for obj in session._added if isinstance(obj, SyncJob)]
 
 
 # ---------------------------------------------------------------------------
@@ -2141,506 +2617,4 @@ class TestFreshnessWatermarks:
         assert result["freshness_overview"]["avg_freshness_pct"] is None
         assert result["watermarks_summary"]["total_sites"] == 0
         assert result["watermarks_summary"]["site_watermarks"] == []
-        assert result["sites"] == []
-
-
-# ---------------------------------------------------------------------------
-# TestLagBacklog (C42)
-# ---------------------------------------------------------------------------
-
-
-class TestLagBacklog:
-    def _session_with_models(self, sites=None, jobs=None, records=None):
-        """Session with model-aware query routing and session.get support."""
-        session = _mock_session()
-        _sites = sites or []
-        _jobs = jobs or []
-        _records = records or []
-
-        def _get_side_effect(model, pk):
-            if model is SyncSite:
-                return next((s for s in _sites if s.id == pk), None)
-            if model is SyncJob:
-                return next((j for j in _jobs if j.id == pk), None)
-            return None
-
-        session.get.side_effect = _get_side_effect
-
-        def mock_query(model):
-            q = MagicMock()
-            if model is SyncSite:
-                q.all.return_value = _sites
-                q.filter.return_value = q
-                q.order_by.return_value = q
-            elif model is SyncJob:
-                q.all.return_value = _jobs
-
-                def filter_side_effect(*args, **kwargs):
-                    fq = MagicMock()
-                    fq.all.return_value = _jobs
-                    fq.filter.return_value = fq
-                    fq.order_by.return_value = fq
-                    return fq
-
-                q.filter.side_effect = filter_side_effect
-                q.order_by.return_value = q
-            elif model is SyncRecord:
-                q.all.return_value = _records
-                q.filter.return_value = q
-                q.order_by.return_value = q
-            else:
-                q.all.return_value = []
-                q.filter.return_value = q
-                q.order_by.return_value = q
-            return q
-
-        session.query.side_effect = mock_query
-        return session
-
-    # -- lag_overview --
-
-    def test_lag_overview(self):
-        """Sites with pending/failed jobs produce correct lag metrics."""
-        sites = [
-            _make_site(site_id="s1", state="active", direction="push"),
-            _make_site(site_id="s2", state="active", direction="pull"),
-        ]
-
-        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
-        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
-        j3 = _make_job(job_id="j3", site_id="s2", state="completed")
-
-        session = self._session_with_models(sites=sites, jobs=[j1, j2, j3])
-        service = DocumentSyncService(session)
-        result = service.lag_overview()
-
-        assert result["total_sites"] == 2
-        assert result["sites_with_pending"] == 1  # s1
-        assert result["sites_with_failed"] == 1  # s1
-        # s1 lag = 2 (pending + failed), s2 lag = 0 => avg = (2+0)/2 = 1.0
-        assert result["avg_lag"] == 1.0
-        assert result["worst_lag_site_id"] == "s1"
-
-    def test_lag_overview_empty(self):
-        """No sites/jobs yields None avg_lag and None worst_lag_site_id."""
-        session = self._session_with_models()
-        service = DocumentSyncService(session)
-        result = service.lag_overview()
-
-        assert result["total_sites"] == 0
-        assert result["sites_with_pending"] == 0
-        assert result["sites_with_failed"] == 0
-        assert result["avg_lag"] is None
-        assert result["worst_lag_site_id"] is None
-
-    def test_lag_overview_no_lag(self):
-        """All completed jobs produce zero lag."""
-        site = _make_site(site_id="s1", state="active", direction="push")
-
-        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
-
-        session = self._session_with_models(sites=[site], jobs=[j1])
-        service = DocumentSyncService(session)
-        result = service.lag_overview()
-
-        assert result["total_sites"] == 1
-        assert result["sites_with_pending"] == 0
-        assert result["sites_with_failed"] == 0
-        assert result["avg_lag"] == 0.0
-        assert result["worst_lag_site_id"] == "s1"
-
-    # -- backlog_summary --
-
-    def test_backlog_summary(self):
-        """Sites with pending jobs produce correct backlog metrics."""
-        sites = [
-            _make_site(site_id="s1", state="active", direction="push"),
-            _make_site(site_id="s2", state="active", direction="pull"),
-        ]
-
-        # s1: 4 pending jobs (above threshold of 3)
-        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
-        j2 = _make_job(job_id="j2", site_id="s1", state="pending")
-        j3 = _make_job(job_id="j3", site_id="s1", state="pending")
-        j4 = _make_job(job_id="j4", site_id="s1", state="pending")
-        # s2: 1 pending job (below threshold)
-        j5 = _make_job(job_id="j5", site_id="s2", state="pending")
-
-        session = self._session_with_models(
-            sites=sites, jobs=[j1, j2, j3, j4, j5]
-        )
-        service = DocumentSyncService(session)
-        result = service.backlog_summary()
-
-        assert result["total_sites"] == 2
-        assert result["total_pending"] == 5
-        assert result["backlog_threshold"] == 3
-        assert result["sites_above_threshold"] == 1  # s1 has 4 > 3
-        assert len(result["backlog_distribution"]) == 2
-        # Check s1 entry
-        s1_entry = next(
-            d for d in result["backlog_distribution"] if d["site_id"] == "s1"
-        )
-        assert s1_entry["pending_count"] == 4
-        assert s1_entry["above_threshold"] is True
-
-    def test_backlog_summary_empty(self):
-        """No sites yields zero counts and empty distribution."""
-        session = self._session_with_models()
-        service = DocumentSyncService(session)
-        result = service.backlog_summary()
-
-        assert result["total_sites"] == 0
-        assert result["total_pending"] == 0
-        assert result["backlog_threshold"] == 3
-        assert result["sites_above_threshold"] == 0
-        assert result["backlog_distribution"] == []
-
-    def test_backlog_summary_exceeded_threshold(self):
-        """Single site above threshold is counted."""
-        site = _make_site(site_id="s1", state="active", direction="push")
-
-        # 5 pending jobs > threshold of 3
-        jobs = [
-            _make_job(job_id=f"j{i}", site_id="s1", state="pending")
-            for i in range(5)
-        ]
-
-        session = self._session_with_models(sites=[site], jobs=jobs)
-        service = DocumentSyncService(session)
-        result = service.backlog_summary()
-
-        assert result["total_sites"] == 1
-        assert result["total_pending"] == 5
-        assert result["sites_above_threshold"] == 1
-        assert result["backlog_distribution"][0]["above_threshold"] is True
-
-    # -- site_backlog --
-
-    def test_site_backlog(self):
-        """Site with mixed job states produces correct backlog detail."""
-        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
-
-        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
-        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
-        j3 = _make_job(job_id="j3", site_id="s1", state="completed")
-
-        session = self._session_with_models(sites=[site], jobs=[j1, j2, j3])
-        service = DocumentSyncService(session)
-        result = service.site_backlog("s1")
-
-        assert result["site_id"] == "s1"
-        assert result["site_name"] == "HQ"
-        assert result["state"] == "active"
-        assert result["total_jobs"] == 3
-        assert result["pending_count"] == 1
-        assert result["failed_count"] == 1
-        assert result["synced_count"] == 1
-        assert result["backlog_depth"] == 2  # pending + failed
-
-    def test_site_backlog_no_jobs(self):
-        """Site exists but has no jobs; backlog_depth is 0."""
-        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
-
-        session = self._session_with_models(sites=[site], jobs=[])
-        service = DocumentSyncService(session)
-        result = service.site_backlog("s1")
-
-        assert result["site_id"] == "s1"
-        assert result["total_jobs"] == 0
-        assert result["pending_count"] == 0
-        assert result["failed_count"] == 0
-        assert result["synced_count"] == 0
-        assert result["backlog_depth"] == 0
-
-    def test_site_backlog_not_found(self):
-        """Raises ValueError when site does not exist."""
-        session = self._session_with_models()
-        service = DocumentSyncService(session)
-
-        with pytest.raises(ValueError, match="not found"):
-            service.site_backlog("nonexistent")
-
-    # -- export_backlog --
-
-    def test_export_backlog(self):
-        """Export combines lag_overview + backlog_summary + per-site backlog."""
-        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
-
-        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
-        j2 = _make_job(job_id="j2", site_id="s1", state="completed")
-
-        session = self._session_with_models(sites=[site], jobs=[j1, j2])
-        service = DocumentSyncService(session)
-        result = service.export_backlog()
-
-        assert "lag_overview" in result
-        assert "backlog_summary" in result
-        assert "sites" in result
-        assert result["lag_overview"]["total_sites"] == 1
-        assert result["lag_overview"]["sites_with_pending"] == 1
-        assert result["backlog_summary"]["total_pending"] == 1
-        assert len(result["sites"]) == 1
-        assert result["sites"][0]["site_id"] == "s1"
-        assert result["sites"][0]["pending_count"] == 1
-
-    def test_export_backlog_empty(self):
-        """Export with no data returns empty structures."""
-        session = self._session_with_models()
-        service = DocumentSyncService(session)
-        result = service.export_backlog()
-
-        assert result["lag_overview"]["total_sites"] == 0
-        assert result["lag_overview"]["avg_lag"] is None
-        assert result["backlog_summary"]["total_sites"] == 0
-        assert result["backlog_summary"]["backlog_distribution"] == []
-        assert result["sites"] == []
-
-
-# ---------------------------------------------------------------------------
-# TestSkewGaps (C45)
-# ---------------------------------------------------------------------------
-
-
-class TestSkewGaps:
-    def _session_with_models(self, sites=None, jobs=None, records=None):
-        """Session with model-aware query routing and session.get support."""
-        session = _mock_session()
-        _sites = sites or []
-        _jobs = jobs or []
-        _records = records or []
-
-        def _get_side_effect(model, pk):
-            if model is SyncSite:
-                return next((s for s in _sites if s.id == pk), None)
-            if model is SyncJob:
-                return next((j for j in _jobs if j.id == pk), None)
-            return None
-
-        session.get.side_effect = _get_side_effect
-
-        def mock_query(model):
-            q = MagicMock()
-            if model is SyncSite:
-                q.all.return_value = _sites
-                q.filter.return_value = q
-                q.order_by.return_value = q
-            elif model is SyncJob:
-                q.all.return_value = _jobs
-
-                def filter_side_effect(*args, **kwargs):
-                    fq = MagicMock()
-                    fq.all.return_value = _jobs
-                    fq.filter.return_value = fq
-                    fq.order_by.return_value = fq
-                    return fq
-
-                q.filter.side_effect = filter_side_effect
-                q.order_by.return_value = q
-            elif model is SyncRecord:
-                q.all.return_value = _records
-                q.filter.return_value = q
-                q.order_by.return_value = q
-            else:
-                q.all.return_value = []
-                q.filter.return_value = q
-                q.order_by.return_value = q
-            return q
-
-        session.query.side_effect = mock_query
-        return session
-
-    # -- skew_overview --
-
-    def test_skew_overview(self):
-        """Sites with pending/failed jobs produce correct skew metrics."""
-        sites = [
-            _make_site(site_id="s1", state="active", direction="push"),
-            _make_site(site_id="s2", state="active", direction="pull"),
-        ]
-
-        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
-        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
-        j3 = _make_job(job_id="j3", site_id="s2", state="completed")
-
-        session = self._session_with_models(sites=sites, jobs=[j1, j2, j3])
-        service = DocumentSyncService(session)
-        result = service.skew_overview()
-
-        assert result["total_sites"] == 2
-        assert result["sites_with_gaps"] == 1  # s1 has gaps
-        # s1 gap = 2, s2 gap = 0 => avg = (2+0)/2 = 1.0
-        assert result["avg_gap_count"] == 1.0
-        assert result["worst_gap_site_id"] == "s1"
-
-    def test_skew_overview_empty(self):
-        """No sites/jobs yields None avg and None worst site."""
-        session = self._session_with_models()
-        service = DocumentSyncService(session)
-        result = service.skew_overview()
-
-        assert result["total_sites"] == 0
-        assert result["sites_with_gaps"] == 0
-        assert result["avg_gap_count"] is None
-        assert result["worst_gap_site_id"] is None
-
-    def test_skew_overview_no_gaps(self):
-        """All completed jobs produce zero gaps."""
-        site = _make_site(site_id="s1", state="active", direction="push")
-
-        j1 = _make_job(job_id="j1", site_id="s1", state="completed")
-
-        session = self._session_with_models(sites=[site], jobs=[j1])
-        service = DocumentSyncService(session)
-        result = service.skew_overview()
-
-        assert result["total_sites"] == 1
-        assert result["sites_with_gaps"] == 0
-        assert result["avg_gap_count"] == 0.0
-        assert result["worst_gap_site_id"] == "s1"
-
-    # -- gaps_summary --
-
-    def test_gaps_summary(self):
-        """Sites with gap jobs produce correct summary metrics."""
-        sites = [
-            _make_site(site_id="s1", state="active", direction="push"),
-            _make_site(site_id="s2", state="active", direction="pull"),
-        ]
-
-        # s1: 3 pending jobs (above threshold of 2) => warning severity
-        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
-        j2 = _make_job(job_id="j2", site_id="s1", state="pending")
-        j3 = _make_job(job_id="j3", site_id="s1", state="pending")
-        # s2: 1 failed job (below threshold) => minor severity
-        j4 = _make_job(job_id="j4", site_id="s2", state="failed")
-
-        session = self._session_with_models(
-            sites=sites, jobs=[j1, j2, j3, j4]
-        )
-        service = DocumentSyncService(session)
-        result = service.gaps_summary()
-
-        assert result["total_sites"] == 2
-        assert result["total_gaps"] == 4
-        assert result["gap_threshold"] == 2
-        assert result["sites_above_threshold"] == 1  # s1 has 3 > 2
-        assert result["severity_distribution"]["warning"] == 1  # s1: 3 gaps
-        assert result["severity_distribution"]["minor"] == 1  # s2: 1 gap
-
-    def test_gaps_summary_empty(self):
-        """No sites yields zero counts and clean distribution."""
-        session = self._session_with_models()
-        service = DocumentSyncService(session)
-        result = service.gaps_summary()
-
-        assert result["total_sites"] == 0
-        assert result["total_gaps"] == 0
-        assert result["gap_threshold"] == 2
-        assert result["sites_above_threshold"] == 0
-        assert result["severity_distribution"] == {
-            "critical": 0, "warning": 0, "minor": 0, "clean": 0,
-        }
-
-    def test_gaps_summary_severity_levels(self):
-        """Severity levels: critical(>5), warning(3-5), minor(1-2), clean(0)."""
-        sites = [
-            _make_site(site_id="s1", state="active", direction="push"),
-            _make_site(site_id="s2", state="active", direction="pull"),
-            _make_site(site_id="s3", state="active", direction="push"),
-        ]
-
-        # s1: 6 pending => critical
-        jobs = [_make_job(job_id=f"j{i}", site_id="s1", state="pending") for i in range(6)]
-        # s2: 1 failed => minor
-        jobs.append(_make_job(job_id="j10", site_id="s2", state="failed"))
-        # s3: 0 gaps => clean
-
-        session = self._session_with_models(sites=sites, jobs=jobs)
-        service = DocumentSyncService(session)
-        result = service.gaps_summary()
-
-        assert result["severity_distribution"]["critical"] == 1
-        assert result["severity_distribution"]["minor"] == 1
-        assert result["severity_distribution"]["clean"] == 1
-
-    # -- site_gaps --
-
-    def test_site_gaps(self):
-        """Site with mixed job states produces correct gap detail."""
-        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
-
-        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
-        j2 = _make_job(job_id="j2", site_id="s1", state="failed")
-        j3 = _make_job(job_id="j3", site_id="s1", state="completed")
-
-        session = self._session_with_models(sites=[site], jobs=[j1, j2, j3])
-        service = DocumentSyncService(session)
-        result = service.site_gaps("s1")
-
-        assert result["site_id"] == "s1"
-        assert result["site_name"] == "HQ"
-        assert result["state"] == "active"
-        assert result["total_jobs"] == 3
-        assert result["pending_count"] == 1
-        assert result["failed_count"] == 1
-        assert result["gap_count"] == 2  # pending + failed
-        assert result["severity"] == "minor"  # 2 gaps => minor (1-2)
-
-    def test_site_gaps_no_jobs(self):
-        """Site exists but has no jobs; gap_count is 0 and severity is clean."""
-        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
-
-        session = self._session_with_models(sites=[site], jobs=[])
-        service = DocumentSyncService(session)
-        result = service.site_gaps("s1")
-
-        assert result["site_id"] == "s1"
-        assert result["total_jobs"] == 0
-        assert result["pending_count"] == 0
-        assert result["failed_count"] == 0
-        assert result["gap_count"] == 0
-        assert result["severity"] == "clean"
-
-    def test_site_gaps_not_found(self):
-        """Raises ValueError when site does not exist."""
-        session = self._session_with_models()
-        service = DocumentSyncService(session)
-
-        with pytest.raises(ValueError, match="not found"):
-            service.site_gaps("nonexistent")
-
-    # -- export_gaps --
-
-    def test_export_gaps(self):
-        """Export combines skew_overview + gaps_summary + per-site gaps."""
-        site = _make_site(site_id="s1", name="HQ", state="active", direction="push")
-
-        j1 = _make_job(job_id="j1", site_id="s1", state="pending")
-        j2 = _make_job(job_id="j2", site_id="s1", state="completed")
-
-        session = self._session_with_models(sites=[site], jobs=[j1, j2])
-        service = DocumentSyncService(session)
-        result = service.export_gaps()
-
-        assert "skew_overview" in result
-        assert "gaps_summary" in result
-        assert "sites" in result
-        assert result["skew_overview"]["total_sites"] == 1
-        assert result["skew_overview"]["sites_with_gaps"] == 1
-        assert result["gaps_summary"]["total_gaps"] == 1
-        assert len(result["sites"]) == 1
-        assert result["sites"][0]["site_id"] == "s1"
-        assert result["sites"][0]["pending_count"] == 1
-
-    def test_export_gaps_empty(self):
-        """Export with no data returns empty structures."""
-        session = self._session_with_models()
-        service = DocumentSyncService(session)
-        result = service.export_gaps()
-
-        assert result["skew_overview"]["total_sites"] == 0
-        assert result["skew_overview"]["avg_gap_count"] is None
-        assert result["gaps_summary"]["total_sites"] == 0
-        assert result["gaps_summary"]["severity_distribution"]["clean"] == 0
         assert result["sites"] == []

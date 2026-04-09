@@ -169,10 +169,14 @@ class BreakageIncident(Base):
     __tablename__ = "meta_breakage_incidents"
 
     id = Column(String, primary_key=True, default=_uuid)
+    incident_code = Column(String(40), nullable=True, unique=True, index=True)
     product_item_id = Column(String, nullable=True, index=True)
+    bom_id = Column(String, nullable=True, index=True)
     bom_line_item_id = Column(String, nullable=True, index=True)
     production_order_id = Column(String(120), nullable=True, index=True)
     version_id = Column(String, nullable=True, index=True)
+    mbom_id = Column(String, nullable=True, index=True)
+    routing_id = Column(String(120), nullable=True, index=True)
     batch_code = Column(String(120), nullable=True, index=True)
     customer_name = Column(String(200), nullable=True, index=True)
     description = Column(Text, nullable=False)
