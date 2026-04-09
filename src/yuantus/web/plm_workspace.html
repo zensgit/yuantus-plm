@@ -4680,7 +4680,7 @@
         bomTreePreview.textContent = `GET ${getApiBase()}/bom/${encodeURIComponent(itemId)}/tree?depth=${encodeURIComponent(bomDepthInput.value || 2)}`;
         whereUsedPreview.textContent = `GET ${getApiBase()}/bom/${encodeURIComponent(itemId)}/where-used?max_levels=5`;
         filesPreview.textContent = `GET ${getApiBase()}/file/item/${encodeURIComponent(itemId)}`;
-        relatedDocumentsPreview.textContent = `POST ${getApiBase()}/aml/query (expand ${RELATED_DOCUMENT_RELATION})`;
+        relatedDocumentsPreview.textContent = `POST ${getApiBase()}/api/aml/query (expand ${RELATED_DOCUMENT_RELATION})`;
         workspaceBaseLabel.textContent = getApiBase();
         workspaceAuthLabel.textContent = `Auth mode: ${serverConfig.authMode || "optional"}`;
         workspaceObjectLabel.textContent = `Object: ${itemType}:${itemId || "-"}`;
@@ -5102,7 +5102,7 @@
           setStatus("Loading AML related documents...", "neutral");
         }
         try {
-          const payload = await fetchJson("/aml/query", {
+          const payload = await fetchJson("/api/aml/query", {
             method: "POST",
             body: {
               type: itemTypeInput.value,
