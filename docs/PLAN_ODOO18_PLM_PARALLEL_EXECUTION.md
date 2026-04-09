@@ -38,7 +38,8 @@
 - next Claude greenfield batch `C32/C33/C34`：stabilization accepted on `main`
 - next Claude greenfield batch `C35/C36/C37`：stabilization accepted on `main`
 - next Claude greenfield batch `C38/C39/C40`：stabilization accepted on `main`
-- next Claude greenfield batch `C41/C42/C43`：prepared on frozen Claude base
+- next Claude greenfield batch `C41/C42/C43`：stabilization accepted on `main`
+- next Claude greenfield batch `C44/C45/C46`：stabilization accepted on `main`
 
 ## Priority Matrix
 | Task ID | Priority | Target | Subsystem | Status |
@@ -79,9 +80,12 @@
 | C38 | P3 | PLM box allocation / custody | `box` allocation/custody/export helpers | merged_on_main_greenfield |
 | C39 | P3 | document sync freshness / watermarks | `document_sync` freshness/watermark/export helpers | merged_on_main_greenfield |
 | C40 | P3 | cutted-parts alerts / outliers | `cutted_parts` alert/outlier/export helpers | merged_on_main_greenfield |
-| C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | prepared_for_claude |
-| C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | prepared_for_claude |
-| C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | prepared_for_claude |
+| C41 | P3 | PLM box occupancy / turnover | `box` occupancy/turnover/export helpers | merged_on_main_greenfield |
+| C42 | P3 | document sync lag / backlog | `document_sync` lag/backlog/export helpers | merged_on_main_greenfield |
+| C43 | P3 | cutted-parts throughput / cadence | `cutted_parts` throughput/cadence/export helpers | merged_on_main_greenfield |
+| C44 | P3 | PLM box dwell / aging | `box` dwell/aging/export helpers | merged_on_main_greenfield |
+| C45 | P3 | document sync skew / gaps | `document_sync` skew/gap/export helpers | merged_on_main_greenfield |
+| C46 | P3 | cutted-parts saturation / bottlenecks | `cutted_parts` saturation/bottleneck/export helpers | merged_on_main_greenfield |
 
 ## Increment 2026-03-18 Codex-P2A-Locale-Export
 - Imported `C6` files into this branch from `e28b47d`
@@ -1375,3 +1379,167 @@
 - non-goals:
   - no app registration
   - no optimization solver or BOM/manufacturing hot-path integration
+
+## Increment 2026-03-20 Codex-C41-C42-Stack-Verification
+- built isolated candidate stack branch:
+  - `feature/codex-c41c42-staging`
+- cherry-picked:
+  - `f1fcb43` `feat(box): add C41 occupancy / turnover bootstrap`
+  - `fd9c58c` `feat(document-sync): add C42 lag / backlog bootstrap`
+- staging commits after integration:
+  - `f8c9753` `feat(box): add C41 occupancy / turnover bootstrap`
+  - `31b98ab` `feat(document-sync): add C42 lag / backlog bootstrap`
+- combined targeted regression:
+  - `291 passed, 110 warnings in 3.37s`
+- unified stack full regression on staging:
+  - `667 passed, 231 warnings in 13.47s`
+- result:
+  - `C41/C42` are now in Codex-verified staging state
+  - `C43` remains pending by design
+
+## Increment 2026-03-20 Codex-C43-Stack-Verification
+- promoted isolated candidate stack branch:
+  - `feature/codex-c41c42c43-staging`
+- cherry-picked:
+  - `022a34f` `feat(cutted-parts): add C43 throughput / cadence bootstrap`
+- staging commit after integration:
+  - `3f6d4ae` `feat(cutted-parts): add C43 throughput / cadence bootstrap`
+- combined targeted regression with `C41/C42/C43`:
+  - `468 passed, 162 warnings in 4.49s`
+- unified stack full regression on staging:
+  - `686 passed, 236 warnings in 14.27s`
+- result:
+  - `C41/C42/C43` are now in Codex-verified staging state
+
+## Increment 2026-03-20 Codex-Merge-Rehearsal-C41-C42-C43
+- candidate branch:
+  - `feature/codex-c41c42c43-staging`
+- rehearsal branch:
+  - `feature/codex-merge-rehearsal-c41c42c43`
+- rehearsal fast-forward:
+  - `88820f2` -> `2245073`
+- rehearsal result:
+  - no manual conflict resolution required
+  - unified stack full on rehearsal branch:
+    - `686 passed, 236 warnings in 15.71s`
+- next step:
+  - actual fast-forward into `main` if we accept this ninth-stage batch
+
+## Increment 2026-03-20 Main-FastForward-C41-C42-C43
+- source branch:
+  - `feature/codex-c41c42c43-staging`
+- main fast-forward:
+  - `88820f2` -> `2db3c5c`
+- post-merge targeted regression:
+  - `468 passed, 162 warnings in 3.25s`
+- post-merge unified stack full:
+  - `686 passed, 236 warnings in 13.69s`
+- result:
+  - `C41/C42/C43` are now part of `main`
+  - no new regression was introduced by the fast-forward
+
+## Increment 2026-03-20 Main-Stability-Refresh-C41-C42-C43
+- targeted greenfield stability rerun on `main`:
+  - `468 passed, 162 warnings in 3.71s`
+- unified stack stability rerun on `main`:
+  - `686 passed, 236 warnings in 13.23s`
+- result:
+  - `C41/C42/C43` stabilization window accepted on `main`
+
+## Increment 2026-03-20 Next Claude Batch C44-C46
+- `C41/C42/C43` has completed merge and stabilization on `main`
+- next Claude greenfield work should continue the same three isolated domains with a tenth-stage read-side batch:
+  - `C44`
+  - `C45`
+  - `C46`
+- Claude should branch from:
+  - `feature/claude-greenfield-base-10`
+  - source branch: `main`
+
+### C44
+- task: `PLM box dwell / aging bootstrap`
+- suggested branch: `feature/claude-c44-box-aging`
+- write scope:
+  - `src/yuantus/meta_engine/box/`
+  - `src/yuantus/meta_engine/web/box_router.py`
+  - `src/yuantus/meta_engine/tests/test_box_*.py`
+- non-goals:
+  - no app registration
+  - no storage, CAD, or workflow hot-path integration
+
+### C45
+- task: `document sync skew / gaps bootstrap`
+- suggested branch: `feature/claude-c45-document-sync-gaps`
+- write scope:
+  - `src/yuantus/meta_engine/document_sync/`
+  - `src/yuantus/meta_engine/web/document_sync_router.py`
+  - `src/yuantus/meta_engine/tests/test_document_sync_*.py`
+- non-goals:
+  - no app registration
+  - no background workers or storage hot-path integration
+
+### C46
+- task: `cutted-parts saturation / bottlenecks bootstrap`
+- suggested branch: `feature/claude-c46-cutted-parts-bottlenecks`
+- write scope:
+  - `src/yuantus/meta_engine/cutted_parts/`
+  - `src/yuantus/meta_engine/web/cutted_parts_router.py`
+  - `src/yuantus/meta_engine/tests/test_cutted_parts_*.py`
+- non-goals:
+  - no app registration
+  - no optimization solver or BOM/manufacturing hot-path integration
+
+## Increment 2026-03-20 Codex-C44-C45-Stack-Verification
+- built isolated candidate stack branch:
+  - `feature/codex-c44c45-staging`
+- cherry-picked:
+  - `81e5300` `feat(box): add C44 dwell / aging bootstrap`
+  - `0276af8` `feat(document-sync): add C45 skew / gaps bootstrap`
+- staging commits after integration:
+  - `52f84c5` `feat(box): add C44 dwell / aging bootstrap`
+  - `b7dc629` `feat(document-sync): add C45 skew / gaps bootstrap`
+- combined targeted regression:
+  - `324 passed, 121 warnings in 4.84s`
+- unified stack full regression on staging:
+  - `719 passed, 247 warnings in 13.95s`
+- result:
+  - `C44/C45` are now in Codex-verified staging state
+  - `C46` remains pending by design
+
+## Increment 2026-03-21 Codex-C44-C45-C46-Merge-Prep
+- built full tenth-stage candidate stack branch:
+  - `feature/codex-c44c45c46-staging`
+- integrated and closure commits:
+  - `52f84c5` `feat(box): add C44 dwell / aging bootstrap`
+  - `b7dc629` `feat(document-sync): add C45 skew / gaps bootstrap`
+  - `2df0bf7` `feat(cutted_parts): add C46 saturation bottlenecks`
+  - `d2363d7` `docs(cutted_parts): record C46 staging verification`
+  - `7da729f` `docs(benchmark): add target matrix`
+  - `8c114bb` `docs(benchmark): add capability checklists`
+  - `ad99773` `docs(benchmark): add child checklist template`
+- combined targeted regression on staging:
+  - `516 passed in 8.81s`
+- unified stack full regression on staging:
+  - `734 passed, 252 warnings in 15.52s`
+- isolated merge rehearsal:
+  - branch: `feature/codex-merge-rehearsal-c44c45c46`
+  - fast-forward: `df29d5f` -> `ad99773`
+  - unified stack full regression on rehearsal branch:
+    - `734 passed, 252 warnings in 12.95s`
+- result:
+  - `C44/C45/C46` are now merge-prep verified
+  - final `main` fast-forward and stabilization rerun remain intentionally pending
+
+## Increment 2026-03-21 Main-Stability-Refresh-C44-C45-C46
+- fast-forwarded `main`:
+  - `df29d5f` -> `03341b1`
+- post-merge targeted regression on `main`:
+  - `516 passed in 6.45s`
+- post-merge unified stack full regression on `main`:
+  - `734 passed, 252 warnings in 14.99s`
+- stabilization targeted regression on `main`:
+  - `516 passed in 5.07s`
+- stabilization unified stack full regression on `main`:
+  - `734 passed, 252 warnings in 12.49s`
+- result:
+  - `C44/C45/C46` stabilization window accepted on `main`

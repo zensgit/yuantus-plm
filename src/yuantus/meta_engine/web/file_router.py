@@ -32,6 +32,7 @@ import io
 from urllib.parse import quote
 
 from yuantus.database import get_db
+from yuantus.api.warning_headers import append_quota_warning
 from yuantus.config import get_settings
 from yuantus.context import get_request_context
 from yuantus.meta_engine.models.file import (
@@ -469,7 +470,7 @@ async def upload_file(
             )
             if decisions:
                 if quota_service.mode == "soft":
-                    response.headers["X-Quota-Warning"] = QuotaService.build_warning(decisions)
+                    append_quota_warning(response, QuotaService.build_warning(decisions))
                 else:
                     detail = {
                         "code": "QUOTA_EXCEEDED",
@@ -560,9 +561,9 @@ async def upload_file(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@file_router.get("/supported-formats")
+@file_router.get("/supported-formats", deprecated=True)
 async def get_supported_formats(db: Session = Depends(get_db)):
-    """Get list of supported file formats and conversion capabilities."""
+    """Legacy converter capability surface; prefer /api/v1/cad/capabilities."""
     converter = CADConverterService(db, vault_base_path=VAULT_DIR)
     return converter.get_supported_conversions()
 

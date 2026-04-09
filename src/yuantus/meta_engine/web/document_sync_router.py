@@ -536,3 +536,93 @@ def export_watermarks(
 ):
     service = DocumentSyncService(db)
     return service.export_watermarks()
+
+
+# ---------------------------------------------------------------------------
+# Lag / Backlog endpoints (C42)
+# ---------------------------------------------------------------------------
+
+
+@document_sync_router.get("/lag/overview")
+def lag_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.lag_overview()
+
+
+@document_sync_router.get("/backlog/summary")
+def backlog_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.backlog_summary()
+
+
+@document_sync_router.get("/sites/{site_id}/backlog")
+def site_backlog(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.site_backlog(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/export/backlog")
+def export_backlog(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.export_backlog()
+
+
+# ---------------------------------------------------------------------------
+# Skew / Gaps endpoints (C45)
+# ---------------------------------------------------------------------------
+
+
+@document_sync_router.get("/skew/overview")
+def skew_overview(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.skew_overview()
+
+
+@document_sync_router.get("/gaps/summary")
+def gaps_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.gaps_summary()
+
+
+@document_sync_router.get("/sites/{site_id}/gaps")
+def site_gaps(
+    site_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    try:
+        return service.site_gaps(site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@document_sync_router.get("/export/gaps")
+def export_gaps(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    service = DocumentSyncService(db)
+    return service.export_gaps()

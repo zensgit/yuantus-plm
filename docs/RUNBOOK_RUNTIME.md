@@ -106,6 +106,7 @@ Notes:
 Endpoint: `POST /api/v1/versions/items/{item_id}/checkout`
 
 New optional request body fields:
+- `doc_sync_strictness_mode`
 - `doc_sync_block_on_dead_letter_only`
 - `doc_sync_max_pending`
 - `doc_sync_max_processing`
@@ -117,6 +118,22 @@ Recommended templates:
 `strict` (block on any backlog)
 ```json
 {
+  "doc_sync_strictness_mode": "block",
+  "doc_sync_site_id": "site-a",
+  "doc_sync_window_days": 7,
+  "doc_sync_limit": 200,
+  "doc_sync_block_on_dead_letter_only": false,
+  "doc_sync_max_pending": 0,
+  "doc_sync_max_processing": 0,
+  "doc_sync_max_failed": 0,
+  "doc_sync_max_dead_letter": 0
+}
+```
+
+`warn` (allow checkout, emit warning header, keep gate context available out-of-band)
+```json
+{
+  "doc_sync_strictness_mode": "warn",
   "doc_sync_site_id": "site-a",
   "doc_sync_window_days": 7,
   "doc_sync_limit": 200,
@@ -131,6 +148,7 @@ Recommended templates:
 `tolerant` (block only on dead-letter backlog)
 ```json
 {
+  "doc_sync_strictness_mode": "block",
   "doc_sync_site_id": "site-a",
   "doc_sync_window_days": 7,
   "doc_sync_limit": 200,
@@ -150,6 +168,7 @@ curl -s -X POST \
   -H "Content-Type: application/json" \
   -d '{
     "version_id": "{version_id}",
+    "doc_sync_strictness_mode": "warn",
     "doc_sync_site_id": "site-a",
     "doc_sync_block_on_dead_letter_only": true,
     "doc_sync_max_pending": 20,
@@ -167,6 +186,9 @@ Operator troubleshooting (`409` + `detail.code=doc_sync_checkout_blocked`):
 - `blocking_jobs`: concrete jobs/documents to replay or repair before retry.
 
 If request values are invalid, API returns `400` with `detail.code=doc_sync_checkout_gate_invalid`.
+
+When `doc_sync_strictness_mode=warn`, the checkout proceeds and the API returns
+`X-Doc-Sync-Checkout-Warning: Checkout allowed despite doc-sync backlog`.
 
 ## Stop services
 

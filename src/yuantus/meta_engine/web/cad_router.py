@@ -263,6 +263,8 @@ class CadCapabilityMode(BaseModel):
     available: bool
     modes: List[str] = Field(default_factory=list)
     note: Optional[str] = None
+    status: str = "ok"
+    degraded_reason: Optional[str] = None
 
 
 class CadCapabilitiesResponse(BaseModel):
@@ -272,6 +274,61 @@ class CadCapabilitiesResponse(BaseModel):
     extensions: Dict[str, List[str]]
     features: Dict[str, CadCapabilityMode]
     integrations: Dict[str, Any]
+
+
+def _feature_status(
+    *,
+    available: bool,
+    modes: List[str],
+    has_local_fallback: bool,
+    remote_modes: Optional[List[str]] = None,
+    disabled_reason: Optional[str] = None,
+) -> Dict[str, Optional[str]]:
+    if not available:
+        return {
+            "status": "disabled",
+            "degraded_reason": disabled_reason,
+        }
+    remote_set = set(remote_modes or [])
+    if any(mode in remote_set for mode in modes):
+        return {
+            "status": "ok",
+            "degraded_reason": None,
+        }
+    if has_local_fallback:
+        return {
+            "status": "degraded",
+            "degraded_reason": "local fallback only",
+        }
+    return {
+        "status": "ok",
+        "degraded_reason": None,
+    }
+
+
+def _integration_status(
+    *,
+    configured: bool,
+    available: bool,
+    fallback_reason: Optional[str],
+    disabled_reason: Optional[str] = None,
+) -> Dict[str, Optional[str]]:
+    if configured and available:
+        return {
+            "status": "ok",
+            "degraded_reason": None,
+        }
+    if not configured and fallback_reason:
+        return {
+            "status": "degraded",
+            "degraded_reason": fallback_reason,
+        }
+    if not available:
+        return {
+            "status": "disabled",
+            "degraded_reason": disabled_reason,
+        }
+    return {"status": "disabled", "degraded_reason": disabled_reason}
 
 
 class CadConnectorReloadRequest(BaseModel):
@@ -791,22 +848,69 @@ def get_cad_capabilities() -> CadCapabilitiesResponse:
         extract_modes.append("connector")
 
     features = {
-        "preview": CadCapabilityMode(available=True, modes=preview_modes),
-        "geometry": CadCapabilityMode(available=True, modes=geometry_modes),
-        "extract": CadCapabilityMode(available=True, modes=extract_modes),
+        "preview": CadCapabilityMode(
+            available=True,
+            modes=preview_modes,
+            **_feature_status(
+                available=True,
+                modes=preview_modes,
+                has_local_fallback=True,
+                remote_modes=["cad_ml", "connector"],
+            ),
+        ),
+        "geometry": CadCapabilityMode(
+            available=True,
+            modes=geometry_modes,
+            **_feature_status(
+                available=True,
+                modes=geometry_modes,
+                has_local_fallback=True,
+                remote_modes=["connector", "cadgf"],
+            ),
+        ),
+        "extract": CadCapabilityMode(
+            available=True,
+            modes=extract_modes,
+            **_feature_status(
+                available=True,
+                modes=extract_modes,
+                has_local_fallback=True,
+                remote_modes=["extractor", "connector"],
+            ),
+        ),
         "bom": CadCapabilityMode(
             available=cad_connector_enabled,
             modes=["connector"] if cad_connector_enabled else [],
             note="Requires CAD connector service",
+            **_feature_status(
+                available=cad_connector_enabled,
+                modes=["connector"] if cad_connector_enabled else [],
+                has_local_fallback=False,
+                remote_modes=["connector"],
+                disabled_reason="CAD connector service not configured",
+            ),
         ),
         "manifest": CadCapabilityMode(
             available=cadgf_enabled,
             modes=["cadgf"] if cadgf_enabled else [],
             note="CADGF router produces manifest/document/metadata",
+            **_feature_status(
+                available=cadgf_enabled,
+                modes=["cadgf"] if cadgf_enabled else [],
+                has_local_fallback=False,
+                remote_modes=["cadgf"],
+                disabled_reason="CADGF router not configured",
+            ),
         ),
         "metadata": CadCapabilityMode(
             available=True,
             modes=["extract", "cadgf"] if cadgf_enabled else ["extract"],
+            **_feature_status(
+                available=True,
+                modes=["extract", "cadgf"] if cadgf_enabled else ["extract"],
+                has_local_fallback=True,
+                remote_modes=["cadgf"],
+            ),
         ),
     }
 
@@ -838,19 +942,52 @@ def get_cad_capabilities() -> CadCapabilitiesResponse:
                 "enabled": cad_connector_enabled,
                 "mode": settings.CAD_CONNECTOR_MODE,
                 "base_url": settings.CAD_CONNECTOR_BASE_URL or None,
+                **_integration_status(
+                    configured=bool(settings.CAD_CONNECTOR_BASE_URL),
+                    available=cad_connector_enabled,
+                    fallback_reason="local fallback only"
+                    if not cad_connector_enabled
+                    else None,
+                    disabled_reason="CAD connector mode disabled"
+                    if bool(settings.CAD_CONNECTOR_BASE_URL)
+                    and not cad_connector_enabled
+                    else "CAD connector service not configured",
+                ),
             },
             "cad_extractor": {
                 "configured": cad_extractor_enabled,
                 "mode": settings.CAD_EXTRACTOR_MODE,
                 "base_url": settings.CAD_EXTRACTOR_BASE_URL or None,
+                **_integration_status(
+                    configured=cad_extractor_enabled,
+                    available=cad_extractor_enabled,
+                    fallback_reason="local fallback only"
+                    if not cad_extractor_enabled
+                    else None,
+                    disabled_reason="CAD extractor not configured",
+                ),
             },
             "cad_ml": {
                 "configured": cad_ml_enabled,
                 "base_url": settings.CAD_ML_BASE_URL or None,
+                **_integration_status(
+                    configured=cad_ml_enabled,
+                    available=cad_ml_enabled,
+                    fallback_reason="local fallback only"
+                    if not cad_ml_enabled
+                    else None,
+                    disabled_reason="CAD ML service not configured",
+                ),
             },
             "cadgf_router": {
                 "configured": cadgf_enabled,
                 "base_url": settings.CADGF_ROUTER_BASE_URL or None,
+                **_integration_status(
+                    configured=cadgf_enabled,
+                    available=cadgf_enabled,
+                    fallback_reason=None,
+                    disabled_reason="CADGF router not configured",
+                ),
             },
         },
     )

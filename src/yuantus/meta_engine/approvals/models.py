@@ -15,6 +15,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
 )
@@ -109,7 +110,7 @@ class ApprovalRequest(Base):
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
 
     # Extensible
-    properties = Column(JSONB, nullable=True)
+    properties = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
 
     # Relationships
     category = relationship("ApprovalCategory", back_populates="requests")

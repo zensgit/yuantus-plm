@@ -1698,6 +1698,462 @@ git diff --check
 - this preparation step itself introduces no code changes
 - the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers outside their own domains
 
+## Increment 2026-03-20 Codex-C44-C45-Stack-Verification
+
+### Touched Areas
+- `feature/codex-c44c45-staging`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C44_PLM_BOX_DWELL_AGING_BOOTSTRAP_20260320.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C45_DOCUMENT_SYNC_SKEW_GAPS_BOOTSTRAP_20260320.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c44c45 python3 -m py_compile \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c44c45-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c44c45-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- cherry-picked `81e5300` into staging as `52f84c5`
+- cherry-picked `0276af8` into staging as `b7dc629`
+- `py_compile`: passed
+- combined targeted regression on staging: `324 passed, 121 warnings in 4.84s`
+- unified stack script on staging: `719 passed, 247 warnings in 13.95s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- `C46` is not integrated yet at this point, by design
+
+## Increment 2026-03-21 Codex-C44-C45-C46-Stack-Verification
+
+### Touched Areas
+- `feature/codex-c44c45c46-staging`
+- `docs/BENCHMARK_TARGET_MATRIX_20260321.md`
+- `docs/CAPABILITY_BENCHMARK_CHECKLISTS_20260321.md`
+- `docs/BENCHMARK_CHILD_CHECKLIST_TEMPLATE_20260321.md`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c44c45c46-target PYTEST_ADDOPTS='-p no:cacheprovider' python3 -m pytest -q \
+  src/yuantus/meta_engine/tests/test_box_*.py \
+  src/yuantus/meta_engine/tests/test_document_sync_*.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_*.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c44c45c46-full2 PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- candidate branch head: `ad99773`
+- combined targeted regression on staging: `516 passed in 8.81s`
+- unified stack script on staging: `734 passed, 252 warnings in 15.52s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- `main` has not been fast-forwarded yet at this point; this section only proves candidate-stack readiness
+
+## Increment 2026-03-21 Codex-Merge-Rehearsal-C44-C45-C46
+
+### Touched Areas
+- `feature/codex-c44c45c46-staging`
+- `feature/codex-merge-rehearsal-c44c45c46`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+git merge --ff-only feature/codex-c44c45c46-staging
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-merge-c44c45c46-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- rehearsal branch fast-forwarded from `df29d5f` to `ad99773`
+- no manual conflict resolution was required
+- unified stack script on `feature/codex-merge-rehearsal-c44c45c46`: `734 passed, 252 warnings in 12.95s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- final `main` fast-forward and stabilization rerun remain intentionally pending
+
+## Increment 2026-03-21 Main-FastForward-C44-C45-C46
+
+### Touched Areas
+- `main`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+git merge --ff-only feature/codex-c44c45c46-staging
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c44c45c46-target PYTEST_ADDOPTS='-p no:cacheprovider' python3 -m pytest -q \
+  src/yuantus/meta_engine/tests/test_box_*.py \
+  src/yuantus/meta_engine/tests/test_document_sync_*.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_*.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c44c45c46-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `main` fast-forwarded from `df29d5f` to `03341b1`
+- combined targeted regression on `main`: `516 passed in 6.45s`
+- unified stack script on `main`: `734 passed, 252 warnings in 14.99s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+
+## Increment 2026-03-21 Main-Stability-Refresh-C44-C45-C46
+
+### Touched Areas
+- `main`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c44c45c46-stability-target PYTEST_ADDOPTS='-p no:cacheprovider' python3 -m pytest -q \
+  src/yuantus/meta_engine/tests/test_box_*.py \
+  src/yuantus/meta_engine/tests/test_document_sync_*.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_*.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c44c45c46-stability-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- combined targeted regression on `main`: `516 passed in 5.07s`
+- unified stack script on `main`: `734 passed, 252 warnings in 12.49s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- no new stability-window regression was observed on `main`
+
+## Increment 2026-03-20 Codex-C41-C42-Stack-Verification
+
+### Touched Areas
+- `feature/codex-c41c42-staging`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C41_PLM_BOX_OCCUPANCY_TURNOVER_BOOTSTRAP_20260320.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C42_DOCUMENT_SYNC_LAG_BACKLOG_BOOTSTRAP_20260320.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c41c42 python3 -m py_compile \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c41c42-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c41c42-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `py_compile`: passed
+- combined targeted regression on staging: `291 passed, 110 warnings in 3.37s`
+- unified stack script on staging: `667 passed, 231 warnings in 13.47s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- `C43` had not been integrated yet at this point in the timeline
+
+## Increment 2026-03-20 Codex-C43-Stack-Verification
+
+### Touched Areas
+- `feature/codex-c41c42c43-staging`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C43_CUTTED_PARTS_THROUGHPUT_CADENCE_BOOTSTRAP_20260320.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c41c42c43 python3 -m py_compile \
+  src/yuantus/meta_engine/box/service.py \
+  src/yuantus/meta_engine/web/box_router.py \
+  src/yuantus/meta_engine/document_sync/service.py \
+  src/yuantus/meta_engine/web/document_sync_router.py \
+  src/yuantus/meta_engine/cutted_parts/service.py \
+  src/yuantus/meta_engine/web/cutted_parts_router.py \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c41c42c43-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-c41c42c43-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `py_compile`: passed
+- combined targeted regression on staging: `468 passed, 162 warnings in 4.49s`
+- unified stack script on staging: `686 passed, 236 warnings in 14.27s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+
+## Increment 2026-03-20 Codex-Merge-Rehearsal-C41-C42-C43
+
+### Touched Areas
+- `feature/codex-c41c42c43-staging`
+- `feature/codex-merge-rehearsal-c41c42c43`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+git merge --ff-only feature/codex-c41c42c43-staging
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-merge-c41c42c43-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- rehearsal branch fast-forwarded from `88820f2` to `2245073`
+- no manual conflict resolution was required
+- unified stack script on `feature/codex-merge-rehearsal-c41c42c43`: `686 passed, 236 warnings in 15.71s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+
+## Increment 2026-03-20 Main-FastForward-C41-C42-C43
+
+### Touched Areas
+- `main`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+git merge --ff-only feature/codex-c41c42c43-staging
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c41c42c43-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c41c42c43-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- `main` fast-forwarded from `88820f2` to `2db3c5c`
+- combined targeted regression on `main`: `468 passed, 162 warnings in 3.25s`
+- unified stack script on `main`: `686 passed, 236 warnings in 13.69s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+
+## Increment 2026-03-20 Main-Stability-Refresh-C41-C42-C43
+
+### Touched Areas
+- `main`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+
+### Verification Commands
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c41c42c43-stability-target PYTEST_ADDOPTS='-p no:cacheprovider' pytest -q \
+  src/yuantus/meta_engine/tests/test_box_service.py \
+  src/yuantus/meta_engine/tests/test_box_router.py \
+  src/yuantus/meta_engine/tests/test_document_sync_service.py \
+  src/yuantus/meta_engine/tests/test_document_sync_router.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_service.py \
+  src/yuantus/meta_engine/tests/test_cutted_parts_router.py
+```
+
+```bash
+PYTHONPYCACHEPREFIX=/tmp/yuantus-pyc-main-c41c42c43-stability-full PYTEST_ADDOPTS='-p no:cacheprovider' \
+  scripts/verify_odoo18_plm_stack.sh full
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- combined targeted regression on `main`: `468 passed, 162 warnings in 3.71s`
+- unified stack script on `main`: `686 passed, 236 warnings in 13.23s`
+- `git diff --check`: passed
+
+### Residual Risks
+- warnings remain the existing `starlette.formparsers` and `httpx app=` deprecations
+- no new stability-window regression was observed
+
+## Increment 2026-03-20 Codex-Prepare-Next-Claude-Batch-C44-C46
+
+### Touched Areas
+- `main`
+- `contracts/claude_allowed_paths.json`
+- `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- `docs/DELIVERY_DOC_INDEX.md`
+- `docs/DESIGN_PARALLEL_C44_PLM_BOX_DWELL_AGING_BOOTSTRAP_20260320.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C44_PLM_BOX_DWELL_AGING_BOOTSTRAP_20260320.md`
+- `docs/DESIGN_PARALLEL_C45_DOCUMENT_SYNC_SKEW_GAPS_BOOTSTRAP_20260320.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C45_DOCUMENT_SYNC_SKEW_GAPS_BOOTSTRAP_20260320.md`
+- `docs/DESIGN_PARALLEL_C46_CUTTED_PARTS_SATURATION_BOTTLENECKS_BOOTSTRAP_20260320.md`
+- `docs/DEV_AND_VERIFICATION_PARALLEL_C46_CUTTED_PARTS_SATURATION_BOTTLENECKS_BOOTSTRAP_20260320.md`
+
+### Verification Commands
+```bash
+python3 -m json.tool contracts/claude_allowed_paths.json >/dev/null
+```
+
+```bash
+git diff --check
+```
+
+### Actual Results
+- added path-guard profiles `C44`, `C45`, `C46`
+- created frozen Claude base branch `feature/claude-greenfield-base-10`
+- created Codex staging branch `feature/codex-c44c45-staging`
+- prepared shared PLAN / DESIGN / VERIFICATION entries for the next Claude batch
+- added standalone design / verification templates for `C44/C45/C46`
+
+### Residual Risks
+- this preparation step itself introduces no code changes
+- the next Claude batch should still stay off `src/yuantus/api/app.py` and all integrated hot routers outside their own domains
+
 ## Increment 2026-03-20 Codex-C35-C36-Stack-Verification
 
 ### Touched Areas

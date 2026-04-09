@@ -496,6 +496,39 @@
         "^src/yuantus/meta_engine/web/cutted_parts_router\\.py$",
         "^src/yuantus/meta_engine/tests/test_cutted_parts_.*\\.py$"
       ]
+    },
+    "C44": {
+      "description": "PLM Box dwell and aging helpers inside the isolated box domain",
+      "branch_patterns": [
+        "^feature/claude-c44(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/box/.*",
+        "^src/yuantus/meta_engine/web/box_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_box_.*\\.py$"
+      ]
+    },
+    "C45": {
+      "description": "Document sync skew and gaps helpers inside the isolated document_sync domain",
+      "branch_patterns": [
+        "^feature/claude-c45(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/document_sync/.*",
+        "^src/yuantus/meta_engine/web/document_sync_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_document_sync_.*\\.py$"
+      ]
+    },
+    "C46": {
+      "description": "Cutted-parts saturation and bottleneck helpers inside the isolated cutted_parts domain",
+      "branch_patterns": [
+        "^feature/claude-c46(?:-.+)?$"
+      ],
+      "allow": [
+        "^src/yuantus/meta_engine/cutted_parts/.*",
+        "^src/yuantus/meta_engine/web/cutted_parts_router\\.py$",
+        "^src/yuantus/meta_engine/tests/test_cutted_parts_.*\\.py$"
+      ]
     }
   }
 }

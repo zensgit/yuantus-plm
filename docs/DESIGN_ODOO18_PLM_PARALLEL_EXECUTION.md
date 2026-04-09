@@ -1461,3 +1461,175 @@
 ### Non-Goals
 - 本轮不把 `C41-C43` 直接并入 `main`
 - 本轮不触发新的统一栈合并
+
+## Increment 2026-03-20 Codex-C41-C42-Stack-Verification
+
+### Decision
+- `C41` 与 `C42` 已经不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c41c42-staging` 上完成联合验证。
+- `C43` 继续保持 pending，不与本轮 staging 混并。
+
+### Why
+- `box` 与 `document_sync` 的第九阶段扩展仍然互不写冲突，适合继续并行联合验证。
+- `C43` 继续留在 `cutted_parts` 子域，延后回收可以减少本轮 staging 的扩面和回归压力。
+
+### Result
+- `C41` staging commit: `f8c9753`
+- `C42` staging commit: `31b98ab`
+- combined targeted regression: `291 passed, 110 warnings in 3.37s`
+- unified stack regression on staging: `667 passed, 231 warnings in 13.47s`
+
+## Increment 2026-03-20 Codex-C43-Stack-Verification
+
+### Decision
+- `C43` 已不再只是 Claude 分支成果。
+- Codex 已在独立 staging 分支 `feature/codex-c41c42c43-staging` 上完成 `C41/C42/C43` 联合验证。
+- `C41/C42/C43` 现在作为完整的 ninth-stage candidate stack 进入下一步 merge-prep 评估。
+
+### Why
+- `cutted_parts` 的 throughput / cadence 读侧增强与现有 `C31/C34/C37/C40` 写域保持一致，不需要触发新的跨域依赖。
+- 在 `C41/C42` 已验证基础上补齐 `C43`，可以直接得到完整的 `box/document_sync/cutted_parts` ninth-stage 绿地候选栈。
+
+### Result
+- `C43` staging commit: `3f6d4ae`
+- combined targeted regression with `C41/C42/C43`: `468 passed, 162 warnings in 4.49s`
+- unified stack regression on staging: `686 passed, 236 warnings in 14.27s`
+
+## Increment 2026-03-20 Codex-Merge-Rehearsal-C41-C42-C43
+
+### Decision
+- `C41/C42/C43` 不再停留在“仅 staging 已验证”，而是已经完成面向 `main` 的 fast-forward rehearsal。
+- 当前 ninth-stage greenfield 批次已经具备进入真实主线合并窗口的条件。
+
+### Why
+- `feature/codex-c41c42c43-staging` 相对 `main` 是纯快进关系。
+- 在 rehearsal 分支 `feature/codex-merge-rehearsal-c41c42c43` 上执行 `--ff-only` 后，没有出现手工冲突。
+- rehearsal 分支上的 unified stack full 结果与候选栈一致，说明候选栈进入主线后的测试面没有新增不稳定因素。
+
+### Result
+- rehearsal branch: `feature/codex-merge-rehearsal-c41c42c43`
+- rehearsal fast-forward: `88820f2` -> `2245073`
+- rehearsal full regression: `686 passed, 236 warnings in 15.71s`
+
+## Increment 2026-03-20 Main-FastForward-C41-C42-C43
+
+### Decision
+- `C41/C42/C43` 已正式进入 `main`，不再停留在候选或 rehearsal 状态。
+- 这一批 ninth-stage greenfield 扩展已经完成从 Claude 分支到 Codex staging、再到主线落地的完整闭环。
+
+### Why
+- `feature/codex-c41c42c43-staging` 相对 `main` 保持纯快进关系，直接执行真实 fast-forward 即可。
+- post-merge targeted 与 unified full 都稳定通过，说明 rehearsal 的判断在主线上得到验证。
+
+### Result
+- source branch: `feature/codex-c41c42c43-staging`
+- main fast-forward: `88820f2` -> `2db3c5c`
+- post-merge targeted regression: `468 passed, 162 warnings in 3.25s`
+- post-merge unified stack full: `686 passed, 236 warnings in 13.69s`
+
+## Increment 2026-03-20 Main-Stability-Refresh-C41-C42-C43
+
+### Decision
+- `C41/C42/C43` 的主线合并结果已完成一次短稳定窗口复核。
+- 当前 `main` 可以继续作为下一批 Claude 绿地任务的冻结出发点。
+
+### Why
+- targeted 与 unified full 的 rerun 都与 post-merge 初次结果保持一致，没有出现新增回归。
+- 继续沿用相同的三域绿地扩展，比切到跨域改造更稳。
+
+### Result
+- targeted greenfield rerun on `main`: `468 passed, 162 warnings in 3.71s`
+- unified stack rerun on `main`: `686 passed, 236 warnings in 13.23s`
+
+## Next Claude Batch C44-C46
+
+### Why
+- `C41/C42/C43` 已经完成主线合并和稳定窗口确认。
+- 下一批如果继续并行，最稳的路径仍然是延续同一组三个 greenfield 子域，而不是引入新的跨域热文件。
+
+### Task Boundaries
+- `C44`
+  - 只允许扩展 `box` 子域内部 dwell / aging / export helpers
+- `C45`
+  - 只允许扩展 `document_sync` 子域内部 skew / gaps / export helpers
+- `C46`
+  - 只允许扩展 `cutted_parts` 子域内部 saturation / bottleneck / export helpers
+
+### Chosen Defaults
+- Claude should branch the next greenfield batch from:
+  - `feature/claude-greenfield-base-10`
+  - source branch: `main`
+- `C44-C46` 一律不允许编辑：
+  - `src/yuantus/api/app.py`
+  - `parallel_tasks`
+  - `version`
+  - `benchmark_branches`
+  - 当前已集成 hot routers outside their own domains
+- 这三条线继续只做域内读侧、统计、导出和状态辅助，不做新的跨域 orchestration
+
+### Non-Goals
+- 本轮不把 `C44-C46` 直接并入 `main`
+- 本轮不触发新的统一栈合并
+
+## Increment 2026-03-20 Codex-C44-C45-Stack-Verification
+
+### Decision
+- `C44/C45` 不再停留在“仅为 Claude 准备好”的状态，而是已经进入 Codex staging 并完成联合验证。
+- `C46` 保持 pending，继续按同一组三域批次的最后一条 greenfield 线处理。
+
+### Why
+- `C44` 与 `C45` 的写域仍然严格分离在 `box` 与 `document_sync`，适合先组成一条隔离候选栈。
+- combined targeted 与 unified full 都稳定通过，说明这两条 tenth-stage greenfield 线已经具备继续进入 merge-prep 的条件。
+
+### Result
+- candidate stack branch: `feature/codex-c44c45-staging`
+- `C44` staging commit: `52f84c5`
+- `C45` staging commit: `b7dc629`
+- combined targeted regression: `324 passed, 121 warnings in 4.84s`
+- unified stack full regression: `719 passed, 247 warnings in 13.95s`
+
+## Increment 2026-03-21 Codex-C44-C45-C46-Merge-Prep
+
+### Decision
+- `C44/C45/C46` 不再作为“下一条待接入 greenfield 线”看待，而是作为完整 tenth-stage candidate stack 进入 merge-prep。
+- 在 `main` 未实际 fast-forward 之前，不再继续给这三个域追加新功能；当前优先级是 final merge 和稳定窗口，而不是继续扩 scope。
+- 后续方向按 benchmark 分层固定：`Aras` 只负责产品级验收口径，`Odoo18 PLM` 负责 `meta_engine` 并行增量基线，`DocDoku` 负责 `file-cad` 合同与体验边界。
+
+### Why
+- `box`、`document_sync`、`cutted_parts` 三个域在本轮仍然保持域内读侧、统计、导出和状态辅助模式，没有重新打开跨域 orchestration。
+- staging 上的 targeted regression 与 unified full regression 都通过，说明三域组合后的候选栈已经具备 merge-prep 信号。
+- isolated rehearsal worktree 能够从 `main@df29d5f` 对 `feature/codex-c44c45c46-staging` 做 `ff-only` 预演，并通过 unified full regression，说明当前候选栈没有结构性合并阻塞。
+- benchmark matrix、capability checklists、child checklist template 已经把 “Aras / Odoo18 PLM / DocDoku” 三层口径拆开，后续开发不需要再混 benchmark。
+
+### Result
+- candidate stack branch: `feature/codex-c44c45c46-staging`
+- rehearsal branch: `feature/codex-merge-rehearsal-c44c45c46`
+- candidate head: `ad99773`
+- combined targeted regression on staging: `516 passed in 8.81s`
+- unified stack full regression on staging: `734 passed, 252 warnings in 15.52s`
+- rehearsal full regression: `734 passed, 252 warnings in 12.95s`
+- next step:
+  - perform final operator fast-forward onto `main`
+  - rerun `main` targeted/full verification and stabilization refresh
+  - after stabilization, open the next increment only through the benchmark child checklist template
+
+## Increment 2026-03-21 Main-Integration-C44-C45-C46
+
+### Decision
+- `C44/C45/C46` 已经完成 `main` fast-forward 和稳定窗口确认，不再停留在 merge-prep 状态。
+- 这三个域后续不再以“补本轮收口”为主，而是要么等待下一个 Odoo18-style bounded increment，要么保持冻结状态直到新的 benchmark child checklist 被明确写出。
+
+### Why
+- `main` 上的 targeted regression 与 unified full regression 都通过，说明 staging 候选栈在真实主线基线上没有引入新的功能性阻塞。
+- 第二轮 stability rerun 继续通过，说明当前 tenth-stage stack 已具备进入下一轮并行规划的稳定性信号。
+- 由于 benchmark direction 已经固定，后续扩展不需要再讨论 `Aras/Odoo18/DocDoku` 混口径，只需要选择下一条主 benchmark 线。
+
+### Result
+- `main` fast-forward: `df29d5f` -> `03341b1`
+- post-merge targeted regression on `main`: `516 passed in 6.45s`
+- post-merge unified full regression on `main`: `734 passed, 252 warnings in 14.99s`
+- stabilization targeted regression on `main`: `516 passed in 5.07s`
+- stabilization unified full regression on `main`: `734 passed, 252 warnings in 12.49s`
+- next step:
+  - keep `box/document_sync/cutted_parts` closed until the next bounded Odoo18-style increment is explicitly chosen
+  - allow `file-cad` DocDoku-aligned contract convergence to be prepared in parallel

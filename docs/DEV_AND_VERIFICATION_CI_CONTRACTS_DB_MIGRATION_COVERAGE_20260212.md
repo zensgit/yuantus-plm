@@ -21,6 +21,10 @@ Lock two high-risk infra contracts so regressions fail fast in CI:
   - Enforces:
     - every declared table name under `src/yuantus` (`__tablename__` + `Table(...)`) has at least one `op.create_table(...)` migration
     - migrations do not introduce tables that are missing from `src/yuantus`
+- Legacy debt handling:
+  - a temporary explicit allowlist is permitted only for already-declared tables that predate migration coverage
+  - the contract still fails for any newly missing table outside that allowlist
+  - the allowlist must stay sorted and must shrink when a listed table gains migration coverage
 - Updated CI contract wiring:
   - `.github/workflows/ci.yml` now executes both new contract tests
 - Backfilled missing migrations discovered by the contract:
