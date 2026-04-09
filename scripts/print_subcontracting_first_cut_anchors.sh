@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/print_subcontracting_first_cut_anchors.sh [--grep] [--hunks] [--checklist] [--decisions]
+  scripts/print_subcontracting_first_cut_anchors.sh [--grep] [--hunks] [--checklist] [--decisions] [--branch-plan]
 
 Options:
   --grep     Print ready-to-run grep commands for the first subcontracting cut.
@@ -13,6 +13,8 @@ Options:
              Print a per-file git-add-p operator checklist for the first cut.
   --decisions
              Print a y/n/s/defer cheat sheet for git-add-p decisions.
+  --branch-plan
+             Print the one-page branch execution note for the first cut.
   -h, --help Show help.
 
 Default output:
@@ -25,6 +27,7 @@ PRINT_GREP="false"
 PRINT_HUNKS="false"
 PRINT_CHECKLIST="false"
 PRINT_DECISIONS="false"
+PRINT_BRANCH_PLAN="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -44,6 +47,10 @@ while [[ $# -gt 0 ]]; do
       PRINT_DECISIONS="true"
       shift
       ;;
+    --branch-plan)
+      PRINT_BRANCH_PLAN="true"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -57,14 +64,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 selected_count=0
-for flag in "${PRINT_GREP}" "${PRINT_HUNKS}" "${PRINT_CHECKLIST}" "${PRINT_DECISIONS}"; do
+for flag in "${PRINT_GREP}" "${PRINT_HUNKS}" "${PRINT_CHECKLIST}" "${PRINT_DECISIONS}" "${PRINT_BRANCH_PLAN}"; do
   if [[ "${flag}" == "true" ]]; then
     selected_count=$((selected_count + 1))
   fi
 done
 
 if [[ "${selected_count}" -gt 1 ]]; then
-  echo "ERROR: choose only one of --grep, --hunks, --checklist, or --decisions" >&2
+  echo "ERROR: choose only one of --grep, --hunks, --checklist, --decisions, or --branch-plan" >&2
   exit 2
 fi
 
@@ -284,6 +291,50 @@ EOF
   exit 0
 fi
 
+if [[ "${PRINT_BRANCH_PLAN}" == "true" ]]; then
+  cat <<'EOF'
+First-cut branch execution note:
+
+Suggested branch:
+- feature/subcontracting-split
+
+Step 1: inspect scope
+- bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --status
+- bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --commit-plan
+- bash scripts/print_subcontracting_first_cut_anchors.sh --grep
+
+Step 2: inspect staging guidance
+- bash scripts/print_subcontracting_first_cut_anchors.sh --hunks
+- bash scripts/print_subcontracting_first_cut_anchors.sh --checklist
+- bash scripts/print_subcontracting_first_cut_anchors.sh --decisions
+
+Step 3: stage only the first cut
+- git add -p src/yuantus/meta_engine/subcontracting/service.py
+- git add -p src/yuantus/meta_engine/web/subcontracting_router.py
+- git add -p src/yuantus/meta_engine/tests/test_subcontracting_service.py
+- git add -p src/yuantus/meta_engine/tests/test_subcontracting_router.py
+
+Step 4: review staged result
+- git diff --cached --stat
+- git diff --cached -- src/yuantus/meta_engine/subcontracting/service.py
+- git diff --cached -- src/yuantus/meta_engine/web/subcontracting_router.py
+- git diff --cached -- src/yuantus/meta_engine/tests/test_subcontracting_service.py
+- git diff --cached -- src/yuantus/meta_engine/tests/test_subcontracting_router.py
+
+Step 5: minimum local checks
+- ./.venv/bin/python -m pytest src/yuantus/meta_engine/tests/test_ci_contracts_subcontracting_first_cut_anchors.py -q
+- ./.venv/bin/python -m pytest src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py -q
+
+Suggested commit title:
+- feat(subcontracting): split approval role mapping cleanup cluster
+
+Rule:
+- do not use `git add .`
+- if a hunk mixes approval-role-mapping code with vendor-message / receipt / return code, split or defer it
+EOF
+  exit 0
+fi
+
 cat <<'EOF'
 First subcontracting cut:
   approval role mapping cleanup cluster
@@ -310,6 +361,7 @@ Recommended staging mode:
 - inspect hunk order with `--hunks`
 - inspect per-file checklist with `--checklist`
 - inspect y/n/s/defer guide with `--decisions`
+- inspect final execution note with `--branch-plan`
 - stage with `git add -p`, not `git add .`
 - keep this incision isolated from vendor message / receipt / return flows
 EOF

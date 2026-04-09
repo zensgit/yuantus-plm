@@ -37,6 +37,7 @@ def test_subcontracting_first_cut_anchor_helper_exists_and_prints_expected_targe
         "--hunks",
         "--checklist",
         "--decisions",
+        "--branch-plan",
         "approval role mapping",
     ):
         assert token in help_out, f"help output missing token: {token}"
@@ -129,6 +130,22 @@ def test_subcontracting_first_cut_anchor_helper_exists_and_prints_expected_targe
     ):
         assert token in decisions_out, f"decisions output missing token: {token}"
 
+    branch_plan_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--branch-plan"],
+        text=True,
+        capture_output=True,
+    )
+    assert branch_plan_cp.returncode == 0, branch_plan_cp.stdout + "\n" + branch_plan_cp.stderr
+    branch_plan_out = branch_plan_cp.stdout or ""
+    for token in (
+        "First-cut branch execution note",
+        "feature/subcontracting-split",
+        "git diff --cached --stat",
+        "test_ci_contracts_subcontracting_first_cut_anchors.py",
+        "feat(subcontracting): split approval role mapping cleanup cluster",
+    ):
+        assert token in branch_plan_out, f"branch-plan output missing token: {token}"
+
     execution_text = execution_card.read_text(encoding="utf-8", errors="replace")
     for token in (
         "print_subcontracting_first_cut_anchors.sh",
@@ -136,5 +153,6 @@ def test_subcontracting_first_cut_anchor_helper_exists_and_prints_expected_targe
         "--hunks",
         "--checklist",
         "--decisions",
+        "--branch-plan",
     ):
         assert token in execution_text, f"execution card missing token: {token}"

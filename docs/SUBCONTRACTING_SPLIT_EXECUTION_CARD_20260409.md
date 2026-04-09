@@ -22,6 +22,7 @@ bash scripts/print_subcontracting_first_cut_anchors.sh --grep
 bash scripts/print_subcontracting_first_cut_anchors.sh --hunks
 bash scripts/print_subcontracting_first_cut_anchors.sh --checklist
 bash scripts/print_subcontracting_first_cut_anchors.sh --decisions
+bash scripts/print_subcontracting_first_cut_anchors.sh --branch-plan
 ```
 
 ## Preferred first incision
@@ -59,6 +60,9 @@ Operator checklist helper:
 
 Decision cheat sheet helper:
 `scripts/print_subcontracting_first_cut_anchors.sh --decisions`
+
+Branch execution note helper:
+`scripts/print_subcontracting_first_cut_anchors.sh --branch-plan`
 
 Recommended operator workflow:
 
