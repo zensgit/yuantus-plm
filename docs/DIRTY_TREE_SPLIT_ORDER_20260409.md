@@ -20,6 +20,7 @@ meant for safe cleanup sequencing, not for widening the current reviewer scope.
 ## Fast start
 
 ```bash
+bash scripts/print_dirty_tree_split_matrix.sh
 bash scripts/print_dirty_tree_domain_commands.sh --first-step
 bash scripts/print_dirty_tree_domain_commands.sh --after-first-cut
 bash scripts/print_dirty_tree_domain_commands.sh --recommended-order
@@ -32,6 +33,9 @@ Execution card:
 
 Second-step note:
 `docs/POST_SUBCONTRACTING_NEXT_STEP_20260409.md`
+
+Matrix overview:
+`docs/DIRTY_TREE_SPLIT_MATRIX_20260409.md`
 
 ## Rule
 
