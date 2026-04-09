@@ -12,19 +12,27 @@ from yuantus.api.middleware.context import TenantOrgContextMiddleware
 from yuantus.api.routers.admin import router as admin_router
 from yuantus.api.routers.auth import router as auth_router
 from yuantus.api.routers.cad_preview import router as cad_preview_router
+from yuantus.api.routers.favicon import router as favicon_router
 from yuantus.api.routers.health import router as health_router
 from yuantus.api.routers.integrations import router as integrations_router
 from yuantus.api.routers.jobs import router as jobs_router
 from yuantus.api.routers.plugins import router as plugins_router
+from yuantus.api.routers.plm_workspace import router as plm_workspace_router
+from yuantus.api.routers.workbench import router as workbench_router
 from yuantus.config import get_settings
 from yuantus.database import init_db
 from yuantus.meta_engine.web.bom_router import bom_router
 from yuantus.meta_engine.web.baseline_router import baseline_router
+from yuantus.meta_engine.web.box_router import box_router
 from yuantus.meta_engine.web.config_router import config_router
+from yuantus.meta_engine.web.cutted_parts_router import cutted_parts_router
 from yuantus.meta_engine.web.cad_router import router as cad_router
 from yuantus.meta_engine.web.dedup_router import dedup_router
+from yuantus.meta_engine.web.document_sync_router import document_sync_router
 from yuantus.meta_engine.web.eco_router import eco_router
 from yuantus.meta_engine.web.approvals_router import approvals_router
+from yuantus.meta_engine.web.app_router import app_router
+from yuantus.meta_engine.web.change_router import change_router
 from yuantus.meta_engine.web.equivalent_router import equivalent_router
 from yuantus.meta_engine.web.effectivity_router import effectivity_router
 from yuantus.meta_engine.web.file_router import file_router
@@ -37,10 +45,12 @@ from yuantus.meta_engine.web.release_orchestration_router import (
     release_orchestration_router,
 )
 from yuantus.meta_engine.web.report_router import report_router
+from yuantus.meta_engine.web.query_router import query_router
 from yuantus.meta_engine.web.rpc_router import rpc_router
 from yuantus.meta_engine.web.router import meta_router
 from yuantus.meta_engine.web.schema_router import schema_router
 from yuantus.meta_engine.web.search_router import search_router
+from yuantus.meta_engine.web.store_router import store_router
 from yuantus.meta_engine.web.impact_router import impact_router
 from yuantus.meta_engine.web.item_cockpit_router import item_cockpit_router
 from yuantus.meta_engine.web.locale_router import locale_router
@@ -109,6 +119,7 @@ def create_app() -> FastAPI:
     app.add_middleware(AuditLogMiddleware)
     app.add_middleware(TenantOrgContextMiddleware)
     app.add_middleware(AuthEnforcementMiddleware)
+    app.include_router(favicon_router)
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
@@ -116,18 +127,27 @@ def create_app() -> FastAPI:
     app.include_router(integrations_router, prefix="/api/v1")
     app.include_router(plugins_router, prefix="/api/v1")
     app.include_router(jobs_router, prefix="/api/v1")
+    app.include_router(plm_workspace_router, prefix="/api/v1")
+    app.include_router(workbench_router, prefix="/api/v1")
     app.include_router(meta_router, prefix="/api/v1")
+    app.include_router(query_router, prefix="/api/v1")
     app.include_router(rpc_router, prefix="/api/v1")
     app.include_router(search_router, prefix="/api/v1")
+    app.include_router(app_router, prefix="/api/v1")
+    app.include_router(store_router, prefix="/api/v1")
     app.include_router(bom_router, prefix="/api/v1")
+    app.include_router(box_router, prefix="/api/v1")
     app.include_router(approvals_router, prefix="/api/v1")
     app.include_router(equivalent_router, prefix="/api/v1")
     app.include_router(effectivity_router, prefix="/api/v1")
     app.include_router(baseline_router, prefix="/api/v1")
     app.include_router(config_router, prefix="/api/v1")
+    app.include_router(change_router, prefix="/api/v1")
+    app.include_router(cutted_parts_router, prefix="/api/v1")
     app.include_router(release_validation_router, prefix="/api/v1")
     app.include_router(dedup_router, prefix="/api/v1")
     app.include_router(cad_router, prefix="/api/v1")
+    app.include_router(document_sync_router, prefix="/api/v1")
     app.include_router(product_router, prefix="/api/v1")
     app.include_router(permission_router, prefix="/api/v1")
     app.include_router(schema_router, prefix="/api/v1")

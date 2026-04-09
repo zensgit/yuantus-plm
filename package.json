@@ -5,6 +5,10 @@
     "@playwright/test": "^1.50.0"
   },
   "scripts": {
-    "playwright:test": "playwright test"
+    "playwright:test": "playwright test",
+    "playwright:test:plm-workspace": "playwright test playwright/tests/plm_workspace_documents_ui.spec.js playwright/tests/plm_workspace_demo_resume.spec.js playwright/tests/plm_workspace_document_handoff.spec.js",
+    "playwright:test:plm-workspace:documents": "playwright test playwright/tests/plm_workspace_documents_ui.spec.js",
+    "playwright:test:plm-workspace:resume": "playwright test playwright/tests/plm_workspace_demo_resume.spec.js",
+    "playwright:test:plm-workspace:handoff": "playwright test playwright/tests/plm_workspace_document_handoff.spec.js"
   }
 }

@@ -1,0 +1,2940 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Yuantus PLM Workbench</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='12' fill='%2315202a'/%3E%3Cpath d='M14 14h8l7 11 7-11h8L33 31v10h-6V31z' fill='%23f7efe2'/%3E%3C/svg%3E"
+    />
+    <style>
+      :root {
+        --bg: #ece7dd;
+        --canvas: rgba(251, 248, 243, 0.92);
+        --canvas-strong: rgba(255, 252, 247, 0.98);
+        --panel: rgba(14, 22, 30, 0.82);
+        --panel-soft: rgba(255, 255, 255, 0.72);
+        --line: rgba(29, 38, 46, 0.14);
+        --line-strong: rgba(29, 38, 46, 0.24);
+        --ink: #15202a;
+        --ink-soft: #4c5b66;
+        --accent: #c56c3a;
+        --accent-strong: #9f4f25;
+        --teal: #0c8d81;
+        --warn: #b85c38;
+        --danger: #9b1c31;
+        --glow: radial-gradient(circle at top right, rgba(197, 108, 58, 0.14), transparent 48%);
+        --shadow: 0 28px 70px rgba(21, 32, 42, 0.12);
+        --radius: 22px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 15% 20%, rgba(12, 141, 129, 0.08), transparent 35%),
+          radial-gradient(circle at 82% 8%, rgba(197, 108, 58, 0.18), transparent 38%),
+          linear-gradient(135deg, #f4efe7 0%, #ebe7df 48%, #f8f4ee 100%);
+      }
+
+      a {
+        color: inherit;
+      }
+
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+
+      .shell {
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr);
+        gap: 28px;
+        max-width: 1680px;
+        margin: 0 auto;
+        padding: 28px;
+      }
+
+      .rail {
+        position: sticky;
+        top: 24px;
+        align-self: start;
+        min-height: calc(100vh - 48px);
+        padding: 28px 24px;
+        border-radius: 28px;
+        background:
+          linear-gradient(180deg, rgba(15, 24, 32, 0.94), rgba(27, 39, 49, 0.9)),
+          var(--glow);
+        color: #f5f1e8;
+        box-shadow: var(--shadow);
+      }
+
+      .brand {
+        margin-bottom: 26px;
+      }
+
+      .eyebrow {
+        font-size: 0.74rem;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: rgba(245, 241, 232, 0.58);
+      }
+
+      .brand h1 {
+        margin: 12px 0 10px;
+        font-size: 1.86rem;
+        line-height: 1.02;
+      }
+
+      .brand p {
+        margin: 0;
+        color: rgba(245, 241, 232, 0.7);
+        line-height: 1.6;
+        font-size: 0.95rem;
+      }
+
+      .rail-meta {
+        margin: 18px 0 24px;
+        padding-top: 18px;
+        border-top: 1px solid rgba(245, 241, 232, 0.12);
+        color: rgba(245, 241, 232, 0.72);
+        font-size: 0.9rem;
+        line-height: 1.7;
+      }
+
+      .nav {
+        display: grid;
+        gap: 8px;
+      }
+
+      .nav a {
+        text-decoration: none;
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr);
+        gap: 12px;
+        align-items: center;
+        padding: 11px 12px;
+        border-radius: 16px;
+        color: rgba(245, 241, 232, 0.78);
+        transition: transform 0.18s ease, background 0.18s ease, color 0.18s ease;
+      }
+
+      .nav a:hover,
+      .nav a.active {
+        background: rgba(245, 241, 232, 0.08);
+        color: #fff7ef;
+        transform: translateX(3px);
+      }
+
+      .nav-index {
+        color: rgba(245, 241, 232, 0.44);
+        font-size: 0.82rem;
+      }
+
+      .nav-label {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .nav-label strong {
+        font-size: 0.94rem;
+        font-weight: 650;
+      }
+
+      .nav-label span {
+        font-size: 0.78rem;
+        color: rgba(245, 241, 232, 0.48);
+      }
+
+      .workspace {
+        min-width: 0;
+      }
+
+      .hero {
+        padding: 30px 34px;
+        border-radius: 30px;
+        background:
+          linear-gradient(135deg, rgba(255, 252, 247, 0.98), rgba(250, 246, 239, 0.88)),
+          var(--glow);
+        border: 1px solid rgba(29, 38, 46, 0.08);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+        position: relative;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -120px -120px auto;
+        width: 280px;
+        height: 280px;
+        border-radius: 999px;
+        background: radial-gradient(circle, rgba(197, 108, 58, 0.22), transparent 68%);
+        pointer-events: none;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+        gap: 24px;
+        position: relative;
+        z-index: 1;
+      }
+
+      .hero h2 {
+        margin: 14px 0 14px;
+        font-size: clamp(2rem, 4vw, 3.3rem);
+        line-height: 0.98;
+        max-width: 10ch;
+      }
+
+      .hero p {
+        max-width: 58ch;
+        margin: 0;
+        color: var(--ink-soft);
+        line-height: 1.7;
+      }
+
+      .hero-copy {
+        display: grid;
+        gap: 18px;
+      }
+
+      .hero-support {
+        display: grid;
+        gap: 14px;
+        align-content: start;
+      }
+
+      .metric-strip {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .metric {
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(29, 38, 46, 0.08);
+      }
+
+      .metric-label {
+        font-size: 0.76rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .metric-value {
+        margin-top: 10px;
+        font-size: 1.3rem;
+        font-weight: 700;
+      }
+
+      .metric-sub {
+        margin-top: 8px;
+        color: var(--ink-soft);
+        font-size: 0.86rem;
+        line-height: 1.55;
+      }
+
+      .hero-status {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .status-card {
+        padding: 16px 18px;
+        border-radius: 18px;
+        background: rgba(15, 24, 32, 0.88);
+        color: #f5f1e8;
+      }
+
+      .status-card small {
+        display: block;
+        color: rgba(245, 241, 232, 0.56);
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        font-size: 0.72rem;
+      }
+
+      .status-card strong {
+        display: block;
+        margin-top: 9px;
+        font-size: 1.18rem;
+      }
+
+      .status-card span {
+        display: block;
+        margin-top: 8px;
+        color: rgba(245, 241, 232, 0.74);
+        font-size: 0.88rem;
+        line-height: 1.5;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 360px;
+        gap: 22px;
+        margin-top: 22px;
+      }
+
+      .flow {
+        display: grid;
+        gap: 18px;
+      }
+
+      .module {
+        padding: 24px;
+        border-radius: var(--radius);
+        background: var(--canvas);
+        border: 1px solid rgba(29, 38, 46, 0.08);
+        box-shadow: var(--shadow);
+        opacity: 0;
+        transform: translateY(18px);
+        transition: opacity 0.5s ease, transform 0.5s ease;
+      }
+
+      .module.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .module-head {
+        display: grid;
+        grid-template-columns: 58px minmax(0, 1fr);
+        gap: 16px;
+        margin-bottom: 20px;
+        align-items: start;
+      }
+
+      .module-index {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 58px;
+        height: 58px;
+        border-radius: 18px;
+        background: rgba(197, 108, 58, 0.1);
+        color: var(--accent-strong);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+      }
+
+      .module-head h3 {
+        margin: 0;
+        font-size: 1.28rem;
+      }
+
+      .module-head p {
+        margin: 8px 0 0;
+        color: var(--ink-soft);
+        line-height: 1.62;
+      }
+
+      .module-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .subpanel {
+        padding: 18px;
+        border-radius: 18px;
+        background: var(--canvas-strong);
+        border: 1px solid rgba(29, 38, 46, 0.08);
+      }
+
+      .subpanel h4 {
+        margin: 0 0 14px;
+        font-size: 0.96rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .field-grid.compact {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      label {
+        display: grid;
+        gap: 7px;
+        font-size: 0.87rem;
+        color: var(--ink-soft);
+      }
+
+      label span {
+        font-weight: 600;
+        color: var(--ink);
+      }
+
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 11px 12px;
+        border: 1px solid rgba(29, 38, 46, 0.14);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--ink);
+        transition: border-color 0.18s ease, box-shadow 0.18s ease;
+      }
+
+      input:focus,
+      select:focus,
+      textarea:focus {
+        outline: none;
+        border-color: rgba(12, 141, 129, 0.48);
+        box-shadow: 0 0 0 3px rgba(12, 141, 129, 0.12);
+      }
+
+      textarea {
+        min-height: 132px;
+        resize: vertical;
+      }
+
+      .mono {
+        font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+      }
+
+      .action-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .action-row.tight {
+        margin-top: 10px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 10px 16px;
+        font-weight: 650;
+        cursor: pointer;
+        transition: transform 0.18s ease, filter 0.18s ease, background 0.18s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        filter: saturate(1.04);
+      }
+
+      button.primary {
+        background: linear-gradient(135deg, var(--accent), #e0a46d);
+        color: #1d1711;
+      }
+
+      button.secondary {
+        background: rgba(12, 141, 129, 0.12);
+        color: var(--teal);
+      }
+
+      button.ghost {
+        background: rgba(21, 32, 42, 0.06);
+        color: var(--ink);
+      }
+
+      button.danger {
+        background: rgba(155, 28, 49, 0.12);
+        color: var(--danger);
+      }
+
+      .hint {
+        margin-top: 10px;
+        color: var(--ink-soft);
+        font-size: 0.85rem;
+        line-height: 1.55;
+      }
+
+      .inspector {
+        position: sticky;
+        top: 24px;
+        align-self: start;
+        display: grid;
+        gap: 16px;
+      }
+
+      .console-panel {
+        padding: 20px;
+        border-radius: 22px;
+        background: linear-gradient(180deg, rgba(17, 24, 31, 0.96), rgba(17, 24, 31, 0.9));
+        color: #eaf3fb;
+        box-shadow: var(--shadow);
+      }
+
+      .console-panel h3 {
+        margin: 0 0 14px;
+        font-size: 0.96rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(234, 243, 251, 0.68);
+      }
+
+      .console-log {
+        display: grid;
+        gap: 10px;
+        max-height: 300px;
+        overflow: auto;
+        margin-bottom: 14px;
+      }
+
+      .console-item {
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .console-item strong {
+        display: block;
+        font-size: 0.86rem;
+      }
+
+      .console-item span {
+        display: block;
+        margin-top: 6px;
+        color: rgba(234, 243, 251, 0.68);
+        font-size: 0.79rem;
+        line-height: 1.45;
+      }
+
+      .response-pane {
+        min-height: 360px;
+        max-height: calc(100vh - 260px);
+        overflow: auto;
+        padding: 16px;
+        border-radius: 16px;
+        background: rgba(7, 11, 15, 0.64);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 0.83rem;
+        line-height: 1.6;
+      }
+
+      .response-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(234, 243, 251, 0.8);
+      }
+
+      .pill.good {
+        color: #7de4d9;
+      }
+
+      .pill.warn {
+        color: #f7c58a;
+      }
+
+      .pill.bad {
+        color: #ff94a9;
+      }
+
+      .inline-note {
+        color: var(--ink-soft);
+        font-size: 0.86rem;
+        line-height: 1.55;
+      }
+
+      .mini-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .mini-stat {
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(21, 32, 42, 0.04);
+      }
+
+      .mini-stat strong {
+        display: block;
+        font-size: 1rem;
+      }
+
+      .mini-stat span {
+        display: block;
+        margin-top: 7px;
+        color: var(--ink-soft);
+        font-size: 0.82rem;
+      }
+
+      .key-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .key-pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: rgba(21, 32, 42, 0.06);
+        color: var(--ink-soft);
+        font-size: 0.78rem;
+        letter-spacing: 0.04em;
+      }
+
+      .handoff-grid,
+      .lens-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .handoff-item,
+      .lens-item {
+        padding: 14px;
+        border-radius: 16px;
+        background: rgba(21, 32, 42, 0.04);
+        border: 1px solid rgba(29, 38, 46, 0.08);
+      }
+
+      .handoff-item strong,
+      .lens-item strong {
+        display: block;
+        font-size: 0.92rem;
+      }
+
+      .handoff-item span,
+      .lens-item span {
+        display: block;
+        margin-top: 6px;
+        color: var(--ink-soft);
+        font-size: 0.82rem;
+        line-height: 1.55;
+      }
+
+      .handoff-action {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .lens-empty {
+        color: var(--ink-soft);
+        font-size: 0.84rem;
+        line-height: 1.55;
+      }
+
+      .field-flash {
+        outline: 2px solid rgba(197, 108, 58, 0.38);
+        box-shadow: 0 0 0 4px rgba(197, 108, 58, 0.12);
+      }
+
+      .toggle-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px 14px;
+        margin-top: 14px;
+      }
+
+      .toggle-grid label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--ink-soft);
+        font-size: 0.86rem;
+      }
+
+      .toggle-grid input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent);
+      }
+
+      @media (max-width: 1320px) {
+        .shell {
+          grid-template-columns: 1fr;
+        }
+
+        .rail {
+          position: static;
+          min-height: auto;
+        }
+
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .inspector {
+          position: static;
+        }
+      }
+
+      @media (max-width: 960px) {
+        .hero-grid,
+        .module-grid,
+        .field-grid,
+        .field-grid.compact,
+        .hero-status,
+        .metric-strip,
+        .mini-grid,
+        .toggle-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .shell {
+          padding: 18px;
+          gap: 18px;
+        }
+
+        .hero,
+        .module,
+        .console-panel {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="rail">
+        <div class="brand">
+          <div class="eyebrow">Yuantus Operator Surface</div>
+          <h1>PLM Workbench</h1>
+          <p>
+            A compact operator console for the API surface that now matters:
+            search, change, versioning, sync, packaging, cutting, governance, and app operations.
+          </p>
+        </div>
+
+        <div class="rail-meta">
+          <div><strong>API base</strong> <span class="mono" id="nav-api-base"></span></div>
+          <div><strong>Auth mode</strong> <span id="nav-auth-mode"></span></div>
+          <div><strong>Headers</strong> <span class="mono" id="nav-header-map"></span></div>
+        </div>
+
+        <nav class="nav" id="section-nav">
+          <a href="#section-context"><span class="nav-index">01</span><span class="nav-label"><strong>Context</strong><span>health, login, org switch</span></span></a>
+          <a href="#section-discovery"><span class="nav-index">02</span><span class="nav-label"><strong>Discovery</strong><span>search and AML query</span></span></a>
+          <a href="#section-eco"><span class="nav-index">03</span><span class="nav-label"><strong>ECO</strong><span>create, inspect, approve</span></span></a>
+          <a href="#section-version"><span class="nav-index">04</span><span class="nav-label"><strong>Version</strong><span>init, history, checkout</span></span></a>
+          <a href="#section-sync"><span class="nav-index">05</span><span class="nav-label"><strong>Document Sync</strong><span>sites, probe, overview</span></span></a>
+          <a href="#section-box"><span class="nav-index">06</span><span class="nav-label"><strong>Packaging</strong><span>box inventory and overview</span></span></a>
+          <a href="#section-cutting"><span class="nav-index">07</span><span class="nav-label"><strong>Cutting</strong><span>plans and material analytics</span></span></a>
+          <a href="#section-store"><span class="nav-index">08</span><span class="nav-label"><strong>App Store</strong><span>catalog sync and install</span></span></a>
+          <a href="#section-governance"><span class="nav-index">09</span><span class="nav-label"><strong>Governance</strong><span>approval inbox, release, drilldown</span></span></a>
+        </nav>
+      </aside>
+
+      <main class="workspace">
+        <section class="hero">
+          <div class="hero-grid">
+            <div class="hero-copy">
+              <div class="eyebrow">Operator Console</div>
+              <h2>One surface for the API that now ships.</h2>
+              <p>
+                This page is intentionally operational, not promotional. Set tenant, org,
+                and token once, then drive the newly exposed PLM endpoints directly from
+                a single surface with request logging and raw response visibility.
+              </p>
+              <div class="metric-strip">
+                <div class="metric">
+                  <div class="metric-label">Mounted Areas</div>
+                  <div class="metric-value">9</div>
+                  <div class="metric-sub">Context, query, ECO, versions, sync, packaging, cutting, app operations, governance.</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Request Mode</div>
+                  <div class="metric-value mono" id="metric-auth-mode"></div>
+                  <div class="metric-sub">The page shell stays public; domain APIs still enforce normal auth rules.</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">API Prefix</div>
+                  <div class="metric-value mono" id="metric-api-base"></div>
+                  <div class="metric-sub">Every action is executed against the same operator-configurable base path.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hero-support">
+              <div class="hero-status">
+                <div class="status-card">
+                  <small>Health</small>
+                  <strong id="health-status">Waiting</strong>
+                  <span id="health-detail">Run a health ping or wait for startup refresh.</span>
+                </div>
+                <div class="status-card">
+                  <small>Identity</small>
+                  <strong id="profile-status">Anonymous</strong>
+                  <span id="profile-detail">No profile loaded yet.</span>
+                </div>
+                <div class="status-card">
+                  <small>Jobs</small>
+                  <strong id="jobs-status">Unknown</strong>
+                  <span id="jobs-detail">Use the console to inspect recent jobs.</span>
+                </div>
+                <div class="status-card">
+                  <small>Last Action</small>
+                  <strong id="action-status">Idle</strong>
+                  <span id="action-detail">No API calls have been sent from this page yet.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="layout">
+          <div class="flow">
+            <section class="module" id="section-context">
+              <div class="module-head">
+                <div class="module-index">01</div>
+                <div>
+                  <h3>Context and Auth</h3>
+                  <p>
+                    Set request context once, then reuse it across every module. The login
+                    action writes the bearer token back into the shared operator state.
+                  </p>
+                </div>
+              </div>
+              <div class="module-grid">
+                <div class="stack">
+                  <form class="subpanel" onsubmit="return false;">
+                    <h4>Runtime Context</h4>
+                    <div class="field-grid">
+                      <label><span>API base</span><input id="api-base" class="mono" type="text" value="__YUANTUS_API_BASE__" /></label>
+                      <label><span>Tenant id</span><input id="tenant-id" class="mono" type="text" placeholder="tenant-1" /></label>
+                      <label><span>Org id</span><input id="org-id" class="mono" type="text" placeholder="org-1" /></label>
+                      <label><span>Bearer token</span><input id="bearer-token" class="mono" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Paste access token" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="save-context">Save context</button>
+                      <button class="secondary" type="button" data-action="ping-health">Ping health</button>
+                      <button class="ghost" type="button" data-action="load-profile">Load profile</button>
+                    </div>
+                    <div class="hint">
+                      Tenant header: <span class="mono" id="tenant-header-label"></span>.
+                      Org header: <span class="mono" id="org-header-label"></span>.
+                    </div>
+                  </form>
+                </div>
+
+                <div class="stack">
+                  <form class="subpanel" onsubmit="return false;">
+                    <h4>Login and Org Switch</h4>
+                    <div class="field-grid">
+                      <label><span>Username</span><input id="login-username" type="text" autocomplete="username" value="admin" /></label>
+                      <label><span>Password</span><input id="login-password" type="password" autocomplete="current-password" value="admin" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="login">Login</button>
+                      <button class="secondary" type="button" data-action="list-orgs">List orgs</button>
+                      <button class="ghost" type="button" data-action="switch-org">Switch org</button>
+                    </div>
+                    <div class="hint">
+                      Login posts to <span class="mono">/auth/login</span>, then stores the returned access token.
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </section>
+
+            <section class="module" id="section-discovery">
+              <div class="module-head">
+                <div class="module-index">02</div>
+                <div>
+                  <h3>Discovery</h3>
+                  <p>
+                    Use indexed search for quick retrieval, then drop into AML for structured
+                    reads or recursive expansion. This is the fastest path from unknown to exact object.
+                  </p>
+                </div>
+              </div>
+              <div class="module-grid">
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Search</h4>
+                    <div class="field-grid compact">
+                      <label><span>Query</span><input id="search-query" type="text" placeholder="motor bracket" /></label>
+                      <label><span>Item type</span><input id="search-item-type" type="text" placeholder="Part" /></label>
+                      <label><span>State</span><input id="search-state" type="text" placeholder="Released" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="search-items">Search items</button>
+                      <button class="secondary" type="button" data-action="search-files">Search files</button>
+                    </div>
+                  </div>
+                  <div class="subpanel">
+                    <h4>Direct Item Read</h4>
+                    <div class="field-grid">
+                      <label><span>Item type</span><input id="aml-item-type" type="text" value="Part" /></label>
+                      <label><span>Item id</span><input id="aml-item-id" class="mono" type="text" placeholder="uuid-or-id" /></label>
+                    </div>
+                    <div class="action-row tight">
+                      <button class="ghost" type="button" data-action="aml-get-item">Fetch item</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>AML Query</h4>
+                    <label>
+                      <span>Request JSON</span>
+                      <textarea id="aml-query-body" class="mono">{
+  "type": "Part",
+  "page": 1,
+  "page_size": 20
+}</textarea>
+                    </label>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="aml-query">Run AML query</button>
+                      <button class="ghost" type="button" data-action="aml-explode-bom">Explode BOM</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module" id="section-eco">
+              <div class="module-head">
+                <div class="module-index">03</div>
+                <div>
+                  <h3>ECO Operations</h3>
+                  <p>
+                    Operate the change flow from one place: create the ECO, inspect its impact,
+                    move it toward approval, then execute apply against the same record id.
+                  </p>
+                </div>
+              </div>
+              <div class="module-grid">
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Create ECO</h4>
+                    <div class="field-grid">
+                      <label><span>Name</span><input id="eco-name" type="text" placeholder="ECO-1001 motor mount update" /></label>
+                      <label><span>Type</span><select id="eco-type"><option value="bom">bom</option><option value="document">document</option><option value="release">release</option></select></label>
+                      <label><span>Product id</span><input id="eco-product-id" class="mono" type="text" placeholder="optional item id" /></label>
+                      <label><span>Priority</span><select id="eco-priority"><option value="normal">normal</option><option value="high">high</option><option value="critical">critical</option></select></label>
+                    </div>
+                    <label><span>Description</span><textarea id="eco-description" placeholder="Reason, scope, and expected downstream change."></textarea></label>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="eco-create">Create ECO</button>
+                      <button class="secondary" type="button" data-action="eco-list">List ECOs</button>
+                      <button class="ghost" type="button" data-action="eco-kanban">Load kanban</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Inspect or Progress</h4>
+                    <div class="field-grid">
+                      <label><span>ECO id</span><input id="eco-id" class="mono" type="text" placeholder="eco-id" /></label>
+                      <label><span>Target item id</span><input id="eco-target-item-id" class="mono" type="text" placeholder="for affected-item or new revision" /></label>
+                    </div>
+                    <label><span>Review comment</span><input id="eco-review-comment" type="text" placeholder="Approval note or rejection reason." /></label>
+                    <div class="action-row">
+                      <button class="ghost" type="button" data-action="eco-get">Get ECO</button>
+                      <button class="ghost" type="button" data-action="eco-impact">Impact</button>
+                      <button class="ghost" type="button" data-action="eco-pending-approvals">Pending approvals</button>
+                      <button class="secondary" type="button" data-action="eco-new-revision">New revision</button>
+                    </div>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="eco-add-affected">Add affected item</button>
+                      <button class="secondary" type="button" data-action="eco-approve">Approve</button>
+                      <button class="danger" type="button" data-action="eco-reject">Reject</button>
+                      <button class="primary" type="button" data-action="eco-apply">Apply</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module" id="section-version">
+              <div class="module-head">
+                <div class="module-index">04</div>
+                <div>
+                  <h3>Version Workbench</h3>
+                  <p>
+                    Initialize version control, inspect history and trees, then exercise checkout
+                    against the same item without leaving the page.
+                  </p>
+                </div>
+              </div>
+              <div class="module-grid">
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Item Version Flow</h4>
+                    <div class="field-grid">
+                      <label><span>Item id</span><input id="version-item-id" class="mono" type="text" placeholder="item id" /></label>
+                      <label><span>Version id</span><input id="version-id" class="mono" type="text" placeholder="optional version id" /></label>
+                    </div>
+                    <label><span>Checkout comment</span><input id="checkout-comment" type="text" placeholder="Working on released change scope." /></label>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="version-init">Init version</button>
+                      <button class="secondary" type="button" data-action="version-history">History</button>
+                      <button class="ghost" type="button" data-action="version-tree">Tree</button>
+                      <button class="ghost" type="button" data-action="version-tree-full">Tree + files</button>
+                    </div>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="version-checkout">Checkout</button>
+                      <button class="ghost" type="button" data-action="version-effective">Effective</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Revision Utilities</h4>
+                    <div class="field-grid">
+                      <label><span>Current revision</span><input id="revision-current" type="text" placeholder="A.01" /></label>
+                      <label><span>Scheme id</span><input id="revision-scheme" type="text" placeholder="optional scheme" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="ghost" type="button" data-action="revision-next">Next revision</button>
+                      <button class="ghost" type="button" data-action="revision-parse">Parse revision</button>
+                      <button class="ghost" type="button" data-action="version-schemes">List schemes</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module" id="section-sync">
+              <div class="module-head">
+                <div class="module-index">05</div>
+                <div>
+                  <h3>Document Sync</h3>
+                  <p>
+                    Operate multi-site sync from the same operator surface: create a site,
+                    view backlog summaries, then probe or execute mirror calls against a target.
+                  </p>
+                </div>
+              </div>
+              <div class="module-grid">
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Site Lifecycle</h4>
+                    <div class="field-grid">
+                      <label><span>Site name</span><input id="sync-site-name" type="text" placeholder="HQ" /></label>
+                      <label><span>Site code</span><input id="sync-site-code" type="text" placeholder="HQ" /></label>
+                      <label><span>Base URL</span><input id="sync-site-base-url" type="text" placeholder="https://hq.example.com" /></label>
+                      <label><span>Direction</span><select id="sync-site-direction"><option value="push">push</option><option value="pull">pull</option><option value="bidirectional">bidirectional</option></select></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="sync-create-site">Create site</button>
+                      <button class="secondary" type="button" data-action="sync-list-sites">List sites</button>
+                      <button class="ghost" type="button" data-action="sync-overview">Overview</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Probe and Execute</h4>
+                    <div class="field-grid">
+                      <label><span>Site id</span><input id="sync-site-id" class="mono" type="text" placeholder="site-1" /></label>
+                      <label><span>Job id</span><input id="sync-job-id" class="mono" type="text" placeholder="job-1" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="sync-probe">Mirror probe</button>
+                      <button class="primary" type="button" data-action="sync-execute">Mirror execute</button>
+                    </div>
+                    <div class="action-row">
+                      <button class="ghost" type="button" data-action="sync-job-summary">Job summary</button>
+                      <button class="ghost" type="button" data-action="sync-freshness">Freshness view</button>
+                      <button class="ghost" type="button" data-action="sync-site-analytics">Site analytics</button>
+                      <button class="ghost" type="button" data-action="sync-site-status">Reconciliation status</button>
+                      <button class="ghost" type="button" data-action="sync-job-conflicts">Job conflicts</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module" id="section-box">
+              <div class="module-head">
+                <div class="module-index">06</div>
+                <div>
+                  <h3>Packaging</h3>
+                  <p>
+                    Use box inventory as an operational service, not a hidden side model:
+                    create packaging units, inspect contents, and watch aggregate summaries.
+                  </p>
+                </div>
+              </div>
+              <div class="module-grid">
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Create Box</h4>
+                    <div class="field-grid">
+                      <label><span>Name</span><input id="box-name" type="text" placeholder="Transit Box A" /></label>
+                      <label><span>Type</span><select id="box-type"><option value="box">box</option><option value="crate">crate</option><option value="pallet">pallet</option></select></label>
+                      <label><span>Material</span><input id="box-material" type="text" placeholder="cardboard" /></label>
+                      <label><span>Barcode</span><input id="box-barcode" type="text" placeholder="optional barcode" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="box-create">Create box</button>
+                      <button class="secondary" type="button" data-action="box-list">List boxes</button>
+                      <button class="ghost" type="button" data-action="box-overview">Overview</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Inspect Box</h4>
+                    <div class="field-grid">
+                      <label><span>Box id</span><input id="box-id" class="mono" type="text" placeholder="box-1" /></label>
+                      <label><span>State filter</span><input id="box-state" type="text" placeholder="draft" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="ghost" type="button" data-action="box-get">Get box</button>
+                      <button class="ghost" type="button" data-action="box-contents">Contents</button>
+                      <button class="ghost" type="button" data-action="box-material-analytics">Material analytics</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module" id="section-cutting">
+              <div class="module-head">
+                <div class="module-index">07</div>
+                <div>
+                  <h3>Cutting Plans</h3>
+                  <p>
+                    Create and inspect cut plans directly from the operator surface so this area
+                    becomes visible product, not just a backend capability.
+                  </p>
+                </div>
+              </div>
+              <div class="module-grid">
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Create Plan</h4>
+                    <div class="field-grid">
+                      <label><span>Name</span><input id="cut-plan-name" type="text" placeholder="Sheet optimization run" /></label>
+                      <label><span>Material id</span><input id="cut-material-id" class="mono" type="text" placeholder="optional material id" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="cut-create-plan">Create plan</button>
+                      <button class="secondary" type="button" data-action="cut-list-plans">List plans</button>
+                      <button class="ghost" type="button" data-action="cut-overview">Overview</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Inspect Plan</h4>
+                    <div class="field-grid">
+                      <label><span>Plan id</span><input id="cut-plan-id" class="mono" type="text" placeholder="plan-1" /></label>
+                      <label><span>Material type</span><input id="cut-material-type" type="text" placeholder="sheet" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="ghost" type="button" data-action="cut-plan-summary">Plan summary</button>
+                      <button class="ghost" type="button" data-action="cut-plan-cuts">Plan cuts</button>
+                      <button class="ghost" type="button" data-action="cut-materials">Materials</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module" id="section-store">
+              <div class="module-head">
+                <div class="module-index">08</div>
+                <div>
+                  <h3>App Store and Jobs</h3>
+                  <p>
+                    Expose extension operations and recent job flow in the same place so platform
+                    work does not stay hidden behind direct curl usage.
+                  </p>
+                </div>
+              </div>
+              <div class="module-grid">
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Store</h4>
+                    <div class="field-grid">
+                      <label><span>Query</span><input id="store-query" type="text" placeholder="viewer, cad, report" /></label>
+                      <label><span>Category</span><input id="store-category" type="text" placeholder="optional category" /></label>
+                      <label><span>Listing id</span><input id="store-listing-id" class="mono" type="text" placeholder="listing-id" /></label>
+                      <label><span>User id</span><input id="store-user-id" type="number" value="1" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="store-sync">Sync catalog</button>
+                      <button class="primary" type="button" data-action="store-search">Search apps</button>
+                      <button class="ghost" type="button" data-action="store-install">Install app</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Jobs</h4>
+                    <div class="field-grid">
+                      <label><span>Job id</span><input id="job-id" class="mono" type="text" placeholder="job-id" /></label>
+                      <label><span>Status filter</span><input id="job-status" type="text" placeholder="pending" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="jobs-list">List jobs</button>
+                      <button class="ghost" type="button" data-action="jobs-get">Get job</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module" id="section-governance">
+              <div class="module-head">
+                <div class="module-index">09</div>
+                <div>
+                  <h3>Governance and Release</h3>
+                  <p>
+                    Pull approval operations, release planning, and object drill-down into one
+                    place so governed workflows stop depending on ad hoc curl sequences.
+                  </p>
+                </div>
+              </div>
+              <div class="module-grid">
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Approval Inbox</h4>
+                    <div class="field-grid">
+                      <label><span>State</span><input id="approval-state" type="text" value="pending" /></label>
+                      <label><span>Entity type</span><input id="approval-entity-type" type="text" placeholder="ECO" /></label>
+                      <label><span>Request id</span><input id="approval-request-id" class="mono" type="text" placeholder="approval-request-id" /></label>
+                      <label><span>Target state</span><select id="approval-target-state"><option value="approved">approved</option><option value="rejected">rejected</option><option value="submitted">submitted</option><option value="cancelled">cancelled</option></select></label>
+                    </div>
+                    <label><span>Rejection reason</span><input id="approval-rejection-reason" type="text" placeholder="Only needed when target state is rejected." /></label>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="approval-list-requests">List requests</button>
+                      <button class="ghost" type="button" data-action="approval-queue-health">Queue health</button>
+                      <button class="ghost" type="button" data-action="approval-ops-report">Ops report</button>
+                    </div>
+                    <div class="action-row">
+                      <button class="ghost" type="button" data-action="approval-detail">Detail</button>
+                      <button class="ghost" type="button" data-action="approval-consumer-summary">Consumer summary</button>
+                      <button class="ghost" type="button" data-action="approval-lifecycle">Lifecycle</button>
+                      <button class="primary" type="button" data-action="approval-transition">Transition</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Release Orchestration</h4>
+                    <div class="field-grid">
+                      <label><span>Item id</span><input id="release-item-id" class="mono" type="text" placeholder="item id for release readiness or plan" /></label>
+                      <label><span>Ruleset</span><input id="release-ruleset-id" type="text" value="default" /></label>
+                      <label><span>MBOM limit</span><input id="release-mbom-limit" type="number" value="20" min="0" max="200" /></label>
+                      <label><span>Routing limit</span><input id="release-routing-limit" type="number" value="20" min="0" max="200" /></label>
+                    </div>
+                    <div class="toggle-grid">
+                      <label><input id="release-include-routings" type="checkbox" checked />Include routings</label>
+                      <label><input id="release-include-mboms" type="checkbox" checked />Include MBOMs</label>
+                      <label><input id="release-include-baselines" type="checkbox" />Include baselines</label>
+                      <label><input id="release-continue-on-error" type="checkbox" />Continue on error</label>
+                      <label><input id="release-rollback-on-failure" type="checkbox" />Rollback on failure</label>
+                    </div>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="release-readiness">Readiness</button>
+                      <button class="ghost" type="button" data-action="release-plan">Plan</button>
+                      <button class="ghost" type="button" data-action="release-execute-dry">Dry run</button>
+                      <button class="primary" type="button" data-action="release-execute-live">Execute</button>
+                    </div>
+                  </div>
+
+                  <div class="subpanel">
+                    <h4>Object Drilldown</h4>
+                    <div class="field-grid">
+                      <label><span>Kind</span><select id="drill-kind"><option value="item">item</option><option value="version">version</option><option value="eco">eco</option><option value="approval">approval</option><option value="sync-site">sync-site</option><option value="sync-job">sync-job</option><option value="box">box</option><option value="cut-plan">cut-plan</option></select></label>
+                      <label><span>Object id</span><input id="drill-object-id" class="mono" type="text" placeholder="object id" /></label>
+                      <label><span>Item type</span><input id="drill-item-type" type="text" value="Part" /></label>
+                      <label><span>Depth/limit</span><input id="drill-depth" type="number" value="3" min="1" max="20" /></label>
+                    </div>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="drill-use-latest">Use latest id</button>
+                      <button class="ghost" type="button" data-action="drill-fetch-detail">Fetch detail</button>
+                      <button class="ghost" type="button" data-action="drill-fetch-related">Fetch related</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="inspector">
+            <section class="console-panel">
+              <h3>Latest Request</h3>
+              <div class="response-meta">
+                <span class="pill" id="response-method">IDLE</span>
+                <span class="pill" id="response-status">No status</span>
+                <span class="pill" id="response-duration">0 ms</span>
+              </div>
+              <div class="console-log" id="request-log"></div>
+              <div class="response-pane">
+                <pre id="response-output">No response captured yet.</pre>
+              </div>
+            </section>
+
+            <section class="module is-visible">
+              <div class="module-head">
+                <div class="module-index">QS</div>
+                <div>
+                  <h3>Quick Status</h3>
+                  <p>Fast visibility over the current operator context.</p>
+                </div>
+              </div>
+              <div class="mini-grid">
+                <div class="mini-stat">
+                  <strong id="qs-tenant">-</strong>
+                  <span>Tenant</span>
+                </div>
+                <div class="mini-stat">
+                  <strong id="qs-org">-</strong>
+                  <span>Org</span>
+                </div>
+                <div class="mini-stat">
+                  <strong id="qs-token">No</strong>
+                  <span>Bearer token present</span>
+                </div>
+                <div class="mini-stat">
+                  <strong id="qs-api">/api/v1</strong>
+                  <span>Active API base</span>
+                </div>
+              </div>
+              <p class="inline-note" style="margin-top: 14px;">
+                The inspector always shows the raw response. Use it to validate contract shape
+                before deciding whether a dedicated workflow deserves deeper UI.
+              </p>
+            </section>
+
+            <section class="module is-visible">
+              <div class="module-head">
+                <div class="module-index">RX</div>
+                <div>
+                  <h3>Response Summary</h3>
+                  <p>Condense the last payload into the minimum facts needed for the next move.</p>
+                </div>
+              </div>
+              <div class="mini-grid">
+                <div class="mini-stat">
+                  <strong id="rx-entity">-</strong>
+                  <span>Primary entity</span>
+                </div>
+                <div class="mini-stat">
+                  <strong id="rx-count">0</strong>
+                  <span>Record count</span>
+                </div>
+                <div class="mini-stat">
+                  <strong id="rx-state">-</strong>
+                  <span>State or verdict</span>
+                </div>
+                <div class="mini-stat">
+                  <strong id="rx-handoffs">0</strong>
+                  <span>Detected handoffs</span>
+                </div>
+              </div>
+              <div class="key-list" id="response-key-list">
+                <span class="key-pill">No response keys yet.</span>
+              </div>
+            </section>
+
+            <section class="module is-visible">
+              <div class="module-head">
+                <div class="module-index">WF</div>
+                <div>
+                  <h3>Workflow Handoff</h3>
+                  <p>Extract ids from the latest response and push them into the next form fields.</p>
+                </div>
+              </div>
+              <div class="action-row" style="margin-top: 0;">
+                <button class="secondary" type="button" data-action="handoff-apply-all">Apply all detected ids</button>
+              </div>
+              <div class="handoff-grid" id="handoff-list">
+                <div class="lens-empty">No extracted ids yet. Run any request and this panel will prepare the next step.</div>
+              </div>
+            </section>
+
+            <section class="module is-visible">
+              <div class="module-head">
+                <div class="module-index">LX</div>
+                <div>
+                  <h3>Structure and Sync Lens</h3>
+                  <p>Read BOM, version, and document-sync payloads without parsing raw JSON every time.</p>
+                </div>
+              </div>
+              <div class="stack">
+                <div class="subpanel">
+                  <h4>Structure</h4>
+                  <div class="lens-list" id="structure-lens">
+                    <div class="lens-empty">No BOM or version structure loaded yet.</div>
+                  </div>
+                </div>
+                <div class="subpanel">
+                  <h4>Document Sync</h4>
+                  <div class="lens-list" id="sync-lens">
+                    <div class="lens-empty">No sync analytics loaded yet.</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module is-visible">
+              <div class="module-head">
+                <div class="module-index">GX</div>
+                <div>
+                  <h3>Governance Lens</h3>
+                  <p>Summarize approvals and release orchestration without rereading raw payloads.</p>
+                </div>
+              </div>
+              <div class="lens-list" id="governance-lens">
+                <div class="lens-empty">No approval or release payload loaded yet.</div>
+              </div>
+            </section>
+          </aside>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const serverConfig = {
+        apiBase: "__YUANTUS_API_BASE__",
+        tenantHeader: "__YUANTUS_TENANT_HEADER__",
+        orgHeader: "__YUANTUS_ORG_HEADER__",
+        authMode: "__YUANTUS_AUTH_MODE__",
+      };
+
+      const storageKeys = {
+        apiBase: "yuantus.workbench.apiBase",
+        tenantId: "yuantus.workbench.tenantId",
+        orgId: "yuantus.workbench.orgId",
+        bearerToken: "yuantus.workbench.bearerToken",
+        username: "yuantus.workbench.username",
+      };
+
+      const requestLog = [];
+      let latestHandoffs = [];
+
+      const dom = {
+        apiBase: document.querySelector("#api-base"),
+        tenantId: document.querySelector("#tenant-id"),
+        orgId: document.querySelector("#org-id"),
+        bearerToken: document.querySelector("#bearer-token"),
+        loginUsername: document.querySelector("#login-username"),
+        loginPassword: document.querySelector("#login-password"),
+        requestLog: document.querySelector("#request-log"),
+        responseOutput: document.querySelector("#response-output"),
+        responseMethod: document.querySelector("#response-method"),
+        responseStatus: document.querySelector("#response-status"),
+        responseDuration: document.querySelector("#response-duration"),
+        healthStatus: document.querySelector("#health-status"),
+        healthDetail: document.querySelector("#health-detail"),
+        profileStatus: document.querySelector("#profile-status"),
+        profileDetail: document.querySelector("#profile-detail"),
+        jobsStatus: document.querySelector("#jobs-status"),
+        jobsDetail: document.querySelector("#jobs-detail"),
+        actionStatus: document.querySelector("#action-status"),
+        actionDetail: document.querySelector("#action-detail"),
+        responseEntity: document.querySelector("#rx-entity"),
+        responseCount: document.querySelector("#rx-count"),
+        responseState: document.querySelector("#rx-state"),
+        responseHandoffs: document.querySelector("#rx-handoffs"),
+        responseKeyList: document.querySelector("#response-key-list"),
+        handoffList: document.querySelector("#handoff-list"),
+        structureLens: document.querySelector("#structure-lens"),
+        syncLens: document.querySelector("#sync-lens"),
+        governanceLens: document.querySelector("#governance-lens"),
+      };
+
+      function byId(id) {
+        return document.getElementById(id);
+      }
+
+      function getValue(id) {
+        return byId(id)?.value?.trim() || "";
+      }
+
+      function isChecked(id) {
+        return Boolean(byId(id)?.checked);
+      }
+
+      function setText(id, value) {
+        const node = byId(id);
+        if (node) {
+          node.textContent = value;
+        }
+      }
+
+      function updateContextViews() {
+        const apiBase = getApiBase();
+        const tenantId = dom.tenantId.value.trim();
+        const orgId = dom.orgId.value.trim();
+        const hasToken = Boolean(dom.bearerToken.value.trim());
+
+        setText("nav-api-base", apiBase);
+        setText("nav-auth-mode", serverConfig.authMode || "optional");
+        setText("nav-header-map", `${serverConfig.tenantHeader} / ${serverConfig.orgHeader}`);
+        setText("tenant-header-label", serverConfig.tenantHeader);
+        setText("org-header-label", serverConfig.orgHeader);
+        setText("metric-auth-mode", serverConfig.authMode || "optional");
+        setText("metric-api-base", apiBase);
+        setText("qs-tenant", tenantId || "-");
+        setText("qs-org", orgId || "-");
+        setText("qs-token", hasToken ? "Yes" : "No");
+        setText("qs-api", apiBase);
+      }
+
+      function getApiBase() {
+        const raw = (dom.apiBase.value || serverConfig.apiBase || "/api/v1").trim();
+        return raw.endsWith("/") ? raw.slice(0, -1) : raw;
+      }
+
+      function saveContext() {
+        localStorage.setItem(storageKeys.apiBase, getApiBase());
+        localStorage.setItem(storageKeys.tenantId, dom.tenantId.value.trim());
+        localStorage.setItem(storageKeys.orgId, dom.orgId.value.trim());
+        localStorage.setItem(storageKeys.bearerToken, dom.bearerToken.value.trim());
+        localStorage.setItem(storageKeys.username, dom.loginUsername.value.trim());
+        updateContextViews();
+        setActionState("Context saved", "Shared request headers updated in local storage.");
+      }
+
+      function restoreContext() {
+        dom.apiBase.value = localStorage.getItem(storageKeys.apiBase) || serverConfig.apiBase || "/api/v1";
+        dom.tenantId.value = localStorage.getItem(storageKeys.tenantId) || "";
+        dom.orgId.value = localStorage.getItem(storageKeys.orgId) || "";
+        dom.bearerToken.value = localStorage.getItem(storageKeys.bearerToken) || "";
+        dom.loginUsername.value = localStorage.getItem(storageKeys.username) || dom.loginUsername.value;
+        updateContextViews();
+      }
+
+      function buildHeaders({ json = false, auth = true } = {}) {
+        const headers = {};
+        const tenantId = dom.tenantId.value.trim();
+        const orgId = dom.orgId.value.trim();
+        const bearerToken = dom.bearerToken.value.trim();
+
+        if (json) {
+          headers["Content-Type"] = "application/json";
+        }
+        if (tenantId) {
+          headers[serverConfig.tenantHeader] = tenantId;
+        }
+        if (orgId) {
+          headers[serverConfig.orgHeader] = orgId;
+        }
+        if (auth && bearerToken) {
+          headers.Authorization = `Bearer ${bearerToken}`;
+        }
+        return headers;
+      }
+
+      function compactQuery(input) {
+        const query = new URLSearchParams();
+        Object.entries(input || {}).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && String(value).trim() !== "") {
+            query.set(key, String(value).trim());
+          }
+        });
+        return query.toString();
+      }
+
+      function pretty(value) {
+        if (typeof value === "string") {
+          return value;
+        }
+        try {
+          return JSON.stringify(value, null, 2);
+        } catch (_error) {
+          return String(value);
+        }
+      }
+
+      function statusClass(status) {
+        if (status >= 400) {
+          return "bad";
+        }
+        if (status >= 300) {
+          return "warn";
+        }
+        if (status > 0) {
+          return "good";
+        }
+        return "";
+      }
+
+      function isObject(value) {
+        return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+      }
+
+      function humanizeKey(value) {
+        return String(value || "")
+          .replace(/[_-]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .replace(/\b\w/g, (letter) => letter.toUpperCase());
+      }
+
+      function firstNonEmpty(...values) {
+        for (const value of values) {
+          if (value !== undefined && value !== null && String(value).trim() !== "") {
+            return String(value).trim();
+          }
+        }
+        return "";
+      }
+
+      function safeSlice(list, limit = 8) {
+        return Array.isArray(list) ? list.slice(0, limit) : [];
+      }
+
+      function findFirstField(value, keys, depth = 0) {
+        if (depth > 5 || value === null || value === undefined) {
+          return "";
+        }
+        if (Array.isArray(value)) {
+          for (const item of safeSlice(value, 12)) {
+            const found = findFirstField(item, keys, depth + 1);
+            if (found) {
+              return found;
+            }
+          }
+          return "";
+        }
+        if (!isObject(value)) {
+          return "";
+        }
+        for (const key of keys) {
+          const found = firstNonEmpty(value[key]);
+          if (found) {
+            return found;
+          }
+        }
+        for (const nested of Object.values(value).slice(0, 12)) {
+          const found = findFirstField(nested, keys, depth + 1);
+          if (found) {
+            return found;
+          }
+        }
+        return "";
+      }
+
+      function pickCollection(payload, keys) {
+        if (Array.isArray(payload)) {
+          return payload;
+        }
+        if (!isObject(payload)) {
+          return [];
+        }
+        for (const key of keys) {
+          if (Array.isArray(payload[key])) {
+            return payload[key];
+          }
+        }
+        return [];
+      }
+
+      function countRecords(payload) {
+        if (Array.isArray(payload)) {
+          return payload.length;
+        }
+        if (!isObject(payload)) {
+          return payload ? 1 : 0;
+        }
+        if (typeof payload.total === "number") {
+          return payload.total;
+        }
+        if (typeof payload.count === "number") {
+          return payload.count;
+        }
+        const rows = pickCollection(payload, [
+          "items",
+          "requests",
+          "jobs",
+          "sites",
+          "entries",
+          "categories",
+          "stages",
+          "results",
+          "steps",
+          "resources",
+          "lines",
+        ]);
+        if (rows.length) {
+          return rows.length;
+        }
+        return Object.keys(payload).length ? 1 : 0;
+      }
+
+      function firstRecord(payload) {
+        const rows = pickCollection(payload, [
+          "items",
+          "requests",
+          "jobs",
+          "sites",
+          "entries",
+          "categories",
+          "results",
+          "steps",
+          "resources",
+          "lines",
+          "exploded",
+        ]);
+        if (rows.length && isObject(rows[0])) {
+          return rows[0];
+        }
+        if (isObject(payload.root)) {
+          return payload.root;
+        }
+        if (Array.isArray(payload) && isObject(payload[0])) {
+          return payload[0];
+        }
+        return isObject(payload) ? payload : null;
+      }
+
+      function inferEntityLabel(path, payload) {
+        if (path.startsWith("/eco")) {
+          return "ECO";
+        }
+        if (path.startsWith("/approvals")) {
+          return "Approval";
+        }
+        if (path.startsWith("/ecm")) {
+          return "Change";
+        }
+        if (path.startsWith("/document-sync")) {
+          return "Document Sync";
+        }
+        if (path.startsWith("/release-readiness")) {
+          return "Release Readiness";
+        }
+        if (path.startsWith("/release-orchestration")) {
+          return "Release Orchestration";
+        }
+        if (path.startsWith("/versions")) {
+          return "Version";
+        }
+        if (path.startsWith("/aml")) {
+          return "Item";
+        }
+        if (path.startsWith("/box")) {
+          return "Box";
+        }
+        if (path.startsWith("/cutted-parts")) {
+          return "Cut Plan";
+        }
+        if (path.startsWith("/jobs")) {
+          return "Job";
+        }
+        if (path.startsWith("/store")) {
+          return "Store";
+        }
+        if (path.startsWith("/search")) {
+          return "Search";
+        }
+        const record = firstRecord(payload);
+        return humanizeKey(record?.item_type || record?.type || "Response");
+      }
+
+      function inferPrimaryId(path, payload) {
+        const record = firstRecord(payload) || {};
+        return firstNonEmpty(
+          record.id,
+          record.eco_id,
+          record.request_id,
+          record.item_id,
+          record.version_id,
+          record.site_id,
+          record.job_id,
+          record.box_id,
+          record.plan_id,
+          path.startsWith("/eco") ? record.id : "",
+          findFirstField(payload, [
+            "id",
+            "eco_id",
+            "request_id",
+            "item_id",
+            "version_id",
+            "site_id",
+            "job_id",
+            "box_id",
+            "plan_id",
+            "listing_id",
+          ])
+        );
+      }
+
+      function inferState(payload) {
+        const record = firstRecord(payload) || {};
+        return firstNonEmpty(
+          record.state,
+          record.status,
+          record.verdict,
+          record.priority,
+          payload?.state,
+          payload?.status,
+          payload?.verdict
+        );
+      }
+
+      function topLevelKeys(payload) {
+        if (Array.isArray(payload)) {
+          return [`Array(${payload.length})`];
+        }
+        if (!isObject(payload)) {
+          return [typeof payload === "string" ? "message" : "value"];
+        }
+        return Object.keys(payload).slice(0, 8);
+      }
+
+      function createLensItem(item) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "lens-item";
+        const title = document.createElement("strong");
+        title.textContent = item.title;
+        const detail = document.createElement("span");
+        detail.textContent = item.detail;
+        wrapper.appendChild(title);
+        wrapper.appendChild(detail);
+        return wrapper;
+      }
+
+      function renderLens(container, items, emptyText) {
+        container.innerHTML = "";
+        if (!items.length) {
+          const empty = document.createElement("div");
+          empty.className = "lens-empty";
+          empty.textContent = emptyText;
+          container.appendChild(empty);
+          return;
+        }
+        items.forEach((item) => container.appendChild(createLensItem(item)));
+      }
+
+      function flashField(node) {
+        if (!node) {
+          return;
+        }
+        node.classList.add("field-flash");
+        window.setTimeout(() => node.classList.remove("field-flash"), 900);
+      }
+
+      function applyHandoff(targetId, value) {
+        const field = byId(targetId);
+        if (!field) {
+          return false;
+        }
+        field.value = value;
+        flashField(field);
+        if (field === dom.apiBase || field === dom.tenantId || field === dom.orgId || field === dom.bearerToken) {
+          updateContextViews();
+        }
+        return true;
+      }
+
+      function buildHandoffs(entry) {
+        const payload = entry?.payload;
+        const path = entry?.path || "";
+        const record = firstRecord(payload) || {};
+        const handoffs = [];
+
+        function push(targetId, label, value, source) {
+          const normalized = String(value || "").trim();
+          if (!normalized) {
+            return;
+          }
+          if (handoffs.some((item) => item.targetId === targetId && item.value === normalized)) {
+            return;
+          }
+          handoffs.push({ targetId, label, value: normalized, source });
+        }
+
+        const itemId = firstNonEmpty(
+          record.item_id,
+          record.product_id,
+          record.source_item_id,
+          payload?.root?.id,
+          payload?.root?.item_id,
+          findFirstField(payload, ["item_id", "product_id", "source_item_id", "root_id"])
+        );
+        const itemType = firstNonEmpty(record.item_type, record.type, payload?.root?.item_type);
+        const primaryId = inferPrimaryId(path, payload);
+        const versionId = firstNonEmpty(
+          record.version_id,
+          path.startsWith("/versions") ? record.id : "",
+          findFirstField(payload, ["version_id", "new_version_id"])
+        );
+        const siteId = firstNonEmpty(
+          record.site_id,
+          path.startsWith("/document-sync/sites") ? record.id : "",
+          findFirstField(payload, ["site_id"])
+        );
+        const jobId = firstNonEmpty(
+          record.job_id,
+          path.startsWith("/document-sync/jobs") ? record.id : "",
+          path.startsWith("/jobs") ? record.id : "",
+          findFirstField(payload, ["job_id"])
+        );
+
+        if (path.startsWith("/eco") || record.eco_type) {
+          push("eco-id", "ECO id", primaryId, "latest ECO");
+          push("drill-object-id", "Object id", primaryId, "latest ECO");
+          push("drill-kind", "Object kind", "eco", "latest ECO");
+        }
+        if (itemId) {
+          push("eco-target-item-id", "Target item", itemId, "linked item");
+          push("version-item-id", "Version item", itemId, "linked item");
+          push("aml-item-id", "AML item", itemId, "linked item");
+          push("release-item-id", "Release item", itemId, "linked item");
+          push("drill-object-id", "Object id", itemId, "linked item");
+        }
+        if (itemType) {
+          push("aml-item-type", "Item type", itemType, "detected type");
+          push("drill-item-type", "Drill item type", itemType, "detected type");
+        }
+        if (versionId) {
+          push("version-id", "Version id", versionId, "detected version");
+          push("drill-object-id", "Object id", versionId, "detected version");
+          push("drill-kind", "Object kind", "version", "detected version");
+        }
+        if (siteId) {
+          push("sync-site-id", "Sync site", siteId, "detected site");
+          push("drill-object-id", "Object id", siteId, "detected site");
+          push("drill-kind", "Object kind", "sync-site", "detected site");
+        }
+        if (jobId) {
+          push("sync-job-id", "Sync job", jobId, "detected job");
+          push("job-id", "Job id", jobId, "detected job");
+          push("drill-object-id", "Object id", jobId, "detected job");
+          push("drill-kind", "Object kind", "sync-job", "detected job");
+        }
+        if (path.startsWith("/box")) {
+          push("box-id", "Box id", primaryId, "latest box");
+          push("drill-object-id", "Object id", primaryId, "latest box");
+          push("drill-kind", "Object kind", "box", "latest box");
+        }
+        if (path.includes("/cutted-parts/plans")) {
+          push("cut-plan-id", "Cut plan id", primaryId, "latest plan");
+          push("drill-object-id", "Object id", primaryId, "latest plan");
+          push("drill-kind", "Object kind", "cut-plan", "latest plan");
+        }
+        if (path.startsWith("/store")) {
+          push("store-listing-id", "Listing id", firstNonEmpty(record.listing_id, primaryId), "latest listing");
+        }
+        if (path.startsWith("/approvals")) {
+          push("approval-request-id", "Approval request", primaryId, "latest approval");
+          push("drill-object-id", "Object id", primaryId, "latest approval");
+          push("drill-kind", "Object kind", "approval", "latest approval");
+        }
+        if (path.startsWith("/aml") || path.startsWith("/search")) {
+          push("drill-kind", "Object kind", "item", "latest item");
+        }
+        if (path.startsWith("/release-readiness") || path.startsWith("/release-orchestration")) {
+          const releaseItemId = firstNonEmpty(payload?.item_id, itemId, getValue("release-item-id"));
+          push("release-item-id", "Release item", releaseItemId, "release payload");
+          push("drill-object-id", "Object id", releaseItemId, "release payload");
+          push("drill-kind", "Object kind", "item", "release payload");
+        }
+
+        return handoffs;
+      }
+
+      function renderSummary(entry) {
+        const payload = entry?.payload;
+        const entity = inferEntityLabel(entry?.path || "", payload);
+        const primaryId = inferPrimaryId(entry?.path || "", payload);
+        const state = inferState(payload);
+        const keys = topLevelKeys(payload);
+
+        dom.responseEntity.textContent = primaryId ? `${entity} ${primaryId}` : entity;
+        dom.responseCount.textContent = String(countRecords(payload));
+        dom.responseState.textContent = state || "n/a";
+        dom.responseHandoffs.textContent = String(latestHandoffs.length);
+
+        dom.responseKeyList.innerHTML = "";
+        if (!keys.length) {
+          const pill = document.createElement("span");
+          pill.className = "key-pill";
+          pill.textContent = "No response keys yet.";
+          dom.responseKeyList.appendChild(pill);
+          return;
+        }
+        keys.forEach((key) => {
+          const pill = document.createElement("span");
+          pill.className = "key-pill";
+          pill.textContent = humanizeKey(key);
+          dom.responseKeyList.appendChild(pill);
+        });
+      }
+
+      function renderHandoffs() {
+        dom.handoffList.innerHTML = "";
+        if (!latestHandoffs.length) {
+          const empty = document.createElement("div");
+          empty.className = "lens-empty";
+          empty.textContent = "No extracted ids yet. Run any request and this panel will prepare the next step.";
+          dom.handoffList.appendChild(empty);
+          return;
+        }
+        latestHandoffs.forEach((item) => {
+          const wrapper = document.createElement("div");
+          wrapper.className = "handoff-item";
+
+          const title = document.createElement("strong");
+          title.textContent = `${item.label}: ${item.value}`;
+          const detail = document.createElement("span");
+          detail.textContent = `Apply to ${humanizeKey(item.targetId)} from ${item.source}.`;
+
+          const actions = document.createElement("div");
+          actions.className = "handoff-action";
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "ghost";
+          button.dataset.fillTarget = item.targetId;
+          button.dataset.fillValue = item.value;
+          button.textContent = "Apply";
+
+          actions.appendChild(button);
+          wrapper.appendChild(title);
+          wrapper.appendChild(detail);
+          wrapper.appendChild(actions);
+          dom.handoffList.appendChild(wrapper);
+        });
+      }
+
+      function structureLensItems(entry) {
+        const payload = entry?.payload;
+        const path = entry?.path || "";
+        const items = [];
+
+        if (path.includes("/aml/bom/explode")) {
+          const rows = pickCollection(payload, ["exploded", "lines", "items"]);
+          items.push({
+            title: `Exploded BOM: ${rows.length} rows`,
+            detail: `root ${firstNonEmpty(payload?.root?.id, payload?.root?.item_id, "-")}`,
+          });
+          safeSlice(rows, 6).forEach((row) => {
+            items.push({
+              title: `L${row.level ?? 0} ${firstNonEmpty(row.item_number, row.child_number, row.item_id, row.child_id, "-")}`,
+              detail: `qty ${firstNonEmpty(row.quantity, "1")} • path ${Array.isArray(row.path) && row.path.length ? row.path.join(" > ") : "direct"}`,
+            });
+          });
+          return items;
+        }
+
+        if (path.includes("/versions/items/") && path.includes("/tree")) {
+          const rows = Array.isArray(payload) ? payload : pickCollection(payload, ["items", "tree"]);
+          items.push({
+            title: `Version tree: ${rows.length} nodes`,
+            detail: `item ${findFirstField(payload, ["item_id"]) || getValue("version-item-id") || "-"}`,
+          });
+          safeSlice(rows, 6).forEach((row) => {
+            items.push({
+              title: firstNonEmpty(row.revision, row.version, row.id, "version node"),
+              detail: `state ${firstNonEmpty(row.state, row.status, "-")} • files ${firstNonEmpty(row.file_count, "0")} • parent ${firstNonEmpty(row.parent_version_id, "root")}`,
+            });
+          });
+          return items;
+        }
+
+        if (path.startsWith("/bom/") || isObject(payload?.root)) {
+          const root = isObject(payload?.root) ? payload.root : payload;
+          const children = pickCollection(root, ["children", "components", "lines"]);
+          items.push({
+            title: firstNonEmpty(root.number, root.name, root.id, "BOM root"),
+            detail: `${children.length} immediate children`,
+          });
+          safeSlice(children, 6).forEach((row) => {
+            items.push({
+              title: firstNonEmpty(row.number, row.name, row.id, row.child_id, "child"),
+              detail: `qty ${firstNonEmpty(row.quantity, "1")} • state ${firstNonEmpty(row.state, "-")}`,
+            });
+          });
+        }
+
+        return items;
+      }
+
+      function syncLensItems(entry) {
+        const payload = entry?.payload;
+        const path = entry?.path || "";
+        const items = [];
+        if (!path.startsWith("/document-sync")) {
+          return items;
+        }
+
+        if (Array.isArray(payload?.sites)) {
+          items.push({
+            title: `${payload.sites.length} sites`,
+            detail: `count=${firstNonEmpty(payload.count, payload.sites.length)}`,
+          });
+          safeSlice(payload.sites, 5).forEach((site) => {
+            items.push({
+              title: firstNonEmpty(site.name, site.id, "site"),
+              detail: `${firstNonEmpty(site.state, "unknown")} • ${firstNonEmpty(site.direction, "-")} • ${firstNonEmpty(site.site_code, "-")}`,
+            });
+          });
+          return items;
+        }
+
+        if (Array.isArray(payload?.jobs)) {
+          items.push({
+            title: `${payload.jobs.length} jobs`,
+            detail: `count=${firstNonEmpty(payload.count, payload.jobs.length)}`,
+          });
+          safeSlice(payload.jobs, 5).forEach((job) => {
+            items.push({
+              title: firstNonEmpty(job.id, "job"),
+              detail: `${firstNonEmpty(job.state, job.status, "unknown")} • synced ${firstNonEmpty(job.synced_count, "0")} • conflicts ${firstNonEmpty(job.conflict_count, "0")}`,
+            });
+          });
+          return items;
+        }
+
+        const numericFacts = Object.entries(isObject(payload) ? payload : {})
+          .filter(([, value]) => typeof value === "number" || typeof value === "boolean")
+          .slice(0, 8);
+
+        if (numericFacts.length) {
+          items.push({
+            title: inferEntityLabel(path, payload),
+            detail: numericFacts.map(([key, value]) => `${humanizeKey(key)}=${value}`).join(" • "),
+          });
+        }
+
+        if (isObject(payload)) {
+          safeSlice(Object.entries(payload), 5).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+              items.push({
+                title: humanizeKey(key),
+                detail: `${value.length} rows`,
+              });
+            }
+          });
+        }
+
+        return items;
+      }
+
+      function governanceLensItems(entry) {
+        const payload = entry?.payload;
+        const path = entry?.path || "";
+        const items = [];
+
+        if (path.startsWith("/approvals")) {
+          if (Array.isArray(payload?.requests)) {
+            items.push({
+              title: `Approval inbox: ${payload.requests.length} rows`,
+              detail: `total=${firstNonEmpty(payload.total, payload.requests.length)} pending=${firstNonEmpty(payload.pending_count, "-")} unassigned=${firstNonEmpty(payload.unassigned_pending_count, "-")}`,
+            });
+            safeSlice(payload.requests, 5).forEach((row) => {
+              items.push({
+                title: firstNonEmpty(row.title, row.id, "approval request"),
+                detail: `${firstNonEmpty(row.state, "-")} • ${firstNonEmpty(row.priority, "-")} • ${firstNonEmpty(row.entity_type, "-")} ${firstNonEmpty(row.entity_id, "")}`.trim(),
+              });
+            });
+            return items;
+          }
+
+          if (Array.isArray(payload?.history)) {
+            items.push({
+              title: firstNonEmpty(payload.title, payload.id, "Approval lifecycle"),
+              detail: `${payload.history.length} history rows • state ${firstNonEmpty(payload.state, "-")}`,
+            });
+            return items;
+          }
+
+          const facts = [];
+          ["pending_count", "terminal_count", "unassigned_pending_count", "stale_count", "warn_count", "approved_count"].forEach((key) => {
+            if (payload && payload[key] !== undefined) {
+              facts.push(`${humanizeKey(key)}=${payload[key]}`);
+            }
+          });
+          if (facts.length) {
+            items.push({
+              title: inferEntityLabel(path, payload),
+              detail: facts.join(" • "),
+            });
+          }
+          return items;
+        }
+
+        if (path.startsWith("/release-readiness")) {
+          const summary = payload?.summary || {};
+          items.push({
+            title: `Readiness ${summary.ok ? "ready" : "blocked"}`,
+            detail: `resources=${firstNonEmpty(summary.resources, "0")} ok=${firstNonEmpty(summary.ok_resources, "0")} errors=${firstNonEmpty(summary.error_count, "0")} warnings=${firstNonEmpty(summary.warning_count, "0")}`,
+          });
+          safeSlice(payload?.resources, 5).forEach((row) => {
+            items.push({
+              title: `${humanizeKey(row.kind || row.diagnostics?.resource_type || "resource")} ${firstNonEmpty(row.diagnostics?.resource_id, "")}`.trim(),
+              detail: `${firstNonEmpty(row.state, "-")} • ok=${row.diagnostics?.ok ? "yes" : "no"} • errors=${(row.diagnostics?.errors || []).length} • warnings=${(row.diagnostics?.warnings || []).length}`,
+            });
+          });
+          return items;
+        }
+
+        if (path.startsWith("/release-orchestration")) {
+          const rows = Array.isArray(payload?.steps) ? payload.steps : Array.isArray(payload?.results) ? payload.results : [];
+          items.push({
+            title: `${path.includes("/plan") ? "Release plan" : "Release execute"} ${firstNonEmpty(payload?.item_id, getValue("release-item-id"), "")}`.trim(),
+            detail: `${rows.length} steps • dry_run=${firstNonEmpty(payload?.dry_run, "n/a")}`,
+          });
+          safeSlice(rows, 6).forEach((row) => {
+            items.push({
+              title: `${humanizeKey(row.kind || row.resource_type || "step")} ${firstNonEmpty(row.resource_id, "")}`.trim(),
+              detail: `${firstNonEmpty(row.action, row.status, "-")} • before ${firstNonEmpty(row.state_before, row.state, "-")} • after ${firstNonEmpty(row.state_after, "-")} • errors=${(row.diagnostics?.errors || []).length}`,
+            });
+          });
+          if (payload?.post_readiness?.summary) {
+            const summary = payload.post_readiness.summary;
+            items.push({
+              title: "Post readiness",
+              detail: `resources=${firstNonEmpty(summary.resources, "0")} ok=${firstNonEmpty(summary.ok_resources, "0")} errors=${firstNonEmpty(summary.error_count, "0")}`,
+            });
+          }
+        }
+
+        return items;
+      }
+
+      function renderInsights(entry) {
+        latestHandoffs = buildHandoffs(entry);
+        renderSummary(entry);
+        renderHandoffs();
+        renderLens(dom.structureLens, structureLensItems(entry), "No BOM or version structure loaded yet.");
+        renderLens(dom.syncLens, syncLensItems(entry), "No sync analytics loaded yet.");
+        renderLens(dom.governanceLens, governanceLensItems(entry), "No approval or release payload loaded yet.");
+      }
+
+      function renderRequestLog() {
+        dom.requestLog.innerHTML = "";
+        requestLog.slice(0, 10).forEach((entry) => {
+          const item = document.createElement("div");
+          item.className = "console-item";
+          item.innerHTML = `<strong>${entry.method} ${entry.path}</strong><span>${entry.statusLabel} in ${entry.duration} ms</span>`;
+          dom.requestLog.appendChild(item);
+        });
+      }
+
+      function renderResponse(entry) {
+        dom.responseMethod.textContent = entry.method;
+        dom.responseMethod.className = `pill ${statusClass(entry.status)}`;
+        dom.responseStatus.textContent = entry.statusLabel;
+        dom.responseStatus.className = `pill ${statusClass(entry.status)}`;
+        dom.responseDuration.textContent = `${entry.duration} ms`;
+        dom.responseDuration.className = "pill";
+        dom.responseOutput.textContent = pretty(entry.payload);
+        renderInsights(entry);
+      }
+
+      function setActionState(title, detail) {
+        dom.actionStatus.textContent = title;
+        dom.actionDetail.textContent = detail;
+      }
+
+      async function sendRequest(method, path, { query, body, auth = true } = {}) {
+        saveContext();
+        const qs = compactQuery(query);
+        const endpoint = `${getApiBase()}${path}${qs ? `?${qs}` : ""}`;
+        const startedAt = performance.now();
+        const options = {
+          method,
+          headers: buildHeaders({ json: body !== undefined, auth }),
+        };
+        if (body !== undefined) {
+          options.body = JSON.stringify(body);
+        }
+
+        let status = 0;
+        let payload = null;
+        let statusLabel = "Network error";
+
+        try {
+          const response = await fetch(endpoint, options);
+          status = response.status;
+          statusLabel = `${response.status} ${response.statusText}`;
+          const text = await response.text();
+          if (text) {
+            try {
+              payload = JSON.parse(text);
+            } catch (_error) {
+              payload = text;
+            }
+          } else {
+            payload = {};
+          }
+        } catch (error) {
+          payload = { error: String(error) };
+        }
+
+        const duration = Math.round(performance.now() - startedAt);
+        const entry = { method, path, status, statusLabel, duration, payload };
+        requestLog.unshift(entry);
+        renderRequestLog();
+        renderResponse(entry);
+        setActionState(`${method} ${path}`, statusLabel);
+        return entry;
+      }
+
+      function requireJson(textareaId) {
+        const raw = getValue(textareaId);
+        if (!raw) {
+          return {};
+        }
+        try {
+          return JSON.parse(raw);
+        } catch (error) {
+          throw new Error(`Invalid JSON in ${textareaId}: ${error.message}`);
+        }
+      }
+
+      async function refreshHealthCard() {
+        const entry = await sendRequest("GET", "/health", { auth: false });
+        if (entry.status >= 200 && entry.status < 300) {
+          dom.healthStatus.textContent = "Online";
+          dom.healthDetail.textContent = `tenant=${entry.payload.tenant_id || "-"} org=${entry.payload.org_id || "-"}`;
+        } else {
+          dom.healthStatus.textContent = "Unavailable";
+          dom.healthDetail.textContent = statusLabelFromPayload(entry.payload);
+        }
+      }
+
+      function statusLabelFromPayload(payload) {
+        if (!payload) {
+          return "No details";
+        }
+        if (typeof payload === "string") {
+          return payload;
+        }
+        return payload.detail || payload.message || payload.error || "Request completed";
+      }
+
+      function releaseRequestBody({ dryRun }) {
+        return {
+          ruleset_id: getValue("release-ruleset-id") || "default",
+          include_routings: isChecked("release-include-routings"),
+          include_mboms: isChecked("release-include-mboms"),
+          include_baselines: isChecked("release-include-baselines"),
+          routing_limit: Number(getValue("release-routing-limit") || "20"),
+          mbom_limit: Number(getValue("release-mbom-limit") || "20"),
+          baseline_limit: 20,
+          continue_on_error: isChecked("release-continue-on-error"),
+          rollback_on_failure: isChecked("release-rollback-on-failure"),
+          dry_run: dryRun,
+        };
+      }
+
+      function drillRequestFor(mode) {
+        const kind = getValue("drill-kind") || "item";
+        const objectId = getValue("drill-object-id");
+        const itemType = getValue("drill-item-type") || "Part";
+        const depth = Number(getValue("drill-depth") || "3");
+        const encodedId = encodeURIComponent(objectId);
+
+        if (!objectId) {
+          throw new Error("Object id is required for drilldown.");
+        }
+
+        switch (kind) {
+          case "item":
+            if (mode === "detail") {
+              return {
+                method: "GET",
+                path: `/aml/${encodeURIComponent(itemType)}/${encodedId}`,
+                query: { depth },
+              };
+            }
+            return {
+              method: "GET",
+              path: `/bom/${encodedId}/effective`,
+              query: { levels: depth },
+            };
+          case "version":
+            if (mode === "detail") {
+              return { method: "GET", path: `/versions/${encodedId}/detail` };
+            }
+            return { method: "GET", path: `/versions/${encodedId}/files` };
+          case "eco":
+            if (mode === "detail") {
+              return { method: "GET", path: `/eco/${encodedId}` };
+            }
+            return { method: "GET", path: `/eco/${encodedId}/impact` };
+          case "approval":
+            if (mode === "detail") {
+              return {
+                method: "GET",
+                path: `/approvals/requests/${encodedId}/consumer-summary`,
+                query: { include_history: true },
+              };
+            }
+            return { method: "GET", path: `/approvals/requests/${encodedId}/lifecycle` };
+          case "sync-site":
+            if (mode === "detail") {
+              return { method: "GET", path: `/document-sync/sites/${encodedId}` };
+            }
+            return {
+              method: "GET",
+              path: `/document-sync/reconciliation/sites/${encodedId}/status`,
+            };
+          case "sync-job":
+            if (mode === "detail") {
+              return { method: "GET", path: `/document-sync/jobs/${encodedId}` };
+            }
+            return { method: "GET", path: `/document-sync/jobs/${encodedId}/summary` };
+          case "box":
+            if (mode === "detail") {
+              return { method: "GET", path: `/box/items/${encodedId}` };
+            }
+            return { method: "GET", path: `/box/items/${encodedId}/contents` };
+          case "cut-plan":
+            if (mode === "detail") {
+              return { method: "GET", path: `/cutted-parts/plans/${encodedId}/summary` };
+            }
+            return { method: "GET", path: `/cutted-parts/plans/${encodedId}/cuts` };
+          default:
+            throw new Error(`Unsupported drill kind: ${kind}`);
+        }
+      }
+
+      async function refreshProfileCard() {
+        if (!dom.bearerToken.value.trim()) {
+          dom.profileStatus.textContent = "Anonymous";
+          dom.profileDetail.textContent = "No bearer token set.";
+          return;
+        }
+        const entry = await sendRequest("GET", "/auth/me");
+        if (entry.status >= 200 && entry.status < 300) {
+          dom.profileStatus.textContent = entry.payload.username || `user-${entry.payload.user_id}`;
+          dom.profileDetail.textContent = `roles=${(entry.payload.roles || []).join(", ") || "-"} tenant=${entry.payload.tenant_id}`;
+        } else {
+          dom.profileStatus.textContent = "Rejected";
+          dom.profileDetail.textContent = statusLabelFromPayload(entry.payload);
+        }
+      }
+
+      async function refreshJobsCard() {
+        if (!dom.bearerToken.value.trim()) {
+          dom.jobsStatus.textContent = "Waiting";
+          dom.jobsDetail.textContent = "Set a bearer token to inspect recent jobs.";
+          return;
+        }
+        const entry = await sendRequest("GET", "/jobs", {
+          query: { limit: 5 },
+        });
+        if (entry.status >= 200 && entry.status < 300) {
+          dom.jobsStatus.textContent = String(entry.payload.total || (entry.payload.items || []).length || 0);
+          dom.jobsDetail.textContent = `recent jobs loaded with limit=5`;
+        } else {
+          dom.jobsStatus.textContent = "Blocked";
+          dom.jobsDetail.textContent = statusLabelFromPayload(entry.payload);
+        }
+      }
+
+      async function handleAction(action) {
+        switch (action) {
+          case "handoff-apply-all":
+            latestHandoffs.forEach((item) => applyHandoff(item.targetId, item.value));
+            setActionState("Workflow handoff", latestHandoffs.length ? "Detected ids copied into the next-step fields." : "No handoff ids available yet.");
+            break;
+          case "save-context":
+            saveContext();
+            break;
+          case "ping-health":
+            await refreshHealthCard();
+            break;
+          case "load-profile":
+            await refreshProfileCard();
+            break;
+          case "login": {
+            const entry = await sendRequest("POST", "/auth/login", {
+              auth: false,
+              body: {
+                tenant_id: dom.tenantId.value.trim(),
+                username: dom.loginUsername.value.trim(),
+                password: dom.loginPassword.value,
+                org_id: dom.orgId.value.trim() || null,
+              },
+            });
+            if (entry.status >= 200 && entry.status < 300 && entry.payload.access_token) {
+              dom.bearerToken.value = entry.payload.access_token;
+              saveContext();
+              await refreshProfileCard();
+            }
+            break;
+          }
+          case "list-orgs":
+            await sendRequest("GET", "/auth/orgs");
+            break;
+          case "switch-org": {
+            const entry = await sendRequest("POST", "/auth/switch-org", {
+              body: { org_id: dom.orgId.value.trim() },
+            });
+            if (entry.status >= 200 && entry.status < 300 && entry.payload.access_token) {
+              dom.bearerToken.value = entry.payload.access_token;
+              saveContext();
+              await refreshProfileCard();
+            }
+            break;
+          }
+          case "search-items":
+            await sendRequest("GET", "/search/", {
+              query: {
+                q: getValue("search-query"),
+                item_type: getValue("search-item-type"),
+                state: getValue("search-state"),
+                limit: 20,
+              },
+            });
+            break;
+          case "search-files":
+            await sendRequest("GET", "/search/files", {
+              query: { q: getValue("search-query"), limit: 20 },
+            });
+            break;
+          case "aml-query":
+            await sendRequest("POST", "/aml/query", {
+              body: requireJson("aml-query-body"),
+            });
+            break;
+          case "aml-get-item":
+            await sendRequest("GET", `/aml/${encodeURIComponent(getValue("aml-item-type"))}/${encodeURIComponent(getValue("aml-item-id"))}`);
+            break;
+          case "aml-explode-bom":
+            await sendRequest("POST", "/aml/bom/explode", {
+              query: { item_id: getValue("aml-item-id"), max_level: 5 },
+            });
+            break;
+          case "eco-create":
+            await sendRequest("POST", "/eco", {
+              body: {
+                name: getValue("eco-name"),
+                eco_type: getValue("eco-type") || "bom",
+                product_id: getValue("eco-product-id") || null,
+                description: getValue("eco-description") || null,
+                priority: getValue("eco-priority") || "normal",
+              },
+            });
+            break;
+          case "eco-list":
+            await sendRequest("GET", "/eco");
+            break;
+          case "eco-kanban":
+            await sendRequest("GET", "/eco/kanban");
+            break;
+          case "eco-get":
+            await sendRequest("GET", `/eco/${encodeURIComponent(getValue("eco-id"))}`);
+            break;
+          case "eco-impact":
+            await sendRequest("GET", `/eco/${encodeURIComponent(getValue("eco-id"))}/impact`);
+            break;
+          case "eco-pending-approvals":
+            await sendRequest("GET", "/eco/approvals/pending");
+            break;
+          case "eco-new-revision":
+            await sendRequest("POST", `/eco/${encodeURIComponent(getValue("eco-id"))}/new-revision`, {
+              body: { item_id: getValue("eco-target-item-id") || null },
+            });
+            break;
+          case "eco-add-affected":
+            await sendRequest("POST", `/ecm/eco/${encodeURIComponent(getValue("eco-id"))}/affected-items`, {
+              body: {
+                target_item_id: getValue("eco-target-item-id"),
+                action: "Change",
+              },
+            });
+            break;
+          case "eco-approve":
+            await sendRequest("POST", `/eco/${encodeURIComponent(getValue("eco-id"))}/approve`, {
+              body: { comment: getValue("eco-review-comment") || "Approved from workbench" },
+            });
+            break;
+          case "eco-reject":
+            await sendRequest("POST", `/eco/${encodeURIComponent(getValue("eco-id"))}/reject`, {
+              body: { comment: getValue("eco-review-comment") || "Rejected from workbench" },
+            });
+            break;
+          case "eco-apply":
+            await sendRequest("POST", `/eco/${encodeURIComponent(getValue("eco-id"))}/apply`);
+            break;
+          case "approval-list-requests":
+            await sendRequest("GET", "/approvals/requests", {
+              query: {
+                state: getValue("approval-state") || null,
+                entity_type: getValue("approval-entity-type") || null,
+              },
+            });
+            break;
+          case "approval-queue-health":
+            await sendRequest("GET", "/approvals/queue-health", {
+              query: {
+                entity_type: getValue("approval-entity-type") || null,
+              },
+            });
+            break;
+          case "approval-ops-report":
+            await sendRequest("GET", "/approvals/ops-report");
+            break;
+          case "approval-detail":
+            await sendRequest("GET", `/approvals/requests/${encodeURIComponent(getValue("approval-request-id"))}`);
+            break;
+          case "approval-consumer-summary":
+            await sendRequest("GET", `/approvals/requests/${encodeURIComponent(getValue("approval-request-id"))}/consumer-summary`, {
+              query: { include_history: true },
+            });
+            break;
+          case "approval-lifecycle":
+            await sendRequest("GET", `/approvals/requests/${encodeURIComponent(getValue("approval-request-id"))}/lifecycle`);
+            break;
+          case "approval-transition":
+            await sendRequest("POST", `/approvals/requests/${encodeURIComponent(getValue("approval-request-id"))}/transition`, {
+              body: {
+                target_state: getValue("approval-target-state") || "approved",
+                rejection_reason: getValue("approval-target-state") === "rejected"
+                  ? getValue("approval-rejection-reason") || "Rejected from workbench"
+                  : null,
+              },
+            });
+            break;
+          case "version-init":
+            await sendRequest("POST", `/versions/items/${encodeURIComponent(getValue("version-item-id"))}/init`);
+            break;
+          case "version-history":
+            await sendRequest("GET", `/versions/items/${encodeURIComponent(getValue("version-item-id"))}/history`);
+            break;
+          case "version-tree":
+            await sendRequest("GET", `/versions/items/${encodeURIComponent(getValue("version-item-id"))}/tree`);
+            break;
+          case "version-tree-full":
+            await sendRequest("GET", `/versions/items/${encodeURIComponent(getValue("version-item-id"))}/tree-full`);
+            break;
+          case "version-checkout":
+            await sendRequest("POST", `/versions/items/${encodeURIComponent(getValue("version-item-id"))}/checkout`, {
+              body: {
+                comment: getValue("checkout-comment") || null,
+                version_id: getValue("version-id") || null,
+              },
+            });
+            break;
+          case "version-effective":
+            await sendRequest("GET", `/versions/items/${encodeURIComponent(getValue("version-item-id"))}/effective`);
+            break;
+          case "revision-next":
+            await sendRequest("GET", "/versions/revision/next", {
+              query: {
+                current: getValue("revision-current"),
+                scheme: getValue("revision-scheme") || "letter",
+              },
+            });
+            break;
+          case "revision-parse":
+            await sendRequest("GET", "/versions/revision/parse", {
+              query: { revision: getValue("revision-current") },
+            });
+            break;
+          case "version-schemes":
+            await sendRequest("GET", "/versions/schemes");
+            break;
+          case "sync-create-site":
+            await sendRequest("POST", "/document-sync/sites", {
+              body: {
+                name: getValue("sync-site-name"),
+                site_code: getValue("sync-site-code"),
+                base_url: getValue("sync-site-base-url") || null,
+                direction: getValue("sync-site-direction") || "push",
+              },
+            });
+            break;
+          case "sync-list-sites":
+            await sendRequest("GET", "/document-sync/sites");
+            break;
+          case "sync-overview":
+            await sendRequest("GET", "/document-sync/overview");
+            break;
+          case "sync-probe":
+            await sendRequest("POST", `/document-sync/sites/${encodeURIComponent(getValue("sync-site-id"))}/mirror-probe`);
+            break;
+          case "sync-execute":
+            await sendRequest("POST", `/document-sync/sites/${encodeURIComponent(getValue("sync-site-id"))}/mirror-execute`);
+            break;
+          case "sync-job-summary":
+            await sendRequest("GET", `/document-sync/jobs/${encodeURIComponent(getValue("sync-job-id"))}/summary`);
+            break;
+          case "sync-freshness":
+            await sendRequest("GET", `/document-sync/sites/${encodeURIComponent(getValue("sync-site-id"))}/freshness`);
+            break;
+          case "sync-site-analytics":
+            await sendRequest("GET", `/document-sync/sites/${encodeURIComponent(getValue("sync-site-id"))}/analytics`);
+            break;
+          case "sync-site-status":
+            await sendRequest("GET", `/document-sync/reconciliation/sites/${encodeURIComponent(getValue("sync-site-id"))}/status`);
+            break;
+          case "sync-job-conflicts":
+            await sendRequest("GET", `/document-sync/jobs/${encodeURIComponent(getValue("sync-job-id"))}/conflicts`);
+            break;
+          case "release-readiness":
+            await sendRequest("GET", `/release-readiness/items/${encodeURIComponent(getValue("release-item-id"))}`, {
+              query: {
+                ruleset_id: getValue("release-ruleset-id") || "default",
+                mbom_limit: Number(getValue("release-mbom-limit") || "20"),
+                routing_limit: Number(getValue("release-routing-limit") || "20"),
+                baseline_limit: 20,
+              },
+            });
+            break;
+          case "release-plan":
+            await sendRequest("GET", `/release-orchestration/items/${encodeURIComponent(getValue("release-item-id"))}/plan`, {
+              query: {
+                ruleset_id: getValue("release-ruleset-id") || "default",
+                mbom_limit: Number(getValue("release-mbom-limit") || "20"),
+                routing_limit: Number(getValue("release-routing-limit") || "20"),
+                baseline_limit: 20,
+              },
+            });
+            break;
+          case "release-execute-dry":
+            await sendRequest("POST", `/release-orchestration/items/${encodeURIComponent(getValue("release-item-id"))}/execute`, {
+              body: releaseRequestBody({ dryRun: true }),
+            });
+            break;
+          case "release-execute-live":
+            await sendRequest("POST", `/release-orchestration/items/${encodeURIComponent(getValue("release-item-id"))}/execute`, {
+              body: releaseRequestBody({ dryRun: false }),
+            });
+            break;
+          case "drill-use-latest": {
+            const objectHandoff =
+              latestHandoffs.find((item) => item.targetId === "drill-object-id") ||
+              latestHandoffs[0];
+            const kindHandoff = latestHandoffs.find((item) => item.targetId === "drill-kind");
+            if (kindHandoff) {
+              applyHandoff("drill-kind", kindHandoff.value);
+            }
+            if (objectHandoff && applyHandoff("drill-object-id", objectHandoff.value)) {
+              setActionState("Object drilldown", "Latest detected object id copied into drilldown.");
+            } else {
+              setActionState("Object drilldown", "No detected id available yet.");
+            }
+            break;
+          }
+          case "drill-fetch-detail": {
+            const request = drillRequestFor("detail");
+            await sendRequest(request.method, request.path, { query: request.query, body: request.body });
+            break;
+          }
+          case "drill-fetch-related": {
+            const request = drillRequestFor("related");
+            await sendRequest(request.method, request.path, { query: request.query, body: request.body });
+            break;
+          }
+          case "box-create":
+            await sendRequest("POST", "/box/items", {
+              body: {
+                name: getValue("box-name"),
+                box_type: getValue("box-type") || "box",
+                material: getValue("box-material") || null,
+                barcode: getValue("box-barcode") || null,
+              },
+            });
+            break;
+          case "box-list":
+            await sendRequest("GET", "/box/items", {
+              query: { state: getValue("box-state") || null },
+            });
+            break;
+          case "box-overview":
+            await sendRequest("GET", "/box/overview");
+            break;
+          case "box-get":
+            await sendRequest("GET", `/box/items/${encodeURIComponent(getValue("box-id"))}`);
+            break;
+          case "box-contents":
+            await sendRequest("GET", `/box/items/${encodeURIComponent(getValue("box-id"))}/contents`);
+            break;
+          case "box-material-analytics":
+            await sendRequest("GET", "/box/materials/analytics");
+            break;
+          case "cut-create-plan":
+            await sendRequest("POST", "/cutted-parts/plans", {
+              body: {
+                name: getValue("cut-plan-name"),
+                material_id: getValue("cut-material-id") || null,
+              },
+            });
+            break;
+          case "cut-list-plans":
+            await sendRequest("GET", "/cutted-parts/plans");
+            break;
+          case "cut-overview":
+            await sendRequest("GET", "/cutted-parts/overview");
+            break;
+          case "cut-plan-summary":
+            await sendRequest("GET", `/cutted-parts/plans/${encodeURIComponent(getValue("cut-plan-id"))}/summary`);
+            break;
+          case "cut-plan-cuts":
+            await sendRequest("GET", `/cutted-parts/plans/${encodeURIComponent(getValue("cut-plan-id"))}/cuts`);
+            break;
+          case "cut-materials":
+            await sendRequest("GET", "/cutted-parts/materials", {
+              query: { material_type: getValue("cut-material-type") || null },
+            });
+            break;
+          case "store-sync":
+            await sendRequest("POST", "/store/sync");
+            break;
+          case "store-search":
+            await sendRequest("GET", "/store/search", {
+              query: {
+                q: getValue("store-query"),
+                category: getValue("store-category") || null,
+              },
+            });
+            break;
+          case "store-install":
+            await sendRequest("POST", `/store/install/${encodeURIComponent(getValue("store-listing-id"))}`, {
+              body: { user_id: Number(getValue("store-user-id") || "1") },
+            });
+            break;
+          case "jobs-list":
+            await sendRequest("GET", "/jobs", {
+              query: { status: getValue("job-status") || null, limit: 20 },
+            });
+            break;
+          case "jobs-get":
+            await sendRequest("GET", `/jobs/${encodeURIComponent(getValue("job-id"))}`);
+            break;
+          default:
+            break;
+        }
+      }
+
+      function setupActionHandlers() {
+        document.addEventListener("click", async (event) => {
+          const fillButton = event.target.closest("[data-fill-target]");
+          if (fillButton) {
+            event.preventDefault();
+            const target = fillButton.getAttribute("data-fill-target");
+            const value = fillButton.getAttribute("data-fill-value") || "";
+            if (applyHandoff(target, value)) {
+              setActionState("Workflow handoff", `${humanizeKey(target)} updated from the latest response.`);
+            }
+            return;
+          }
+          const button = event.target.closest("[data-action]");
+          if (!button) {
+            return;
+          }
+          event.preventDefault();
+          const action = button.getAttribute("data-action");
+          try {
+            await handleAction(action);
+          } catch (error) {
+            const entry = {
+              method: "CLIENT",
+              path: action,
+              status: 500,
+              statusLabel: "Client error",
+              duration: 0,
+              payload: { error: String(error) },
+            };
+            requestLog.unshift(entry);
+            renderRequestLog();
+            renderResponse(entry);
+            setActionState(action, String(error));
+          }
+        });
+      }
+
+      function setupRevealObserver() {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("is-visible");
+              }
+            });
+          },
+          { threshold: 0.16 }
+        );
+
+        document.querySelectorAll(".module").forEach((node) => observer.observe(node));
+      }
+
+      function setupNavObserver() {
+        const links = Array.from(document.querySelectorAll("#section-nav a"));
+        const map = new Map(
+          links.map((link) => [link.getAttribute("href").slice(1), link])
+        );
+        const observer = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              const link = map.get(entry.target.id);
+              if (link) {
+                link.classList.toggle("active", entry.isIntersecting);
+              }
+            });
+          },
+          { threshold: 0.35 }
+        );
+
+        document.querySelectorAll(".module[id]").forEach((node) => observer.observe(node));
+      }
+
+      async function boot() {
+        restoreContext();
+        setupActionHandlers();
+        setupRevealObserver();
+        setupNavObserver();
+        dom.responseOutput.textContent = "Workbench ready. Select an action from the main surface.";
+        renderInsights({ method: "IDLE", path: "", status: 0, payload: {} });
+        renderRequestLog();
+        await refreshHealthCard();
+        await refreshProfileCard();
+        await refreshJobsCard();
+      }
+
+      boot();
+    </script>
+  </body>
+</html>

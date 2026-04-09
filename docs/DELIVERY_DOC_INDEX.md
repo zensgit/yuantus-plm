@@ -59,6 +59,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Production Readiness Check: `docs/PROD_READINESS_CHECK.md`
 - Backup & Restore Runbook: `docs/RUNBOOK_BACKUP_RESTORE.md`
 - CI/Regression Change Scope Runbook: `docs/RUNBOOK_CI_CHANGE_SCOPE.md`
+- Claude Code Parallel Worktree Runbook: `docs/RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md`
 - Jobs Diagnostics Runbook: `docs/RUNBOOK_JOBS_DIAG.md`
 - Parallel Branch Observability Runbook: `docs/RUNBOOK_PARALLEL_BRANCH_OBSERVABILITY_20260228.md`
 - Perf Gate Config Runbook: `docs/RUNBOOK_PERF_GATE_CONFIG.md`

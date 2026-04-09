@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+
+
+def _find_repo_root(start: Path) -> Path:
+    cur = start.resolve()
+    for _ in range(12):
+        if (cur / "pyproject.toml").is_file() and (cur / "scripts").is_dir():
+            return cur
+        if cur.parent == cur:
+            break
+        cur = cur.parent
+    raise AssertionError("Could not locate repo root (expected pyproject.toml + scripts/)")
+
+
+def test_subcontracting_first_cut_anchor_helper_exists_and_prints_expected_targets() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "print_subcontracting_first_cut_anchors.sh"
+    execution_card = repo_root / "docs" / "SUBCONTRACTING_SPLIT_EXECUTION_CARD_20260409.md"
+
+    assert script.is_file(), f"Missing script: {script}"
+    assert execution_card.is_file(), f"Missing execution card: {execution_card}"
+
+    help_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert help_cp.returncode == 0, help_cp.stdout + "\n" + help_cp.stderr
+    help_out = help_cp.stdout or ""
+    for token in (
+        "Usage:",
+        "print_subcontracting_first_cut_anchors.sh",
+        "--grep",
+        "--hunks",
+        "--checklist",
+        "--decisions",
+        "--branch-plan",
+        "approval role mapping",
+    ):
+        assert token in help_out, f"help output missing token: {token}"
+
+    default_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script)],
+        text=True,
+        capture_output=True,
+    )
+    assert default_cp.returncode == 0, default_cp.stdout + "\n" + default_cp.stderr
+    default_out = default_cp.stdout or ""
+    for token in (
+        "approval role mapping cleanup cluster",
+        "subcontracting/service.py",
+        "subcontracting_router.py",
+        "test_subcontracting_service.py",
+        "test_subcontracting_router.py",
+        "git add -p",
+    ):
+        assert token in default_out, f"default output missing token: {token}"
+
+    grep_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--grep"],
+        text=True,
+        capture_output=True,
+    )
+    assert grep_cp.returncode == 0, grep_cp.stdout + "\n" + grep_cp.stderr
+    grep_out = grep_cp.stdout or ""
+    for token in (
+        "rg -n",
+        "approval_role_mapping",
+        "cleanup_policy",
+        "cleanup_history",
+        "role_mapping_registry",
+    ):
+        assert token in grep_out, f"grep output missing token: {token}"
+
+    hunks_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--hunks"],
+        text=True,
+        capture_output=True,
+    )
+    assert hunks_cp.returncode == 0, hunks_cp.stdout + "\n" + hunks_cp.stderr
+    hunks_out = hunks_cp.stdout or ""
+    for token in (
+        "Recommended git add -p order",
+        "1. Service scope helpers + CRUD seed",
+        "4. Router endpoints",
+        "5. Service tests",
+        "6. Router tests",
+        "use `git add -p`",
+    ):
+        assert token in hunks_out, f"hunks output missing token: {token}"
+
+    checklist_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--checklist"],
+        text=True,
+        capture_output=True,
+    )
+    assert checklist_cp.returncode == 0, checklist_cp.stdout + "\n" + checklist_cp.stderr
+    checklist_out = checklist_cp.stdout or ""
+    for token in (
+        "Per-file git add -p operator checklist",
+        "Anchor tokens to accept",
+        "approval_role_mapping",
+        "service.py",
+        "subcontracting_router.py",
+        "test_subcontracting_service.py",
+        "test_subcontracting_router.py",
+        "skip for now",
+        "git add -p src/yuantus/meta_engine/subcontracting/service.py",
+    ):
+        assert token in checklist_out, f"checklist output missing token: {token}"
+
+    decisions_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--decisions"],
+        text=True,
+        capture_output=True,
+    )
+    assert decisions_cp.returncode == 0, decisions_cp.stdout + "\n" + decisions_cp.stderr
+    decisions_out = decisions_cp.stdout or ""
+    for token in (
+        "git add -p decision cheat sheet",
+        "accept with y",
+        "reject with n",
+        "split with s",
+        "defer",
+        "vendor-message",
+        "approval_role_mapping",
+    ):
+        assert token in decisions_out, f"decisions output missing token: {token}"
+
+    branch_plan_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--branch-plan"],
+        text=True,
+        capture_output=True,
+    )
+    assert branch_plan_cp.returncode == 0, branch_plan_cp.stdout + "\n" + branch_plan_cp.stderr
+    branch_plan_out = branch_plan_cp.stdout or ""
+    for token in (
+        "First-cut branch execution note",
+        "feature/subcontracting-split",
+        "git diff --cached --stat",
+        "test_ci_contracts_subcontracting_first_cut_anchors.py",
+        "feat(subcontracting): split approval role mapping cleanup cluster",
+    ):
+        assert token in branch_plan_out, f"branch-plan output missing token: {token}"
+
+    execution_text = execution_card.read_text(encoding="utf-8", errors="replace")
+    for token in (
+        "print_subcontracting_first_cut_anchors.sh",
+        "--grep",
+        "--hunks",
+        "--checklist",
+        "--decisions",
+        "--branch-plan",
+    ):
+        assert token in execution_text, f"execution card missing token: {token}"

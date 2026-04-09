@@ -12,6 +12,7 @@ Environment:
   PLAYWRIGHT_RETRYABLE_PATTERN=<re> Optional. Extended regex for retryable failures.
                                    Default matches bind/startup socket conflicts. Must be valid ERE.
   PLAYWRIGHT_PORT=<port>          Optional. If unset, auto-select a free localhost port.
+  PLAYWRIGHT_PORT_PICKER_CMD=<cmd> Optional. If set, command used to print a free localhost port.
   PLAYWRIGHT_BASE_URL=<url>       Optional. If unset, derived from PLAYWRIGHT_PORT.
   YUANTUS_PLAYWRIGHT_DB_PATH=<p>  Optional. If unset, generated per-attempt temp sqlite path.
   PLAYWRIGHT_KEEP_DB=1            Optional. If set, keeps sqlite db/shm/wal files after run.
@@ -31,6 +32,7 @@ fi
 PLAYWRIGHT_CMD="${PLAYWRIGHT_CMD:-npx playwright test --workers=1}"
 PLAYWRIGHT_MAX_ATTEMPTS="${PLAYWRIGHT_MAX_ATTEMPTS:-2}"
 PLAYWRIGHT_RETRYABLE_PATTERN="${PLAYWRIGHT_RETRYABLE_PATTERN:-error while attempting to bind on address|address already in use|operation not permitted}"
+PLAYWRIGHT_PORT_PICKER_CMD="${PLAYWRIGHT_PORT_PICKER_CMD:-}"
 PLAYWRIGHT_KEEP_DB="${PLAYWRIGHT_KEEP_DB:-0}"
 
 if ! [[ "$PLAYWRIGHT_MAX_ATTEMPTS" =~ ^[0-9]+$ ]] || [[ "$PLAYWRIGHT_MAX_ATTEMPTS" -lt 1 ]]; then
@@ -48,6 +50,10 @@ else
 fi
 
 pick_playwright_port() {
+  if [[ -n "$PLAYWRIGHT_PORT_PICKER_CMD" ]]; then
+    bash -lc "$PLAYWRIGHT_PORT_PICKER_CMD"
+    return
+  fi
   python3 - <<'PY'
 import socket
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

@@ -20,6 +20,19 @@
 - verify_product_detail.sh
 - verify_product_ui.sh
 - verify_playwright_product_ui_summaries.sh
+- verify_playwright_plm_workspace_all.sh
+- verify_playwright_plm_workspace_documents_ui.sh
+- verify_playwright_plm_workspace_demo_resume.sh
+- verify_playwright_plm_workspace_document_handoff.sh
+- print_claude_code_parallel_commands.sh
+- print_cross_domain_services_split_helper.sh
+- print_delivery_pack_split_helper.sh
+- print_dirty_tree_domain_commands.sh
+- print_dirty_tree_domain_coverage.sh
+- print_dirty_tree_split_matrix.sh
+- print_docs_parallel_split_helper.sh
+- print_strict_gate_split_helper.sh
+- run_claude_code_parallel_reviewer.sh
 - verify_run_h.sh
 - verify_effectivity_extended.sh
 - verify_lifecycle_suspended.sh
@@ -36,4 +49,14 @@
 - `verify_all.sh` supports `RUN_CONFIG_VARIANTS=1`, `RUN_DEDUP=1`, `START_DEDUP_STACK=1`, `RUN_OPS_S8=1`, `RUN_UI_PLAYWRIGHT=1`, and `MIGRATE_TENANT_DB=1`.
 - CAD verification scripts support `USE_DOCKER_WORKER=1` to wait for jobs to be processed by a running docker-compose `worker` service (instead of running `yuantus worker --once` locally).
 - `verify_playwright_product_ui_summaries.sh` requires Playwright installed in `node_modules`.
+- Native workspace Playwright wrappers require Playwright installed in `node_modules` and a running API at `http://127.0.0.1:7910`.
+- `print_claude_code_parallel_commands.sh` prints safe Claude Code CLI templates for read-only, worktree, and reviewer flows.
+- `print_cross_domain_services_split_helper.sh` prints the fast-path staging commands for the cross-domain-services split.
+- `print_delivery_pack_split_helper.sh` prints the fast-path staging commands for the delivery-pack split.
+- `print_dirty_tree_domain_commands.sh` prints domain-scoped dirty-tree status, staging commands, and split commit plans.
+- `print_dirty_tree_domain_coverage.sh` prints dirty-tree coverage totals, per-domain counts, and uncovered residual paths.
+- `print_dirty_tree_split_matrix.sh` prints the single-entry overview for the full dirty-tree split sequence.
+- `print_docs_parallel_split_helper.sh` prints the fast-path staging commands for the docs-parallel split.
+- `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
+- `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.

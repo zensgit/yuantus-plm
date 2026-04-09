@@ -38,7 +38,16 @@ def _is_cad_preview_public_path(path: str, settings) -> bool:
 
 
 def _is_public_path(path: str, settings=None) -> bool:
-    if path in {"/api/v1/health", "/api/v1/health/deps", "/api/v1/auth/login"}:
+    if path in {
+        "/favicon.ico",
+        "/api/v1/health",
+        "/api/v1/health/deps",
+        "/api/v1/auth/login",
+        "/api/v1/plm-workspace",
+        "/api/v1/plm-workspace/",
+        "/api/v1/workbench",
+        "/api/v1/workbench/",
+    }:
         return True
     if path in {"/docs", "/redoc", "/openapi.json"}:
         return True

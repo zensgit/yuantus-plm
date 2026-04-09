@@ -31,6 +31,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
     # Keep this list small and focused on scripts used by CI workflows or ops runbooks.
     paths = [
         scripts_dir / "ci_change_scope_debug.sh",
+        scripts_dir / "strict_gate.sh",
         scripts_dir / "strict_gate_report.sh",
         scripts_dir / "run_playwright_strict_gate.sh",
         scripts_dir / "strict_gate_perf_download_and_trend.sh",
@@ -72,6 +73,22 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_cad_dedup_relationship_s3.sh",
         scripts_dir / "verify_cad_ml_quick.sh",
         scripts_dir / "verify_cad_preview_online.sh",
+        scripts_dir / "verify_playwright_product_ui_summaries.sh",
+        scripts_dir / "list_native_workspace_bundle.sh",
+        scripts_dir / "verify_playwright_plm_workspace_all.sh",
+        scripts_dir / "verify_playwright_plm_workspace_documents_ui.sh",
+        scripts_dir / "verify_playwright_plm_workspace_demo_resume.sh",
+        scripts_dir / "verify_playwright_plm_workspace_document_handoff.sh",
+        scripts_dir / "print_claude_code_parallel_commands.sh",
+        scripts_dir / "print_cross_domain_services_split_helper.sh",
+        scripts_dir / "print_delivery_pack_split_helper.sh",
+        scripts_dir / "print_dirty_tree_domain_commands.sh",
+        scripts_dir / "print_dirty_tree_domain_coverage.sh",
+        scripts_dir / "print_dirty_tree_split_matrix.sh",
+        scripts_dir / "print_docs_parallel_split_helper.sh",
+        scripts_dir / "print_strict_gate_split_helper.sh",
+        scripts_dir / "print_subcontracting_first_cut_anchors.sh",
+        scripts_dir / "run_claude_code_parallel_reviewer.sh",
         scripts_dir / "verify_run_h_e2e.sh",
         scripts_dir / "verify_run_h.sh",
     ]
@@ -136,6 +153,26 @@ def test_strict_gate_script_has_help() -> None:
     assert "PLAYWRIGHT_RUNNER" in out
     assert "PLAYWRIGHT_MAX_ATTEMPTS" in out
     assert "PLAYWRIGHT_KEEP_DB" in out
+    assert "PLAYWRIGHT_RETRYABLE_PATTERN" in out
+    assert "PLAYWRIGHT_PORT_PICKER_CMD" in out
+
+
+def test_run_playwright_strict_gate_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_playwright_strict_gate.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    assert "Usage:" in out
+    assert "run_playwright_strict_gate.sh" in out
+    assert "PLAYWRIGHT_PORT_PICKER_CMD" in out
+    assert "PLAYWRIGHT_MAX_ATTEMPTS" in out
     assert "PLAYWRIGHT_RETRYABLE_PATTERN" in out
 
 
