@@ -48,6 +48,8 @@ The remaining uncovered paths cluster cleanly into three residual groups:
    - `docs/WORKFLOW_OWNERSHIP_RULES.md`
    Rationale: these two docs describe cross-product packaging and ownership
    policy, not a code or operational domain.
+   Execution card:
+   `docs/PRODUCT_STRATEGY_DOCS_SPLIT_EXECUTION_CARD_20260409.md`
 
 ## Domain Decision
 
@@ -78,4 +80,11 @@ If the next cleanup should stay doc-only around subcontracting governance, use:
 
 ```bash
 sed -n '1,220p' docs/SUBCONTRACTING_GOVERNANCE_DOCS_SPLIT_EXECUTION_CARD_20260409.md
+```
+
+If the next cleanup should stay doc-only around product packaging and workflow
+policy, use:
+
+```bash
+sed -n '1,220p' docs/PRODUCT_STRATEGY_DOCS_SPLIT_EXECUTION_CARD_20260409.md
 ```
