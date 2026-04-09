@@ -41,6 +41,8 @@ The remaining uncovered paths cluster cleanly into three residual groups:
    - `docs/GOVERNANCE_CONTRACT_SURPASS_READING_GUIDE_20260331.md`
    Rationale: governance/runbook artifacts are adjacent to subcontracting work
    but do not belong in the code-facing `subcontracting` split branch.
+   Execution card:
+   `docs/SUBCONTRACTING_GOVERNANCE_DOCS_SPLIT_EXECUTION_CARD_20260409.md`
 3. `product-strategy-docs`
    - `docs/PRODUCT_SKU_MATRIX.md`
    - `docs/WORKFLOW_OWNERSHIP_RULES.md`
@@ -70,4 +72,10 @@ If the next cleanup should stay code-facing, start with:
 
 ```bash
 sed -n '1,220p' docs/ROUTER_SURFACE_MISC_SPLIT_EXECUTION_CARD_20260409.md
+```
+
+If the next cleanup should stay doc-only around subcontracting governance, use:
+
+```bash
+sed -n '1,220p' docs/SUBCONTRACTING_GOVERNANCE_DOCS_SPLIT_EXECUTION_CARD_20260409.md
 ```
