@@ -26,6 +26,7 @@
 - verify_playwright_plm_workspace_document_handoff.sh
 - print_claude_code_parallel_commands.sh
 - print_cross_domain_services_split_helper.sh
+- print_delivery_pack_split_helper.sh
 - print_dirty_tree_domain_commands.sh
 - print_docs_parallel_split_helper.sh
 - print_strict_gate_split_helper.sh
@@ -49,6 +50,7 @@
 - Native workspace Playwright wrappers require Playwright installed in `node_modules` and a running API at `http://127.0.0.1:7910`.
 - `print_claude_code_parallel_commands.sh` prints safe Claude Code CLI templates for read-only, worktree, and reviewer flows.
 - `print_cross_domain_services_split_helper.sh` prints the fast-path staging commands for the cross-domain-services split.
+- `print_delivery_pack_split_helper.sh` prints the fast-path staging commands for the delivery-pack split.
 - `print_dirty_tree_domain_commands.sh` prints domain-scoped dirty-tree status, staging commands, and split commit plans.
 - `print_docs_parallel_split_helper.sh` prints the fast-path staging commands for the docs-parallel split.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
