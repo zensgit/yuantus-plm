@@ -113,6 +113,7 @@ Final checklist:
 Branch closeout summary:
 
 - `docs/BRANCH_CLOSEOUT_SUMMARY_20260409.md`
+- `docs/DIRTY_TREE_RESIDUAL_CLOSEOUT_20260409.md`
 
 ## Verification run
 

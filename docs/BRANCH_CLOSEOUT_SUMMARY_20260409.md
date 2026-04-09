@@ -55,10 +55,13 @@ Follow-up dirty-tree work is explicitly split and out-of-scope for PR `#155`:
 Use the split matrix and domain-specific helpers instead of widening the PR.
 The current post-helper residual gap is tracked separately in
 `docs/DIRTY_TREE_RESIDUAL_CLUSTERS_20260409.md`.
+The one-page residual operator summary is in
+`docs/DIRTY_TREE_RESIDUAL_CLOSEOUT_20260409.md`.
 
 ## Next Actions
 
 - reviewer path: use `docs/PR_155_FINAL_REVIEW_CHECKLIST_20260409.md`
 - operator path: use `docs/DIRTY_TREE_SPLIT_MATRIX_20260409.md`
 - residual-gap path: use `docs/DIRTY_TREE_RESIDUAL_CLUSTERS_20260409.md`
+- residual-closeout path: use `docs/DIRTY_TREE_RESIDUAL_CLOSEOUT_20260409.md`
 - branch rule: do **not** `git add .`
