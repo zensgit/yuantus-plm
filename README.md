@@ -93,6 +93,15 @@ RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
   scripts/verify_cad_ml_quick.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
+Native PLM workspace browser regressions:
+```bash
+npm run playwright:test:plm-workspace
+bash scripts/verify_playwright_plm_workspace_all.sh http://127.0.0.1:7910
+```
+
+Workspace-specific coverage and operator wrappers:
+`playwright/tests/README_plm_workspace.md`
+
 ## Runbooks
 
 - `docs/ERROR_CODES_JOBS.md` (Jobs error codes)

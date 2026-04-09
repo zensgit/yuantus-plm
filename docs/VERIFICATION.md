@@ -102,6 +102,7 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - ✅ `scripts/verify_cad_connectors.sh`：GStarCAD/ZWCAD 等 2D 连接器验证
 - ✅ `scripts/verify_cad_ml_quick.sh`：CAD-ML quick regression (2D preview + OCR)
 - ✅ `scripts/verify_ops_hardening.sh`：多租户/配额/审计/健康/索引回归
+- ✅ Native PLM workspace Playwright：documents / demo resume / document handoff 浏览器回归
 - ✅ 文档生命周期：Draft → Review → Released（Released 状态强制锁定更新与附件）
 - ✅ Part 生命周期：Draft → Review → Released（Released 状态锁定 BOM/更新/附件）
 - ✅ `POST /api/v1/cad/import` + `cad_preview`：CAD 导入 → 异步预览任务 → `GET /api/v1/file/{file_id}/preview`
@@ -117,6 +118,38 @@ YUANTUS_TENANCY_MODE=db-per-tenant-org yuantus seed-meta --tenant tenant-1 --org
 - ✅ `POST /api/v1/auth/login`：登录并签发 JWT（内置账号）
 - ✅ `GET /api/v1/auth/orgs`：列出当前用户可用组织
 - ⚠️ `GET /api/v1/integrations/health`：聚合外部服务健康（外部服务未启动/缺少鉴权会显示失败，但接口本身稳定返回）
+
+---
+
+## Native PLM workspace browser regressions
+
+Checked-in browser regressions:
+
+```bash
+npm run playwright:test:plm-workspace
+bash scripts/verify_playwright_plm_workspace_all.sh http://127.0.0.1:7910
+```
+
+Operator-facing wrappers:
+
+```bash
+scripts/verify_playwright_plm_workspace_documents_ui.sh http://127.0.0.1:7910
+scripts/verify_playwright_plm_workspace_demo_resume.sh http://127.0.0.1:7910
+scripts/verify_playwright_plm_workspace_document_handoff.sh http://127.0.0.1:7910
+scripts/verify_playwright_plm_workspace_all.sh http://127.0.0.1:7910
+```
+
+Coverage details and local fixture notes:
+`playwright/tests/README_plm_workspace.md`
+
+Bundle scope helper:
+```bash
+bash scripts/list_native_workspace_bundle.sh
+bash scripts/list_native_workspace_bundle.sh --full
+bash scripts/list_native_workspace_bundle.sh --status
+bash scripts/list_native_workspace_bundle.sh --full --git-add-cmd
+bash scripts/list_native_workspace_bundle.sh --full --commit-plan
+```
 
 ---
 

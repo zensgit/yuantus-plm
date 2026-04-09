@@ -20,6 +20,10 @@
 - verify_product_detail.sh
 - verify_product_ui.sh
 - verify_playwright_product_ui_summaries.sh
+- verify_playwright_plm_workspace_all.sh
+- verify_playwright_plm_workspace_documents_ui.sh
+- verify_playwright_plm_workspace_demo_resume.sh
+- verify_playwright_plm_workspace_document_handoff.sh
 - verify_run_h.sh
 - verify_effectivity_extended.sh
 - verify_lifecycle_suspended.sh
@@ -36,4 +40,5 @@
 - `verify_all.sh` supports `RUN_CONFIG_VARIANTS=1`, `RUN_DEDUP=1`, `START_DEDUP_STACK=1`, `RUN_OPS_S8=1`, `RUN_UI_PLAYWRIGHT=1`, and `MIGRATE_TENANT_DB=1`.
 - CAD verification scripts support `USE_DOCKER_WORKER=1` to wait for jobs to be processed by a running docker-compose `worker` service (instead of running `yuantus worker --once` locally).
 - `verify_playwright_product_ui_summaries.sh` requires Playwright installed in `node_modules`.
+- Native workspace Playwright wrappers require Playwright installed in `node_modules` and a running API at `http://127.0.0.1:7910`.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.
