@@ -23,13 +23,3 @@
 ## Notes
 - Keep all edits inside the isolated `cutted_parts` domain.
 - Do not register the router in `app.py`.
-
-## Codex Integration Verification
-- candidate stack branch: `feature/codex-c41c42c43-staging`
-- cherry-pick source: `022a34f`
-- integrated commit: `3f6d4ae`
-- combined regression with `C41/C42`:
-  - `468 passed, 162 warnings in 4.49s`
-- unified stack script on staging:
-  - `686 passed, 236 warnings in 14.27s`
-- `git diff --check`: passed

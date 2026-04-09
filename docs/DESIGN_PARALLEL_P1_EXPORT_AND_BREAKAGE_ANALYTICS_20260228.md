@@ -98,4 +98,3 @@
 1. BOM delta：`preview/json/csv` 字段过滤一致，摘要统计与操作数一致。
 2. Breakage：过滤+分页+趋势输出稳定，非法窗口返回 400。
 3. Workorder：`zip/json/pdf` 均携带一致 `export_meta`，PDF 摘要可读。
-

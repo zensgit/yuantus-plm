@@ -77,4 +77,3 @@
 1. Revert new service helpers and `activity_sla` method.
 2. Remove `/eco-activities/{eco_id}/sla` router endpoint.
 3. Keep existing create/list/transition/blocker/event behavior untouched.
-

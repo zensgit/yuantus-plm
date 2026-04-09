@@ -65,4 +65,3 @@
 
 3. Rollback:
 - Remove `sync_summary` + endpoint; no DB schema/data migration impact.
-

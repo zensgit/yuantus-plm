@@ -91,4 +91,3 @@ Add `scripts/run_playwright_strict_gate.sh` as a single execution adapter for Pl
 1. Set `PLAYWRIGHT_RUNNER` to legacy direct command path (or bypass runner invocation in scripts) if needed.
 2. Revert the three scripts and `playwright.config.js` in one commit.
 3. Keep CI contracts to detect accidental partial rollback.
-
