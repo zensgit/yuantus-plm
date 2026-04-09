@@ -864,3 +864,99 @@ def test_export_cadence():
     assert "throughput_overview" in resp.json()
     assert "cadence_summary" in resp.json()
     assert len(resp.json()["plan_cadences"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Saturation / Bottlenecks endpoints (C46)
+# ---------------------------------------------------------------------------
+
+
+def test_saturation_overview_c46():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.saturation_overview.return_value = {
+            "total_plans": 3,
+            "total_cuts": 11,
+            "avg_cut_density": 3.67,
+            "high_saturation_count": 2,
+            "high_saturation_plan_ids": ["p1", "p2"],
+            "bucket_counts": {"low": 1, "medium": 0, "high": 1, "critical": 1},
+        }
+        resp = client.get("/api/v1/cutted-parts/saturation/overview")
+    assert resp.status_code == 200
+    assert resp.json()["high_saturation_count"] == 2
+    assert resp.json()["bucket_counts"]["critical"] == 1
+
+
+def test_bottlenecks_summary_c46():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.bottlenecks_summary.return_value = {
+            "total_plans": 3,
+            "constrained_material_count": 1,
+            "constrained_material_ids": ["mat-1"],
+            "congested_plan_count": 2,
+            "congested_plan_ids": ["p1", "p2"],
+            "blocked_plan_count": 2,
+            "blocked_plan_ids": ["p1", "p2"],
+            "blocker_breakdown": {"scrap_heavy": 2},
+        }
+        resp = client.get("/api/v1/cutted-parts/bottlenecks/summary")
+    assert resp.status_code == 200
+    assert resp.json()["constrained_material_count"] == 1
+    assert resp.json()["blocked_plan_count"] == 2
+
+
+def test_plan_bottlenecks_c46():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.plan_bottlenecks.return_value = {
+            "plan_id": "plan-1",
+            "plan_name": "Hot Plan",
+            "state": "draft",
+            "material_id": "mat-1",
+            "material_quantity": 1.0,
+            "total_cuts": 6,
+            "ok_count": 3,
+            "scrap_count": 2,
+            "rework_count": 1,
+            "waste_pct": 18.0,
+            "yield_pct": 50.0,
+            "scrap_rate_pct": 33.33,
+            "cut_density": 6.0,
+            "saturation_bucket": "critical",
+            "material_stress": "high",
+            "bottlenecks": ["saturation_critical", "scrap_heavy"],
+        }
+        resp = client.get("/api/v1/cutted-parts/plans/plan-1/bottlenecks")
+    assert resp.status_code == 200
+    assert resp.json()["saturation_bucket"] == "critical"
+    assert resp.json()["material_stress"] == "high"
+
+
+def test_plan_bottlenecks_not_found_404_c46():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.plan_bottlenecks.side_effect = ValueError("Plan 'x' not found")
+        resp = client.get("/api/v1/cutted-parts/plans/x/bottlenecks")
+    assert resp.status_code == 404
+
+
+def test_export_bottlenecks_c46():
+    client, db = _client_with_user()
+    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+        service = svc_cls.return_value
+        service.export_bottlenecks.return_value = {
+            "saturation_overview": {"total_plans": 1},
+            "bottlenecks_summary": {"blocked_plan_count": 1},
+            "plan_bottlenecks": [{"plan_id": "p1", "material_stress": "medium"}],
+        }
+        resp = client.get("/api/v1/cutted-parts/export/bottlenecks")
+    assert resp.status_code == 200
+    assert "saturation_overview" in resp.json()
+    assert "bottlenecks_summary" in resp.json()
+    assert len(resp.json()["plan_bottlenecks"]) == 1

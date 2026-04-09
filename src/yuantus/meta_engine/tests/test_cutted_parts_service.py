@@ -1840,3 +1840,195 @@ class TestThroughputCadence:
         assert result["throughput_overview"]["total_plans"] == 0
         assert result["cadence_summary"]["total_plans"] == 0
         assert result["plan_cadences"] == []
+
+
+# ---------------------------------------------------------------------------
+# Saturation / Bottlenecks (C46)
+# ---------------------------------------------------------------------------
+
+
+class TestSaturationBottlenecks:
+
+    def test_saturation_overview(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        critical = svc.create_plan(name="Critical", material_quantity=1.0)
+        medium = svc.create_plan(name="Medium", material_quantity=2.0)
+        for _ in range(6):
+            svc.add_cut(critical.id, status="ok")
+        for _ in range(3):
+            svc.add_cut(medium.id, status="ok")
+
+        result = svc.saturation_overview()
+        assert result["total_plans"] == 2
+        assert result["total_cuts"] == 9
+        assert result["avg_cut_density"] == 3.75
+        assert result["high_saturation_count"] == 1
+        assert result["high_saturation_plan_ids"] == [critical.id]
+        assert result["bucket_counts"]["critical"] == 1
+        assert result["bucket_counts"]["medium"] == 1
+
+    def test_saturation_overview_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        result = svc.saturation_overview()
+        assert result["total_plans"] == 0
+        assert result["total_cuts"] == 0
+        assert result["avg_cut_density"] is None
+        assert result["high_saturation_plan_ids"] == []
+
+    def test_saturation_overview_bucket_distribution(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        critical = svc.create_plan(name="Critical", material_quantity=1.0)
+        high = svc.create_plan(name="High", material_quantity=1.0)
+        medium = svc.create_plan(name="Medium", material_quantity=2.0)
+        low = svc.create_plan(name="Low", material_quantity=3.0)
+
+        for _ in range(6):
+            svc.add_cut(critical.id, status="ok")
+        for _ in range(4):
+            svc.add_cut(high.id, status="ok")
+        for _ in range(3):
+            svc.add_cut(medium.id, status="ok")
+        svc.add_cut(low.id, status="ok")
+
+        result = svc.saturation_overview()
+        assert result["bucket_counts"] == {
+            "low": 1,
+            "medium": 1,
+            "high": 1,
+            "critical": 1,
+        }
+        assert result["high_saturation_count"] == 2
+        assert result["high_saturation_plan_ids"] == [critical.id, high.id]
+
+    def test_bottlenecks_summary(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        shared = svc.create_material(name="Shared Sheet")
+        stable = svc.create_material(name="Stable Sheet")
+
+        critical = svc.create_plan(
+            name="Critical", material_id=shared.id, material_quantity=1.0
+        )
+        critical.waste_pct = 18.0
+        for status in ["ok", "ok", "ok", "scrap", "scrap", "rework"]:
+            svc.add_cut(critical.id, status=status)
+
+        congested = svc.create_plan(
+            name="Congested", material_id=shared.id, material_quantity=1.0
+        )
+        congested.waste_pct = 8.0
+        for status in ["ok", "ok", "ok", "scrap"]:
+            svc.add_cut(congested.id, status=status)
+
+        calm = svc.create_plan(
+            name="Calm", material_id=stable.id, material_quantity=4.0
+        )
+        calm.waste_pct = 2.0
+        svc.add_cut(calm.id, status="ok")
+
+        result = svc.bottlenecks_summary()
+        assert result["total_plans"] == 3
+        assert result["constrained_material_count"] == 1
+        assert result["constrained_material_ids"] == [shared.id]
+        assert result["congested_plan_count"] == 2
+        assert result["congested_plan_ids"] == [critical.id, congested.id]
+        assert result["blocked_plan_count"] == 2
+        assert result["blocked_plan_ids"] == [critical.id, congested.id]
+        assert result["blocker_breakdown"]["saturation_critical"] == 1
+        assert result["blocker_breakdown"]["saturation_high"] == 1
+        assert result["blocker_breakdown"]["scrap_heavy"] == 2
+
+    def test_bottlenecks_summary_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        result = svc.bottlenecks_summary()
+        assert result["total_plans"] == 0
+        assert result["constrained_material_ids"] == []
+        assert result["blocked_plan_ids"] == []
+
+    def test_plan_bottlenecks(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        material = svc.create_material(name="Steel")
+        plan = svc.create_plan(
+            name="Hot Plan", material_id=material.id, material_quantity=1.0
+        )
+        plan.waste_pct = 18.0
+        for status in ["ok", "ok", "ok", "scrap", "scrap", "rework"]:
+            svc.add_cut(plan.id, status=status)
+
+        result = svc.plan_bottlenecks(plan.id)
+        assert result["plan_id"] == plan.id
+        assert result["total_cuts"] == 6
+        assert result["ok_count"] == 3
+        assert result["scrap_count"] == 2
+        assert result["rework_count"] == 1
+        assert result["yield_pct"] == 50.0
+        assert result["scrap_rate_pct"] == 33.33
+        assert result["cut_density"] == 6.0
+        assert result["saturation_bucket"] == "critical"
+        assert result["material_stress"] == "high"
+        assert "saturation_critical" in result["bottlenecks"]
+        assert "low_yield" in result["bottlenecks"]
+        assert "scrap_heavy" in result["bottlenecks"]
+        assert "waste_hotspot" in result["bottlenecks"]
+        assert "material_constrained" in result["bottlenecks"]
+
+    def test_plan_bottlenecks_no_cuts(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        plan = svc.create_plan(name="Idle Plan", material_quantity=3.0)
+
+        result = svc.plan_bottlenecks(plan.id)
+        assert result["total_cuts"] == 0
+        assert result["yield_pct"] is None
+        assert result["scrap_rate_pct"] is None
+        assert result["cut_density"] == 0.0
+        assert result["saturation_bucket"] == "low"
+        assert result["material_stress"] == "normal"
+        assert result["bottlenecks"] == []
+
+    def test_plan_bottlenecks_not_found(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        with pytest.raises(ValueError, match="not found"):
+            svc.plan_bottlenecks("missing")
+
+    def test_export_bottlenecks(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        material = svc.create_material(name="Steel")
+        plan = svc.create_plan(
+            name="Export Plan", material_id=material.id, material_quantity=1.0
+        )
+        plan.waste_pct = 16.0
+        for status in ["ok", "ok", "ok", "scrap", "scrap"]:
+            svc.add_cut(plan.id, status=status)
+
+        result = svc.export_bottlenecks()
+        assert "saturation_overview" in result
+        assert "bottlenecks_summary" in result
+        assert len(result["plan_bottlenecks"]) == 1
+        assert result["plan_bottlenecks"][0]["plan_id"] == plan.id
+        assert result["bottlenecks_summary"]["blocked_plan_count"] == 1
+
+    def test_export_bottlenecks_empty(self):
+        session = _mock_session()
+        svc = CuttedPartsService(session)
+
+        result = svc.export_bottlenecks()
+        assert result["saturation_overview"]["total_plans"] == 0
+        assert result["bottlenecks_summary"]["total_plans"] == 0
+        assert result["plan_bottlenecks"] == []

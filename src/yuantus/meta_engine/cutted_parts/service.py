@@ -227,12 +227,13 @@ class CuttedPartsService:
         return cut
 
     def list_cuts(self, plan_id: str) -> List[CutResult]:
-        return (
+        cuts = (
             self.session.query(CutResult)
             .filter(CutResult.plan_id == plan_id)
             .order_by(CutResult.created_at)
             .all()
         )
+        return [cut for cut in cuts if cut.plan_id == plan_id]
 
     # ------------------------------------------------------------------
     # Summary / export
@@ -1559,4 +1560,198 @@ class CuttedPartsService:
             "throughput_overview": self.throughput_overview(),
             "cadence_summary": self.cadence_summary(),
             "plan_cadences": plan_cadences,
+        }
+
+    # ------------------------------------------------------------------
+    # Saturation / Bottlenecks helpers (C46)
+    # ------------------------------------------------------------------
+
+    def _plan_cut_density(self, plan: CutPlan, cuts: List[CutResult]) -> float:
+        material_quantity = plan.material_quantity or 0.0
+        if material_quantity > 0:
+            return round(len(cuts) / material_quantity, 2)
+        return float(len(cuts))
+
+    def _saturation_bucket(self, cut_density: float) -> str:
+        if cut_density >= 5.0:
+            return "critical"
+        if cut_density >= 3.0:
+            return "high"
+        if cut_density >= 1.0:
+            return "medium"
+        return "low"
+
+    def saturation_overview(self) -> Dict[str, Any]:
+        """Plan-wide saturation summary with density buckets."""
+        plans = self.session.query(CutPlan).all()
+        bucket_counts = {
+            "low": 0,
+            "medium": 0,
+            "high": 0,
+            "critical": 0,
+        }
+
+        if not plans:
+            return {
+                "total_plans": 0,
+                "total_cuts": 0,
+                "avg_cut_density": None,
+                "high_saturation_count": 0,
+                "high_saturation_plan_ids": [],
+                "bucket_counts": bucket_counts,
+            }
+
+        densities: List[float] = []
+        total_cuts = 0
+        high_saturation_ids: List[str] = []
+
+        for plan in plans:
+            cuts = self.list_cuts(plan.id)
+            density = self._plan_cut_density(plan, cuts)
+            bucket = self._saturation_bucket(density)
+            bucket_counts[bucket] += 1
+            densities.append(density)
+            total_cuts += len(cuts)
+            if bucket in {"high", "critical"}:
+                high_saturation_ids.append(plan.id)
+
+        return {
+            "total_plans": len(plans),
+            "total_cuts": total_cuts,
+            "avg_cut_density": round(sum(densities) / len(densities), 2),
+            "high_saturation_count": len(high_saturation_ids),
+            "high_saturation_plan_ids": high_saturation_ids,
+            "bucket_counts": bucket_counts,
+        }
+
+    def bottlenecks_summary(self) -> Dict[str, Any]:
+        """Fleet-level bottleneck summary across materials and plans."""
+        plans = self.session.query(CutPlan).all()
+        blocker_breakdown = {
+            "saturation_high": 0,
+            "saturation_critical": 0,
+            "low_yield": 0,
+            "scrap_heavy": 0,
+            "waste_hotspot": 0,
+            "material_constrained": 0,
+        }
+
+        if not plans:
+            return {
+                "total_plans": 0,
+                "constrained_material_count": 0,
+                "constrained_material_ids": [],
+                "congested_plan_count": 0,
+                "congested_plan_ids": [],
+                "blocked_plan_count": 0,
+                "blocked_plan_ids": [],
+                "blocker_breakdown": blocker_breakdown,
+            }
+
+        material_signals: Dict[str, int] = {}
+        congested_plan_ids: List[str] = []
+        blocked_plan_ids: List[str] = []
+
+        for plan in plans:
+            detail = self.plan_bottlenecks(plan.id)
+            if detail["saturation_bucket"] in {"high", "critical"}:
+                congested_plan_ids.append(plan.id)
+            if detail["bottlenecks"]:
+                blocked_plan_ids.append(plan.id)
+            if detail["material_id"] and (
+                detail["saturation_bucket"] in {"high", "critical"}
+                or detail["bottlenecks"]
+            ):
+                material_signals[detail["material_id"]] = (
+                    material_signals.get(detail["material_id"], 0) + 1
+                )
+            for blocker in detail["bottlenecks"]:
+                blocker_breakdown[blocker] = blocker_breakdown.get(blocker, 0) + 1
+
+        constrained_material_ids = sorted(
+            material_id
+            for material_id, signal_count in material_signals.items()
+            if signal_count >= 2
+        )
+
+        return {
+            "total_plans": len(plans),
+            "constrained_material_count": len(constrained_material_ids),
+            "constrained_material_ids": constrained_material_ids,
+            "congested_plan_count": len(congested_plan_ids),
+            "congested_plan_ids": congested_plan_ids,
+            "blocked_plan_count": len(blocked_plan_ids),
+            "blocked_plan_ids": blocked_plan_ids,
+            "blocker_breakdown": blocker_breakdown,
+        }
+
+    def plan_bottlenecks(self, plan_id: str) -> Dict[str, Any]:
+        """Per-plan saturation and bottleneck detail."""
+        plan = self.get_plan(plan_id)
+        if plan is None:
+            raise ValueError(f"Plan '{plan_id}' not found")
+
+        cuts = self.list_cuts(plan.id)
+        total_cuts = len(cuts)
+        ok_count = sum(1 for cut in cuts if cut.status == CutResultStatus.OK.value)
+        scrap_count = sum(
+            1 for cut in cuts if cut.status == CutResultStatus.SCRAP.value
+        )
+        rework_count = sum(
+            1 for cut in cuts if cut.status == CutResultStatus.REWORK.value
+        )
+        cut_density = self._plan_cut_density(plan, cuts)
+        saturation_bucket = self._saturation_bucket(cut_density)
+        yield_pct = (
+            round(ok_count / total_cuts * 100, 2) if total_cuts > 0 else None
+        )
+        scrap_rate_pct = (
+            round(scrap_count / total_cuts * 100, 2) if total_cuts > 0 else None
+        )
+
+        bottlenecks: List[str] = []
+        if saturation_bucket in {"high", "critical"}:
+            bottlenecks.append(f"saturation_{saturation_bucket}")
+        if yield_pct is not None and yield_pct < 75.0:
+            bottlenecks.append("low_yield")
+        if scrap_rate_pct is not None and scrap_rate_pct >= 25.0:
+            bottlenecks.append("scrap_heavy")
+        if (plan.waste_pct or 0.0) >= 15.0:
+            bottlenecks.append("waste_hotspot")
+        if cut_density >= 5.0 and (plan.material_quantity or 0.0) <= 1.0:
+            bottlenecks.append("material_constrained")
+
+        if "material_constrained" in bottlenecks or saturation_bucket == "critical":
+            material_stress = "high"
+        elif saturation_bucket in {"medium", "high"}:
+            material_stress = "medium"
+        else:
+            material_stress = "normal"
+
+        return {
+            "plan_id": plan.id,
+            "plan_name": plan.name,
+            "state": plan.state,
+            "material_id": plan.material_id,
+            "material_quantity": plan.material_quantity,
+            "total_cuts": total_cuts,
+            "ok_count": ok_count,
+            "scrap_count": scrap_count,
+            "rework_count": rework_count,
+            "waste_pct": plan.waste_pct,
+            "yield_pct": yield_pct,
+            "scrap_rate_pct": scrap_rate_pct,
+            "cut_density": cut_density,
+            "saturation_bucket": saturation_bucket,
+            "material_stress": material_stress,
+            "bottlenecks": bottlenecks,
+        }
+
+    def export_bottlenecks(self) -> Dict[str, Any]:
+        """Export-ready payload combining saturation and bottleneck detail."""
+        plans = self.session.query(CutPlan).all()
+        return {
+            "saturation_overview": self.saturation_overview(),
+            "bottlenecks_summary": self.bottlenecks_summary(),
+            "plan_bottlenecks": [self.plan_bottlenecks(plan.id) for plan in plans],
         }
