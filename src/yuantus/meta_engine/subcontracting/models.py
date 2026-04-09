@@ -19,8 +19,37 @@ class SubcontractOrderState(str, enum.Enum):
 
 
 class SubcontractEventType(str, enum.Enum):
+    ORDER_CREATED = "order_created"
+    VENDOR_ASSIGNED = "vendor_assigned"
+    VENDOR_MESSAGE = "vendor_message"
+    VENDOR_MESSAGE_RESOLUTION = "vendor_message_resolution"
+    VENDOR_MESSAGE_ASSIGNMENT = "vendor_message_assignment"
+    VENDOR_MESSAGE_ROLLBACK_ATTEMPT = "vendor_message_rollback_attempt"
+    VENDOR_MESSAGE_ESCALATION = "vendor_message_escalation"
+    VENDOR_MESSAGE_SLA_CONTROL = "vendor_message_sla_control"
+    VENDOR_MESSAGE_ALERT_CONTROL = "vendor_message_alert_control"
+    VENDOR_ACKNOWLEDGED = "vendor_acknowledged"
+    VENDOR_RESPONSE = "vendor_response"
+    VENDOR_CONFIRMATION = "vendor_confirmation"
+    VENDOR_COMMITMENT = "vendor_commitment"
+    VENDOR_PROPOSAL_REVIEW = "vendor_proposal_review"
+    VENDOR_PACKET_CONTEXT_UPDATED = "vendor_packet_context_updated"
     MATERIAL_ISSUE = "material_issue"
     RECEIPT = "receipt"
+    RECEIPT_RETURN = "receipt_return"
+    RECEIPT_RETURN_DISPOSITION = "receipt_return_disposition"
+    RECEIPT_RETURN_DISPOSITION_APPROVAL = "receipt_return_disposition_approval"
+    RECEIPT_RETURN_DISPOSITION_APPROVAL_ASSIGNMENT = (
+        "receipt_return_disposition_approval_assignment"
+    )
+    RECEIPT_RETURN_DISPOSITION_APPROVAL_HANDOFF = (
+        "receipt_return_disposition_approval_handoff"
+    )
+    RECEIPT_RETURN_DISPOSITION_APPROVAL_OVERRIDE = (
+        "receipt_return_disposition_approval_override"
+    )
+    CANCELLED = "cancelled"
+    REOPENED = "reopened"
 
 
 class SubcontractOrder(Base):
