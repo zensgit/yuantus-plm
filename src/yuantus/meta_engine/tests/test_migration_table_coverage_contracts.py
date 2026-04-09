@@ -4,8 +4,6 @@ import re
 from pathlib import Path
 
 _LEGACY_UNMIGRATED_TABLE_ALLOWLIST = (
-    "meta_approval_categories",
-    "meta_approval_requests",
     "meta_box_contents",
     "meta_box_items",
     "meta_cut_plans",
@@ -18,8 +16,6 @@ _LEGACY_UNMIGRATED_TABLE_ALLOWLIST = (
     "meta_quality_points",
     "meta_raw_materials",
     "meta_report_locale_profiles",
-    "meta_subcontract_order_events",
-    "meta_subcontract_orders",
     "meta_sync_jobs",
     "meta_sync_records",
     "meta_sync_sites",
