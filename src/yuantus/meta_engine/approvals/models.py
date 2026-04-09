@@ -46,9 +46,9 @@ class ApprovalPriority(str, enum.Enum):
     URGENT = "urgent"
 
 
-# ---------------------------------------------------------------------------
-# Models
-# ---------------------------------------------------------------------------
+class ApprovalRequestEventType(str, enum.Enum):
+    CREATED = "created"
+    TRANSITION = "transition"
 
 
 class ApprovalCategory(Base):
@@ -114,3 +114,32 @@ class ApprovalRequest(Base):
 
     # Relationships
     category = relationship("ApprovalCategory", back_populates="requests")
+    events = relationship(
+        "ApprovalRequestEvent",
+        back_populates="request",
+        cascade="all, delete-orphan",
+    )
+
+
+class ApprovalRequestEvent(Base):
+    """Durable approval request audit event."""
+
+    __tablename__ = "meta_approval_request_events"
+
+    id = Column(String, primary_key=True)
+    request_id = Column(
+        String,
+        ForeignKey("meta_approval_requests.id"),
+        nullable=False,
+        index=True,
+    )
+    event_type = Column(String(30), nullable=False)
+    transition_type = Column(String(30), nullable=True)
+    from_state = Column(String(30), nullable=True)
+    to_state = Column(String(30), nullable=False)
+    note = Column(Text, nullable=True)
+    actor_id = Column(Integer, ForeignKey("rbac_users.id"), nullable=True)
+    properties = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    request = relationship("ApprovalRequest", back_populates="events")
