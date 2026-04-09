@@ -4,13 +4,15 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/print_subcontracting_first_cut_anchors.sh [--grep] [--hunks] [--checklist]
+  scripts/print_subcontracting_first_cut_anchors.sh [--grep] [--hunks] [--checklist] [--decisions]
 
 Options:
   --grep     Print ready-to-run grep commands for the first subcontracting cut.
   --hunks    Print the recommended git-add-p hunk order for the first cut.
   --checklist
              Print a per-file git-add-p operator checklist for the first cut.
+  --decisions
+             Print a y/n/s/defer cheat sheet for git-add-p decisions.
   -h, --help Show help.
 
 Default output:
@@ -22,6 +24,7 @@ EOF
 PRINT_GREP="false"
 PRINT_HUNKS="false"
 PRINT_CHECKLIST="false"
+PRINT_DECISIONS="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -37,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       PRINT_CHECKLIST="true"
       shift
       ;;
+    --decisions)
+      PRINT_DECISIONS="true"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -50,14 +57,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 selected_count=0
-for flag in "${PRINT_GREP}" "${PRINT_HUNKS}" "${PRINT_CHECKLIST}"; do
+for flag in "${PRINT_GREP}" "${PRINT_HUNKS}" "${PRINT_CHECKLIST}" "${PRINT_DECISIONS}"; do
   if [[ "${flag}" == "true" ]]; then
     selected_count=$((selected_count + 1))
   fi
 done
 
 if [[ "${selected_count}" -gt 1 ]]; then
-  echo "ERROR: choose only one of --grep, --hunks, or --checklist" >&2
+  echo "ERROR: choose only one of --grep, --hunks, --checklist, or --decisions" >&2
   exit 2
 fi
 
@@ -240,6 +247,43 @@ EOF
   exit 0
 fi
 
+if [[ "${PRINT_DECISIONS}" == "true" ]]; then
+  cat <<'EOF'
+git add -p decision cheat sheet for the first subcontracting cut:
+
+accept with y
+- hunk contains approval-role-mapping anchor tokens:
+  - approval_role_mapping
+  - cleanup_policy
+  - cleanup_history
+  - role_mapping_registry
+  - role_mapping_policy_board
+  - role_mapping_cleanup_board
+- hunk is inside the first-cut service / router / test ranges already listed by `--hunks`
+- hunk is a direct test or endpoint companion for approval-role-mapping cleanup
+
+reject with n
+- hunk touches vendor-message flow
+- hunk touches receipt flow
+- hunk touches return flow
+- hunk is unrelated supplier settlement / transport logic
+- hunk is broad import churn or formatting-only noise with no first-cut anchors
+
+split with s
+- hunk mixes approval-role-mapping code with vendor-message / receipt / return code
+- hunk mixes first-cut endpoints with unrelated router handlers
+- hunk mixes first-cut tests with unrelated route matrix expansions
+- hunk mixes anchor-token lines with large fixture churn
+
+defer
+- hunk cannot be split cleanly in `git add -p`
+- hunk depends on a later subcontracting slice outside the first cut
+- hunk is a migration or doc follow-up you cannot confidently tie to the accepted code hunks
+- hunk likely causes cross-domain spillover into docs-parallel or cross-domain-services
+EOF
+  exit 0
+fi
+
 cat <<'EOF'
 First subcontracting cut:
   approval role mapping cleanup cluster
@@ -265,6 +309,7 @@ Recommended staging mode:
 - inspect with grep first
 - inspect hunk order with `--hunks`
 - inspect per-file checklist with `--checklist`
+- inspect y/n/s/defer guide with `--decisions`
 - stage with `git add -p`, not `git add .`
 - keep this incision isolated from vendor message / receipt / return flows
 EOF

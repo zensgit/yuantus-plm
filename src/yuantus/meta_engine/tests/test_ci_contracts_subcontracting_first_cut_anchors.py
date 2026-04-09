@@ -36,6 +36,7 @@ def test_subcontracting_first_cut_anchor_helper_exists_and_prints_expected_targe
         "--grep",
         "--hunks",
         "--checklist",
+        "--decisions",
         "approval role mapping",
     ):
         assert token in help_out, f"help output missing token: {token}"
@@ -110,11 +111,30 @@ def test_subcontracting_first_cut_anchor_helper_exists_and_prints_expected_targe
     ):
         assert token in checklist_out, f"checklist output missing token: {token}"
 
+    decisions_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--decisions"],
+        text=True,
+        capture_output=True,
+    )
+    assert decisions_cp.returncode == 0, decisions_cp.stdout + "\n" + decisions_cp.stderr
+    decisions_out = decisions_cp.stdout or ""
+    for token in (
+        "git add -p decision cheat sheet",
+        "accept with y",
+        "reject with n",
+        "split with s",
+        "defer",
+        "vendor-message",
+        "approval_role_mapping",
+    ):
+        assert token in decisions_out, f"decisions output missing token: {token}"
+
     execution_text = execution_card.read_text(encoding="utf-8", errors="replace")
     for token in (
         "print_subcontracting_first_cut_anchors.sh",
         "--grep",
         "--hunks",
         "--checklist",
+        "--decisions",
     ):
         assert token in execution_text, f"execution card missing token: {token}"

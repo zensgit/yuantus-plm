@@ -21,6 +21,7 @@ bash scripts/print_subcontracting_first_cut_anchors.sh
 bash scripts/print_subcontracting_first_cut_anchors.sh --grep
 bash scripts/print_subcontracting_first_cut_anchors.sh --hunks
 bash scripts/print_subcontracting_first_cut_anchors.sh --checklist
+bash scripts/print_subcontracting_first_cut_anchors.sh --decisions
 ```
 
 ## Preferred first incision
@@ -55,6 +56,9 @@ Hunk-order helper:
 
 Operator checklist helper:
 `scripts/print_subcontracting_first_cut_anchors.sh --checklist`
+
+Decision cheat sheet helper:
+`scripts/print_subcontracting_first_cut_anchors.sh --decisions`
 
 Recommended operator workflow:
 
