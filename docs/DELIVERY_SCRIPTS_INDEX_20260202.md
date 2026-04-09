@@ -28,6 +28,7 @@
 - print_cross_domain_services_split_helper.sh
 - print_dirty_tree_domain_commands.sh
 - print_docs_parallel_split_helper.sh
+- print_strict_gate_split_helper.sh
 - run_claude_code_parallel_reviewer.sh
 - verify_run_h.sh
 - verify_effectivity_extended.sh
@@ -50,5 +51,6 @@
 - `print_cross_domain_services_split_helper.sh` prints the fast-path staging commands for the cross-domain-services split.
 - `print_dirty_tree_domain_commands.sh` prints domain-scoped dirty-tree status, staging commands, and split commit plans.
 - `print_docs_parallel_split_helper.sh` prints the fast-path staging commands for the docs-parallel split.
+- `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.
