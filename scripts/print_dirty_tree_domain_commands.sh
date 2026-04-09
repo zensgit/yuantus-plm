@@ -7,6 +7,7 @@ Usage:
   scripts/print_dirty_tree_domain_commands.sh [--list-domains]
   scripts/print_dirty_tree_domain_commands.sh [--recommended-order]
   scripts/print_dirty_tree_domain_commands.sh [--first-step]
+  scripts/print_dirty_tree_domain_commands.sh [--after-first-cut]
   scripts/print_dirty_tree_domain_commands.sh --domain NAME [--status | --git-add-cmd | --commit-plan]
 
 Options:
@@ -15,6 +16,9 @@ Options:
                  Print the suggested dirty-tree split order with short reasons.
   --first-step   Print the recommended first split action (currently
                  subcontracting) with ready-to-run commands.
+  --after-first-cut
+                 Print the recommended next split action after the
+                 subcontracting first cut lands.
   --domain NAME   Target domain. Supported:
                   subcontracting
                   docs-parallel
@@ -37,6 +41,7 @@ DOMAIN=""
 LIST_DOMAINS="false"
 PRINT_RECOMMENDED_ORDER="false"
 PRINT_FIRST_STEP="false"
+PRINT_AFTER_FIRST_CUT="false"
 SHOW_STATUS="false"
 PRINT_GIT_ADD_CMD="false"
 PRINT_COMMIT_PLAN="false"
@@ -53,6 +58,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --first-step)
       PRINT_FIRST_STEP="true"
+      shift
+      ;;
+    --after-first-cut)
+      PRINT_AFTER_FIRST_CUT="true"
       shift
       ;;
     --domain)
@@ -95,6 +104,11 @@ fi
 
 if [[ "${PRINT_FIRST_STEP}" == "true" && -n "${DOMAIN}" ]]; then
   echo "ERROR: --first-step cannot be combined with --domain" >&2
+  exit 2
+fi
+
+if [[ "${PRINT_AFTER_FIRST_CUT}" == "true" && -n "${DOMAIN}" ]]; then
+  echo "ERROR: --after-first-cut cannot be combined with --domain" >&2
   exit 2
 fi
 
@@ -311,8 +325,36 @@ Rule:
 EOF
 }
 
+print_after_first_cut() {
+  cat <<'EOF'
+Recommended next split domain after the subcontracting first cut:
+  docs-parallel
+
+Why next:
+  The docs-parallel pack removes the biggest remaining reviewer noise without
+  reopening the main subcontracting code paths.
+
+Suggested sequence:
+  bash scripts/print_dirty_tree_domain_commands.sh --domain docs-parallel --status
+  bash scripts/print_dirty_tree_domain_commands.sh --domain docs-parallel --commit-plan
+
+Fallback if docs-parallel is intentionally deferred:
+  bash scripts/print_dirty_tree_domain_commands.sh --domain cross-domain-services --status
+  bash scripts/print_dirty_tree_domain_commands.sh --domain cross-domain-services --commit-plan
+
+Rule:
+  Keep docs-parallel isolated from cross-domain-services. Do not merge them
+  into one catch-all cleanup commit.
+EOF
+}
+
 if [[ "${PRINT_FIRST_STEP}" == "true" ]]; then
   print_first_step
+  exit 0
+fi
+
+if [[ "${PRINT_AFTER_FIRST_CUT}" == "true" ]]; then
+  print_after_first_cut
   exit 0
 fi
 

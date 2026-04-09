@@ -14,12 +14,20 @@ Helper commands:
 ```bash
 bash scripts/print_dirty_tree_domain_commands.sh --list-domains
 bash scripts/print_dirty_tree_domain_commands.sh --recommended-order
+bash scripts/print_dirty_tree_domain_commands.sh --first-step
+bash scripts/print_dirty_tree_domain_commands.sh --after-first-cut
 bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --status
 bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --commit-plan
 ```
 
 Execution order reference:
 `docs/DIRTY_TREE_SPLIT_ORDER_20260409.md`
+
+First split card:
+`docs/SUBCONTRACTING_SPLIT_EXECUTION_CARD_20260409.md`
+
+Second-step note:
+`docs/POST_SUBCONTRACTING_NEXT_STEP_20260409.md`
 
 ## Current dirty tree summary
 

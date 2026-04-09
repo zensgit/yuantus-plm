@@ -20,10 +20,18 @@ meant for safe cleanup sequencing, not for widening the current reviewer scope.
 ## Fast start
 
 ```bash
+bash scripts/print_dirty_tree_domain_commands.sh --first-step
+bash scripts/print_dirty_tree_domain_commands.sh --after-first-cut
 bash scripts/print_dirty_tree_domain_commands.sh --recommended-order
 bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --status
 bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --commit-plan
 ```
+
+Execution card:
+`docs/SUBCONTRACTING_SPLIT_EXECUTION_CARD_20260409.md`
+
+Second-step note:
+`docs/POST_SUBCONTRACTING_NEXT_STEP_20260409.md`
 
 ## Rule
 
