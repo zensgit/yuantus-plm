@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from yuantus.api.app import create_app
 from yuantus.database import get_db
 from yuantus.api.dependencies.auth import get_current_user
 from yuantus.meta_engine.web.cutted_parts_router import cutted_parts_router
@@ -202,6 +203,15 @@ def test_overview():
         resp = client.get("/api/v1/cutted-parts/overview")
     assert resp.status_code == 200
     assert resp.json()["total_plans"] == 3
+
+
+def test_cutted_parts_routes_registered_in_create_app():
+    app = create_app()
+    paths = {route.path for route in app.routes}
+
+    assert "/api/v1/cutted-parts/plans" in paths
+    assert "/api/v1/cutted-parts/materials" in paths
+    assert "/api/v1/cutted-parts/overview" in paths
 
 
 def test_material_analytics():

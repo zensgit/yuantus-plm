@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from yuantus.api.app import create_app
 from yuantus.meta_engine.web.box_router import box_router
 
 
@@ -200,6 +201,16 @@ def test_overview():
     assert resp.status_code == 200
     assert resp.json()["total"] == 5
     assert resp.json()["by_type"]["box"] == 4
+
+
+def test_box_routes_registered_in_create_app():
+    app = create_app()
+    paths = {route.path for route in app.routes}
+
+    assert "/api/v1/box/items" in paths
+    assert "/api/v1/box/items/{box_id}" in paths
+    assert "/api/v1/box/items/{box_id}/contents" in paths
+    assert "/api/v1/box/overview" in paths
 
 
 def test_material_analytics():

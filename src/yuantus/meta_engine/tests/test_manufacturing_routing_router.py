@@ -413,3 +413,41 @@ def test_release_routing_not_found_returns_404():
     assert response.status_code == 404
     assert response.json()["detail"] == "Routing not found: routing-missing"
     assert db.rollback.called
+
+
+def test_calculate_time_returns_404_for_missing_routing():
+    user = SimpleNamespace(id="u1", role="admin")
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.manufacturing_router.RoutingService"
+    ) as svc_cls:
+        svc_cls.return_value.calculate_production_time.side_effect = ValueError(
+            "Routing not found: routing-missing"
+        )
+        response = client.post(
+            "/api/v1/routings/routing-missing/calculate-time",
+            json={"quantity": 10},
+        )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Routing not found: routing-missing"
+
+
+def test_calculate_cost_returns_404_for_missing_routing():
+    user = SimpleNamespace(id="u1", role="admin")
+    client, db = _client_with_user(user)
+
+    with patch(
+        "yuantus.meta_engine.web.manufacturing_router.RoutingService"
+    ) as svc_cls:
+        svc_cls.return_value.calculate_cost_estimate.side_effect = ValueError(
+            "Routing not found: routing-missing"
+        )
+        response = client.post(
+            "/api/v1/routings/routing-missing/calculate-cost",
+            json={"quantity": 10},
+        )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Routing not found: routing-missing"

@@ -639,12 +639,15 @@ async def calculate_time(
     user: CurrentUser = Depends(get_current_user),
 ):
     service = RoutingService(db)
-    return service.calculate_production_time(
-        routing_id,
-        request.quantity,
-        include_queue=request.include_queue,
-        include_move=request.include_move,
-    )
+    try:
+        return service.calculate_production_time(
+            routing_id,
+            request.quantity,
+            include_queue=request.include_queue,
+            include_move=request.include_move,
+        )
+    except ValueError as exc:
+        _raise_http_for_value_error(exc)
 
 
 @routing_router.put("/{routing_id}/release", response_model=RoutingResponse)
@@ -716,12 +719,15 @@ async def calculate_cost(
     user: CurrentUser = Depends(get_current_user),
 ):
     service = RoutingService(db)
-    return service.calculate_cost_estimate(
-        routing_id,
-        request.quantity,
-        labor_rate=request.labor_rate,
-        overhead_rate=request.overhead_rate,
-    )
+    try:
+        return service.calculate_cost_estimate(
+            routing_id,
+            request.quantity,
+            labor_rate=request.labor_rate,
+            overhead_rate=request.overhead_rate,
+        )
+    except ValueError as exc:
+        _raise_http_for_value_error(exc)
 
 
 @routing_router.post("/{routing_id}/copy", response_model=RoutingResponse)
