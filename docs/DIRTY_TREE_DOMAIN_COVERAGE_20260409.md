@@ -27,6 +27,10 @@ dirty in the working tree, the live command can temporarily report a larger
 residual gap (for example `17`) without meaning that the original six domain
 assignments regressed.
 
+After the coverage helper landed, the steady-state live gap dropped to `11`
+residual paths. That post-helper residual set is tracked separately in
+`docs/DIRTY_TREE_RESIDUAL_CLUSTERS_20260409.md`.
+
 Per-domain counts from `bash scripts/print_dirty_tree_domain_coverage.sh --by-domain`:
 
 - `subcontracting`: `361`
@@ -82,4 +86,5 @@ bash scripts/print_dirty_tree_domain_coverage.sh --unassigned
 
 Do not create a seventh cleanup domain yet. Keep the residual paths explicit
 until one of the four residual clusters grows large enough to justify its own
-branch plan.
+branch plan. See `docs/DIRTY_TREE_RESIDUAL_CLUSTERS_20260409.md` for the live
+post-helper residual set.
