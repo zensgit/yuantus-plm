@@ -26,6 +26,13 @@ def _write_executable(path: Path, content: str) -> None:
     path.chmod(path.stat().st_mode | stat.S_IXUSR)
 
 
+def _runner_env(**overrides: str) -> dict[str, str]:
+    env = os.environ.copy()
+    env.setdefault("PLAYWRIGHT_PORT_PICKER_CMD", "printf 39091")
+    env.update(overrides)
+    return env
+
+
 def test_playwright_runner_has_isolated_defaults_and_retry_logic() -> None:
     repo_root = _find_repo_root(Path(__file__))
     runner = repo_root / "scripts" / "run_playwright_strict_gate.sh"
@@ -36,13 +43,17 @@ def test_playwright_runner_has_isolated_defaults_and_retry_logic() -> None:
         'PLAYWRIGHT_CMD="${PLAYWRIGHT_CMD:-npx playwright test --workers=1}"',
         'PLAYWRIGHT_MAX_ATTEMPTS="${PLAYWRIGHT_MAX_ATTEMPTS:-2}"',
         'PLAYWRIGHT_RETRYABLE_PATTERN="${PLAYWRIGHT_RETRYABLE_PATTERN:-error while attempting to bind on address|address already in use|operation not permitted}"',
+        'PLAYWRIGHT_PORT_PICKER_CMD="${PLAYWRIGHT_PORT_PICKER_CMD:-}"',
         'PLAYWRIGHT_KEEP_DB="${PLAYWRIGHT_KEEP_DB:-0}"',
         'db_path="${YUANTUS_PLAYWRIGHT_DB_PATH:-/tmp/yuantus_playwright_${port}_$$.db}"',
+        'bash -lc "$PLAYWRIGHT_PORT_PICKER_CMD"',
         'env PORT="$port" BASE_URL="$base_url" YUANTUS_PLAYWRIGHT_DB_PATH="$db_path" bash -lc "$PLAYWRIGHT_CMD"',
         'grep -Eqi "$PLAYWRIGHT_RETRYABLE_PATTERN"',
         'rm -f "$db_path" "${db_path}-shm" "${db_path}-wal"',
         'echo "PLAYWRIGHT_MAX_ATTEMPTS=${PLAYWRIGHT_MAX_ATTEMPTS}"',
         'echo "PLAYWRIGHT_KEEP_DB=${PLAYWRIGHT_KEEP_DB}"',
+        "PLAYWRIGHT_KEEP_DB must be one of 0/1/true/false/yes/no/on/off",
+        "python3 is required to allocate a free localhost port",
         "Playwright retry: detected retryable bind/startup failure",
     ):
         assert token in text, f"run_playwright_strict_gate.sh missing token: {token!r}"
@@ -67,6 +78,7 @@ def test_playwright_runner_has_help_contract() -> None:
         "PLAYWRIGHT_MAX_ATTEMPTS",
         "PLAYWRIGHT_RETRYABLE_PATTERN",
         "PLAYWRIGHT_PORT",
+        "PLAYWRIGHT_PORT_PICKER_CMD",
         "PLAYWRIGHT_BASE_URL",
         "YUANTUS_PLAYWRIGHT_DB_PATH",
         "PLAYWRIGHT_KEEP_DB",
@@ -88,10 +100,13 @@ def test_strict_gate_scripts_use_playwright_runner_contract() -> None:
         'PLAYWRIGHT_CMD="${PLAYWRIGHT_CMD:-npx playwright test --workers=1}"',
         'PLAYWRIGHT_MAX_ATTEMPTS="${PLAYWRIGHT_MAX_ATTEMPTS:-2}"',
         'PLAYWRIGHT_RETRYABLE_PATTERN="${PLAYWRIGHT_RETRYABLE_PATTERN:-}"',
+        'PLAYWRIGHT_PORT_PICKER_CMD="${PLAYWRIGHT_PORT_PICKER_CMD:-}"',
         'PLAYWRIGHT_KEEP_DB="${PLAYWRIGHT_KEEP_DB:-0}"',
         'ERROR: PLAYWRIGHT_MAX_ATTEMPTS must be a positive integer, got: ${PLAYWRIGHT_MAX_ATTEMPTS}',
         'ERROR: PLAYWRIGHT_RETRYABLE_PATTERN is not a valid extended regex: ${PLAYWRIGHT_RETRYABLE_PATTERN}',
+        'ERROR: PLAYWRIGHT_KEEP_DB must be one of 0/1/true/false/yes/no/on/off, got: ${PLAYWRIGHT_KEEP_DB}',
         'ERROR: playwright runner not found or not executable at $PLAYWRIGHT_RUNNER',
+        'PLAYWRIGHT_PORT_PICKER_CMD="$PLAYWRIGHT_PORT_PICKER_CMD"',
         'YUANTUS_PLAYWRIGHT_DB_PATH="$PLAYWRIGHT_DB_PATH"',
         'PLAYWRIGHT_MAX_ATTEMPTS="$PLAYWRIGHT_MAX_ATTEMPTS"',
         'PLAYWRIGHT_RETRYABLE_PATTERN="$PLAYWRIGHT_RETRYABLE_PATTERN"',
@@ -109,6 +124,8 @@ def test_strict_gate_scripts_use_playwright_runner_contract() -> None:
         r'- \`PLAYWRIGHT_ATTEMPT_LAST\`: \`${PLAYWRIGHT_ATTEMPT_LAST:-<unset>}\`',
         r'- \`PLAYWRIGHT_KEEP_DB\`: \`${PLAYWRIGHT_KEEP_DB}\`',
         r'- \`PLAYWRIGHT_DB_PATH\`: \`${PLAYWRIGHT_DB_PATH:-<unset>}\`',
+        r'- \`PLAYWRIGHT_PORT_PICKER_CMD\`: \`${PLAYWRIGHT_PORT_PICKER_CMD:-<unset>}\`',
+        r'- \`PLAYWRIGHT_REQUESTED_PORT_PICKER_CMD\`: \`${REQUESTED_PLAYWRIGHT_PORT_PICKER_CMD}\`',
         r'- \`PLAYWRIGHT_EFFECTIVE_ATTEMPT_LAST\`: \`${PLAYWRIGHT_EFFECTIVE_ATTEMPT_LAST:-<unset>}\`',
         r'- \`PLAYWRIGHT_EFFECTIVE_ATTEMPT_COUNT\`: \`${PLAYWRIGHT_EFFECTIVE_ATTEMPT_COUNT:-<unset>}\`',
         r'- \`PLAYWRIGHT_RETRIED\`: \`${PLAYWRIGHT_RETRIED}\`',
@@ -150,9 +167,10 @@ def test_playwright_runner_retries_once_for_bind_like_failure(tmp_path: Path) ->
         "exit 0"
     )
 
-    env = os.environ.copy()
-    env["PLAYWRIGHT_CMD"] = cmd
-    env["PLAYWRIGHT_MAX_ATTEMPTS"] = "2"
+    env = _runner_env(
+        PLAYWRIGHT_CMD=cmd,
+        PLAYWRIGHT_MAX_ATTEMPTS="2",
+    )
 
     cp = subprocess.run(  # noqa: S603
         ["bash", str(runner)],
@@ -185,9 +203,10 @@ def test_playwright_runner_does_not_retry_non_retryable_failure(tmp_path: Path) 
         "exit 7"
     )
 
-    env = os.environ.copy()
-    env["PLAYWRIGHT_CMD"] = cmd
-    env["PLAYWRIGHT_MAX_ATTEMPTS"] = "3"
+    env = _runner_env(
+        PLAYWRIGHT_CMD=cmd,
+        PLAYWRIGHT_MAX_ATTEMPTS="3",
+    )
 
     cp = subprocess.run(  # noqa: S603
         ["bash", str(runner)],
@@ -215,9 +234,10 @@ def test_playwright_runner_cleans_db_files_by_default(tmp_path: Path) -> None:
         'echo "ok" > "${YUANTUS_PLAYWRIGHT_DB_PATH}-wal"; '
         "exit 0"
     )
-    env = os.environ.copy()
-    env["PLAYWRIGHT_CMD"] = cmd
-    env["YUANTUS_PLAYWRIGHT_DB_PATH"] = str(db_path)
+    env = _runner_env(
+        PLAYWRIGHT_CMD=cmd,
+        YUANTUS_PLAYWRIGHT_DB_PATH=str(db_path),
+    )
 
     cp = subprocess.run(  # noqa: S603
         ["bash", str(runner)],
@@ -244,10 +264,11 @@ def test_playwright_runner_keeps_db_files_when_requested(tmp_path: Path) -> None
         'echo "ok" > "${YUANTUS_PLAYWRIGHT_DB_PATH}-wal"; '
         "exit 0"
     )
-    env = os.environ.copy()
-    env["PLAYWRIGHT_CMD"] = cmd
-    env["YUANTUS_PLAYWRIGHT_DB_PATH"] = str(db_path)
-    env["PLAYWRIGHT_KEEP_DB"] = "1"
+    env = _runner_env(
+        PLAYWRIGHT_CMD=cmd,
+        YUANTUS_PLAYWRIGHT_DB_PATH=str(db_path),
+        PLAYWRIGHT_KEEP_DB="1",
+    )
 
     cp = subprocess.run(  # noqa: S603
         ["bash", str(runner)],
@@ -267,9 +288,10 @@ def test_playwright_runner_rejects_zero_max_attempts() -> None:
     runner = repo_root / "scripts" / "run_playwright_strict_gate.sh"
     assert runner.is_file(), f"Missing {runner}"
 
-    env = os.environ.copy()
-    env["PLAYWRIGHT_MAX_ATTEMPTS"] = "0"
-    env["PLAYWRIGHT_CMD"] = "echo should-not-run; exit 0"
+    env = _runner_env(
+        PLAYWRIGHT_MAX_ATTEMPTS="0",
+        PLAYWRIGHT_CMD="echo should-not-run; exit 0",
+    )
 
     cp = subprocess.run(  # noqa: S603
         ["bash", str(runner)],
@@ -287,9 +309,10 @@ def test_playwright_runner_rejects_non_numeric_max_attempts() -> None:
     runner = repo_root / "scripts" / "run_playwright_strict_gate.sh"
     assert runner.is_file(), f"Missing {runner}"
 
-    env = os.environ.copy()
-    env["PLAYWRIGHT_MAX_ATTEMPTS"] = "abc"
-    env["PLAYWRIGHT_CMD"] = "echo should-not-run; exit 0"
+    env = _runner_env(
+        PLAYWRIGHT_MAX_ATTEMPTS="abc",
+        PLAYWRIGHT_CMD="echo should-not-run; exit 0",
+    )
 
     cp = subprocess.run(  # noqa: S603
         ["bash", str(runner)],
@@ -300,6 +323,27 @@ def test_playwright_runner_rejects_non_numeric_max_attempts() -> None:
     out = (cp.stdout or "") + (cp.stderr or "")
     assert cp.returncode == 2, out
     assert "PLAYWRIGHT_MAX_ATTEMPTS must be a positive integer" in out
+
+
+def test_playwright_runner_rejects_invalid_keep_db() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    runner = repo_root / "scripts" / "run_playwright_strict_gate.sh"
+    assert runner.is_file(), f"Missing {runner}"
+
+    env = _runner_env(
+        PLAYWRIGHT_KEEP_DB="maybe",
+        PLAYWRIGHT_CMD="echo should-not-run; exit 0",
+    )
+
+    cp = subprocess.run(  # noqa: S603
+        ["bash", str(runner)],
+        text=True,
+        capture_output=True,
+        env=env,
+    )
+    out = (cp.stdout or "") + (cp.stderr or "")
+    assert cp.returncode == 2, out
+    assert "PLAYWRIGHT_KEEP_DB must be one of 0/1/true/false/yes/no/on/off" in out
 
 
 def test_playwright_runner_retries_on_custom_pattern(tmp_path: Path) -> None:
@@ -322,10 +366,11 @@ def test_playwright_runner_retries_on_custom_pattern(tmp_path: Path) -> None:
         "exit 0"
     )
 
-    env = os.environ.copy()
-    env["PLAYWRIGHT_CMD"] = cmd
-    env["PLAYWRIGHT_MAX_ATTEMPTS"] = "2"
-    env["PLAYWRIGHT_RETRYABLE_PATTERN"] = "CUSTOM_RETRY_MARKER"
+    env = _runner_env(
+        PLAYWRIGHT_CMD=cmd,
+        PLAYWRIGHT_MAX_ATTEMPTS="2",
+        PLAYWRIGHT_RETRYABLE_PATTERN="CUSTOM_RETRY_MARKER",
+    )
 
     cp = subprocess.run(  # noqa: S603
         ["bash", str(runner)],
@@ -345,9 +390,10 @@ def test_playwright_runner_uses_default_pattern_when_retryable_pattern_empty() -
     runner = repo_root / "scripts" / "run_playwright_strict_gate.sh"
     assert runner.is_file(), f"Missing {runner}"
 
-    env = os.environ.copy()
-    env["PLAYWRIGHT_RETRYABLE_PATTERN"] = ""
-    env["PLAYWRIGHT_CMD"] = "echo pattern-fallback-ok; exit 0"
+    env = _runner_env(
+        PLAYWRIGHT_RETRYABLE_PATTERN="",
+        PLAYWRIGHT_CMD="echo pattern-fallback-ok; exit 0",
+    )
 
     cp = subprocess.run(  # noqa: S603
         ["bash", str(runner)],
@@ -367,9 +413,10 @@ def test_playwright_runner_rejects_invalid_retryable_pattern_before_command(tmp_
     assert runner.is_file(), f"Missing {runner}"
 
     marker = tmp_path / "runner_cmd.marker"
-    env = os.environ.copy()
-    env["PLAYWRIGHT_RETRYABLE_PATTERN"] = "("
-    env["PLAYWRIGHT_CMD"] = f'echo "ran" > "{marker}"; exit 0'
+    env = _runner_env(
+        PLAYWRIGHT_RETRYABLE_PATTERN="(",
+        PLAYWRIGHT_CMD=f'echo "ran" > "{marker}"; exit 0',
+    )
 
     cp = subprocess.run(  # noqa: S603
         ["bash", str(runner)],

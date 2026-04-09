@@ -98,6 +98,10 @@ def test_strict_gate_report_backfills_effective_playwright_runtime_notes(tmp_pat
     assert "- `PLAYWRIGHT_EFFECTIVE_MAX_ATTEMPTS`: `2`" in report
     assert "- `PLAYWRIGHT_EFFECTIVE_KEEP_DB`: `0`" in report
     assert "- `PLAYWRIGHT_EFFECTIVE_RETRYABLE_PATTERN`: `PATTERN_B`" in report
+    assert "- `PLAYWRIGHT_REQUESTED_MAX_ATTEMPTS`: `<unset>`" in report
+    assert "- `PLAYWRIGHT_REQUESTED_RETRYABLE_PATTERN`: `<unset>`" in report
+    assert "- `PLAYWRIGHT_REQUESTED_KEEP_DB`: `<unset>`" in report
+    assert "- `PLAYWRIGHT_REQUESTED_PORT_PICKER_CMD`: `<unset>`" in report
 
 
 def test_strict_gate_report_keeps_explicit_playwright_notes_values(tmp_path: Path) -> None:
@@ -169,3 +173,7 @@ def test_strict_gate_report_keeps_explicit_playwright_notes_values(tmp_path: Pat
     assert "- `PLAYWRIGHT_EFFECTIVE_MAX_ATTEMPTS`: `9`" in report
     assert "- `PLAYWRIGHT_EFFECTIVE_KEEP_DB`: `1`" in report
     assert "- `PLAYWRIGHT_EFFECTIVE_RETRYABLE_PATTERN`: `RUNNER_PATTERN`" in report
+    assert "- `PLAYWRIGHT_REQUESTED_RETRYABLE_PATTERN`: `EXPLICIT_PATTERN`" in report
+    assert "- `PLAYWRIGHT_REQUESTED_PORT`: `51111`" in report
+    assert "- `PLAYWRIGHT_REQUESTED_BASE_URL`: `http://127.0.0.1:51111`" in report
+    assert "- `PLAYWRIGHT_REQUESTED_DB_PATH`: `/tmp/explicit_pw_51111.db`" in report

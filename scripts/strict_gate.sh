@@ -15,18 +15,18 @@ Usage:
   scripts/strict_gate.sh [--help]
 
 Environment:
-  TARGETED_PYTEST_ARGS=<arg> Optional. If set, runs an extra targeted pytest step.
-  PYTEST_BIN=<path>          Optional. Default: .venv/bin/pytest
+  TARGETED_PYTEST_ARGS=<args> Optional. If set, runs an extra targeted pytest step.
+  PYTEST_BIN=<path>           Optional. Default: .venv/bin/pytest
 
-  PLAYWRIGHT_RUNNER=<path>   Optional. Default: scripts/run_playwright_strict_gate.sh
-  PLAYWRIGHT_CMD=<cmd>       Optional. Default: npx playwright test --workers=1
+  PLAYWRIGHT_RUNNER=<path>    Optional. Default: scripts/run_playwright_strict_gate.sh
+  PLAYWRIGHT_CMD=<cmd>        Optional. Default: npx playwright test --workers=1
   PLAYWRIGHT_RETRYABLE_PATTERN=<re> Optional. Passed through to playwright runner.
-  PLAYWRIGHT_PORT=<port>     Optional. Passed through to playwright runner.
+  PLAYWRIGHT_PORT=<port>      Optional. Passed through to playwright runner.
   PLAYWRIGHT_PORT_PICKER_CMD=<cmd> Optional. Passed through to playwright runner.
-  PLAYWRIGHT_BASE_URL=<url>  Optional. Passed through to playwright runner.
-  PLAYWRIGHT_DB_PATH=<path>  Optional. Passed through as YUANTUS_PLAYWRIGHT_DB_PATH.
+  PLAYWRIGHT_BASE_URL=<url>   Optional. Passed through to playwright runner.
+  PLAYWRIGHT_DB_PATH=<path>   Optional. Passed through as YUANTUS_PLAYWRIGHT_DB_PATH.
   PLAYWRIGHT_MAX_ATTEMPTS=<n> Optional. Default: 2
-  PLAYWRIGHT_KEEP_DB=1       Optional. If set, keeps playwright sqlite files.
+  PLAYWRIGHT_KEEP_DB=<bool>   Optional. 0/1, true/false, yes/no. Passed through.
 EOF
 }
 
@@ -88,8 +88,46 @@ if [[ ! -x "$PLAYWRIGHT_RUNNER" ]]; then
   exit 2
 fi
 
+if ! [[ "$PLAYWRIGHT_MAX_ATTEMPTS" =~ ^[0-9]+$ ]] || [[ "$PLAYWRIGHT_MAX_ATTEMPTS" -lt 1 ]]; then
+  echo "ERROR: PLAYWRIGHT_MAX_ATTEMPTS must be a positive integer, got: ${PLAYWRIGHT_MAX_ATTEMPTS}" >&2
+  exit 2
+fi
+if [[ -n "$PLAYWRIGHT_KEEP_DB" ]]; then
+  keep_db_normalized="$(printf '%s' "$PLAYWRIGHT_KEEP_DB" | tr '[:upper:]' '[:lower:]')"
+  case "$keep_db_normalized" in
+    0|1|true|false|yes|no|on|off) ;;
+    *)
+      echo "ERROR: PLAYWRIGHT_KEEP_DB must be one of 0/1/true/false/yes/no/on/off, got: ${PLAYWRIGHT_KEEP_DB}" >&2
+      exit 2
+      ;;
+  esac
+fi
+if [[ -n "$PLAYWRIGHT_RETRYABLE_PATTERN" ]]; then
+  grep -Eq "$PLAYWRIGHT_RETRYABLE_PATTERN" <<<"" >/dev/null 2>&1
+  grep_rc=$?
+  if [[ "$grep_rc" -eq 2 ]]; then
+    echo "ERROR: PLAYWRIGHT_RETRYABLE_PATTERN is not a valid extended regex: ${PLAYWRIGHT_RETRYABLE_PATTERN}" >&2
+    exit 2
+  fi
+fi
+
+run_playwright_step() {
+  env \
+    PLAYWRIGHT_CMD="$PLAYWRIGHT_CMD" \
+    PLAYWRIGHT_RETRYABLE_PATTERN="$PLAYWRIGHT_RETRYABLE_PATTERN" \
+    PLAYWRIGHT_PORT="$PLAYWRIGHT_PORT" \
+    PLAYWRIGHT_PORT_PICKER_CMD="$PLAYWRIGHT_PORT_PICKER_CMD" \
+    PLAYWRIGHT_BASE_URL="$PLAYWRIGHT_BASE_URL" \
+    YUANTUS_PLAYWRIGHT_DB_PATH="$PLAYWRIGHT_DB_PATH" \
+    PLAYWRIGHT_MAX_ATTEMPTS="$PLAYWRIGHT_MAX_ATTEMPTS" \
+    PLAYWRIGHT_KEEP_DB="$PLAYWRIGHT_KEEP_DB" \
+    "$PLAYWRIGHT_RUNNER"
+}
+
 if [[ -n "${TARGETED_PYTEST_ARGS:-}" ]]; then
-  if ! run_step "pytest (targeted)" "$PYTEST_BIN" -q ${TARGETED_PYTEST_ARGS}; then
+  # shellcheck disable=SC2206
+  targeted_args=( ${TARGETED_PYTEST_ARGS} )
+  if ! run_step "pytest (targeted)" "$PYTEST_BIN" -q "${targeted_args[@]}"; then
     have_fail=1
   fi
 else
@@ -104,16 +142,7 @@ if ! run_step "pytest (DB)" env YUANTUS_PYTEST_DB=1 "$PYTEST_BIN" -q; then
   have_fail=1
 fi
 
-if ! run_step "playwright" env \
-  PLAYWRIGHT_CMD="$PLAYWRIGHT_CMD" \
-  PLAYWRIGHT_RETRYABLE_PATTERN="$PLAYWRIGHT_RETRYABLE_PATTERN" \
-  PLAYWRIGHT_PORT="$PLAYWRIGHT_PORT" \
-  PLAYWRIGHT_PORT_PICKER_CMD="$PLAYWRIGHT_PORT_PICKER_CMD" \
-  PLAYWRIGHT_BASE_URL="$PLAYWRIGHT_BASE_URL" \
-  YUANTUS_PLAYWRIGHT_DB_PATH="$PLAYWRIGHT_DB_PATH" \
-  PLAYWRIGHT_MAX_ATTEMPTS="$PLAYWRIGHT_MAX_ATTEMPTS" \
-  PLAYWRIGHT_KEEP_DB="$PLAYWRIGHT_KEEP_DB" \
-  "$PLAYWRIGHT_RUNNER"; then
+if ! run_step "playwright" run_playwright_step; then
   have_fail=1
 fi
 

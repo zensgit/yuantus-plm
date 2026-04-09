@@ -7,7 +7,7 @@
 # Usage:
 #   scripts/strict_gate_report.sh
 #   OUT_DIR=tmp/strict-gate scripts/strict_gate_report.sh
-#   REPORT_PATH=docs/DAILY_REPORTS/STRICT_GATE_20260207.md scripts/strict_gate_report.sh
+#   REPORT_PATH=docs/DAILY_REPORTS/STRICT_GATE_20260207_12345.md scripts/strict_gate_report.sh
 set -uo pipefail
 
 usage() {
@@ -37,10 +37,12 @@ Environment:
 
   TARGETED_PYTEST_ARGS=<arg> Optional. If set, runs an extra targeted pytest step.
   PYTEST_BIN=<path>          Optional. Default: .venv/bin/pytest
+  PLAYWRIGHT_RUNNER=<path>   Optional. Default: scripts/run_playwright_strict_gate.sh
   PLAYWRIGHT_CMD=<cmd>       Optional. Default: npx playwright test --workers=1
+  PLAYWRIGHT_PORT_PICKER_CMD=<cmd> Optional. Passed through to playwright runner.
   PLAYWRIGHT_MAX_ATTEMPTS=<n> Optional. Default: 2
   PLAYWRIGHT_RETRYABLE_PATTERN=<re> Optional. Passed through to playwright runner.
-  PLAYWRIGHT_KEEP_DB=1       Optional. If set, keeps Playwright sqlite files.
+  PLAYWRIGHT_KEEP_DB=<bool>  Optional. 0/1, true/false, yes/no. Passed through.
   DEMO_SCRIPT=1              Optional. If set, runs scripts/demo_plm_closed_loop.sh
 
 Examples:
@@ -92,11 +94,20 @@ relpath() {
   fi
 }
 
+REQUESTED_PLAYWRIGHT_MAX_ATTEMPTS="${PLAYWRIGHT_MAX_ATTEMPTS:-<unset>}"
+REQUESTED_PLAYWRIGHT_RETRYABLE_PATTERN="${PLAYWRIGHT_RETRYABLE_PATTERN:-<unset>}"
+REQUESTED_PLAYWRIGHT_KEEP_DB="${PLAYWRIGHT_KEEP_DB:-<unset>}"
+REQUESTED_PLAYWRIGHT_PORT="${PLAYWRIGHT_PORT:-<unset>}"
+REQUESTED_PLAYWRIGHT_PORT_PICKER_CMD="${PLAYWRIGHT_PORT_PICKER_CMD:-<unset>}"
+REQUESTED_PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:-<unset>}"
+REQUESTED_PLAYWRIGHT_DB_PATH="${PLAYWRIGHT_DB_PATH:-<unset>}"
+
 PYTEST_BIN="${PYTEST_BIN:-${REPO_ROOT}/.venv/bin/pytest}"
 PLAYWRIGHT_RUNNER="${PLAYWRIGHT_RUNNER:-${REPO_ROOT}/scripts/run_playwright_strict_gate.sh}"
 PLAYWRIGHT_CMD="${PLAYWRIGHT_CMD:-npx playwright test --workers=1}"
 PLAYWRIGHT_RETRYABLE_PATTERN="${PLAYWRIGHT_RETRYABLE_PATTERN:-}"
 PLAYWRIGHT_PORT="${PLAYWRIGHT_PORT:-}"
+PLAYWRIGHT_PORT_PICKER_CMD="${PLAYWRIGHT_PORT_PICKER_CMD:-}"
 PLAYWRIGHT_BASE_URL="${PLAYWRIGHT_BASE_URL:-}"
 PLAYWRIGHT_DB_PATH="${PLAYWRIGHT_DB_PATH:-}"
 PLAYWRIGHT_MAX_ATTEMPTS="${PLAYWRIGHT_MAX_ATTEMPTS:-2}"
@@ -105,6 +116,16 @@ PLAYWRIGHT_KEEP_DB="${PLAYWRIGHT_KEEP_DB:-0}"
 if ! [[ "$PLAYWRIGHT_MAX_ATTEMPTS" =~ ^[0-9]+$ ]] || [[ "$PLAYWRIGHT_MAX_ATTEMPTS" -lt 1 ]]; then
   echo "ERROR: PLAYWRIGHT_MAX_ATTEMPTS must be a positive integer, got: ${PLAYWRIGHT_MAX_ATTEMPTS}" >&2
   exit 2
+fi
+if [[ -n "$PLAYWRIGHT_KEEP_DB" ]]; then
+  keep_db_normalized="$(printf '%s' "$PLAYWRIGHT_KEEP_DB" | tr '[:upper:]' '[:lower:]')"
+  case "$keep_db_normalized" in
+    0|1|true|false|yes|no|on|off) ;;
+    *)
+      echo "ERROR: PLAYWRIGHT_KEEP_DB must be one of 0/1/true/false/yes/no/on/off, got: ${PLAYWRIGHT_KEEP_DB}" >&2
+      exit 2
+      ;;
+  esac
 fi
 if [[ -n "$PLAYWRIGHT_RETRYABLE_PATTERN" ]]; then
   grep -Eq "$PLAYWRIGHT_RETRYABLE_PATTERN" <<<"" >/dev/null 2>&1
@@ -193,9 +214,24 @@ step() {
   printf -v "$dur_var" "%s" "$((e - s))"
 }
 
+run_playwright_step() {
+  env \
+    PLAYWRIGHT_CMD="$PLAYWRIGHT_CMD" \
+    PLAYWRIGHT_RETRYABLE_PATTERN="$PLAYWRIGHT_RETRYABLE_PATTERN" \
+    PLAYWRIGHT_PORT="$PLAYWRIGHT_PORT" \
+    PLAYWRIGHT_PORT_PICKER_CMD="$PLAYWRIGHT_PORT_PICKER_CMD" \
+    PLAYWRIGHT_BASE_URL="$PLAYWRIGHT_BASE_URL" \
+    YUANTUS_PLAYWRIGHT_DB_PATH="$PLAYWRIGHT_DB_PATH" \
+    PLAYWRIGHT_MAX_ATTEMPTS="$PLAYWRIGHT_MAX_ATTEMPTS" \
+    PLAYWRIGHT_KEEP_DB="$PLAYWRIGHT_KEEP_DB" \
+    "$PLAYWRIGHT_RUNNER"
+}
+
 if [[ -n "${TARGETED_PYTEST_ARGS:-}" ]]; then
+  # shellcheck disable=SC2206
+  targeted_args=( ${TARGETED_PYTEST_ARGS} )
   step "pytest (targeted)" "$log_targeted" status_targeted dur_targeted_s \
-    "$PYTEST_BIN" -q ${TARGETED_PYTEST_ARGS}
+    "$PYTEST_BIN" -q "${targeted_args[@]}"
 else
   echo "==> pytest (targeted): SKIP (TARGETED_PYTEST_ARGS not set)"
 fi
@@ -252,15 +288,7 @@ else
 fi
 
 step "playwright" "$log_playwright" status_playwright dur_playwright_s \
-  env \
-    PLAYWRIGHT_CMD="$PLAYWRIGHT_CMD" \
-    PLAYWRIGHT_RETRYABLE_PATTERN="$PLAYWRIGHT_RETRYABLE_PATTERN" \
-    PLAYWRIGHT_PORT="$PLAYWRIGHT_PORT" \
-    PLAYWRIGHT_BASE_URL="$PLAYWRIGHT_BASE_URL" \
-    YUANTUS_PLAYWRIGHT_DB_PATH="$PLAYWRIGHT_DB_PATH" \
-    PLAYWRIGHT_MAX_ATTEMPTS="$PLAYWRIGHT_MAX_ATTEMPTS" \
-    PLAYWRIGHT_KEEP_DB="$PLAYWRIGHT_KEEP_DB" \
-    "$PLAYWRIGHT_RUNNER"
+  run_playwright_step
 
 # Capture effective playwright runtime settings from runner logs.
 PLAYWRIGHT_EFFECTIVE_ATTEMPT_LAST="$(grep -E '^PLAYWRIGHT_ATTEMPT=' "$log_playwright" | tail -n 1 | cut -d= -f2- || true)"
@@ -334,8 +362,16 @@ cat >"$REPORT_PATH" <<EOF
 - \`PLAYWRIGHT_ATTEMPT_LAST\`: \`${PLAYWRIGHT_ATTEMPT_LAST:-<unset>}\`
 - \`PLAYWRIGHT_KEEP_DB\`: \`${PLAYWRIGHT_KEEP_DB}\`
 - \`PLAYWRIGHT_PORT\`: \`${PLAYWRIGHT_PORT:-<unset>}\`
+- \`PLAYWRIGHT_PORT_PICKER_CMD\`: \`${PLAYWRIGHT_PORT_PICKER_CMD:-<unset>}\`
 - \`PLAYWRIGHT_BASE_URL\`: \`${PLAYWRIGHT_BASE_URL:-<unset>}\`
 - \`PLAYWRIGHT_DB_PATH\`: \`${PLAYWRIGHT_DB_PATH:-<unset>}\`
+- \`PLAYWRIGHT_REQUESTED_MAX_ATTEMPTS\`: \`${REQUESTED_PLAYWRIGHT_MAX_ATTEMPTS}\`
+- \`PLAYWRIGHT_REQUESTED_RETRYABLE_PATTERN\`: \`${REQUESTED_PLAYWRIGHT_RETRYABLE_PATTERN}\`
+- \`PLAYWRIGHT_REQUESTED_KEEP_DB\`: \`${REQUESTED_PLAYWRIGHT_KEEP_DB}\`
+- \`PLAYWRIGHT_REQUESTED_PORT\`: \`${REQUESTED_PLAYWRIGHT_PORT}\`
+- \`PLAYWRIGHT_REQUESTED_PORT_PICKER_CMD\`: \`${REQUESTED_PLAYWRIGHT_PORT_PICKER_CMD}\`
+- \`PLAYWRIGHT_REQUESTED_BASE_URL\`: \`${REQUESTED_PLAYWRIGHT_BASE_URL}\`
+- \`PLAYWRIGHT_REQUESTED_DB_PATH\`: \`${REQUESTED_PLAYWRIGHT_DB_PATH}\`
 - \`PLAYWRIGHT_EFFECTIVE_ATTEMPT_LAST\`: \`${PLAYWRIGHT_EFFECTIVE_ATTEMPT_LAST:-<unset>}\`
 - \`PLAYWRIGHT_EFFECTIVE_ATTEMPT_COUNT\`: \`${PLAYWRIGHT_EFFECTIVE_ATTEMPT_COUNT:-<unset>}\`
 - \`PLAYWRIGHT_RETRIED\`: \`${PLAYWRIGHT_RETRIED}\`
