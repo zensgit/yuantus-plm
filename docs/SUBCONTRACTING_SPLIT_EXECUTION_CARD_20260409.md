@@ -19,6 +19,7 @@ bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --statu
 bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --commit-plan
 bash scripts/print_subcontracting_first_cut_anchors.sh
 bash scripts/print_subcontracting_first_cut_anchors.sh --grep
+bash scripts/print_subcontracting_first_cut_anchors.sh --hunks
 ```
 
 ## Preferred first incision
@@ -47,6 +48,9 @@ Likely first files:
 
 Anchor helper:
 `scripts/print_subcontracting_first_cut_anchors.sh`
+
+Hunk-order helper:
+`scripts/print_subcontracting_first_cut_anchors.sh --hunks`
 
 ## Rule
 

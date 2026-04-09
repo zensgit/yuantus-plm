@@ -34,6 +34,7 @@ def test_subcontracting_first_cut_anchor_helper_exists_and_prints_expected_targe
         "Usage:",
         "print_subcontracting_first_cut_anchors.sh",
         "--grep",
+        "--hunks",
         "approval role mapping",
     ):
         assert token in help_out, f"help output missing token: {token}"
@@ -71,9 +72,27 @@ def test_subcontracting_first_cut_anchor_helper_exists_and_prints_expected_targe
     ):
         assert token in grep_out, f"grep output missing token: {token}"
 
+    hunks_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--hunks"],
+        text=True,
+        capture_output=True,
+    )
+    assert hunks_cp.returncode == 0, hunks_cp.stdout + "\n" + hunks_cp.stderr
+    hunks_out = hunks_cp.stdout or ""
+    for token in (
+        "Recommended git add -p order",
+        "1. Service scope helpers + CRUD seed",
+        "4. Router endpoints",
+        "5. Service tests",
+        "6. Router tests",
+        "use `git add -p`",
+    ):
+        assert token in hunks_out, f"hunks output missing token: {token}"
+
     execution_text = execution_card.read_text(encoding="utf-8", errors="replace")
     for token in (
         "print_subcontracting_first_cut_anchors.sh",
         "--grep",
+        "--hunks",
     ):
         assert token in execution_text, f"execution card missing token: {token}"
