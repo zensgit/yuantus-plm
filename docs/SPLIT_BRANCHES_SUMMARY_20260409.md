@@ -49,6 +49,7 @@ as targeted split branches than as a new generalized domain.
 ## References
 
 - `docs/DIRTY_TREE_RESIDUAL_CLOSEOUT_20260409.md`
+- `docs/SPLIT_PR_REVIEW_ORDER_20260409.md`
 - `docs/SPLIT_BRANCH_PR_DRAFTS_20260409.md`
 - `docs/DIRTY_TREE_RESIDUAL_CLUSTERS_20260409.md`
 - `docs/ROUTER_SURFACE_MISC_SPLIT_EXECUTION_CARD_20260409.md`

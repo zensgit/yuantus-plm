@@ -61,3 +61,8 @@ Expected clean-scope result:
 - all three workspace Playwright wrappers pass locally
 - workspace bundle scope remains isolated
 - reviewer is comfortable ignoring the split-matrix follow-up domains for this PR
+
+## Follow-up Split Routing
+
+- use `docs/SPLIT_PR_REVIEW_ORDER_20260409.md` for the shortest review order across
+  `#155`, `#156`, `#157`, and `#158`
