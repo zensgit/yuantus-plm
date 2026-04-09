@@ -90,9 +90,16 @@ def test_legacy_unmigrated_table_allowlist_is_current_and_sorted() -> None:
     declared_tables = _declared_table_names(repo_root)
 
     current_missing = declared_tables - migrated_tables
-    allowlist = set(_LEGACY_UNMIGRATED_TABLE_ALLOWLIST)
+    allowlist_entries = list(_LEGACY_UNMIGRATED_TABLE_ALLOWLIST)
+    allowlist = set(allowlist_entries)
 
-    assert list(_LEGACY_UNMIGRATED_TABLE_ALLOWLIST) == sorted(_LEGACY_UNMIGRATED_TABLE_ALLOWLIST), (
+    duplicates = sorted({name for name in allowlist_entries if allowlist_entries.count(name) > 1})
+    assert not duplicates, (
+        "Legacy unmigrated table allowlist must not contain duplicates:\n"
+        + "\n".join(f"- {name}" for name in duplicates)
+    )
+
+    assert allowlist_entries == sorted(allowlist_entries), (
         "Legacy unmigrated table allowlist must stay sorted for stable maintenance."
     )
 
