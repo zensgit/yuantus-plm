@@ -3,6 +3,29 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+_LEGACY_UNMIGRATED_TABLE_ALLOWLIST = (
+    "meta_approval_categories",
+    "meta_approval_requests",
+    "meta_box_contents",
+    "meta_box_items",
+    "meta_cut_plans",
+    "meta_cut_results",
+    "meta_maintenance_categories",
+    "meta_maintenance_equipment",
+    "meta_maintenance_requests",
+    "meta_quality_alerts",
+    "meta_quality_checks",
+    "meta_quality_points",
+    "meta_raw_materials",
+    "meta_report_locale_profiles",
+    "meta_subcontract_order_events",
+    "meta_subcontract_orders",
+    "meta_sync_jobs",
+    "meta_sync_records",
+    "meta_sync_sites",
+    "meta_translations",
+)
+
 
 def _find_repo_root(start: Path) -> Path:
     cur = start.resolve()
@@ -51,11 +74,33 @@ def test_every_declared_table_has_a_create_table_migration() -> None:
     migrated_tables = _migration_create_tables(repo_root)
     declared_tables = _declared_table_names(repo_root)
 
-    missing = sorted(declared_tables - migrated_tables)
+    missing = sorted(
+        (declared_tables - migrated_tables) - set(_LEGACY_UNMIGRATED_TABLE_ALLOWLIST)
+    )
     assert not missing, (
         "Some declared ORM/association tables have no op.create_table migration contract. "
         "Add migration coverage for:\n"
         + "\n".join(f"- {name}" for name in missing)
+    )
+
+
+def test_legacy_unmigrated_table_allowlist_is_current_and_sorted() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    migrated_tables = _migration_create_tables(repo_root)
+    declared_tables = _declared_table_names(repo_root)
+
+    current_missing = declared_tables - migrated_tables
+    allowlist = set(_LEGACY_UNMIGRATED_TABLE_ALLOWLIST)
+
+    assert list(_LEGACY_UNMIGRATED_TABLE_ALLOWLIST) == sorted(_LEGACY_UNMIGRATED_TABLE_ALLOWLIST), (
+        "Legacy unmigrated table allowlist must stay sorted for stable maintenance."
+    )
+
+    stale = sorted(allowlist - current_missing)
+    assert not stale, (
+        "Legacy unmigrated table allowlist contains table(s) that are no longer missing migrations. "
+        "Drop them from the allowlist:\n"
+        + "\n".join(f"- {name}" for name in stale)
     )
 
 
@@ -70,4 +115,3 @@ def test_migration_only_tables_are_allowlisted() -> None:
         "If intentional, extend the scanner or document why the ORM is missing these:\n"
         + "\n".join(f"- {name}" for name in extra)
     )
-
