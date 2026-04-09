@@ -69,3 +69,4 @@ Expected clean-scope result:
 - use `docs/PR_TRIAGE_SUMMARY_20260409.md` for the one-page PR-level triage view
 - use `docs/PR_REVIEWER_ASSIGNMENT_PLAN_20260409.md` for concern-based reviewer routing
 - use `docs/PR_MERGE_READINESS_NOTE_20260409.md` for merge order and non-blocking rules
+- use `docs/PR_CLOSE_DECISION_NOTE_20260409.md` for the final merge-vs-hold decision
