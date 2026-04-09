@@ -115,6 +115,8 @@ def test_subcontracting_routes_registered_in_create_app():
     assert "/api/v1/subcontracting/overview" in paths
     assert "/api/v1/subcontracting/vendors/analytics" in paths
     assert "/api/v1/subcontracting/receipts/analytics" in paths
+    assert "/api/v1/subcontracting/approval-role-mappings" in paths
+    assert "/api/v1/subcontracting/approval-role-mappings/export" in paths
 
 
 def test_subcontracting_analytics_endpoints():
@@ -159,3 +161,103 @@ def test_subcontracting_export_endpoints():
     assert "vendor_id,orders_total" in vendors_response.text
     assert receipts_response.status_code == 200
     assert receipts_response.json()["receipts"][0]["order_id"] == "so-1"
+
+
+def test_approval_role_mapping_registry_endpoints():
+    client, db = _client_with_db()
+
+    payload = {
+        "generated_at": "2026-03-23T00:00:00Z",
+        "filters": {
+            "scope_type": None,
+            "scope_value": None,
+            "scope_vendor_id": None,
+            "scope_policy_code": None,
+            "role_code": None,
+            "active_only": True,
+            "limit": 200,
+            "sort_by": "scope",
+        },
+        "total": 1,
+        "active_total": 1,
+        "required_total": 1,
+        "fallback_total": 1,
+        "scope_breakdown": {"vendor_policy": 1},
+        "role_breakdown": {"qa_manager": 1},
+        "resolution_precedence": ["vendor_policy", "vendor", "policy_code", "team", "global"],
+        "rows": [
+            {
+                "id": "map-1",
+                "role_code": "qa_manager",
+                "scope_type": "vendor_policy",
+                "scope_vendor_id": "v-1",
+                "scope_policy_code": "waiver_dual_control",
+            }
+        ],
+    }
+
+    with patch("yuantus.meta_engine.web.subcontracting_router.SubcontractingService") as svc_cls:
+        svc = svc_cls.return_value
+        svc.get_approval_role_mapping_registry.return_value = payload
+        svc.export_approval_role_mapping_registry.return_value = "role_code,scope_type\nqa_manager,vendor_policy\n"
+
+        upsert_response = client.post(
+            "/api/v1/subcontracting/approval-role-mappings",
+            json={
+                "role_code": "qa_manager",
+                "scope_type": "vendor_policy",
+                "scope_vendor_id": "v-1",
+                "scope_policy_code": "waiver_dual_control",
+                "owner": "qa-policy",
+                "required": True,
+                "sequence": 5,
+                "fallback_role": "finance_controller",
+            },
+        )
+        list_response = client.get(
+            "/api/v1/subcontracting/approval-role-mappings",
+            params={
+                "scope_type": "vendor_policy",
+                "scope_vendor_id": "v-1",
+                "scope_policy_code": "waiver_dual_control",
+            },
+        )
+        export_response = client.get(
+            "/api/v1/subcontracting/approval-role-mappings/export",
+            params={"format": "csv"},
+        )
+
+    assert upsert_response.status_code == 200
+    assert upsert_response.json()["urls"]["self"].endswith("/api/v1/subcontracting/approval-role-mappings")
+    assert list_response.status_code == 200
+    assert list_response.json()["scope_breakdown"]["vendor_policy"] == 1
+    assert export_response.status_code == 200
+    assert export_response.headers["content-type"].startswith("text/csv")
+    svc.upsert_approval_role_mapping.assert_called_once_with(
+        role_code="qa_manager",
+        scope_type="vendor_policy",
+        scope_value=None,
+        scope_vendor_id="v-1",
+        scope_policy_code="waiver_dual_control",
+        owner="qa-policy",
+        team=None,
+        required=True,
+        sequence=5,
+        fallback_role="finance_controller",
+        active=True,
+        properties=None,
+        user_id=None,
+    )
+    assert svc.get_approval_role_mapping_registry.call_count == 2
+    svc.export_approval_role_mapping_registry.assert_called_once_with(
+        fmt="csv",
+        scope_type=None,
+        scope_value=None,
+        scope_vendor_id=None,
+        scope_policy_code=None,
+        role_code=None,
+        active_only=True,
+        limit=200,
+        sort_by="scope",
+    )
+    assert db.commit.call_count == 1

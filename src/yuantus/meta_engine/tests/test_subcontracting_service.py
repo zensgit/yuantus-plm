@@ -7,7 +7,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from yuantus.meta_engine.manufacturing.models import Operation
-from yuantus.meta_engine.subcontracting.models import SubcontractOrder, SubcontractOrderEvent
+from yuantus.meta_engine.subcontracting.models import (
+    SubcontractApprovalRoleMapping,
+    SubcontractOrder,
+    SubcontractOrderEvent,
+)
 from yuantus.meta_engine.subcontracting.service import SubcontractingService
 
 
@@ -169,3 +173,103 @@ def test_receipt_analytics_json_rows():
 
     assert payload["receipts"][0]["order_id"] == order.id
     assert payload["receipts"][0]["completion_pct"] == 25.0
+
+
+def test_approval_role_mapping_registry_foundation():
+    session = _mock_session()
+    svc = SubcontractingService(session)
+
+    svc.upsert_approval_role_mapping(
+        role_code="qa_manager",
+        scope_type="global",
+        owner="qa-global",
+        team="governance",
+        sequence=20,
+    )
+    svc.upsert_approval_role_mapping(
+        role_code="qa_manager",
+        scope_type="vendor",
+        scope_value="v-1",
+        owner="qa-vendor",
+        team="vendor-ops",
+        sequence=10,
+    )
+    svc.upsert_approval_role_mapping(
+        role_code="qa_manager",
+        scope_type="policy_code",
+        scope_policy_code="waiver_dual_control",
+        owner="qa-policy-generic",
+        team="policy-team",
+        sequence=8,
+    )
+    fallback_mapping = svc.upsert_approval_role_mapping(
+        role_code="finance_controller",
+        scope_type="global",
+        owner="finance-global",
+        team="finance",
+        sequence=10,
+    )
+    vendor_policy_mapping = svc.upsert_approval_role_mapping(
+        role_code="qa_manager",
+        scope_type="vendor_policy",
+        scope_vendor_id="v-1",
+        scope_policy_code="waiver_dual_control",
+        owner="qa-policy-vendor",
+        team="policy-team",
+        sequence=5,
+        required=True,
+        fallback_role="finance_controller",
+    )
+
+    registry = svc.get_approval_role_mapping_registry()
+    scoped_registry = svc.get_approval_role_mapping_registry(
+        scope_vendor_id="v-1",
+        scope_policy_code="waiver_dual_control",
+    )
+    markdown = svc.export_approval_role_mapping_registry(fmt="markdown")
+
+    assert registry["total"] == 5
+    assert registry["required_total"] == 1
+    assert registry["fallback_total"] == 1
+    assert registry["scope_breakdown"]["global"] == 2
+    assert registry["scope_breakdown"]["vendor"] == 1
+    assert registry["scope_breakdown"]["policy_code"] == 1
+    assert registry["scope_breakdown"]["vendor_policy"] == 1
+    assert scoped_registry["total"] == 1
+    assert scoped_registry["rows"][0]["id"] == vendor_policy_mapping.id
+    assert scoped_registry["rows"][0]["scope_vendor_id"] == "v-1"
+    assert scoped_registry["rows"][0]["scope_policy_code"] == "waiver_dual_control"
+    assert scoped_registry["rows"][0]["fallback_owner"] == "finance-global"
+    assert scoped_registry["rows"][0]["fallback_team"] == "finance"
+    assert session.get(SubcontractApprovalRoleMapping, fallback_mapping.id).owner == "finance-global"
+    assert "Approval Role Mapping Registry" in markdown
+    assert "qa_manager" in markdown
+
+
+def test_approval_role_mapping_upsert_updates_existing_mapping():
+    session = _mock_session()
+    svc = SubcontractingService(session)
+
+    original = svc.upsert_approval_role_mapping(
+        role_code="qa_manager",
+        scope_type="vendor",
+        scope_value="v-1",
+        owner="qa-vendor",
+        team="vendor-ops",
+        sequence=10,
+        properties={"ticket": "GOV-1"},
+    )
+    updated = svc.upsert_approval_role_mapping(
+        role_code="qa_manager",
+        scope_type="vendor",
+        scope_value="v-1",
+        owner="qa-vendor-2",
+        team="vendor-ops",
+        sequence=10,
+        properties={"ticket": "GOV-2"},
+    )
+
+    assert updated.id == original.id
+    assert updated.owner == "qa-vendor-2"
+    assert updated.properties["ticket"] == "GOV-2"
+    assert svc.get_approval_role_mapping_registry()["total"] == 1
