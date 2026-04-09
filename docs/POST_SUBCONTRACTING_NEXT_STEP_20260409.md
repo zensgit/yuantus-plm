@@ -23,6 +23,7 @@ Why:
 bash scripts/print_dirty_tree_domain_commands.sh --after-first-cut
 bash scripts/print_dirty_tree_domain_commands.sh --domain docs-parallel --status
 bash scripts/print_dirty_tree_domain_commands.sh --domain docs-parallel --commit-plan
+bash scripts/print_docs_parallel_split_helper.sh --branch-plan
 ```
 
 ## Fallback
@@ -40,3 +41,6 @@ bash scripts/print_dirty_tree_domain_commands.sh --domain cross-domain-services 
 
 - do **not** mix `docs-parallel` with `cross-domain-services`
 - do **not** reopen `subcontracting` in the same follow-up split
+
+Execution card:
+`docs/DOCS_PARALLEL_SPLIT_EXECUTION_CARD_20260409.md`
