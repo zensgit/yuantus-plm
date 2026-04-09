@@ -38,6 +38,7 @@ Expected scope result:
 
 - `docs/PLM_WORKSPACE_REVIEWER_BRIEF_20260409.md`
 - `docs/PR_155_FINAL_REVIEW_CHECKLIST_20260409.md`
+- `docs/PR_TRIAGE_SUMMARY_20260409.md`
 - `docs/DIRTY_TREE_SPLIT_MATRIX_20260409.md`
 - `scripts/print_dirty_tree_split_matrix.sh`
 

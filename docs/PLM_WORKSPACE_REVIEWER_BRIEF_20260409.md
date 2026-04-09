@@ -109,6 +109,7 @@ If you only need the branch-hygiene context after that:
 Final checklist:
 
 - `docs/PR_155_FINAL_REVIEW_CHECKLIST_20260409.md`
+- `docs/PR_TRIAGE_SUMMARY_20260409.md`
 
 Branch closeout summary:
 
