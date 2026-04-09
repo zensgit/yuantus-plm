@@ -151,6 +151,15 @@ bash scripts/list_native_workspace_bundle.sh --full --git-add-cmd
 bash scripts/list_native_workspace_bundle.sh --full --commit-plan
 ```
 
+Claude Code CLI parallel helper:
+```bash
+bash scripts/print_claude_code_parallel_commands.sh
+bash scripts/print_claude_code_parallel_commands.sh --mode worktree --worktree-name claude-native-followup
+```
+
+Runbook:
+`docs/RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md`
+
 ---
 
 ## CAD-ML (optional)

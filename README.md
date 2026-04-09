@@ -102,8 +102,12 @@ bash scripts/verify_playwright_plm_workspace_all.sh http://127.0.0.1:7910
 Workspace-specific coverage and operator wrappers:
 `playwright/tests/README_plm_workspace.md`
 
+Claude Code sidecar/worktree templates:
+`bash scripts/print_claude_code_parallel_commands.sh`
+
 ## Runbooks
 
+- `docs/RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md` (Claude Code sidecar/worktree usage)
 - `docs/ERROR_CODES_JOBS.md` (Jobs error codes)
 - `docs/OPS_RUNBOOK_MT.md` (Multi-tenancy ops)
 - `docs/RUNBOOK_BACKUP_RESTORE.md` (Backup/restore)

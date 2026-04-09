@@ -79,6 +79,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_playwright_plm_workspace_documents_ui.sh",
         scripts_dir / "verify_playwright_plm_workspace_demo_resume.sh",
         scripts_dir / "verify_playwright_plm_workspace_document_handoff.sh",
+        scripts_dir / "print_claude_code_parallel_commands.sh",
         scripts_dir / "verify_run_h_e2e.sh",
         scripts_dir / "verify_run_h.sh",
     ]
