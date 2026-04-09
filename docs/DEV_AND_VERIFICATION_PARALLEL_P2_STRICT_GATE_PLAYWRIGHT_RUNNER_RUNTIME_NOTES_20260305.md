@@ -78,4 +78,3 @@ pytest -q src/yuantus/meta_engine/tests
 
 1. New retry behavior defaults to max 2 attempts and only retries on regex-matched startup/bind failures.
 2. Report markdown now records both requested and effective Playwright runtime values, enabling post-failure diagnosis without log scraping.
-
