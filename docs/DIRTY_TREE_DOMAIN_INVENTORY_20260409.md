@@ -13,9 +13,13 @@ Helper commands:
 
 ```bash
 bash scripts/print_dirty_tree_domain_commands.sh --list-domains
+bash scripts/print_dirty_tree_domain_commands.sh --recommended-order
 bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --status
 bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --commit-plan
 ```
+
+Execution order reference:
+`docs/DIRTY_TREE_SPLIT_ORDER_20260409.md`
 
 ## Current dirty tree summary
 

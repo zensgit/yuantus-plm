@@ -40,6 +40,7 @@ def test_dirty_tree_domain_helper_is_documented_and_lists_expected_domains() -> 
         "Usage:",
         "print_dirty_tree_domain_commands.sh",
         "--list-domains",
+        "--recommended-order",
         "--domain NAME",
         "--status",
         "--git-add-cmd",
@@ -70,6 +71,23 @@ def test_dirty_tree_domain_helper_is_documented_and_lists_expected_domains() -> 
     ):
         assert token in list_out, f"domain listing missing token: {token}"
 
+    order_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--recommended-order"],
+        text=True,
+        capture_output=True,
+    )
+    assert order_cp.returncode == 0, order_cp.stdout + "\n" + order_cp.stderr
+    order_out = order_cp.stdout or ""
+    for token in (
+        "1. subcontracting",
+        "2. docs-parallel",
+        "3. cross-domain-services",
+        "4. migrations",
+        "5. strict-gate",
+        "6. delivery-pack",
+    ):
+        assert token in order_out, f"recommended-order output missing token: {token}"
+
     commit_plan_cp = subprocess.run(  # noqa: S603,S607
         ["bash", str(script), "--domain", "subcontracting", "--commit-plan"],
         text=True,
@@ -90,8 +108,10 @@ def test_dirty_tree_domain_helper_is_documented_and_lists_expected_domains() -> 
     inventory_text = _read(inventory_doc)
     for token in (
         "print_dirty_tree_domain_commands.sh",
+        "--recommended-order",
         "--domain subcontracting --status",
         "--domain subcontracting --commit-plan",
+        "DIRTY_TREE_SPLIT_ORDER_20260409.md",
     ):
         assert token in inventory_text, f"inventory doc missing token: {token}"
 

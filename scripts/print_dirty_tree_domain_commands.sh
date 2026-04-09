@@ -5,10 +5,13 @@ usage() {
   cat <<'EOF'
 Usage:
   scripts/print_dirty_tree_domain_commands.sh [--list-domains]
+  scripts/print_dirty_tree_domain_commands.sh [--recommended-order]
   scripts/print_dirty_tree_domain_commands.sh --domain NAME [--status | --git-add-cmd | --commit-plan]
 
 Options:
   --list-domains  List supported dirty-tree domains and their intent.
+  --recommended-order
+                 Print the suggested dirty-tree split order with short reasons.
   --domain NAME   Target domain. Supported:
                   subcontracting
                   docs-parallel
@@ -29,6 +32,7 @@ EOF
 
 DOMAIN=""
 LIST_DOMAINS="false"
+PRINT_RECOMMENDED_ORDER="false"
 SHOW_STATUS="false"
 PRINT_GIT_ADD_CMD="false"
 PRINT_COMMIT_PLAN="false"
@@ -37,6 +41,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --list-domains)
       LIST_DOMAINS="true"
+      shift
+      ;;
+    --recommended-order)
+      PRINT_RECOMMENDED_ORDER="true"
       shift
       ;;
     --domain)
@@ -69,6 +77,11 @@ done
 
 if [[ "${LIST_DOMAINS}" == "true" && -n "${DOMAIN}" ]]; then
   echo "ERROR: --list-domains cannot be combined with --domain" >&2
+  exit 2
+fi
+
+if [[ "${PRINT_RECOMMENDED_ORDER}" == "true" && -n "${DOMAIN}" ]]; then
+  echo "ERROR: --recommended-order cannot be combined with --domain" >&2
   exit 2
 fi
 
@@ -246,6 +259,28 @@ suggest_commit_title() {
     *) echo "chore: split dirty-tree domain" ;;
   esac
 }
+
+print_recommended_order() {
+  cat <<'EOF'
+1. subcontracting
+   Largest risk domain by both lines changed and feature blast radius.
+2. docs-parallel
+   Huge parallel doc bulk; remove reviewer noise early after the main code spike.
+3. cross-domain-services
+   Remaining approvals / ECO / document-sync / parallel-task spillover.
+4. migrations
+   Keep migrations with their owning domain; do not land them as a mixed tail.
+5. strict-gate
+   Small CI/operator follow-up domain that can be reviewed independently.
+6. delivery-pack
+   Lowest code risk; handoff/package docs should be finalized last.
+EOF
+}
+
+if [[ "${PRINT_RECOMMENDED_ORDER}" == "true" ]]; then
+  print_recommended_order
+  exit 0
+fi
 
 if [[ "${LIST_DOMAINS}" == "true" || -z "${DOMAIN}" ]]; then
   for name in subcontracting docs-parallel cross-domain-services strict-gate migrations delivery-pack; do
