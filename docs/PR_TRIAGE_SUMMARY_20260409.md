@@ -38,6 +38,7 @@ the three extracted residual split PRs.
 
 ## Reviewer Entrypoints
 
+- `docs/PR_MERGE_READINESS_NOTE_20260409.md`
 - `docs/PR_REVIEWER_ASSIGNMENT_PLAN_20260409.md`
 - `docs/PR_155_FINAL_REVIEW_CHECKLIST_20260409.md`
 - `docs/SPLIT_PR_REVIEW_ORDER_20260409.md`

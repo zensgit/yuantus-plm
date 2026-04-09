@@ -98,6 +98,7 @@ Please review `#158` as a doc-only follow-up. It can be reviewed in parallel wit
 
 ## References
 
+- `docs/PR_MERGE_READINESS_NOTE_20260409.md`
 - `docs/PR_TRIAGE_SUMMARY_20260409.md`
 - `docs/PR_155_FINAL_REVIEW_CHECKLIST_20260409.md`
 - `docs/SPLIT_PR_REVIEW_ORDER_20260409.md`
