@@ -110,11 +110,11 @@ Read-only Claude reviewer sidecar:
 
 ## Runbooks
 
-- `docs/RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md` (Claude Code sidecar/worktree usage)
 - `docs/ERROR_CODES_JOBS.md` (Jobs error codes)
 - `docs/OPS_RUNBOOK_MT.md` (Multi-tenancy ops)
 - `docs/RUNBOOK_BACKUP_RESTORE.md` (Backup/restore)
 - `docs/RUNBOOK_CI_CHANGE_SCOPE.md` (CI/regression skip rules + force full runs)
+- `docs/RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md` (Claude Code sidecar/worktree usage)
 - `docs/RUNBOOK_JOBS_DIAG.md` (Jobs/CAD failure diagnostics)
 - `docs/RUNBOOK_PARALLEL_BRANCH_OBSERVABILITY_20260228.md` (Parallel branch observability and incident handling)
 - `docs/RUNBOOK_PERF_GATE_CONFIG.md` (Perf CI gate config)
