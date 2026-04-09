@@ -8,7 +8,7 @@ from yuantus.meta_engine.app_framework.service import AppService
 from yuantus.api.dependencies.auth import get_current_user_id_optional as get_current_user_id
 
 
-app_router = APIRouter(prefix="/api/apps", tags=["App Framework"])
+app_router = APIRouter(prefix="/apps", tags=["App Framework"])
 
 
 @app_router.post("/register")
