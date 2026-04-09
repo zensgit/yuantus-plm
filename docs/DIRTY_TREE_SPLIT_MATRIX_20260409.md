@@ -21,11 +21,24 @@ This is the single-entry overview for the dirty-tree split sequence.
 ```bash
 bash scripts/print_dirty_tree_split_matrix.sh
 bash scripts/print_dirty_tree_split_matrix.sh --commands
+bash scripts/print_dirty_tree_domain_coverage.sh
+bash scripts/print_dirty_tree_domain_coverage.sh --unassigned
 ```
+
+## Coverage Check
+
+Before opening a new split branch, run the dirty-tree coverage helper once to see
+whether the current dirty paths are already assigned to one of the six declared
+domains or still sitting in the residual gap list.
+
+- `bash scripts/print_dirty_tree_domain_coverage.sh`
+- `bash scripts/print_dirty_tree_domain_coverage.sh --by-domain`
+- `bash scripts/print_dirty_tree_domain_coverage.sh --unassigned`
 
 ## Related References
 
 - `docs/DIRTY_TREE_SPLIT_ORDER_20260409.md`
+- `docs/DIRTY_TREE_DOMAIN_COVERAGE_20260409.md`
 - `docs/SUBCONTRACTING_SPLIT_EXECUTION_CARD_20260409.md`
 - `docs/DOCS_PARALLEL_SPLIT_EXECUTION_CARD_20260409.md`
 - `docs/CROSS_DOMAIN_SERVICES_SPLIT_EXECUTION_CARD_20260409.md`

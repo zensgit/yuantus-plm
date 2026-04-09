@@ -28,6 +28,7 @@
 - print_cross_domain_services_split_helper.sh
 - print_delivery_pack_split_helper.sh
 - print_dirty_tree_domain_commands.sh
+- print_dirty_tree_domain_coverage.sh
 - print_dirty_tree_split_matrix.sh
 - print_docs_parallel_split_helper.sh
 - print_strict_gate_split_helper.sh
@@ -53,6 +54,7 @@
 - `print_cross_domain_services_split_helper.sh` prints the fast-path staging commands for the cross-domain-services split.
 - `print_delivery_pack_split_helper.sh` prints the fast-path staging commands for the delivery-pack split.
 - `print_dirty_tree_domain_commands.sh` prints domain-scoped dirty-tree status, staging commands, and split commit plans.
+- `print_dirty_tree_domain_coverage.sh` prints dirty-tree coverage totals, per-domain counts, and uncovered residual paths.
 - `print_dirty_tree_split_matrix.sh` prints the single-entry overview for the full dirty-tree split sequence.
 - `print_docs_parallel_split_helper.sh` prints the fast-path staging commands for the docs-parallel split.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
