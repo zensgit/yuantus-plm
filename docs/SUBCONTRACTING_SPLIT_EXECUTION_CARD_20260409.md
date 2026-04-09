@@ -17,6 +17,8 @@ This card is the fastest safe next step for the current dirty tree.
 git switch -c feature/subcontracting-split
 bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --status
 bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --commit-plan
+bash scripts/print_subcontracting_first_cut_anchors.sh
+bash scripts/print_subcontracting_first_cut_anchors.sh --grep
 ```
 
 ## Preferred first incision
@@ -26,11 +28,33 @@ mapping cleanup cluster inside `SubcontractingService`, because it is the
 lowest-risk self-contained slice relative to the rest of the subcontracting
 domain.
 
+Best cut boundary:
+
+- `SubcontractApprovalRoleMapping` in
+  `src/yuantus/meta_engine/subcontracting/models.py`
+- all `*approval_role_mapping*` methods in
+  `src/yuantus/meta_engine/subcontracting/service.py`
+- the corresponding role-mapping endpoints in
+  `src/yuantus/meta_engine/web/subcontracting_router.py`
+
+Likely first files:
+
+- `src/yuantus/meta_engine/subcontracting/service.py`
+- `src/yuantus/meta_engine/subcontracting/models.py`
+- `src/yuantus/meta_engine/web/subcontracting_router.py`
+- `src/yuantus/meta_engine/tests/test_subcontracting_service.py`
+- `src/yuantus/meta_engine/tests/test_subcontracting_router.py`
+
+Anchor helper:
+`scripts/print_subcontracting_first_cut_anchors.sh`
+
 ## Rule
 
 - do **not** use `git add .`
 - do **not** mix `docs-parallel` or `cross-domain-services` into this split
 - keep the migrations listed by the helper with the subcontracting split
+- expect merge conflicts if this split is attempted in parallel with other
+  branch work touching the same monolithic subcontracting files
 
 ## Related references
 
