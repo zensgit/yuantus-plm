@@ -35,6 +35,7 @@ If `docs-parallel` is intentionally deferred, the next code-facing fallback is:
 ```bash
 bash scripts/print_dirty_tree_domain_commands.sh --domain cross-domain-services --status
 bash scripts/print_dirty_tree_domain_commands.sh --domain cross-domain-services --commit-plan
+bash scripts/print_cross_domain_services_split_helper.sh --branch-plan
 ```
 
 ## Rule
@@ -44,3 +45,6 @@ bash scripts/print_dirty_tree_domain_commands.sh --domain cross-domain-services 
 
 Execution card:
 `docs/DOCS_PARALLEL_SPLIT_EXECUTION_CARD_20260409.md`
+
+Fallback execution card:
+`docs/CROSS_DOMAIN_SERVICES_SPLIT_EXECUTION_CARD_20260409.md`

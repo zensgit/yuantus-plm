@@ -80,6 +80,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_playwright_plm_workspace_demo_resume.sh",
         scripts_dir / "verify_playwright_plm_workspace_document_handoff.sh",
         scripts_dir / "print_claude_code_parallel_commands.sh",
+        scripts_dir / "print_cross_domain_services_split_helper.sh",
         scripts_dir / "print_dirty_tree_domain_commands.sh",
         scripts_dir / "print_docs_parallel_split_helper.sh",
         scripts_dir / "print_subcontracting_first_cut_anchors.sh",
