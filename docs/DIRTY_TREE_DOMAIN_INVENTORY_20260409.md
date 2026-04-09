@@ -9,6 +9,14 @@ This note is a read-only scope audit for the current dirty working tree. It is
 separate from the already-pushed PLM workspace bundle and should be used to
 avoid accidental PR scope creep.
 
+Helper commands:
+
+```bash
+bash scripts/print_dirty_tree_domain_commands.sh --list-domains
+bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --status
+bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --commit-plan
+```
+
 ## Current dirty tree summary
 
 From `git status --short` and Claude Code read-only sidecar:
