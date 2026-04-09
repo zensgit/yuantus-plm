@@ -184,9 +184,16 @@ This index aggregates all delivery‑related documents for private deployments.
 - Phase 4/5/6 Hardening: `docs/DEV_AND_VERIFICATION_P4_P5_P6_HARDENING_20260207.md`
 - P5 Reports/Search Performance Harness: `docs/DEV_AND_VERIFICATION_P5_REPORTS_PERF_20260208.md`
 - Phase 6 E-Signatures: `docs/DEV_AND_VERIFICATION_P6_ESIGN_20260201.md`
+- Parallel Breakage Helpdesk Latest Ticket Summary Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_BREAKAGE_HELPDESK_LATEST_TICKET_SUMMARY_20260405.md`
+- Parallel Breakage Helpdesk Traceability Enhancement Audit Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_BREAKAGE_HELPDESK_TRACEABILITY_ENHANCEMENT_AUDIT_20260404.md`
+- **Parallel Breakage Helpdesk Traceability Final Summary Verification**: `docs/DEV_AND_VERIFICATION_PARALLEL_BREAKAGE_HELPDESK_TRACEABILITY_FINAL_SUMMARY_20260405.md`
+- Parallel Breakage Incident Identity and Dimensions Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_BREAKAGE_INCIDENT_IDENTITY_AND_DIMENSIONS_20260404.md`
 - C10 Locale Resolver Export Helpers Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
 - C11 File Viewer Consumer Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C11_FILE_VIEWER_CONSUMER_20260319.md`
+- C11 超越（审计与可观测）验证: `docs/DEV_AND_VERIFICATION_PARALLEL_C11_FILE_VIEWER_CONSUMER_SURPASS_20260322.md`
 - C12 Approvals Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C12_APPROVALS_BOOTSTRAP_20260319.md`
+- C12 Approvals Durable Audit Surpass Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C12_APPROVALS_DURABLE_AUDIT_SURPASS_20260323.md`
+- C12 Approvals Surpass Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C12_APPROVALS_SURPASS_20260323.md`
 - C13 Subcontracting Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C13_SUBCONTRACTING_BOOTSTRAP_20260319.md`
 - C14 Approvals Export Ops-Report Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C14_APPROVALS_EXPORT_OPS_REPORT_BOOTSTRAP_20260319.md`
 - C15 Subcontracting Analytics Export Bootstrap Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C15_SUBCONTRACTING_ANALYTICS_EXPORT_BOOTSTRAP_20260319.md`
@@ -226,6 +233,32 @@ This index aggregates all delivery‑related documents for private deployments.
 - C7 BOM Compare Summarized Snapshot Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C7_BOM_COMPARE_SUMMARIZED_SNAPSHOT_20260318.md`
 - C8 Quality MRP Bootstrap Integration Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C8_QUALITY_MRP_BOOTSTRAP_INTEGRATION_20260318.md`
 - C9 Maintenance Workcenter Readiness Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_C9_MAINTENANCE_WORKCENTER_READINESS_20260318.md`
+- Parallel Document Sync BasicAuth HTTP Mirror Execute and Job Mapping Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_DOCUMENT_SYNC_BASIC_AUTH_HTTP_MIRROR_EXECUTE_AND_JOB_MAPPING_20260407.md`
+- Parallel Document Sync BasicAuth HTTP Mirror Probe Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_DOCUMENT_SYNC_BASIC_AUTH_HTTP_MIRROR_PROBE_20260407.md`
+- Parallel Document Sync Mirror Compatibility Adapter Audit Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_DOCUMENT_SYNC_MIRROR_COMPATIBILITY_ADAPTER_AUDIT_20260406.md`
+- **Parallel Document Sync Mirror Compatibility Final Summary Verification**: `docs/DEV_AND_VERIFICATION_PARALLEL_DOCUMENT_SYNC_MIRROR_COMPATIBILITY_FINAL_SUMMARY_20260407.md`
+- Parallel Document Sync Mirror Site Auth Contract Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_DOCUMENT_SYNC_MIRROR_SITE_AUTH_CONTRACT_20260407.md`
+- Parallel Doc-Sync Checkout Governance Enhancement Audit Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_DOC_SYNC_CHECKOUT_GOVERNANCE_ENHANCEMENT_AUDIT_20260403.md`
+- **Parallel Doc-Sync Checkout Governance Enhancement Final Summary Verification**: `docs/DEV_AND_VERIFICATION_PARALLEL_DOC_SYNC_CHECKOUT_GOVERNANCE_ENHANCEMENT_FINAL_SUMMARY_20260404.md`
+- Parallel Doc-Sync Gate Directional Thresholds Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_DOC_SYNC_GATE_DIRECTIONAL_THRESHOLDS_20260404.md`
+- Parallel Doc-Sync Gate Direction Filter Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_DOC_SYNC_GATE_DIRECTION_FILTER_20260403.md`
+- Parallel Doc-Sync Gate Warn/Block Mode Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_DOC_SYNC_GATE_WARN_BLOCK_MODE_20260404.md`
+- Parallel ECO Activity Chain Release Readiness Linkage Audit Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_ACTIVITY_CHAIN_RELEASE_READINESS_LINKAGE_AUDIT_20260406.md`
+- **Parallel ECO Activity Chain Release Readiness Linkage Final Summary Verification**: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_ACTIVITY_CHAIN_RELEASE_READINESS_LINKAGE_FINAL_SUMMARY_20260406.md`
+- Parallel ECO Apply Diagnostics Activity Gate Rule Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_APPLY_DIAGNOSTICS_ACTIVITY_GATE_RULE_20260406.md`
+- Parallel ECO BOM Compare Mode Integration Audit Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_BOM_COMPARE_MODE_INTEGRATION_AUDIT_20260405.md`
+- **Parallel ECO BOM Compare Mode Integration Final Summary Verification**: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_BOM_COMPARE_MODE_INTEGRATION_FINAL_SUMMARY_20260405.md`
+- Parallel ECO Compare Mode Contract Tests Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_COMPARE_MODE_CONTRACT_TESTS_20260405.md`
+- Parallel ECO Compute Changes Compare Mode Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_COMPUTE_CHANGES_COMPARE_MODE_20260405.md`
+- Parallel ECO Suspended State and Actions Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_SUSPENDED_STATE_AND_ACTIONS_20260406.md`
+- Parallel ECO Suspension Gate Audit Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_SUSPENSION_GATE_AUDIT_20260406.md`
+- **Parallel ECO Suspension Gate Final Summary Verification**: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_SUSPENSION_GATE_FINAL_SUMMARY_20260406.md`
+- Parallel ECO Unsuspend Gate and Diagnostics Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_ECO_UNSUSPEND_GATE_AND_DIAGNOSTICS_20260406.md`
+- Parallel MFG MBOM Contract Closure Audit Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_MFG_MBOM_CONTRACT_CLOSURE_AUDIT_20260403.md`
+- Parallel MFG Routing WorkCenter Contract Closure Audit Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_MFG_ROUTING_WORKCENTER_CONTRACT_CLOSURE_AUDIT_20260403.md`
+- **Parallel MFG Routing WorkCenter Contract Surpass Final Summary Verification**: `docs/DEV_AND_VERIFICATION_PARALLEL_MFG_ROUTING_WORKCENTER_CONTRACT_SURPASS_FINAL_SUMMARY_20260403.md`
+- Parallel MFG Routing WorkCenter GAP-E1 Micro Fix Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_MFG_ROUTING_WORKCENTER_GAP_E1_MICRO_FIX_20260403.md`
+- **Parallel Odoo18 Reference Parity Final Summary Verification**: `docs/DEV_AND_VERIFICATION_PARALLEL_ODOO18_REFERENCE_PARITY_FINAL_SUMMARY_20260407.md`
 - Parallel P0 Error Contract Unification Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P0_ERROR_CONTRACT_UNIFICATION_EXT_20260228.md`
 - Parallel P0 Reliability + Error Contract: `docs/DEV_AND_VERIFICATION_PARALLEL_P0_RELIABILITY_AND_ERROR_CONTRACT_20260228.md`
 - Parallel P1 BOM Delta Markdown Export Extension: `docs/DEV_AND_VERIFICATION_PARALLEL_P1_BOM_DELTA_MARKDOWN_EXPORT_EXT_20260301.md`
@@ -264,6 +297,10 @@ This index aggregates all delivery‑related documents for private deployments.
 - Parallel P3 Odoo18 Reference Parallel Tracks: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_ODOO18_REFERENCE_PARALLEL_TRACKS_20260306.md`
 - Parallel P3 Ops Overview API: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_OPS_OVERVIEW_API_20260228.md`
 - Parallel P3 Ops Overview Checkout Gate/Trend + BOM by_find_refdes: `docs/DEV_AND_VERIFICATION_PARALLEL_P3_OPS_OVERVIEW_CHECKOUT_GATE_TREND_BOM_FIND_REFDES_20260306.md`
+- Parallel Workflow Custom Action Context Predicates and Tests Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_WORKFLOW_CUSTOM_ACTION_CONTEXT_PREDICATES_AND_TESTS_20260406.md`
+- Parallel Workflow Custom Action Predicate Upgrade Audit Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_WORKFLOW_CUSTOM_ACTION_PREDICATE_UPGRADE_AUDIT_20260405.md`
+- **Parallel Workflow Custom Action Predicate Upgrade Final Summary Verification**: `docs/DEV_AND_VERIFICATION_PARALLEL_WORKFLOW_CUSTOM_ACTION_PREDICATE_UPGRADE_FINAL_SUMMARY_20260406.md`
+- Parallel Workflow Custom Action Runtime Scope Predicates Verification: `docs/DEV_AND_VERIFICATION_PARALLEL_WORKFLOW_CUSTOM_ACTION_RUNTIME_SCOPE_PREDICATES_20260405.md`
 - Perf CI Refactor (Config + Baselines + Concurrency): `docs/DEV_AND_VERIFICATION_PERF_CI_REFACTOR_20260209.md`
 - Perf Gate (Generic) - Dev Plan & Verification: `docs/DEV_AND_VERIFICATION_PERF_GATE_20260209.md`
 - Plan Execution (2026-02-02): `docs/DEV_AND_VERIFICATION_PLAN_20260202.md`
@@ -287,6 +324,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Strict Gate Runbook + Failure Tails: `docs/DEV_AND_VERIFICATION_STRICT_GATE_RUNBOOK_REPORT_TAILS_20260210.md`
 - Strict Gate Script Help + Job Summary Download Hints: `docs/DEV_AND_VERIFICATION_STRICT_GATE_SCRIPT_HELP_AND_JOB_SUMMARY_HINTS_20260210.md`
 - Strict Gate Workflow Contracts + CLI Runbook: `docs/DEV_AND_VERIFICATION_STRICT_GATE_WORKFLOW_CONTRACTS_20260210.md`
+- **Subcontracting Launch Checklist Verification**: `docs/DEV_AND_VERIFICATION_SUBCONTRACTING_LAUNCH_CHECKLIST_SIGNOFF_PACK_20260403.md`
+- **Subcontracting Operator Runbook Verification**: `docs/DEV_AND_VERIFICATION_SUBCONTRACTING_OPERATOR_RUNBOOK_DAILY_REVIEW_PLAYBOOK_20260403.md`
 - Versions Core API-only E2E Verification: `docs/DEV_AND_VERIFICATION_VERSIONS_E2E_20260214.md`
 - Version-File Binding API-only E2E Verification: `docs/DEV_AND_VERIFICATION_VERSION_FILE_BINDING_E2E_20260214.md`
 - Week Plan & Verification: `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260202.md`

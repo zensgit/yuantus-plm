@@ -16,6 +16,20 @@ verification scripts; please keep changes small and verifiable.
 - If you touch API, schema, or services, run:
   - `bash scripts/verify_all.sh http://127.0.0.1:7910 tenant-1 org-1`
 
+## Product Boundary And Contracts
+
+- Yuantus owns workflows that mutate PLM object state.
+- Metasheet should not become the source of truth for `item`, `BOM`, `version`,
+  `ECO`, `approval`, or `release` state.
+- If you add or change public PLM endpoints, treat that as a contract change and
+  review:
+  - `docs/WORKFLOW_OWNERSHIP_RULES.md`
+  - `docs/PACT_FIRST_INTEGRATION_PLAN_20260407.md`
+- Workflow-related PRs should answer:
+  - Does this change mutate PLM object state?
+  - If yes, which Yuantus endpoint remains authoritative?
+  - If no, why is this a non-PLM workflow and not PLM scope creep?
+
 ## Style
 
 - Keep code readable and explicit.
