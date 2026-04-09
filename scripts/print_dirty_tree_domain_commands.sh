@@ -6,12 +6,15 @@ usage() {
 Usage:
   scripts/print_dirty_tree_domain_commands.sh [--list-domains]
   scripts/print_dirty_tree_domain_commands.sh [--recommended-order]
+  scripts/print_dirty_tree_domain_commands.sh [--first-step]
   scripts/print_dirty_tree_domain_commands.sh --domain NAME [--status | --git-add-cmd | --commit-plan]
 
 Options:
   --list-domains  List supported dirty-tree domains and their intent.
   --recommended-order
                  Print the suggested dirty-tree split order with short reasons.
+  --first-step   Print the recommended first split action (currently
+                 subcontracting) with ready-to-run commands.
   --domain NAME   Target domain. Supported:
                   subcontracting
                   docs-parallel
@@ -33,6 +36,7 @@ EOF
 DOMAIN=""
 LIST_DOMAINS="false"
 PRINT_RECOMMENDED_ORDER="false"
+PRINT_FIRST_STEP="false"
 SHOW_STATUS="false"
 PRINT_GIT_ADD_CMD="false"
 PRINT_COMMIT_PLAN="false"
@@ -45,6 +49,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --recommended-order)
       PRINT_RECOMMENDED_ORDER="true"
+      shift
+      ;;
+    --first-step)
+      PRINT_FIRST_STEP="true"
       shift
       ;;
     --domain)
@@ -82,6 +90,11 @@ fi
 
 if [[ "${PRINT_RECOMMENDED_ORDER}" == "true" && -n "${DOMAIN}" ]]; then
   echo "ERROR: --recommended-order cannot be combined with --domain" >&2
+  exit 2
+fi
+
+if [[ "${PRINT_FIRST_STEP}" == "true" && -n "${DOMAIN}" ]]; then
+  echo "ERROR: --first-step cannot be combined with --domain" >&2
   exit 2
 fi
 
@@ -276,6 +289,32 @@ print_recommended_order() {
    Lowest code risk; handoff/package docs should be finalized last.
 EOF
 }
+
+print_first_step() {
+  cat <<'EOF'
+Recommended first split domain:
+  subcontracting
+
+Suggested branch:
+  feature/subcontracting-split
+
+Suggested sequence:
+  git switch -c feature/subcontracting-split
+  bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --status
+  bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --commit-plan
+
+Preferred first incision inside subcontracting:
+  approval role mapping cleanup cluster
+
+Rule:
+  Do not use `git add .`; stage only the subcontracting domain paths.
+EOF
+}
+
+if [[ "${PRINT_FIRST_STEP}" == "true" ]]; then
+  print_first_step
+  exit 0
+fi
 
 if [[ "${PRINT_RECOMMENDED_ORDER}" == "true" ]]; then
   print_recommended_order

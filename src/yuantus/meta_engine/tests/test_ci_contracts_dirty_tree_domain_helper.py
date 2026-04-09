@@ -41,6 +41,7 @@ def test_dirty_tree_domain_helper_is_documented_and_lists_expected_domains() -> 
         "print_dirty_tree_domain_commands.sh",
         "--list-domains",
         "--recommended-order",
+        "--first-step",
         "--domain NAME",
         "--status",
         "--git-add-cmd",
@@ -88,6 +89,23 @@ def test_dirty_tree_domain_helper_is_documented_and_lists_expected_domains() -> 
     ):
         assert token in order_out, f"recommended-order output missing token: {token}"
 
+    first_step_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--first-step"],
+        text=True,
+        capture_output=True,
+    )
+    assert first_step_cp.returncode == 0, first_step_cp.stdout + "\n" + first_step_cp.stderr
+    first_step_out = first_step_cp.stdout or ""
+    for token in (
+        "Recommended first split domain:",
+        "subcontracting",
+        "feature/subcontracting-split",
+        "--domain subcontracting --status",
+        "--domain subcontracting --commit-plan",
+        "approval role mapping cleanup cluster",
+    ):
+        assert token in first_step_out, f"first-step output missing token: {token}"
+
     commit_plan_cp = subprocess.run(  # noqa: S603,S607
         ["bash", str(script), "--domain", "subcontracting", "--commit-plan"],
         text=True,
@@ -109,9 +127,11 @@ def test_dirty_tree_domain_helper_is_documented_and_lists_expected_domains() -> 
     for token in (
         "print_dirty_tree_domain_commands.sh",
         "--recommended-order",
+        "--first-step",
         "--domain subcontracting --status",
         "--domain subcontracting --commit-plan",
         "DIRTY_TREE_SPLIT_ORDER_20260409.md",
+        "SUBCONTRACTING_SPLIT_EXECUTION_CARD_20260409.md",
     ):
         assert token in inventory_text, f"inventory doc missing token: {token}"
 
