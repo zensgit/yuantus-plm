@@ -35,6 +35,7 @@ def test_subcontracting_first_cut_anchor_helper_exists_and_prints_expected_targe
         "print_subcontracting_first_cut_anchors.sh",
         "--grep",
         "--hunks",
+        "--checklist",
         "approval role mapping",
     ):
         assert token in help_out, f"help output missing token: {token}"
@@ -89,10 +90,31 @@ def test_subcontracting_first_cut_anchor_helper_exists_and_prints_expected_targe
     ):
         assert token in hunks_out, f"hunks output missing token: {token}"
 
+    checklist_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--checklist"],
+        text=True,
+        capture_output=True,
+    )
+    assert checklist_cp.returncode == 0, checklist_cp.stdout + "\n" + checklist_cp.stderr
+    checklist_out = checklist_cp.stdout or ""
+    for token in (
+        "Per-file git add -p operator checklist",
+        "Anchor tokens to accept",
+        "approval_role_mapping",
+        "service.py",
+        "subcontracting_router.py",
+        "test_subcontracting_service.py",
+        "test_subcontracting_router.py",
+        "skip for now",
+        "git add -p src/yuantus/meta_engine/subcontracting/service.py",
+    ):
+        assert token in checklist_out, f"checklist output missing token: {token}"
+
     execution_text = execution_card.read_text(encoding="utf-8", errors="replace")
     for token in (
         "print_subcontracting_first_cut_anchors.sh",
         "--grep",
         "--hunks",
+        "--checklist",
     ):
         assert token in execution_text, f"execution card missing token: {token}"

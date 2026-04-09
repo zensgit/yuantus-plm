@@ -4,11 +4,13 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/print_subcontracting_first_cut_anchors.sh [--grep] [--hunks]
+  scripts/print_subcontracting_first_cut_anchors.sh [--grep] [--hunks] [--checklist]
 
 Options:
   --grep     Print ready-to-run grep commands for the first subcontracting cut.
   --hunks    Print the recommended git-add-p hunk order for the first cut.
+  --checklist
+             Print a per-file git-add-p operator checklist for the first cut.
   -h, --help Show help.
 
 Default output:
@@ -19,6 +21,7 @@ EOF
 
 PRINT_GREP="false"
 PRINT_HUNKS="false"
+PRINT_CHECKLIST="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -28,6 +31,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --hunks)
       PRINT_HUNKS="true"
+      shift
+      ;;
+    --checklist)
+      PRINT_CHECKLIST="true"
       shift
       ;;
     -h|--help)
@@ -42,8 +49,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "${PRINT_GREP}" == "true" && "${PRINT_HUNKS}" == "true" ]]; then
-  echo "ERROR: choose only one of --grep or --hunks" >&2
+selected_count=0
+for flag in "${PRINT_GREP}" "${PRINT_HUNKS}" "${PRINT_CHECKLIST}"; do
+  if [[ "${flag}" == "true" ]]; then
+    selected_count=$((selected_count + 1))
+  fi
+done
+
+if [[ "${selected_count}" -gt 1 ]]; then
+  echo "ERROR: choose only one of --grep, --hunks, or --checklist" >&2
   exit 2
 fi
 
@@ -158,6 +172,74 @@ EOF
   exit 0
 fi
 
+if [[ "${PRINT_CHECKLIST}" == "true" ]]; then
+  cat <<'EOF'
+Per-file git add -p operator checklist for the first subcontracting cut:
+
+Anchor tokens to accept:
+- approval_role_mapping
+- cleanup_policy
+- cleanup_history
+- role_mapping_registry
+- role_mapping_policy_board
+- role_mapping_cleanup_board
+
+service.py
+- accept first:
+  - scope helpers + CRUD seed
+  - registry / policy board reads
+  - cleanup apply / history / rollback helpers
+- skip for now:
+  - vendor-message / receipt / return flows
+  - unrelated supplier settlement or transport hunks
+  - broad import churn unless required by accepted approval-role-mapping hunks
+
+subcontracting_router.py
+- accept first:
+  - approval role mapping upsert endpoint
+  - registry / policy board endpoints
+  - cleanup board / cleanup policy board endpoints
+  - cleanup preview / apply / history / rollback endpoints
+- skip for now:
+  - unrelated vendor receipt / return / messaging endpoints
+  - router-wide refactors not required by approval-role-mapping routes
+
+test_subcontracting_service.py
+- accept first:
+  - registry tests
+  - policy board tests
+  - cleanup board + cleanup policy board tests
+  - preview / apply tests
+  - history / rollback tests
+- skip for now:
+  - unrelated subcontract receipt / return fixtures
+  - fixture rewrites that are not needed for approval-role-mapping coverage
+
+test_subcontracting_router.py
+- accept first:
+  - registry endpoint tests
+  - policy board endpoint tests
+  - cleanup board / cleanup policy board endpoint tests
+  - cleanup preview / execute endpoint tests
+  - cleanup history / rollback endpoint tests
+- skip for now:
+  - unrelated route matrix expansions
+  - auth / fixture churn that is not required by approval-role-mapping routes
+
+Rule:
+- stage file by file with `git add -p`
+- if a hunk mixes approval-role-mapping code with vendor receipt / return code, split it
+- if a hunk cannot be split cleanly, leave it out of the first cut
+
+Operator workflow:
+- git add -p src/yuantus/meta_engine/subcontracting/service.py
+- git add -p src/yuantus/meta_engine/web/subcontracting_router.py
+- git add -p src/yuantus/meta_engine/tests/test_subcontracting_service.py
+- git add -p src/yuantus/meta_engine/tests/test_subcontracting_router.py
+EOF
+  exit 0
+fi
+
 cat <<'EOF'
 First subcontracting cut:
   approval role mapping cleanup cluster
@@ -182,6 +264,7 @@ Anchor tokens:
 Recommended staging mode:
 - inspect with grep first
 - inspect hunk order with `--hunks`
+- inspect per-file checklist with `--checklist`
 - stage with `git add -p`, not `git add .`
 - keep this incision isolated from vendor message / receipt / return flows
 EOF

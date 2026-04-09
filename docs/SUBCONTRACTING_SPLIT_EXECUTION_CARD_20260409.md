@@ -20,6 +20,7 @@ bash scripts/print_dirty_tree_domain_commands.sh --domain subcontracting --commi
 bash scripts/print_subcontracting_first_cut_anchors.sh
 bash scripts/print_subcontracting_first_cut_anchors.sh --grep
 bash scripts/print_subcontracting_first_cut_anchors.sh --hunks
+bash scripts/print_subcontracting_first_cut_anchors.sh --checklist
 ```
 
 ## Preferred first incision
@@ -51,6 +52,18 @@ Anchor helper:
 
 Hunk-order helper:
 `scripts/print_subcontracting_first_cut_anchors.sh --hunks`
+
+Operator checklist helper:
+`scripts/print_subcontracting_first_cut_anchors.sh --checklist`
+
+Recommended operator workflow:
+
+```bash
+git add -p src/yuantus/meta_engine/subcontracting/service.py
+git add -p src/yuantus/meta_engine/web/subcontracting_router.py
+git add -p src/yuantus/meta_engine/tests/test_subcontracting_service.py
+git add -p src/yuantus/meta_engine/tests/test_subcontracting_router.py
+```
 
 ## Rule
 
