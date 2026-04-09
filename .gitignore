@@ -25,3 +25,6 @@ vendor/wheels/*
 node_modules/
 test-results/
 playwright-report/
+.playwright-cli/
+.playwright-mcp/
+tmp-plm-workspace-snapshot.md
