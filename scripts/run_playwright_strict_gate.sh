@@ -12,10 +12,11 @@ Environment:
   PLAYWRIGHT_RETRYABLE_PATTERN=<re> Optional. Extended regex for retryable failures.
                                    Default matches bind/startup socket conflicts. Must be valid ERE.
   PLAYWRIGHT_PORT=<port>          Optional. If unset, auto-select a free localhost port.
-  PLAYWRIGHT_PORT_PICKER_CMD=<cmd> Optional. If set, command used to print a free localhost port.
+  PLAYWRIGHT_PORT_PICKER_CMD=<cmd> Optional. Shell command that prints a port.
+                                   If set, used instead of python3 socket allocation.
   PLAYWRIGHT_BASE_URL=<url>       Optional. If unset, derived from PLAYWRIGHT_PORT.
   YUANTUS_PLAYWRIGHT_DB_PATH=<p>  Optional. If unset, generated per-attempt temp sqlite path.
-  PLAYWRIGHT_KEEP_DB=1            Optional. If set, keeps sqlite db/shm/wal files after run.
+  PLAYWRIGHT_KEEP_DB=<bool>       Optional. 0/1, true/false, yes/no. Default: 0.
 EOF
 }
 
@@ -39,14 +40,36 @@ if ! [[ "$PLAYWRIGHT_MAX_ATTEMPTS" =~ ^[0-9]+$ ]] || [[ "$PLAYWRIGHT_MAX_ATTEMPT
   echo "ERROR: PLAYWRIGHT_MAX_ATTEMPTS must be a positive integer, got: ${PLAYWRIGHT_MAX_ATTEMPTS}" >&2
   exit 2
 fi
-if grep -Eq "$PLAYWRIGHT_RETRYABLE_PATTERN" <<<"" >/dev/null 2>&1; then
-  :
-else
-  grep_rc=$?
-  if [[ "$grep_rc" -eq 2 ]]; then
-    echo "ERROR: PLAYWRIGHT_RETRYABLE_PATTERN is not a valid extended regex: ${PLAYWRIGHT_RETRYABLE_PATTERN}" >&2
+
+keep_db_normalized="$(printf '%s' "$PLAYWRIGHT_KEEP_DB" | tr '[:upper:]' '[:lower:]')"
+case "$keep_db_normalized" in
+  1|true|yes|on)
+    PLAYWRIGHT_KEEP_DB="1"
+    ;;
+  0|false|no|off)
+    PLAYWRIGHT_KEEP_DB="0"
+    ;;
+  *)
+    echo "ERROR: PLAYWRIGHT_KEEP_DB must be one of 0/1/true/false/yes/no/on/off, got: ${PLAYWRIGHT_KEEP_DB}" >&2
     exit 2
+    ;;
+esac
+
+if [[ -n "$PLAYWRIGHT_RETRYABLE_PATTERN" ]]; then
+  if grep -Eq "$PLAYWRIGHT_RETRYABLE_PATTERN" <<<"" >/dev/null 2>&1; then
+    :
+  else
+    grep_rc=$?
+    if [[ "$grep_rc" -eq 2 ]]; then
+      echo "ERROR: PLAYWRIGHT_RETRYABLE_PATTERN is not a valid extended regex: ${PLAYWRIGHT_RETRYABLE_PATTERN}" >&2
+      exit 2
+    fi
   fi
+fi
+
+if [[ -z "${PLAYWRIGHT_PORT:-}" && -z "$PLAYWRIGHT_PORT_PICKER_CMD" ]] && ! command -v python3 >/dev/null 2>&1; then
+  echo "ERROR: python3 is required to allocate a free localhost port" >&2
+  exit 2
 fi
 
 pick_playwright_port() {
@@ -78,6 +101,10 @@ cleanup_db_files() {
 attempt=1
 while [[ "$attempt" -le "$PLAYWRIGHT_MAX_ATTEMPTS" ]]; do
   port="${PLAYWRIGHT_PORT:-$(pick_playwright_port)}"
+  if [[ -z "$port" ]]; then
+    echo "ERROR: failed to allocate a free localhost port" >&2
+    exit 2
+  fi
   base_url="${PLAYWRIGHT_BASE_URL:-http://127.0.0.1:${port}}"
   db_path="${YUANTUS_PLAYWRIGHT_DB_PATH:-/tmp/yuantus_playwright_${port}_$$.db}"
 
@@ -89,7 +116,7 @@ while [[ "$attempt" -le "$PLAYWRIGHT_MAX_ATTEMPTS" ]]; do
   echo "PLAYWRIGHT_KEEP_DB=${PLAYWRIGHT_KEEP_DB}"
   echo "PLAYWRIGHT_RETRYABLE_PATTERN=${PLAYWRIGHT_RETRYABLE_PATTERN}"
 
-  run_log="$(mktemp)"
+  run_log="$(mktemp "${TMPDIR:-/tmp}/playwright-strict-gate.${attempt}.XXXX.log")"
   if env PORT="$port" BASE_URL="$base_url" YUANTUS_PLAYWRIGHT_DB_PATH="$db_path" bash -lc "$PLAYWRIGHT_CMD" >"$run_log" 2>&1; then
     cat "$run_log"
     cleanup_db_files "$db_path"
