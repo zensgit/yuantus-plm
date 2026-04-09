@@ -110,6 +110,10 @@ Final checklist:
 
 - `docs/PR_155_FINAL_REVIEW_CHECKLIST_20260409.md`
 
+Branch closeout summary:
+
+- `docs/BRANCH_CLOSEOUT_SUMMARY_20260409.md`
+
 ## Verification run
 
 Executed during landing:
