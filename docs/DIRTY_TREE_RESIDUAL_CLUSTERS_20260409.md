@@ -34,6 +34,7 @@ The remaining uncovered paths cluster cleanly into three residual groups:
    - `src/yuantus/meta_engine/tests/test_router_registration_misc.py`
    Rationale: shared router-wiring and router-surface tests should stay in one
    follow-up cleanup, not be spread across the existing code domains.
+   Execution card: `docs/ROUTER_SURFACE_MISC_SPLIT_EXECUTION_CARD_20260409.md`
 2. `subcontracting-governance-docs`
    - `docs/DEV_AND_VERIFICATION_SUBCONTRACTING_LAUNCH_CHECKLIST_SIGNOFF_PACK_20260403.md`
    - `docs/DEV_AND_VERIFICATION_SUBCONTRACTING_OPERATOR_RUNBOOK_DAILY_REVIEW_PLAYBOOK_20260403.md`
@@ -62,3 +63,11 @@ Re-evaluate the domain matrix only if one of these happens:
   code-facing branch scope
 - the subcontracting governance docs grow into a standalone handoff package
 - the product strategy docs expand into a larger packaging/governance pack
+
+## Fast Path
+
+If the next cleanup should stay code-facing, start with:
+
+```bash
+sed -n '1,220p' docs/ROUTER_SURFACE_MISC_SPLIT_EXECUTION_CARD_20260409.md
+```
