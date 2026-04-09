@@ -106,6 +106,10 @@ If you only need the branch-hygiene context after that:
 10. `docs/DIRTY_TREE_SPLIT_MATRIX_20260409.md`
 11. `scripts/print_dirty_tree_split_matrix.sh`
 
+Final checklist:
+
+- `docs/PR_155_FINAL_REVIEW_CHECKLIST_20260409.md`
+
 ## Verification run
 
 Executed during landing:
