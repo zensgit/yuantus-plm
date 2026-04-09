@@ -155,6 +155,7 @@ Claude Code CLI parallel helper:
 ```bash
 bash scripts/print_claude_code_parallel_commands.sh
 bash scripts/print_claude_code_parallel_commands.sh --mode worktree --worktree-name claude-native-followup
+bash scripts/run_claude_code_parallel_reviewer.sh
 ```
 
 Runbook:

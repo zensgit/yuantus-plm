@@ -22,12 +22,14 @@ def _read(path: Path) -> str:
 def test_claude_code_parallel_helper_is_documented_and_runnable() -> None:
     repo_root = _find_repo_root(Path(__file__))
     script = repo_root / "scripts" / "print_claude_code_parallel_commands.sh"
+    reviewer_script = repo_root / "scripts" / "run_claude_code_parallel_reviewer.sh"
     runbook = repo_root / "docs" / "RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md"
     repo_readme = repo_root / "README.md"
     verification_doc = repo_root / "docs" / "VERIFICATION.md"
     delivery_index = repo_root / "docs" / "DELIVERY_SCRIPTS_INDEX_20260202.md"
 
     assert script.is_file(), f"Missing script: {script}"
+    assert reviewer_script.is_file(), f"Missing reviewer script: {reviewer_script}"
     assert runbook.is_file(), f"Missing runbook: {runbook}"
     assert repo_readme.is_file(), f"Missing README: {repo_readme}"
     assert verification_doc.is_file(), f"Missing verification doc: {verification_doc}"
@@ -65,22 +67,43 @@ def test_claude_code_parallel_helper_is_documented_and_runnable() -> None:
     ):
         assert token in worktree_out, f"worktree output missing token: {token}"
 
+    reviewer_help_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(reviewer_script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert reviewer_help_cp.returncode == 0, reviewer_help_cp.stdout + "\n" + reviewer_help_cp.stderr
+    reviewer_help = reviewer_help_cp.stdout or ""
+    for token in (
+        "Usage:",
+        "run_claude_code_parallel_reviewer.sh",
+        "--repo PATH",
+        "--branch NAME",
+        "--out PATH",
+        "--prompt TEXT",
+    ):
+        assert token in reviewer_help, f"reviewer help missing token: {token}"
+
     expected_tokens = {
         repo_readme: (
             "print_claude_code_parallel_commands.sh",
+            "run_claude_code_parallel_reviewer.sh",
             "RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md",
         ),
         verification_doc: (
             "print_claude_code_parallel_commands.sh",
+            "run_claude_code_parallel_reviewer.sh",
             "RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md",
         ),
         runbook: (
             "print_claude_code_parallel_commands.sh",
+            "run_claude_code_parallel_reviewer.sh",
             "claude --worktree",
             "claude auth status",
         ),
         delivery_index: (
             "print_claude_code_parallel_commands.sh",
+            "run_claude_code_parallel_reviewer.sh",
         ),
     }
 

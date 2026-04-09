@@ -25,6 +25,7 @@
 - verify_playwright_plm_workspace_demo_resume.sh
 - verify_playwright_plm_workspace_document_handoff.sh
 - print_claude_code_parallel_commands.sh
+- run_claude_code_parallel_reviewer.sh
 - verify_run_h.sh
 - verify_effectivity_extended.sh
 - verify_lifecycle_suspended.sh
@@ -43,4 +44,5 @@
 - `verify_playwright_product_ui_summaries.sh` requires Playwright installed in `node_modules`.
 - Native workspace Playwright wrappers require Playwright installed in `node_modules` and a running API at `http://127.0.0.1:7910`.
 - `print_claude_code_parallel_commands.sh` prints safe Claude Code CLI templates for read-only, worktree, and reviewer flows.
+- `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.

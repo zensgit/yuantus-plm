@@ -105,6 +105,9 @@ Workspace-specific coverage and operator wrappers:
 Claude Code sidecar/worktree templates:
 `bash scripts/print_claude_code_parallel_commands.sh`
 
+Read-only Claude reviewer sidecar:
+`bash scripts/run_claude_code_parallel_reviewer.sh`
+
 ## Runbooks
 
 - `docs/RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md` (Claude Code sidecar/worktree usage)

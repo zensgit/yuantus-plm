@@ -29,6 +29,13 @@ Print only the read-only reviewer template:
 bash scripts/print_claude_code_parallel_commands.sh --mode reviewer
 ```
 
+Run the read-only reviewer sidecar immediately:
+
+```bash
+bash scripts/run_claude_code_parallel_reviewer.sh
+bash scripts/run_claude_code_parallel_reviewer.sh --out /tmp/yuantus-review.txt
+```
+
 ## Recommended modes
 
 ### Read-only
@@ -44,6 +51,8 @@ so the sidecar writes in an isolated git worktree instead of the current tree.
 ### Reviewer
 
 Use this when you only need a PR summary, reviewer checklist, or risk brief.
+The runner script calls Claude Code in `-p` mode and keeps the session
+read-only by instruction.
 
 ## Notes
 
