@@ -57,6 +57,8 @@ The current post-helper residual gap is tracked separately in
 `docs/DIRTY_TREE_RESIDUAL_CLUSTERS_20260409.md`.
 The one-page residual operator summary is in
 `docs/DIRTY_TREE_RESIDUAL_CLOSEOUT_20260409.md`.
+The extracted residual split branches are summarized in
+`docs/SPLIT_BRANCHES_SUMMARY_20260409.md`.
 
 ## Next Actions
 
@@ -64,4 +66,5 @@ The one-page residual operator summary is in
 - operator path: use `docs/DIRTY_TREE_SPLIT_MATRIX_20260409.md`
 - residual-gap path: use `docs/DIRTY_TREE_RESIDUAL_CLUSTERS_20260409.md`
 - residual-closeout path: use `docs/DIRTY_TREE_RESIDUAL_CLOSEOUT_20260409.md`
+- split-branches path: use `docs/SPLIT_BRANCHES_SUMMARY_20260409.md`
 - branch rule: do **not** `git add .`
