@@ -3600,6 +3600,28 @@
         return resourceType;
       }
 
+      function readinessResourceHandoffSupport(resourceType, mode = "select") {
+        const normalized = String(resourceType || "").trim().toLowerCase();
+        if (!normalized) {
+          return false;
+        }
+        if (normalized === "part") {
+          return mode === "select" || mode === "detail" || mode === "bom";
+        }
+        if (normalized === "document") {
+          return mode === "select" || mode === "detail";
+        }
+        if (normalized === "eco") {
+          return mode === "select" || mode === "detail";
+        }
+        return false;
+      }
+
+      function readinessResourceBoundaryCopy(resourceType) {
+        const label = String(resourceType || "resource").trim() || "resource";
+        return `Native workspace does not publish first-class explorer, detail, or BOM views for readiness resources of type ${label} yet.`;
+      }
+
       function approvalTransitionLabel(targetState, currentState) {
         if (targetState === "pending") {
           return currentState === "rejected" ? "Resubmit" : "Submit";
@@ -4655,6 +4677,12 @@
         const diagnostics = resource.diagnostics || {};
         const errors = Array.isArray(diagnostics.errors) ? diagnostics.errors : [];
         const warnings = Array.isArray(diagnostics.warnings) ? diagnostics.warnings : [];
+        const resourceType = diagnostics.resource_type || "";
+        const canSelect = readinessResourceHandoffSupport(resourceType, "select");
+        const canOpenDetail = readinessResourceHandoffSupport(resourceType, "detail");
+        const canOpenBom = readinessResourceHandoffSupport(resourceType, "bom");
+        const boundaryCopy =
+          canSelect && canOpenDetail && canOpenBom ? "" : readinessResourceBoundaryCopy(resourceType);
 
         releaseReadinessDetailOutput.innerHTML = `
           <section class="data-card">
@@ -4671,6 +4699,7 @@
                 data-readiness-handoff="select"
                 data-readiness-resource-id="${escapeHtml(diagnostics.resource_id || "")}"
                 data-readiness-resource-type="${escapeHtml(diagnostics.resource_type || "")}"
+                ${canSelect ? "" : 'disabled aria-disabled="true"'}
               >
                 Use In Explorer
               </button>
@@ -4680,6 +4709,7 @@
                 data-readiness-handoff="detail"
                 data-readiness-resource-id="${escapeHtml(diagnostics.resource_id || "")}"
                 data-readiness-resource-type="${escapeHtml(diagnostics.resource_type || "")}"
+                ${canOpenDetail ? "" : 'disabled aria-disabled="true"'}
               >
                 Open Detail
               </button>
@@ -4689,10 +4719,16 @@
                 data-readiness-handoff="bom"
                 data-readiness-resource-id="${escapeHtml(diagnostics.resource_id || "")}"
                 data-readiness-resource-type="${escapeHtml(diagnostics.resource_type || "")}"
+                ${canOpenBom ? "" : 'disabled aria-disabled="true"'}
               >
                 Open BOM
               </button>
             </div>
+            ${
+              boundaryCopy
+                ? `<p class="card-caption" style="margin-top: 12px">${escapeHtml(boundaryCopy)}</p>`
+                : ""
+            }
           </section>
           <div class="data-grid">
             <section class="data-card">
@@ -5836,6 +5872,10 @@
 
       async function handoffReadinessResource(resourceId, resourceType, mode = "select") {
         if (!resourceId) {
+          return;
+        }
+        if (!readinessResourceHandoffSupport(resourceType, mode)) {
+          setStatus(readinessResourceBoundaryCopy(resourceType), "error");
           return;
         }
         const mappedType = mapResourceTypeToWorkspaceItemType(resourceType);

@@ -67,6 +67,93 @@ async function addBomChild(request, headers, parentId, childId, quantity = 1, uo
   expect(resp.ok()).toBeTruthy();
 }
 
+async function createBaseline(request, headers, rootItemId, name) {
+  const resp = await request.post('/api/v1/baselines', {
+    headers,
+    data: {
+      name,
+      root_item_id: rootItemId,
+      auto_populate: false,
+      max_levels: 0,
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const baseline = await resp.json();
+  expect(baseline.id).toBeTruthy();
+  return baseline;
+}
+
+async function createMbomFromEbom(request, headers, sourceItemId, name) {
+  const resp = await request.post('/api/v1/mboms/from-ebom', {
+    headers,
+    data: {
+      source_item_id: sourceItemId,
+      name,
+      version: '1.0',
+      plant_code: 'PLANT-1',
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const mbom = await resp.json();
+  expect(mbom.id).toBeTruthy();
+  return mbom;
+}
+
+async function createWorkcenter(request, headers, code, name) {
+  const resp = await request.post('/api/v1/workcenters', {
+    headers,
+    data: {
+      code,
+      name,
+      plant_code: 'PLANT-1',
+      department_code: 'LINE-1',
+      is_active: true,
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const workcenter = await resp.json();
+  expect(workcenter.id).toBeTruthy();
+  return workcenter;
+}
+
+async function createRouting(request, headers, mbomId, itemId, name) {
+  const resp = await request.post('/api/v1/routings', {
+    headers,
+    data: {
+      name,
+      mbom_id: mbomId,
+      item_id: itemId,
+      version: '1.0',
+      is_primary: true,
+      plant_code: 'PLANT-1',
+      line_code: 'LINE-1',
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const routing = await resp.json();
+  expect(routing.id).toBeTruthy();
+  return routing;
+}
+
+async function addRoutingOperation(request, headers, routingId, workcenterId) {
+  const resp = await request.post(`/api/v1/routings/${routingId}/operations`, {
+    headers,
+    data: {
+      operation_number: '10',
+      name: 'Op 10',
+      operation_type: 'fabrication',
+      workcenter_id: workcenterId,
+      setup_time: 5,
+      run_time: 1,
+      sequence: 10,
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+  const op = await resp.json();
+  expect(op.id).toBeTruthy();
+  return op;
+}
+
 async function createDocument(request, headers, number, name) {
   const resp = await request.post('/api/v1/aml/apply', {
     headers,
@@ -223,6 +310,12 @@ async function createConfigParentDemoFixture(request) {
   await addBomChild(request, headers, parentId, childAId, 2, 'EA');
   await addBomChild(request, headers, parentId, childBId, 4, 'EA');
 
+  const baseline = await createBaseline(request, headers, parentId, `BL-CFG-${ts}`);
+  const mbom = await createMbomFromEbom(request, headers, parentId, `MBOM-CFG-${ts}`);
+  const workcenter = await createWorkcenter(request, headers, `WC-CFG-${ts}`, `Config WC ${ts}`);
+  const routing = await createRouting(request, headers, mbom.id, parentId, `Routing CFG ${ts}`);
+  const operation = await addRoutingOperation(request, headers, routing.id, workcenter.id);
+
   return {
     parentId,
     parentNumber: partNumber,
@@ -230,6 +323,15 @@ async function createConfigParentDemoFixture(request) {
     childANumber,
     childBId,
     childBNumber,
+    baselineId: baseline.id,
+    baselineName: baseline.name,
+    mbomId: mbom.id,
+    mbomName: mbom.name,
+    routingId: routing.id,
+    routingName: routing.name,
+    workcenterId: workcenter.id,
+    workcenterName: workcenter.name,
+    routingOperationId: operation.id,
   };
 }
 

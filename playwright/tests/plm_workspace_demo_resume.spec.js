@@ -69,3 +69,35 @@ test('bom demo preset resumes after UI login and hydrates non-empty structure fl
   await expect(page.locator('#bom-output')).toContainText('Descendants');
   await expect(page.locator('#where-used-output')).toContainText('Parents 0');
 });
+
+test('bom demo can inspect non-empty release readiness without leaving native part context', async ({
+  request,
+  page,
+}) => {
+  const fixture = await createConfigParentDemoFixture(request);
+  await loadConfigParentDemoPreset(page, fixture, 'bom');
+
+  await signInWorkspace(page);
+  await expect(page.locator('#session-status')).toContainText('Authenticated and resumed Config Parent.');
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.parentId}`);
+
+  await page.click('[data-tab="change"]');
+  await page.click('#release-readiness-button');
+
+  await expect(page.locator('#release-readiness-output')).toContainText('Readiness Summary');
+  await expect(page.locator('#release-readiness-output')).toContainText(fixture.mbomName);
+  await expect(page.locator('#release-readiness-output')).toContainText(fixture.routingName);
+  await expect(page.locator('#release-readiness-output')).toContainText(fixture.baselineName);
+
+  await expect(page.locator('#release-readiness-detail-output')).toContainText('Resource Detail Lens');
+  await expect(page.locator('#release-readiness-detail-output')).toContainText(fixture.mbomName);
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.parentId}`);
+
+  await page.click('[data-readiness-resource-index="1"]');
+  await expect(page.locator('#release-readiness-detail-output')).toContainText(fixture.routingName);
+  await expect(page.locator('#release-readiness-detail-output')).toContainText('Native workspace does not publish first-class explorer, detail, or BOM views for readiness resources of type routing yet.');
+  await expect(page.locator('#release-readiness-detail-output [data-readiness-handoff="select"]')).toBeDisabled();
+  await expect(page.locator('#release-readiness-detail-output [data-readiness-handoff="detail"]')).toBeDisabled();
+  await expect(page.locator('#release-readiness-detail-output [data-readiness-handoff="bom"]')).toBeDisabled();
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.parentId}`);
+});
