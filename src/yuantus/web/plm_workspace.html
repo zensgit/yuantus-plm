@@ -4430,6 +4430,28 @@
         `;
       }
 
+      function shouldUseEcoApprovalRailFallback(summary, requests, queueHealth, entityType) {
+        if (!objectSupportsGovernance(entityType)) {
+          return false;
+        }
+        const productContext =
+          workspaceState.productContext && typeof workspaceState.productContext === "object"
+            ? workspaceState.productContext
+            : null;
+        const pendingEcoApprovals = Array.isArray(productContext?.eco_summary?.pending_approvals?.items)
+          ? productContext.eco_summary.pending_approvals.items
+          : [];
+        const openEcoCount = Number(productContext?.open_ecos?.total ?? productContext?.eco_summary?.count ?? 0);
+        const hasEcoContext = Boolean(currentEcoFocusId()) || pendingEcoApprovals.length > 0 || openEcoCount > 0;
+        if (!hasEcoContext) {
+          return false;
+        }
+        const summaryTotal = Number(summary?.total ?? 0);
+        const requestTotal = Number(requests?.total ?? (Array.isArray(requests?.requests) ? requests.requests.length : 0));
+        const queueTotal = Number(queueHealth?.total ?? 0);
+        return summaryTotal === 0 && requestTotal === 0 && queueTotal === 0;
+      }
+
       function renderApprovalDetail() {
         const detail = workspaceState.approvalRequestDetail;
         const lifecycle = workspaceState.approvalRequestLifecycle;
@@ -5454,6 +5476,24 @@
           workspaceState.approvalRequests = requests;
           workspaceState.approvalQueueHealth = queueHealth;
           workspaceState.objectStaleReason = null;
+          if (shouldUseEcoApprovalRailFallback(summary, requests, queueHealth, approvalEntityType)) {
+            workspaceState.approvalSummary = null;
+            workspaceState.approvalRequests = null;
+            workspaceState.approvalQueueHealth = null;
+            renderEcoApprovalRailFallback();
+            renderEmpty(
+              approvalDetailOutput,
+              "Generic approval detail lens is not exposed for this ECO-driven governance flow.",
+            );
+            renderProductContext();
+            if (!silentStatus) {
+              setStatus(
+                `Approval rail is using ECO-native governance fallback for ${approvalEntityType}:${approvalEntityId}.`,
+                "ok",
+              );
+            }
+            return true;
+          }
           renderApprovalRail();
           const requestRows = Array.isArray(requests.requests) ? requests.requests : [];
           const preferredRequestId =
