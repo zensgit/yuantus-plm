@@ -4324,6 +4324,77 @@
         `;
       }
 
+      function renderEcoApprovalRailFallback() {
+        const productContext =
+          workspaceState.productContext && typeof workspaceState.productContext === "object"
+            ? workspaceState.productContext
+            : null;
+        const pendingEcoApprovals = Array.isArray(productContext?.eco_summary?.pending_approvals?.items)
+          ? productContext.eco_summary.pending_approvals.items
+          : [];
+        const focusedEcoId = currentEcoFocusId();
+        const focusedEcoName =
+          workspaceState.ecoDetail?.name ||
+          pendingEcoApprovals.find((entry) => entry.eco_id === focusedEcoId)?.eco_name ||
+          focusedEcoId ||
+          "No ECO selected";
+
+        approvalRailOutput.innerHTML = `
+          <section class="data-card">
+            <h5>ECO-Native Governance</h5>
+            <div class="notice">
+              Generic <code>/approvals/*</code> endpoints are not exposed for this flow in the current tenancy. The native workspace is using ECO-driven governance instead.
+            </div>
+            <div class="kv-grid">
+              ${renderKvItems([
+                ["Focused ECO", focusedEcoName],
+                ["Pending ECO Approvals", productContext?.eco_summary?.pending_approvals?.count ?? pendingEcoApprovals.length],
+                ["Open ECOs", productContext?.open_ecos?.authorized === false ? "Unauthorized" : productContext?.open_ecos?.total ?? productContext?.eco_summary?.count ?? "-"],
+              ])}
+            </div>
+            <div class="rail-actions" style="margin-top: 12px; margin-bottom: 0">
+              <button class="mini-button" type="button" data-change-action="governance">Open Change Workspace</button>
+              ${
+                focusedEcoId
+                  ? `<button class="mini-button" type="button" data-eco-focus-id="${escapeHtml(focusedEcoId)}">Focus ECO</button>`
+                  : ""
+              }
+            </div>
+          </section>
+          <section class="data-card">
+            <h5>Pending ECO Approvals</h5>
+            ${
+              pendingEcoApprovals.length
+                ? `
+                    <ul class="usage-list">
+                      ${pendingEcoApprovals
+                        .slice(0, 5)
+                        .map(
+                          (approval) => `
+                            <li class="usage-card">
+                              <header>
+                                <div>
+                                  <h5>${escapeHtml(approval.eco_name || approval.eco_id || "Pending ECO approval")}</h5>
+                                  <small>${escapeHtml([approval.stage_name, approval.request_id, approval.request_state].filter(Boolean).join(" · "))}</small>
+                                </div>
+                                ${
+                                  approval.eco_id
+                                    ? `<button class="mini-button" type="button" data-eco-focus-id="${escapeHtml(approval.eco_id)}">Focus ECO</button>`
+                                    : ""
+                                }
+                              </header>
+                            </li>
+                          `,
+                        )
+                        .join("")}
+                    </ul>
+                  `
+                : '<div class="empty-state">No pending ECO approvals were returned for this object.</div>'
+            }
+          </section>
+        `;
+      }
+
       function renderApprovalDetail() {
         const detail = workspaceState.approvalRequestDetail;
         const lifecycle = workspaceState.approvalRequestLifecycle;
@@ -5306,22 +5377,24 @@
 
       async function loadApprovalRail({ silentStatus = false } = {}) {
         const requestHandle = beginWorkspaceRequest("approvalRail");
+        const approvalEntityType = itemTypeInput.value;
+        const approvalEntityId = itemIdInput.value.trim();
         if (!silentStatus) {
           setStatus("Loading approval rail...", "neutral");
         }
         try {
           const [summary, requests, queueHealth] = await Promise.all([
             fetchJson("/approvals/summary", {
-              query: { entity_type: itemTypeInput.value },
+              query: { entity_type: approvalEntityType },
             }),
             fetchJson("/approvals/requests", {
               query: {
-                entity_type: itemTypeInput.value,
-                entity_id: itemIdInput.value.trim(),
+                entity_type: approvalEntityType,
+                entity_id: approvalEntityId,
               },
             }),
             fetchJson("/approvals/queue-health", {
-              query: { entity_type: itemTypeInput.value },
+              query: { entity_type: approvalEntityType },
             }),
           ]);
           if (!isCurrentWorkspaceRequest(requestHandle)) {
@@ -5359,6 +5432,23 @@
         } catch (error) {
           if (!isCurrentWorkspaceRequest(requestHandle)) {
             return false;
+          }
+          if (/404/.test(String(error.message || "")) && objectSupportsGovernance(approvalEntityType)) {
+            workspaceState.approvalSummary = null;
+            workspaceState.approvalRequests = null;
+            workspaceState.approvalQueueHealth = null;
+            renderEcoApprovalRailFallback();
+            renderEmpty(
+              approvalDetailOutput,
+              "Generic approval detail lens is not exposed for this ECO-driven governance flow.",
+            );
+            if (!silentStatus) {
+              setStatus(
+                `Approval rail is using ECO-native governance fallback for ${approvalEntityType}:${approvalEntityId}.`,
+                "ok",
+              );
+            }
+            return true;
           }
           renderEmpty(approvalRailOutput, `Approval rail load failed: ${error.message}`);
           renderEmpty(approvalDetailOutput, "Approval detail lens has not been loaded yet.");
@@ -6247,6 +6337,17 @@
       document.getElementById("load-all").addEventListener("click", loadAll);
 
       approvalRailOutput.addEventListener("click", (event) => {
+        const actionTarget = event.target.closest("[data-change-action]");
+        if (actionTarget) {
+          runProductContextAction(actionTarget.dataset.changeAction || "");
+          return;
+        }
+        const ecoTarget = event.target.closest("[data-eco-focus-id]");
+        if (ecoTarget) {
+          activateTab("change");
+          loadEcoGovernance(ecoTarget.dataset.ecoFocusId || "");
+          return;
+        }
         const target = event.target.closest("[data-approval-request-id]");
         if (!target) {
           return;

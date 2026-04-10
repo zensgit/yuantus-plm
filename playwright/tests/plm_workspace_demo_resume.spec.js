@@ -27,6 +27,13 @@ test('demo preset resumes after UI login and hydrates change + documents flow', 
   await expect(page.locator('#change-output')).toContainText(fixture.ecoName);
   await expect(page.locator('#change-output')).toContainText('Readiness State');
 
+  await page.click('#approval-rail-button');
+  await expect(page.locator('#approval-rail-output')).toContainText('ECO-Native Governance');
+  await expect(page.locator('#approval-rail-output')).toContainText('Pending ECO Approvals');
+  await expect(page.locator('#approval-rail-output')).toContainText(fixture.ecoName);
+  await expect(page.locator('#approval-rail-output')).not.toContainText('Approval rail load failed: 404');
+  await expect(page.locator('#approval-detail-output')).toContainText('Generic approval detail lens is not exposed');
+
   await page.click(`[data-workspace-object-type="ECO"][data-workspace-object-id="${fixture.ecoId}"]`);
   await expect(page.locator('#session-status')).toContainText(`Workspace synced for ECO:${fixture.ecoId}`);
   await expect(page.locator('#active-object-key')).toContainText(`ECO:${fixture.ecoId}`);
