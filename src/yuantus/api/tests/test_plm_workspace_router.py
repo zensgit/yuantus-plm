@@ -46,7 +46,7 @@ def test_plm_workspace_page_renders_html():
     assert "Current documents view is partial." in response.text
     assert "Documents partial:" in response.text
     assert "Documents unavailable" in response.text
-    assert 'fetchJson("/api/aml/query"' in response.text
+    assert "/aml/query (expand ${RELATED_DOCUMENT_RELATION})" in response.text
     assert "Attachments Source" in response.text
     assert "AML Source" in response.text
     assert "These status lines describe the two document surfaces separately: physical file attachments and AML related documents." in response.text
