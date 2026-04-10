@@ -3787,10 +3787,12 @@
               </section>
             `
             : ""}
-          ${detailType(detail) === "Document"
+          ${detailType(detail) === "Document" || detailType(detail) === "ECO"
             ? renderSourceRecoveryCard(
                 "Source Recovery",
-                "Use the source object to return to governed product context, linked attachments, and AML relationship entry points.",
+                detailType(detail) === "ECO"
+                  ? "Use the source object to return to the governed product change flow after inspecting this ECO."
+                  : "Use the source object to return to governed product context, linked attachments, and AML relationship entry points.",
               )
             : ""}
           ${renderRawDump(payload)}
@@ -5946,7 +5948,7 @@
         const supportsGovernance = objectSupportsGovernance(mappedType);
         const supportsStructure = objectSupportsStructure(mappedType);
         if (
-          mappedType === "Document" &&
+          (mappedType === "Document" || mappedType === "ECO") &&
           currentIdentity.id &&
           currentIdentity.id !== "-" &&
           (currentIdentity.id !== objectId || currentIdentity.type !== mappedType)
@@ -5978,7 +5980,7 @@
             related_documents_count: sourceRelatedDocumentsCount,
             open_eco_count: sourceOpenEcoCount,
           };
-        } else if (mappedType !== "Document") {
+        } else if (mappedType !== "Document" && mappedType !== "ECO") {
           workspaceState.handoffSource = null;
         }
         ensureItemTypeOption(mappedType);
@@ -5987,7 +5989,7 @@
         searchQueryInput.value = objectId;
         if (currentIdentity.id !== objectId || currentIdentity.type !== mappedType) {
           clearWorkspaceObjectState(`Switching workspace context to ${mappedType}:${objectId}.`, {
-            preserveHandoffSource: mappedType === "Document",
+            preserveHandoffSource: mappedType === "Document" || mappedType === "ECO",
           });
         }
         rememberCurrentObjectSelection();

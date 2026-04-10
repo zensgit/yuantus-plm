@@ -11,7 +11,7 @@ This folder contains the checked-in browser regressions for the native
   - locks partial document degradation visibility
 - `plm_workspace_demo_resume.spec.js`
   - locks `demo preset -> UI login -> automatic resume`
-  - verifies change governance, ECO detail handoff, approval-rail fallback, and documents hydration after login
+  - verifies change governance, ECO detail handoff, ECO source recovery back to source change, approval-rail fallback, and documents hydration after login
   - verifies non-empty BOM hydration after login for the `Config Parent` demo preset
   - verifies non-empty release-readiness drilldown for the `Config Parent` demo preset and keeps unsupported resource handoffs boundary-limited
 - `plm_workspace_document_handoff.spec.js`
