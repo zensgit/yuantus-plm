@@ -17,7 +17,7 @@ This folder contains the checked-in browser regressions for the native
   - locks `Part -> AML related Document -> Return to Source Detail`
   - locks `Part -> AML related Document -> Return to Source Documents`
   - locks `Part -> AML related Document -> Return to Source Change`
-  - verifies document-tab stability plus source recovery and roundtrip document integrity
+  - verifies document-tab stability, document action-button navigation, source recovery, and roundtrip document integrity
 
 ## Run Directly
 
