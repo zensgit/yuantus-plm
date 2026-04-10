@@ -2989,6 +2989,12 @@
               ${
                 selectedReadinessResource
                   ? `
+                      ${(() => {
+                        const resourceType = selectedReadinessResource.diagnostics?.resource_type || "";
+                        const canSelect = readinessResourceHandoffSupport(resourceType, "select");
+                        const canOpenDetail = readinessResourceHandoffSupport(resourceType, "detail");
+                        const canOpenBom = readinessResourceHandoffSupport(resourceType, "bom");
+                        return `
                       <div class="kv-grid">
                         ${renderKvItems([
                           ["Resource", selectedReadinessResource.diagnostics?.resource_id || "-"],
@@ -3006,6 +3012,7 @@
                           data-readiness-handoff="select"
                           data-readiness-resource-id="${escapeHtml(selectedReadinessResource.diagnostics?.resource_id || "")}"
                           data-readiness-resource-type="${escapeHtml(selectedReadinessResource.diagnostics?.resource_type || "")}"
+                          ${canSelect ? "" : 'disabled aria-disabled="true"'}
                         >
                           Use In Explorer
                         </button>
@@ -3015,6 +3022,7 @@
                           data-readiness-handoff="detail"
                           data-readiness-resource-id="${escapeHtml(selectedReadinessResource.diagnostics?.resource_id || "")}"
                           data-readiness-resource-type="${escapeHtml(selectedReadinessResource.diagnostics?.resource_type || "")}"
+                          ${canOpenDetail ? "" : 'disabled aria-disabled="true"'}
                         >
                           Open Detail
                         </button>
@@ -3024,10 +3032,13 @@
                           data-readiness-handoff="bom"
                           data-readiness-resource-id="${escapeHtml(selectedReadinessResource.diagnostics?.resource_id || "")}"
                           data-readiness-resource-type="${escapeHtml(selectedReadinessResource.diagnostics?.resource_type || "")}"
+                          ${canOpenBom ? "" : 'disabled aria-disabled="true"'}
                         >
                           Open BOM
                         </button>
                       </div>
+                      `;
+                      })()}
                     `
                   : readinessResources.length
                     ? `
@@ -4681,8 +4692,9 @@
         const canSelect = readinessResourceHandoffSupport(resourceType, "select");
         const canOpenDetail = readinessResourceHandoffSupport(resourceType, "detail");
         const canOpenBom = readinessResourceHandoffSupport(resourceType, "bom");
+        const hasAnyHandoffSupport = canSelect || canOpenDetail || canOpenBom;
         const boundaryCopy =
-          canSelect && canOpenDetail && canOpenBom ? "" : readinessResourceBoundaryCopy(resourceType);
+          hasAnyHandoffSupport ? "" : readinessResourceBoundaryCopy(resourceType);
 
         releaseReadinessDetailOutput.innerHTML = `
           <section class="data-card">

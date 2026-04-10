@@ -99,5 +99,8 @@ test('bom demo can inspect non-empty release readiness without leaving native pa
   await expect(page.locator('#release-readiness-detail-output [data-readiness-handoff="select"]')).toBeDisabled();
   await expect(page.locator('#release-readiness-detail-output [data-readiness-handoff="detail"]')).toBeDisabled();
   await expect(page.locator('#release-readiness-detail-output [data-readiness-handoff="bom"]')).toBeDisabled();
+  await expect(page.locator('#change-output [data-readiness-handoff="select"]')).toBeDisabled();
+  await expect(page.locator('#change-output [data-readiness-handoff="detail"]')).toBeDisabled();
+  await expect(page.locator('#change-output [data-readiness-handoff="bom"]')).toBeDisabled();
   await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.parentId}`);
 });
