@@ -55,6 +55,18 @@ async function createPart(request, headers, number, name) {
   return data.id;
 }
 
+async function addBomChild(request, headers, parentId, childId, quantity = 1, uom = 'EA') {
+  const resp = await request.post(`/api/v1/bom/${parentId}/children`, {
+    headers,
+    data: {
+      child_id: childId,
+      quantity,
+      uom,
+    },
+  });
+  expect(resp.ok()).toBeTruthy();
+}
+
 async function createDocument(request, headers, number, name) {
   const resp = await request.post('/api/v1/aml/apply', {
     headers,
@@ -196,17 +208,54 @@ async function createDocUiDemoFixture(request) {
   return { partId, partNumber, docId, docNumber, ecoId };
 }
 
+async function createConfigParentDemoFixture(request) {
+  const { headers } = await login(request);
+  const ts = Date.now();
+
+  const partNumber = `CFG-P-${ts}`;
+  const childANumber = `CFG-C1-${ts}`;
+  const childBNumber = `CFG-C2-${ts}`;
+  const parentId = await createPart(request, headers, partNumber, 'Config Parent');
+  const childAId = await createPart(request, headers, childANumber, 'Config Child A');
+  const childBId = await createPart(request, headers, childBNumber, 'Config Child B');
+
+  await addBomChild(request, headers, parentId, childAId, 2, 'EA');
+  await addBomChild(request, headers, parentId, childBId, 4, 'EA');
+
+  return {
+    parentId,
+    parentNumber: partNumber,
+    childAId,
+    childANumber,
+    childBId,
+    childBNumber,
+  };
+}
+
 async function loadDocUiDemoPreset(page, fixture, mode = 'change') {
   await page.goto('/api/v1/plm-workspace');
   await page.evaluate(
-    ({ partId, partNumber }) => {
+    async ({ partId, partNumber, demoMode }) => {
       demoSamples['doc-ui-product'].itemId = partId;
       demoSamples['doc-ui-product'].itemNumber = partNumber;
       demoSamples['doc-ui-product'].searchQuery = partNumber;
+      await loadDemoSample('doc-ui-product', demoMode);
     },
-    fixture,
+    { ...fixture, demoMode: mode },
   );
-  await page.click(`[data-demo-sample="doc-ui-product"][data-demo-mode="${mode}"]`);
+}
+
+async function loadConfigParentDemoPreset(page, fixture, mode = 'bom') {
+  await page.goto('/api/v1/plm-workspace');
+  await page.evaluate(
+    async ({ parentId, parentNumber, demoMode }) => {
+      demoSamples['config-parent'].itemId = parentId;
+      demoSamples['config-parent'].itemNumber = parentNumber;
+      demoSamples['config-parent'].searchQuery = parentNumber;
+      await loadDemoSample('config-parent', demoMode);
+    },
+    { ...fixture, demoMode: mode },
+  );
 }
 
 async function signInWorkspace(page, { username = 'admin', password = 'admin' } = {}) {
@@ -216,7 +265,9 @@ async function signInWorkspace(page, { username = 'admin', password = 'admin' } 
 }
 
 module.exports = {
+  createConfigParentDemoFixture,
   createDocUiDemoFixture,
+  loadConfigParentDemoPreset,
   loadDocUiDemoPreset,
   signInWorkspace,
 };
