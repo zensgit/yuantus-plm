@@ -55,6 +55,7 @@ def test_plm_workspace_page_renders_html():
     assert "Focus ECO" in response.text
     assert "Open Change" in response.text
     assert "Return to Source Detail" in response.text
+    assert "Return to Source Change" in response.text
     assert "Source Recovery" in response.text
     assert "Source Object" in response.text
     assert "Source Files" in response.text
@@ -72,6 +73,7 @@ def test_plm_workspace_page_renders_html():
     assert "Handoff from" in response.text
     assert "Return to Source Product" in response.text
     assert "Return to Source Documents" in response.text
+    assert "Return to Source Change" in response.text
     assert "Open Change Workspace" in response.text
     assert "Viewing related document object." in response.text
     assert "Phase 0.5 Demo Track" in response.text

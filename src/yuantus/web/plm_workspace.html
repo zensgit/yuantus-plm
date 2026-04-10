@@ -5817,12 +5817,21 @@
         if (mode === "change") {
           activateTab("change");
           if (supportsProductContext || supportsGovernance) {
-            await syncWorkspaceForCurrentObject({
+            const synced = await syncWorkspaceForCurrentObject({
               focus: "detail",
               includeGovernance: supportsGovernance,
               includeReadiness: mappedType === "ECO",
               includeProductContext: supportsProductContext,
             });
+            if (!synced) {
+              return;
+            }
+            if (itemIdInput.value.trim() !== objectId || itemTypeInput.value !== mappedType) {
+              return;
+            }
+            activateTab("change");
+            renderChangeTab();
+            setStatus(`Change workspace is focused on ${mappedType}:${objectId}.`, "ok");
           } else {
             clearUnsupportedWorkspaceState({
               productContext: true,
@@ -6233,6 +6242,40 @@
       });
 
       relatedDocumentsOutput.addEventListener("click", (event) => {
+        const objectTarget = event.target.closest("[data-workspace-handoff]");
+        if (!objectTarget) {
+          return;
+        }
+        handoffWorkspaceObject(
+          objectTarget.dataset.workspaceObjectId || "",
+          objectTarget.dataset.workspaceObjectType || "",
+          objectTarget.dataset.workspaceHandoff || "detail",
+        );
+      });
+
+      detailOutput.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-product-context-action]");
+        if (target) {
+          runProductContextAction(target.dataset.productContextAction || "");
+          return;
+        }
+        const objectTarget = event.target.closest("[data-workspace-handoff]");
+        if (!objectTarget) {
+          return;
+        }
+        handoffWorkspaceObject(
+          objectTarget.dataset.workspaceObjectId || "",
+          objectTarget.dataset.workspaceObjectType || "",
+          objectTarget.dataset.workspaceHandoff || "detail",
+        );
+      });
+
+      documentsOverviewOutput.addEventListener("click", (event) => {
+        const target = event.target.closest("[data-product-context-action]");
+        if (target) {
+          runProductContextAction(target.dataset.productContextAction || "");
+          return;
+        }
         const objectTarget = event.target.closest("[data-workspace-handoff]");
         if (!objectTarget) {
           return;
