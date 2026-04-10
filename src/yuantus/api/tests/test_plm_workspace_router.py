@@ -46,7 +46,7 @@ def test_plm_workspace_page_renders_html():
     assert "Current documents view is partial." in response.text
     assert "Documents partial:" in response.text
     assert "Documents unavailable" in response.text
-    assert 'fetchJson("/api/aml/query"' in response.text
+    assert "/aml/query (expand ${RELATED_DOCUMENT_RELATION})" in response.text
     assert "Attachments Source" in response.text
     assert "AML Source" in response.text
     assert "These status lines describe the two document surfaces separately: physical file attachments and AML related documents." in response.text
@@ -56,16 +56,25 @@ def test_plm_workspace_page_renders_html():
     assert "Focus ECO" in response.text
     assert "Open Change" in response.text
     assert "Return to Source Detail" in response.text
+    assert "Return to Source Change" in response.text
     assert "Source Recovery" in response.text
     assert "Source Object" in response.text
     assert "Source Files" in response.text
     assert "Source AML Docs" in response.text
     assert "Document Workspace" in response.text
+    assert "Document Boundary" in response.text
+    assert "Document Focus" in response.text
+    assert "Document Source" in response.text
+    assert "Governance Boundary" in response.text
+    assert "Not published for this object" in response.text
+    assert "Recent ECO Activity" in response.text
     assert "Workspace Journey" in response.text
     assert "Journey Path" in response.text
     assert "Current Object" in response.text
     assert "Handoff from" in response.text
     assert "Return to Source Product" in response.text
+    assert "Return to Source Documents" in response.text
+    assert "Return to Source Change" in response.text
     assert "Open Change Workspace" in response.text
     assert "Viewing related document object." in response.text
     assert "Phase 0.5 Demo Track" in response.text

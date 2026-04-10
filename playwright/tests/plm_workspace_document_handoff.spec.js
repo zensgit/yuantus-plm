@@ -27,11 +27,222 @@ test('related document handoff returns to source documents with source recovery 
   await expect(page.locator('#change-output')).toContainText('Workspace Journey');
   await expect(page.locator('#change-output')).toContainText('Governance Boundary');
   await expect(page.locator('#change-output')).toContainText('Document Source');
+  await expect(page.locator('#change-output')).toContainText('Not published for this object');
+  await expect(page.locator('#change-output')).not.toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).not.toContainText('Release Snapshot');
 
   await page.getByRole('button', { name: 'Return to Source Product' }).first().click();
   await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
+  await expect(page.locator('#product-context-output')).not.toContainText('Viewing related document object.');
   await page.click('[data-tab="docs"]');
   await expect(page.locator('#files-output')).toContainText(`${fixture.partNumber}_drawing_v1.pdf`);
   await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
   await expect(page.locator('#active-object-pills')).toContainText('Product summary loaded');
+  await page.click('[data-tab="change"]');
+  await expect(page.locator('#change-output')).toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Release Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Recent ECO Activity');
+});
+
+test('related document change flow keeps document boundaries until returning to source change', async ({ request, page }) => {
+  const fixture = await createDocUiDemoFixture(request);
+
+  await loadDocUiDemoPreset(page, fixture, 'change');
+  await signInWorkspace(page);
+
+  await expect(page.locator('#session-status')).toContainText('Authenticated and resumed Doc UI Product.');
+
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
+  await page.locator('#related-documents-output').getByRole('button', { name: 'Open Change' }).first().click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await expect(page.locator('#change-output')).toContainText('Document Focus');
+  await expect(page.locator('#change-output')).toContainText('Governance Boundary');
+  await expect(page.locator('#change-output')).not.toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).not.toContainText('Release Snapshot');
+
+  await page.click('[data-tab="detail"]');
+  await expect(page.locator('#detail-output')).toContainText('Viewing related document object.');
+  await expect(page.locator('#detail-output')).toContainText('Document Workspace');
+  await expect(page.locator('#detail-output')).toContainText('Source Recovery');
+  await expect(page.locator('#detail-output')).not.toContainText('Change Snapshot');
+  await expect(page.locator('#detail-output')).not.toContainText('Recent ECO Activity');
+
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#documents-overview-output')).toContainText('Viewing related document object.');
+  await expect(page.locator('#documents-overview-output')).toContainText('Document Boundary');
+  await expect(page.locator('#documents-overview-output')).toContainText('Workspace Journey');
+  await expect(page.locator('#documents-overview-output')).toContainText('Return to Source Change');
+  await expect(page.locator('#documents-overview-output')).not.toContainText('Change Snapshot');
+
+  await page
+    .locator('#documents-overview-output')
+    .getByRole('button', { name: 'Return to Source Change' })
+    .first()
+    .click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
+  await expect(page.locator('#change-output')).not.toContainText('Viewing related document object.');
+  await expect(page.locator('#change-output')).not.toContainText('Document Focus');
+  await expect(page.locator('#change-output')).not.toContainText('Governance Boundary');
+  await expect(page.locator('#change-output')).toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Release Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Recent ECO Activity');
+});
+
+test('related document handoff keeps document tabs stable and can return directly to source change', async ({ request, page }) => {
+  const fixture = await createDocUiDemoFixture(request);
+
+  await loadDocUiDemoPreset(page, fixture, 'change');
+  await signInWorkspace(page);
+
+  await expect(page.locator('#session-status')).toContainText('Authenticated and resumed Doc UI Product.');
+
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
+  await page.locator('#related-documents-output').getByRole('button', { name: 'Open Change' }).first().click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await expect(page.locator('#change-output')).toContainText('Document Focus');
+  await expect(page.locator('#change-output')).toContainText('Governance Boundary');
+  await expect(page.locator('#change-output')).toContainText('Document Source');
+  await expect(page.locator('#change-output')).not.toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).not.toContainText('Release Snapshot');
+
+  await page.click('[data-tab="detail"]');
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await expect(page.locator('#detail-output')).toContainText('Viewing related document object.');
+  await expect(page.locator('#detail-output')).toContainText('Document Workspace');
+  await expect(page.locator('#detail-output')).toContainText('Source Recovery');
+  await expect(page.locator('#detail-output')).toContainText('Attachments Source');
+
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await expect(page.locator('#documents-overview-output')).toContainText('Viewing related document object.');
+  await expect(page.locator('#documents-overview-output')).toContainText('Document Boundary');
+  await expect(page.locator('#documents-overview-output')).toContainText('Workspace Journey');
+  await expect(page.locator('#product-context-output')).toContainText('Return to Source Change');
+
+  await page.click('[data-tab="change"]');
+  await expect(page.locator('#change-output')).toContainText('Document Focus');
+  await expect(page.locator('#change-output')).toContainText('Governance Boundary');
+  await expect(page.locator('#change-output')).toContainText('Document Source');
+  await expect(page.locator('#change-output')).not.toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).not.toContainText('Release Snapshot');
+
+  await page.getByRole('button', { name: 'Return to Source Change' }).first().click();
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
+  await expect(page.locator('[data-tab="change"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#product-context-output')).not.toContainText('Viewing related document object.');
+  await expect(page.locator('#change-output')).toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Release Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Recent ECO Activity');
+  await expect(page.locator('#change-output')).not.toContainText('Document Focus');
+  await expect(page.locator('#change-output')).not.toContainText('Governance Boundary');
+});
+
+test('related document detail flow can return directly to source detail without leaking document-only surfaces', async ({ request, page }) => {
+  const fixture = await createDocUiDemoFixture(request);
+
+  await loadDocUiDemoPreset(page, fixture, 'change');
+  await signInWorkspace(page);
+
+  await expect(page.locator('#session-status')).toContainText('Authenticated and resumed Doc UI Product.');
+
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
+  await page.locator('#related-documents-output').getByRole('button', { name: 'Open Change' }).first().click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await page.click('[data-tab="detail"]');
+  await expect(page.locator('#detail-output')).toContainText('Viewing related document object.');
+  await expect(page.locator('#detail-output')).toContainText('Document Workspace');
+  await expect(page.locator('#detail-output')).toContainText('Source Recovery');
+  await expect(page.locator('#detail-output')).toContainText('Return to Source Detail');
+
+  await page.locator('#detail-output').getByRole('button', { name: 'Return to Source Detail' }).first().click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
+  await expect(page.locator('[data-tab="detail"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#product-context-output')).not.toContainText('Viewing related document object.');
+  await expect(page.locator('#detail-output')).toContainText(fixture.partNumber);
+  await expect(page.locator('#detail-output')).toContainText('Object Facts');
+  await expect(page.locator('#detail-output')).toContainText('Domain Properties');
+  await expect(page.locator('#detail-output')).not.toContainText('Document Workspace');
+  await expect(page.locator('#detail-output')).not.toContainText('Source Recovery');
+  await expect(page.locator('#detail-output')).not.toContainText('Document Boundary');
+});
+
+test('document workspace action buttons keep document scope across docs detail and change surfaces', async ({ request, page }) => {
+  const fixture = await createDocUiDemoFixture(request);
+
+  await loadDocUiDemoPreset(page, fixture, 'change');
+  await signInWorkspace(page);
+
+  await expect(page.locator('#session-status')).toContainText('Authenticated and resumed Doc UI Product.');
+
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
+  await page.locator('#related-documents-output').getByRole('button', { name: 'Open Change' }).first().click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await expect(page.locator('#change-output')).toContainText('Document Focus');
+
+  await page.locator('#change-output').getByRole('button', { name: 'Open Documents' }).first().click();
+  await expect(page.locator('[data-tab="docs"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await expect(page.locator('#documents-overview-output')).toContainText('Viewing related document object.');
+  await expect(page.locator('#documents-overview-output')).toContainText('Document Boundary');
+  await expect(page.locator('#documents-overview-output')).not.toContainText('Change Snapshot');
+
+  await page.locator('#documents-overview-output').getByRole('button', { name: 'Open Detail Workspace' }).first().click();
+  await expect(page.locator('[data-tab="detail"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await expect(page.locator('#detail-output')).toContainText('Viewing related document object.');
+  await expect(page.locator('#detail-output')).toContainText('Document Workspace');
+  await expect(page.locator('#detail-output')).toContainText('Source Recovery');
+  await expect(page.locator('#detail-output')).not.toContainText('Change Snapshot');
+
+  await page.locator('#detail-output').getByRole('button', { name: 'Open Change Workspace' }).first().click();
+  await expect(page.locator('[data-tab="change"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await expect(page.locator('#change-output')).toContainText('Document Focus');
+  await expect(page.locator('#change-output')).toContainText('Governance Boundary');
+  await expect(page.locator('#change-output')).not.toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).not.toContainText('Release Snapshot');
+});
+
+test('related document docs flow can return directly to source documents without leaking document-only boundaries', async ({ request, page }) => {
+  const fixture = await createDocUiDemoFixture(request);
+
+  await loadDocUiDemoPreset(page, fixture, 'change');
+  await signInWorkspace(page);
+
+  await expect(page.locator('#session-status')).toContainText('Authenticated and resumed Doc UI Product.');
+
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
+  await page.locator('#related-documents-output').getByRole('button', { name: 'Open Change' }).first().click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#documents-overview-output')).toContainText('Viewing related document object.');
+  await expect(page.locator('#documents-overview-output')).toContainText('Document Boundary');
+  await expect(page.locator('#documents-overview-output')).toContainText('Return to Source Documents');
+  await expect(page.locator('#documents-overview-output')).toContainText('Workspace Journey');
+
+  await page
+    .locator('#documents-overview-output')
+    .getByRole('button', { name: 'Return to Source Documents' })
+    .first()
+    .click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
+  await expect(page.locator('[data-tab="docs"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#product-context-output')).not.toContainText('Viewing related document object.');
+  await expect(page.locator('#documents-overview-output')).not.toContainText('Viewing related document object.');
+  await expect(page.locator('#documents-overview-output')).not.toContainText('Document Boundary');
+  await expect(page.locator('#files-output')).toContainText(`${fixture.partNumber}_drawing_v1.pdf`);
+  await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
 });
