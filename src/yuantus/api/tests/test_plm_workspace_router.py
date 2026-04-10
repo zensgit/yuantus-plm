@@ -63,7 +63,10 @@ def test_plm_workspace_page_renders_html():
     assert "Document Workspace" in response.text
     assert "Document Boundary" in response.text
     assert "Document Focus" in response.text
+    assert "Document Source" in response.text
     assert "Governance Boundary" in response.text
+    assert "Not published for this object" in response.text
+    assert "Recent ECO Activity" in response.text
     assert "Workspace Journey" in response.text
     assert "Journey Path" in response.text
     assert "Current Object" in response.text
