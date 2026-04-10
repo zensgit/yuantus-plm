@@ -4863,8 +4863,7 @@
             itemTypeInput.value = selectedType;
             itemIdInput.value = String(hit.id || "");
             searchQueryInput.value = String(hit.item_number || hit.id || "");
-            invalidateObjectPanels(`Selected ${title}. Syncing workspace around the new object...`);
-            rememberCurrentObjectSelection();
+            handleObjectSelectionMutation(`Selected ${title}. Syncing workspace around the new object...`);
             refreshWorkspaceChrome();
             await syncWorkspaceForCurrentObject({
               focus: "detail",
@@ -5927,8 +5926,7 @@
         itemTypeInput.value = sample.itemType;
         itemIdInput.value = sample.itemId;
         searchQueryInput.value = sample.searchQuery || sample.itemNumber || sample.label || sample.itemId;
-        rememberCurrentObjectSelection();
-        invalidateObjectPanels(
+        handleObjectSelectionMutation(
           `Phase 0.5 demo preset loaded: ${sample.label}. Sync the workspace to hydrate ${sample.flowLabel.toLowerCase()}.`,
         );
         refreshWorkspaceChrome();
@@ -6116,10 +6114,22 @@
 
       function rememberCurrentObjectSelection() {
         const currentKey = currentObjectSelectionKey();
-        if (currentKey !== lastObjectSelectionKey) {
+        const changed = currentKey !== lastObjectSelectionKey;
+        if (changed) {
           workspaceState.selectionEpoch += 1;
         }
         lastObjectSelectionKey = currentKey;
+        return changed;
+      }
+
+      function handleObjectSelectionMutation(
+        reason = "Object selection changed. Reload workspace data to sync detail, structure, files, and governance.",
+      ) {
+        if (!rememberCurrentObjectSelection()) {
+          return false;
+        }
+        invalidateObjectPanels(reason);
+        return true;
       }
 
       [
@@ -6139,18 +6149,10 @@
 
       [itemTypeInput, itemIdInput].forEach((node) => {
         node.addEventListener("input", () => {
-          const currentKey = currentObjectSelectionKey();
-          if (currentKey !== lastObjectSelectionKey) {
-            invalidateObjectPanels("Object selection changed. Reload workspace data to sync detail, structure, files, and governance.");
-            lastObjectSelectionKey = currentKey;
-          }
+          handleObjectSelectionMutation();
         });
         node.addEventListener("change", () => {
-          const currentKey = currentObjectSelectionKey();
-          if (currentKey !== lastObjectSelectionKey) {
-            invalidateObjectPanels("Object selection changed. Reload workspace data to sync detail, structure, files, and governance.");
-            lastObjectSelectionKey = currentKey;
-          }
+          handleObjectSelectionMutation();
         });
       });
 
