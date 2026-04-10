@@ -173,3 +173,37 @@ test('related document detail flow can return directly to source detail without 
   await expect(page.locator('#detail-output')).not.toContainText('Source Recovery');
   await expect(page.locator('#detail-output')).not.toContainText('Document Boundary');
 });
+
+test('related document docs flow can return directly to source documents without leaking document-only boundaries', async ({ request, page }) => {
+  const fixture = await createDocUiDemoFixture(request);
+
+  await loadDocUiDemoPreset(page, fixture, 'change');
+  await signInWorkspace(page);
+
+  await expect(page.locator('#session-status')).toContainText('Authenticated and resumed Doc UI Product.');
+
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
+  await page.locator('#related-documents-output').getByRole('button', { name: 'Open Change' }).first().click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#documents-overview-output')).toContainText('Viewing related document object.');
+  await expect(page.locator('#documents-overview-output')).toContainText('Document Boundary');
+  await expect(page.locator('#documents-overview-output')).toContainText('Return to Source Documents');
+  await expect(page.locator('#documents-overview-output')).toContainText('Workspace Journey');
+
+  await page
+    .locator('#documents-overview-output')
+    .getByRole('button', { name: 'Return to Source Documents' })
+    .first()
+    .click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
+  await expect(page.locator('[data-tab="docs"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#product-context-output')).not.toContainText('Viewing related document object.');
+  await expect(page.locator('#documents-overview-output')).not.toContainText('Viewing related document object.');
+  await expect(page.locator('#documents-overview-output')).not.toContainText('Document Boundary');
+  await expect(page.locator('#files-output')).toContainText(`${fixture.partNumber}_drawing_v1.pdf`);
+  await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
+});
