@@ -4835,6 +4835,48 @@
         renderProductContext();
       }
 
+      function clearWorkspaceObjectState(
+        reason = "Switching workspace context. Reload object data to resync the workspace.",
+        { preserveHandoffSource = false } = {},
+      ) {
+        workspaceState.productContext = null;
+        workspaceState.metadata = null;
+        workspaceState.detail = null;
+        workspaceState.bom = null;
+        workspaceState.whereUsed = null;
+        workspaceState.files = null;
+        workspaceState.filesStatus = null;
+        workspaceState.relatedDocuments = null;
+        workspaceState.relatedDocumentsStatus = null;
+        workspaceState.approvalSummary = null;
+        workspaceState.approvalRequests = null;
+        workspaceState.approvalQueueHealth = null;
+        workspaceState.approvalRequestDetail = null;
+        workspaceState.approvalRequestLifecycle = null;
+        workspaceState.selectedApprovalRequestId = null;
+        workspaceState.ecoDetail = null;
+        workspaceState.ecoApprovals = null;
+        workspaceState.selectedEcoId = null;
+        workspaceState.releaseReadiness = null;
+        workspaceState.selectedReadinessResourceIndex = null;
+        if (!preserveHandoffSource) {
+          workspaceState.handoffSource = null;
+        }
+        workspaceState.objectStaleReason = reason;
+
+        renderEmpty(metadataOutput, reason);
+        renderEmpty(detailOutput, reason);
+        renderEmpty(bomOutput, reason);
+        renderEmpty(whereUsedOutput, reason);
+        renderEmpty(documentsOverviewOutput, reason);
+        renderEmpty(filesOutput, reason);
+        renderEmpty(relatedDocumentsOutput, reason);
+        renderEmpty(approvalRailOutput, reason);
+        renderEmpty(approvalDetailOutput, reason);
+        renderEmpty(releaseReadinessOutput, reason);
+        renderEmpty(releaseReadinessDetailOutput, reason);
+      }
+
       function renderSearch(payload) {
         const hits = Array.isArray(payload && payload.hits) ? payload.hits : [];
         if (!hits.length) {
@@ -5045,18 +5087,23 @@
 
       async function loadDetail({ silentStatus = false } = {}) {
         const requestHandle = beginWorkspaceRequest("detail");
+        const detailTypeValue = itemTypeInput.value;
+        const detailId = itemIdInput.value.trim();
         if (!silentStatus) {
           setStatus("Loading AML detail...", "neutral");
         }
         try {
-          const payload = await fetchJson("/aml/apply", {
-            method: "POST",
-            body: {
-              type: itemTypeInput.value,
-              action: "get",
-              id: itemIdInput.value.trim(),
-            },
-          });
+          const payload =
+            String(detailTypeValue || "").trim().toUpperCase() === "ECO"
+              ? await fetchJson(`/eco/${encodeURIComponent(detailId)}`)
+              : await fetchJson("/aml/apply", {
+                  method: "POST",
+                  body: {
+                    type: detailTypeValue,
+                    action: "get",
+                    id: detailId,
+                  },
+                });
           if (!isCurrentWorkspaceRequest(requestHandle)) {
             return false;
           }
@@ -5066,7 +5113,7 @@
           refreshSummary();
           renderProductContext();
           if (!silentStatus) {
-            setStatus(`Loaded object detail for ${itemTypeInput.value}:${itemIdInput.value.trim()}.`, "ok");
+            setStatus(`Loaded object detail for ${detailTypeValue}:${detailId}.`, "ok");
           }
           return true;
         } catch (error) {
@@ -5515,10 +5562,16 @@
           return;
         }
         const mappedType = entityType || itemTypeInput.value;
+        const currentIdentity = currentObjectIdentity();
         ensureItemTypeOption(mappedType);
         itemTypeInput.value = mappedType;
         itemIdInput.value = entityId;
         searchQueryInput.value = entityId;
+        if (currentIdentity.id !== entityId || currentIdentity.type !== mappedType) {
+          clearWorkspaceObjectState(`Switching workspace context to ${mappedType}:${entityId}.`, {
+            preserveHandoffSource: false,
+          });
+        }
         rememberCurrentObjectSelection();
         refreshWorkspaceChrome();
         const actionMessage = `Approval entity handoff applied for ${mappedType}:${entityId}.`;
@@ -5696,10 +5749,16 @@
           return;
         }
         const mappedType = mapResourceTypeToWorkspaceItemType(resourceType);
+        const currentIdentity = currentObjectIdentity();
         ensureItemTypeOption(mappedType);
         itemTypeInput.value = mappedType;
         itemIdInput.value = resourceId;
         searchQueryInput.value = resourceId;
+        if (currentIdentity.id !== resourceId || currentIdentity.type !== mappedType) {
+          clearWorkspaceObjectState(`Switching workspace context to ${mappedType}:${resourceId}.`, {
+            preserveHandoffSource: false,
+          });
+        }
         rememberCurrentObjectSelection();
         refreshWorkspaceChrome();
         const actionMessage = `Handoff applied from ${resourceType || "resource"}:${resourceId}.`;
@@ -5785,10 +5844,9 @@
         itemIdInput.value = objectId;
         searchQueryInput.value = objectId;
         if (currentIdentity.id !== objectId || currentIdentity.type !== mappedType) {
-          workspaceState.files = null;
-          workspaceState.filesStatus = null;
-          workspaceState.relatedDocuments = null;
-          workspaceState.relatedDocumentsStatus = null;
+          clearWorkspaceObjectState(`Switching workspace context to ${mappedType}:${objectId}.`, {
+            preserveHandoffSource: mappedType === "Document",
+          });
         }
         rememberCurrentObjectSelection();
         refreshWorkspaceChrome();

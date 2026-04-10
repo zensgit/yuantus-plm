@@ -27,7 +27,18 @@ test('demo preset resumes after UI login and hydrates change + documents flow', 
   await expect(page.locator('#change-output')).toContainText(fixture.ecoName);
   await expect(page.locator('#change-output')).toContainText('Readiness State');
 
+  await page.click(`[data-workspace-object-type="ECO"][data-workspace-object-id="${fixture.ecoId}"]`);
+  await expect(page.locator('#session-status')).toContainText(`Workspace synced for ECO:${fixture.ecoId}`);
+  await expect(page.locator('#active-object-key')).toContainText(`ECO:${fixture.ecoId}`);
+  await expect(page.locator('[data-tab="detail"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#detail-output')).toContainText(fixture.ecoName);
+  await expect(page.locator('#detail-output')).toContainText('ECO');
+
   await page.click('[data-tab="docs"]');
+  await page.evaluate(async () => {
+    await loadDemoSample('doc-ui-product', 'change');
+  });
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
   await expect(page.locator('#active-object-pills')).toContainText('Product summary loaded');
   await expect(page.locator('#files-output')).toContainText(`${fixture.partNumber}_drawing_v1.pdf`);
   await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
