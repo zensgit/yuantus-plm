@@ -14,6 +14,7 @@ This folder contains the checked-in browser regressions for the native
   - verifies change + documents hydration after login
 - `plm_workspace_document_handoff.spec.js`
   - locks `Part -> AML related Document -> Return to Source Product`
+  - locks `Part -> AML related Document -> Return to Source Detail`
   - locks `Part -> AML related Document -> Return to Source Change`
   - verifies document-tab stability plus source recovery and roundtrip document integrity
 

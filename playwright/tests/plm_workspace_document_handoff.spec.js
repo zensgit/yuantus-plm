@@ -141,3 +141,35 @@ test('related document handoff keeps document tabs stable and can return directl
   await expect(page.locator('#change-output')).not.toContainText('Document Focus');
   await expect(page.locator('#change-output')).not.toContainText('Governance Boundary');
 });
+
+test('related document detail flow can return directly to source detail without leaking document-only surfaces', async ({ request, page }) => {
+  const fixture = await createDocUiDemoFixture(request);
+
+  await loadDocUiDemoPreset(page, fixture, 'change');
+  await signInWorkspace(page);
+
+  await expect(page.locator('#session-status')).toContainText('Authenticated and resumed Doc UI Product.');
+
+  await page.click('[data-tab="docs"]');
+  await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
+  await page.locator('#related-documents-output').getByRole('button', { name: 'Open Change' }).first().click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Document:${fixture.docId}`);
+  await page.click('[data-tab="detail"]');
+  await expect(page.locator('#detail-output')).toContainText('Viewing related document object.');
+  await expect(page.locator('#detail-output')).toContainText('Document Workspace');
+  await expect(page.locator('#detail-output')).toContainText('Source Recovery');
+  await expect(page.locator('#detail-output')).toContainText('Return to Source Detail');
+
+  await page.locator('#detail-output').getByRole('button', { name: 'Return to Source Detail' }).first().click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
+  await expect(page.locator('[data-tab="detail"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#product-context-output')).not.toContainText('Viewing related document object.');
+  await expect(page.locator('#detail-output')).toContainText(fixture.partNumber);
+  await expect(page.locator('#detail-output')).toContainText('Object Facts');
+  await expect(page.locator('#detail-output')).toContainText('Domain Properties');
+  await expect(page.locator('#detail-output')).not.toContainText('Document Workspace');
+  await expect(page.locator('#detail-output')).not.toContainText('Source Recovery');
+  await expect(page.locator('#detail-output')).not.toContainText('Document Boundary');
+});
