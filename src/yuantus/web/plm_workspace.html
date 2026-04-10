@@ -1537,6 +1537,8 @@
         objectStaleReason: null,
         pendingDemo: null,
         handoffSource: null,
+        selectionEpoch: 0,
+        requestCounters: {},
       };
 
       const demoSamples = {
@@ -1900,6 +1902,37 @@
           return null;
         }
         return source;
+      }
+
+      function currentObjectSelectionKey() {
+        return [
+          tenantIdInput.value.trim(),
+          orgIdInput.value.trim(),
+          itemTypeInput.value,
+          itemIdInput.value.trim(),
+        ].join("::");
+      }
+
+      function beginWorkspaceRequest(slot) {
+        const next = (workspaceState.requestCounters[slot] || 0) + 1;
+        workspaceState.requestCounters[slot] = next;
+        return {
+          slot,
+          token: next,
+          selectionEpoch: workspaceState.selectionEpoch,
+          selectionKey: currentObjectSelectionKey(),
+        };
+      }
+
+      function isCurrentWorkspaceRequest(handle) {
+        if (!handle) {
+          return true;
+        }
+        return (
+          workspaceState.requestCounters[handle.slot] === handle.token &&
+          workspaceState.selectionEpoch === handle.selectionEpoch &&
+          currentObjectSelectionKey() === handle.selectionKey
+        );
       }
 
       function renderSourceContextCard(title = "Source Context") {
@@ -4763,6 +4796,7 @@
       }
 
       function invalidateObjectPanels(reason = "Selection changed. Reload object data to resync the workspace.") {
+        workspaceState.selectionEpoch += 1;
         workspaceState.productContext = null;
         workspaceState.metadata = null;
         workspaceState.detail = null;
@@ -4902,6 +4936,7 @@
       }
 
       async function loadSearch({ silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("search");
         if (!silentStatus) {
           setStatus("Loading search results...", "neutral");
         }
@@ -4913,19 +4948,28 @@
               limit: 12,
             },
           });
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           renderSearch(payload);
           if (!silentStatus) {
             setStatus(`Search returned ${payload.total || 0} hit(s).`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           searchResults.innerHTML = `<div class="field-note">${error.message}</div>`;
           if (!silentStatus) {
             setStatus(`Search failed: ${error.message}`, "error");
           }
+          return false;
         }
       }
 
       async function loadProductContext({ silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("productContext");
         if (!silentStatus) {
           setStatus("Loading active product context...", "neutral");
         }
@@ -4943,6 +4987,9 @@
               cockpit_links_only: false,
             },
           });
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.productContext = payload;
           workspaceState.objectStaleReason = null;
           renderProductContext();
@@ -4951,22 +4998,31 @@
           if (!silentStatus) {
             setStatus(`Loaded active product context for ${itemIdInput.value.trim()}.`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.productContext = null;
           renderProductContext();
           renderRelatedDocuments();
           if (!silentStatus) {
             setStatus(maybeContextHint(`Product context load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
       async function loadMetadata({ silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("metadata");
         if (!silentStatus) {
           setStatus("Loading metadata definition...", "neutral");
         }
         try {
           const payload = await fetchJson(`/aml/metadata/${encodeURIComponent(itemTypeInput.value)}`);
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.metadata = payload;
           workspaceState.objectStaleReason = null;
           renderMetadata(payload);
@@ -4975,15 +5031,21 @@
           if (!silentStatus) {
             setStatus(`Loaded metadata for ${itemTypeInput.value}.`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           renderEmpty(metadataOutput, `Metadata load failed: ${error.message}`);
           if (!silentStatus) {
             setStatus(maybeContextHint(`Metadata load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
       async function loadDetail({ silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("detail");
         if (!silentStatus) {
           setStatus("Loading AML detail...", "neutral");
         }
@@ -4996,6 +5058,9 @@
               id: itemIdInput.value.trim(),
             },
           });
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.detail = payload;
           workspaceState.objectStaleReason = null;
           renderDetail(payload);
@@ -5004,15 +5069,21 @@
           if (!silentStatus) {
             setStatus(`Loaded object detail for ${itemTypeInput.value}:${itemIdInput.value.trim()}.`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           renderEmpty(detailOutput, `Detail load failed: ${error.message}`);
           if (!silentStatus) {
             setStatus(maybeContextHint(`Detail load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
       async function loadBom({ silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("bom");
         if (!silentStatus) {
           setStatus("Loading BOM tree...", "neutral");
         }
@@ -5020,6 +5091,9 @@
           const payload = await fetchJson(`/bom/${encodeURIComponent(itemIdInput.value.trim())}/tree`, {
             query: { depth: bomDepthInput.value || 2 },
           });
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.bom = payload;
           workspaceState.objectStaleReason = null;
           renderBom(payload);
@@ -5028,15 +5102,21 @@
           if (!silentStatus) {
             setStatus(`Loaded BOM tree with ${nodeCount} node(s).`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           renderEmpty(bomOutput, `BOM load failed: ${error.message}`);
           if (!silentStatus) {
             setStatus(maybeContextHint(`BOM load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
       async function loadWhereUsed({ silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("whereUsed");
         if (!silentStatus) {
           setStatus("Loading where-used graph...", "neutral");
         }
@@ -5044,6 +5124,9 @@
           const payload = await fetchJson(`/bom/${encodeURIComponent(itemIdInput.value.trim())}/where-used`, {
             query: { max_levels: 5 },
           });
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.whereUsed = payload;
           workspaceState.objectStaleReason = null;
           renderWhereUsed(payload);
@@ -5051,20 +5134,29 @@
           if (!silentStatus) {
             setStatus(`Loaded where-used for ${itemIdInput.value.trim()}.`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           renderEmpty(whereUsedOutput, `Where-used load failed: ${error.message}`);
           if (!silentStatus) {
             setStatus(maybeContextHint(`Where-used load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
       async function loadFiles({ silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("files");
         if (!silentStatus) {
           setStatus("Loading item file inventory...", "neutral");
         }
         try {
           const payload = await fetchJson(`/file/item/${encodeURIComponent(itemIdInput.value.trim())}`);
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.files = Array.isArray(payload) ? payload : [];
           workspaceState.filesStatus = {
             state: workspaceState.files.length ? "ok" : "empty",
@@ -5079,7 +5171,11 @@
           if (!silentStatus) {
             setStatus(`Loaded ${workspaceState.files.length} linked file(s).`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.files = null;
           workspaceState.filesStatus = {
             state: "error",
@@ -5094,10 +5190,12 @@
           if (!silentStatus) {
             setStatus(maybeContextHint(`File inventory load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
       async function loadRelatedDocuments({ silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("relatedDocuments");
         if (!silentStatus) {
           setStatus("Loading AML related documents...", "neutral");
         }
@@ -5114,6 +5212,9 @@
               page_size: 1,
             },
           });
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           const relatedDocuments = normalizeRelatedDocuments(payload);
           workspaceState.relatedDocuments = {
             items: relatedDocuments,
@@ -5134,7 +5235,11 @@
           if (!silentStatus) {
             setStatus(`Loaded ${relatedDocuments.length} AML related document(s).`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.relatedDocuments = null;
           workspaceState.relatedDocumentsStatus = {
             state: "error",
@@ -5149,10 +5254,12 @@
           if (!silentStatus) {
             setStatus(maybeContextHint(`AML related document load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
       async function loadApprovalRail({ silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("approvalRail");
         if (!silentStatus) {
           setStatus("Loading approval rail...", "neutral");
         }
@@ -5171,6 +5278,9 @@
               query: { entity_type: itemTypeInput.value },
             }),
           ]);
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.approvalSummary = summary;
           workspaceState.approvalRequests = requests;
           workspaceState.approvalQueueHealth = queueHealth;
@@ -5186,6 +5296,9 @@
                 : null;
           if (preferredRequestId) {
             await loadApprovalRequestDetail(preferredRequestId, { silentStatus: true });
+            if (!isCurrentWorkspaceRequest(requestHandle)) {
+              return false;
+            }
           } else {
             workspaceState.selectedApprovalRequestId = null;
             workspaceState.approvalRequestDetail = null;
@@ -5196,12 +5309,17 @@
           if (!silentStatus) {
             setStatus(`Loaded approval rail for ${itemTypeInput.value}:${itemIdInput.value.trim()}.`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           renderEmpty(approvalRailOutput, `Approval rail load failed: ${error.message}`);
           renderEmpty(approvalDetailOutput, "Approval detail lens has not been loaded yet.");
           if (!silentStatus) {
             setStatus(maybeContextHint(`Approval rail load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
@@ -5213,28 +5331,53 @@
         includeWhereUsed = false,
         includeFiles = true,
         includeRelatedDocuments = false,
-      } = {}) {
+      } = {}, requestHandle = null) {
+        if (requestHandle && !isCurrentWorkspaceRequest(requestHandle)) {
+          return false;
+        }
         if (includeSearch) {
           await loadSearch({ silentStatus: true });
+          if (requestHandle && !isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
         }
         if (includeMetadata) {
           await loadMetadata({ silentStatus: true });
+          if (requestHandle && !isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
         }
         if (includeDetail) {
           await loadDetail({ silentStatus: true });
+          if (requestHandle && !isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
         }
         if (includeBom) {
           await loadBom({ silentStatus: true });
+          if (requestHandle && !isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
         }
         if (includeWhereUsed) {
           await loadWhereUsed({ silentStatus: true });
+          if (requestHandle && !isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
         }
         if (includeFiles) {
           await loadFiles({ silentStatus: true });
+          if (requestHandle && !isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
         }
         if (includeRelatedDocuments) {
           await loadRelatedDocuments({ silentStatus: true });
+          if (requestHandle && !isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
         }
+        return true;
       }
 
       async function syncWorkspaceForCurrentObject({
@@ -5260,6 +5403,7 @@
           return;
         }
         rememberCurrentObjectSelection();
+        const requestHandle = beginWorkspaceRequest("syncWorkspace");
 
         if (focus === "detail") {
           activateTab("detail");
@@ -5270,8 +5414,11 @@
         setStatus(`Syncing workspace for ${itemType}:${itemId}...`, "neutral");
         if (includeProductContext) {
           await loadProductContext({ silentStatus: true });
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
         }
-        await hydrateExplorerAfterHandoff({
+        const explorerHydrated = await hydrateExplorerAfterHandoff({
           includeSearch,
           includeMetadata: true,
           includeDetail: focus === "detail" || !includeStructure,
@@ -5279,14 +5426,26 @@
           includeWhereUsed: focus === "bom" || includeStructure,
           includeFiles: true,
           includeRelatedDocuments: true,
-        });
+        }, requestHandle);
+        if (!explorerHydrated || !isCurrentWorkspaceRequest(requestHandle)) {
+          return false;
+        }
 
         if (includeGovernance) {
           await loadApprovalRail({ silentStatus: true });
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           await loadPrimaryEcoGovernance({ silentStatus: true });
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
         }
         if (includeReadiness) {
           await loadReleaseReadiness({ silentStatus: true });
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
         }
 
         const loadedAreas = [
@@ -5302,7 +5461,11 @@
         ]
           .filter(Boolean)
           .join(", ");
+        if (!isCurrentWorkspaceRequest(requestHandle)) {
+          return false;
+        }
         setStatus(`Workspace synced for ${itemType}:${itemId}. Loaded ${loadedAreas}.`, "ok");
+        return true;
       }
 
       async function transitionApprovalRequest(requestId, targetState) {
@@ -5387,12 +5550,13 @@
       }
 
       async function loadApprovalRequestDetail(requestId, { silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("approvalRequestDetail");
         if (!requestId) {
           workspaceState.selectedApprovalRequestId = null;
           workspaceState.approvalRequestDetail = null;
           workspaceState.approvalRequestLifecycle = null;
           renderApprovalDetail();
-          return;
+          return true;
         }
 
         if (!silentStatus) {
@@ -5405,6 +5569,9 @@
             }),
             fetchJson(`/approvals/requests/${encodeURIComponent(requestId)}/lifecycle`),
           ]);
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.selectedApprovalRequestId = requestId;
           workspaceState.approvalRequestDetail = detail;
           workspaceState.approvalRequestLifecycle = lifecycle;
@@ -5416,21 +5583,27 @@
           if (!silentStatus) {
             setStatus(`Loaded approval detail for request ${requestId}.`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           renderEmpty(approvalDetailOutput, `Approval detail load failed: ${error.message}`);
           if (!silentStatus) {
             setStatus(maybeContextHint(`Approval detail load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
       async function loadEcoGovernance(ecoId, { silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("ecoGovernance");
         if (!ecoId) {
           workspaceState.selectedEcoId = null;
           workspaceState.ecoDetail = null;
           workspaceState.ecoApprovals = null;
           renderChangeTab();
-          return;
+          return true;
         }
         if (!silentStatus) {
           setStatus(`Loading ECO governance for ${ecoId}...`, "neutral");
@@ -5440,6 +5613,9 @@
             fetchJson(`/eco/${encodeURIComponent(ecoId)}`),
             fetchJson(`/eco/${encodeURIComponent(ecoId)}/approvals`),
           ]);
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.selectedEcoId = ecoId;
           workspaceState.ecoDetail = detail;
           workspaceState.ecoApprovals = Array.isArray(approvals) ? approvals : [];
@@ -5450,7 +5626,11 @@
           if (!silentStatus) {
             setStatus(`Loaded ECO governance for ${ecoId}.`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.selectedEcoId = ecoId;
           workspaceState.ecoDetail = null;
           workspaceState.ecoApprovals = null;
@@ -5458,6 +5638,7 @@
           if (!silentStatus) {
             setStatus(maybeContextHint(`ECO governance load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
@@ -5474,6 +5655,7 @@
       }
 
       async function loadReleaseReadiness({ silentStatus = false } = {}) {
+        const requestHandle = beginWorkspaceRequest("releaseReadiness");
         if (!silentStatus) {
           setStatus("Loading release readiness...", "neutral");
         }
@@ -5484,6 +5666,9 @@
               query: { ruleset_id: "readiness" },
             },
           );
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           workspaceState.releaseReadiness = payload;
           workspaceState.objectStaleReason = null;
           workspaceState.selectedReadinessResourceIndex =
@@ -5493,12 +5678,17 @@
           if (!silentStatus) {
             setStatus(`Loaded release readiness for ${itemIdInput.value.trim()}.`, "ok");
           }
+          return true;
         } catch (error) {
+          if (!isCurrentWorkspaceRequest(requestHandle)) {
+            return false;
+          }
           renderEmpty(releaseReadinessOutput, `Release readiness load failed: ${error.message}`);
           renderEmpty(releaseReadinessDetailOutput, "Resource detail lens has not been loaded yet.");
           if (!silentStatus) {
             setStatus(maybeContextHint(`Release readiness load failed: ${error.message}`), "error");
           }
+          return false;
         }
       }
 
@@ -5913,10 +6103,14 @@
       loadState();
       refreshWorkspaceChrome();
 
-      let lastObjectSelectionKey = `${itemTypeInput.value}::${itemIdInput.value.trim()}`;
+      let lastObjectSelectionKey = currentObjectSelectionKey();
 
       function rememberCurrentObjectSelection() {
-        lastObjectSelectionKey = `${itemTypeInput.value}::${itemIdInput.value.trim()}`;
+        const currentKey = currentObjectSelectionKey();
+        if (currentKey !== lastObjectSelectionKey) {
+          workspaceState.selectionEpoch += 1;
+        }
+        lastObjectSelectionKey = currentKey;
       }
 
       [
@@ -5936,14 +6130,14 @@
 
       [itemTypeInput, itemIdInput].forEach((node) => {
         node.addEventListener("input", () => {
-          const currentKey = `${itemTypeInput.value}::${itemIdInput.value.trim()}`;
+          const currentKey = currentObjectSelectionKey();
           if (currentKey !== lastObjectSelectionKey) {
             invalidateObjectPanels("Object selection changed. Reload workspace data to sync detail, structure, files, and governance.");
             lastObjectSelectionKey = currentKey;
           }
         });
         node.addEventListener("change", () => {
-          const currentKey = `${itemTypeInput.value}::${itemIdInput.value.trim()}`;
+          const currentKey = currentObjectSelectionKey();
           if (currentKey !== lastObjectSelectionKey) {
             invalidateObjectPanels("Object selection changed. Reload workspace data to sync detail, structure, files, and governance.");
             lastObjectSelectionKey = currentKey;

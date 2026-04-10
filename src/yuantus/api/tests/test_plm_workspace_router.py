@@ -60,11 +60,15 @@ def test_plm_workspace_page_renders_html():
     assert "Source Files" in response.text
     assert "Source AML Docs" in response.text
     assert "Document Workspace" in response.text
+    assert "Document Boundary" in response.text
+    assert "Document Focus" in response.text
+    assert "Governance Boundary" in response.text
     assert "Workspace Journey" in response.text
     assert "Journey Path" in response.text
     assert "Current Object" in response.text
     assert "Handoff from" in response.text
     assert "Return to Source Product" in response.text
+    assert "Return to Source Documents" in response.text
     assert "Open Change Workspace" in response.text
     assert "Viewing related document object." in response.text
     assert "Phase 0.5 Demo Track" in response.text

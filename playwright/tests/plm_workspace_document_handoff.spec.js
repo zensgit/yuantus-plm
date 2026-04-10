@@ -27,11 +27,19 @@ test('related document handoff returns to source documents with source recovery 
   await expect(page.locator('#change-output')).toContainText('Workspace Journey');
   await expect(page.locator('#change-output')).toContainText('Governance Boundary');
   await expect(page.locator('#change-output')).toContainText('Document Source');
+  await expect(page.locator('#change-output')).toContainText('Not published for this object');
+  await expect(page.locator('#change-output')).not.toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).not.toContainText('Release Snapshot');
 
   await page.getByRole('button', { name: 'Return to Source Product' }).first().click();
   await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
+  await expect(page.locator('#product-context-output')).not.toContainText('Viewing related document object.');
   await page.click('[data-tab="docs"]');
   await expect(page.locator('#files-output')).toContainText(`${fixture.partNumber}_drawing_v1.pdf`);
   await expect(page.locator('#related-documents-output')).toContainText('Doc UI Doc');
   await expect(page.locator('#active-object-pills')).toContainText('Product summary loaded');
+  await page.click('[data-tab="change"]');
+  await expect(page.locator('#change-output')).toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Release Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Recent ECO Activity');
 });
