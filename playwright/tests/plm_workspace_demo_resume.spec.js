@@ -40,6 +40,17 @@ test('demo preset resumes after UI login and hydrates change + documents flow', 
   await expect(page.locator('[data-tab="detail"]')).toHaveClass(/is-active/);
   await expect(page.locator('#detail-output')).toContainText(fixture.ecoName);
   await expect(page.locator('#detail-output')).toContainText('ECO');
+  await expect(page.locator('#detail-output')).toContainText('Source Recovery');
+  await expect(page.locator('#detail-output')).toContainText('Return to Source Change');
+
+  await page.locator('#detail-output').getByRole('button', { name: 'Return to Source Change' }).click();
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
+  await expect(page.locator('[data-tab="change"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#change-output')).toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Release Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Recent ECO Activity');
+  await expect(page.locator('#change-output')).toContainText(fixture.ecoName);
+  await expect(page.locator('#change-output')).not.toContainText('Use the source object to return to the governed product change flow after inspecting this ECO.');
 
   await page.click('[data-tab="docs"]');
   await page.evaluate(async () => {
