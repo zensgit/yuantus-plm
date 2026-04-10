@@ -138,6 +138,7 @@ async function uploadFileAndAttach(request, headers, itemId, filename) {
 }
 
 async function createEcoFlow(request, headers, partId, ts) {
+  const ecoName = `DOCUI-ECO-${ts}`;
   const stageResp = await request.post('/api/v1/eco/stages', {
     headers,
     data: {
@@ -157,7 +158,7 @@ async function createEcoFlow(request, headers, partId, ts) {
   const ecoResp = await request.post('/api/v1/eco', {
     headers,
     data: {
-      name: `DOCUI-ECO-${ts}`,
+      name: ecoName,
       eco_type: 'bom',
       product_id: partId,
       description: 'doc ui summary',
@@ -175,7 +176,7 @@ async function createEcoFlow(request, headers, partId, ts) {
   const moved = await moveResp.json();
   expect(moved.stage_id).toBe(stage.id);
 
-  return eco.id;
+  return { ecoId: eco.id, ecoName };
 }
 
 async function createDocUiDemoFixture(request) {
@@ -203,9 +204,9 @@ async function createDocUiDemoFixture(request) {
   const docId = await createDocument(request, headers, docNumber, 'Doc UI Doc');
   await createRelationship(request, headers, partId, 'Document Part', docId);
   await uploadFileAndAttach(request, headers, partId, `${partNumber}_drawing_v1.pdf`);
-  const ecoId = await createEcoFlow(request, headers, partId, ts);
+  const { ecoId, ecoName } = await createEcoFlow(request, headers, partId, ts);
 
-  return { partId, partNumber, docId, docNumber, ecoId };
+  return { partId, partNumber, docId, docNumber, ecoId, ecoName };
 }
 
 async function createConfigParentDemoFixture(request) {

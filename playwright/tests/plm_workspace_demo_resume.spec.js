@@ -19,8 +19,13 @@ test('demo preset resumes after UI login and hydrates change + documents flow', 
   await signInWorkspace(page);
   await expect(page.locator('#session-status')).toContainText('Authenticated and resumed Doc UI Product.');
   await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.partId}`);
+  await expect(page.locator('#change-output')).toContainText('Change Snapshot');
+  await expect(page.locator('#change-output')).toContainText('Release Snapshot');
   await expect(page.locator('#change-output')).toContainText('ECO Focus');
-  await expect(page.locator('#change-output')).toContainText(`DOCUI-ECO-`);
+  await expect(page.locator('#change-output')).toContainText('ECO Approvals');
+  await expect(page.locator('#change-output')).toContainText('Pending ECO Approvals');
+  await expect(page.locator('#change-output')).toContainText(fixture.ecoName);
+  await expect(page.locator('#change-output')).toContainText('Readiness State');
 
   await page.click('[data-tab="docs"]');
   await expect(page.locator('#active-object-pills')).toContainText('Product summary loaded');
