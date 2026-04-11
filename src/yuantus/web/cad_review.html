@@ -838,7 +838,7 @@
         if (!otherId) return;
         try {
           const diff = await fetchJson(
-            `/api/v1/cad/files/${state.fileId}/diff?other_id=${encodeURIComponent(otherId)}`,
+            `/api/v1/cad/files/${state.fileId}/diff?other_file_id=${encodeURIComponent(otherId)}`,
             { headers: apiHeaders(false) }
           );
           ui.diffOutput.textContent = JSON.stringify(diff.properties || {}, null, 2);

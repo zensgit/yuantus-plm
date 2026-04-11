@@ -115,6 +115,10 @@ jobs:
                 run_contracts="true"
                 reason_contracts="${reason_contracts:-matched workflow/perf config: ${f}}"
                 ;;
+              contracts/pacts/*.json|src/yuantus/api/tests/test_pact_provider_yuantus_plm.py|src/yuantus/meta_engine/tests/test_ci_contracts_pact_provider_gate.py|src/yuantus/meta_engine/web/cad_router.py|src/yuantus/web/cad_review.html)
+                run_contracts="true"
+                reason_contracts="${reason_contracts:-matched pact/provider surface: ${f}}"
+                ;;
               scripts/perf_*.py|scripts/perf_*.sh)
                 run_contracts="true"
                 reason_contracts="${reason_contracts:-matched perf script: ${f}}"
@@ -210,10 +214,10 @@ jobs:
           cache: "pip"
           cache-dependency-path: |
             requirements.lock
-      - name: Install pytest
+      - name: Install contract test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest pyyaml
+          python -m pip install -r requirements.lock pytest pact-python==3.2.1
       - name: Validate workflow YAML
         run: |
           python - <<'PY'
@@ -267,6 +271,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_native_workspace_playwright_entrypoints.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_native_workspace_scope_script.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_no_inline_echo_000_in_scripts.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_pact_provider_gate.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_playwright_esign_retry.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_pr_155_final_review_checklist.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_pr_close_decision_note.py \
@@ -362,6 +367,9 @@ jobs:
             src/yuantus/meta_engine/tests/test_workflow_upload_artifact_name_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_upload_artifact_retention_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_yaml_parseability_contracts.py
+      - name: Pact provider verifier (Metasheet2 -> Yuantus)
+        run: |
+          pytest -q src/yuantus/api/tests/test_pact_provider_yuantus_plm.py
 
   plugin-tests:
     name: plugin-tests
