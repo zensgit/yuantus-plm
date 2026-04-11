@@ -174,6 +174,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - MBOM Convert API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_CONVERT_E2E_20260214.md`
 - MBOM + Routing API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_ROUTING_E2E_20260214.md`
 - Metasheet <-> Yuantus Pact Closure: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_PACT_CLOSURE_20260411.md`
+- Release Readiness Pact Coverage: `docs/DEV_AND_VERIFICATION_RELEASE_READINESS_PACT_20260411.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
 - Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
 - Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
