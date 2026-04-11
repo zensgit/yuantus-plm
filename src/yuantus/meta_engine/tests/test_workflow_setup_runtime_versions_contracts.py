@@ -4,8 +4,8 @@ from pathlib import Path
 
 import yaml
 
-_EXPECTED_SETUP_PYTHON = ("actions/setup-python@v5", "3.11")
-_EXPECTED_SETUP_NODE = ("actions/setup-node@v4", "20")
+_EXPECTED_SETUP_PYTHON = ("actions/setup-python@v6", "3.11")
+_EXPECTED_SETUP_NODE = ("actions/setup-node@v5", "20")
 
 
 def _find_repo_root(start: Path) -> Path:

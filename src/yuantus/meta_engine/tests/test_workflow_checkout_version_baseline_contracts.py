@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-_CHECKOUT_VERSION_PREFIX = "actions/checkout@v4"
+_CHECKOUT_VERSION_PREFIX = "actions/checkout@v6"
 
 
 def _find_repo_root(start: Path) -> Path:
@@ -24,7 +24,7 @@ def _load_yaml(path: Path) -> dict:
     return payload
 
 
-def test_checkout_steps_use_v4_baseline() -> None:
+def test_checkout_steps_use_v6_baseline() -> None:
     repo_root = _find_repo_root(Path(__file__))
     workflows = sorted((repo_root / ".github" / "workflows").glob("*.yml"))
     assert workflows, "No workflow files found under .github/workflows"
@@ -61,5 +61,5 @@ def test_checkout_steps_use_v4_baseline() -> None:
 
     assert checkout_steps > 0, "No actions/checkout steps found under .github/workflows"
     assert not violations, (
-        "Checkout steps must pin actions/checkout to v4 baseline:\n" + "\n".join(violations)
+        "Checkout steps must pin actions/checkout to v6 baseline:\n" + "\n".join(violations)
     )
