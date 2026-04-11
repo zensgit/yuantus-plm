@@ -63,7 +63,7 @@ not be collapsed into one semantic bucket.
 
 ## Protected Contract Surface
 
-The current protected surface covers **28 interactions**.
+The current protected surface covers **29 interactions**.
 
 ### Wave 1 / 1.5 core baseline
 
@@ -74,11 +74,12 @@ The current protected surface covers **28 interactions**.
 - `GET /api/v1/bom/{id}/tree`
 - `GET /api/v1/bom/compare`
 
-### Wave 2 document semantics and BOM analysis
+### Wave 2 document semantics, readiness, and BOM analysis
 
 - `GET /api/v1/file/item/{item_id}`
 - `GET /api/v1/file/{file_id}`
 - `POST /api/v1/aml/query`
+- `GET /api/v1/release-readiness/items/{id}`
 - `GET /api/v1/bom/{id}/where-used`
 - `GET /api/v1/bom/compare/schema`
 
@@ -120,8 +121,6 @@ Explicitly **not** in Pact today:
 
 - `GET /api/v1/aml/metadata/{item_type_name}`
   - strategically relevant, but still not called by `metasheet2` mainline
-- `GET /api/v1/release-readiness/items/{id}`
-  - live federation validated, but not Pact-protected
 
 ## CI Enforcement
 
