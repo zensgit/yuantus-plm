@@ -13,7 +13,9 @@ This folder contains the checked-in browser regressions for the native
   - locks `demo preset -> UI login -> automatic resume`
   - verifies change governance, ECO detail handoff, ECO source recovery back to source change, approval-rail fallback, and documents hydration after login
   - verifies non-empty BOM hydration after login for the `Config Parent` demo preset
-  - verifies non-empty release-readiness drilldown for the `Config Parent` demo preset and keeps unsupported resource handoffs boundary-limited
+  - verifies non-empty release-readiness drilldown for the `Config Parent` demo preset
+  - verifies MBOM readiness resources can open native MBOM detail and BOM drilldown, then recover to the source Part
+  - keeps unsupported routing/baseline readiness handoffs boundary-limited
 - `plm_workspace_document_handoff.spec.js`
   - locks `Part -> AML related Document -> Return to Source Product`
   - locks `Part -> AML related Document -> Return to Source Detail`

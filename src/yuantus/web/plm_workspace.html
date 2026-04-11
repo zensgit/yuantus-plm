@@ -1534,6 +1534,7 @@
         selectedEcoId: null,
         releaseReadiness: null,
         selectedReadinessResourceIndex: null,
+        mbomFocusResource: null,
         objectStaleReason: null,
         pendingDemo: null,
         handoffSource: null,
@@ -1847,7 +1848,8 @@
       }
 
       function objectSupportsStructure(itemType) {
-        return String(itemType || "").trim().toLowerCase() === "part";
+        const normalized = String(itemType || "").trim().toLowerCase();
+        return normalized === "part" || normalized === "mbom";
       }
 
       function objectSupportsReadiness(itemType) {
@@ -1857,6 +1859,10 @@
       function objectSupportsGovernance(itemType) {
         const normalized = String(itemType || "").trim().toLowerCase();
         return normalized === "part" || normalized === "eco";
+      }
+
+      function objectIsMbom(itemType) {
+        return String(itemType || "").trim().toLowerCase() === "mbom";
       }
 
       function clearProductContextState() {
@@ -1911,6 +1917,67 @@
           itemTypeInput.value,
           itemIdInput.value.trim(),
         ].join("::");
+      }
+
+      function currentSelectedReadinessResource() {
+        const payload = workspaceState.releaseReadiness;
+        const index = workspaceState.selectedReadinessResourceIndex;
+        const resources = Array.isArray(payload?.resources) ? payload.resources : [];
+        if (index === null || index === undefined || index < 0 || index >= resources.length) {
+          return null;
+        }
+        return resources[index];
+      }
+
+      function findReadinessResource(resourceId, resourceType = "") {
+        const normalizedType = String(resourceType || "").trim().toLowerCase();
+        const resources = Array.isArray(workspaceState.releaseReadiness?.resources)
+          ? workspaceState.releaseReadiness.resources
+          : [];
+        return (
+          resources.find((resource) => {
+            const diagnostics = resource?.diagnostics || {};
+            const candidateType = String(diagnostics.resource_type || "").trim().toLowerCase();
+            return (
+              String(diagnostics.resource_id || "") === String(resourceId || "") &&
+              (!normalizedType || candidateType === normalizedType)
+            );
+          }) || null
+        );
+      }
+
+      function captureCurrentHandoffSource() {
+        const currentIdentity = currentObjectIdentity();
+        if (!currentIdentity.id || currentIdentity.id === "-") {
+          return;
+        }
+        const sourceProductContext =
+          workspaceState.productContext && typeof workspaceState.productContext === "object"
+            ? workspaceState.productContext
+            : null;
+        const sourceFilesCount = Array.isArray(workspaceState.files)
+          ? workspaceState.files.length
+          : Array.isArray(sourceProductContext?.files)
+            ? sourceProductContext.files.length
+            : null;
+        const sourceRelatedDocumentsCount = Array.isArray(workspaceState.relatedDocuments?.items)
+          ? workspaceState.relatedDocuments.items.length
+          : sourceProductContext?.document_summary?.authorized === false
+            ? null
+            : sourceProductContext?.document_summary?.count ?? null;
+        const sourceOpenEcoCount = sourceProductContext?.open_ecos?.authorized === false
+          ? null
+          : sourceProductContext?.open_ecos?.total ?? sourceProductContext?.eco_summary?.count ?? null;
+        workspaceState.handoffSource = {
+          id: currentIdentity.id,
+          type: currentIdentity.type,
+          title: currentIdentity.title,
+          number: currentIdentity.number,
+          state: currentIdentity.state,
+          files_count: sourceFilesCount,
+          related_documents_count: sourceRelatedDocumentsCount,
+          open_eco_count: sourceOpenEcoCount,
+        };
       }
 
       function beginWorkspaceRequest(slot) {
@@ -2045,6 +2112,50 @@
                 data-workspace-object-type="${escapeHtml(source.type || "")}"
               >
                 Return to Source Documents
+              </button>
+              <button
+                class="mini-button"
+                type="button"
+                data-workspace-handoff="change"
+                data-workspace-object-id="${escapeHtml(source.id || "")}"
+                data-workspace-object-type="${escapeHtml(source.type || "")}"
+              >
+                Return to Source Change
+              </button>
+            </div>
+          </section>
+        `;
+      }
+
+      function renderMbomSourceRecoveryCard(
+        title = "Source Recovery",
+        caption = "MBOM drilldown keeps governed change, documents, and readiness on the source Part. Use source recovery to jump back to the product context.",
+      ) {
+        const source = currentHandoffSource();
+        if (!source) {
+          return "";
+        }
+        return `
+          <section class="data-card">
+            <h5>${escapeHtml(title)}</h5>
+            <p class="card-caption">${escapeHtml(caption)}</p>
+            <div class="kv-grid">
+              ${renderKvItems([
+                ["Source Object", `${source.type}:${source.id || "-"}`],
+                ["Source State", source.state || "-"],
+                ["Source Number", source.number || "-"],
+                ["Source Title", source.title || "-"],
+              ])}
+            </div>
+            <div class="rail-actions" style="margin-top: 12px; margin-bottom: 0">
+              <button
+                class="mini-button"
+                type="button"
+                data-workspace-handoff="detail"
+                data-workspace-object-id="${escapeHtml(source.id || "")}"
+                data-workspace-object-type="${escapeHtml(source.type || "")}"
+              >
+                Return to Source Part
               </button>
               <button
                 class="mini-button"
@@ -3534,18 +3645,27 @@
         return Object.entries(properties).filter(([, value]) => value !== null && value !== undefined && value !== "");
       }
 
+      function detailItem(detail) {
+        if (!detail || typeof detail !== "object") {
+          return {};
+        }
+        return detail.item && typeof detail.item === "object" ? detail.item : detail;
+      }
+
       function detailTitle(detail) {
         if (!detail || typeof detail !== "object") {
           return itemIdInput.value.trim() || "-";
         }
-        const props = detail.properties || {};
+        const item = detailItem(detail);
+        const props = item.properties || {};
         return (
           detail.name ||
+          item.name ||
           props.name ||
-          detail.item_number ||
+          item.item_number ||
           props.item_number ||
           props.part_number ||
-          detail.id ||
+          item.id ||
           "-"
         );
       }
@@ -3554,15 +3674,17 @@
         if (!detail || typeof detail !== "object") {
           return "-";
         }
-        const props = detail.properties || {};
-        return detail.state || props.state || props.status || props.engineering_state || "-";
+        const item = detailItem(detail);
+        const props = item.properties || {};
+        return detail.state || item.state || props.state || props.status || props.engineering_state || "-";
       }
 
       function detailType(detail) {
         if (!detail || typeof detail !== "object") {
           return itemTypeInput.value || "-";
         }
-        return detail.item_type_id || detail.type || itemTypeInput.value || "-";
+        const item = detailItem(detail);
+        return detail.item_type_id || detail.type || item.item_type_id || item.type || itemTypeInput.value || "-";
       }
 
       function normalizeRelativeUrl(path) {
@@ -3594,7 +3716,7 @@
           return itemTypeInput.value;
         }
         if (normalized === "mbom") {
-          return "Part";
+          return "MBOM";
         }
         if (normalized === "routing") {
           return "Routing";
@@ -3616,6 +3738,9 @@
         if (!normalized) {
           return false;
         }
+        if (normalized === "mbom") {
+          return mode === "detail" || mode === "bom";
+        }
         if (normalized === "part") {
           return mode === "select" || mode === "detail" || mode === "bom";
         }
@@ -3630,6 +3755,9 @@
 
       function readinessResourceBoundaryCopy(resourceType) {
         const label = String(resourceType || "resource").trim() || "resource";
+        if (String(resourceType || "").trim().toLowerCase() === "mbom") {
+          return "MBOM readiness resources publish native detail and BOM drilldown only. Explorer, documents, governance, and readiness remain on the source Part.";
+        }
         return `Native workspace does not publish first-class explorer, detail, or BOM views for readiness resources of type ${label} yet.`;
       }
 
@@ -3719,6 +3847,48 @@
         `;
       }
 
+      function renderMbomDetailLens(detail) {
+        const structure = detail?.structure && typeof detail.structure === "object" ? detail.structure : null;
+        if (!structure) {
+          return "";
+        }
+        const sourceItem = structure.item && typeof structure.item === "object" ? structure.item : {};
+        const sourceProps = sourceItem.properties || {};
+        const routing = structure.routing && typeof structure.routing === "object" ? structure.routing : null;
+        const operations = Array.isArray(routing?.operations) ? routing.operations : [];
+        const metrics = summarizeBom(structure);
+        return `
+          <div class="data-grid">
+            <section class="data-card">
+              <h5>MBOM Scope</h5>
+              <div class="kv-grid">
+                ${renderKvItems([
+                  ["Source Part", sourceItem.id || detail.source_item_id || "-"],
+                  ["Source Number", sourceItem.item_number || sourceProps.item_number || "-"],
+                  ["Direct Children", metrics.directChildren],
+                  ["Descendants", metrics.totalDescendants],
+                  ["Routing", routing?.name || "-"],
+                  ["Released Operations", operations.length],
+                ])}
+              </div>
+            </section>
+            <section class="data-card">
+              <h5>Source Part Context</h5>
+              <div class="kv-grid">
+                ${renderKvItems([
+                  ["Part Name", sourceItem.name || sourceProps.name || "-"],
+                  ["Part State", sourceItem.state || sourceProps.state || "-"],
+                  ["Line ID", structure.line_id || "-"],
+                  ["Root Quantity", structure.quantity ?? "-"],
+                  ["Root Unit", structure.unit || "-"],
+                  ["Routing ID", routing?.id || "-"],
+                ])}
+              </div>
+            </section>
+          </div>
+        `;
+      }
+
       function renderDetail(payload) {
         const detail = normalizeDetail(payload);
         if (!detail || typeof detail !== "object") {
@@ -3743,6 +3913,16 @@
                 title: "Document Workspace",
                 caption: "Document detail is hydrated from AML and can always hand back to the source PLM object for downstream governed flows.",
               })
+            : ""}
+          ${detailType(detail) === "MBOM"
+            ? `
+              <section class="data-card">
+                <h5>MBOM Drilldown</h5>
+                <p class="card-caption">
+                  Native readiness handoff exposes MBOM detail and BOM structure only. Explorer, documents, governance, and release readiness stay on the source Part.
+                </p>
+              </section>
+            `
             : ""}
           ${detailType(detail) === "Document" ? renderWorkspaceJourneyCard("Workspace Journey") : ""}
           ${detailType(detail) === "Document" ? renderDocumentBoundaryCard() : ""}
@@ -3779,6 +3959,7 @@
               }
             </section>
           </div>
+          ${detailType(detail) === "MBOM" ? renderMbomDetailLens(detail) : ""}
           ${propertyEntries.length > 12
             ? `
               <section class="data-card">
@@ -3787,14 +3968,16 @@
               </section>
             `
             : ""}
-          ${detailType(detail) === "Document" || detailType(detail) === "ECO"
-            ? renderSourceRecoveryCard(
-                "Source Recovery",
-                detailType(detail) === "ECO"
-                  ? "Use the source object to return to the governed product change flow after inspecting this ECO."
-                  : "Use the source object to return to governed product context, linked attachments, and AML relationship entry points.",
-              )
-            : ""}
+          ${detailType(detail) === "MBOM"
+            ? renderMbomSourceRecoveryCard()
+            : detailType(detail) === "Document" || detailType(detail) === "ECO"
+              ? renderSourceRecoveryCard(
+                  "Source Recovery",
+                  detailType(detail) === "ECO"
+                    ? "Use the source object to return to the governed product change flow after inspecting this ECO."
+                    : "Use the source object to return to governed product context, linked attachments, and AML relationship entry points.",
+                )
+              : ""}
           ${renderRawDump(payload)}
         `;
       }
@@ -3805,8 +3988,13 @@
         }
         const children = Array.isArray(node.children) ? node.children : [];
         return children.reduce((total, entry) => {
-          const childNode = entry && typeof entry === "object" ? entry.child : null;
-          return total + 1 + countBomNodes(childNode);
+          const childNode =
+            entry && typeof entry === "object" && "child" in entry
+              ? entry.child
+              : entry && typeof entry === "object"
+                ? entry
+                : null;
+          return total + (childNode ? 1 + countBomNodes(childNode) : 0);
         }, 0);
       }
 
@@ -3839,12 +4027,26 @@
             return;
           }
           currentChildren.forEach((entry) => {
-            const rel = entry && typeof entry === "object" ? entry.relationship || {} : {};
-            const relProps = rel.properties || {};
-            const childNode = entry && typeof entry === "object" ? entry.child : null;
+            const rel =
+              entry && typeof entry === "object" && "relationship" in entry
+                ? entry.relationship || {}
+                : null;
+            const relProps = rel?.properties || {};
+            const childNode =
+              entry && typeof entry === "object" && "child" in entry
+                ? entry.child
+                : entry && typeof entry === "object"
+                  ? entry
+                  : null;
+            if (!childNode) {
+              return;
+            }
             summary.totalDescendants += 1;
             summary.lineCount += 1;
-            if (relProps.quantity !== null && relProps.quantity !== undefined && relProps.quantity !== "") {
+            if (
+              (relProps.quantity !== null && relProps.quantity !== undefined && relProps.quantity !== "") ||
+              (childNode.quantity !== null && childNode.quantity !== undefined && childNode.quantity !== "")
+            ) {
               summary.quantityFacts += 1;
             }
             walk(childNode, level + 1);
@@ -3859,12 +4061,13 @@
         if (!node || typeof node !== "object") {
           return "";
         }
-        const props = node.properties || {};
+        const item = detailItem(node);
+        const props = item.properties || {};
         const title = detailTitle(node);
         const subtitle = [
-          node.item_number || props.item_number || props.part_number,
+          item.item_number || props.item_number || props.part_number,
           detailState(node),
-          node.id,
+          item.id || node.id,
         ]
           .filter(Boolean)
           .join(" · ");
@@ -3883,23 +4086,33 @@
                 ? `<ul class="tree-branch">
                     ${children
                       .map((entry) => {
-                        const rel = entry && typeof entry === "object" ? entry.relationship || {} : {};
-                        const child = entry && typeof entry === "object" ? entry.child : null;
-                        const relProps = rel.properties || {};
+                        const rel =
+                          entry && typeof entry === "object" && "relationship" in entry
+                            ? entry.relationship || {}
+                            : null;
+                        const child =
+                          entry && typeof entry === "object" && "child" in entry
+                            ? entry.child
+                            : entry && typeof entry === "object"
+                              ? entry
+                              : null;
+                        const relProps = rel?.properties || {};
                         const lineText = [
                           relProps.find_num ? `Find ${relProps.find_num}` : "",
                           relProps.quantity !== null && relProps.quantity !== undefined
                             ? `Qty ${relProps.quantity}`
+                            : child?.quantity !== null && child?.quantity !== undefined
+                              ? `Qty ${child.quantity}`
                             : "",
-                          relProps.uom ? relProps.uom : "",
+                          relProps.uom ? relProps.uom : child?.unit || "",
                         ]
                           .filter(Boolean)
                           .join(" · ");
                         return `
                           <li>
                             <div class="tree-line">
-                              <p class="line-caption">${escapeHtml(lineText || rel.item_type_id || "BOM relationship")}</p>
-                              <span class="meta-badge">${escapeHtml(rel.id || "line")}</span>
+                              <p class="line-caption">${escapeHtml(lineText || rel?.item_type_id || (child?.line_id ? "MBOM line" : "BOM relationship"))}</p>
+                              <span class="meta-badge">${escapeHtml(rel?.id || child?.line_id || "line")}</span>
                             </div>
                             <ul class="tree-stack">${renderBomNode(child, level + 1)}</ul>
                           </li>
@@ -3919,6 +4132,8 @@
           return;
         }
         const metrics = summarizeBom(payload);
+        const routing = payload.routing && typeof payload.routing === "object" ? payload.routing : null;
+        const operations = Array.isArray(routing?.operations) ? routing.operations : [];
         bomOutput.innerHTML = `
           <div class="identity-card">
             <div class="identity-title">
@@ -3937,7 +4152,24 @@
             { label: "BOM Lines", value: metrics.lineCount, ready: metrics.lineCount > 0 },
             { label: "Qty Facts", value: metrics.quantityFacts, ready: metrics.quantityFacts > 0 },
           ])}
+          ${
+            routing
+              ? `
+                <section class="data-card">
+                  <h5>Released Routing Overlay</h5>
+                  <div class="kv-grid">
+                    ${renderKvItems([
+                      ["Routing", routing.name || "-"],
+                      ["Routing ID", routing.id || "-"],
+                      ["Operations", operations.length],
+                    ])}
+                  </div>
+                </section>
+              `
+              : ""
+          }
           <ul class="tree-stack">${renderBomNode(payload, 0)}</ul>
+          ${detailType(payload) === "MBOM" ? renderMbomSourceRecoveryCard() : ""}
           ${renderRawDump(payload)}
         `;
       }
@@ -4717,8 +4949,9 @@
         const canOpenDetail = readinessResourceHandoffSupport(resourceType, "detail");
         const canOpenBom = readinessResourceHandoffSupport(resourceType, "bom");
         const hasAnyHandoffSupport = canSelect || canOpenDetail || canOpenBom;
-        const boundaryCopy =
-          hasAnyHandoffSupport ? "" : readinessResourceBoundaryCopy(resourceType);
+        const boundaryCopy = readinessResourceBoundaryCopy(resourceType);
+        const showBoundaryCopy =
+          String(resourceType || "").trim().toLowerCase() === "mbom" || !hasAnyHandoffSupport;
 
         releaseReadinessDetailOutput.innerHTML = `
           <section class="data-card">
@@ -4760,11 +4993,7 @@
                 Open BOM
               </button>
             </div>
-            ${
-              boundaryCopy
-                ? `<p class="card-caption" style="margin-top: 12px">${escapeHtml(boundaryCopy)}</p>`
-                : ""
-            }
+            ${showBoundaryCopy ? `<p class="card-caption" style="margin-top: 12px">${escapeHtml(boundaryCopy)}</p>` : ""}
           </section>
           <div class="data-grid">
             <section class="data-card">
@@ -4872,6 +5101,61 @@
         return payload;
       }
 
+      function buildMbomWorkspacePayload(mbomStructure, resource = null) {
+        const structure =
+          mbomStructure && typeof mbomStructure === "object" ? { ...mbomStructure } : {};
+        const diagnostics = resource?.diagnostics || {};
+        const sourceItem = structure.item && typeof structure.item === "object" ? structure.item : {};
+        const sourceProps = sourceItem.properties || {};
+        const resourceId = diagnostics.resource_id || itemIdInput.value.trim();
+        const resourceName = resource?.name || `MBOM ${resourceId}`;
+        const resourceState = resource?.state || sourceItem.state || sourceProps.state || "-";
+        return {
+          id: resourceId,
+          type: "MBOM",
+          item_type_id: "MBOM",
+          name: resourceName,
+          state: resourceState,
+          item_number: resourceName,
+          source_item_id: sourceItem.id || "",
+          properties: {
+            source_item_id: sourceItem.id || "",
+            source_item_number: sourceItem.item_number || sourceProps.item_number || "",
+            source_item_name: sourceItem.name || sourceProps.name || "",
+            source_item_state: sourceItem.state || sourceProps.state || "",
+            direct_children: Array.isArray(structure.children) ? structure.children.length : 0,
+            released_routing_id: structure.routing?.id || "",
+            released_routing_name: structure.routing?.name || "",
+            released_operations: Array.isArray(structure.routing?.operations) ? structure.routing.operations.length : 0,
+          },
+          structure,
+        };
+      }
+
+      async function fetchMbomWorkspacePayload(mbomId) {
+        const mbomStructure = await fetchJson(`/mboms/${encodeURIComponent(mbomId)}`, {
+          query: { include_operations: true },
+        });
+        return buildMbomWorkspacePayload(
+          mbomStructure,
+          workspaceState.mbomFocusResource ||
+            findReadinessResource(mbomId, "mbom") ||
+            currentSelectedReadinessResource(),
+        );
+      }
+
+      function renderMbomBoundarySurfaces() {
+        renderEmpty(metadataOutput, "AML metadata is not published for MBOM native drilldown.");
+        renderEmpty(whereUsedOutput, "Where-used is not published for MBOM native drilldown yet. Use the source Part for impact context.");
+        renderEmpty(documentsOverviewOutput, "MBOM drilldown keeps document surfaces on the source Part.");
+        renderEmpty(filesOutput, "MBOM drilldown does not publish file attachments. Use the source Part for attachments.");
+        renderEmpty(relatedDocumentsOutput, "MBOM drilldown does not publish AML related documents. Use the source Part for document relationships.");
+        renderEmpty(approvalRailOutput, "MBOM drilldown keeps governance on the source Part.");
+        renderEmpty(approvalDetailOutput, "Approval detail lens is not exposed for MBOM native drilldown.");
+        renderEmpty(releaseReadinessOutput, "MBOM drilldown keeps release readiness on the source Part.");
+        renderEmpty(releaseReadinessDetailOutput, "Resource detail lens remains on the source Part while MBOM drilldown is active.");
+      }
+
       function refreshSummary() {
         const identity = currentObjectIdentity();
         const demoSample = currentDemoSample();
@@ -4960,6 +5244,7 @@
         workspaceState.selectedEcoId = null;
         workspaceState.releaseReadiness = null;
         workspaceState.selectedReadinessResourceIndex = null;
+        workspaceState.mbomFocusResource = null;
         workspaceState.handoffSource = null;
         workspaceState.objectStaleReason = reason;
 
@@ -5002,6 +5287,7 @@
         workspaceState.selectedEcoId = null;
         workspaceState.releaseReadiness = null;
         workspaceState.selectedReadinessResourceIndex = null;
+        workspaceState.mbomFocusResource = null;
         if (!preserveHandoffSource) {
           workspaceState.handoffSource = null;
         }
@@ -5199,6 +5485,14 @@
 
       async function loadMetadata({ silentStatus = false } = {}) {
         const requestHandle = beginWorkspaceRequest("metadata");
+        if (objectIsMbom(itemTypeInput.value)) {
+          workspaceState.metadata = null;
+          renderEmpty(metadataOutput, "AML metadata is not published for MBOM native drilldown.");
+          if (!silentStatus) {
+            setStatus("AML metadata is not published for MBOM native drilldown.", "ok");
+          }
+          return true;
+        }
         if (!silentStatus) {
           setStatus("Loading metadata definition...", "neutral");
         }
@@ -5233,11 +5527,13 @@
         const detailTypeValue = itemTypeInput.value;
         const detailId = itemIdInput.value.trim();
         if (!silentStatus) {
-          setStatus("Loading AML detail...", "neutral");
+          setStatus(objectIsMbom(detailTypeValue) ? "Loading MBOM detail..." : "Loading AML detail...", "neutral");
         }
         try {
           const payload =
-            String(detailTypeValue || "").trim().toUpperCase() === "ECO"
+            objectIsMbom(detailTypeValue)
+              ? await fetchMbomWorkspacePayload(detailId)
+              : String(detailTypeValue || "").trim().toUpperCase() === "ECO"
               ? await fetchJson(`/eco/${encodeURIComponent(detailId)}`)
               : await fetchJson("/aml/apply", {
                   method: "POST",
@@ -5253,6 +5549,9 @@
           workspaceState.detail = payload;
           workspaceState.objectStaleReason = null;
           renderDetail(payload);
+          if (objectIsMbom(detailTypeValue)) {
+            renderMbomBoundarySurfaces();
+          }
           refreshSummary();
           renderProductContext();
           if (!silentStatus) {
@@ -5273,23 +5572,35 @@
 
       async function loadBom({ silentStatus = false } = {}) {
         const requestHandle = beginWorkspaceRequest("bom");
+        const bomTypeValue = itemTypeInput.value;
+        const bomId = itemIdInput.value.trim();
         if (!silentStatus) {
-          setStatus("Loading BOM tree...", "neutral");
+          setStatus(objectIsMbom(bomTypeValue) ? "Loading MBOM tree..." : "Loading BOM tree...", "neutral");
         }
         try {
-          const payload = await fetchJson(`/bom/${encodeURIComponent(itemIdInput.value.trim())}/tree`, {
-            query: { depth: bomDepthInput.value || 2 },
-          });
+          const payload = objectIsMbom(bomTypeValue)
+            ? await fetchMbomWorkspacePayload(bomId)
+            : await fetchJson(`/bom/${encodeURIComponent(bomId)}/tree`, {
+                query: { depth: bomDepthInput.value || 2 },
+              });
           if (!isCurrentWorkspaceRequest(requestHandle)) {
             return false;
           }
           workspaceState.bom = payload;
           workspaceState.objectStaleReason = null;
           renderBom(payload);
+          if (objectIsMbom(bomTypeValue)) {
+            renderMbomBoundarySurfaces();
+          }
           renderProductContext();
           const nodeCount = countBomNodes(payload);
           if (!silentStatus) {
-            setStatus(`Loaded BOM tree with ${nodeCount} node(s).`, "ok");
+            setStatus(
+              objectIsMbom(bomTypeValue)
+                ? `Loaded MBOM tree with ${nodeCount} node(s).`
+                : `Loaded BOM tree with ${nodeCount} node(s).`,
+              "ok",
+            );
           }
           return true;
         } catch (error) {
@@ -5306,6 +5617,14 @@
 
       async function loadWhereUsed({ silentStatus = false } = {}) {
         const requestHandle = beginWorkspaceRequest("whereUsed");
+        if (objectIsMbom(itemTypeInput.value)) {
+          workspaceState.whereUsed = null;
+          renderEmpty(whereUsedOutput, "Where-used is not published for MBOM native drilldown yet. Use the source Part for impact context.");
+          if (!silentStatus) {
+            setStatus("Where-used is not published for MBOM native drilldown yet.", "ok");
+          }
+          return true;
+        }
         if (!silentStatus) {
           setStatus("Loading where-used graph...", "neutral");
         }
@@ -5338,6 +5657,15 @@
 
       async function loadFiles({ silentStatus = false } = {}) {
         const requestHandle = beginWorkspaceRequest("files");
+        if (objectIsMbom(itemTypeInput.value)) {
+          workspaceState.files = null;
+          workspaceState.filesStatus = null;
+          renderEmpty(filesOutput, "MBOM drilldown does not publish file attachments. Use the source Part for attachments.");
+          if (!silentStatus) {
+            setStatus("MBOM drilldown does not publish file attachments.", "ok");
+          }
+          return true;
+        }
         if (!silentStatus) {
           setStatus("Loading item file inventory...", "neutral");
         }
@@ -5385,6 +5713,15 @@
 
       async function loadRelatedDocuments({ silentStatus = false } = {}) {
         const requestHandle = beginWorkspaceRequest("relatedDocuments");
+        if (objectIsMbom(itemTypeInput.value)) {
+          workspaceState.relatedDocuments = null;
+          workspaceState.relatedDocumentsStatus = null;
+          renderEmpty(relatedDocumentsOutput, "MBOM drilldown does not publish AML related documents. Use the source Part for document relationships.");
+          if (!silentStatus) {
+            setStatus("MBOM drilldown does not publish AML related documents.", "ok");
+          }
+          return true;
+        }
         if (!silentStatus) {
           setStatus("Loading AML related documents...", "neutral");
         }
@@ -5451,6 +5788,17 @@
         const requestHandle = beginWorkspaceRequest("approvalRail");
         const approvalEntityType = itemTypeInput.value;
         const approvalEntityId = itemIdInput.value.trim();
+        if (objectIsMbom(approvalEntityType)) {
+          workspaceState.approvalSummary = null;
+          workspaceState.approvalRequests = null;
+          workspaceState.approvalQueueHealth = null;
+          renderEmpty(approvalRailOutput, "MBOM drilldown keeps governance on the source Part.");
+          renderEmpty(approvalDetailOutput, "Approval detail lens is not exposed for MBOM native drilldown.");
+          if (!silentStatus) {
+            setStatus("MBOM drilldown keeps governance on the source Part.", "ok");
+          }
+          return true;
+        }
         if (!silentStatus) {
           setStatus("Loading approval rail...", "neutral");
         }
@@ -5616,6 +5964,7 @@
       } = {}) {
         const itemId = itemIdInput.value.trim();
         const itemType = itemTypeInput.value;
+        const isMbom = objectIsMbom(itemType);
         if (!itemId) {
           setStatus("Object id is required before syncing the workspace.", "error");
           return;
@@ -5646,15 +5995,18 @@
         }
         const explorerHydrated = await hydrateExplorerAfterHandoff({
           includeSearch,
-          includeMetadata: true,
+          includeMetadata: !isMbom,
           includeDetail: focus === "detail" || !includeStructure,
           includeBom: focus === "bom" || includeStructure,
-          includeWhereUsed: focus === "bom" || includeStructure,
-          includeFiles: true,
-          includeRelatedDocuments: true,
+          includeWhereUsed: !isMbom && (focus === "bom" || includeStructure),
+          includeFiles: !isMbom,
+          includeRelatedDocuments: !isMbom,
         }, requestHandle);
         if (!explorerHydrated || !isCurrentWorkspaceRequest(requestHandle)) {
           return false;
+        }
+        if (isMbom) {
+          renderMbomBoundarySurfaces();
         }
 
         if (includeGovernance) {
@@ -5676,11 +6028,11 @@
 
         const loadedAreas = [
           includeProductContext ? "product context" : null,
-          "metadata",
+          !isMbom ? "metadata" : null,
           focus === "detail" || !includeStructure ? "detail" : null,
           focus === "bom" || includeStructure ? "structure" : null,
-          "files",
-          "related documents",
+          !isMbom ? "files" : null,
+          !isMbom ? "related documents" : null,
           includeGovernance ? "approval rail" : null,
           includeGovernance && currentEcoFocusId() ? "eco governance" : null,
           includeReadiness ? "release readiness" : null,
@@ -5888,6 +6240,16 @@
 
       async function loadReleaseReadiness({ silentStatus = false } = {}) {
         const requestHandle = beginWorkspaceRequest("releaseReadiness");
+        if (objectIsMbom(itemTypeInput.value)) {
+          workspaceState.releaseReadiness = null;
+          workspaceState.selectedReadinessResourceIndex = null;
+          renderEmpty(releaseReadinessOutput, "MBOM drilldown keeps release readiness on the source Part.");
+          renderEmpty(releaseReadinessDetailOutput, "Resource detail lens remains on the source Part while MBOM drilldown is active.");
+          if (!silentStatus) {
+            setStatus("MBOM drilldown keeps release readiness on the source Part.", "ok");
+          }
+          return true;
+        }
         if (!silentStatus) {
           setStatus("Loading release readiness...", "neutral");
         }
@@ -5933,7 +6295,61 @@
           return;
         }
         const mappedType = mapResourceTypeToWorkspaceItemType(resourceType);
+        const normalizedResourceType = String(resourceType || "").trim().toLowerCase();
         const currentIdentity = currentObjectIdentity();
+        const actionMessage = `Handoff applied from ${resourceType || "resource"}:${resourceId}.`;
+        if (normalizedResourceType === "mbom") {
+          const mbomFocusResource =
+            findReadinessResource(resourceId, normalizedResourceType) || currentSelectedReadinessResource();
+          ensureItemTypeOption(mappedType);
+          if (
+            currentIdentity.id &&
+            currentIdentity.id !== "-" &&
+            (currentIdentity.id !== resourceId || currentIdentity.type !== mappedType)
+          ) {
+            captureCurrentHandoffSource();
+          }
+          itemTypeInput.value = mappedType;
+          itemIdInput.value = resourceId;
+          searchQueryInput.value = resourceId;
+          if (currentIdentity.id !== resourceId || currentIdentity.type !== mappedType) {
+            clearWorkspaceObjectState(`Switching workspace context to ${mappedType}:${resourceId}.`, {
+              preserveHandoffSource: true,
+            });
+          }
+          workspaceState.mbomFocusResource = mbomFocusResource;
+          rememberCurrentObjectSelection();
+          refreshWorkspaceChrome();
+          if (mode === "detail") {
+            activateTab("detail");
+            const detailLoaded = await loadDetail({ silentStatus: true });
+            if (!detailLoaded) {
+              return;
+            }
+            renderMbomBoundarySurfaces();
+            setStatus(`${actionMessage} MBOM detail is in sync. Use source recovery to return to the Part.`, "ok");
+            return;
+          }
+          if (mode === "bom") {
+            activateTab("bom");
+            const detailLoaded = await loadDetail({ silentStatus: true });
+            if (!detailLoaded) {
+              return;
+            }
+            if (itemIdInput.value.trim() !== resourceId || itemTypeInput.value !== mappedType) {
+              return;
+            }
+            const bomLoaded = await loadBom({ silentStatus: true });
+            if (!bomLoaded) {
+              return;
+            }
+            renderMbomBoundarySurfaces();
+            setStatus(`${actionMessage} MBOM detail and structure are in sync. Use source recovery to return to the Part.`, "ok");
+            return;
+          }
+          setStatus(readinessResourceBoundaryCopy(resourceType), "error");
+          return;
+        }
         ensureItemTypeOption(mappedType);
         itemTypeInput.value = mappedType;
         itemIdInput.value = resourceId;
@@ -5945,7 +6361,6 @@
         }
         rememberCurrentObjectSelection();
         refreshWorkspaceChrome();
-        const actionMessage = `Handoff applied from ${resourceType || "resource"}:${resourceId}.`;
         if (mode === "detail") {
           await syncWorkspaceForCurrentObject({
             focus: "detail",
@@ -5993,33 +6408,7 @@
           currentIdentity.id !== "-" &&
           (currentIdentity.id !== objectId || currentIdentity.type !== mappedType)
         ) {
-          const sourceProductContext =
-            workspaceState.productContext && typeof workspaceState.productContext === "object"
-              ? workspaceState.productContext
-              : null;
-          const sourceFilesCount = Array.isArray(workspaceState.files)
-            ? workspaceState.files.length
-            : Array.isArray(sourceProductContext?.files)
-              ? sourceProductContext.files.length
-              : null;
-          const sourceRelatedDocumentsCount = Array.isArray(workspaceState.relatedDocuments?.items)
-            ? workspaceState.relatedDocuments.items.length
-            : sourceProductContext?.document_summary?.authorized === false
-              ? null
-              : sourceProductContext?.document_summary?.count ?? null;
-          const sourceOpenEcoCount = sourceProductContext?.open_ecos?.authorized === false
-            ? null
-            : sourceProductContext?.open_ecos?.total ?? sourceProductContext?.eco_summary?.count ?? null;
-          workspaceState.handoffSource = {
-            id: currentIdentity.id,
-            type: currentIdentity.type,
-            title: currentIdentity.title,
-            number: currentIdentity.number,
-            state: currentIdentity.state,
-            files_count: sourceFilesCount,
-            related_documents_count: sourceRelatedDocumentsCount,
-            open_eco_count: sourceOpenEcoCount,
-          };
+          captureCurrentHandoffSource();
         } else if (mappedType !== "Document" && mappedType !== "ECO") {
           workspaceState.handoffSource = null;
         }
@@ -6514,6 +6903,18 @@
           runProductContextAction(target.dataset.productContextAction || "");
           return;
         }
+        const objectTarget = event.target.closest("[data-workspace-handoff]");
+        if (!objectTarget) {
+          return;
+        }
+        handoffWorkspaceObject(
+          objectTarget.dataset.workspaceObjectId || "",
+          objectTarget.dataset.workspaceObjectType || "",
+          objectTarget.dataset.workspaceHandoff || "detail",
+        );
+      });
+
+      bomOutput.addEventListener("click", (event) => {
         const objectTarget = event.target.closest("[data-workspace-handoff]");
         if (!objectTarget) {
           return;
