@@ -238,6 +238,13 @@ PACT_DOCUMENT_ID_PRIMARY = "01H000000000000000000000D1"
 PACT_DOCUMENT_REL_ID_PRIMARY = "01H000000000000000000000R2"
 PACT_FILE_ID_PRIMARY = "01H000000000000000000000F1"
 PACT_ITEM_FILE_ID_PRIMARY = "01H000000000000000000000A1"
+PACT_ECO_STAGE_ID_HISTORY = "01H000000000000000000000S1"
+PACT_ECO_STAGE_ID_APPROVE = "01H000000000000000000000S2"
+PACT_ECO_STAGE_ID_REJECT = "01H000000000000000000000S3"
+PACT_ECO_ID_HISTORY = "01H000000000000000000000E1"
+PACT_ECO_ID_APPROVE = "01H000000000000000000000E2"
+PACT_ECO_ID_REJECT = "01H000000000000000000000E3"
+PACT_APPROVAL_ID_HISTORY = "01H000000000000000000000H1"
 
 
 def _seed_pact_fixtures() -> None:
@@ -253,6 +260,7 @@ def _seed_pact_fixtures() -> None:
       - M5: second comparable Item for /bom/compare
       - M6: FileContainer + ItemFile for /file/item and /file/{id}
       - M7: ItemType('Document') + ItemType('Document Part') + relation for /aml/query expand
+      - M8: ECO stages + ECO records for /eco/{id}/approvals|approve|reject
     """
     _seed_identity_user()
     _seed_meta_engine_data()
@@ -269,9 +277,11 @@ def _seed_meta_engine_data() -> None:
     import uuid
     import yuantus.database as db_mod
     from yuantus.database import init_db
+    from yuantus.meta_engine.models.eco import ECO, ECOApproval, ECOStage
     from yuantus.meta_engine.models.file import FileContainer, ItemFile
     from yuantus.meta_engine.models.item import Item
     from yuantus.meta_engine.models.meta_schema import ItemType
+    from yuantus.security.rbac.models import RBACUser
 
     sys.stderr.write(
         f"[seed] db_mod.engine.url={db_mod.engine.url}\n"
@@ -476,6 +486,112 @@ def _seed_meta_engine_data() -> None:
         session.commit()
         sys.stderr.write("[seed] Files + attachments committed\n")
 
+    # Phase D: create approval actor, ECO stages, ECO rows, and one history row
+    with db_mod.SessionLocal() as session:
+        if session.get(RBACUser, 1) is None:
+            session.add(
+                RBACUser(
+                    id=1,
+                    user_id=1,
+                    username=PACT_USERNAME,
+                    email="metasheet-svc@test.local",
+                    is_active=True,
+                    is_superuser=True,
+                )
+            )
+        if session.get(ECOStage, PACT_ECO_STAGE_ID_HISTORY) is None:
+            session.add(
+                ECOStage(
+                    id=PACT_ECO_STAGE_ID_HISTORY,
+                    name="Engineering Review",
+                    sequence=10,
+                    approval_type="mandatory",
+                    approval_roles=None,
+                    min_approvals=1,
+                    auto_progress=False,
+                )
+            )
+        if session.get(ECOStage, PACT_ECO_STAGE_ID_APPROVE) is None:
+            session.add(
+                ECOStage(
+                    id=PACT_ECO_STAGE_ID_APPROVE,
+                    name="Approve Gate",
+                    sequence=20,
+                    approval_type="mandatory",
+                    approval_roles=None,
+                    min_approvals=1,
+                    auto_progress=False,
+                )
+            )
+        if session.get(ECOStage, PACT_ECO_STAGE_ID_REJECT) is None:
+            session.add(
+                ECOStage(
+                    id=PACT_ECO_STAGE_ID_REJECT,
+                    name="Reject Gate",
+                    sequence=30,
+                    approval_type="mandatory",
+                    approval_roles=None,
+                    min_approvals=1,
+                    auto_progress=False,
+                )
+            )
+        session.commit()
+
+        if session.get(ECO, PACT_ECO_ID_HISTORY) is None:
+            session.add(
+                ECO(
+                    id=PACT_ECO_ID_HISTORY,
+                    name="History ECO",
+                    eco_type="bom",
+                    product_id=PACT_ITEM_ID_PRIMARY,
+                    stage_id=PACT_ECO_STAGE_ID_HISTORY,
+                    state="progress",
+                    priority="normal",
+                    created_by_id=1,
+                )
+            )
+        if session.get(ECO, PACT_ECO_ID_APPROVE) is None:
+            session.add(
+                ECO(
+                    id=PACT_ECO_ID_APPROVE,
+                    name="Approve ECO",
+                    eco_type="bom",
+                    product_id=PACT_ITEM_ID_PRIMARY,
+                    stage_id=PACT_ECO_STAGE_ID_APPROVE,
+                    state="progress",
+                    priority="normal",
+                    created_by_id=1,
+                )
+            )
+        if session.get(ECO, PACT_ECO_ID_REJECT) is None:
+            session.add(
+                ECO(
+                    id=PACT_ECO_ID_REJECT,
+                    name="Reject ECO",
+                    eco_type="bom",
+                    product_id=PACT_ITEM_ID_PRIMARY,
+                    stage_id=PACT_ECO_STAGE_ID_REJECT,
+                    state="progress",
+                    priority="normal",
+                    created_by_id=1,
+                )
+            )
+        if session.get(ECOApproval, PACT_APPROVAL_ID_HISTORY) is None:
+            session.add(
+                ECOApproval(
+                    id=PACT_APPROVAL_ID_HISTORY,
+                    eco_id=PACT_ECO_ID_HISTORY,
+                    stage_id=PACT_ECO_STAGE_ID_HISTORY,
+                    approval_type="mandatory",
+                    required_role="engineer",
+                    user_id=1,
+                    status="pending",
+                    comment="Waiting for engineering review",
+                )
+            )
+        session.commit()
+        sys.stderr.write("[seed] ECO approvals committed\n")
+
 
 def _seed_identity_user() -> None:
     """Create the test tenant and user that the auth/login pact uses."""
@@ -521,6 +637,7 @@ def _override_current_user(app) -> None:
     from yuantus.api.dependencies.auth import (
         CurrentUser,
         get_current_user,
+        get_current_user_id_optional,
         get_current_user_optional,
     )
 
@@ -539,6 +656,7 @@ def _override_current_user(app) -> None:
 
     app.dependency_overrides[get_current_user] = _override
     app.dependency_overrides[get_current_user_optional] = _override
+    app.dependency_overrides[get_current_user_id_optional] = lambda: fake_user.id
 
 
 @contextlib.contextmanager
