@@ -129,6 +129,9 @@ Read-only Claude reviewer sidecar:
 
 See `docs/DEVELOPMENT_DESIGN.md`.
 
+AML metadata integration handoff and verification index:
+`docs/development/README.md`
+
 ## Development plan
 
 See `docs/DEVELOPMENT_PLAN.md`.
