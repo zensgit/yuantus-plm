@@ -302,7 +302,7 @@ echo ""
 echo "==> Check CAD diff"
 DIFF_RESP="$($CURL -sS \
   "${HEADERS[@]}" "${AUTH_HEADERS[@]}" \
-  "$API/cad/files/$FILE_ID/diff?other_id=$FILE_ID")"
+  "$API/cad/files/$FILE_ID/diff?other_file_id=$FILE_ID")"
 DIFF_SIZE=$(echo "$DIFF_RESP" | "$PY" -c 'import sys,json;print(len(json.load(sys.stdin).get("properties",{})))')
 if [[ "$DIFF_SIZE" != "0" ]]; then
   echo "Response: $DIFF_RESP" >&2

@@ -1497,12 +1497,24 @@ def update_cad_review(
 @router.get("/files/{file_id}/diff", response_model=CadDiffResponse)
 def diff_cad_properties(
     file_id: str,
-    other_file_id: str = Query(..., description="Compare against this file id"),
+    other_file_id: Optional[str] = Query(
+        None, description="Compare against this file id"
+    ),
+    other_id: Optional[str] = Query(
+        None, description="Legacy alias for other_file_id"
+    ),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CadDiffResponse:
+    resolved_other_file_id = other_file_id or other_id
+    if not resolved_other_file_id:
+        raise HTTPException(
+            status_code=422,
+            detail="other_file_id is required",
+        )
+
     file_container = db.get(FileContainer, file_id)
-    other_container = db.get(FileContainer, other_file_id)
+    other_container = db.get(FileContainer, resolved_other_file_id)
     if not file_container or not other_container:
         raise HTTPException(status_code=404, detail="File not found")
 
