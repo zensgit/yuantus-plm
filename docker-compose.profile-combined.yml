@@ -1,0 +1,87 @@
+# Combined SKU overlay for Yuantus + Metasheet delivery.
+# Usage:
+#   METASHEET2_ROOT=../metasheet2 \
+#     docker compose -f docker-compose.yml -f docker-compose.profile-combined.yml up -d --build
+
+services:
+  api:
+    environment:
+      YUANTUS_DELIVERY_PROFILE: ${YUANTUS_DELIVERY_PROFILE:-combined}
+      YUANTUS_ENABLE_COLLAB: ${YUANTUS_ENABLE_COLLAB:-true}
+
+  worker:
+    environment:
+      YUANTUS_DELIVERY_PROFILE: ${YUANTUS_DELIVERY_PROFILE:-combined}
+      YUANTUS_ENABLE_COLLAB: ${YUANTUS_ENABLE_COLLAB:-true}
+
+  metasheet-postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: metasheet
+      POSTGRES_PASSWORD: metasheet
+      POSTGRES_DB: metasheet
+    volumes:
+      - metasheet_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metasheet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  metasheet-redis:
+    image: redis:7-alpine
+    volumes:
+      - metasheet_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ${METASHEET2_ROOT:-../metasheet2}
+      dockerfile: Dockerfile.backend
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 8900
+      PRODUCT_MODE: plm-workbench
+      ENABLE_PLM: "true"
+      JWT_SECRET: ${METASHEET_JWT_SECRET:-dev-secret}
+      DATABASE_URL: postgres://metasheet:metasheet@metasheet-postgres:5432/metasheet
+      REDIS_HOST: metasheet-redis
+      REDIS_PORT: 6379
+      PLM_BASE_URL: http://api:7910
+      PLM_API_MODE: yuantus
+      PLM_TENANT_ID: ${PLM_TENANT_ID:-tenant-1}
+      PLM_ORG_ID: ${PLM_ORG_ID:-org-1}
+      PLM_USERNAME: ${PLM_USERNAME:-phase0-test}
+      PLM_PASSWORD: ${PLM_PASSWORD:-phase0pass}
+      PLM_ITEM_TYPE: ${PLM_ITEM_TYPE:-Part}
+    ports:
+      - "${METASHEET_BACKEND_PORT:-7778}:8900"
+    depends_on:
+      metasheet-postgres:
+        condition: service_healthy
+      metasheet-redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ${METASHEET2_ROOT:-../metasheet2}
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "${METASHEET_WEB_PORT:-8899}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  metasheet_postgres_data:
+  metasheet_redis_data:
