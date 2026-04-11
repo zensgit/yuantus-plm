@@ -55,7 +55,7 @@ jobs:
       OUTPUT_ROOT: tmp/strict-gate-artifacts/recent-perf-regression/${{ github.run_id }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 

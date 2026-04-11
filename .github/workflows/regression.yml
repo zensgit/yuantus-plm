@@ -34,7 +34,7 @@ jobs:
       regression_needed: ${{ steps.change_flags.outputs.regression }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -206,12 +206,12 @@ jobs:
       YUANTUS_CADGF_DEFAULT_EMIT: "json,gltf,meta"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: "pip"
@@ -229,7 +229,7 @@ jobs:
 
       - name: Checkout cad-ml-platform (optional)
         if: env.RUN_CAD_ML_DOCKER == '1'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: zensgit/cad-ml-platform
           ref: main
@@ -359,18 +359,18 @@ jobs:
       CAD_ML_REPO: ${{ github.workspace }}/cad-ml-platform
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: "pip"
 
       - name: Checkout cad-ml-platform
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: zensgit/cad-ml-platform
           ref: main
@@ -452,12 +452,12 @@ jobs:
       CADGF_PREVIEW_SAMPLE_FILE: "docs/samples/cadgf_preview_square.dxf"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 1
 
       - name: Checkout CADGameFusion
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: zensgit/CADGameFusion
           ref: main
@@ -479,7 +479,7 @@ jobs:
           cmake --build build_vcpkg --config Release --parallel
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: "pip"
