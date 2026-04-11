@@ -499,83 +499,43 @@ def _seed_meta_engine_data() -> None:
                     is_superuser=True,
                 )
             )
-        if session.get(ECOStage, PACT_ECO_STAGE_ID_HISTORY) is None:
-            session.add(
-                ECOStage(
-                    id=PACT_ECO_STAGE_ID_HISTORY,
-                    name="Engineering Review",
-                    sequence=10,
-                    approval_type="mandatory",
-                    approval_roles=None,
-                    min_approvals=1,
-                    auto_progress=False,
+        for stage_id, name, sequence in (
+            (PACT_ECO_STAGE_ID_HISTORY, "Engineering Review", 10),
+            (PACT_ECO_STAGE_ID_APPROVE, "Approve Gate", 20),
+            (PACT_ECO_STAGE_ID_REJECT, "Reject Gate", 30),
+        ):
+            if session.get(ECOStage, stage_id) is None:
+                session.add(
+                    ECOStage(
+                        id=stage_id,
+                        name=name,
+                        sequence=sequence,
+                        approval_type="mandatory",
+                        approval_roles=None,
+                        min_approvals=1,
+                        auto_progress=False,
+                    )
                 )
-            )
-        if session.get(ECOStage, PACT_ECO_STAGE_ID_APPROVE) is None:
-            session.add(
-                ECOStage(
-                    id=PACT_ECO_STAGE_ID_APPROVE,
-                    name="Approve Gate",
-                    sequence=20,
-                    approval_type="mandatory",
-                    approval_roles=None,
-                    min_approvals=1,
-                    auto_progress=False,
-                )
-            )
-        if session.get(ECOStage, PACT_ECO_STAGE_ID_REJECT) is None:
-            session.add(
-                ECOStage(
-                    id=PACT_ECO_STAGE_ID_REJECT,
-                    name="Reject Gate",
-                    sequence=30,
-                    approval_type="mandatory",
-                    approval_roles=None,
-                    min_approvals=1,
-                    auto_progress=False,
-                )
-            )
         session.commit()
 
-        if session.get(ECO, PACT_ECO_ID_HISTORY) is None:
-            session.add(
-                ECO(
-                    id=PACT_ECO_ID_HISTORY,
-                    name="History ECO",
-                    eco_type="bom",
-                    product_id=PACT_ITEM_ID_PRIMARY,
-                    stage_id=PACT_ECO_STAGE_ID_HISTORY,
-                    state="progress",
-                    priority="normal",
-                    created_by_id=1,
+        for eco_id, name, stage_id in (
+            (PACT_ECO_ID_HISTORY, "History ECO", PACT_ECO_STAGE_ID_HISTORY),
+            (PACT_ECO_ID_APPROVE, "Approve ECO", PACT_ECO_STAGE_ID_APPROVE),
+            (PACT_ECO_ID_REJECT, "Reject ECO", PACT_ECO_STAGE_ID_REJECT),
+        ):
+            if session.get(ECO, eco_id) is None:
+                session.add(
+                    ECO(
+                        id=eco_id,
+                        name=name,
+                        eco_type="bom",
+                        product_id=PACT_ITEM_ID_PRIMARY,
+                        stage_id=stage_id,
+                        state="progress",
+                        priority="normal",
+                        created_by_id=1,
+                    )
                 )
-            )
-        if session.get(ECO, PACT_ECO_ID_APPROVE) is None:
-            session.add(
-                ECO(
-                    id=PACT_ECO_ID_APPROVE,
-                    name="Approve ECO",
-                    eco_type="bom",
-                    product_id=PACT_ITEM_ID_PRIMARY,
-                    stage_id=PACT_ECO_STAGE_ID_APPROVE,
-                    state="progress",
-                    priority="normal",
-                    created_by_id=1,
-                )
-            )
-        if session.get(ECO, PACT_ECO_ID_REJECT) is None:
-            session.add(
-                ECO(
-                    id=PACT_ECO_ID_REJECT,
-                    name="Reject ECO",
-                    eco_type="bom",
-                    product_id=PACT_ITEM_ID_PRIMARY,
-                    stage_id=PACT_ECO_STAGE_ID_REJECT,
-                    state="progress",
-                    priority="normal",
-                    created_by_id=1,
-                )
-            )
         if session.get(ECOApproval, PACT_APPROVAL_ID_HISTORY) is None:
             session.add(
                 ECOApproval(
