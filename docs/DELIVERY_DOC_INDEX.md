@@ -82,6 +82,10 @@ This index aggregates all delivery‑related documents for private deployments.
 ## Development & Verification
 
 - Odoo18 PLM Parallel Execution Design: `docs/DESIGN_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- AML Metadata Session Handoff: `docs/development/aml-metadata-session-handoff-20260411.md`
+- AML Metadata Design Index: `docs/development/aml-metadata-doc-index-20260411.md`
+- AML Metadata Provider Pact Design & Verification: `docs/development/aml-metadata-pact-design-and-verification-20260411.md`
+- AML Metadata Federation Design & Verification: `docs/development/aml-metadata-federation-design-verification-20260411.md`
 - C10 Locale Resolver Export Helpers Design: `docs/DESIGN_PARALLEL_C10_LOCALE_RESOLVER_EXPORT_HELPERS_20260318.md`
 - C11 File Viewer Consumer Design: `docs/DESIGN_PARALLEL_C11_FILE_VIEWER_CONSUMER_20260319.md`
 - C12 Approvals Bootstrap Design: `docs/DESIGN_PARALLEL_C12_APPROVALS_BOOTSTRAP_20260319.md`
