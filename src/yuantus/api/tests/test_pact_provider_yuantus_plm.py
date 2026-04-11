@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import shutil
 import socket
 import tempfile
 import threading
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -247,6 +249,16 @@ PACT_SUBSTITUTE_REL_ID_LIST = "01H000000000000000000000R5"
 PACT_SUBSTITUTE_REL_ID_DELETE = "01H000000000000000000000R6"
 PACT_FILE_ID_PRIMARY = "01H000000000000000000000F1"
 PACT_ITEM_FILE_ID_PRIMARY = "01H000000000000000000000A1"
+PACT_CAD_FILE_ID_PROPERTIES_GET = "01H000000000000000000000F2"
+PACT_CAD_FILE_ID_PROPERTIES_PATCH = "01H000000000000000000000F3"
+PACT_CAD_FILE_ID_VIEW_GET = "01H000000000000000000000F4"
+PACT_CAD_FILE_ID_VIEW_PATCH = "01H000000000000000000000F5"
+PACT_CAD_FILE_ID_REVIEW_GET = "01H000000000000000000000F6"
+PACT_CAD_FILE_ID_REVIEW_POST = "01H000000000000000000000F7"
+PACT_CAD_FILE_ID_HISTORY = "01H000000000000000000000F8"
+PACT_CAD_FILE_ID_DIFF_LEFT = "01H000000000000000000000F9"
+PACT_CAD_FILE_ID_DIFF_RIGHT = "01H000000000000000000000F10"
+PACT_CAD_FILE_ID_MESH = "01H000000000000000000000F11"
 PACT_ECO_STAGE_ID_HISTORY = "01H000000000000000000000S1"
 PACT_ECO_STAGE_ID_APPROVE = "01H000000000000000000000S2"
 PACT_ECO_STAGE_ID_REJECT = "01H000000000000000000000S3"
@@ -254,6 +266,10 @@ PACT_ECO_ID_HISTORY = "01H000000000000000000000E1"
 PACT_ECO_ID_APPROVE = "01H000000000000000000000E2"
 PACT_ECO_ID_REJECT = "01H000000000000000000000E3"
 PACT_APPROVAL_ID_HISTORY = "01H000000000000000000000H1"
+PACT_CAD_DOCUMENT_PATH_VIEW_PATCH = "pact/cad/view-patch-document.json"
+PACT_CAD_METADATA_PATH_MESH = "pact/cad/mesh-stats-metadata.json"
+
+WAVE5_CAD_DOWNLOAD_PAYLOADS: dict[str, dict[str, Any]] = {}
 
 
 def _seed_pact_fixtures() -> None:
@@ -276,6 +292,10 @@ def _seed_pact_fixtures() -> None:
     _seed_meta_engine_data()
 
 
+def _register_wave5_download_payload(path: str, payload: dict[str, Any]) -> None:
+    WAVE5_CAD_DOWNLOAD_PAYLOADS[path] = payload
+
+
 def _seed_meta_engine_data() -> None:
     """
     Seed the meta engine database with the ItemType + Item rows the pact
@@ -287,6 +307,7 @@ def _seed_meta_engine_data() -> None:
     import uuid
     import yuantus.database as db_mod
     from yuantus.database import init_db
+    from yuantus.meta_engine.models.cad_audit import CadChangeLog
     from yuantus.meta_engine.models.eco import ECO, ECOApproval, ECOStage
     from yuantus.meta_engine.models.file import FileContainer, ItemFile
     from yuantus.meta_engine.models.item import Item
@@ -702,6 +723,208 @@ def _seed_meta_engine_data() -> None:
         session.commit()
         sys.stderr.write("[seed] ECO approvals committed\n")
 
+    # Phase E: create the Wave 5 CAD fixtures. These are intentionally
+    # isolated by file id so the provider-state handler can stay a no-op.
+    global WAVE5_CAD_DOWNLOAD_PAYLOADS
+    WAVE5_CAD_DOWNLOAD_PAYLOADS = {}
+
+    wave5_now = datetime(2026, 4, 11, 0, 0, 0)
+    with db_mod.SessionLocal() as session:
+        wave5_specs = [
+            {
+                "id": PACT_CAD_FILE_ID_PROPERTIES_GET,
+                "filename": "wave5-f2.step",
+                "cad_properties": {
+                    "material": "AL-6061",
+                    "finish": "anodized",
+                },
+                "cad_properties_source": "imported",
+                "cad_document_schema_version": 3,
+            },
+            {
+                "id": PACT_CAD_FILE_ID_PROPERTIES_PATCH,
+                "filename": "wave5-f3.step",
+                "cad_properties": {
+                    "material": "AL-7075",
+                    "finish": "hard-anodized",
+                },
+                "cad_properties_source": "manual",
+                "cad_document_schema_version": 4,
+            },
+            {
+                "id": PACT_CAD_FILE_ID_VIEW_GET,
+                "filename": "wave5-f4.step",
+                "cad_view_state": {
+                    "hidden_entity_ids": [12, 19],
+                    "notes": [
+                        {
+                            "entity_id": 12,
+                            "note": "check hole position",
+                            "color": "#FFB020",
+                        }
+                    ],
+                },
+                "cad_view_state_source": "client",
+                "cad_document_schema_version": 3,
+            },
+            {
+                "id": PACT_CAD_FILE_ID_VIEW_PATCH,
+                "filename": "wave5-f5.step",
+                "cad_view_state_source": "client",
+                "cad_document_schema_version": 3,
+                "cad_document_path": PACT_CAD_DOCUMENT_PATH_VIEW_PATCH,
+                "cad_document_payload": {
+                    "schema_version": 3,
+                    "entities": [{"id": 12}, {"id": 19}],
+                },
+            },
+            {
+                "id": PACT_CAD_FILE_ID_REVIEW_GET,
+                "filename": "wave5-f6.step",
+                "cad_review_state": "pending",
+                "cad_review_note": "Awaiting review",
+                "cad_review_by_id": 1,
+            },
+            {
+                "id": PACT_CAD_FILE_ID_REVIEW_POST,
+                "filename": "wave5-f7.step",
+                "cad_review_state": "pending",
+                "cad_review_note": "",
+                "cad_review_by_id": 1,
+            },
+            {
+                "id": PACT_CAD_FILE_ID_HISTORY,
+                "filename": "wave5-f8.step",
+                "cad_properties": {"material": "AL-6061"},
+                "cad_properties_source": "imported",
+                "cad_review_state": "pending",
+                "cad_review_note": "Awaiting review",
+                "cad_review_by_id": 1,
+            },
+            {
+                "id": PACT_CAD_FILE_ID_DIFF_LEFT,
+                "filename": "wave5-f9.step",
+                "cad_properties": {
+                    "coating": "none",
+                    "weight_kg": 1.1,
+                },
+                "cad_document_schema_version": 1,
+            },
+            {
+                "id": PACT_CAD_FILE_ID_DIFF_RIGHT,
+                "filename": "wave5-f10.step",
+                "cad_properties": {
+                    "finish": "anodized",
+                    "weight_kg": 1.2,
+                },
+                "cad_document_schema_version": 2,
+            },
+            {
+                "id": PACT_CAD_FILE_ID_MESH,
+                "filename": "wave5-f11.step",
+                "cad_metadata_path": PACT_CAD_METADATA_PATH_MESH,
+                "cad_metadata_payload": {
+                    "kind": "mesh_metadata",
+                    "entities": [{"id": 1}, {"id": 2}],
+                    "triangle_count": 102400,
+                    "bounds": {
+                        "min": {"x": 0, "y": 0, "z": 0},
+                        "max": {"x": 120, "y": 80, "z": 40},
+                    },
+                },
+            },
+        ]
+
+        for spec in wave5_specs:
+            if session.get(FileContainer, spec["id"]) is not None:
+                continue
+            file_container = FileContainer(
+                id=spec["id"],
+                filename=spec["filename"],
+                file_type="step",
+                mime_type="model/step",
+                file_size=1024,
+                author=PACT_USERNAME,
+                source_system="wave5",
+                source_version="v5",
+                document_version="A",
+                checksum=f"sha256-{spec['id'].lower()}",
+                system_path=f"wave5/{spec['id']}/source.step",
+                document_type="2d",
+                is_native_cad=True,
+                cad_format="STEP",
+                cad_connector_id="wave5",
+                cad_properties=spec.get("cad_properties"),
+                cad_properties_source=spec.get("cad_properties_source"),
+                cad_properties_updated_at=wave5_now,
+                cad_view_state=spec.get("cad_view_state"),
+                cad_view_state_source=spec.get("cad_view_state_source"),
+                cad_view_state_updated_at=wave5_now,
+                cad_document_path=spec.get("cad_document_path"),
+                cad_metadata_path=spec.get("cad_metadata_path"),
+                cad_document_schema_version=spec.get("cad_document_schema_version"),
+                cad_review_state=spec.get("cad_review_state"),
+                cad_review_note=spec.get("cad_review_note"),
+                cad_review_by_id=spec.get("cad_review_by_id"),
+                cad_reviewed_at=wave5_now if spec.get("cad_review_state") else None,
+                created_by_id=1,
+            )
+            session.add(file_container)
+            if "cad_document_payload" in spec and spec.get("cad_document_path"):
+                _register_wave5_download_payload(
+                    spec["cad_document_path"], spec["cad_document_payload"]
+                )
+            if "cad_metadata_payload" in spec and spec.get("cad_metadata_path"):
+                _register_wave5_download_payload(
+                    spec["cad_metadata_path"], spec["cad_metadata_payload"]
+                )
+        session.commit()
+
+    with db_mod.SessionLocal() as session:
+        history_at = wave5_now
+        log_specs = [
+            (
+                PACT_CAD_FILE_ID_HISTORY,
+                "cad_properties_update",
+                {
+                    "properties": {
+                        "material": "AL-6061",
+                        "finish": "anodized",
+                    },
+                    "source": "imported",
+                    "cad_document_schema_version": 3,
+                },
+                history_at,
+                "cad-chg-1",
+            ),
+            (
+                PACT_CAD_FILE_ID_HISTORY,
+                "cad_review_update",
+                {
+                    "state": "pending",
+                    "note": "Awaiting review",
+                    "reviewed_by_id": 1,
+                },
+                history_at + timedelta(minutes=5),
+                "cad-chg-2",
+            ),
+        ]
+        for file_id, action, payload, created_at, entry_id in log_specs:
+            if session.get(CadChangeLog, entry_id) is None:
+                session.add(
+                    CadChangeLog(
+                        id=entry_id,
+                        file_id=file_id,
+                        action=action,
+                        payload=payload,
+                        created_at=created_at,
+                        tenant_id=PACT_TENANT_ID,
+                        org_id="org-1",
+                        user_id=1,
+                    )
+                )
+        session.commit()
+
 
 def _seed_identity_user() -> None:
     """Create the test tenant and user that the auth/login pact uses."""
@@ -774,45 +997,63 @@ def _running_provider(base_host: str = DEFAULT_HOST):
     # Import lazily so that _isolated_test_database has already overridden
     # DATABASE_URL / IDENTITY_DATABASE_URL by the time create_app() runs.
     from yuantus.api.app import create_app
+    from yuantus.meta_engine.services import file_service as file_service_mod
 
     port = _find_free_port(base_host)
     app = create_app()
     _seed_pact_fixtures()
     _override_current_user(app)
-    config = uvicorn.Config(app, host=base_host, port=port, log_level="error")
-    server = uvicorn.Server(config)
-    server.install_signal_handlers = lambda: None  # type: ignore[assignment]
 
-    # Wrap server.run() so any exception inside the thread is captured and
-    # surfaced through the readiness loop, instead of disappearing into the
-    # generic "thread is not alive" message.
-    thread_exception: dict[str, BaseException] = {}
+    saved_download_file = file_service_mod.FileService.download_file
 
-    def _runner() -> None:
-        try:
-            server.run()
-        except BaseException as exc:  # noqa: BLE001 - we re-raise via dict
-            thread_exception["error"] = exc
-            raise
+    def _patched_download_file(self, file_path: str, output_file_obj: Any) -> None:
+        payload = WAVE5_CAD_DOWNLOAD_PAYLOADS.get(file_path)
+        if payload is None:
+            return saved_download_file(self, file_path, output_file_obj)
+        output_file_obj.write(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            )
+        )
 
-    thread = threading.Thread(target=_runner, daemon=True)
-    thread.start()
-
-    base_url = f"http://{base_host}:{port}"
-    health_url = f"{base_url}/api/v1/health"
-    deadline = time.time() + 15.0
-
+    file_service_mod.FileService.download_file = _patched_download_file
     try:
-        # Phase 1: wait until the server is ready. Only readiness errors are
-        # caught here; the test body's exceptions are NOT swallowed.
-        _wait_for_ready(health_url, thread, thread_exception, deadline)
+        config = uvicorn.Config(app, host=base_host, port=port, log_level="error")
+        server = uvicorn.Server(config)
+        server.install_signal_handlers = lambda: None  # type: ignore[assignment]
 
-        # Phase 2: hand the live base_url to the test. Any exception raised by
-        # the test body propagates normally — the finally below still runs.
-        yield base_url
+        # Wrap server.run() so any exception inside the thread is captured and
+        # surfaced through the readiness loop, instead of disappearing into the
+        # generic "thread is not alive" message.
+        thread_exception: dict[str, BaseException] = {}
+
+        def _runner() -> None:
+            try:
+                server.run()
+            except BaseException as exc:  # noqa: BLE001 - we re-raise via dict
+                thread_exception["error"] = exc
+                raise
+
+        thread = threading.Thread(target=_runner, daemon=True)
+        thread.start()
+
+        base_url = f"http://{base_host}:{port}"
+        health_url = f"{base_url}/api/v1/health"
+        deadline = time.time() + 15.0
+
+        try:
+            # Phase 1: wait until the server is ready. Only readiness errors are
+            # caught here; the test body's exceptions are NOT swallowed.
+            _wait_for_ready(health_url, thread, thread_exception, deadline)
+
+            # Phase 2: hand the live base_url to the test. Any exception raised by
+            # the test body propagates normally — the finally below still runs.
+            yield base_url
+        finally:
+            server.should_exit = True
+            thread.join(timeout=10.0)
     finally:
-        server.should_exit = True
-        thread.join(timeout=10.0)
+        file_service_mod.FileService.download_file = saved_download_file
 
 
 def test_yuantus_provider_verifies_local_pacts():
