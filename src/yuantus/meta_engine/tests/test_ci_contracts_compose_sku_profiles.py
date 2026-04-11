@@ -109,9 +109,13 @@ def test_compose_sku_profiles_define_expected_runtime_shapes() -> None:
 def test_verify_compose_sku_profiles_script_is_documented_and_has_help() -> None:
     repo_root = _find_repo_root(Path(__file__))
     script = repo_root / "scripts" / "verify_compose_sku_profiles.sh"
+    smoke_script = repo_root / "scripts" / "verify_compose_sku_profiles_smoke.sh"
+    makefile = repo_root / "Makefile"
     index_path = repo_root / "docs" / "DELIVERY_SCRIPTS_INDEX_20260202.md"
 
     assert script.is_file(), f"Missing script: {script}"
+    assert smoke_script.is_file(), f"Missing script: {smoke_script}"
+    assert makefile.is_file(), f"Missing makefile: {makefile}"
     assert index_path.is_file(), f"Missing scripts index: {index_path}"
 
     cp = subprocess.run(  # noqa: S603,S607
@@ -132,7 +136,69 @@ def test_verify_compose_sku_profiles_script_is_documented_and_has_help() -> None
     ):
         assert token in out, f"help output missing token: {token}"
 
+    script_text = script.read_text(encoding="utf-8", errors="replace")
+    render_gate = (
+        'if [[ -z "${RENDER_PROFILE}" || "${RENDER_PROFILE}" == "combined" ]]; then\n'
+        '  METASHEET2_ROOT="${METASHEET2_ROOT:-${REPO_ROOT}/../metasheet2}"\n'
+        '  [[ -d "${METASHEET2_ROOT}" ]] || die "METASHEET2_ROOT does not exist: ${METASHEET2_ROOT}"\n'
+        '  [[ -f "${METASHEET2_ROOT}/Dockerfile.backend" ]] || die "Missing ${METASHEET2_ROOT}/Dockerfile.backend"\n'
+        '  [[ -f "${METASHEET2_ROOT}/Dockerfile.frontend" ]] || die "Missing ${METASHEET2_ROOT}/Dockerfile.frontend"\n'
+        "fi"
+    )
+    assert render_gate in script_text, (
+        "compose verifier must only require METASHEET2_ROOT for combined or full validation"
+    )
+    assert 'if [[ -n "${METASHEET2_ROOT:-}" ]]; then' in script_text, (
+        "compose verifier must only inject METASHEET2_ROOT into docker compose when it is defined"
+    )
+
+    smoke_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(smoke_script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert smoke_cp.returncode == 0, smoke_cp.stdout + "\n" + smoke_cp.stderr
+    smoke_out = smoke_cp.stdout or ""
+    for token in (
+        "Usage:",
+        "verify_compose_sku_profiles_smoke.sh PROFILE",
+        "base",
+        "collab",
+        "combined",
+        "KEEP_UP",
+        "SMOKE_PROJECT_NAME",
+        "SMOKE_START_TIMEOUT",
+    ):
+        assert token in smoke_out, f"smoke help output missing token: {token}"
+
+    smoke_text = smoke_script.read_text(encoding="utf-8", errors="replace")
+    combined_gate = (
+        'if [[ "${PROFILE}" == "combined" ]]; then\n'
+        '  METASHEET2_ROOT="${METASHEET2_ROOT:-${REPO_ROOT}/../metasheet2}"\n'
+        '  export METASHEET2_ROOT\n'
+        '  [[ -d "${METASHEET2_ROOT}" ]] || die "METASHEET2_ROOT does not exist: ${METASHEET2_ROOT}"\n'
+        "fi"
+    )
+    assert combined_gate in smoke_text, (
+        "smoke verifier must only require METASHEET2_ROOT for the combined profile"
+    )
+    assert 'bash "${VERIFY_SCRIPT}" --render "${PROFILE}" >/dev/null' in smoke_text, (
+        "smoke verifier must validate only the requested profile before booting containers"
+    )
+
+    make_text = makefile.read_text(encoding="utf-8", errors="replace")
+    for target, call in (
+        ("smoke-test-base", "bash scripts/verify_compose_sku_profiles_smoke.sh base"),
+        ("smoke-test-collab", "bash scripts/verify_compose_sku_profiles_smoke.sh collab"),
+        ("smoke-test-combined", "bash scripts/verify_compose_sku_profiles_smoke.sh combined"),
+    ):
+        assert f"{target}:" in make_text, f"Makefile missing target: {target}"
+        assert call in make_text, f"Makefile target {target} must call the smoke verifier"
+
     index_text = index_path.read_text(encoding="utf-8", errors="replace")
     assert "verify_compose_sku_profiles.sh" in index_text, (
         "docs/DELIVERY_SCRIPTS_INDEX_20260202.md must include the compose SKU profile verifier"
+    )
+    assert "verify_compose_sku_profiles_smoke.sh" in index_text, (
+        "docs/DELIVERY_SCRIPTS_INDEX_20260202.md must include the compose SKU profile smoke verifier"
     )
