@@ -11,7 +11,7 @@ from yuantus.database import get_db
 from yuantus.meta_engine.schemas.aml import AMLQueryRequest, AMLQueryResponse
 from yuantus.meta_engine.services.query_service import AMLQueryService
 
-query_router = APIRouter(prefix="/api/aml", tags=["AML Query"])
+query_router = APIRouter(prefix="/aml", tags=["AML Query"])
 
 
 @query_router.post("/query", response_model=AMLQueryResponse)

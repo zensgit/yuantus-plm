@@ -44,11 +44,10 @@ def _provider_state_handler(
     """
     Provider state handler.
 
-    For Wave 1 we pre-seed all required data once at the top of the test
+    We still pre-seed all required data once at the top of the test
     (see `_seed_pact_fixtures`) rather than seeding per-state. The handler
     therefore stays a no-op; the state names exist for documentation and
-    for future Wave 2 work where some interactions may need per-state
-    isolation.
+    for future work where some interactions may need per-state isolation.
     """
 
     _ = (state, action, parameters)
@@ -230,9 +229,15 @@ PACT_TENANT_ID = "tenant-1"
 PACT_USERNAME = "metasheet-svc"
 PACT_PASSWORD = "secret"
 PACT_ITEM_TYPE = "Part"
+PACT_DOCUMENT_ITEM_TYPE = "Document"
 PACT_ITEM_ID_PRIMARY = "01H000000000000000000000P1"
 PACT_ITEM_ID_SECONDARY = "01H000000000000000000000P2"
 PACT_BOM_RELATIONSHIP_TYPE = "Part BOM"
+PACT_DOCUMENT_RELATIONSHIP_TYPE = "Document Part"
+PACT_DOCUMENT_ID_PRIMARY = "01H000000000000000000000D1"
+PACT_DOCUMENT_REL_ID_PRIMARY = "01H000000000000000000000R2"
+PACT_FILE_ID_PRIMARY = "01H000000000000000000000F1"
+PACT_ITEM_FILE_ID_PRIMARY = "01H000000000000000000000A1"
 
 
 def _seed_pact_fixtures() -> None:
@@ -241,11 +246,13 @@ def _seed_pact_fixtures() -> None:
     interaction needs. Called once after the FastAPI app has been created
     but before the server thread starts handling requests.
 
-    Wave 1.5 milestones:
+    Wave 1.5 / 2 milestones:
       - M2: identity tenant + user for /auth/login
       - M3: ItemType('Part') + Item for /search and /aml/apply
       - M4: ItemType('Part BOM') + child Item + BOM relationship for /bom/{id}/tree
       - M5: second comparable Item for /bom/compare
+      - M6: FileContainer + ItemFile for /file/item and /file/{id}
+      - M7: ItemType('Document') + ItemType('Document Part') + relation for /aml/query expand
     """
     _seed_identity_user()
     _seed_meta_engine_data()
@@ -262,6 +269,7 @@ def _seed_meta_engine_data() -> None:
     import uuid
     import yuantus.database as db_mod
     from yuantus.database import init_db
+    from yuantus.meta_engine.models.file import FileContainer, ItemFile
     from yuantus.meta_engine.models.item import Item
     from yuantus.meta_engine.models.meta_schema import ItemType
 
@@ -304,10 +312,34 @@ def _seed_meta_engine_data() -> None:
                     methods={},
                 )
             )
+        if session.get(ItemType, PACT_DOCUMENT_ITEM_TYPE) is None:
+            session.add(
+                ItemType(
+                    id=PACT_DOCUMENT_ITEM_TYPE,
+                    label="Document",
+                    is_relationship=False,
+                    is_versionable=True,
+                    properties_schema={},
+                    methods={},
+                )
+            )
+        if session.get(ItemType, PACT_DOCUMENT_RELATIONSHIP_TYPE) is None:
+            session.add(
+                ItemType(
+                    id=PACT_DOCUMENT_RELATIONSHIP_TYPE,
+                    label="Document Part",
+                    is_relationship=True,
+                    is_versionable=False,
+                    source_item_type_id=PACT_ITEM_TYPE,
+                    related_item_type_id=PACT_DOCUMENT_ITEM_TYPE,
+                    properties_schema={},
+                    methods={},
+                )
+            )
         session.commit()
         sys.stderr.write("[seed] ItemTypes committed\n")
 
-    # Phase B: create Items (parent, child, BOM relationship)
+    # Phase B: create Items (parent, child, related Document, relationships)
     with db_mod.SessionLocal() as session:
         if session.get(Item, PACT_ITEM_ID_PRIMARY) is None:
             session.add(
@@ -342,6 +374,26 @@ def _seed_meta_engine_data() -> None:
                     },
                 )
             )
+        if session.get(Item, PACT_DOCUMENT_ID_PRIMARY) is None:
+            session.add(
+                Item(
+                    id=PACT_DOCUMENT_ID_PRIMARY,
+                    item_type_id=PACT_DOCUMENT_ITEM_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Draft",
+                    is_versionable=True,
+                    properties={
+                        "item_number": "DOC-0001",
+                        "doc_number": "DOC-0001",
+                        "number": "DOC-0001",
+                        "name": "Mounting Bracket Drawing",
+                        "current_version_id": "VER-0001",
+                        "document_type": "drawing",
+                    },
+                )
+            )
         # BOM relationship: P1 → P2
         bom_rel_id = "01H000000000000000000000R1"
         if session.get(Item, bom_rel_id) is None:
@@ -364,8 +416,65 @@ def _seed_meta_engine_data() -> None:
                     },
                 )
             )
+        if session.get(Item, PACT_DOCUMENT_REL_ID_PRIMARY) is None:
+            session.add(
+                Item(
+                    id=PACT_DOCUMENT_REL_ID_PRIMARY,
+                    item_type_id=PACT_DOCUMENT_RELATIONSHIP_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Released",
+                    is_versionable=False,
+                    source_id=PACT_ITEM_ID_PRIMARY,
+                    related_id=PACT_DOCUMENT_ID_PRIMARY,
+                    properties={
+                        "role": "related_document",
+                        "quantity": 1,
+                        "uom": "ea",
+                        "find_num": "DOC-10",
+                        "refdes": "DOC1",
+                    },
+                )
+            )
         session.commit()
-        sys.stderr.write("[seed] Items + BOM relationship committed\n")
+        sys.stderr.write("[seed] Items + relationships committed\n")
+
+    # Phase C: create attached file + item file link
+    with db_mod.SessionLocal() as session:
+        if session.get(FileContainer, PACT_FILE_ID_PRIMARY) is None:
+            session.add(
+                FileContainer(
+                    id=PACT_FILE_ID_PRIMARY,
+                    filename="mounting-bracket-drawing.pdf",
+                    file_type="pdf",
+                    mime_type="application/pdf",
+                    file_size=2048,
+                    author=PACT_USERNAME,
+                    source_system="yuantus",
+                    source_version="v1",
+                    document_version="A",
+                    checksum="sha256-demo-file-1",
+                    system_path="demo/files/mounting-bracket-drawing.pdf",
+                    document_type="drawing",
+                    is_native_cad=False,
+                    preview_path="demo/previews/mounting-bracket-drawing.png",
+                    conversion_status="pending",
+                )
+            )
+        if session.get(ItemFile, PACT_ITEM_FILE_ID_PRIMARY) is None:
+            session.add(
+                ItemFile(
+                    id=PACT_ITEM_FILE_ID_PRIMARY,
+                    item_id=PACT_ITEM_ID_PRIMARY,
+                    file_id=PACT_FILE_ID_PRIMARY,
+                    file_role="primary",
+                    sequence=1,
+                    description="Primary manufacturing drawing",
+                )
+            )
+        session.commit()
+        sys.stderr.write("[seed] Files + attachments committed\n")
 
 
 def _seed_identity_user() -> None:
