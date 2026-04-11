@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import inspect
 import json
 import os
 import shutil
@@ -311,7 +312,7 @@ def _seed_meta_engine_data() -> None:
     from yuantus.meta_engine.models.eco import ECO, ECOApproval, ECOStage
     from yuantus.meta_engine.models.file import FileContainer, ItemFile
     from yuantus.meta_engine.models.item import Item
-    from yuantus.meta_engine.models.meta_schema import ItemType
+    from yuantus.meta_engine.models.meta_schema import ItemType, Property
     from yuantus.security.rbac.models import RBACUser
 
     sys.stderr.write(
@@ -340,6 +341,55 @@ def _seed_meta_engine_data() -> None:
                     methods={},
                 )
             )
+        session.flush()
+
+        existing_property_names = {
+            name
+            for (name,) in (
+                session.query(Property.name)
+                .filter(Property.item_type_id == PACT_ITEM_TYPE)
+                .all()
+            )
+        }
+
+        def _add_part_property(
+            name: str,
+            label: str,
+            data_type: str,
+            *,
+            length: int | None = None,
+            is_required: bool = False,
+            default_value: str | None = None,
+        ) -> None:
+            if name in existing_property_names:
+                return
+            session.add(
+                Property(
+                    item_type_id=PACT_ITEM_TYPE,
+                    name=name,
+                    label=label,
+                    data_type=data_type,
+                    length=length,
+                    is_required=is_required,
+                    default_value=default_value,
+                )
+            )
+            existing_property_names.add(name)
+
+        # The metadata endpoint reads ItemType.properties, so seed the
+        # minimal Part field set directly from the Property table.
+        _add_part_property(
+            "item_number",
+            "料号",
+            "string",
+            length=64,
+            is_required=True,
+        )
+        _add_part_property("name", "Name", "string", length=128)
+        _add_part_property("description", "Description", "string", length=256)
+        _add_part_property("state", "State", "string", length=32)
+        _add_part_property("cost", "Cost", "float", length=18)
+        _add_part_property("weight", "Weight", "float", length=18)
         if session.get(ItemType, PACT_BOM_RELATIONSHIP_TYPE) is None:
             session.add(
                 ItemType(
@@ -1004,6 +1054,19 @@ def _running_provider(base_host: str = DEFAULT_HOST):
     _seed_pact_fixtures()
     _override_current_user(app)
 
+    @app.post("/_pact/provider_states")
+    async def _pact_provider_states(request: Any):
+        payload = await request.json()
+        state = str(payload.get("state") or "")
+        action = str(payload.get("action") or "setup")
+        parameters = payload.get("params")
+        _provider_state_handler(
+            state,
+            action,
+            parameters if isinstance(parameters, dict) else None,
+        )
+        return {"ok": True}
+
     saved_download_file = file_service_mod.FileService.download_file
 
     def _patched_download_file(self, file_path: str, output_file_obj: Any) -> None:
@@ -1083,12 +1146,24 @@ def test_yuantus_provider_verifies_local_pacts():
     # Add each pact file individually rather than the whole directory.
     # `.add_source(directory)` would attempt to parse every file in the
     # directory (including README.md) and report a Pact JSON parse error.
-    verifier = pact.Verifier(DEFAULT_PROVIDER_NAME)
-    for path in pact_files:
-        verifier = verifier.add_source(str(path))
-    verifier = verifier.state_handler(_provider_state_handler, teardown=True)
-
     with _isolated_test_database():
         with _running_provider() as base_url:
+            verifier_signature = inspect.signature(pact.Verifier)
+            if "provider_base_url" in verifier_signature.parameters:
+                verifier = pact.Verifier(
+                    DEFAULT_PROVIDER_NAME,
+                    provider_base_url=base_url,
+                )
+                success, logs = verifier.verify_pacts(
+                    *(str(path) for path in pact_files),
+                    provider_states_setup_url=f"{base_url}/_pact/provider_states",
+                )
+                assert success, logs
+                return
+
+            verifier = pact.Verifier(DEFAULT_PROVIDER_NAME)
+            for path in pact_files:
+                verifier = verifier.add_source(str(path))
+            verifier = verifier.state_handler(_provider_state_handler, teardown=True)
             verifier = verifier.add_transport(url=base_url)
             verifier.verify()
