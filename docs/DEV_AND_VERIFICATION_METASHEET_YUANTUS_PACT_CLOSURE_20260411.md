@@ -188,6 +188,20 @@ repos now have an explicit CI gate for the shared surface.
   - merged as `26212c42c03654204c571c13b84395c50516f631`
   - added CAD provider verification
 
+### Post-closeout hardening on mainline
+
+- `zensgit/metasheet2#799`
+  - merged as `016d26c02555ad8448e5f5cba0f64f2d620c89da`
+  - added the dedicated Yuantus consumer CI gate on `metasheet2` main
+- `zensgit/yuantus-plm#187`
+  - merged as `cb8e167ba84f08c27bbdefc3beeb5d16ae6bb333`
+  - hardened the provider CI gate and fixed the PLM workspace AML related-doc
+    path drift that was breaking `playwright-esign`
+- `zensgit/yuantus-plm#188`
+  - merged as `4f8a34062b8dfd5a3ee742a751a44cdbcadc8da9`
+  - moved workflow action majors off deprecated Node 20 runtimes and aligned
+    the CI contract tests to the new baseline
+
 ## Verification
 
 ### 1. Consumer-side contract verification
@@ -223,6 +237,39 @@ Observed results on the closeout branch:
 
 - combined closeout verification: `9 passed`
 - provider verifier remains `1 passed` inside that batch
+
+### 2.1 Mainline re-verification after merge
+
+After the closeout branches were merged, the shared surface was re-verified on
+clean worktrees cut from `origin/main`, not from the historical feature
+branches.
+
+Commands run:
+
+```bash
+cd /tmp/metasheet2-pact-final-*/packages/core-backend
+pnpm test:contract
+pnpm exec vitest run tests/unit/plm-adapter-yuantus.test.ts --reporter=dot
+
+cd /tmp/yuantus-pact-main-*
+/Users/huazhou/Downloads/Github/Yuantus/.venv/bin/python -m pytest \
+  src/yuantus/api/tests/test_pact_provider_yuantus_plm.py \
+  src/yuantus/meta_engine/tests/test_ci_contracts_pact_provider_gate.py \
+  src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py \
+  src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
+  src/yuantus/meta_engine/tests/test_cad_diff_query_alias.py -q
+```
+
+Observed results on main:
+
+- `metasheet2` contract tests: `16 passed`
+- `metasheet2` targeted Yuantus adapter unit tests: `19 passed`
+- `Yuantus` provider verifier: `1 passed`
+- `Yuantus` pact/CI guard batch: `8 passed`
+
+This is the important distinction: the contract gate is no longer only "green
+on the feature branch that introduced it". It is green again on the merged
+mainline state after the later CI-hardening and GitHub Actions runtime uplift.
 
 ### 3. Deliberate break proof
 
@@ -288,6 +335,7 @@ The current closure point is:
 - deliberate break proved
 - live federation path validated
 - CI contract gates landed on both repos
+- merged mainline re-verified after PRs `#799`, `#187`, and `#188`
 - native CAD diff callers normalized to canonical `other_file_id`
 
 At this point, the Metasheet <-> Yuantus PLM federation path is not an
