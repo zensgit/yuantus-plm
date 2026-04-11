@@ -174,7 +174,6 @@ This index aggregates all delivery‑related documents for private deployments.
 - MBOM Convert API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_CONVERT_E2E_20260214.md`
 - MBOM + Routing API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_ROUTING_E2E_20260214.md`
 - Metasheet <-> Yuantus Pact Closure: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_PACT_CLOSURE_20260411.md`
-- Release Readiness Pact Coverage: `docs/DEV_AND_VERIFICATION_RELEASE_READINESS_PACT_20260411.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
 - Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
 - Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
@@ -316,6 +315,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Release Orchestration (Plan + Execute): `docs/DEV_AND_VERIFICATION_RELEASE_ORCHESTRATION_20260208.md`
 - Release Orchestration Script + E2E Verification: `docs/DEV_AND_VERIFICATION_RELEASE_ORCH_SCRIPT_E2E_20260213.md`
 - Release Readiness + ECO Apply Diagnostics + Ruleset Directory: `docs/DEV_AND_VERIFICATION_RELEASE_READINESS_ECO_APPLY_DIAGNOSTICS_20260207.md`
+- Release Readiness Pact Coverage: `docs/DEV_AND_VERIFICATION_RELEASE_READINESS_PACT_20260411.md`
 - Roadmap 9.3 Performance Benchmarks: `docs/DEV_AND_VERIFICATION_ROADMAP_9_3_PERFORMANCE_20260207.md`
 - Roadmap 9.3 Perf CI (SQLite + Postgres): `docs/DEV_AND_VERIFICATION_ROADMAP_9_3_PERF_20260209.md`
 - Routing Copy API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ROUTING_COPY_E2E_20260214.md`
