@@ -1,0 +1,14 @@
+# Base SKU overlay for Yuantus-only delivery.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.profile-base.yml up -d --build
+
+services:
+  api:
+    environment:
+      YUANTUS_DELIVERY_PROFILE: ${YUANTUS_DELIVERY_PROFILE:-base}
+      YUANTUS_ENABLE_COLLAB: ${YUANTUS_ENABLE_COLLAB:-false}
+
+  worker:
+    environment:
+      YUANTUS_DELIVERY_PROFILE: ${YUANTUS_DELIVERY_PROFILE:-base}
+      YUANTUS_ENABLE_COLLAB: ${YUANTUS_ENABLE_COLLAB:-false}

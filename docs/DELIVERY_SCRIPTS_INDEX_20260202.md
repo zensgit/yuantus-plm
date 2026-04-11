@@ -14,6 +14,7 @@
 - verify_backup_rotation.sh
 - verify_cleanup_restore.sh
 - verify_extract_start.sh
+- verify_compose_sku_profiles.sh
 - verify_all.sh
 - verify_package.sh
 - verify_permissions.sh
@@ -51,6 +52,7 @@
 - CAD verification scripts support `USE_DOCKER_WORKER=1` to wait for jobs to be processed by a running docker-compose `worker` service (instead of running `yuantus worker --once` locally).
 - `verify_playwright_product_ui_summaries.sh` requires Playwright installed in `node_modules`.
 - Native workspace Playwright wrappers require Playwright installed in `node_modules` and a running API at `http://127.0.0.1:7910`.
+- `verify_compose_sku_profiles.sh` renders the `base`, `collab`, and `combined` overlays and requires a sibling `metasheet2` checkout (or `METASHEET2_ROOT`) for the combined profile.
 - `print_claude_code_parallel_commands.sh` prints safe Claude Code CLI templates for read-only, worktree, and reviewer flows.
 - `print_cross_domain_services_split_helper.sh` prints the fast-path staging commands for the cross-domain-services split.
 - `print_delivery_pack_split_helper.sh` prints the fast-path staging commands for the delivery-pack split.
