@@ -115,3 +115,57 @@ test('bom demo can inspect non-empty release readiness without leaving native pa
   await expect(page.locator('#change-output [data-readiness-handoff="bom"]')).toBeDisabled();
   await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.parentId}`);
 });
+
+test('bom demo can drill from readiness MBOM resource into native MBOM detail and structure then recover to source part', async ({
+  request,
+  page,
+}) => {
+  const fixture = await createConfigParentDemoFixture(request);
+  await loadConfigParentDemoPreset(page, fixture, 'bom');
+
+  await signInWorkspace(page);
+  await expect(page.locator('#session-status')).toContainText('Authenticated and resumed Config Parent.');
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.parentId}`);
+
+  await page.click('[data-tab="change"]');
+  await page.click('#release-readiness-button');
+
+  await expect(page.locator('#release-readiness-output')).toContainText(fixture.mbomName);
+  await expect(page.locator('#release-readiness-detail-output')).toContainText('MBOM readiness resources publish native detail and BOM drilldown only.');
+
+  await page.locator('#release-readiness-detail-output').getByRole('button', { name: 'Open Detail' }).click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`MBOM:${fixture.mbomId}`);
+  await expect(page.locator('[data-tab="detail"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#detail-output')).toContainText('MBOM Drilldown');
+  await expect(page.locator('#detail-output')).toContainText(fixture.mbomName);
+  await expect(page.locator('#detail-output')).toContainText('MBOM Scope');
+  await expect(page.locator('#detail-output')).toContainText('Source Recovery');
+  await expect(page.locator('#detail-output')).toContainText('Return to Source Part');
+
+  await page.locator('#detail-output').getByRole('button', { name: 'Return to Source Part' }).click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.parentId}`);
+  await expect(page.locator('[data-tab="detail"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#detail-output')).toContainText(fixture.parentNumber);
+  await expect(page.locator('#detail-output')).not.toContainText('MBOM Drilldown');
+
+  await page.click('[data-tab="change"]');
+  await page.click('#release-readiness-button');
+  await page.locator('#release-readiness-detail-output').getByRole('button', { name: 'Open BOM' }).click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`MBOM:${fixture.mbomId}`);
+  await expect(page.locator('[data-tab="bom"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#bom-output')).toContainText(fixture.mbomName);
+  await expect(page.locator('#bom-output')).toContainText(fixture.childANumber);
+  await expect(page.locator('#bom-output')).toContainText(fixture.childBNumber);
+  await expect(page.locator('#bom-output')).toContainText('Source Recovery');
+  await expect(page.locator('#bom-output')).toContainText('Return to Source Part');
+  await expect(page.locator('#where-used-output')).toContainText('Where-used is not published for MBOM native drilldown yet.');
+
+  await page.locator('#bom-output').getByRole('button', { name: 'Return to Source Part' }).click();
+
+  await expect(page.locator('#active-object-key')).toContainText(`Part:${fixture.parentId}`);
+  await expect(page.locator('[data-tab="detail"]')).toHaveClass(/is-active/);
+  await expect(page.locator('#detail-output')).toContainText(fixture.parentNumber);
+});
