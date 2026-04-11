@@ -174,6 +174,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Item Equivalents API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ITEM_EQUIVALENTS_E2E_20260214.md`
 - MBOM Convert API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_CONVERT_E2E_20260214.md`
 - MBOM + Routing API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_ROUTING_E2E_20260214.md`
+- Metasheet <-> Yuantus Mainline Closeout: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_MAINLINE_CLOSEOUT_20260411.md`
 - Metasheet <-> Yuantus Pact Closure: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_PACT_CLOSURE_20260411.md`
 - Metasheet <-> Yuantus Pact Sync Helper: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_PACT_SYNC_HELPER_20260411.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
