@@ -96,6 +96,7 @@ RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
 Native PLM workspace browser regressions:
 ```bash
 npm run playwright:test:plm-workspace
+npm run playwright:test:plm-workspace:eco-actions
 bash scripts/verify_playwright_plm_workspace_all.sh http://127.0.0.1:7910
 ```
 

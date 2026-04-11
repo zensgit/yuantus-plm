@@ -24,6 +24,7 @@
 - verify_playwright_plm_workspace_documents_ui.sh
 - verify_playwright_plm_workspace_demo_resume.sh
 - verify_playwright_plm_workspace_document_handoff.sh
+- verify_playwright_plm_workspace_eco_actions.sh
 - print_claude_code_parallel_commands.sh
 - print_cross_domain_services_split_helper.sh
 - print_delivery_pack_split_helper.sh

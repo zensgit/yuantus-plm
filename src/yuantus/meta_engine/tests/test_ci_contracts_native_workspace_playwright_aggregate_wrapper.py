@@ -18,7 +18,7 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
-def test_native_workspace_playwright_aggregate_wrapper_calls_all_three_smokes() -> None:
+def test_native_workspace_playwright_aggregate_wrapper_calls_all_workspace_smokes() -> None:
     repo_root = _find_repo_root(Path(__file__))
     wrapper = repo_root / "scripts" / "verify_playwright_plm_workspace_all.sh"
     assert wrapper.is_file(), f"Missing {wrapper}"
@@ -30,5 +30,6 @@ def test_native_workspace_playwright_aggregate_wrapper_calls_all_three_smokes() 
         '"$SCRIPT_DIR/verify_playwright_plm_workspace_documents_ui.sh" "$BASE_URL"',
         '"$SCRIPT_DIR/verify_playwright_plm_workspace_demo_resume.sh" "$BASE_URL"',
         '"$SCRIPT_DIR/verify_playwright_plm_workspace_document_handoff.sh" "$BASE_URL"',
+        '"$SCRIPT_DIR/verify_playwright_plm_workspace_eco_actions.sh" "$BASE_URL"',
     ):
         assert token in text, f"verify_playwright_plm_workspace_all.sh missing token: {token}"

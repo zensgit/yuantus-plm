@@ -29,6 +29,7 @@ def test_delivery_scripts_index_mentions_native_workspace_playwright_wrappers() 
         "verify_playwright_plm_workspace_documents_ui.sh",
         "verify_playwright_plm_workspace_demo_resume.sh",
         "verify_playwright_plm_workspace_document_handoff.sh",
+        "verify_playwright_plm_workspace_eco_actions.sh",
         "Native workspace Playwright wrappers require Playwright installed in `node_modules`",
     ):
         assert token in text, f"docs/DELIVERY_SCRIPTS_INDEX_20260202.md missing token: {token}"

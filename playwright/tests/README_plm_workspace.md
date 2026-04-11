@@ -23,6 +23,10 @@ This folder contains the checked-in browser regressions for the native
   - locks `Part -> AML related Document -> Return to Source Documents`
   - locks `Part -> AML related Document -> Return to Source Change`
   - verifies document-tab stability, document action-button navigation, source recovery, and roundtrip document integrity
+- `plm_workspace_eco_actions.spec.js`
+  - locks `Approve ECO` / `Reject ECO` actions from the native change tab
+  - verifies focused ECO actions refresh ECO governance, product context, and release readiness
+  - verifies the resulting ECO and approval state through the live API
 
 ## Run Directly
 
@@ -38,6 +42,7 @@ Or run individual specs:
 npm run playwright:test:plm-workspace:documents
 npm run playwright:test:plm-workspace:resume
 npm run playwright:test:plm-workspace:handoff
+npm run playwright:test:plm-workspace:eco-actions
 ```
 
 Or run the operator-facing aggregate wrapper:
@@ -63,6 +68,7 @@ The shell wrappers under `scripts/` remain the operator-facing entrypoints:
 - `scripts/verify_playwright_plm_workspace_documents_ui.sh`
 - `scripts/verify_playwright_plm_workspace_demo_resume.sh`
 - `scripts/verify_playwright_plm_workspace_document_handoff.sh`
+- `scripts/verify_playwright_plm_workspace_eco_actions.sh`
 - `scripts/verify_playwright_plm_workspace_all.sh`
 
 Those wrappers are also wired into `scripts/verify_all.sh` under

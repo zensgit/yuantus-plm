@@ -1448,17 +1448,22 @@ if [[ "${RUN_UI_AGG:-0}" == "1" ]]; then
       run_test "UI Playwright Workspace Document Handoff" \
         "$SCRIPT_DIR/verify_playwright_plm_workspace_document_handoff.sh" \
         "$BASE_URL" || true
+      run_test "UI Playwright Workspace ECO Actions" \
+        "$SCRIPT_DIR/verify_playwright_plm_workspace_eco_actions.sh" \
+        "$BASE_URL" || true
     else
       skip_test "UI Playwright Summaries" "playwright not installed"
       skip_test "UI Playwright Workspace Documents" "playwright not installed"
       skip_test "UI Playwright Workspace Demo Resume" "playwright not installed"
       skip_test "UI Playwright Workspace Document Handoff" "playwright not installed"
+      skip_test "UI Playwright Workspace ECO Actions" "playwright not installed"
     fi
   else
     skip_test "UI Playwright Summaries" "RUN_UI_PLAYWRIGHT=0"
     skip_test "UI Playwright Workspace Documents" "RUN_UI_PLAYWRIGHT=0"
     skip_test "UI Playwright Workspace Demo Resume" "RUN_UI_PLAYWRIGHT=0"
     skip_test "UI Playwright Workspace Document Handoff" "RUN_UI_PLAYWRIGHT=0"
+    skip_test "UI Playwright Workspace ECO Actions" "RUN_UI_PLAYWRIGHT=0"
   fi
 else
   skip_test "UI Product Detail" "RUN_UI_AGG=0"
@@ -1471,6 +1476,7 @@ else
   skip_test "UI Playwright Workspace Documents" "RUN_UI_AGG=0"
   skip_test "UI Playwright Workspace Demo Resume" "RUN_UI_AGG=0"
   skip_test "UI Playwright Workspace Document Handoff" "RUN_UI_AGG=0"
+  skip_test "UI Playwright Workspace ECO Actions" "RUN_UI_AGG=0"
 fi
 
 # 17. BOM Compare (skip if endpoint not available)
