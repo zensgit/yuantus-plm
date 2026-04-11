@@ -127,6 +127,7 @@ Checked-in browser regressions:
 
 ```bash
 npm run playwright:test:plm-workspace
+npm run playwright:test:plm-workspace:eco-actions
 bash scripts/verify_playwright_plm_workspace_all.sh http://127.0.0.1:7910
 ```
 
@@ -136,6 +137,7 @@ Operator-facing wrappers:
 scripts/verify_playwright_plm_workspace_documents_ui.sh http://127.0.0.1:7910
 scripts/verify_playwright_plm_workspace_demo_resume.sh http://127.0.0.1:7910
 scripts/verify_playwright_plm_workspace_document_handoff.sh http://127.0.0.1:7910
+scripts/verify_playwright_plm_workspace_eco_actions.sh http://127.0.0.1:7910
 scripts/verify_playwright_plm_workspace_all.sh http://127.0.0.1:7910
 ```
 

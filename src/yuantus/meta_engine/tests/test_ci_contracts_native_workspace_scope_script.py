@@ -41,8 +41,10 @@ def test_native_workspace_scope_script_has_help_and_declares_bundle_files() -> N
         "playwright/tests/plm_workspace_documents_ui.spec.js",
         "playwright/tests/plm_workspace_demo_resume.spec.js",
         "playwright/tests/plm_workspace_document_handoff.spec.js",
+        "playwright/tests/plm_workspace_eco_actions.spec.js",
         "scripts/list_native_workspace_bundle.sh",
         "scripts/verify_playwright_plm_workspace_all.sh",
+        "scripts/verify_playwright_plm_workspace_eco_actions.sh",
     ):
         assert token in text, f"list_native_workspace_bundle.sh missing token: {token}"
 
@@ -86,6 +88,7 @@ def test_native_workspace_scope_script_prints_expected_anchor_paths() -> None:
         "playwright/tests/README_plm_workspace.md",
         "scripts/list_native_workspace_bundle.sh",
         "scripts/verify_playwright_plm_workspace_all.sh",
+        "scripts/verify_playwright_plm_workspace_eco_actions.sh",
         "src/yuantus/meta_engine/tests/test_ci_contracts_native_workspace_bundle_scope.py",
     ):
         assert token in lines, f"list_native_workspace_bundle.sh output missing: {token}"
@@ -137,8 +140,10 @@ def test_native_workspace_scope_script_can_print_full_git_add_command() -> None:
         "src/yuantus/api/routers/plm_workspace.py",
         "src/yuantus/web/plm_workspace.html",
         "playwright/tests/plm_workspace_documents_ui.spec.js",
+        "playwright/tests/plm_workspace_eco_actions.spec.js",
         "scripts/list_native_workspace_bundle.sh",
         "scripts/verify_playwright_plm_workspace_all.sh",
+        "scripts/verify_playwright_plm_workspace_eco_actions.sh",
     ):
         assert token in out, f"list_native_workspace_bundle.sh --git-add-cmd output missing: {token}"
 
@@ -167,5 +172,6 @@ def test_native_workspace_scope_script_can_print_commit_plan() -> None:
         "src/yuantus/web/plm_workspace.html",
         "README.md",
         "scripts/verify_all.sh",
+        "scripts/verify_playwright_plm_workspace_eco_actions.sh",
     ):
         assert token in out, f"list_native_workspace_bundle.sh --commit-plan output missing: {token}"

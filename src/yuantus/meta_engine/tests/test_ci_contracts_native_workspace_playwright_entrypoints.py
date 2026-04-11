@@ -40,6 +40,7 @@ def test_native_workspace_playwright_package_scripts_and_readme_are_wired() -> N
             "playwright/tests/plm_workspace_documents_ui.spec.js",
             "playwright/tests/plm_workspace_demo_resume.spec.js",
             "playwright/tests/plm_workspace_document_handoff.spec.js",
+            "playwright/tests/plm_workspace_eco_actions.spec.js",
         ),
         "playwright:test:plm-workspace:documents": (
             "playwright/tests/plm_workspace_documents_ui.spec.js",
@@ -49,6 +50,9 @@ def test_native_workspace_playwright_package_scripts_and_readme_are_wired() -> N
         ),
         "playwright:test:plm-workspace:handoff": (
             "playwright/tests/plm_workspace_document_handoff.spec.js",
+        ),
+        "playwright:test:plm-workspace:eco-actions": (
+            "playwright/tests/plm_workspace_eco_actions.spec.js",
         ),
     }
 
@@ -64,14 +68,17 @@ def test_native_workspace_playwright_package_scripts_and_readme_are_wired() -> N
         "npm run playwright:test:plm-workspace:documents",
         "npm run playwright:test:plm-workspace:resume",
         "npm run playwright:test:plm-workspace:handoff",
+        "npm run playwright:test:plm-workspace:eco-actions",
         "scripts/verify_playwright_plm_workspace_documents_ui.sh",
         "scripts/verify_playwright_plm_workspace_demo_resume.sh",
         "scripts/verify_playwright_plm_workspace_document_handoff.sh",
+        "scripts/verify_playwright_plm_workspace_eco_actions.sh",
         "scripts/verify_playwright_plm_workspace_all.sh",
         "scripts/verify_all.sh",
         "plm_workspace_documents_ui.spec.js",
         "plm_workspace_demo_resume.spec.js",
         "plm_workspace_document_handoff.spec.js",
+        "plm_workspace_eco_actions.spec.js",
         "plmWorkspaceDemo.js",
     ):
         assert token in readme_text, f"README_plm_workspace.md missing token: {token}"
@@ -80,10 +87,12 @@ def test_native_workspace_playwright_package_scripts_and_readme_are_wired() -> N
         "playwright/tests/plm_workspace_documents_ui.spec.js",
         "playwright/tests/plm_workspace_demo_resume.spec.js",
         "playwright/tests/plm_workspace_document_handoff.spec.js",
+        "playwright/tests/plm_workspace_eco_actions.spec.js",
         "playwright/tests/helpers/plmWorkspaceDemo.js",
         "scripts/verify_playwright_plm_workspace_documents_ui.sh",
         "scripts/verify_playwright_plm_workspace_demo_resume.sh",
         "scripts/verify_playwright_plm_workspace_document_handoff.sh",
+        "scripts/verify_playwright_plm_workspace_eco_actions.sh",
         "scripts/verify_playwright_plm_workspace_all.sh",
     ):
         assert (repo_root / rel).is_file(), f"Native workspace Playwright entrypoint missing file: {rel}"
@@ -100,9 +109,11 @@ def test_native_workspace_playwright_package_scripts_and_readme_are_wired() -> N
     for token in (
         "Native PLM workspace browser regressions",
         "npm run playwright:test:plm-workspace",
+        "npm run playwright:test:plm-workspace:eco-actions",
         "scripts/verify_playwright_plm_workspace_documents_ui.sh",
         "scripts/verify_playwright_plm_workspace_demo_resume.sh",
         "scripts/verify_playwright_plm_workspace_document_handoff.sh",
+        "scripts/verify_playwright_plm_workspace_eco_actions.sh",
         "scripts/verify_playwright_plm_workspace_all.sh",
         "playwright/tests/README_plm_workspace.md",
     ):

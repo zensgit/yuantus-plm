@@ -6,9 +6,10 @@
   },
   "scripts": {
     "playwright:test": "playwright test",
-    "playwright:test:plm-workspace": "playwright test playwright/tests/plm_workspace_documents_ui.spec.js playwright/tests/plm_workspace_demo_resume.spec.js playwright/tests/plm_workspace_document_handoff.spec.js",
+    "playwright:test:plm-workspace": "playwright test playwright/tests/plm_workspace_documents_ui.spec.js playwright/tests/plm_workspace_demo_resume.spec.js playwright/tests/plm_workspace_document_handoff.spec.js playwright/tests/plm_workspace_eco_actions.spec.js",
     "playwright:test:plm-workspace:documents": "playwright test playwright/tests/plm_workspace_documents_ui.spec.js",
     "playwright:test:plm-workspace:resume": "playwright test playwright/tests/plm_workspace_demo_resume.spec.js",
-    "playwright:test:plm-workspace:handoff": "playwright test playwright/tests/plm_workspace_document_handoff.spec.js"
+    "playwright:test:plm-workspace:handoff": "playwright test playwright/tests/plm_workspace_document_handoff.spec.js",
+    "playwright:test:plm-workspace:eco-actions": "playwright test playwright/tests/plm_workspace_eco_actions.spec.js"
   }
 }

@@ -1532,6 +1532,7 @@
         ecoDetail: null,
         ecoApprovals: null,
         selectedEcoId: null,
+        pendingEcoAction: null,
         releaseReadiness: null,
         selectedReadinessResourceIndex: null,
         mbomFocusResource: null,
@@ -1883,6 +1884,7 @@
         workspaceState.ecoDetail = null;
         workspaceState.ecoApprovals = null;
         workspaceState.selectedEcoId = null;
+        workspaceState.pendingEcoAction = null;
       }
 
       function clearReadinessState() {
@@ -2582,6 +2584,63 @@
         return ecoItems.length ? ecoItems[0].eco_id || null : null;
       }
 
+      function ecoActionKey(ecoId, action) {
+        if (!ecoId || !action) {
+          return null;
+        }
+        return `${ecoId}:${action}`;
+      }
+
+      function renderEcoMutationButtons(ecoId) {
+        if (!ecoId) {
+          return "";
+        }
+        const actionDisabled = !workspaceState.session?.user_id || Boolean(workspaceState.pendingEcoAction);
+        const approvePending = workspaceState.pendingEcoAction === ecoActionKey(ecoId, "approve");
+        const rejectPending = workspaceState.pendingEcoAction === ecoActionKey(ecoId, "reject");
+        return `
+          <div class="rail-actions" style="margin-top: 12px; margin-bottom: 0">
+            <button
+              class="mini-button"
+              type="button"
+              data-eco-action="approve"
+              data-eco-id="${escapeHtml(ecoId)}"
+              ${actionDisabled ? "disabled" : ""}
+            >
+              ${approvePending ? "Approving..." : "Approve ECO"}
+            </button>
+            <button
+              class="mini-button"
+              type="button"
+              data-eco-action="reject"
+              data-eco-id="${escapeHtml(ecoId)}"
+              ${actionDisabled ? "disabled" : ""}
+            >
+              ${rejectPending ? "Rejecting..." : "Reject ECO"}
+            </button>
+          </div>
+        `;
+      }
+
+      function renderEcoMutationCaption(contextLabel = "this focused ECO") {
+        if (!workspaceState.session?.user_id) {
+          return `
+            <p class="card-caption">
+              Sign in to execute ECO approval actions for ${escapeHtml(contextLabel)}. Server-side stage-role checks remain authoritative.
+            </p>
+          `;
+        }
+        const roles = Array.isArray(workspaceState.session?.roles)
+          ? workspaceState.session.roles.filter(Boolean)
+          : [];
+        const roleLabel = roles.length ? roles.join(", ") : "no org roles loaded";
+        return `
+          <p class="card-caption">
+            ECO actions execute as the current session. Roles: ${escapeHtml(roleLabel)}. Server-side stage-role checks remain authoritative.
+          </p>
+        `;
+      }
+
       function currentObjectIdentity() {
         const detail = normalizeDetail(workspaceState.detail);
         const productItem =
@@ -3011,6 +3070,8 @@
                           Open ECO Detail
                         </button>
                       </div>
+                      ${renderEcoMutationButtons(ecoDetail.id || focusedEcoId || "")}
+                      ${renderEcoMutationCaption(ecoDetail.name || ecoDetail.id || "the focused ECO")}
                     `
                   : focusedEcoId
                     ? '<div class="empty-state">ECO is selected but not hydrated yet. Load governance again to fetch detail and approvals.</div>'
@@ -3039,9 +3100,11 @@
                           )
                           .join("")}
                       </ul>
+                      ${renderEcoMutationButtons(focusedEcoId || "")}
+                      ${renderEcoMutationCaption("the focused ECO approvals")}
                     `
                   : focusedEcoId
-                    ? '<div class="empty-state">No ECO approvals were returned for the focused ECO.</div>'
+                    ? `<div class="empty-state">No ECO approvals were returned for the focused ECO.</div>${renderEcoMutationButtons(focusedEcoId || "")}${renderEcoMutationCaption("the focused ECO approvals")}`
                     : '<div class="empty-state">Select an ECO from the activity list to inspect approval records.</div>'
               }
             </section>
@@ -6362,6 +6425,67 @@
         }
       }
 
+      async function executeEcoAction(ecoId, action) {
+        if (!ecoId || !action) {
+          return false;
+        }
+        if (!workspaceState.session?.user_id) {
+          setStatus("Sign in before executing ECO approval actions.", "error");
+          return false;
+        }
+
+        let comment = null;
+        if (action === "reject") {
+          const rejectionReason = window.prompt("Reject reason (required):", "");
+          if (rejectionReason === null) {
+            setStatus(`ECO ${ecoId} reject cancelled.`, "neutral");
+            return false;
+          }
+          if (!rejectionReason.trim()) {
+            setStatus("Reject reason is required for ECO rejection.", "error");
+            return false;
+          }
+          comment = rejectionReason.trim();
+        }
+
+        workspaceState.pendingEcoAction = ecoActionKey(ecoId, action);
+        renderChangeTab();
+        setStatus(`${action === "approve" ? "Approving" : "Rejecting"} ECO ${ecoId}...`, "neutral");
+
+        try {
+          const payload = await fetchJson(`/eco/${encodeURIComponent(ecoId)}/${encodeURIComponent(action)}`, {
+            method: "POST",
+            body: comment ? { comment } : {},
+          });
+
+          const refreshResults = [];
+          if (objectSupportsProductContext(itemTypeInput.value)) {
+            refreshResults.push(await loadProductContext({ silentStatus: true }));
+          }
+          refreshResults.push(await loadEcoGovernance(ecoId, { silentStatus: true }));
+          if (objectSupportsReadiness(itemTypeInput.value)) {
+            refreshResults.push(await loadReleaseReadiness({ silentStatus: true }));
+          }
+
+          const refreshedOk = refreshResults.every((result) => result !== false);
+          const nextEcoState = workspaceState.ecoDetail?.state || currentObjectIdentity().state || "-";
+          const nextApprovalState = payload?.status || (action === "approve" ? "approved" : "rejected");
+          setStatus(
+            refreshedOk
+              ? `ECO ${ecoId} ${nextApprovalState}. Current ECO state ${nextEcoState}.`
+              : `ECO ${ecoId} ${nextApprovalState}, but workspace refresh returned partial data.`,
+            refreshedOk ? "ok" : "error",
+          );
+          return refreshedOk;
+        } catch (error) {
+          setStatus(maybeContextHint(`ECO ${action} failed: ${error.message}`), "error");
+          return false;
+        } finally {
+          workspaceState.pendingEcoAction = null;
+          renderChangeTab();
+        }
+      }
+
       async function handoffApprovalEntity(entityId, entityType, mode = "select") {
         if (!entityId) {
           return;
@@ -7290,6 +7414,14 @@
         const actionTarget = event.target.closest("[data-change-action]");
         if (actionTarget) {
           runProductContextAction(actionTarget.dataset.changeAction || "");
+          return;
+        }
+        const ecoActionTarget = event.target.closest("[data-eco-action]");
+        if (ecoActionTarget) {
+          executeEcoAction(
+            ecoActionTarget.dataset.ecoId || currentEcoFocusId() || "",
+            ecoActionTarget.dataset.ecoAction || "",
+          );
           return;
         }
         const ecoTarget = event.target.closest("[data-eco-focus-id]");
