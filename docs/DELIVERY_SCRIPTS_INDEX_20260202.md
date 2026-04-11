@@ -36,6 +36,7 @@
 - print_docs_parallel_split_helper.sh
 - print_strict_gate_split_helper.sh
 - run_claude_code_parallel_reviewer.sh
+- sync_metasheet2_pact.sh
 - verify_run_h.sh
 - verify_effectivity_extended.sh
 - verify_lifecycle_suspended.sh
@@ -64,4 +65,5 @@
 - `print_docs_parallel_split_helper.sh` prints the fast-path staging commands for the docs-parallel split.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
+- `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.

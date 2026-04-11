@@ -42,6 +42,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_all.sh",
         scripts_dir / "verify_compose_sku_profiles.sh",
         scripts_dir / "verify_compose_sku_profiles_smoke.sh",
+        scripts_dir / "sync_metasheet2_pact.sh",
         scripts_dir / "verify_release_orchestration.sh",
         scripts_dir / "verify_release_orchestration_perf_smoke.sh",
         scripts_dir / "verify_esign_api.sh",
