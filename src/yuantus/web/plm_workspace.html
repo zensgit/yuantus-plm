@@ -1865,6 +1865,10 @@
         return String(itemType || "").trim().toLowerCase() === "mbom";
       }
 
+      function objectIsRouting(itemType) {
+        return String(itemType || "").trim().toLowerCase() === "routing";
+      }
+
       function clearProductContextState() {
         workspaceState.productContext = null;
       }
@@ -2130,6 +2134,50 @@
       function renderMbomSourceRecoveryCard(
         title = "Source Recovery",
         caption = "MBOM drilldown keeps governed change, documents, and readiness on the source Part. Use source recovery to jump back to the product context.",
+      ) {
+        const source = currentHandoffSource();
+        if (!source) {
+          return "";
+        }
+        return `
+          <section class="data-card">
+            <h5>${escapeHtml(title)}</h5>
+            <p class="card-caption">${escapeHtml(caption)}</p>
+            <div class="kv-grid">
+              ${renderKvItems([
+                ["Source Object", `${source.type}:${source.id || "-"}`],
+                ["Source State", source.state || "-"],
+                ["Source Number", source.number || "-"],
+                ["Source Title", source.title || "-"],
+              ])}
+            </div>
+            <div class="rail-actions" style="margin-top: 12px; margin-bottom: 0">
+              <button
+                class="mini-button"
+                type="button"
+                data-workspace-handoff="detail"
+                data-workspace-object-id="${escapeHtml(source.id || "")}"
+                data-workspace-object-type="${escapeHtml(source.type || "")}"
+              >
+                Return to Source Part
+              </button>
+              <button
+                class="mini-button"
+                type="button"
+                data-workspace-handoff="change"
+                data-workspace-object-id="${escapeHtml(source.id || "")}"
+                data-workspace-object-type="${escapeHtml(source.type || "")}"
+              >
+                Return to Source Change
+              </button>
+            </div>
+          </section>
+        `;
+      }
+
+      function renderRoutingSourceRecoveryCard(
+        title = "Source Recovery",
+        caption = "Routing drilldown keeps governed change, documents, BOM, and release readiness on the source Part. Use source recovery to jump back to the product context.",
       ) {
         const source = currentHandoffSource();
         if (!source) {
@@ -3741,6 +3789,9 @@
         if (normalized === "mbom") {
           return mode === "detail" || mode === "bom";
         }
+        if (normalized === "routing") {
+          return mode === "detail";
+        }
         if (normalized === "part") {
           return mode === "select" || mode === "detail" || mode === "bom";
         }
@@ -3757,6 +3808,9 @@
         const label = String(resourceType || "resource").trim() || "resource";
         if (String(resourceType || "").trim().toLowerCase() === "mbom") {
           return "MBOM readiness resources publish native detail and BOM drilldown only. Explorer, documents, governance, and readiness remain on the source Part.";
+        }
+        if (String(resourceType || "").trim().toLowerCase() === "routing") {
+          return "Routing readiness resources publish native detail only. Explorer, BOM, documents, governance, and readiness remain on the source Part.";
         }
         return `Native workspace does not publish first-class explorer, detail, or BOM views for readiness resources of type ${label} yet.`;
       }
@@ -3889,6 +3943,80 @@
         `;
       }
 
+      function renderRoutingDetailLens(detail) {
+        const operations = Array.isArray(detail?.operations) ? detail.operations : [];
+        return `
+          <div class="data-grid">
+            <section class="data-card">
+              <h5>Routing Scope</h5>
+              <div class="kv-grid">
+                ${renderKvItems([
+                  ["Routing Code", detail.routing_code || "-"],
+                  ["Version", detail.version || "-"],
+                  ["Primary", detail.is_primary === true ? "Yes" : detail.is_primary === false ? "No" : "-"],
+                  ["Plant", detail.plant_code || "-"],
+                  ["Line", detail.line_code || "-"],
+                  ["Operations", operations.length],
+                ])}
+              </div>
+            </section>
+            <section class="data-card">
+              <h5>Source Context</h5>
+              <div class="kv-grid">
+                ${renderKvItems([
+                  ["Source Part", detail.item_id || "-"],
+                  ["Source MBOM", detail.mbom_id || "-"],
+                  ["Setup Time", detail.total_setup_time ?? "-"],
+                  ["Run Time", detail.total_run_time ?? "-"],
+                  ["Labor Time", detail.total_labor_time ?? "-"],
+                  ["Routing State", detail.state || "-"],
+                ])}
+              </div>
+            </section>
+          </div>
+          <section class="data-card">
+            <h5>Released Operations</h5>
+            ${
+              operations.length
+                ? `
+                  <ul class="usage-list">
+                    ${operations
+                      .map(
+                        (operation) => `
+                          <li class="usage-card">
+                            <header>
+                              <div>
+                                <h5>${escapeHtml(operation.name || operation.operation_number || "Operation")}</h5>
+                                <small>${escapeHtml([
+                                  operation.operation_number ? `Op ${operation.operation_number}` : "",
+                                  operation.operation_type || "",
+                                  operation.workcenter_code || "",
+                                ].filter(Boolean).join(" · "))}</small>
+                              </div>
+                              <span class="meta-badge">${escapeHtml(operation.sequence ?? "-")}</span>
+                            </header>
+                            <div class="kv-grid">
+                              ${renderKvItems([
+                                ["Operation ID", operation.id || "-"],
+                                ["Setup Time", operation.setup_time ?? "-"],
+                                ["Run Time", operation.run_time ?? "-"],
+                                ["Crew Size", operation.crew_size ?? "-"],
+                                ["Inspection", operation.inspection_required ? "Required" : "No"],
+                                ["Subcontracted", operation.is_subcontracted ? "Yes" : "No"],
+                              ])}
+                            </div>
+                          </li>
+                        `,
+                      )
+                      .join("")}
+                  </ul>
+                `
+                : '<div class="empty-state">No released operations were returned for this routing.</div>'
+            }
+          </section>
+        `;
+      }
+
       function renderDetail(payload) {
         const detail = normalizeDetail(payload);
         if (!detail || typeof detail !== "object") {
@@ -3920,6 +4048,16 @@
                 <h5>MBOM Drilldown</h5>
                 <p class="card-caption">
                   Native readiness handoff exposes MBOM detail and BOM structure only. Explorer, documents, governance, and release readiness stay on the source Part.
+                </p>
+              </section>
+            `
+            : ""}
+          ${detailType(detail) === "Routing"
+            ? `
+              <section class="data-card">
+                <h5>Routing Drilldown</h5>
+                <p class="card-caption">
+                  Native readiness handoff exposes routing detail only. Explorer, BOM, documents, governance, and release readiness stay on the source Part.
                 </p>
               </section>
             `
@@ -3960,6 +4098,7 @@
             </section>
           </div>
           ${detailType(detail) === "MBOM" ? renderMbomDetailLens(detail) : ""}
+          ${detailType(detail) === "Routing" ? renderRoutingDetailLens(detail) : ""}
           ${propertyEntries.length > 12
             ? `
               <section class="data-card">
@@ -3970,6 +4109,8 @@
             : ""}
           ${detailType(detail) === "MBOM"
             ? renderMbomSourceRecoveryCard()
+            : detailType(detail) === "Routing"
+              ? renderRoutingSourceRecoveryCard()
             : detailType(detail) === "Document" || detailType(detail) === "ECO"
               ? renderSourceRecoveryCard(
                   "Source Recovery",
@@ -4951,7 +5092,7 @@
         const hasAnyHandoffSupport = canSelect || canOpenDetail || canOpenBom;
         const boundaryCopy = readinessResourceBoundaryCopy(resourceType);
         const showBoundaryCopy =
-          String(resourceType || "").trim().toLowerCase() === "mbom" || !hasAnyHandoffSupport;
+          ["mbom", "routing"].includes(String(resourceType || "").trim().toLowerCase()) || !hasAnyHandoffSupport;
 
         releaseReadinessDetailOutput.innerHTML = `
           <section class="data-card">
@@ -5144,6 +5285,57 @@
         );
       }
 
+      function buildRoutingWorkspacePayload(routing, operations, resource = null) {
+        const normalizedRouting = routing && typeof routing === "object" ? { ...routing } : {};
+        const normalizedOperations = Array.isArray(operations) ? operations : [];
+        const sourceResource = resource && typeof resource === "object" ? resource : null;
+        return {
+          id: normalizedRouting.id || sourceResource?.diagnostics?.resource_id || itemIdInput.value.trim(),
+          type: "Routing",
+          item_type_id: "Routing",
+          name: normalizedRouting.name || sourceResource?.name || `Routing ${itemIdInput.value.trim()}`,
+          state: normalizedRouting.state || sourceResource?.state || "-",
+          item_number: normalizedRouting.routing_code || normalizedRouting.name || sourceResource?.name || "",
+          routing_code: normalizedRouting.routing_code || "",
+          version: normalizedRouting.version || "",
+          is_primary: normalizedRouting.is_primary,
+          mbom_id: normalizedRouting.mbom_id || "",
+          item_id: normalizedRouting.item_id || "",
+          plant_code: normalizedRouting.plant_code || "",
+          line_code: normalizedRouting.line_code || "",
+          total_setup_time: normalizedRouting.total_setup_time ?? 0,
+          total_run_time: normalizedRouting.total_run_time ?? 0,
+          total_labor_time: normalizedRouting.total_labor_time ?? 0,
+          operations: normalizedOperations,
+          properties: {
+            routing_code: normalizedRouting.routing_code || "",
+            version: normalizedRouting.version || "",
+            is_primary:
+              normalizedRouting.is_primary === true ? "Yes" : normalizedRouting.is_primary === false ? "No" : "",
+            mbom_id: normalizedRouting.mbom_id || "",
+            source_item_id: normalizedRouting.item_id || "",
+            plant_code: normalizedRouting.plant_code || "",
+            line_code: normalizedRouting.line_code || "",
+            total_setup_time: normalizedRouting.total_setup_time ?? 0,
+            total_run_time: normalizedRouting.total_run_time ?? 0,
+            total_labor_time: normalizedRouting.total_labor_time ?? 0,
+            operation_count: normalizedOperations.length,
+          },
+        };
+      }
+
+      async function fetchRoutingWorkspacePayload(routingId) {
+        const [routing, operations] = await Promise.all([
+          fetchJson(`/routings/${encodeURIComponent(routingId)}`),
+          fetchJson(`/routings/${encodeURIComponent(routingId)}/operations`),
+        ]);
+        return buildRoutingWorkspacePayload(
+          routing,
+          operations,
+          findReadinessResource(routingId, "routing") || currentSelectedReadinessResource(),
+        );
+      }
+
       function renderMbomBoundarySurfaces() {
         renderEmpty(metadataOutput, "AML metadata is not published for MBOM native drilldown.");
         renderEmpty(whereUsedOutput, "Where-used is not published for MBOM native drilldown yet. Use the source Part for impact context.");
@@ -5154,6 +5346,19 @@
         renderEmpty(approvalDetailOutput, "Approval detail lens is not exposed for MBOM native drilldown.");
         renderEmpty(releaseReadinessOutput, "MBOM drilldown keeps release readiness on the source Part.");
         renderEmpty(releaseReadinessDetailOutput, "Resource detail lens remains on the source Part while MBOM drilldown is active.");
+      }
+
+      function renderRoutingBoundarySurfaces() {
+        renderEmpty(metadataOutput, "AML metadata is not published for routing native drilldown.");
+        renderEmpty(bomOutput, "BOM is not published for routing native drilldown. Use the source Part or MBOM for structure.");
+        renderEmpty(whereUsedOutput, "Where-used is not published for routing native drilldown. Use the source Part for impact context.");
+        renderEmpty(documentsOverviewOutput, "Routing drilldown keeps document surfaces on the source Part.");
+        renderEmpty(filesOutput, "Routing drilldown does not publish file attachments. Use the source Part for attachments.");
+        renderEmpty(relatedDocumentsOutput, "Routing drilldown does not publish AML related documents. Use the source Part for document relationships.");
+        renderEmpty(approvalRailOutput, "Routing drilldown keeps governance on the source Part.");
+        renderEmpty(approvalDetailOutput, "Approval detail lens is not exposed for routing native drilldown.");
+        renderEmpty(releaseReadinessOutput, "Routing drilldown keeps release readiness on the source Part.");
+        renderEmpty(releaseReadinessDetailOutput, "Resource detail lens remains on the source Part while routing drilldown is active.");
       }
 
       function refreshSummary() {
@@ -5493,6 +5698,14 @@
           }
           return true;
         }
+        if (objectIsRouting(itemTypeInput.value)) {
+          workspaceState.metadata = null;
+          renderEmpty(metadataOutput, "AML metadata is not published for routing native drilldown.");
+          if (!silentStatus) {
+            setStatus("AML metadata is not published for routing native drilldown.", "ok");
+          }
+          return true;
+        }
         if (!silentStatus) {
           setStatus("Loading metadata definition...", "neutral");
         }
@@ -5527,12 +5740,21 @@
         const detailTypeValue = itemTypeInput.value;
         const detailId = itemIdInput.value.trim();
         if (!silentStatus) {
-          setStatus(objectIsMbom(detailTypeValue) ? "Loading MBOM detail..." : "Loading AML detail...", "neutral");
+          setStatus(
+            objectIsMbom(detailTypeValue)
+              ? "Loading MBOM detail..."
+              : objectIsRouting(detailTypeValue)
+                ? "Loading routing detail..."
+                : "Loading AML detail...",
+            "neutral",
+          );
         }
         try {
           const payload =
             objectIsMbom(detailTypeValue)
               ? await fetchMbomWorkspacePayload(detailId)
+              : objectIsRouting(detailTypeValue)
+                ? await fetchRoutingWorkspacePayload(detailId)
               : String(detailTypeValue || "").trim().toUpperCase() === "ECO"
               ? await fetchJson(`/eco/${encodeURIComponent(detailId)}`)
               : await fetchJson("/aml/apply", {
@@ -5551,6 +5773,8 @@
           renderDetail(payload);
           if (objectIsMbom(detailTypeValue)) {
             renderMbomBoundarySurfaces();
+          } else if (objectIsRouting(detailTypeValue)) {
+            renderRoutingBoundarySurfaces();
           }
           refreshSummary();
           renderProductContext();
@@ -5574,6 +5798,14 @@
         const requestHandle = beginWorkspaceRequest("bom");
         const bomTypeValue = itemTypeInput.value;
         const bomId = itemIdInput.value.trim();
+        if (objectIsRouting(bomTypeValue)) {
+          workspaceState.bom = null;
+          renderEmpty(bomOutput, "BOM is not published for routing native drilldown. Use the source Part or MBOM for structure.");
+          if (!silentStatus) {
+            setStatus("BOM is not published for routing native drilldown.", "ok");
+          }
+          return true;
+        }
         if (!silentStatus) {
           setStatus(objectIsMbom(bomTypeValue) ? "Loading MBOM tree..." : "Loading BOM tree...", "neutral");
         }
@@ -5625,6 +5857,14 @@
           }
           return true;
         }
+        if (objectIsRouting(itemTypeInput.value)) {
+          workspaceState.whereUsed = null;
+          renderEmpty(whereUsedOutput, "Where-used is not published for routing native drilldown. Use the source Part for impact context.");
+          if (!silentStatus) {
+            setStatus("Where-used is not published for routing native drilldown.", "ok");
+          }
+          return true;
+        }
         if (!silentStatus) {
           setStatus("Loading where-used graph...", "neutral");
         }
@@ -5663,6 +5903,15 @@
           renderEmpty(filesOutput, "MBOM drilldown does not publish file attachments. Use the source Part for attachments.");
           if (!silentStatus) {
             setStatus("MBOM drilldown does not publish file attachments.", "ok");
+          }
+          return true;
+        }
+        if (objectIsRouting(itemTypeInput.value)) {
+          workspaceState.files = null;
+          workspaceState.filesStatus = null;
+          renderEmpty(filesOutput, "Routing drilldown does not publish file attachments. Use the source Part for attachments.");
+          if (!silentStatus) {
+            setStatus("Routing drilldown does not publish file attachments.", "ok");
           }
           return true;
         }
@@ -5719,6 +5968,15 @@
           renderEmpty(relatedDocumentsOutput, "MBOM drilldown does not publish AML related documents. Use the source Part for document relationships.");
           if (!silentStatus) {
             setStatus("MBOM drilldown does not publish AML related documents.", "ok");
+          }
+          return true;
+        }
+        if (objectIsRouting(itemTypeInput.value)) {
+          workspaceState.relatedDocuments = null;
+          workspaceState.relatedDocumentsStatus = null;
+          renderEmpty(relatedDocumentsOutput, "Routing drilldown does not publish AML related documents. Use the source Part for document relationships.");
+          if (!silentStatus) {
+            setStatus("Routing drilldown does not publish AML related documents.", "ok");
           }
           return true;
         }
@@ -5796,6 +6054,17 @@
           renderEmpty(approvalDetailOutput, "Approval detail lens is not exposed for MBOM native drilldown.");
           if (!silentStatus) {
             setStatus("MBOM drilldown keeps governance on the source Part.", "ok");
+          }
+          return true;
+        }
+        if (objectIsRouting(approvalEntityType)) {
+          workspaceState.approvalSummary = null;
+          workspaceState.approvalRequests = null;
+          workspaceState.approvalQueueHealth = null;
+          renderEmpty(approvalRailOutput, "Routing drilldown keeps governance on the source Part.");
+          renderEmpty(approvalDetailOutput, "Approval detail lens is not exposed for routing native drilldown.");
+          if (!silentStatus) {
+            setStatus("Routing drilldown keeps governance on the source Part.", "ok");
           }
           return true;
         }
@@ -5965,6 +6234,8 @@
         const itemId = itemIdInput.value.trim();
         const itemType = itemTypeInput.value;
         const isMbom = objectIsMbom(itemType);
+        const isRouting = objectIsRouting(itemType);
+        const usesNativeBoundedDetail = isMbom || isRouting;
         if (!itemId) {
           setStatus("Object id is required before syncing the workspace.", "error");
           return;
@@ -5995,18 +6266,20 @@
         }
         const explorerHydrated = await hydrateExplorerAfterHandoff({
           includeSearch,
-          includeMetadata: !isMbom,
+          includeMetadata: !usesNativeBoundedDetail,
           includeDetail: focus === "detail" || !includeStructure,
           includeBom: focus === "bom" || includeStructure,
-          includeWhereUsed: !isMbom && (focus === "bom" || includeStructure),
-          includeFiles: !isMbom,
-          includeRelatedDocuments: !isMbom,
+          includeWhereUsed: !usesNativeBoundedDetail && (focus === "bom" || includeStructure),
+          includeFiles: !usesNativeBoundedDetail,
+          includeRelatedDocuments: !usesNativeBoundedDetail,
         }, requestHandle);
         if (!explorerHydrated || !isCurrentWorkspaceRequest(requestHandle)) {
           return false;
         }
         if (isMbom) {
           renderMbomBoundarySurfaces();
+        } else if (isRouting) {
+          renderRoutingBoundarySurfaces();
         }
 
         if (includeGovernance) {
@@ -6028,11 +6301,11 @@
 
         const loadedAreas = [
           includeProductContext ? "product context" : null,
-          !isMbom ? "metadata" : null,
+          !usesNativeBoundedDetail ? "metadata" : null,
           focus === "detail" || !includeStructure ? "detail" : null,
           focus === "bom" || includeStructure ? "structure" : null,
-          !isMbom ? "files" : null,
-          !isMbom ? "related documents" : null,
+          !usesNativeBoundedDetail ? "files" : null,
+          !usesNativeBoundedDetail ? "related documents" : null,
           includeGovernance ? "approval rail" : null,
           includeGovernance && currentEcoFocusId() ? "eco governance" : null,
           includeReadiness ? "release readiness" : null,
@@ -6250,6 +6523,16 @@
           }
           return true;
         }
+        if (objectIsRouting(itemTypeInput.value)) {
+          workspaceState.releaseReadiness = null;
+          workspaceState.selectedReadinessResourceIndex = null;
+          renderEmpty(releaseReadinessOutput, "Routing drilldown keeps release readiness on the source Part.");
+          renderEmpty(releaseReadinessDetailOutput, "Resource detail lens remains on the source Part while routing drilldown is active.");
+          if (!silentStatus) {
+            setStatus("Routing drilldown keeps release readiness on the source Part.", "ok");
+          }
+          return true;
+        }
         if (!silentStatus) {
           setStatus("Loading release readiness...", "neutral");
         }
@@ -6345,6 +6628,38 @@
             }
             renderMbomBoundarySurfaces();
             setStatus(`${actionMessage} MBOM detail and structure are in sync. Use source recovery to return to the Part.`, "ok");
+            return;
+          }
+          setStatus(readinessResourceBoundaryCopy(resourceType), "error");
+          return;
+        }
+        if (normalizedResourceType === "routing") {
+          ensureItemTypeOption(mappedType);
+          if (
+            currentIdentity.id &&
+            currentIdentity.id !== "-" &&
+            (currentIdentity.id !== resourceId || currentIdentity.type !== mappedType)
+          ) {
+            captureCurrentHandoffSource();
+          }
+          itemTypeInput.value = mappedType;
+          itemIdInput.value = resourceId;
+          searchQueryInput.value = resourceId;
+          if (currentIdentity.id !== resourceId || currentIdentity.type !== mappedType) {
+            clearWorkspaceObjectState(`Switching workspace context to ${mappedType}:${resourceId}.`, {
+              preserveHandoffSource: true,
+            });
+          }
+          rememberCurrentObjectSelection();
+          refreshWorkspaceChrome();
+          if (mode === "detail") {
+            activateTab("detail");
+            const detailLoaded = await loadDetail({ silentStatus: true });
+            if (!detailLoaded) {
+              return;
+            }
+            renderRoutingBoundarySurfaces();
+            setStatus(`${actionMessage} Routing detail is in sync. Use source recovery to return to the Part.`, "ok");
             return;
           }
           setStatus(readinessResourceBoundaryCopy(resourceType), "error");

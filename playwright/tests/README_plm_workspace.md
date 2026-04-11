@@ -15,7 +15,8 @@ This folder contains the checked-in browser regressions for the native
   - verifies non-empty BOM hydration after login for the `Config Parent` demo preset
   - verifies non-empty release-readiness drilldown for the `Config Parent` demo preset
   - verifies MBOM readiness resources can open native MBOM detail and BOM drilldown, then recover to the source Part
-  - keeps unsupported routing/baseline readiness handoffs boundary-limited
+  - verifies routing readiness resources can open native routing detail and recover to the source Part
+  - keeps unsupported baseline readiness handoffs boundary-limited
 - `plm_workspace_document_handoff.spec.js`
   - locks `Part -> AML related Document -> Return to Source Product`
   - locks `Part -> AML related Document -> Return to Source Detail`
