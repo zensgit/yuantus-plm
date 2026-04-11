@@ -230,12 +230,21 @@ PACT_USERNAME = "metasheet-svc"
 PACT_PASSWORD = "secret"
 PACT_ITEM_TYPE = "Part"
 PACT_DOCUMENT_ITEM_TYPE = "Document"
+PACT_SUBSTITUTE_ITEM_TYPE = "Part BOM Substitute"
 PACT_ITEM_ID_PRIMARY = "01H000000000000000000000P1"
 PACT_ITEM_ID_SECONDARY = "01H000000000000000000000P2"
+PACT_ITEM_ID_SUBSTITUTE = "01H000000000000000000000P3"
+PACT_ITEM_ID_POST_CHILD = "01H000000000000000000000P4"
+PACT_ITEM_ID_DELETE_CHILD = "01H000000000000000000000P5"
 PACT_BOM_RELATIONSHIP_TYPE = "Part BOM"
 PACT_DOCUMENT_RELATIONSHIP_TYPE = "Document Part"
+PACT_BOM_LINE_ID_PRIMARY = "01H000000000000000000000R1"
+PACT_BOM_LINE_ID_POST = "01H000000000000000000000R3"
+PACT_BOM_LINE_ID_DELETE = "01H000000000000000000000R4"
 PACT_DOCUMENT_ID_PRIMARY = "01H000000000000000000000D1"
 PACT_DOCUMENT_REL_ID_PRIMARY = "01H000000000000000000000R2"
+PACT_SUBSTITUTE_REL_ID_LIST = "01H000000000000000000000R5"
+PACT_SUBSTITUTE_REL_ID_DELETE = "01H000000000000000000000R6"
 PACT_FILE_ID_PRIMARY = "01H000000000000000000000F1"
 PACT_ITEM_FILE_ID_PRIMARY = "01H000000000000000000000A1"
 PACT_ECO_STAGE_ID_HISTORY = "01H000000000000000000000S1"
@@ -261,6 +270,7 @@ def _seed_pact_fixtures() -> None:
       - M6: FileContainer + ItemFile for /file/item and /file/{id}
       - M7: ItemType('Document') + ItemType('Document Part') + relation for /aml/query expand
       - M8: ECO stages + ECO records for /eco/{id}/approvals|approve|reject
+      - M9: ECO list/detail fixtures plus isolated BOM substitute read/write rows
     """
     _seed_identity_user()
     _seed_meta_engine_data()
@@ -346,6 +356,19 @@ def _seed_meta_engine_data() -> None:
                     methods={},
                 )
             )
+        if session.get(ItemType, PACT_SUBSTITUTE_ITEM_TYPE) is None:
+            session.add(
+                ItemType(
+                    id=PACT_SUBSTITUTE_ITEM_TYPE,
+                    label="Part BOM Substitute",
+                    is_relationship=True,
+                    is_versionable=False,
+                    source_item_type_id=PACT_BOM_RELATIONSHIP_TYPE,
+                    related_item_type_id=PACT_ITEM_TYPE,
+                    properties_schema={},
+                    methods={},
+                )
+            )
         session.commit()
         sys.stderr.write("[seed] ItemTypes committed\n")
 
@@ -381,6 +404,58 @@ def _seed_meta_engine_data() -> None:
                     properties={
                         "item_number": "P-0002",
                         "name": "Bolt M6",
+                        "description": "Metric fastener for bracket assembly",
+                    },
+                )
+            )
+        if session.get(Item, PACT_ITEM_ID_SUBSTITUTE) is None:
+            session.add(
+                Item(
+                    id=PACT_ITEM_ID_SUBSTITUTE,
+                    item_type_id=PACT_ITEM_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Released",
+                    is_versionable=True,
+                    properties={
+                        "item_number": "P-0003",
+                        "name": "Alt Bracket Assembly",
+                        "description": "Alternate bracket assembly for search coverage",
+                    },
+                )
+            )
+        if session.get(Item, PACT_ITEM_ID_POST_CHILD) is None:
+            session.add(
+                Item(
+                    id=PACT_ITEM_ID_POST_CHILD,
+                    item_type_id=PACT_ITEM_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Released",
+                    is_versionable=True,
+                    properties={
+                        "item_number": "P-0004",
+                        "name": "Washer M6",
+                        "description": "Washer used on substitute POST fixture",
+                    },
+                )
+            )
+        if session.get(Item, PACT_ITEM_ID_DELETE_CHILD) is None:
+            session.add(
+                Item(
+                    id=PACT_ITEM_ID_DELETE_CHILD,
+                    item_type_id=PACT_ITEM_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Released",
+                    is_versionable=True,
+                    properties={
+                        "item_number": "P-0005",
+                        "name": "Spacer Block",
+                        "description": "Spacer used on substitute DELETE fixture",
                     },
                 )
             )
@@ -405,11 +480,10 @@ def _seed_meta_engine_data() -> None:
                 )
             )
         # BOM relationship: P1 → P2
-        bom_rel_id = "01H000000000000000000000R1"
-        if session.get(Item, bom_rel_id) is None:
+        if session.get(Item, PACT_BOM_LINE_ID_PRIMARY) is None:
             session.add(
                 Item(
-                    id=bom_rel_id,
+                    id=PACT_BOM_LINE_ID_PRIMARY,
                     item_type_id=PACT_BOM_RELATIONSHIP_TYPE,
                     config_id=str(uuid.uuid4()),
                     generation=1,
@@ -423,6 +497,46 @@ def _seed_meta_engine_data() -> None:
                         "uom": "ea",
                         "find_num": "10",
                         "refdes": "B1",
+                    },
+                )
+            )
+        if session.get(Item, PACT_BOM_LINE_ID_POST) is None:
+            session.add(
+                Item(
+                    id=PACT_BOM_LINE_ID_POST,
+                    item_type_id=PACT_BOM_RELATIONSHIP_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Released",
+                    is_versionable=False,
+                    source_id=PACT_ITEM_ID_PRIMARY,
+                    related_id=PACT_ITEM_ID_POST_CHILD,
+                    properties={
+                        "quantity": 2,
+                        "uom": "ea",
+                        "find_num": "20",
+                        "refdes": "W1",
+                    },
+                )
+            )
+        if session.get(Item, PACT_BOM_LINE_ID_DELETE) is None:
+            session.add(
+                Item(
+                    id=PACT_BOM_LINE_ID_DELETE,
+                    item_type_id=PACT_BOM_RELATIONSHIP_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Released",
+                    is_versionable=False,
+                    source_id=PACT_ITEM_ID_PRIMARY,
+                    related_id=PACT_ITEM_ID_DELETE_CHILD,
+                    properties={
+                        "quantity": 1,
+                        "uom": "ea",
+                        "find_num": "30",
+                        "refdes": "S1",
                     },
                 )
             )
@@ -447,8 +561,44 @@ def _seed_meta_engine_data() -> None:
                     },
                 )
             )
+        if session.get(Item, PACT_SUBSTITUTE_REL_ID_LIST) is None:
+            session.add(
+                Item(
+                    id=PACT_SUBSTITUTE_REL_ID_LIST,
+                    item_type_id=PACT_SUBSTITUTE_ITEM_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Active",
+                    is_versionable=False,
+                    source_id=PACT_BOM_LINE_ID_PRIMARY,
+                    related_id=PACT_ITEM_ID_SUBSTITUTE,
+                    properties={
+                        "rank": 1,
+                        "note": "preferred alternate",
+                    },
+                )
+            )
+        if session.get(Item, PACT_SUBSTITUTE_REL_ID_DELETE) is None:
+            session.add(
+                Item(
+                    id=PACT_SUBSTITUTE_REL_ID_DELETE,
+                    item_type_id=PACT_SUBSTITUTE_ITEM_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="Active",
+                    is_versionable=False,
+                    source_id=PACT_BOM_LINE_ID_DELETE,
+                    related_id=PACT_ITEM_ID_SUBSTITUTE,
+                    properties={
+                        "rank": 2,
+                        "note": "remove me",
+                    },
+                )
+            )
         session.commit()
-        sys.stderr.write("[seed] Items + relationships committed\n")
+        sys.stderr.write("[seed] Items + relationships + substitutes committed\n")
 
     # Phase C: create attached file + item file link
     with db_mod.SessionLocal() as session:
