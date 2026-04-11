@@ -73,10 +73,12 @@ COMBINED_FILE="${REPO_ROOT}/docker-compose.profile-combined.yml"
 [[ -f "${COLLAB_FILE}" ]] || die "Missing ${COLLAB_FILE}"
 [[ -f "${COMBINED_FILE}" ]] || die "Missing ${COMBINED_FILE}"
 
-METASHEET2_ROOT="${METASHEET2_ROOT:-${REPO_ROOT}/../metasheet2}"
-[[ -d "${METASHEET2_ROOT}" ]] || die "METASHEET2_ROOT does not exist: ${METASHEET2_ROOT}"
-[[ -f "${METASHEET2_ROOT}/Dockerfile.backend" ]] || die "Missing ${METASHEET2_ROOT}/Dockerfile.backend"
-[[ -f "${METASHEET2_ROOT}/Dockerfile.frontend" ]] || die "Missing ${METASHEET2_ROOT}/Dockerfile.frontend"
+if [[ -z "${RENDER_PROFILE}" || "${RENDER_PROFILE}" == "combined" ]]; then
+  METASHEET2_ROOT="${METASHEET2_ROOT:-${REPO_ROOT}/../metasheet2}"
+  [[ -d "${METASHEET2_ROOT}" ]] || die "METASHEET2_ROOT does not exist: ${METASHEET2_ROOT}"
+  [[ -f "${METASHEET2_ROOT}/Dockerfile.backend" ]] || die "Missing ${METASHEET2_ROOT}/Dockerfile.backend"
+  [[ -f "${METASHEET2_ROOT}/Dockerfile.frontend" ]] || die "Missing ${METASHEET2_ROOT}/Dockerfile.frontend"
+fi
 
 OUT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/verify-compose-sku-profiles-XXXXXX")"
 trap 'rm -rf "${OUT_DIR}"' EXIT
@@ -86,10 +88,17 @@ render_profile() {
   local overlay="$2"
   local out="${OUT_DIR}/${name}.yml"
 
-  METASHEET2_ROOT="${METASHEET2_ROOT}" "${COMPOSE_CMD[@]}" \
-    -f "${ROOT_FILE}" \
-    -f "${overlay}" \
-    config >"${out}"
+  if [[ -n "${METASHEET2_ROOT:-}" ]]; then
+    METASHEET2_ROOT="${METASHEET2_ROOT}" "${COMPOSE_CMD[@]}" \
+      -f "${ROOT_FILE}" \
+      -f "${overlay}" \
+      config >"${out}"
+  else
+    "${COMPOSE_CMD[@]}" \
+      -f "${ROOT_FILE}" \
+      -f "${overlay}" \
+      config >"${out}"
+  fi
 
   case "${name}" in
     base)
@@ -114,6 +123,21 @@ render_profile() {
     cat "${out}"
   fi
 }
+
+if [[ -n "${RENDER_PROFILE}" ]]; then
+  case "${RENDER_PROFILE}" in
+    base)
+      render_profile base "${BASE_FILE}"
+      ;;
+    collab)
+      render_profile collab "${COLLAB_FILE}"
+      ;;
+    combined)
+      render_profile combined "${COMBINED_FILE}"
+      ;;
+  esac
+  exit 0
+fi
 
 render_profile base "${BASE_FILE}"
 render_profile collab "${COLLAB_FILE}"
