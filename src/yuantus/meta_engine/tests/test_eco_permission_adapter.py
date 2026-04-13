@@ -130,7 +130,7 @@ class TestStatePassthrough:
         # Setup ECO with a specific state
         mock_eco = MagicMock()
         mock_eco.state = "Progress"
-        mock_eco.created_by = 10
+        mock_eco.created_by_id = 10
         mock_session.get.return_value = mock_eco
 
         adapter.check_permission(42, "execute", "ECO", resource_id="eco-1", field="apply")
@@ -138,6 +138,26 @@ class TestStatePassthrough:
         call_kwargs = adapter._meta_service.check_permission.call_args.kwargs
         assert call_kwargs["item_state"] == "Progress"
         assert call_kwargs["item_owner_id"] == "10"
+
+    def test_eco_owner_id_uses_created_by_id(self, adapter, mock_session):
+        # Setup ECO rules exist
+        mock_item_type = MagicMock()
+        mock_item_type.permission_id = "perm-eco-001"
+        mock_session.query.return_value.filter.return_value.first.return_value = (
+            mock_item_type
+        )
+
+        # created_by relationship is present but must not be used for ownership
+        mock_eco = MagicMock()
+        mock_eco.state = "Progress"
+        mock_eco.created_by = MagicMock()
+        mock_eco.created_by_id = 77
+        mock_session.get.return_value = mock_eco
+
+        adapter.check_permission(42, "execute", "ECO", resource_id="eco-1")
+
+        call_kwargs = adapter._meta_service.check_permission.call_args.kwargs
+        assert call_kwargs["item_owner_id"] == "77"
 
     def test_no_state_when_eco_not_found(self, adapter, mock_session):
         mock_item_type = MagicMock()

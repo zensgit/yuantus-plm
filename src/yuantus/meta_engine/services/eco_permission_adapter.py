@@ -73,7 +73,9 @@ class EcoPermissionAdapter:
             eco = self.session.get(ECO, resource_id)
             if eco:
                 item_state = eco.state
-                item_owner_id = str(eco.created_by) if eco.created_by else None
+                item_owner_id = (
+                    str(eco.created_by_id) if eco.created_by_id is not None else None
+                )
 
         # Graceful degradation: if no rules are configured for ECO, allow.
         if not self._has_eco_rules():
