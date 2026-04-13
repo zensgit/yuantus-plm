@@ -1,6 +1,13 @@
 """
 Change Management Service (ECM)
 Handles Impact Analysis, Affected Items, and ECO Execution.
+
+DEPRECATED: This service is superseded by ECOService (canonical) and
+LegacyEcmCompatService (shim).  No new code should import ChangeService.
+It is retained only for the existing test_change_service.py assertions
+until those are migrated in PR-3.
+
+Sunset target: delete after PR-4 confirms zero usage.
 """
 
 from typing import List, Dict, Any

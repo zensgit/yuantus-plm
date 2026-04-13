@@ -142,7 +142,7 @@ def create_app() -> FastAPI:
     app.include_router(effectivity_router, prefix="/api/v1")
     app.include_router(baseline_router, prefix="/api/v1")
     app.include_router(config_router, prefix="/api/v1")
-    app.include_router(change_router, prefix="/api/v1")
+    app.include_router(change_router, prefix="/api/v1")  # LEGACY compat shim — sunset 2026-07-01
     app.include_router(cutted_parts_router, prefix="/api/v1")
     app.include_router(release_validation_router, prefix="/api/v1")
     app.include_router(dedup_router, prefix="/api/v1")
