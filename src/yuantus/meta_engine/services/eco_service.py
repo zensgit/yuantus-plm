@@ -1377,6 +1377,18 @@ class ECOService:
             field: getattr(op, field, None) for field in self._ROUTING_SNAPSHOT_FIELDS
         }
 
+    def _operation_match_key(self, op: Operation) -> str:
+        """
+        Build a version-stable identity key for matching operations across clones.
+
+        Routing copy/clone flows regenerate Operation.id, so we match on the
+        business identifier that is preserved across versions.
+        """
+        operation_number = str(getattr(op, "operation_number", "") or "").strip()
+        if operation_number:
+            return operation_number
+        return str(getattr(op, "id", "") or "").strip()
+
     def _get_operations_for_product_version(
         self, product_id: str, version_id: Optional[str]
     ) -> List[Operation]:
@@ -1446,8 +1458,12 @@ class ECOService:
             eco.product_id, eco.target_version_id
         )
 
-        source_map: Dict[str, Operation] = {op.id: op for op in source_ops}
-        target_map: Dict[str, Operation] = {op.id: op for op in target_ops}
+        source_map: Dict[str, Operation] = {
+            self._operation_match_key(op): op for op in source_ops
+        }
+        target_map: Dict[str, Operation] = {
+            self._operation_match_key(op): op for op in target_ops
+        }
 
         all_op_ids = set(source_map.keys()) | set(target_map.keys())
 
@@ -1462,7 +1478,7 @@ class ECOService:
                     eco_id=eco_id,
                     change_type="add",
                     routing_id=target_op.routing_id,
-                    operation_id=op_id,
+                    operation_id=target_op.id,
                     old_snapshot=None,
                     new_snapshot=self._operation_snapshot(target_op),
                 )
@@ -1475,7 +1491,7 @@ class ECOService:
                     eco_id=eco_id,
                     change_type="remove",
                     routing_id=source_op.routing_id,
-                    operation_id=op_id,
+                    operation_id=source_op.id,
                     old_snapshot=self._operation_snapshot(source_op),
                     new_snapshot=None,
                 )
@@ -1493,7 +1509,7 @@ class ECOService:
                     eco_id=eco_id,
                     change_type="update",
                     routing_id=target_op.routing_id,
-                    operation_id=op_id,
+                    operation_id=target_op.id,
                     old_snapshot=old_snap,
                     new_snapshot=new_snap,
                 )
@@ -1548,17 +1564,27 @@ class ECOService:
             eco.product_id, product.current_version_id
         )
 
-        base_map = {op.id: self._operation_snapshot(op) for op in base_ops}
-        my_map = {op.id: self._operation_snapshot(op) for op in my_ops}
-        theirs_map = {op.id: self._operation_snapshot(op) for op in theirs_ops}
+        base_map = {
+            self._operation_match_key(op): op for op in base_ops
+        }
+        my_map = {self._operation_match_key(op): op for op in my_ops}
+        theirs_map = {
+            self._operation_match_key(op): op for op in theirs_ops
+        }
 
         all_op_ids = set(base_map.keys()) | set(my_map.keys()) | set(theirs_map.keys())
 
         conflicts: List[Dict[str, Any]] = []
         for op_id in sorted(all_op_ids):
-            base_val = base_map.get(op_id)
-            my_val = my_map.get(op_id)
-            theirs_val = theirs_map.get(op_id)
+            base_op = base_map.get(op_id)
+            my_op = my_map.get(op_id)
+            theirs_op = theirs_map.get(op_id)
+
+            base_val = self._operation_snapshot(base_op) if base_op is not None else None
+            my_val = self._operation_snapshot(my_op) if my_op is not None else None
+            theirs_val = (
+                self._operation_snapshot(theirs_op) if theirs_op is not None else None
+            )
 
             my_changed = base_val != my_val
             theirs_changed = base_val != theirs_val
@@ -1567,7 +1593,7 @@ class ECOService:
                 conflicts.append(
                     {
                         "type": "routing",
-                        "operation_id": op_id,
+                        "operation_id": my_op.id if my_op is not None else op_id,
                         "base_value": base_val,
                         "my_value": my_val,
                         "their_value": theirs_val,
@@ -1580,7 +1606,7 @@ class ECOService:
                     eco_id=eco.id,
                     change_type="update",
                     routing_id=None,
-                    operation_id=op_id,
+                    operation_id=my_op.id if my_op is not None else op_id,
                     old_snapshot=base_val,
                     new_snapshot=my_val,
                     conflict=True,

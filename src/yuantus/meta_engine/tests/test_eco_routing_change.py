@@ -26,6 +26,7 @@ from yuantus.meta_engine.models.eco import ECORoutingChange
 def _make_operation(
     op_id,
     routing_id="rt-1",
+    operation_number=None,
     name="Op",
     workcenter_id="wc-1",
     setup_time=30.0,
@@ -37,6 +38,7 @@ def _make_operation(
     op = SimpleNamespace(
         id=op_id,
         routing_id=routing_id,
+        operation_number=operation_number or op_id,
         name=name,
         workcenter_id=workcenter_id,
         setup_time=setup_time,
@@ -220,6 +222,51 @@ class TestComputeRoutingChanges:
 
     @patch("yuantus.meta_engine.services.eco_service.Routing")
     @patch("yuantus.meta_engine.services.eco_service.Operation")
+    def test_detect_updated_cloned_operation(self, _MockOp, _MockRouting):
+        from yuantus.meta_engine.services.eco_service import ECOService
+
+        session = MagicMock()
+        service = ECOService(session)
+
+        eco = SimpleNamespace(
+            id="eco-1",
+            product_id="prod-1",
+            source_version_id="v1",
+            target_version_id="v2",
+        )
+        service.get_eco = MagicMock(return_value=eco)
+
+        source_op = _make_operation(
+            "source-op-1",
+            operation_number="10",
+            setup_time=30.0,
+            run_time=120.0,
+        )
+        cloned_op = _make_operation(
+            "target-op-9",
+            operation_number="10",
+            setup_time=45.0,
+            run_time=90.0,
+        )
+
+        service._get_operations_for_product_version = MagicMock(
+            side_effect=lambda pid, vid: [source_op] if vid == "v1" else [cloned_op]
+        )
+
+        mock_query = MagicMock()
+        session.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+
+        result = service.compute_routing_changes("eco-1")
+
+        assert len(result) == 1
+        assert result[0]["change_type"] == "update"
+        assert result[0]["operation_id"] == "target-op-9"
+        assert result[0]["old_snapshot"]["setup_time"] == 30.0
+        assert result[0]["new_snapshot"]["setup_time"] == 45.0
+
+    @patch("yuantus.meta_engine.services.eco_service.Routing")
+    @patch("yuantus.meta_engine.services.eco_service.Operation")
     def test_no_changes_when_identical(self, _MockOp, _MockRouting):
         from yuantus.meta_engine.services.eco_service import ECOService
 
@@ -362,6 +409,75 @@ class TestRoutingRebaseConflicts:
         assert len(routing_conflicts) == 1
         assert routing_conflicts[0]["operation_id"] == "op-1"
         assert routing_conflicts[0]["reason"] == "concurrent_routing_modification"
+
+    @patch("yuantus.meta_engine.services.eco_service.Routing")
+    @patch("yuantus.meta_engine.services.eco_service.Operation")
+    def test_cloned_operation_rebase_matches_as_one_conflict(self, _MockOp, _MockRouting):
+        from yuantus.meta_engine.services.eco_service import ECOService
+
+        session = MagicMock()
+        service = ECOService(session)
+
+        eco = SimpleNamespace(
+            id="eco-1",
+            product_id="prod-1",
+            source_version_id="v1",
+            target_version_id="v2",
+        )
+        product = SimpleNamespace(
+            id="prod-1",
+            current_version_id="v3",
+        )
+
+        service.check_rebase_needed = MagicMock(return_value=True)
+        service.get_eco = MagicMock(return_value=eco)
+        session.get = MagicMock(return_value=product)
+        session.refresh = MagicMock()
+
+        service.bom_service = MagicMock()
+        service.bom_service.get_bom_for_version.return_value = {"children": []}
+
+        base_op = _make_operation(
+            "base-op-1",
+            operation_number="10",
+            setup_time=30.0,
+        )
+        my_op = _make_operation(
+            "my-op-7",
+            operation_number="10",
+            setup_time=60.0,
+        )
+        theirs_op = _make_operation(
+            "their-op-4",
+            operation_number="10",
+            setup_time=45.0,
+        )
+
+        def _get_ops(pid, vid):
+            if vid == "v1":
+                return [base_op]
+            if vid == "v2":
+                return [my_op]
+            if vid == "v3":
+                return [theirs_op]
+            return []
+
+        service._get_operations_for_product_version = MagicMock(side_effect=_get_ops)
+
+        conflicts = service.detect_rebase_conflicts("eco-1")
+
+        routing_conflicts = [c for c in conflicts if c.get("type") == "routing"]
+        assert len(routing_conflicts) == 1
+        assert routing_conflicts[0]["operation_id"] == "my-op-7"
+
+        added_objects = [call.args[0] for call in session.add.call_args_list]
+        conflict_rows = [
+            obj
+            for obj in added_objects
+            if isinstance(obj, ECORoutingChange) and obj.conflict is True
+        ]
+        assert len(conflict_rows) == 1
+        assert conflict_rows[0].operation_id == "my-op-7"
 
     @patch("yuantus.meta_engine.services.eco_service.Routing")
     @patch("yuantus.meta_engine.services.eco_service.Operation")
