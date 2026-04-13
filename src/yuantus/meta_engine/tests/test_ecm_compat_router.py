@@ -10,7 +10,13 @@ These tests validate the compat BEHAVIOR, not the old ChangeService logic.
 """
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+from fastapi.testclient import TestClient
+
+from yuantus.api.app import create_app
+from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.database import get_db
 
 from yuantus.meta_engine.services.legacy_ecm_compat_service import (
     LegacyEcmCompatService,
@@ -27,6 +33,21 @@ def _make_eco(eco_id="eco-1", state="draft", product_id=None):
         product_id=product_id,
         created_by_id=1,
     )
+
+
+def _client_with_user_id(user_id: int):
+    mock_db_session = MagicMock()
+
+    def override_get_db():
+        try:
+            yield mock_db_session
+        finally:
+            pass
+
+    app = create_app()
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user_id_optional] = lambda: user_id
+    return TestClient(app), mock_db_session
 
 
 class TestEcmCompatImpactAnalysis:
@@ -170,3 +191,42 @@ class TestEcmCompatExecute:
             compat.execute_eco_compat("eco-1", 1)
 
         compat.eco_service.action_apply.assert_not_called()
+
+
+class TestEcmCompatHttpRoutes:
+    def test_http_impact_route_uses_expected_api_v1_ecm_path(self):
+        client, _db = _client_with_user_id(1)
+
+        with patch("yuantus.meta_engine.web.change_router.LegacyEcmCompatService") as service_cls:
+            service_cls.return_value.get_impact_analysis.return_value = {
+                "where_used": [],
+                "pending_changes": [],
+            }
+
+            resp = client.get("/api/v1/ecm/items/item-1/impact")
+
+        assert resp.status_code == 200
+        assert resp.json() == {"where_used": [], "pending_changes": []}
+        assert resp.headers["deprecation"] == "true"
+        service_cls.return_value.get_impact_analysis.assert_called_once_with("item-1")
+
+    def test_http_execute_route_returns_clear_unapproved_error_on_api_v1_ecm_path(self):
+        client, _db = _client_with_user_id(7)
+
+        with patch("yuantus.meta_engine.web.change_router.LegacyEcmCompatService") as service_cls:
+            service_cls.return_value.execute_eco_compat.side_effect = ValueError(
+                "ECO must be in 'approved' state before apply (current: draft)"
+            )
+
+            resp = client.post("/api/v1/ecm/eco/eco-1/execute")
+
+        assert resp.status_code == 400
+        assert "approved" in (resp.json().get("detail") or "")
+        service_cls.return_value.execute_eco_compat.assert_called_once_with("eco-1", 7)
+
+    def test_http_legacy_route_does_not_register_double_api_prefix(self):
+        client, _db = _client_with_user_id(1)
+
+        resp = client.get("/api/v1/api/ecm/items/item-1/impact")
+
+        assert resp.status_code == 404
