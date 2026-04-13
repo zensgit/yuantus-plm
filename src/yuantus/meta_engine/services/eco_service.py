@@ -37,9 +37,7 @@ from yuantus.meta_engine.events.domain_events import (
 )
 from yuantus.meta_engine.events.transactional import enqueue_event
 from yuantus.meta_engine.services.release_validation import ValidationIssue, get_release_ruleset
-from yuantus.security.rbac.permissions import (
-    PermissionManager as MetaPermissionService,
-)
+from yuantus.meta_engine.services.eco_permission_adapter import EcoPermissionAdapter
 from yuantus.security.rbac.models import RBACUser
 
 
@@ -48,7 +46,7 @@ class ECOService:
         self.session = session
         self.bom_service = BOMService(session)
         self.version_service = VersionService(session)
-        self.permission_service = MetaPermissionService()  # Instantiate without session
+        self.permission_service = EcoPermissionAdapter(session)
         self.audit_service = AuditService(session)
         self.notification_service = NotificationService(session)
 
@@ -1590,7 +1588,7 @@ class ECOService:
 class ECOStageService:
     def __init__(self, session: Session):
         self.session = session
-        self.permission_service = MetaPermissionService()  # Instantiate without session
+        self.permission_service = EcoPermissionAdapter(session)
 
     def get_stage(self, stage_id: str) -> Optional[ECOStage]:
         return self.session.get(ECOStage, stage_id)
@@ -1680,7 +1678,7 @@ class ECOStageService:
 class ECOApprovalService:
     def __init__(self, session: Session):
         self.session = session
-        self.permission_service = MetaPermissionService()  # Instantiate without session
+        self.permission_service = EcoPermissionAdapter(session)
         self.audit_service = AuditService(session)
         self.notification_service = NotificationService(session)
 
