@@ -26,7 +26,7 @@ from yuantus.api.dependencies.auth import (
 
 
 change_router = APIRouter(
-    prefix="/api/ecm",
+    prefix="/ecm",
     tags=["Change Management (Legacy)"],
     deprecated=True,
 )
