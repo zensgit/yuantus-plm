@@ -491,8 +491,16 @@ class ECOService:
         self._enqueue_eco_created(eco)
         return eco
 
+    # Fields that update_eco is allowed to modify.
+    # product_id is NOT here — use bind_product() instead.
+    _UPDATE_ALLOWED_FIELDS = frozenset({"name", "description", "priority", "effectivity_date"})
+
     def update_eco(self, eco_id: str, updates: Dict[str, Any], user_id: int) -> ECO:
-        # Permission check
+        """Update mutable metadata fields on an ECO.
+
+        Only fields in ``_UPDATE_ALLOWED_FIELDS`` are accepted.
+        Product binding must go through :meth:`bind_product`.
+        """
         self.permission_service.check_permission(
             user_id, "update", "ECO", resource_id=eco_id
         )
@@ -501,10 +509,93 @@ class ECOService:
         if not eco:
             raise ValueError(f"ECO with ID {eco_id} not found.")
 
+        if eco.state not in (ECOState.DRAFT.value, ECOState.PROGRESS.value):
+            raise ValueError(
+                f"Cannot update ECO in '{eco.state}' state (must be draft or progress)"
+            )
+
+        applied: Dict[str, Any] = {}
         for key, value in updates.items():
+            if key not in self._UPDATE_ALLOWED_FIELDS:
+                raise ValueError(
+                    f"Field '{key}' cannot be updated via update_eco "
+                    f"(allowed: {', '.join(sorted(self._UPDATE_ALLOWED_FIELDS))})"
+                )
             setattr(eco, key, value)
+            applied[key] = value
+
         eco.updated_at = datetime.utcnow()
-        self._enqueue_eco_updated(eco, changes=updates)
+        self._enqueue_eco_updated(eco, changes=applied)
+        return eco
+
+    def bind_product(
+        self,
+        eco_id: str,
+        product_id: str,
+        user_id: int,
+        *,
+        create_target_revision: bool = False,
+    ) -> ECO:
+        """Bind a product to an ECO.
+
+        Rules:
+        - ECO must exist.
+        - Only allowed in draft or progress state.
+        - If product_id is already bound to the same product, return idempotently.
+        - If product_id is bound to a *different* product, reject.
+        - If target_version_id already exists, reject rebinding to a different product.
+        - If create_target_revision is True, also call action_new_revision.
+        """
+        self.permission_service.check_permission(
+            user_id, "update", "ECO", resource_id=eco_id, field="bind_product"
+        )
+
+        eco = self.get_eco(eco_id)
+        if not eco:
+            raise ValueError(f"ECO with ID {eco_id} not found.")
+
+        if eco.state not in (ECOState.DRAFT.value, ECOState.PROGRESS.value):
+            raise ValueError(
+                f"Cannot bind product in '{eco.state}' state (must be draft or progress)"
+            )
+
+        # Idempotent: already bound to same product
+        if eco.product_id == product_id:
+            if create_target_revision and not eco.target_version_id:
+                self.action_new_revision(eco_id, user_id)
+                self.session.flush()
+                eco = self.get_eco(eco_id)
+            return eco
+
+        # Reject rebinding to different product
+        if eco.product_id is not None:
+            raise ValueError(
+                f"ECO is already bound to product '{eco.product_id}'; "
+                f"cannot rebind to '{product_id}'"
+            )
+
+        # Reject if target_version already exists (shouldn't happen without product, but guard)
+        if eco.target_version_id:
+            raise ValueError(
+                "ECO already has a target_version_id; cannot bind a new product"
+            )
+
+        # Validate product exists
+        product = self.session.get(Item, product_id)
+        if not product:
+            raise ValueError(f"Product with ID '{product_id}' not found.")
+
+        eco.product_id = product_id
+        eco.updated_at = datetime.utcnow()
+        self.session.add(eco)
+        self._enqueue_eco_updated(eco, changes={"product_id": product_id})
+
+        if create_target_revision:
+            self.session.flush()
+            self.action_new_revision(eco_id, user_id)
+            self.session.flush()
+            eco = self.get_eco(eco_id)
+
         return eco
 
     def delete_eco(self, eco_id: str, user_id: int):
