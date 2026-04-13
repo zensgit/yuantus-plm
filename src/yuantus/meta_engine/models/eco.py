@@ -82,6 +82,14 @@ class BOMChangeType(str, Enum):
     UPDATE = "update"
 
 
+class RoutingChangeType(str, Enum):
+    """Routing change types"""
+
+    ADD = "add"
+    REMOVE = "remove"
+    UPDATE = "update"
+
+
 class ECOPriority(str, Enum):
     """ECO priority levels"""
 
@@ -221,6 +229,13 @@ class ECO(Base):
         back_populates="eco",
         cascade="all, delete-orphan",
         order_by="ECOBOMChange.created_at",
+    )
+
+    routing_changes = relationship(
+        "ECORoutingChange",
+        back_populates="eco",
+        cascade="all, delete-orphan",
+        order_by="ECORoutingChange.created_at",
     )
 
     def to_dict(self):
@@ -396,6 +411,66 @@ class ECOBOMChange(Base):
             "new_uom": self.new_uom,
             "old_properties": self.old_properties,
             "new_properties": self.new_properties,
+            "conflict": self.conflict,
+            "conflict_reason": self.conflict_reason,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class ECORoutingChange(Base):
+    """
+    ECO Routing Change Record.
+    Tracks individual changes to manufacturing routing operations within an ECO.
+
+    Mirrors MrpEcoRoutingChange from Odoo 18:
+    - Tracks work center changes, time parameter changes
+    - Tracks operation add/remove/update within ECOs
+    - old_snapshot / new_snapshot store structured JSON of operation state
+    """
+
+    __tablename__ = "meta_eco_routing_changes"
+
+    id = Column(String, primary_key=True)
+    eco_id = Column(
+        String,
+        ForeignKey("meta_ecos.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # References to routing / operation
+    routing_id = Column(String, nullable=True)  # Reference to meta_routings.id
+    operation_id = Column(String, nullable=True)  # Reference to meta_operations.id
+
+    # Change type
+    change_type = Column(String(10), nullable=False, index=True)  # add / remove / update
+
+    # Snapshots of operation state (structured JSON)
+    old_snapshot = Column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=True
+    )
+    new_snapshot = Column(
+        JSON().with_variant(JSONB, "postgresql"), nullable=True
+    )
+
+    # Conflict tracking (Rebase)
+    conflict = Column(Boolean, default=False)
+    conflict_reason = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    eco = relationship("ECO", back_populates="routing_changes")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "eco_id": self.eco_id,
+            "routing_id": self.routing_id,
+            "operation_id": self.operation_id,
+            "change_type": self.change_type,
+            "old_snapshot": self.old_snapshot,
+            "new_snapshot": self.new_snapshot,
             "conflict": self.conflict,
             "conflict_reason": self.conflict_reason,
             "created_at": self.created_at.isoformat() if self.created_at else None,
