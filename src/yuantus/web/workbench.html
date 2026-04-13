@@ -1741,7 +1741,7 @@
           return "Approval";
         }
         if (path.startsWith("/ecm")) {
-          return "Change";
+          return "Change (legacy)";
         }
         if (path.startsWith("/document-sync")) {
           return "Document Sync";
@@ -2578,10 +2578,10 @@
             });
             break;
           case "eco-add-affected":
-            await sendRequest("POST", `/ecm/eco/${encodeURIComponent(getValue("eco-id"))}/affected-items`, {
+            await sendRequest("POST", `/eco/${encodeURIComponent(getValue("eco-id"))}/bind-product`, {
               body: {
-                target_item_id: getValue("eco-target-item-id"),
-                action: "Change",
+                product_id: getValue("eco-target-item-id"),
+                create_target_revision: false,
               },
             });
             break;
