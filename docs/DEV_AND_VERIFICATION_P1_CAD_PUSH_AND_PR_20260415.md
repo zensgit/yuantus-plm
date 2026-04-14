@@ -42,7 +42,24 @@ Observed:
 - remote branch created successfully
 - local branch now tracks `origin/baseline/mainline-20260414-150835`
 
-## PR creation plan
+## PR creation
+
+Command:
+
+```bash
+gh pr create \
+  --base main \
+  --head baseline/mainline-20260414-150835 \
+  --title "Migrate CAD conversion runtime to canonical queue and close out P1 CAD work" \
+  --body-file /tmp/yuantus-p1-cad-pr-body.md
+```
+
+Observed:
+
+- PR created successfully: `#201`
+- URL: `https://github.com/zensgit/yuantus-plm/pull/201`
+
+## PR title and summary
 
 Target PR title:
 
@@ -57,7 +74,7 @@ Target PR summary:
 5. record commit sequence execution for traceability
 6. complete the P1 CAD pipeline migration and closeout lifecycle
 
-## Verification snapshot before PR creation
+## Verification snapshot used for PR creation
 
 - branch was clean before this doc-only follow-up
 - focused regression already passed in prior execution doc:
