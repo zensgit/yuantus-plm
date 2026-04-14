@@ -38,6 +38,142 @@ class VersionFileService:
     def __init__(self, session: Session):
         self.session = session
 
+    def _get_version(self, version_id: str) -> ItemVersion:
+        version = self.session.get(ItemVersion, version_id)
+        if not version:
+            raise VersionFileError(f"Version {version_id} not found")
+        return version
+
+    def _get_version_file_assoc(
+        self,
+        version_id: str,
+        file_id: str,
+        file_role: Optional[str] = None,
+    ) -> VersionFile:
+        self._get_version(version_id)
+
+        query = self.session.query(VersionFile).filter_by(
+            version_id=version_id, file_id=file_id
+        )
+        if file_role:
+            assoc = query.filter_by(file_role=file_role).first()
+            if not assoc:
+                raise VersionFileError(
+                    f"File {file_id} with role {file_role} is not attached to version {version_id}"
+                )
+            return assoc
+
+        matches = query.order_by(VersionFile.file_role.asc()).all()
+        if not matches:
+            raise VersionFileError(
+                f"File {file_id} is not attached to version {version_id}"
+            )
+        if len(matches) > 1:
+            raise VersionFileError(
+                f"File {file_id} is attached to version {version_id} with multiple roles; specify file_role"
+            )
+        return matches[0]
+
+    def get_blocking_file_locks(
+        self,
+        version_id: str,
+        user_id: Optional[int] = None,
+    ) -> List[VersionFile]:
+        query = self.session.query(VersionFile).filter(
+            VersionFile.version_id == version_id,
+            VersionFile.checked_out_by_id.isnot(None),
+        )
+        if user_id is not None:
+            query = query.filter(VersionFile.checked_out_by_id != user_id)
+        return query.order_by(VersionFile.sequence.asc()).all()
+
+    def checkout_file(
+        self,
+        version_id: str,
+        file_id: str,
+        user_id: int,
+        *,
+        file_role: Optional[str] = None,
+    ) -> VersionFile:
+        version = self._get_version(version_id)
+        if version.is_released:
+            raise VersionFileError(f"Version {version_id} is released and locked")
+        if version.checked_out_by_id and version.checked_out_by_id != user_id:
+            raise VersionFileError(
+                f"Version {version_id} is checked out by another user"
+            )
+
+        assoc = self._get_version_file_assoc(version_id, file_id, file_role)
+        if assoc.checked_out_by_id and assoc.checked_out_by_id != user_id:
+            raise VersionFileError(
+                f"File {file_id} is already checked out by user {assoc.checked_out_by_id}"
+            )
+        if assoc.checked_out_by_id == user_id:
+            return assoc
+
+        assoc.checked_out_by_id = user_id
+        assoc.checked_out_at = datetime.utcnow()
+        self.session.add(assoc)
+        self.session.flush()
+        return assoc
+
+    def undo_checkout_file(
+        self,
+        version_id: str,
+        file_id: str,
+        user_id: int,
+        *,
+        file_role: Optional[str] = None,
+    ) -> VersionFile:
+        assoc = self._get_version_file_assoc(version_id, file_id, file_role)
+        if assoc.checked_out_by_id is None:
+            return assoc
+        if assoc.checked_out_by_id != user_id:
+            raise VersionFileError(
+                f"File {file_id} is checked out by another user"
+            )
+
+        assoc.checked_out_by_id = None
+        assoc.checked_out_at = None
+        self.session.add(assoc)
+        self.session.flush()
+        return assoc
+
+    def get_file_lock(
+        self,
+        version_id: str,
+        file_id: str,
+        *,
+        file_role: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        assoc = self._get_version_file_assoc(version_id, file_id, file_role)
+        return {
+            "id": assoc.id,
+            "version_id": assoc.version_id,
+            "file_id": assoc.file_id,
+            "file_role": assoc.file_role,
+            "checked_out_by_id": assoc.checked_out_by_id,
+            "checked_out_at": (
+                assoc.checked_out_at.isoformat() if assoc.checked_out_at else None
+            ),
+        }
+
+    def release_all_file_locks(self, version_id: str) -> int:
+        locked = (
+            self.session.query(VersionFile)
+            .filter(
+                VersionFile.version_id == version_id,
+                VersionFile.checked_out_by_id.isnot(None),
+            )
+            .all()
+        )
+        for assoc in locked:
+            assoc.checked_out_by_id = None
+            assoc.checked_out_at = None
+            self.session.add(assoc)
+        self.session.flush()
+        return len(locked)
+
     def attach_file(
         self,
         version_id: str,
@@ -60,9 +196,7 @@ class VersionFileService:
             VersionFile association record
         """
         # Validate version exists
-        version = self.session.get(ItemVersion, version_id)
-        if not version:
-            raise VersionFileError(f"Version {version_id} not found")
+        version = self._get_version(version_id)
 
         # Validate file exists
         file = self.session.get(FileContainer, file_id)
@@ -616,6 +750,10 @@ class VersionFileService:
                     "file_size": vf.file.file_size if vf.file else None,
                     "is_primary": vf.is_primary,
                     "sequence": vf.sequence,
+                    "checked_out_by_id": vf.checked_out_by_id,
+                    "checked_out_at": (
+                        vf.checked_out_at.isoformat() if vf.checked_out_at else None
+                    ),
                 }
             )
 
