@@ -4,9 +4,8 @@ Manages locking and versioning for concurrent editing.
 Phase 6: Deep CAD Integration
 """
 
-import os
-import subprocess
 import uuid
+import logging
 from pathlib import Path
 import io
 from typing import Dict, Any
@@ -18,6 +17,8 @@ from yuantus.meta_engine.events.domain_events import FileCheckedInEvent
 from yuantus.meta_engine.events.transactional import enqueue_event
 from yuantus.meta_engine.models.file import FileContainer, ConversionStatus, DocumentType
 from yuantus.meta_engine.services.file_service import FileService
+
+logger = logging.getLogger(__name__)
 
 
 class CheckinService:
@@ -116,18 +117,45 @@ class CheckinManager:
         )
 
     def checkin(self, item_id: str, content: bytes, filename: str):
+        from yuantus.meta_engine.services.job_service import JobService
+
         native = self.file_service.upload_file(content, filename)
         props: Dict[str, Any] = {"native_file": native.id}
 
-        # Minimal "conversion" hook: if a derived path exists, attach a viewable file reference.
-        path = self.file_service.get_file_path(native.id)
-        if path and os.path.exists(path):
-            try:
-                subprocess.run(["true"], check=False)  # pragma: no cover
-            except Exception:
-                pass
-            viewable = self.file_service.upload_file(b"", f"{Path(filename).stem}.viewable")
-            props["viewable_file"] = viewable.id
+        item = self.session.get(Item, item_id)
+        version_id = item.current_version_id if item else None
+
+        job_service = JobService(self.session)
+        ext = Path(filename).suffix.lower().lstrip(".")
+        payload: Dict[str, Any] = {
+            "file_id": native.id,
+            "item_id": item_id,
+            "version_id": version_id,
+            "filename": filename,
+            "cad_format": ext.upper() if ext else None,
+        }
+        preview_job = job_service.create_job(
+            "cad_preview",
+            dict(payload),
+            user_id=self.user_id,
+            max_attempts=3,
+            dedupe=True,
+        )
+        geometry_job = job_service.create_job(
+            "cad_geometry",
+            dict(payload, target_format="glTF"),
+            user_id=self.user_id,
+            max_attempts=3,
+            dedupe=True,
+        )
+        props["cad_conversion_job_ids"] = [preview_job.id, geometry_job.id]
+        logger.info(
+            "CAD checkin queued jobs item_id=%s file_id=%s preview_job=%s geometry_job=%s",
+            item_id,
+            native.id,
+            preview_job.id,
+            geometry_job.id,
+        )
 
         return self.version_service.checkin(
             item_id, self.user_id, properties=props, comment="CAD Checkin"

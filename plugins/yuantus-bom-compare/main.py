@@ -91,6 +91,11 @@ class BomCompareFilters(BaseModel):
     max_delta: Optional[float] = None
 
 
+# Importlib-loaded plugin tests can hit FastAPI/Pydantic adapter creation before the
+# forward reference to BomCompareFilters is rebuilt automatically.
+BomCompareRequest.model_rebuild()
+
+
 class BomCompareDiff(BaseModel):
     key: str
     child_id: str

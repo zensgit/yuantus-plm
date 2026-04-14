@@ -41,8 +41,10 @@ from yuantus.meta_engine.models.file import FileContainer, FileRole, ItemFile
 from yuantus.meta_engine.models.meta_schema import ItemType, Property
 from yuantus.meta_engine.models.job import ConversionJob
 from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.meta_engine.schemas.aml import AMLAction, GenericItem
 from yuantus.meta_engine.services.cad_service import CadService
+from yuantus.meta_engine.services.cad_converter_service import CADConverterService
 from yuantus.meta_engine.services.engine import AMLEngine
 from yuantus.meta_engine.services.file_service import FileService
 from yuantus.meta_engine.services.job_errors import JobFatalError
@@ -212,6 +214,65 @@ def _diff_dicts(
         "removed": removed,
         "changed": changed,
     }
+
+
+def _build_checkin_status_url(request: Request, item_id: str) -> str:
+    return str(request.url_for("get_cad_checkin_status", item_id=item_id))
+
+
+def _build_file_status_url(request: Request, file_id: str) -> str:
+    return str(request.url_for("get_file_conversion_summary", file_id=file_id))
+
+
+def _summarize_jobs(jobs: List[ConversionJob]) -> CadCheckinJobsSummary:
+    summary = CadCheckinJobsSummary()
+    for job in jobs:
+        status = str(job.status or "").lower()
+        if status == "pending":
+            summary.pending += 1
+        elif status == "processing":
+            summary.processing += 1
+        elif status == "completed":
+            summary.completed += 1
+        elif status == "failed":
+            summary.failed += 1
+    summary.total = len(jobs)
+    return summary
+
+
+def _get_checkin_jobs(
+    db: Session,
+    *,
+    item_id: str,
+    version_id: str,
+    file_id: str,
+    anchored_job_ids: Optional[List[str]] = None,
+) -> List[ConversionJob]:
+    anchored_job_ids = [jid for jid in (anchored_job_ids or []) if jid]
+    query = db.query(ConversionJob)
+    if anchored_job_ids:
+        jobs = (
+            query.filter(ConversionJob.id.in_(anchored_job_ids))
+            .order_by(ConversionJob.created_at.desc())
+            .all()
+        )
+        ordered = {job.id: job for job in jobs}
+        return [ordered[jid] for jid in anchored_job_ids if jid in ordered]
+
+    candidates = query.order_by(ConversionJob.created_at.desc()).limit(100).all()
+    filtered: List[ConversionJob] = []
+    for job in candidates:
+        payload = job.payload or {}
+        if str(payload.get("item_id") or "") != item_id:
+            continue
+        if str(payload.get("version_id") or "") != version_id:
+            continue
+        if str(payload.get("file_id") or "") != file_id:
+            continue
+        if job.task_type not in {"cad_preview", "cad_geometry"}:
+            continue
+        filtered.append(job)
+    return filtered
 
 
 class CadImportJob(BaseModel):
@@ -389,6 +450,43 @@ class CadPropertiesResponse(BaseModel):
     updated_at: Optional[str] = None
     source: Optional[str] = None
     cad_document_schema_version: Optional[int] = None
+
+
+class CadCheckinResponse(BaseModel):
+    status: str
+    item_id: str
+    version_id: str
+    generation: int
+    file_id: Optional[str] = None
+    conversion_job_ids: List[str] = Field(default_factory=list)
+    status_url: str
+    file_status_url: Optional[str] = None
+
+
+class CadCheckinJobStatus(BaseModel):
+    id: str
+    task_type: str
+    status: str
+
+
+class CadCheckinJobsSummary(BaseModel):
+    pending: int = 0
+    processing: int = 0
+    completed: int = 0
+    failed: int = 0
+    total: int = 0
+
+
+class CadCheckinStatusResponse(BaseModel):
+    item_id: str
+    version_id: str
+    file_id: str
+    filename: Optional[str] = None
+    conversion_job_ids: List[str] = Field(default_factory=list)
+    conversion_jobs: List[CadCheckinJobStatus] = Field(default_factory=list)
+    conversion_jobs_summary: CadCheckinJobsSummary
+    viewer_readiness: Dict[str, Any] = Field(default_factory=dict)
+    file_status_url: Optional[str] = None
 
 
 class CadPropertiesUpdateRequest(BaseModel):
@@ -2054,12 +2152,13 @@ def undo_checkout(
 @router.post("/{item_id}/checkin")
 def checkin_document(
     item_id: str,
+    request: Request,
     response: Response,
     file: UploadFile = File(...),
     mgr: CheckinManager = Depends(get_checkin_manager),
     user: CurrentUser = Depends(get_current_user),
     identity_db: Session = Depends(get_identity_db),
-) -> Any:
+) -> CadCheckinResponse:
     """
     Upload new file version and unlock.
     """
@@ -2084,11 +2183,24 @@ def checkin_document(
         new_item = mgr.checkin(item_id, content, filename)
         mgr.session.commit()
 
-        return {
-            "status": "success",
-            "new_item_id": new_item.id,
-            "generation": new_item.generation,
-        }
+        props = new_item.properties or {}
+        file_id = props.get("native_file")
+        job_ids = [
+            str(job_id)
+            for job_id in (props.get("cad_conversion_job_ids") or [])
+            if job_id
+        ]
+
+        return CadCheckinResponse(
+            status="success",
+            item_id=item_id,
+            version_id=new_item.id,
+            generation=new_item.generation,
+            file_id=file_id,
+            conversion_job_ids=job_ids,
+            status_url=_build_checkin_status_url(request, item_id),
+            file_status_url=_build_file_status_url(request, file_id) if file_id else None,
+        )
     except ValueError as e:
         mgr.session.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -2099,3 +2211,67 @@ def checkin_document(
         mgr.session.rollback()
         # Log error
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{item_id}/checkin-status", response_model=CadCheckinStatusResponse)
+def get_cad_checkin_status(
+    item_id: str,
+    request: Request,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CadCheckinStatusResponse:
+    item = db.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    if not item.current_version_id:
+        raise HTTPException(status_code=404, detail="Current version missing")
+
+    version = db.get(ItemVersion, item.current_version_id)
+    if not version:
+        raise HTTPException(status_code=404, detail="Current version not found")
+
+    props = version.properties or {}
+    native_file_id = str(props.get("native_file") or "").strip()
+    if not native_file_id:
+        raise HTTPException(status_code=404, detail="Native CAD file missing")
+
+    native_file = db.get(FileContainer, native_file_id)
+    if not native_file:
+        raise HTTPException(status_code=404, detail="Native CAD file not found")
+
+    anchored_job_ids = [
+        str(job_id)
+        for job_id in (props.get("cad_conversion_job_ids") or [])
+        if job_id
+    ]
+    jobs = _get_checkin_jobs(
+        db,
+        item_id=item_id,
+        version_id=version.id,
+        file_id=native_file_id,
+        anchored_job_ids=anchored_job_ids,
+    )
+    summary = _summarize_jobs(jobs)
+    viewer_readiness = CADConverterService(
+        db, vault_base_path=get_settings().LOCAL_STORAGE_PATH
+    ).assess_viewer_readiness(native_file)
+
+    return CadCheckinStatusResponse(
+        item_id=item_id,
+        version_id=version.id,
+        file_id=native_file.id,
+        filename=native_file.filename,
+        conversion_job_ids=anchored_job_ids or [job.id for job in jobs],
+        conversion_jobs=[
+            CadCheckinJobStatus(
+                id=job.id,
+                task_type=job.task_type,
+                status=job.status,
+            )
+            for job in jobs
+        ],
+        conversion_jobs_summary=summary,
+        viewer_readiness=viewer_readiness,
+        file_status_url=_build_file_status_url(request, native_file.id),
+    )

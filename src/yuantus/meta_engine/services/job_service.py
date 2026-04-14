@@ -80,7 +80,9 @@ class JobService:
         self.session.commit()
         return job
 
-    def poll_next_job(self, worker_id: str) -> Optional[ConversionJob]:
+    def poll_next_job(
+        self, worker_id: str, task_types: Optional[list[str]] = None
+    ) -> Optional[ConversionJob]:
         """
         Finds the next pending job and locks it for this worker.
 
@@ -97,6 +99,8 @@ class JobService:
             )
             .order_by(asc(ConversionJob.priority), asc(ConversionJob.created_at))
         )
+        if task_types:
+            query = query.filter(ConversionJob.task_type.in_(list(task_types)))
 
         # PostgreSQL: Use SKIP LOCKED to prevent race conditions
         if dialect == "postgresql":

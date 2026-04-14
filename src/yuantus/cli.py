@@ -73,10 +73,10 @@ def worker(
     from yuantus.meta_engine.tasks.cad_conversion_tasks import perform_cad_conversion
     from yuantus.meta_engine.tasks.cad_pipeline_tasks import (
         cad_dedup_vision,
-        cad_geometry,
+        cad_geometry_with_binding,
         cad_extract,
         cad_ml_vision,
-        cad_preview,
+        cad_preview_with_binding,
         cad_bom,
     )
     from yuantus.meta_engine.tasks.system_tasks import quota_test
@@ -91,8 +91,8 @@ def worker(
 
     w = JobWorker(worker_id or "worker-1", poll_interval=poll_interval)
     w.register_handler("cad_conversion", perform_cad_conversion)
-    w.register_handler("cad_preview", cad_preview)
-    w.register_handler("cad_geometry", cad_geometry)
+    w.register_handler("cad_preview", cad_preview_with_binding)
+    w.register_handler("cad_geometry", cad_geometry_with_binding)
     w.register_handler("cad_extract", cad_extract)
     w.register_handler("cad_bom", cad_bom)
     w.register_handler("cad_dedup_vision", cad_dedup_vision)

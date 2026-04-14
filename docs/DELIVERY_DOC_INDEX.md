@@ -58,9 +58,12 @@ This index aggregates all delivery‑related documents for private deployments.
 - Multi‑Tenancy Ops Runbook: `docs/OPS_RUNBOOK_MT.md`
 - Production Readiness Check: `docs/PROD_READINESS_CHECK.md`
 - Backup & Restore Runbook: `docs/RUNBOOK_BACKUP_RESTORE.md`
+- CAD Legacy Conversion Queue Audit Runbook: `docs/RUNBOOK_CAD_LEGACY_CONVERSION_QUEUE_AUDIT.md`
 - CI/Regression Change Scope Runbook: `docs/RUNBOOK_CI_CHANGE_SCOPE.md`
 - Claude Code Parallel Worktree Runbook: `docs/RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md`
 - Jobs Diagnostics Runbook: `docs/RUNBOOK_JOBS_DIAG.md`
+- Mainline Baseline Switch Runbook: `docs/RUNBOOK_MAINLINE_BASELINE_SWITCH_20260414.md`
+- P1 CAD Commit Sequence Runbook: `docs/RUNBOOK_P1_CAD_COMMIT_SEQUENCE_20260414.md`
 - Parallel Branch Observability Runbook: `docs/RUNBOOK_PARALLEL_BRANCH_OBSERVABILITY_20260228.md`
 - Perf Gate Config Runbook: `docs/RUNBOOK_PERF_GATE_CONFIG.md`
 - Relationship Item Migration Runbook: `docs/RUNBOOK_RELATIONSHIP_ITEM_MIGRATION.md`
@@ -122,6 +125,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - C7 BOM Compare Summarized Snapshot Design: `docs/DESIGN_PARALLEL_C7_BOM_COMPARE_SUMMARIZED_SNAPSHOT_20260318.md`
 - C8 Quality MRP Bootstrap Integration Design: `docs/DESIGN_PARALLEL_C8_QUALITY_MRP_BOOTSTRAP_INTEGRATION_20260318.md`
 - C9 Maintenance Workcenter Readiness Design: `docs/DESIGN_PARALLEL_C9_MAINTENANCE_WORKCENTER_READINESS_20260318.md`
+- Baseline Correction Audit (feature branch vs clean mainline): `docs/DEV_AND_VERIFICATION_BASELINE_CORRECTION_AUDIT_20260414.md`
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
 - Baseline Filters API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`
 - BOM Compare API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_COMPARE_E2E_20260214.md`
@@ -130,6 +134,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - BOM Substitutes API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_SUBSTITUTES_E2E_20260214.md`
 - BOM Tree API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_TREE_E2E_20260214.md`
 - BOM Weight Rollup API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_WEIGHT_ROLLUP_E2E_20260214.md`
+- Branch Merge/Rebase Risk Audit (feature branch vs origin/main): `docs/DEV_AND_VERIFICATION_BRANCH_MERGE_RISK_AUDIT_20260414.md`
 - CAD Dedup (SimilarityRecord -> Part Equivalent) (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_RELATIONSHIP_S3_PG_MINIO_20260212.md`
 - CAD Dedup Vision (S3 + Postgres + MinIO): `docs/DEV_AND_VERIFICATION_CAD_DEDUP_VISION_S3_PG_MINIO_20260212.md`
 - CI/Regression Change Scope Debugging (Reasons + Local Script + PR Cost Rule): `docs/DEV_AND_VERIFICATION_CI_CHANGE_SCOPE_DEBUGGING_20260210.md`
@@ -172,11 +177,31 @@ This index aggregates all delivery‑related documents for private deployments.
 - Impact Summary: `docs/DEV_AND_VERIFICATION_IMPACT_SUMMARY_20260207.md`
 - Item Cockpit + Export Bundle: `docs/DEV_AND_VERIFICATION_ITEM_COCKPIT_EXPORT_20260207.md`
 - Item Equivalents API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ITEM_EQUIVALENTS_E2E_20260214.md`
+- Mainline Baseline Switch Planning & Verification: `docs/DEV_AND_VERIFICATION_MAINLINE_BASELINE_SWITCH_20260414.md`
+- Mainline Baseline Switch Execution: `docs/DEV_AND_VERIFICATION_MAINLINE_BASELINE_SWITCH_EXECUTION_20260414.md`
+- Mainline Baseline Switch Preview: `docs/DEV_AND_VERIFICATION_MAINLINE_BASELINE_SWITCH_PREVIEW_20260414.md`
 - MBOM Convert API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_CONVERT_E2E_20260214.md`
 - MBOM + Routing API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_ROUTING_E2E_20260214.md`
 - Metasheet <-> Yuantus Mainline Closeout: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_MAINLINE_CLOSEOUT_20260411.md`
 - Metasheet <-> Yuantus Pact Closure: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_PACT_CLOSURE_20260411.md`
 - Metasheet <-> Yuantus Pact Sync Helper: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_PACT_SYNC_HELPER_20260411.md`
+- P1 CAD Checkin Queue Binding: `docs/DEV_AND_VERIFICATION_P1_CAD_CHECKIN_QUEUE_BINDING_20260414.md`
+- P1 CAD Checkin Status: `docs/DEV_AND_VERIFICATION_P1_CAD_CHECKIN_STATUS_20260414.md`
+- P1 CAD Commit Sequence Execution: `docs/DEV_AND_VERIFICATION_P1_CAD_COMMIT_SEQUENCE_EXECUTION_20260414.md`
+- P1 CAD Commit Sequence Prep: `docs/DEV_AND_VERIFICATION_P1_CAD_COMMIT_SEQUENCE_PREP_20260414.md`
+- P1 CAD Converter Queue Shim: `docs/DEV_AND_VERIFICATION_P1_CAD_CONVERTER_QUEUE_SHIM_20260414.md`
+- P1 CAD Legacy Conversion Queue Audit: `docs/DEV_AND_VERIFICATION_P1_CAD_LEGACY_CONVERSION_QUEUE_AUDIT_20260414.md`
+- P1 CAD Legacy Delete Window Readiness: `docs/DEV_AND_VERIFICATION_P1_CAD_LEGACY_DELETE_WINDOW_READINESS_20260414.md`
+- P1 CAD Legacy Model Removal: `docs/DEV_AND_VERIFICATION_P1_CAD_LEGACY_MODEL_REMOVAL_20260414.md`
+- P1 CAD Legacy Queue Final Closeout: `docs/DEV_AND_VERIFICATION_P1_CAD_LEGACY_QUEUE_FINAL_CLOSEOUT_20260414.md`
+- P1 CAD Legacy Table Drop Migration: `docs/DEV_AND_VERIFICATION_P1_CAD_LEGACY_TABLE_DROP_MIGRATION_20260414.md`
+- P1 CAD PR Broader Regression: `docs/DEV_AND_VERIFICATION_P1_CAD_PR_BROADER_REGRESSION_20260415.md`
+- P1 CAD PR Stabilization: `docs/DEV_AND_VERIFICATION_P1_CAD_PR_STABILIZATION_20260415.md`
+- P1 CAD PR Unstable CI Remediation: `docs/DEV_AND_VERIFICATION_P1_CAD_PR_UNSTABLE_CI_REMEDIATION_20260415.md`
+- P1 CAD Push And PR: `docs/DEV_AND_VERIFICATION_P1_CAD_PUSH_AND_PR_20260415.md`
+- P1 File Conversion Job Queue: `docs/DEV_AND_VERIFICATION_P1_FILE_CONVERSION_JOB_QUEUE_20260414.md`
+- P1 File Conversion Summary: `docs/DEV_AND_VERIFICATION_P1_FILE_CONVERSION_SUMMARY_20260414.md`
+- P1 File Upload Preview Queue: `docs/DEV_AND_VERIFICATION_P1_FILE_UPLOAD_PREVIEW_QUEUE_20260414.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
 - Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
 - Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
@@ -312,6 +337,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Platform Tenant Provisioning API-only E2E Verification: `docs/DEV_AND_VERIFICATION_PLATFORM_TENANT_PROVISIONING_E2E_20260213.md`
 - Playwright CI Integration: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_CI_20260201.md`
 - Playwright API-Only Export Bundle Regression: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_EXPORT_BUNDLES_API_20260207.md`
+- PLM Workspace Manual Replay Plan (clean mainline worktree): `docs/DEV_AND_VERIFICATION_PLM_WORKSPACE_MANUAL_REPLAY_PLAN_20260414.md`
 - Product Detail Cockpit Flags: `docs/DEV_AND_VERIFICATION_PRODUCT_DETAIL_COCKPIT_FLAGS_20260207.md`
 - Quota Enforcement API-only E2E Verification: `docs/DEV_AND_VERIFICATION_QUOTA_ENFORCEMENT_E2E_20260213.md`
 - Regression Evidence Autopack: `docs/DEV_AND_VERIFICATION_REGRESSION_EVIDENCE_AUTOPACK_20260207.md`
