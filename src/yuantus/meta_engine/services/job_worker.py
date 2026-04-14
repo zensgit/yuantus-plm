@@ -251,6 +251,69 @@ class JobWorker:
                             )
                             # We log but don't fail the job if sync fails, as conversion succeeded
 
+                # Post-processing: bind derived files emitted by CAD handlers.
+                # The handlers can signal:
+                #   {"derived_files": [{"file_id": "...", "file_role": "preview", "version_id": "..."}]}
+                if isinstance(result, dict) and result.get("derived_files"):
+                    try:
+                        from yuantus.meta_engine.version.file_service import (
+                            VersionFileService,
+                        )
+                        from yuantus.meta_engine.version.models import ItemVersion
+
+                        vf_service = VersionFileService(job_service.session)
+                        bound_versions = set()
+                        for df in result["derived_files"]:
+                            version_id = df.get("version_id") or (
+                                job.payload.get("version_id")
+                                if isinstance(job.payload, dict)
+                                else None
+                            )
+                            file_id = df.get("file_id")
+                            file_role = df.get("file_role", "attachment")
+                            if version_id and file_id:
+                                vf_service.attach_file(
+                                    version_id=version_id,
+                                    file_id=file_id,
+                                    file_role=file_role,
+                                )
+                                bound_versions.add(version_id)
+                        job_service.session.commit()
+
+                        # Keep item-level file projections aligned for current versions.
+                        for version_id in bound_versions:
+                            try:
+                                version = job_service.session.get(ItemVersion, version_id)
+                                if version and version.is_current:
+                                    vf_service.sync_version_files_to_item(
+                                        version_id=version_id,
+                                        item_id=version.item_id,
+                                        remove_missing=False,
+                                    )
+                                    job_service.session.commit()
+                            except Exception as sync_err:
+                                logger.warning(
+                                    "Worker '%s' VersionFile->ItemFile sync failed for version %s: %s",
+                                    self.worker_id,
+                                    version_id,
+                                    sync_err,
+                                )
+
+                        logger.info(
+                            "Worker '%s' bound %d derived file(s) for job %s",
+                            self.worker_id,
+                            len(result["derived_files"]),
+                            job.id,
+                        )
+                    except Exception as bind_err:
+                        logger.error(
+                            "Worker '%s' failed to bind derived files for job %s: %s",
+                            self.worker_id,
+                            job.id,
+                            bind_err,
+                        )
+                        # Never fail the job due to post-processing bind errors
+
                 ctx = _job_context()
                 logger.info(
                     "Worker '%s' completed job %s result_keys=%s",
