@@ -35,11 +35,30 @@ except ImportError:
 
 from yuantus.meta_engine.models.file import (
     FileContainer,
-    ConversionJob,
     ConversionStatus,
     DocumentType,
     Vault,
 )
+from yuantus.meta_engine.models.job import ConversionJob as MetaConversionJob, JobStatus
+from yuantus.meta_engine.services.job_service import JobService
+
+
+_CANONICAL_CONVERSION_TASK_TYPES = ("cad_conversion", "cad_preview", "cad_geometry")
+
+
+def _build_canonical_conversion_worker():
+    from yuantus.meta_engine.services.job_worker import JobWorker
+    from yuantus.meta_engine.tasks.cad_conversion_tasks import perform_cad_conversion
+    from yuantus.meta_engine.tasks.cad_pipeline_tasks import (
+        cad_geometry_with_binding,
+        cad_preview_with_binding,
+    )
+
+    worker = JobWorker(worker_id="cad-converter-service", poll_interval=0)
+    worker.register_handler("cad_conversion", perform_cad_conversion)
+    worker.register_handler("cad_preview", cad_preview_with_binding)
+    worker.register_handler("cad_geometry", cad_geometry_with_binding)
+    return worker
 
 
 # Supported input formats (from Odoo PLM cad_excenge.py pattern)
@@ -208,119 +227,58 @@ class CADConverterService:
     # Job Queue Management (Odoo plm_convert_stack pattern)
     # =========================================================================
 
-    def create_conversion_job(
-        self,
-        source_file_id: str,
-        target_format: str,
-        operation_type: str = "convert",
-        priority: int = 100,
-    ) -> ConversionJob:
-        """
-        Create a conversion job in the queue.
-
-        Args:
-            source_file_id: ID of FileContainer to convert
-            target_format: Target format (obj, gltf, png, etc.)
-            operation_type: Type of operation (convert, preview, printout)
-            priority: Job priority (lower = higher priority)
-        """
-        job = ConversionJob(
-            id=str(uuid.uuid4()),
-            source_file_id=source_file_id,
-            target_format=target_format.lower(),
-            operation_type=operation_type,
-            status=ConversionStatus.PENDING.value,
-            priority=priority,
-        )
-        self.session.add(job)
-        self.session.flush()
-        return job
-
-    def get_pending_jobs(self, batch_size: int = 10) -> List[ConversionJob]:
-        """Get pending jobs ordered by priority and creation time."""
+    def get_pending_jobs(self, batch_size: int = 10) -> List[MetaConversionJob]:
+        """Get canonical CAD-related jobs ordered by priority and creation time."""
         return (
-            self.session.query(ConversionJob)
+            self.session.query(MetaConversionJob)
             .filter(
-                ConversionJob.status.in_(
+                MetaConversionJob.status.in_(
                     [
-                        ConversionStatus.PENDING.value,
-                        ConversionStatus.FAILED.value,
+                        JobStatus.PENDING.value,
+                        JobStatus.PROCESSING.value,
                     ]
                 )
             )
-            .filter(ConversionJob.retry_count < ConversionJob.max_retries)
-            .order_by(ConversionJob.priority.asc(), ConversionJob.created_at.asc())
+            .filter(MetaConversionJob.task_type.in_(list(_CANONICAL_CONVERSION_TASK_TYPES)))
+            .order_by(MetaConversionJob.priority.asc(), MetaConversionJob.created_at.asc())
             .limit(batch_size)
             .all()
         )
 
-    def process_job(self, job: ConversionJob) -> bool:
+    def process_job(self, job: MetaConversionJob) -> bool:
         """
-        Process a single conversion job.
-        Returns True if successful, False otherwise.
+        Process a single canonical CAD conversion job.
+        Returns True if the job completes successfully.
         """
-        job.status = ConversionStatus.PROCESSING.value
-        job.started_at = datetime.utcnow()
-        self.session.flush()
-
-        try:
-            source_file = self.session.get(FileContainer, job.source_file_id)
-            if not source_file:
-                raise ValueError(f"Source file {job.source_file_id} not found")
-
-            # Get full path to source file
-            source_path = self._get_file_path(source_file)
-
-            if job.operation_type == "preview":
-                result_path = self._generate_preview(source_path, source_file)
-            elif job.operation_type == "convert":
-                result_path = self._convert_to_geometry(
-                    source_path, source_file, job.target_format
-                )
-            else:
-                raise ValueError(f"Unknown operation: {job.operation_type}")
-
-            # Create result file record
-            result_file = self._create_result_file(
-                source_file, result_path, job.target_format, job.operation_type
-            )
-
-            # Update job as completed
-            job.result_file_id = result_file.id
-            job.status = ConversionStatus.COMPLETED.value
-            job.completed_at = datetime.utcnow()
-
-            # Update source file with generated paths
-            if job.operation_type == "preview":
-                source_file.preview_path = result_file.system_path
-                source_file.conversion_status = ConversionStatus.COMPLETED.value
-            elif job.operation_type == "convert":
-                source_file.geometry_path = result_file.system_path
-                source_file.conversion_status = ConversionStatus.COMPLETED.value
-
-            self.session.flush()
-            return True
-
-        except Exception as e:
-            job.status = ConversionStatus.FAILED.value
-            job.error_message = str(e)
-            job.retry_count += 1
-            self.session.flush()
-            return False
+        worker = _build_canonical_conversion_worker()
+        job_service = JobService(self.session)
+        worker._execute_job(job, job_service)
+        self.session.refresh(job)
+        return job.status == JobStatus.COMPLETED.value
 
     def process_batch(self, batch_size: int = 10) -> Dict[str, int]:
         """
-        Process a batch of pending jobs.
+        Process a batch of canonical CAD-related jobs.
         Returns counts of processed, succeeded, and failed jobs.
         """
-        jobs = self.get_pending_jobs(batch_size)
+        job_service = JobService(self.session)
+        job_service.requeue_stale_jobs()
+        worker = _build_canonical_conversion_worker()
         results = {"processed": 0, "succeeded": 0, "failed": 0}
 
-        for job in jobs:
+        for _ in range(batch_size):
+            job = job_service.poll_next_job(
+                worker.worker_id,
+                task_types=list(_CANONICAL_CONVERSION_TASK_TYPES),
+            )
+            if not job:
+                break
             results["processed"] += 1
-            if self.process_job(job):
+            worker._execute_job(job, job_service)
+            self.session.refresh(job)
+            if job.status == JobStatus.COMPLETED.value:
                 results["succeeded"] += 1
-            else:
+            elif job.status == JobStatus.FAILED.value:
                 results["failed"] += 1
 
         return results
