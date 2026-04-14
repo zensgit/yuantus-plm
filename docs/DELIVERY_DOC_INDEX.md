@@ -61,6 +61,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - CI/Regression Change Scope Runbook: `docs/RUNBOOK_CI_CHANGE_SCOPE.md`
 - Claude Code Parallel Worktree Runbook: `docs/RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md`
 - Jobs Diagnostics Runbook: `docs/RUNBOOK_JOBS_DIAG.md`
+- Mainline Baseline Switch Runbook: `docs/RUNBOOK_MAINLINE_BASELINE_SWITCH_20260414.md`
 - Parallel Branch Observability Runbook: `docs/RUNBOOK_PARALLEL_BRANCH_OBSERVABILITY_20260228.md`
 - Perf Gate Config Runbook: `docs/RUNBOOK_PERF_GATE_CONFIG.md`
 - Relationship Item Migration Runbook: `docs/RUNBOOK_RELATIONSHIP_ITEM_MIGRATION.md`
@@ -124,6 +125,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - C9 Maintenance Workcenter Readiness Design: `docs/DESIGN_PARALLEL_C9_MAINTENANCE_WORKCENTER_READINESS_20260318.md`
 - Baseline API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
 - Baseline Filters API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`
+- Baseline Correction Audit (feature branch vs clean mainline): `docs/DEV_AND_VERIFICATION_BASELINE_CORRECTION_AUDIT_20260414.md`
 - BOM Compare API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_COMPARE_E2E_20260214.md`
 - BOM Effectivity API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_EFFECTIVITY_E2E_20260214.md`
 - BOM Obsolete API-only E2E Verification: `docs/DEV_AND_VERIFICATION_BOM_OBSOLETE_E2E_20260214.md`
@@ -174,6 +176,21 @@ This index aggregates all delivery‑related documents for private deployments.
 - Item Equivalents API-only E2E Verification: `docs/DEV_AND_VERIFICATION_ITEM_EQUIVALENTS_E2E_20260214.md`
 - MBOM Convert API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_CONVERT_E2E_20260214.md`
 - MBOM + Routing API-only E2E Verification: `docs/DEV_AND_VERIFICATION_MBOM_ROUTING_E2E_20260214.md`
+- P1 File Conversion Summary: `docs/DEV_AND_VERIFICATION_P1_FILE_CONVERSION_SUMMARY_20260414.md`
+- P1 File Conversion Job Queue: `docs/DEV_AND_VERIFICATION_P1_FILE_CONVERSION_JOB_QUEUE_20260414.md`
+- P1 File Upload Preview Queue: `docs/DEV_AND_VERIFICATION_P1_FILE_UPLOAD_PREVIEW_QUEUE_20260414.md`
+- P1 CAD Legacy Conversion Queue Audit: `docs/DEV_AND_VERIFICATION_P1_CAD_LEGACY_CONVERSION_QUEUE_AUDIT_20260414.md`
+- P1 CAD Converter Queue Shim: `docs/DEV_AND_VERIFICATION_P1_CAD_CONVERTER_QUEUE_SHIM_20260414.md`
+- P1 CAD Legacy Delete Window Readiness: `docs/DEV_AND_VERIFICATION_P1_CAD_LEGACY_DELETE_WINDOW_READINESS_20260414.md`
+- P1 CAD Legacy Model Removal: `docs/DEV_AND_VERIFICATION_P1_CAD_LEGACY_MODEL_REMOVAL_20260414.md`
+- P1 CAD Legacy Table Drop Migration: `docs/DEV_AND_VERIFICATION_P1_CAD_LEGACY_TABLE_DROP_MIGRATION_20260414.md`
+- P1 CAD Legacy Queue Final Closeout: `docs/DEV_AND_VERIFICATION_P1_CAD_LEGACY_QUEUE_FINAL_CLOSEOUT_20260414.md`
+- P1 CAD Commit Sequence Prep: `docs/DEV_AND_VERIFICATION_P1_CAD_COMMIT_SEQUENCE_PREP_20260414.md`
+- P1 CAD Checkin Queue Binding: `docs/DEV_AND_VERIFICATION_P1_CAD_CHECKIN_QUEUE_BINDING_20260414.md`
+- P1 CAD Checkin Status: `docs/DEV_AND_VERIFICATION_P1_CAD_CHECKIN_STATUS_20260414.md`
+- Mainline Baseline Switch Execution: `docs/DEV_AND_VERIFICATION_MAINLINE_BASELINE_SWITCH_EXECUTION_20260414.md`
+- Mainline Baseline Switch Planning & Verification: `docs/DEV_AND_VERIFICATION_MAINLINE_BASELINE_SWITCH_20260414.md`
+- Mainline Baseline Switch Preview: `docs/DEV_AND_VERIFICATION_MAINLINE_BASELINE_SWITCH_PREVIEW_20260414.md`
 - Metasheet <-> Yuantus Mainline Closeout: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_MAINLINE_CLOSEOUT_20260411.md`
 - Metasheet <-> Yuantus Pact Closure: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_PACT_CLOSURE_20260411.md`
 - Metasheet <-> Yuantus Pact Sync Helper: `docs/DEV_AND_VERIFICATION_METASHEET_YUANTUS_PACT_SYNC_HELPER_20260411.md`
@@ -339,6 +356,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Where-Used API-only E2E Verification: `docs/DEV_AND_VERIFICATION_WHERE_USED_E2E_20260214.md`
 - WorkCenter API-only E2E Verification: `docs/DEV_AND_VERIFICATION_WORKCENTER_E2E_20260214.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- Branch Merge/Rebase Risk Audit (feature branch vs origin/main): `docs/DEV_AND_VERIFICATION_BRANCH_MERGE_RISK_AUDIT_20260414.md`
+- PLM Workspace Manual Replay Plan (clean mainline worktree): `docs/DEV_AND_VERIFICATION_PLM_WORKSPACE_MANUAL_REPLAY_PLAN_20260414.md`
 - P5 Reports/Search Performance Report (2026-02-08): `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-192938.md`
 - P5 Reports/Search Performance Trend: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND.md`
 - Roadmap 9.3 Performance Report (2026-02-07): `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`
