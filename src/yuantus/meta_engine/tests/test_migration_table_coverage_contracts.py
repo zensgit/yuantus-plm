@@ -22,6 +22,10 @@ _LEGACY_UNMIGRATED_TABLE_ALLOWLIST = (
     "meta_translations",
 )
 
+_MIGRATION_ONLY_TABLE_ALLOWLIST = (
+    "cad_conversion_jobs",
+)
+
 
 def _find_repo_root(start: Path) -> Path:
     cur = start.resolve()
@@ -112,9 +116,38 @@ def test_migration_only_tables_are_allowlisted() -> None:
     migrated_tables = _migration_create_tables(repo_root)
     declared_tables = _declared_table_names(repo_root)
 
-    extra = sorted(migrated_tables - declared_tables)
+    extra = sorted(
+        (migrated_tables - declared_tables) - set(_MIGRATION_ONLY_TABLE_ALLOWLIST)
+    )
     assert not extra, (
         "Migrations define tables not declared under src/yuantus. "
         "If intentional, extend the scanner or document why the ORM is missing these:\n"
         + "\n".join(f"- {name}" for name in extra)
+    )
+
+
+def test_migration_only_table_allowlist_is_current_and_sorted() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    migrated_tables = _migration_create_tables(repo_root)
+    declared_tables = _declared_table_names(repo_root)
+
+    current_extra = migrated_tables - declared_tables
+    allowlist_entries = list(_MIGRATION_ONLY_TABLE_ALLOWLIST)
+    allowlist = set(allowlist_entries)
+
+    duplicates = sorted({name for name in allowlist_entries if allowlist_entries.count(name) > 1})
+    assert not duplicates, (
+        "Migration-only table allowlist must not contain duplicates:\n"
+        + "\n".join(f"- {name}" for name in duplicates)
+    )
+
+    assert allowlist_entries == sorted(allowlist_entries), (
+        "Migration-only table allowlist must stay sorted for stable maintenance."
+    )
+
+    stale = sorted(allowlist - current_extra)
+    assert not stale, (
+        "Migration-only table allowlist contains table(s) that are no longer migration-only. "
+        "Drop them from the allowlist:\n"
+        + "\n".join(f"- {name}" for name in stale)
     )
