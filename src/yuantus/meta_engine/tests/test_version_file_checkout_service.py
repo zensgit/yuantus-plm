@@ -291,3 +291,35 @@ def test_copy_files_to_version_allows_same_user_source_file_locks(db_session):
         ("file-2", "preview"),
     }
     assert all(vf.checked_out_by_id is None for vf in copied)
+
+
+def test_sync_item_files_to_version_requires_version_checked_out_by_user(db_session):
+    service = VersionFileService(db_session)
+
+    with pytest.raises(VersionFileError, match="not checked out by you"):
+        service.sync_item_files_to_version(
+            item_id="item-1",
+            version_id="ver-1",
+            user_id=7,
+        )
+
+
+def test_sync_item_files_to_version_rejects_foreign_file_locks(db_session):
+    service = VersionFileService(db_session)
+    version = db_session.get(ItemVersion, "ver-1")
+    version.checked_out_by_id = 7
+    db_session.add(version)
+    preview = service._get_version_file_assoc("ver-1", "file-2", "preview")
+    preview.checked_out_by_id = 9
+    db_session.add(preview)
+    db_session.commit()
+
+    with pytest.raises(
+        VersionFileError,
+        match="Version has file-level locks held by another user",
+    ):
+        service.sync_item_files_to_version(
+            item_id="item-1",
+            version_id="ver-1",
+            user_id=7,
+        )
