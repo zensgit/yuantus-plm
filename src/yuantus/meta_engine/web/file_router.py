@@ -53,6 +53,7 @@ from yuantus.meta_engine.services.cad_converter_service import CADConverterServi
 from yuantus.meta_engine.services.file_service import FileService
 from yuantus.meta_engine.services.job_service import JobService
 from yuantus.meta_engine.services.job_worker import JobWorker
+from yuantus.meta_engine.version.file_service import VersionFileService, VersionFileError
 from yuantus.meta_engine.models.cad_audit import CadChangeLog
 from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.security.auth.database import get_identity_db, get_identity_db_session
@@ -227,6 +228,52 @@ def _guess_media_type(path: str) -> str:
         ".bin": "application/octet-stream",
     }
     return media_types.get(ext, "application/octet-stream")
+
+
+def _ensure_current_version_attachment_editable(
+    db: Session,
+    item: Optional[Item],
+    *,
+    file_id: str,
+    file_role: str,
+    user_id: int,
+) -> None:
+    if not item or not item.current_version_id:
+        return
+
+    from yuantus.meta_engine.version.models import ItemVersion
+
+    version = db.get(ItemVersion, item.current_version_id)
+    if not version:
+        return
+
+    if version.checked_out_by_id and version.checked_out_by_id != user_id:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Version {version.id} is checked out by another user",
+        )
+
+    vf_service = VersionFileService(db)
+    try:
+        vf_service.ensure_file_editable(
+            version.id,
+            file_id,
+            user_id,
+            file_role=file_role,
+        )
+    except VersionFileError as exc:
+        detail = str(exc)
+        lower = detail.lower()
+        if "is not attached to version" in lower:
+            return
+        if (
+            "checked out" in lower
+            or "locked" in lower
+            or "released" in lower
+            or "specify file_role" in lower
+        ):
+            raise HTTPException(status_code=409, detail=detail)
+        raise HTTPException(status_code=400, detail=detail)
 
 
 def _build_cad_viewer_url(request: Request, file_id: str, cad_manifest_path: Optional[str]) -> Optional[str]:
@@ -1680,17 +1727,6 @@ async def attach_file_to_item(
             detail=f"Item is locked in state '{locked_state or item.state}'",
         )
 
-    # Enforce file lock when version is checked out by someone else
-    if item.current_version_id:
-        from yuantus.meta_engine.version.models import ItemVersion
-
-        ver = db.get(ItemVersion, item.current_version_id)
-        if ver and ver.checked_out_by_id and ver.checked_out_by_id != user_id:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Version {ver.id} is checked out by another user",
-            )
-
     # Verify file exists
     file_container = db.get(FileContainer, request.file_id)
     if not file_container:
@@ -1706,12 +1742,35 @@ async def attach_file_to_item(
         .first()
     )
     if existing:
+        _ensure_current_version_attachment_editable(
+            db,
+            item,
+            file_id=existing.file_id,
+            file_role=existing.file_role,
+            user_id=user_id,
+        )
+        if request.file_role != existing.file_role:
+            _ensure_current_version_attachment_editable(
+                db,
+                item,
+                file_id=existing.file_id,
+                file_role=request.file_role,
+                user_id=user_id,
+            )
         # Update role if different
         if existing.file_role != request.file_role:
             existing.file_role = request.file_role
             existing.description = request.description
             db.commit()
         return {"status": "updated", "id": existing.id}
+
+    _ensure_current_version_attachment_editable(
+        db,
+        item,
+        file_id=request.file_id,
+        file_role=request.file_role,
+        user_id=user_id,
+    )
 
     # Create new attachment
     item_file = ItemFile(
@@ -1790,15 +1849,13 @@ async def detach_file(
                 status_code=409,
                 detail=f"Item is locked in state '{locked_state or item.state}'",
             )
-    if item and item.current_version_id:
-        from yuantus.meta_engine.version.models import ItemVersion
-
-        ver = db.get(ItemVersion, item.current_version_id)
-        if ver and ver.checked_out_by_id and ver.checked_out_by_id != user_id:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Version {ver.id} is checked out by another user",
-            )
+    _ensure_current_version_attachment_editable(
+        db,
+        item,
+        file_id=item_file.file_id,
+        file_role=item_file.file_role,
+        user_id=user_id,
+    )
 
     db.delete(item_file)
     db.commit()
