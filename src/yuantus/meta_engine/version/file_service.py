@@ -87,6 +87,37 @@ class VersionFileService:
             query = query.filter(VersionFile.checked_out_by_id != user_id)
         return query.order_by(VersionFile.sequence.asc()).all()
 
+    def ensure_file_editable(
+        self,
+        version_id: str,
+        file_id: str,
+        user_id: int,
+        *,
+        file_role: Optional[str] = None,
+    ) -> VersionFile:
+        version = self._get_version(version_id)
+        if version.is_released:
+            raise VersionFileError(f"Version {version_id} is released and locked")
+        if version.checked_out_by_id and version.checked_out_by_id != user_id:
+            raise VersionFileError(
+                f"Version {version_id} is checked out by another user"
+            )
+
+        assoc = self._get_version_file_assoc(version_id, file_id, file_role)
+        if assoc.checked_out_by_id and assoc.checked_out_by_id != user_id:
+            raise VersionFileError(
+                f"File {file_id} is checked out by another user"
+            )
+        return assoc
+
+    def _get_primary_assoc(self, version_id: str) -> Optional[VersionFile]:
+        return (
+            self.session.query(VersionFile)
+            .filter_by(version_id=version_id, is_primary=True)
+            .order_by(VersionFile.sequence.asc())
+            .first()
+        )
+
     def checkout_file(
         self,
         version_id: str,
@@ -181,6 +212,7 @@ class VersionFileService:
         file_role: str = "attachment",
         is_primary: bool = False,
         sequence: int = 0,
+        user_id: Optional[int] = None,
     ) -> VersionFile:
         """
         Attach a file to a version.
@@ -211,10 +243,32 @@ class VersionFileService:
         )
 
         if existing:
+            if user_id is not None:
+                existing = self.ensure_file_editable(
+                    version_id,
+                    file_id,
+                    user_id,
+                    file_role=file_role,
+                )
             # Update existing
             existing.is_primary = is_primary
             existing.sequence = sequence
             self.session.add(existing)
+            if is_primary:
+                current_primary = self._get_primary_assoc(version_id)
+                if current_primary and current_primary.id != existing.id:
+                    if (
+                        user_id is not None
+                        and current_primary.checked_out_by_id
+                        and current_primary.checked_out_by_id != user_id
+                    ):
+                        raise VersionFileError(
+                            f"File {current_primary.file_id} is checked out by another user"
+                        )
+                    current_primary.is_primary = False
+                    self.session.add(current_primary)
+                version.primary_file_id = file_id
+                self.session.add(version)
             return existing
 
         # Create new association
@@ -235,18 +289,33 @@ class VersionFileService:
 
         # Set primary file on version if specified
         if is_primary:
+            current_primary = self._get_primary_assoc(version_id)
+            if current_primary and current_primary.id != vf.id:
+                if (
+                    user_id is not None
+                    and current_primary.checked_out_by_id
+                    and current_primary.checked_out_by_id != user_id
+                ):
+                    raise VersionFileError(
+                        f"File {current_primary.file_id} is checked out by another user"
+                    )
+                current_primary.is_primary = False
+                self.session.add(current_primary)
             version.primary_file_id = file_id
-            # Clear other primary flags
-            self.session.query(VersionFile).filter(
-                VersionFile.version_id == version_id, VersionFile.id != vf.id
-            ).update({"is_primary": False})
 
         self.session.add(version)
         self.session.flush()
 
         return vf
 
-    def detach_file(self, version_id: str, file_id: str, file_role: str = None) -> bool:
+    def detach_file(
+        self,
+        version_id: str,
+        file_id: str,
+        file_role: str = None,
+        *,
+        user_id: Optional[int] = None,
+    ) -> bool:
         """
         Detach a file from a version.
 
@@ -258,15 +327,16 @@ class VersionFileService:
         Returns:
             True if file was detached
         """
-        query = self.session.query(VersionFile).filter_by(
-            version_id=version_id, file_id=file_id
-        )
-        if file_role:
-            query = query.filter_by(file_role=file_role)
-
-        vf = query.first()
+        vf = self._get_version_file_assoc(version_id, file_id, file_role)
         if not vf:
             return False
+        if user_id is not None:
+            vf = self.ensure_file_editable(
+                version_id,
+                file_id,
+                user_id,
+                file_role=file_role,
+            )
 
         was_primary = vf.is_primary
         self.session.delete(vf)
@@ -298,7 +368,14 @@ class VersionFileService:
             query = query.filter_by(file_role=role)
         return query.order_by(VersionFile.sequence).all()
 
-    def set_primary_file(self, version_id: str, file_id: str) -> VersionFile:
+    def set_primary_file(
+        self,
+        version_id: str,
+        file_id: str,
+        *,
+        user_id: Optional[int] = None,
+        file_role: Optional[str] = None,
+    ) -> VersionFile:
         """
         Set a file as the primary file for a version.
 
@@ -309,22 +386,31 @@ class VersionFileService:
         Returns:
             Updated VersionFile record
         """
-        # Clear existing primary
-        self.session.query(VersionFile).filter_by(version_id=version_id).update(
-            {"is_primary": False}
-        )
-
-        # Set new primary
-        vf = (
-            self.session.query(VersionFile)
-            .filter_by(version_id=version_id, file_id=file_id)
-            .first()
-        )
-
-        if not vf:
-            raise VersionFileError(
-                f"File {file_id} not attached to version {version_id}"
+        if user_id is not None:
+            vf = self.ensure_file_editable(
+                version_id,
+                file_id,
+                user_id,
+                file_role=file_role,
             )
+        else:
+            vf = self._get_version_file_assoc(version_id, file_id, file_role)
+
+        current_primary = self._get_primary_assoc(version_id)
+        if (
+            current_primary
+            and current_primary.id != vf.id
+            and user_id is not None
+            and current_primary.checked_out_by_id
+            and current_primary.checked_out_by_id != user_id
+        ):
+            raise VersionFileError(
+                f"File {current_primary.file_id} is checked out by another user"
+            )
+
+        if current_primary and current_primary.id != vf.id:
+            current_primary.is_primary = False
+            self.session.add(current_primary)
 
         vf.is_primary = True
         self.session.add(vf)
