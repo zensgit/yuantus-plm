@@ -95,6 +95,16 @@ def _raise_version_file_http_error(exc: VersionFileError) -> None:
     raise HTTPException(status_code=400, detail=detail)
 
 
+def _raise_version_http_error(exc: VersionError) -> None:
+    detail = str(exc)
+    lower = detail.lower()
+    if "not found" in lower:
+        raise HTTPException(status_code=404, detail=detail)
+    if "checked out" in lower or "locked" in lower:
+        raise HTTPException(status_code=409, detail=detail)
+    raise HTTPException(status_code=400, detail=detail)
+
+
 @version_router.post("/items/{item_id}/init")
 def create_initial_version(
     item_id: str,
@@ -259,7 +269,7 @@ def merge_branch(
     item_id: str,
     source_version_id: str = Body(..., embed=True),
     target_version_id: str = Body(..., embed=True),
-    user_id: int = Body(1, embed=True),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     service = VersionService(db)
@@ -271,7 +281,7 @@ def merge_branch(
         return ver
     except VersionError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        _raise_version_http_error(e)
 
 
 @version_router.get("/compare")
