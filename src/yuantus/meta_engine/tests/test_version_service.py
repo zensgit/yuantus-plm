@@ -108,9 +108,47 @@ class TestVersionService:
 
         assert checked_in.checked_out_by_id is None
         assert checked_in.checked_out_at is None
+        service.file_version_service.sync_item_files_to_version.assert_called_once_with(
+            item_id="item-1",
+            version_id="ver-1",
+            user_id=2,
+            include_item_files=True,
+            extra_files=[],
+            primary_file_id=None,
+            remove_missing=True,
+        )
         service.file_version_service.release_all_file_locks.assert_called_once_with(
             "ver-1"
         )
+
+    def test_checkin_surfaces_sync_item_files_foreign_lock_error(self, mock_session):
+        service = VersionService(mock_session)
+
+        item = Item(id="item-1", current_version_id="ver-1", properties={})
+        version = ItemVersion(
+            id="ver-1",
+            item_id="item-1",
+            state="Draft",
+            is_released=False,
+            checked_out_by_id=2,
+            properties={},
+        )
+
+        mock_session.query.return_value.filter_by.side_effect = [
+            MagicMock(one=lambda: item),
+            MagicMock(one=lambda: version),
+        ]
+        service.file_version_service.sync_item_files_to_version = MagicMock(
+            side_effect=VersionFileError(
+                "Version has file-level locks held by another user (9)"
+            )
+        )
+
+        with pytest.raises(
+            VersionError,
+            match="Version has file-level locks held by another user",
+        ):
+            service.checkin("item-1", user_id=2, comment="Done")
 
     def test_revise(self, mock_session):
         service = VersionService(mock_session)

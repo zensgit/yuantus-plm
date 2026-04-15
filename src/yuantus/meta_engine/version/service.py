@@ -210,6 +210,7 @@ class VersionService:
             self.file_version_service.sync_item_files_to_version(
                 item_id=item_id,
                 version_id=version.id,
+                user_id=user_id,
                 include_item_files=include_item_files,
                 extra_files=extra_files,
                 primary_file_id=primary_file_id,
