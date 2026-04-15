@@ -1908,6 +1908,7 @@ class ECOService:
             VersionFileService(self.session).sync_version_files_to_item(
                 version_id=target_version.id,
                 item_id=product.id,
+                user_id=user_id,
                 remove_missing=True,
             )
         except VersionFileError as exc:

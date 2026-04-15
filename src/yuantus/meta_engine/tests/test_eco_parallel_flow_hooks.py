@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from yuantus.meta_engine.models.eco import ECOState
+from yuantus.meta_engine.version.file_service import VersionFileError
 from yuantus.meta_engine.services.eco_service import ECOApprovalService, ECOService
 
 
@@ -122,6 +123,12 @@ def test_action_apply_runs_activity_gate_and_custom_actions_hooks():
     assert after["trigger_phase"] == "after"
     assert after["to_state"] == ECOState.DONE.value
     assert after["context"] == {"actor_roles": ["approver"]}
+    version_file_service_cls.return_value.sync_version_files_to_item.assert_called_once_with(
+        version_id="v-2",
+        item_id="item-1",
+        user_id=1,
+        remove_missing=True,
+    )
 
 
 def test_action_apply_rejects_foreign_target_version_checkout():
@@ -174,6 +181,63 @@ def test_action_apply_rejects_foreign_target_version_checkout():
         with pytest.raises(
             ValueError,
             match="Target version v-2 is checked out by another user",
+        ):
+            service.action_apply("eco-1", user_id=1)
+
+
+def test_action_apply_propagates_projection_runtime_lock_errors():
+    session = MagicMock()
+    service = ECOService(session)
+    service.permission_service.check_permission = MagicMock()
+    service._ensure_activity_gate_ready = MagicMock()
+    service._run_custom_actions = MagicMock()
+    service._enqueue_eco_updated = MagicMock()
+    service.check_rebase_needed = MagicMock(return_value=False)
+    service.detect_rebase_conflicts = MagicMock(return_value=[])
+
+    eco = SimpleNamespace(
+        id="eco-1",
+        state=ECOState.APPROVED.value,
+        product_id="item-1",
+        target_version_id="v-2",
+    )
+    product = SimpleNamespace(
+        id="item-1",
+        current_version_id="v-1",
+        properties={"rev": "A"},
+        updated_at=None,
+    )
+    current_version = SimpleNamespace(id="v-1", is_current=True, checked_out_by_id=None)
+    target_version = SimpleNamespace(
+        id="v-2",
+        is_current=False,
+        checked_out_by_id=None,
+        properties={"rev": "B"},
+        version_label="B",
+    )
+
+    session.get.side_effect = lambda model, value: (
+        SimpleNamespace(roles=[SimpleNamespace(name="approver")])
+        if getattr(model, "__name__", "") == "RBACUser" and value == 1
+        else product
+        if value == "item-1"
+        else None
+    )
+    service.get_eco = MagicMock(return_value=eco)
+    service.version_service.get_version = MagicMock(
+        side_effect=lambda version_id: current_version if version_id == "v-1" else target_version
+    )
+
+    with patch(
+        "yuantus.meta_engine.services.eco_service.VersionFileService"
+    ) as version_file_service_cls:
+        version_file_service_cls.return_value.get_blocking_file_locks.return_value = []
+        version_file_service_cls.return_value.sync_version_files_to_item.side_effect = (
+            VersionFileError("Version has file-level locks held by another user (9)")
+        )
+        with pytest.raises(
+            ValueError,
+            match="Version has file-level locks held by another user",
         ):
             service.action_apply("eco-1", user_id=1)
 
