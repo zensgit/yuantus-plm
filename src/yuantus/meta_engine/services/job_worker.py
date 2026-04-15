@@ -276,6 +276,7 @@ class JobWorker:
                                     version_id=version_id,
                                     file_id=file_id,
                                     file_role=file_role,
+                                    user_id=job.created_by_id,
                                 )
                                 bound_versions.add(version_id)
                         job_service.session.commit()
