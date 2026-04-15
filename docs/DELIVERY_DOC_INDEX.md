@@ -210,6 +210,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - P1 Version File Lock Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_FILE_LOCK_GUARDS_20260415.md`
 - P1 Version Merge Lock Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_MERGE_LOCK_GUARDS_20260415.md`
 - P1 Version Release Lock Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_RELEASE_LOCK_GUARDS_20260415.md`
+- P1 Version Router Conflict Mapping: `docs/DEV_AND_VERIFICATION_P1_VERSION_ROUTER_CONFLICT_MAPPING_20260415.md`
 - P1 Version Source Checkout Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_SOURCE_CHECKOUT_GUARDS_20260415.md`
 - P1 Version Sync Lock Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_SYNC_LOCK_GUARDS_20260415.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`

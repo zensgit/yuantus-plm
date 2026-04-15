@@ -100,7 +100,12 @@ def _raise_version_http_error(exc: VersionError) -> None:
     lower = detail.lower()
     if "not found" in lower:
         raise HTTPException(status_code=404, detail=detail)
-    if "checked out" in lower or "locked" in lower:
+    if (
+        "checked out" in lower
+        or "locked" in lower
+        or "file-level lock" in lower
+        or "locks held" in lower
+    ):
         raise HTTPException(status_code=409, detail=detail)
     raise HTTPException(status_code=400, detail=detail)
 
@@ -239,7 +244,7 @@ def checkout(
         return ver
     except VersionError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        _raise_version_http_error(e)
 
 
 @version_router.post("/items/{item_id}/checkin")
@@ -258,7 +263,7 @@ def checkin(
         return ver
     except VersionError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        _raise_version_http_error(e)
 
 
 # ... existing endpoints ...
