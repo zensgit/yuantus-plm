@@ -216,6 +216,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - P1 Version Router Conflict Mapping: `docs/DEV_AND_VERIFICATION_P1_VERSION_ROUTER_CONFLICT_MAPPING_20260415.md`
 - P1 Version Source Checkout Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_SOURCE_CHECKOUT_GUARDS_20260415.md`
 - P1 Version Sync Lock Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_SYNC_LOCK_GUARDS_20260415.md`
+- P2 ECO Approval Routing MVP: `docs/DEV_AND_VERIFICATION_P2_ECO_APPROVAL_ROUTING_MVP_20260415.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
 - Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
 - Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
