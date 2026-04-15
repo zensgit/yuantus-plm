@@ -202,6 +202,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - P1 ECO Apply File Lock Guards: `docs/DEV_AND_VERIFICATION_P1_ECO_APPLY_FILE_LOCK_GUARDS_20260415.md`
 - P1 File Conversion Job Queue: `docs/DEV_AND_VERIFICATION_P1_FILE_CONVERSION_JOB_QUEUE_20260414.md`
 - P1 File Conversion Summary: `docs/DEV_AND_VERIFICATION_P1_FILE_CONVERSION_SUMMARY_20260414.md`
+- P1 File Router Attachment Lock Guards: `docs/DEV_AND_VERIFICATION_P1_FILE_ROUTER_ATTACHMENT_LOCK_GUARDS_20260415.md`
 - P1 File Upload Preview Queue: `docs/DEV_AND_VERIFICATION_P1_FILE_UPLOAD_PREVIEW_QUEUE_20260414.md`
 - P1 Job Worker File Lock Guards: `docs/DEV_AND_VERIFICATION_P1_JOB_WORKER_FILE_LOCK_GUARDS_20260415.md`
 - P1 Version Copy Lock Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_COPY_LOCK_GUARDS_20260415.md`
