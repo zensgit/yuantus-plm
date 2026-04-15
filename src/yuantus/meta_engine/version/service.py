@@ -417,6 +417,23 @@ class VersionService:
         if current_ver.is_released:
             return current_ver
 
+        blocking_file_locks = self.file_version_service.get_blocking_file_locks(
+            current_ver.id,
+            user_id=user_id,
+        )
+        if blocking_file_locks:
+            owners = sorted(
+                {
+                    str(vf.checked_out_by_id)
+                    for vf in blocking_file_locks
+                    if vf.checked_out_by_id is not None
+                }
+            )
+            raise VersionError(
+                "Version has file-level locks held by another user"
+                + (f" ({', '.join(owners)})" if owners else "")
+            )
+
         current_ver.is_released = True
         current_ver.state = "Released"
         current_ver.checked_out_by_id = None

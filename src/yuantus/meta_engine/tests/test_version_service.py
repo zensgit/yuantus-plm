@@ -202,15 +202,60 @@ class TestVersionService:
         ver_query.filter_by.return_value.one.return_value = current_ver
 
         mock_session.query.side_effect = [item_query, ver_query]
+        service.file_version_service.get_blocking_file_locks = MagicMock(return_value=[])
         service.file_version_service.release_all_file_locks = MagicMock(return_value=2)
 
         released = service.release("item-1", user_id=7)
 
         assert released.is_released is True
         assert released.checked_out_by_id is None
+        service.file_version_service.get_blocking_file_locks.assert_called_once_with(
+            "ver-1",
+            user_id=7,
+        )
         service.file_version_service.release_all_file_locks.assert_called_once_with(
             "ver-1"
         )
+
+    def test_release_rejects_foreign_file_locks(self, mock_session):
+        service = VersionService(mock_session)
+
+        item = Item(id="item-1", current_version_id="ver-1")
+        current_ver = ItemVersion(
+            id="ver-1",
+            item_id="item-1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            is_current=True,
+            is_released=False,
+        )
+
+        item_query = MagicMock()
+        item_query.filter_by.return_value.one.return_value = item
+
+        ver_query = MagicMock()
+        ver_query.filter_by.return_value.one.return_value = current_ver
+
+        mock_session.query.side_effect = [item_query, ver_query]
+        service.file_version_service.get_blocking_file_locks = MagicMock(
+            return_value=[
+                MagicMock(
+                    file_id="file-1",
+                    file_role="preview",
+                    checked_out_by_id=9,
+                )
+            ]
+        )
+        service.file_version_service.release_all_file_locks = MagicMock()
+
+        with pytest.raises(
+            VersionError,
+            match="Version has file-level locks held by another user",
+        ):
+            service.release("item-1", user_id=7)
+
+        service.file_version_service.release_all_file_locks.assert_not_called()
 
     def test_new_generation_rejects_foreign_source_file_locks(self, mock_session):
         service = VersionService(mock_session)
