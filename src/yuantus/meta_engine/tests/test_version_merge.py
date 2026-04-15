@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from yuantus.meta_engine.version.service import VersionService
 from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.version.service import VersionError
 
 
 class TestVersionMerge:
@@ -12,6 +13,9 @@ class TestVersionMerge:
 
     def test_merge_branch(self, mock_session):
         service = VersionService(mock_session)
+        service.file_version_service.get_blocking_file_locks = MagicMock(
+            return_value=[]
+        )
 
         # Setup Item
         item = Item(id="item1", current_version_id="ver_main")
@@ -28,6 +32,7 @@ class TestVersionMerge:
             revision="A",
             version_label="1.A",
             is_current=True,
+            checked_out_by_id=1,
             properties={"color": "red"},
         )
 
@@ -69,3 +74,142 @@ class TestVersionMerge:
 
         mock_session.add.assert_any_call(merged)
         mock_session.add.assert_any_call(v_main)
+
+    def test_merge_branch_requires_target_checked_out_by_user(self, mock_session):
+        service = VersionService(mock_session)
+        service.file_version_service.get_blocking_file_locks = MagicMock(
+            return_value=[]
+        )
+
+        item = Item(id="item1", current_version_id="ver_main")
+        v_main = ItemVersion(
+            id="ver_main",
+            item_id="item1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            is_current=True,
+            checked_out_by_id=None,
+            properties={"color": "red"},
+        )
+        v_branch = ItemVersion(
+            id="ver_branch",
+            item_id="item1",
+            generation=1,
+            revision="A",
+            version_label="1.A-dev",
+            branch_name="dev",
+            properties={"color": "blue"},
+        )
+
+        def get_ver(id):
+            if id == "ver_main":
+                return v_main
+            if id == "ver_branch":
+                return v_branch
+            if id == "item1":
+                return item
+            return None
+
+        mock_session.query.return_value.get.side_effect = get_ver
+
+        with pytest.raises(
+            VersionError, match="Target version ver_main is not checked out by you"
+        ):
+            service.merge_branch("item1", "ver_branch", "ver_main", user_id=1)
+
+    def test_merge_branch_rejects_foreign_source_file_locks(self, mock_session):
+        service = VersionService(mock_session)
+
+        item = Item(id="item1", current_version_id="ver_main")
+        v_main = ItemVersion(
+            id="ver_main",
+            item_id="item1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            is_current=True,
+            checked_out_by_id=1,
+            properties={"color": "red"},
+        )
+        v_branch = ItemVersion(
+            id="ver_branch",
+            item_id="item1",
+            generation=1,
+            revision="A",
+            version_label="1.A-dev",
+            branch_name="dev",
+            properties={"color": "blue"},
+        )
+
+        def get_ver(id):
+            if id == "ver_main":
+                return v_main
+            if id == "ver_branch":
+                return v_branch
+            if id == "item1":
+                return item
+            return None
+
+        mock_session.query.return_value.get.side_effect = get_ver
+        service.file_version_service.get_blocking_file_locks = MagicMock(
+            side_effect=lambda version_id, user_id=None: [
+                MagicMock(checked_out_by_id=9)
+            ]
+            if version_id == "ver_branch"
+            else []
+        )
+
+        with pytest.raises(
+            VersionError,
+            match="Source version has file-level locks held by another user",
+        ):
+            service.merge_branch("item1", "ver_branch", "ver_main", user_id=1)
+
+    def test_merge_branch_rejects_foreign_target_file_locks(self, mock_session):
+        service = VersionService(mock_session)
+
+        item = Item(id="item1", current_version_id="ver_main")
+        v_main = ItemVersion(
+            id="ver_main",
+            item_id="item1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            is_current=True,
+            checked_out_by_id=1,
+            properties={"color": "red"},
+        )
+        v_branch = ItemVersion(
+            id="ver_branch",
+            item_id="item1",
+            generation=1,
+            revision="A",
+            version_label="1.A-dev",
+            branch_name="dev",
+            properties={"color": "blue"},
+        )
+
+        def get_ver(id):
+            if id == "ver_main":
+                return v_main
+            if id == "ver_branch":
+                return v_branch
+            if id == "item1":
+                return item
+            return None
+
+        mock_session.query.return_value.get.side_effect = get_ver
+        service.file_version_service.get_blocking_file_locks = MagicMock(
+            side_effect=lambda version_id, user_id=None: [
+                MagicMock(checked_out_by_id=9)
+            ]
+            if version_id == "ver_main"
+            else []
+        )
+
+        with pytest.raises(
+            VersionError,
+            match="Target version has file-level locks held by another user",
+        ):
+            service.merge_branch("item1", "ver_branch", "ver_main", user_id=1)

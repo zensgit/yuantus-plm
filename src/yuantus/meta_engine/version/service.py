@@ -228,6 +228,31 @@ class VersionService:
 
     # ... (revise, new_generation, release remain same)
 
+    def _assert_no_foreign_file_locks(
+        self,
+        version_id: str,
+        user_id: int,
+        *,
+        label: str,
+    ) -> None:
+        blocking_locks = self.file_version_service.get_blocking_file_locks(
+            version_id,
+            user_id=user_id,
+        )
+        if not blocking_locks:
+            return
+        owners = sorted(
+            {
+                str(vf.checked_out_by_id)
+                for vf in blocking_locks
+                if vf.checked_out_by_id is not None
+            }
+        )
+        raise VersionError(
+            f"{label} has file-level locks held by another user"
+            + (f" ({', '.join(owners)})" if owners else "")
+        )
+
     def merge_branch(
         self, item_id: str, source_version_id: str, target_version_id: str, user_id: int
     ) -> ItemVersion:
@@ -248,6 +273,28 @@ class VersionService:
 
         if source_ver.item_id != item_id or target_ver.item_id != item_id:
             raise VersionError("Versions must belong to the same item")
+
+        if source_ver.checked_out_by_id and source_ver.checked_out_by_id != user_id:
+            raise VersionError(
+                f"Source version {source_ver.id} is checked out by another user"
+            )
+
+        self._assert_no_foreign_file_locks(
+            source_ver.id,
+            user_id,
+            label="Source version",
+        )
+
+        if target_ver.is_released:
+            raise VersionError(f"Target version {target_ver.id} is released and locked")
+        if target_ver.checked_out_by_id != user_id:
+            raise VersionError(f"Target version {target_ver.id} is not checked out by you")
+
+        self._assert_no_foreign_file_locks(
+            target_ver.id,
+            user_id,
+            label="Target version",
+        )
 
         # Logic: Revise Target -> New Revision, Apply Source Props
         # Reuse revise logic logic but with property override
