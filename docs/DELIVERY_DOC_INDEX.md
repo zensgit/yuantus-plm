@@ -205,6 +205,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - P1 File Router Attachment Lock Guards: `docs/DEV_AND_VERIFICATION_P1_FILE_ROUTER_ATTACHMENT_LOCK_GUARDS_20260415.md`
 - P1 File Upload Preview Queue: `docs/DEV_AND_VERIFICATION_P1_FILE_UPLOAD_PREVIEW_QUEUE_20260414.md`
 - P1 Job Worker File Lock Guards: `docs/DEV_AND_VERIFICATION_P1_JOB_WORKER_FILE_LOCK_GUARDS_20260415.md`
+- P1 Job Worker Projection Lock Guards: `docs/DEV_AND_VERIFICATION_P1_JOB_WORKER_PROJECTION_LOCK_GUARDS_20260415.md`
 - P1 Version Copy Lock Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_COPY_LOCK_GUARDS_20260415.md`
 - P1 Version File-Level Checkout: `docs/DEV_AND_VERIFICATION_P1_VERSION_FILE_LEVEL_CHECKOUT_20260415.md`
 - P1 Version File-Level Checkout CI Remediation: `docs/DEV_AND_VERIFICATION_P1_VERSION_FILE_LEVEL_CHECKOUT_CI_REMEDIATION_20260415.md`
@@ -349,6 +350,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Platform Tenant Provisioning API-only E2E Verification: `docs/DEV_AND_VERIFICATION_PLATFORM_TENANT_PROVISIONING_E2E_20260213.md`
 - Playwright CI Integration: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_CI_20260201.md`
 - Playwright API-Only Export Bundle Regression: `docs/DEV_AND_VERIFICATION_PLAYWRIGHT_EXPORT_BUNDLES_API_20260207.md`
+- PLM Main Chain Convergence Delivery Reconciliation: `docs/DEV_AND_VERIFICATION_PLM_MAIN_CHAIN_CONVERGENCE_DELIVERY_RECONCILIATION_20260415.md`
 - PLM Workspace Manual Replay Plan (clean mainline worktree): `docs/DEV_AND_VERIFICATION_PLM_WORKSPACE_MANUAL_REPLAY_PLAN_20260414.md`
 - Product Detail Cockpit Flags: `docs/DEV_AND_VERIFICATION_PRODUCT_DETAIL_COCKPIT_FLAGS_20260207.md`
 - Quota Enforcement API-only E2E Verification: `docs/DEV_AND_VERIFICATION_QUOTA_ENFORCEMENT_E2E_20260213.md`

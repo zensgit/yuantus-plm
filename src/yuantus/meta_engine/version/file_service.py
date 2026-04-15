@@ -610,6 +610,7 @@ class VersionFileService:
         version_id: str,
         item_id: str,
         *,
+        user_id: Optional[int] = None,
         remove_missing: bool = True,
     ) -> Dict[str, Any]:
         """
@@ -622,6 +623,26 @@ class VersionFileService:
         version = self.session.get(ItemVersion, version_id)
         if not version:
             raise VersionFileError(f"Version {version_id} not found")
+        if user_id is not None:
+            if version.is_released:
+                raise VersionFileError(f"Version {version_id} is released and locked")
+            if version.checked_out_by_id and version.checked_out_by_id != user_id:
+                raise VersionFileError(
+                    f"Version {version_id} is checked out by another user"
+                )
+            blocking_locks = self.get_blocking_file_locks(version_id, user_id=user_id)
+            if blocking_locks:
+                owners = sorted(
+                    {
+                        str(vf.checked_out_by_id)
+                        for vf in blocking_locks
+                        if vf.checked_out_by_id is not None
+                    }
+                )
+                raise VersionFileError(
+                    "Version has file-level locks held by another user"
+                    + (f" ({', '.join(owners)})" if owners else "")
+                )
 
         item = self.session.get(Item, item_id)
         if not item:
