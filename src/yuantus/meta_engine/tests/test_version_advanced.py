@@ -2,6 +2,8 @@ import pytest
 from unittest.mock import MagicMock
 from yuantus.meta_engine.version.service import VersionService
 from yuantus.meta_engine.version.models import ItemVersion
+from yuantus.meta_engine.version.file_service import VersionFileError
+from yuantus.meta_engine.version.service import VersionError
 
 
 class TestVersionAdvanced:
@@ -11,6 +13,7 @@ class TestVersionAdvanced:
 
     def test_create_branch(self, mock_session):
         service = VersionService(mock_session)
+        service.file_version_service.copy_files_to_version = MagicMock(return_value=[])
 
         # Mock source version
         src = ItemVersion(
@@ -29,6 +32,33 @@ class TestVersionAdvanced:
         assert branch.predecessor_id == "v1"
         assert branch.properties == {"color": "red"}
         mock_session.add.assert_called()
+        service.file_version_service.copy_files_to_version.assert_called_once_with(
+            "v1",
+            branch.id,
+            user_id=1,
+        )
+
+    def test_create_branch_rejects_foreign_source_file_locks(self, mock_session):
+        service = VersionService(mock_session)
+
+        src = ItemVersion(
+            id="v1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+        )
+        mock_session.query.return_value.get.return_value = src
+        service.file_version_service.copy_files_to_version = MagicMock(
+            side_effect=VersionFileError(
+                "Source version has file-level locks held by another user (9)"
+            )
+        )
+
+        with pytest.raises(
+            VersionError,
+            match="Source version has file-level locks held by another user",
+        ):
+            service.create_branch("item1", "v1", "exp", 1)
 
     def test_compare_versions(self, mock_session):
         service = VersionService(mock_session)

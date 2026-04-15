@@ -20,6 +20,19 @@ def db_session():
         "meta_items",
         Base.metadata,
         Column("id", String, primary_key=True),
+        Column("item_type_id", String),
+        extend_existing=True,
+    )
+    meta_item_types = Table(
+        "meta_item_types",
+        Base.metadata,
+        Column("id", String, primary_key=True),
+        extend_existing=True,
+    )
+    meta_lifecycle_states = Table(
+        "meta_lifecycle_states",
+        Base.metadata,
+        Column("id", String, primary_key=True),
         extend_existing=True,
     )
     meta_vaults = Table(
@@ -34,6 +47,8 @@ def db_session():
         tables=[
             RBACUser.__table__,
             meta_items,
+            meta_item_types,
+            meta_lifecycle_states,
             meta_vaults,
             FileContainer.__table__,
             ItemVersion.__table__,
@@ -50,9 +65,15 @@ def db_session():
             ]
         )
         session.execute(
+            meta_item_types.insert().values(
+                id="part",
+            )
+        )
+        session.execute(
             meta_items.insert().values(
                 id="item-1",
                 config_id="item-1",
+                item_type_id="part",
             )
         )
         session.add(
@@ -220,3 +241,53 @@ def test_set_primary_rejects_locked_current_primary(db_session):
             user_id=7,
             file_role="preview",
         )
+
+
+def test_copy_files_to_version_rejects_foreign_source_file_locks(db_session):
+    db_session.add(
+        ItemVersion(
+            id="ver-2",
+            item_id="item-1",
+            generation=1,
+            revision="B",
+            version_label="1.B",
+            state="Draft",
+            is_current=False,
+        )
+    )
+    db_session.commit()
+
+    service = VersionFileService(db_session)
+    service.checkout_file("ver-1", "file-2", user_id=9, file_role="preview")
+
+    with pytest.raises(
+        VersionFileError,
+        match="Source version has file-level locks held by another user",
+    ):
+        service.copy_files_to_version("ver-1", "ver-2", user_id=7)
+
+
+def test_copy_files_to_version_allows_same_user_source_file_locks(db_session):
+    db_session.add(
+        ItemVersion(
+            id="ver-2",
+            item_id="item-1",
+            generation=1,
+            revision="B",
+            version_label="1.B",
+            state="Draft",
+            is_current=False,
+        )
+    )
+    db_session.commit()
+
+    service = VersionFileService(db_session)
+    service.checkout_file("ver-1", "file-2", user_id=7, file_role="preview")
+
+    copied = service.copy_files_to_version("ver-1", "ver-2", user_id=7)
+
+    assert {(vf.file_id, vf.file_role) for vf in copied} == {
+        ("file-1", "native_cad"),
+        ("file-2", "preview"),
+    }
+    assert all(vf.checked_out_by_id is None for vf in copied)

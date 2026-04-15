@@ -4,6 +4,7 @@ from yuantus.meta_engine.version.service import VersionService
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.meta_engine.version.service import VersionError
+from yuantus.meta_engine.version.file_service import VersionFileError
 
 
 class TestVersionService:
@@ -113,6 +114,7 @@ class TestVersionService:
 
     def test_revise(self, mock_session):
         service = VersionService(mock_session)
+        service.file_version_service.copy_files_to_version = MagicMock(return_value=[])
 
         item = Item(id="item-1", current_version_id="ver-1")
         current_ver = ItemVersion(
@@ -131,11 +133,7 @@ class TestVersionService:
         ver_query = MagicMock()
         ver_query.filter_by.return_value.one.return_value = current_ver
 
-        file_query = MagicMock()
-        file_query.filter_by.return_value = file_query
-        file_query.all.return_value = []
-
-        mock_session.query.side_effect = [item_query, ver_query, file_query]
+        mock_session.query.side_effect = [item_query, ver_query]
 
         new_ver = service.revise("item-1", user_id=1)
 
@@ -144,6 +142,43 @@ class TestVersionService:
         assert new_ver.predecessor_id == "ver-1"
         assert current_ver.is_current is False
         assert item.current_version_id == new_ver.id
+        service.file_version_service.copy_files_to_version.assert_called_once_with(
+            "ver-1",
+            new_ver.id,
+            user_id=1,
+        )
+
+    def test_revise_rejects_foreign_source_file_locks(self, mock_session):
+        service = VersionService(mock_session)
+
+        item = Item(id="item-1", current_version_id="ver-1")
+        current_ver = ItemVersion(
+            id="ver-1",
+            item_id="item-1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            is_current=True,
+        )
+
+        item_query = MagicMock()
+        item_query.filter_by.return_value.one.return_value = item
+
+        ver_query = MagicMock()
+        ver_query.filter_by.return_value.one.return_value = current_ver
+
+        mock_session.query.side_effect = [item_query, ver_query]
+        service.file_version_service.copy_files_to_version = MagicMock(
+            side_effect=VersionFileError(
+                "Source version has file-level locks held by another user (9)"
+            )
+        )
+
+        with pytest.raises(
+            VersionError,
+            match="Source version has file-level locks held by another user",
+        ):
+            service.revise("item-1", user_id=1)
 
     def test_release_releases_all_file_locks(self, mock_session):
         service = VersionService(mock_session)
@@ -176,3 +211,35 @@ class TestVersionService:
         service.file_version_service.release_all_file_locks.assert_called_once_with(
             "ver-1"
         )
+
+    def test_new_generation_rejects_foreign_source_file_locks(self, mock_session):
+        service = VersionService(mock_session)
+
+        item = Item(id="item-1", current_version_id="ver-1")
+        current_ver = ItemVersion(
+            id="ver-1",
+            item_id="item-1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            is_current=True,
+        )
+
+        item_query = MagicMock()
+        item_query.filter_by.return_value.one.return_value = item
+
+        ver_query = MagicMock()
+        ver_query.filter_by.return_value.one.return_value = current_ver
+
+        mock_session.query.side_effect = [item_query, ver_query]
+        service.file_version_service.copy_files_to_version = MagicMock(
+            side_effect=VersionFileError(
+                "Source version has file-level locks held by another user (9)"
+            )
+        )
+
+        with pytest.raises(
+            VersionError,
+            match="Source version has file-level locks held by another user",
+        ):
+            service.new_generation("item-1", user_id=1)

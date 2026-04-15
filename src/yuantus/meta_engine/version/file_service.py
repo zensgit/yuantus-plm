@@ -673,6 +673,7 @@ class VersionFileService:
         source_version_id: str,
         target_version_id: str,
         include_roles: List[str] = None,
+        user_id: Optional[int] = None,
     ) -> List[VersionFile]:
         """
         Copy all file associations from one version to another.
@@ -689,6 +690,24 @@ class VersionFileService:
         query = self.session.query(VersionFile).filter_by(version_id=source_version_id)
         if include_roles:
             query = query.filter(VersionFile.file_role.in_(include_roles))
+
+        if user_id is not None:
+            blocking_locks = self.get_blocking_file_locks(
+                source_version_id,
+                user_id=user_id,
+            )
+            if blocking_locks:
+                owners = sorted(
+                    {
+                        str(vf.checked_out_by_id)
+                        for vf in blocking_locks
+                        if vf.checked_out_by_id is not None
+                    }
+                )
+                raise VersionFileError(
+                    "Source version has file-level locks held by another user"
+                    + (f" ({', '.join(owners)})" if owners else "")
+                )
 
         source_files = query.all()
         new_files = []
