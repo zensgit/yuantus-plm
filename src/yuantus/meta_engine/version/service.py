@@ -111,6 +111,23 @@ class VersionService:
                 f"Version is already checked out by user {version.checked_out_by_id}"
             )
 
+        blocking_file_locks = self.file_version_service.get_blocking_file_locks(
+            version.id,
+            user_id=user_id,
+        )
+        if blocking_file_locks:
+            owners = sorted(
+                {
+                    str(vf.checked_out_by_id)
+                    for vf in blocking_file_locks
+                    if vf.checked_out_by_id is not None
+                }
+            )
+            raise VersionError(
+                "Version has file-level locks held by another user"
+                + (f" ({', '.join(owners)})" if owners else "")
+            )
+
         version.checked_out_by_id = user_id
         version.checked_out_at = datetime.utcnow()
         self.session.add(version)
@@ -201,6 +218,7 @@ class VersionService:
         except VersionFileError as e:
             raise VersionError(str(e))
 
+        self.file_version_service.release_all_file_locks(version.id)
         version.checked_out_by_id = None
         version.checked_out_at = None
 
@@ -389,6 +407,7 @@ class VersionService:
         current_ver.state = "Released"
         current_ver.checked_out_by_id = None
         current_ver.checked_out_at = None
+        self.file_version_service.release_all_file_locks(current_ver.id)
 
         # Lock item properties if needed? Item properties are usually master, maybe synced.
 

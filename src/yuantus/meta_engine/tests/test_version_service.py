@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from yuantus.meta_engine.version.service import VersionService
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.version.models import ItemVersion
+from yuantus.meta_engine.version.service import VersionError
 
 
 class TestVersionService:
@@ -46,11 +47,69 @@ class TestVersionService:
             MagicMock(one=lambda: item),
             MagicMock(one=lambda: version),
         ]
+        service.file_version_service.get_blocking_file_locks = MagicMock(return_value=[])
 
         checked_out = service.checkout("item-1", user_id=2, comment="Edit")
 
         assert checked_out.checked_out_by_id == 2
         assert checked_out.checked_out_at is not None
+
+    def test_checkout_rejects_conflicting_file_locks(self, mock_session):
+        service = VersionService(mock_session)
+
+        item = Item(id="item-1", current_version_id="ver-1")
+        version = ItemVersion(
+            id="ver-1",
+            item_id="item-1",
+            state="Draft",
+            is_released=False,
+            checked_out_by_id=None,
+        )
+
+        mock_session.query.return_value.filter_by.side_effect = [
+            MagicMock(one=lambda: item),
+            MagicMock(one=lambda: version),
+        ]
+        service.file_version_service.get_blocking_file_locks = MagicMock(
+            return_value=[
+                MagicMock(
+                    file_id="file-1",
+                    file_role="preview",
+                    checked_out_by_id=9,
+                )
+            ]
+        )
+
+        with pytest.raises(VersionError, match="file-level locks held by another user"):
+            service.checkout("item-1", user_id=2, comment="Edit")
+
+    def test_checkin_releases_all_file_locks(self, mock_session):
+        service = VersionService(mock_session)
+
+        item = Item(id="item-1", current_version_id="ver-1", properties={})
+        version = ItemVersion(
+            id="ver-1",
+            item_id="item-1",
+            state="Draft",
+            is_released=False,
+            checked_out_by_id=2,
+            properties={},
+        )
+
+        mock_session.query.return_value.filter_by.side_effect = [
+            MagicMock(one=lambda: item),
+            MagicMock(one=lambda: version),
+        ]
+        service.file_version_service.sync_item_files_to_version = MagicMock()
+        service.file_version_service.release_all_file_locks = MagicMock(return_value=1)
+
+        checked_in = service.checkin("item-1", user_id=2, comment="Done")
+
+        assert checked_in.checked_out_by_id is None
+        assert checked_in.checked_out_at is None
+        service.file_version_service.release_all_file_locks.assert_called_once_with(
+            "ver-1"
+        )
 
     def test_revise(self, mock_session):
         service = VersionService(mock_session)
@@ -85,3 +144,35 @@ class TestVersionService:
         assert new_ver.predecessor_id == "ver-1"
         assert current_ver.is_current is False
         assert item.current_version_id == new_ver.id
+
+    def test_release_releases_all_file_locks(self, mock_session):
+        service = VersionService(mock_session)
+
+        item = Item(id="item-1", current_version_id="ver-1")
+        current_ver = ItemVersion(
+            id="ver-1",
+            item_id="item-1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            is_current=True,
+            is_released=False,
+            checked_out_by_id=7,
+        )
+
+        item_query = MagicMock()
+        item_query.filter_by.return_value.one.return_value = item
+
+        ver_query = MagicMock()
+        ver_query.filter_by.return_value.one.return_value = current_ver
+
+        mock_session.query.side_effect = [item_query, ver_query]
+        service.file_version_service.release_all_file_locks = MagicMock(return_value=2)
+
+        released = service.release("item-1", user_id=7)
+
+        assert released.is_released is True
+        assert released.checked_out_by_id is None
+        service.file_version_service.release_all_file_locks.assert_called_once_with(
+            "ver-1"
+        )

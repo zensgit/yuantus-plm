@@ -80,6 +80,20 @@ def _ensure_version_file_editable(
         )
 
 
+def _raise_version_file_http_error(exc: VersionFileError) -> None:
+    detail = str(exc)
+    lower = detail.lower()
+    if "not found" in lower or "not attached" in lower:
+        raise HTTPException(status_code=404, detail=detail)
+    if (
+        "checked out" in lower
+        or "released" in lower
+        or "locked" in lower
+    ):
+        raise HTTPException(status_code=409, detail=detail)
+    raise HTTPException(status_code=400, detail=detail)
+
+
 @version_router.post("/items/{item_id}/init")
 def create_initial_version(
     item_id: str,
@@ -424,12 +438,98 @@ def get_version_files(
             "file_role": vf.file_role,
             "sequence": vf.sequence,
             "is_primary": vf.is_primary,
+            "checked_out_by_id": vf.checked_out_by_id,
+            "checked_out_at": (
+                vf.checked_out_at.isoformat() if vf.checked_out_at else None
+            ),
             "filename": vf.file.filename if vf.file else None,
             "file_type": vf.file.file_type if vf.file else None,
             "file_size": vf.file.file_size if vf.file else None,
         }
         for vf in files
     ]
+
+
+@version_router.post("/{version_id}/files/{file_id}/checkout")
+def checkout_version_file(
+    version_id: str,
+    file_id: str,
+    file_role: Optional[str] = None,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    file_service = VersionFileService(db)
+    try:
+        vf = file_service.checkout_file(
+            version_id,
+            file_id,
+            user_id,
+            file_role=file_role,
+        )
+        db.commit()
+        return {
+            "id": vf.id,
+            "version_id": vf.version_id,
+            "file_id": vf.file_id,
+            "file_role": vf.file_role,
+            "checked_out_by_id": vf.checked_out_by_id,
+            "checked_out_at": (
+                vf.checked_out_at.isoformat() if vf.checked_out_at else None
+            ),
+        }
+    except VersionFileError as e:
+        db.rollback()
+        _raise_version_file_http_error(e)
+
+
+@version_router.post("/{version_id}/files/{file_id}/undo-checkout")
+def undo_checkout_version_file(
+    version_id: str,
+    file_id: str,
+    file_role: Optional[str] = None,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    file_service = VersionFileService(db)
+    try:
+        vf = file_service.undo_checkout_file(
+            version_id,
+            file_id,
+            user_id,
+            file_role=file_role,
+        )
+        db.commit()
+        return {
+            "id": vf.id,
+            "version_id": vf.version_id,
+            "file_id": vf.file_id,
+            "file_role": vf.file_role,
+            "checked_out_by_id": vf.checked_out_by_id,
+            "checked_out_at": (
+                vf.checked_out_at.isoformat() if vf.checked_out_at else None
+            ),
+        }
+    except VersionFileError as e:
+        db.rollback()
+        _raise_version_file_http_error(e)
+
+
+@version_router.get("/{version_id}/files/{file_id}/lock")
+def get_version_file_lock(
+    version_id: str,
+    file_id: str,
+    file_role: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    file_service = VersionFileService(db)
+    try:
+        return file_service.get_file_lock(
+            version_id,
+            file_id,
+            file_role=file_role,
+        )
+    except VersionFileError as e:
+        _raise_version_file_http_error(e)
 
 
 @version_router.put("/{version_id}/files/primary")
