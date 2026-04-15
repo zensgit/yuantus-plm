@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
 
 from yuantus.api.app import create_app
 from yuantus.database import get_db
@@ -131,3 +132,42 @@ def test_duplicate_cad_upload_returns_file_status_url_without_new_job():
     assert body["file_status_url"] == "/api/v1/file/existing-cad/conversion_summary"
     assert body["conversion_job_ids"] == []
     mock_jobs.return_value.create_job.assert_not_called()
+
+
+def test_duplicate_upload_repair_rejects_foreign_current_version_lock():
+    existing = SimpleNamespace(
+        id="existing-cad",
+        filename="existing.stp",
+        file_size=123,
+        mime_type="model/step",
+        system_path="3d/ex/existing.stp",
+        preview_path=None,
+        cad_bom_path=None,
+        cad_dedup_path=None,
+        cad_document_schema_version=None,
+        document_type="3d",
+        author=None,
+        source_system=None,
+        source_version=None,
+        document_version=None,
+        is_cad_file=lambda: True,
+    )
+    client, db = _client(duplicate=existing)
+
+    with patch("yuantus.meta_engine.web.file_router.FileService") as mock_fs, patch(
+        "yuantus.meta_engine.web.file_router._ensure_duplicate_file_repair_editable"
+    ) as repair_guard:
+        mock_fs.return_value.file_exists.return_value = False
+        repair_guard.side_effect = HTTPException(
+            status_code=409,
+            detail="File existing-cad is checked out by another user",
+        )
+        resp = client.post(
+            "/api/v1/file/upload?generate_preview=true",
+            files={"file": ("existing.stp", io.BytesIO(b"same"), "model/step")},
+        )
+
+    assert resp.status_code == 409
+    assert "checked out by another user" in resp.json()["detail"]
+    mock_fs.return_value.upload_file.assert_not_called()
+    assert not db.commit.called

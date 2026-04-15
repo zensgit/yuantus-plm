@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
@@ -211,3 +212,39 @@ def test_cad_import_new_link_allows_missing_current_version_assoc():
         7,
         file_role="native_cad",
     )
+
+
+def test_cad_import_duplicate_repair_rejects_foreign_current_version_lock():
+    duplicate_file = _mock_file_container()
+    client, db = _client_with_state(
+        item=None,
+        current_version=None,
+        duplicate_file=duplicate_file,
+        existing_item_file=None,
+    )
+
+    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls, patch(
+        "yuantus.meta_engine.web.cad_router._ensure_duplicate_file_repair_editable"
+    ) as repair_guard:
+        file_service_cls.return_value.file_exists.return_value = False
+        repair_guard.side_effect = HTTPException(
+            status_code=409,
+            detail="File file-1 is checked out by another user",
+        )
+        resp = client.post(
+            "/api/v1/cad/import",
+            data={
+                "create_preview_job": "false",
+                "create_geometry_job": "false",
+                "create_extract_job": "false",
+                "create_bom_job": "false",
+                "create_dedup_job": "false",
+                "create_ml_job": "false",
+            },
+            files={"file": ("assy.step", b"step-data", "application/octet-stream")},
+        )
+
+    assert resp.status_code == 409
+    assert "checked out by another user" in resp.json()["detail"]
+    file_service_cls.return_value.upload_file.assert_not_called()
+    assert not db.commit.called
