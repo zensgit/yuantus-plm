@@ -129,6 +129,65 @@ class ECOService:
             recipients=recipients,
         )
 
+    def _collect_apply_version_lock_issues(
+        self,
+        *,
+        product: Item,
+        target_version: ItemVersion,
+        user_id: int,
+        rule_id: str,
+    ) -> List[ValidationIssue]:
+        issues: List[ValidationIssue] = []
+        vf_service = VersionFileService(self.session)
+
+        def _append_checkout_issue(version: ItemVersion, label: str) -> None:
+            checked_out_by_id = getattr(version, "checked_out_by_id", None)
+            if checked_out_by_id and checked_out_by_id != user_id:
+                issues.append(
+                    ValidationIssue(
+                        code="eco_version_checked_out_by_another_user",
+                        message=f"{label} {version.id} is checked out by another user ({checked_out_by_id})",
+                        rule_id=rule_id,
+                        details={"version_id": version.id, "owner_user_id": checked_out_by_id},
+                    )
+                )
+
+        def _append_file_lock_issue(version: ItemVersion, label: str) -> None:
+            blocking_locks = vf_service.get_blocking_file_locks(version.id, user_id=user_id)
+            if not blocking_locks:
+                return
+            owners = sorted(
+                {
+                    str(vf.checked_out_by_id)
+                    for vf in blocking_locks
+                    if getattr(vf, "checked_out_by_id", None) is not None
+                }
+            )
+            issues.append(
+                ValidationIssue(
+                    code="eco_version_file_locks_held_by_another_user",
+                    message=(
+                        f"{label} {version.id} has file-level locks held by another user"
+                        + (f" ({', '.join(owners)})" if owners else "")
+                    ),
+                    rule_id=rule_id,
+                    details={"version_id": version.id, "owner_user_ids": owners},
+                )
+            )
+
+        if product.current_version_id and product.current_version_id != target_version.id:
+            try:
+                current_version = self.version_service.get_version(product.current_version_id)
+            except Exception:
+                current_version = None
+            if current_version:
+                _append_checkout_issue(current_version, "Current version")
+                _append_file_lock_issue(current_version, "Current version")
+
+        _append_checkout_issue(target_version, "Target version")
+        _append_file_lock_issue(target_version, "Target version")
+        return issues
+
     def _ensure_activity_gate_ready(self, eco_id: str) -> None:
         """
         Block critical ECO transitions when activity gate reports unresolved blockers.
@@ -1723,6 +1782,26 @@ class ECOService:
                             )
                         )
 
+            elif rule == "eco.version_locks_clear":
+                if eco.product_id and eco.target_version_id:
+                    product = self.session.get(Item, eco.product_id)
+                    if product:
+                        try:
+                            target_version = self.version_service.get_version(
+                                eco.target_version_id
+                            )
+                        except Exception:
+                            target_version = None
+                        if target_version:
+                            errors.extend(
+                                self._collect_apply_version_lock_issues(
+                                    product=product,
+                                    target_version=target_version,
+                                    user_id=user_id,
+                                    rule_id=rule,
+                                )
+                            )
+
             elif rule == "eco.rebase_conflicts_absent":
                 if ignore_conflicts:
                     continue
@@ -1797,6 +1876,14 @@ class ECOService:
             raise ValueError(f"Product with ID {eco.product_id} not found.")
 
         target_version = self.version_service.get_version(eco.target_version_id)
+        lock_issues = self._collect_apply_version_lock_issues(
+            product=product,
+            target_version=target_version,
+            user_id=user_id,
+            rule_id="eco.version_locks_clear",
+        )
+        if lock_issues:
+            raise ValueError(lock_issues[0].message)
 
         # Switch current pointer + flags (best-effort)
         if product.current_version_id and product.current_version_id != target_version.id:

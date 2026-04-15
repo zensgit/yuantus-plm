@@ -103,6 +103,7 @@ def test_action_apply_runs_activity_gate_and_custom_actions_hooks():
     with patch(
         "yuantus.meta_engine.services.eco_service.VersionFileService"
     ) as version_file_service_cls:
+        version_file_service_cls.return_value.get_blocking_file_locks.return_value = []
         version_file_service_cls.return_value.sync_version_files_to_item.return_value = None
         ok = service.action_apply("eco-1", user_id=1)
 
@@ -121,6 +122,97 @@ def test_action_apply_runs_activity_gate_and_custom_actions_hooks():
     assert after["trigger_phase"] == "after"
     assert after["to_state"] == ECOState.DONE.value
     assert after["context"] == {"actor_roles": ["approver"]}
+
+
+def test_action_apply_rejects_foreign_target_version_checkout():
+    session = MagicMock()
+    service = ECOService(session)
+    service.permission_service.check_permission = MagicMock()
+    service._ensure_activity_gate_ready = MagicMock()
+    service._run_custom_actions = MagicMock()
+    service._enqueue_eco_updated = MagicMock()
+    service.check_rebase_needed = MagicMock(return_value=False)
+    service.detect_rebase_conflicts = MagicMock(return_value=[])
+
+    eco = SimpleNamespace(
+        id="eco-1",
+        state=ECOState.APPROVED.value,
+        product_id="item-1",
+        target_version_id="v-2",
+    )
+    product = SimpleNamespace(
+        id="item-1",
+        current_version_id="v-1",
+        properties={"rev": "A"},
+        updated_at=None,
+    )
+    current_version = SimpleNamespace(id="v-1", is_current=True, checked_out_by_id=None)
+    target_version = SimpleNamespace(
+        id="v-2",
+        is_current=False,
+        checked_out_by_id=9,
+        properties={"rev": "B"},
+        version_label="B",
+    )
+
+    session.get.side_effect = lambda model, value: (
+        SimpleNamespace(roles=[SimpleNamespace(name="approver")])
+        if getattr(model, "__name__", "") == "RBACUser" and value == 1
+        else product
+        if value == "item-1"
+        else None
+    )
+    service.get_eco = MagicMock(return_value=eco)
+    service.version_service.get_version = MagicMock(
+        side_effect=lambda version_id: current_version if version_id == "v-1" else target_version
+    )
+
+    with patch(
+        "yuantus.meta_engine.services.eco_service.VersionFileService"
+    ) as version_file_service_cls:
+        version_file_service_cls.return_value.get_blocking_file_locks.return_value = []
+        with pytest.raises(
+            ValueError,
+            match="Target version v-2 is checked out by another user",
+        ):
+            service.action_apply("eco-1", user_id=1)
+
+
+def test_apply_diagnostics_reports_foreign_file_locks():
+    session = MagicMock()
+    service = ECOService(session)
+    eco = SimpleNamespace(
+        id="eco-1",
+        state=ECOState.APPROVED.value,
+        product_id="item-1",
+        target_version_id="v-2",
+    )
+    product = SimpleNamespace(id="item-1", current_version_id="v-1")
+    current_version = SimpleNamespace(id="v-1", checked_out_by_id=None)
+    target_version = SimpleNamespace(id="v-2", checked_out_by_id=None)
+
+    service.get_eco = MagicMock(return_value=eco)
+    service._ensure_activity_gate_ready = MagicMock()
+    service.check_rebase_needed = MagicMock(return_value=False)
+    service.detect_rebase_conflicts = MagicMock(return_value=[])
+    session.get.side_effect = lambda model, value: product if value == "item-1" else None
+    service.version_service.get_version = MagicMock(
+        side_effect=lambda version_id: current_version if version_id == "v-1" else target_version
+    )
+
+    with patch(
+        "yuantus.meta_engine.services.eco_service.VersionFileService"
+    ) as version_file_service_cls:
+        version_file_service_cls.return_value.get_blocking_file_locks.side_effect = (
+            lambda version_id, user_id=None: [SimpleNamespace(checked_out_by_id=9)]
+            if version_id == "v-2"
+            else []
+        )
+        diagnostics = service.get_apply_diagnostics("eco-1", user_id=1)
+
+    assert diagnostics["errors"][0].code == "eco_version_file_locks_held_by_another_user"
+    assert diagnostics["errors"][0].rule_id == "eco.version_locks_clear"
+    assert diagnostics["errors"][0].details["version_id"] == "v-2"
 
 
 def test_run_custom_actions_includes_runtime_scope_context():
