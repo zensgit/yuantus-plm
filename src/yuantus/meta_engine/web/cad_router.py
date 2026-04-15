@@ -50,6 +50,7 @@ from yuantus.meta_engine.services.file_service import FileService
 from yuantus.meta_engine.services.job_errors import JobFatalError
 from yuantus.meta_engine.services.job_service import JobService
 from yuantus.meta_engine.services.checkin_service import CheckinManager
+from yuantus.meta_engine.version.file_service import VersionFileError, VersionFileService
 from yuantus.security.auth.database import get_identity_db
 from yuantus.security.auth.quota_service import QuotaService
 
@@ -77,6 +78,50 @@ def get_checkin_manager(
     # RBACUser should have an integer ID map?
     # user.id is the key (99, 1, 2)
     return CheckinManager(db, user_id=user.id)
+
+
+def _ensure_current_version_attachment_editable(
+    db: Session,
+    item: Optional[Item],
+    *,
+    file_id: str,
+    file_role: str,
+    user_id: int,
+) -> None:
+    if not item or not item.current_version_id:
+        return
+
+    version = db.get(ItemVersion, item.current_version_id)
+    if not version:
+        return
+
+    if version.checked_out_by_id and version.checked_out_by_id != user_id:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Version {version.id} is checked out by another user",
+        )
+
+    vf_service = VersionFileService(db)
+    try:
+        vf_service.ensure_file_editable(
+            version.id,
+            file_id,
+            user_id,
+            file_role=file_role,
+        )
+    except VersionFileError as exc:
+        detail = str(exc)
+        lower = detail.lower()
+        if "is not attached to version" in lower:
+            return
+        if (
+            "checked out" in lower
+            or "locked" in lower
+            or "released" in lower
+            or "specify file_role" in lower
+        ):
+            raise HTTPException(status_code=409, detail=detail)
+        raise HTTPException(status_code=400, detail=detail)
 
 
 def _load_cad_document_payload(file_container: FileContainer) -> Optional[Dict[str, Any]]:
@@ -1912,15 +1957,6 @@ async def import_cad(
         item = db.get(Item, item_id)
         if not item:
             raise HTTPException(status_code=404, detail="Item not found")
-        if item.current_version_id:
-            from yuantus.meta_engine.version.models import ItemVersion
-
-            ver = db.get(ItemVersion, item.current_version_id)
-            if ver and ver.checked_out_by_id and ver.checked_out_by_id != user.id:
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Version {ver.id} is checked out by another user",
-                )
 
         existing_link = (
             db.query(ItemFile)
@@ -1928,11 +1964,33 @@ async def import_cad(
             .first()
         )
         if existing_link:
+            _ensure_current_version_attachment_editable(
+                db,
+                item,
+                file_id=existing_link.file_id,
+                file_role=existing_link.file_role,
+                user_id=user.id,
+            )
+            if existing_link.file_role != file_role:
+                _ensure_current_version_attachment_editable(
+                    db,
+                    item,
+                    file_id=existing_link.file_id,
+                    file_role=file_role,
+                    user_id=user.id,
+                )
             existing_link.file_role = file_role
             db.add(existing_link)
             db.commit()
             attachment_id = existing_link.id
         else:
+            _ensure_current_version_attachment_editable(
+                db,
+                item,
+                file_id=file_container.id,
+                file_role=file_role,
+                user_id=user.id,
+            )
             link = ItemFile(
                 item_id=item_id,
                 file_id=file_container.id,
