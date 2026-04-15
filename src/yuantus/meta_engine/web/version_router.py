@@ -306,7 +306,7 @@ def revise(
         return ver
     except VersionError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        _raise_version_http_error(e)
 
 
 @version_router.get("/items/{item_id}/history")
@@ -346,7 +346,7 @@ def create_branch(
     item_id: str,
     source_version_id: str = Body(..., embed=True),
     branch_name: str = Body(..., embed=True),
-    user_id: int = Body(1, embed=True),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     service = VersionService(db)
@@ -356,7 +356,7 @@ def create_branch(
         return ver
     except VersionError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        _raise_version_http_error(e)
 
 
 @version_router.get("/items/{item_id}/tree")

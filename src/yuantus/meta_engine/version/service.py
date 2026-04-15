@@ -253,6 +253,18 @@ class VersionService:
             + (f" ({', '.join(owners)})" if owners else "")
         )
 
+    def _assert_source_version_checkout_available(
+        self,
+        version: ItemVersion,
+        user_id: int,
+        *,
+        label: str = "Source version",
+    ) -> None:
+        if version.checked_out_by_id and version.checked_out_by_id != user_id:
+            raise VersionError(
+                f"{label} {version.id} is checked out by another user"
+            )
+
     def merge_branch(
         self, item_id: str, source_version_id: str, target_version_id: str, user_id: int
     ) -> ItemVersion:
@@ -274,10 +286,7 @@ class VersionService:
         if source_ver.item_id != item_id or target_ver.item_id != item_id:
             raise VersionError("Versions must belong to the same item")
 
-        if source_ver.checked_out_by_id and source_ver.checked_out_by_id != user_id:
-            raise VersionError(
-                f"Source version {source_ver.id} is checked out by another user"
-            )
+        self._assert_source_version_checkout_available(source_ver, user_id)
 
         self._assert_no_foreign_file_locks(
             source_ver.id,
@@ -352,6 +361,7 @@ class VersionService:
         current_ver = (
             self.session.query(ItemVersion).filter_by(id=item.current_version_id).one()
         )
+        self._assert_source_version_checkout_available(current_ver, user_id)
 
         # Calculate new revision
         # Simple logic: A -> B -> C ... Z -> AA
@@ -410,6 +420,7 @@ class VersionService:
         current_ver = (
             self.session.query(ItemVersion).filter_by(id=item.current_version_id).one()
         )
+        self._assert_source_version_checkout_available(current_ver, user_id)
 
         next_gen = current_ver.generation + 1
         next_rev = "A"
@@ -722,6 +733,7 @@ class VersionService:
         source_ver = self.session.query(ItemVersion).get(source_version_id)
         if not source_ver:
             raise VersionError("Source version not found")
+        self._assert_source_version_checkout_available(source_ver, user_id)
 
         new_ver_id = str(uuid.uuid4())
         # Branch usually starts new revision sequence or appends branch name

@@ -60,6 +60,26 @@ class TestVersionAdvanced:
         ):
             service.create_branch("item1", "v1", "exp", 1)
 
+    def test_create_branch_rejects_source_version_checked_out_by_another_user(
+        self, mock_session
+    ):
+        service = VersionService(mock_session)
+
+        src = ItemVersion(
+            id="v1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            checked_out_by_id=9,
+        )
+        mock_session.query.return_value.get.return_value = src
+
+        with pytest.raises(
+            VersionError,
+            match="Source version v1 is checked out by another user",
+        ):
+            service.create_branch("item1", "v1", "exp", 1)
+
     def test_compare_versions(self, mock_session):
         service = VersionService(mock_session)
 
