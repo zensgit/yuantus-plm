@@ -204,6 +204,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - P1 File Upload Preview Queue: `docs/DEV_AND_VERIFICATION_P1_FILE_UPLOAD_PREVIEW_QUEUE_20260414.md`
 - P1 Version File-Level Checkout: `docs/DEV_AND_VERIFICATION_P1_VERSION_FILE_LEVEL_CHECKOUT_20260415.md`
 - P1 Version File-Level Checkout CI Remediation: `docs/DEV_AND_VERIFICATION_P1_VERSION_FILE_LEVEL_CHECKOUT_CI_REMEDIATION_20260415.md`
+- P1 Version File Lock Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_FILE_LOCK_GUARDS_20260415.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
 - Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
 - Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`

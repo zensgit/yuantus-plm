@@ -38,6 +38,7 @@ class AttachFileRequest(BaseModel):
 
 class SetPrimaryRequest(BaseModel):
     file_id: str
+    file_role: Optional[str] = None
 
 
 class SetThumbnailRequest(BaseModel):
@@ -389,6 +390,7 @@ def attach_file_to_version(
             file_role=request.file_role,
             is_primary=request.is_primary,
             sequence=request.sequence,
+            user_id=user_id,
         )
         db.commit()
         return {
@@ -400,7 +402,7 @@ def attach_file_to_version(
         }
     except VersionFileError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        _raise_version_file_http_error(e)
 
 
 @version_router.delete("/{version_id}/files/{file_id}")
@@ -417,11 +419,20 @@ def detach_file_from_version(
         raise HTTPException(status_code=404, detail="Version not found")
     _ensure_version_file_editable(version, user_id)
     file_service = VersionFileService(db)
-    success = file_service.detach_file(version_id, file_id, file_role)
-    if not success:
-        raise HTTPException(status_code=404, detail="File not attached to version")
-    db.commit()
-    return {"status": "detached"}
+    try:
+        success = file_service.detach_file(
+            version_id,
+            file_id,
+            file_role,
+            user_id=user_id,
+        )
+        if not success:
+            raise HTTPException(status_code=404, detail="File not attached to version")
+        db.commit()
+        return {"status": "detached"}
+    except VersionFileError as e:
+        db.rollback()
+        _raise_version_file_http_error(e)
 
 
 @version_router.get("/{version_id}/files")
@@ -546,12 +557,17 @@ def set_primary_file(
         if not version:
             raise VersionFileError(f"Version {version_id} not found")
         _ensure_version_file_editable(version, user_id)
-        vf = file_service.set_primary_file(version_id, request.file_id)
+        vf = file_service.set_primary_file(
+            version_id,
+            request.file_id,
+            user_id=user_id,
+            file_role=request.file_role,
+        )
         db.commit()
         return {"id": vf.id, "file_id": vf.file_id, "is_primary": vf.is_primary}
     except VersionFileError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        _raise_version_file_http_error(e)
 
 
 @version_router.put("/{version_id}/thumbnail")

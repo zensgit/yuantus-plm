@@ -160,3 +160,100 @@ def test_version_file_undo_checkout_returns_200_and_commits():
         file_role="preview",
     )
     assert db.commit.called
+
+
+def test_attach_file_maps_foreign_file_lock_to_409():
+    client, db = _client_with_user_id(7)
+    db.get.return_value = SimpleNamespace(
+        id="ver-1",
+        is_released=False,
+        checked_out_by_id=7,
+    )
+
+    with patch("yuantus.meta_engine.web.version_router.VersionFileService") as service_cls:
+        from yuantus.meta_engine.version.file_service import VersionFileError
+
+        service_cls.return_value.attach_file.side_effect = VersionFileError(
+            "File file-1 is checked out by another user"
+        )
+        resp = client.post(
+            "/api/v1/versions/ver-1/files",
+            json={
+                "file_id": "file-1",
+                "file_role": "preview",
+                "is_primary": False,
+                "sequence": 0,
+            },
+        )
+
+    assert resp.status_code == 409
+    assert "checked out by another user" in resp.json()["detail"]
+    service_cls.return_value.attach_file.assert_called_once_with(
+        version_id="ver-1",
+        file_id="file-1",
+        file_role="preview",
+        is_primary=False,
+        sequence=0,
+        user_id=7,
+    )
+    assert db.rollback.called
+
+
+def test_detach_file_maps_foreign_file_lock_to_409():
+    client, db = _client_with_user_id(7)
+    db.get.return_value = SimpleNamespace(
+        id="ver-1",
+        is_released=False,
+        checked_out_by_id=7,
+    )
+
+    with patch("yuantus.meta_engine.web.version_router.VersionFileService") as service_cls:
+        from yuantus.meta_engine.version.file_service import VersionFileError
+
+        service_cls.return_value.detach_file.side_effect = VersionFileError(
+            "File file-1 is checked out by another user"
+        )
+        resp = client.delete(
+            "/api/v1/versions/ver-1/files/file-1",
+            params={"file_role": "preview"},
+        )
+
+    assert resp.status_code == 409
+    assert "checked out by another user" in resp.json()["detail"]
+    service_cls.return_value.detach_file.assert_called_once_with(
+        "ver-1",
+        "file-1",
+        "preview",
+        user_id=7,
+    )
+    assert db.rollback.called
+
+
+def test_set_primary_maps_foreign_file_lock_to_409():
+    client, db = _client_with_user_id(7)
+    db.get.return_value = SimpleNamespace(
+        id="ver-1",
+        is_released=False,
+        checked_out_by_id=7,
+    )
+
+    with patch("yuantus.meta_engine.web.version_router.VersionFileService") as service_cls:
+        from yuantus.meta_engine.version.file_service import VersionFileError
+
+        service_cls.return_value.set_primary_file.side_effect = VersionFileError(
+            "File file-2 is checked out by another user"
+        )
+        resp = client.put(
+            "/api/v1/versions/ver-1/files/primary",
+            json={"file_id": "file-2", "file_role": "preview"},
+        )
+
+    assert resp.status_code == 409
+    assert "checked out by another user" in resp.json()["detail"]
+    service_cls.return_value.set_primary_file.assert_called_once_with(
+        "ver-1",
+        "file-2",
+        user_id=7,
+        file_role="preview",
+    )
+    assert db.rollback.called

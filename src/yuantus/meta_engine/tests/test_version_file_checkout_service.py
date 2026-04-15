@@ -166,3 +166,57 @@ def test_release_all_file_locks_clears_version_bindings(db_session):
     assert released == 2
     locks = service.get_blocking_file_locks("ver-1")
     assert locks == []
+
+
+def test_attach_existing_assoc_rejects_foreign_file_lock(db_session):
+    service = VersionFileService(db_session)
+    service.checkout_file("ver-1", "file-2", user_id=9, file_role="preview")
+
+    with pytest.raises(VersionFileError, match="checked out by another user"):
+        service.attach_file(
+            "ver-1",
+            "file-2",
+            file_role="preview",
+            sequence=5,
+            user_id=7,
+        )
+
+
+def test_attach_new_primary_rejects_locked_current_primary(db_session):
+    service = VersionFileService(db_session)
+    service.checkout_file("ver-1", "file-1", user_id=9, file_role="native_cad")
+
+    with pytest.raises(VersionFileError, match="checked out by another user"):
+        service.attach_file(
+            "ver-1",
+            "file-2",
+            file_role="drawing",
+            is_primary=True,
+            user_id=7,
+        )
+
+
+def test_detach_file_rejects_foreign_file_lock(db_session):
+    service = VersionFileService(db_session)
+    service.checkout_file("ver-1", "file-2", user_id=9, file_role="preview")
+
+    with pytest.raises(VersionFileError, match="checked out by another user"):
+        service.detach_file(
+            "ver-1",
+            "file-2",
+            "preview",
+            user_id=7,
+        )
+
+
+def test_set_primary_rejects_locked_current_primary(db_session):
+    service = VersionFileService(db_session)
+    service.checkout_file("ver-1", "file-1", user_id=9, file_role="native_cad")
+
+    with pytest.raises(VersionFileError, match="checked out by another user"):
+        service.set_primary_file(
+            "ver-1",
+            "file-2",
+            user_id=7,
+            file_role="preview",
+        )
