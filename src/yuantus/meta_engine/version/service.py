@@ -340,7 +340,14 @@ class VersionService:
             current_ver, "revise", user_id, f"Revised to {new_ver.version_label}"
         )
         # Copy file associations to the new version
-        self.file_version_service.copy_files_to_version(current_ver.id, new_ver.id)
+        try:
+            self.file_version_service.copy_files_to_version(
+                current_ver.id,
+                new_ver.id,
+                user_id=user_id,
+            )
+        except VersionFileError as e:
+            raise VersionError(str(e))
 
         return new_ver
 
@@ -386,7 +393,14 @@ class VersionService:
         item.current_version_id = new_ver_id
 
         # Copy file associations to the new generation
-        self.file_version_service.copy_files_to_version(current_ver.id, new_ver.id)
+        try:
+            self.file_version_service.copy_files_to_version(
+                current_ver.id,
+                new_ver.id,
+                user_id=user_id,
+            )
+        except VersionFileError as e:
+            raise VersionError(str(e))
 
         return new_ver
 
@@ -666,7 +680,14 @@ class VersionService:
 
         self.session.add(new_ver)
         self.session.flush()
-        self.file_version_service.copy_files_to_version(source_ver.id, new_ver.id)
+        try:
+            self.file_version_service.copy_files_to_version(
+                source_ver.id,
+                new_ver.id,
+                user_id=user_id,
+            )
+        except VersionFileError as e:
+            raise VersionError(str(e))
         self._log_history(
             new_ver,
             "branch",
