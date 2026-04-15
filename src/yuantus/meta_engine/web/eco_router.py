@@ -388,6 +388,29 @@ async def notify_overdue_approvals(db: Session = Depends(get_db)):
     return service.notify_overdue_approvals()
 
 
+@eco_router.get("/{eco_id}/approval-routing", response_model=Dict[str, Any])
+async def get_eco_approval_routing(
+    eco_id: str,
+    user_id: int = Depends(get_current_user_id_optional),
+    db: Session = Depends(get_db),
+):
+    """Return the effective approval routing summary for the ECO's current stage."""
+    service = ECOApprovalService(db)
+    try:
+        service.permission_service.check_permission(
+            user_id, "read", "ECO", resource_id=eco_id
+        )
+        return service.get_approval_routing(eco_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
+    except ValueError as exc:
+        detail = str(exc)
+        raise HTTPException(
+            status_code=404 if "not found" in detail.lower() else 400,
+            detail=detail,
+        ) from exc
+
+
 # ============================================================
 # ECO CRUD Endpoints (includes /{eco_id} routes)
 # ============================================================
