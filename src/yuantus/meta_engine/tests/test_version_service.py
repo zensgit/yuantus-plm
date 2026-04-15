@@ -218,6 +218,36 @@ class TestVersionService:
         ):
             service.revise("item-1", user_id=1)
 
+    def test_revise_rejects_source_version_checked_out_by_another_user(
+        self, mock_session
+    ):
+        service = VersionService(mock_session)
+
+        item = Item(id="item-1", current_version_id="ver-1")
+        current_ver = ItemVersion(
+            id="ver-1",
+            item_id="item-1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            is_current=True,
+            checked_out_by_id=9,
+        )
+
+        item_query = MagicMock()
+        item_query.filter_by.return_value.one.return_value = item
+
+        ver_query = MagicMock()
+        ver_query.filter_by.return_value.one.return_value = current_ver
+
+        mock_session.query.side_effect = [item_query, ver_query]
+
+        with pytest.raises(
+            VersionError,
+            match="Source version ver-1 is checked out by another user",
+        ):
+            service.revise("item-1", user_id=1)
+
     def test_release_releases_all_file_locks(self, mock_session):
         service = VersionService(mock_session)
 
@@ -324,5 +354,35 @@ class TestVersionService:
         with pytest.raises(
             VersionError,
             match="Source version has file-level locks held by another user",
+        ):
+            service.new_generation("item-1", user_id=1)
+
+    def test_new_generation_rejects_source_version_checked_out_by_another_user(
+        self, mock_session
+    ):
+        service = VersionService(mock_session)
+
+        item = Item(id="item-1", current_version_id="ver-1")
+        current_ver = ItemVersion(
+            id="ver-1",
+            item_id="item-1",
+            generation=1,
+            revision="A",
+            version_label="1.A",
+            is_current=True,
+            checked_out_by_id=9,
+        )
+
+        item_query = MagicMock()
+        item_query.filter_by.return_value.one.return_value = item
+
+        ver_query = MagicMock()
+        ver_query.filter_by.return_value.one.return_value = current_ver
+
+        mock_session.query.side_effect = [item_query, ver_query]
+
+        with pytest.raises(
+            VersionError,
+            match="Source version ver-1 is checked out by another user",
         ):
             service.new_generation("item-1", user_id=1)
