@@ -124,6 +124,52 @@ def _ensure_current_version_attachment_editable(
         raise HTTPException(status_code=400, detail=detail)
 
 
+def _ensure_duplicate_file_repair_editable(
+    db: Session,
+    file_container: Optional[FileContainer],
+    *,
+    user_id: int,
+) -> None:
+    if not file_container:
+        return
+
+    from yuantus.meta_engine.version.models import VersionFile
+
+    assocs = (
+        db.query(VersionFile, ItemVersion)
+        .join(ItemVersion, VersionFile.version_id == ItemVersion.id)
+        .filter(
+            VersionFile.file_id == file_container.id,
+            ItemVersion.is_current.is_(True),
+        )
+        .order_by(ItemVersion.id.asc(), VersionFile.file_role.asc())
+        .all()
+    )
+    if not assocs:
+        return
+
+    vf_service = VersionFileService(db)
+    for assoc, version in assocs:
+        try:
+            vf_service.ensure_file_editable(
+                version.id,
+                file_container.id,
+                user_id,
+                file_role=assoc.file_role,
+            )
+        except VersionFileError as exc:
+            detail = str(exc)
+            lower = detail.lower()
+            if (
+                "checked out" in lower
+                or "locked" in lower
+                or "released" in lower
+                or "specify file_role" in lower
+            ):
+                raise HTTPException(status_code=409, detail=detail)
+            raise HTTPException(status_code=400, detail=detail)
+
+
 def _load_cad_document_payload(file_container: FileContainer) -> Optional[Dict[str, Any]]:
     if not file_container.cad_document_path:
         return None
@@ -1819,6 +1865,11 @@ async def import_cad(
         file_service = FileService()
         if existing.system_path and not file_service.file_exists(existing.system_path):
             # Repair missing storage object for deduped uploads.
+            _ensure_duplicate_file_repair_editable(
+                db,
+                existing,
+                user_id=user.id,
+            )
             file_service.upload_file(io.BytesIO(content), existing.system_path)
             existing.file_size = len(content)
             existing.mime_type = _get_mime_type(file.filename)

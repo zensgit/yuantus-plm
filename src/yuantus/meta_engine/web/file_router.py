@@ -276,6 +276,70 @@ def _ensure_current_version_attachment_editable(
         raise HTTPException(status_code=400, detail=detail)
 
 
+def _ensure_duplicate_file_repair_editable(
+    db: Session,
+    file_container: Optional[FileContainer],
+    *,
+    user_id: Optional[int],
+) -> None:
+    if not file_container:
+        return
+
+    from yuantus.meta_engine.version.models import ItemVersion, VersionFile
+
+    assocs = (
+        db.query(VersionFile, ItemVersion)
+        .join(ItemVersion, VersionFile.version_id == ItemVersion.id)
+        .filter(
+            VersionFile.file_id == file_container.id,
+            ItemVersion.is_current.is_(True),
+        )
+        .order_by(ItemVersion.id.asc(), VersionFile.file_role.asc())
+        .all()
+    )
+    if not assocs:
+        return
+
+    vf_service = VersionFileService(db)
+    for assoc, version in assocs:
+        if user_id is None:
+            if version.is_released:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Version {version.id} is released and locked",
+                )
+            if version.checked_out_by_id is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Version {version.id} is checked out by another user",
+                )
+            if assoc.checked_out_by_id is not None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"File {file_container.id} is checked out by another user",
+                )
+            continue
+
+        try:
+            vf_service.ensure_file_editable(
+                version.id,
+                file_container.id,
+                user_id,
+                file_role=assoc.file_role,
+            )
+        except VersionFileError as exc:
+            detail = str(exc)
+            lower = detail.lower()
+            if (
+                "checked out" in lower
+                or "locked" in lower
+                or "released" in lower
+                or "specify file_role" in lower
+            ):
+                raise HTTPException(status_code=409, detail=detail)
+            raise HTTPException(status_code=400, detail=detail)
+
+
 def _build_cad_viewer_url(request: Request, file_id: str, cad_manifest_path: Optional[str]) -> Optional[str]:
     if not cad_manifest_path:
         return None
@@ -806,6 +870,7 @@ async def upload_file(
     generate_preview: bool = Query(
         True, description="Auto-generate preview for CAD files"
     ),
+    user_id: Optional[int] = Depends(get_current_user_id_optional),
     author: Optional[str] = Form(default=None),
     source_system: Optional[str] = Form(default=None),
     source_version: Optional[str] = Form(default=None),
@@ -840,6 +905,11 @@ async def upload_file(
             file_service = FileService()
             if existing.system_path and not file_service.file_exists(existing.system_path):
                 # Repair missing storage object for deduped uploads.
+                _ensure_duplicate_file_repair_editable(
+                    db,
+                    existing,
+                    user_id=user_id,
+                )
                 file_service.upload_file(io.BytesIO(content), existing.system_path)
                 existing.file_size = file_size
                 existing.mime_type = _get_mime_type(file.filename)
