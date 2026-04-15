@@ -96,6 +96,7 @@ class TestWorkerDerivedFileBinding:
         with patch(
             "yuantus.meta_engine.version.file_service.VersionFileService"
         ) as MockVFS:
+            MockVFS.return_value.get_blocking_file_locks.return_value = []
             worker._execute_job(mock_job, mock_job_service)
 
         MockVFS.return_value.attach_file.assert_called_once_with(
@@ -133,11 +134,13 @@ class TestWorkerDerivedFileBinding:
         with patch(
             "yuantus.meta_engine.version.file_service.VersionFileService"
         ) as MockVFS:
+            MockVFS.return_value.get_blocking_file_locks.return_value = []
             worker._execute_job(mock_job, mock_job_service)
 
         MockVFS.return_value.sync_version_files_to_item.assert_called_once_with(
             version_id="ver-sync",
             item_id="item-sync",
+            user_id=1,
             remove_missing=False,
         )
 
@@ -168,6 +171,7 @@ class TestWorkerDerivedFileBinding:
         with patch(
             "yuantus.meta_engine.version.file_service.VersionFileService"
         ) as MockVFS:
+            MockVFS.return_value.get_blocking_file_locks.return_value = []
             worker._execute_job(mock_job, mock_job_service)
 
         MockVFS.return_value.attach_file.assert_called_once_with(
@@ -176,3 +180,38 @@ class TestWorkerDerivedFileBinding:
             file_role="preview",
             user_id=None,
         )
+
+    def test_worker_skips_binding_when_version_has_foreign_file_locks(self):
+        mock_job = MagicMock()
+        mock_job.id = "job-locked"
+        mock_job.task_type = "cad_preview"
+        mock_job.payload = {"file_id": "f-native", "version_id": "ver-locked"}
+        mock_job.created_by_id = 7
+
+        mock_job_service = MagicMock()
+        mock_job_service.session = MagicMock()
+
+        worker = JobWorker(worker_id="test-worker")
+        worker.register_handler(
+            "cad_preview",
+            lambda payload: {
+                "derived_files": [
+                    {
+                        "file_id": "derived-preview-1",
+                        "file_role": "preview",
+                        "version_id": "ver-locked",
+                    }
+                ]
+            },
+        )
+
+        with patch(
+            "yuantus.meta_engine.version.file_service.VersionFileService"
+        ) as MockVFS:
+            MockVFS.return_value.get_blocking_file_locks.return_value = [
+                MagicMock(checked_out_by_id=9)
+            ]
+            worker._execute_job(mock_job, mock_job_service)
+
+        MockVFS.return_value.attach_file.assert_not_called()
+        MockVFS.return_value.sync_version_files_to_item.assert_not_called()

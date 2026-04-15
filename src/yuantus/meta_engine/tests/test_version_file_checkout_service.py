@@ -362,3 +362,21 @@ def test_sync_item_files_to_version_rejects_foreign_file_locks(db_session):
             version_id="ver-1",
             user_id=7,
         )
+
+
+def test_sync_version_files_to_item_rejects_foreign_file_locks(db_session):
+    service = VersionFileService(db_session)
+    preview = service._get_version_file_assoc("ver-1", "file-2", "preview")
+    preview.checked_out_by_id = 9
+    db_session.add(preview)
+    db_session.commit()
+
+    with pytest.raises(
+        VersionFileError,
+        match="Version has file-level locks held by another user",
+    ):
+        service.sync_version_files_to_item(
+            version_id="ver-1",
+            item_id="item-1",
+            user_id=7,
+        )

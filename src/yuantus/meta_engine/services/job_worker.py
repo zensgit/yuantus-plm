@@ -272,6 +272,18 @@ class JobWorker:
                             file_id = df.get("file_id")
                             file_role = df.get("file_role", "attachment")
                             if version_id and file_id:
+                                if job.created_by_id is not None:
+                                    blocking_locks = vf_service.get_blocking_file_locks(
+                                        version_id,
+                                        user_id=job.created_by_id,
+                                    )
+                                    if blocking_locks:
+                                        logger.warning(
+                                            "Worker '%s' skipped derived-file bind for version %s due to foreign file locks",
+                                            self.worker_id,
+                                            version_id,
+                                        )
+                                        continue
                                 vf_service.attach_file(
                                     version_id=version_id,
                                     file_id=file_id,
@@ -289,6 +301,7 @@ class JobWorker:
                                     vf_service.sync_version_files_to_item(
                                         version_id=version_id,
                                         item_id=version.item_id,
+                                        user_id=job.created_by_id,
                                         remove_missing=False,
                                     )
                                     job_service.session.commit()
