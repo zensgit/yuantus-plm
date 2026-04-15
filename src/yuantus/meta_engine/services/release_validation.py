@@ -45,6 +45,7 @@ ECO_APPLY_RULES_DEFAULT: List[str] = [
     "eco.required_fields_present",
     "eco.product_exists",
     "eco.target_version_exists",
+    "eco.version_locks_clear",
     "eco.rebase_conflicts_absent",
 ]
 

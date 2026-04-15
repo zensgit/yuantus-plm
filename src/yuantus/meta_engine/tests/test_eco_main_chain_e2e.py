@@ -144,6 +144,7 @@ class TestEcoMainChainE2E:
         ) as mock_vfs_cls, patch(
             "yuantus.meta_engine.services.eco_service.enqueue_event"
         ):
+            mock_vfs_cls.return_value.get_blocking_file_locks.return_value = []
             mock_vfs_cls.return_value.sync_version_files_to_item = MagicMock()
 
             svc.action_apply("eco-e2e-1", user_id=1)
