@@ -29,6 +29,12 @@ def db_session():
         Column("id", String, primary_key=True),
         extend_existing=True,
     )
+    meta_permissions = Table(
+        "meta_permissions",
+        Base.metadata,
+        Column("id", String, primary_key=True),
+        extend_existing=True,
+    )
     meta_lifecycle_states = Table(
         "meta_lifecycle_states",
         Base.metadata,
@@ -48,6 +54,7 @@ def db_session():
             RBACUser.__table__,
             meta_items,
             meta_item_types,
+            meta_permissions,
             meta_lifecycle_states,
             meta_vaults,
             FileContainer.__table__,
@@ -199,6 +206,38 @@ def test_attach_existing_assoc_rejects_foreign_file_lock(db_session):
             "file-2",
             file_role="preview",
             sequence=5,
+            user_id=7,
+        )
+
+
+def test_attach_new_assoc_rejects_version_checked_out_by_another_user(db_session):
+    service = VersionFileService(db_session)
+    version = db_session.get(ItemVersion, "ver-1")
+    version.checked_out_by_id = 9
+    db_session.add(version)
+    db_session.commit()
+
+    with pytest.raises(VersionFileError, match="Version ver-1 is checked out by another user"):
+        service.attach_file(
+            "ver-1",
+            "file-2",
+            file_role="drawing",
+            user_id=7,
+        )
+
+
+def test_attach_new_assoc_rejects_released_version(db_session):
+    service = VersionFileService(db_session)
+    version = db_session.get(ItemVersion, "ver-1")
+    version.is_released = True
+    db_session.add(version)
+    db_session.commit()
+
+    with pytest.raises(VersionFileError, match="Version ver-1 is released and locked"):
+        service.attach_file(
+            "ver-1",
+            "file-2",
+            file_role="drawing",
             user_id=7,
         )
 

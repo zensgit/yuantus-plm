@@ -229,6 +229,13 @@ class VersionFileService:
         """
         # Validate version exists
         version = self._get_version(version_id)
+        if user_id is not None:
+            if version.is_released:
+                raise VersionFileError(f"Version {version_id} is released and locked")
+            if version.checked_out_by_id and version.checked_out_by_id != user_id:
+                raise VersionFileError(
+                    f"Version {version_id} is checked out by another user"
+                )
 
         # Validate file exists
         file = self.session.get(FileContainer, file_id)

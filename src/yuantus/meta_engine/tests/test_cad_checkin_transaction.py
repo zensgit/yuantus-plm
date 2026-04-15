@@ -102,6 +102,7 @@ class TestWorkerDerivedFileBinding:
             version_id="ver-9",
             file_id="derived-preview-1",
             file_role="preview",
+            user_id=1,
         )
         mock_job_service.session.commit.assert_called()
 
@@ -138,4 +139,40 @@ class TestWorkerDerivedFileBinding:
             version_id="ver-sync",
             item_id="item-sync",
             remove_missing=False,
+        )
+
+    def test_worker_passes_null_user_id_when_job_has_no_creator(self):
+        mock_job = MagicMock()
+        mock_job.id = "job-anon"
+        mock_job.task_type = "cad_preview"
+        mock_job.payload = {"file_id": "f-native", "version_id": "ver-9"}
+        mock_job.created_by_id = None
+
+        mock_job_service = MagicMock()
+        mock_job_service.session = MagicMock()
+
+        worker = JobWorker(worker_id="test-worker")
+        worker.register_handler(
+            "cad_preview",
+            lambda payload: {
+                "derived_files": [
+                    {
+                        "file_id": "derived-preview-1",
+                        "file_role": "preview",
+                        "version_id": "ver-9",
+                    }
+                ]
+            },
+        )
+
+        with patch(
+            "yuantus.meta_engine.version.file_service.VersionFileService"
+        ) as MockVFS:
+            worker._execute_job(mock_job, mock_job_service)
+
+        MockVFS.return_value.attach_file.assert_called_once_with(
+            version_id="ver-9",
+            file_id="derived-preview-1",
+            file_role="preview",
+            user_id=None,
         )
