@@ -235,7 +235,6 @@ class JobWorker:
                     item_id = job.payload.get("item_id")
                     if item_id:
                         try:
-                            # Use session from job_service
                             cad_service = CadService(job_service.session)
                             cad_service.sync_attributes_to_item(
                                 item_id=item_id,
@@ -249,7 +248,47 @@ class JobWorker:
                             logger.error(
                                 f"Failed to sync attributes for job {job.id}: {sync_err}"
                             )
-                            # We log but don't fail the job if sync fails, as conversion succeeded
+
+                # Post-processing: Bind derived files to version (P1-4)
+                if isinstance(result, dict) and result.get("derived_files"):
+                    try:
+                        from yuantus.meta_engine.version.file_service import VersionFileService
+                        from yuantus.meta_engine.version.models import ItemVersion
+                        vf_service = VersionFileService(job_service.session)
+                        bound_versions = set()
+                        for df in result["derived_files"]:
+                            _vid = df.get("version_id") or (
+                                job.payload.get("version_id") if isinstance(job.payload, dict) else None
+                            )
+                            _fid = df.get("file_id")
+                            _role = df.get("file_role", "attachment")
+                            if _vid and _fid:
+                                vf_service.attach_file(version_id=_vid, file_id=_fid, file_role=_role)
+                                bound_versions.add(_vid)
+                        job_service.session.commit()
+                        # P1-4.2: project VersionFile → ItemFile for current versions
+                        for vid in bound_versions:
+                            try:
+                                ver = job_service.session.get(ItemVersion, vid)
+                                if ver and ver.is_current:
+                                    vf_service.sync_version_files_to_item(
+                                        version_id=vid, item_id=ver.item_id, remove_missing=False,
+                                    )
+                                    job_service.session.commit()
+                            except Exception as sync_err:
+                                logger.warning(
+                                    "Worker '%s' VersionFile→ItemFile sync failed for %s: %s",
+                                    self.worker_id, vid, sync_err,
+                                )
+                        logger.info(
+                            "Worker '%s' bound %d derived file(s) for job %s",
+                            self.worker_id, len(result["derived_files"]), job.id,
+                        )
+                    except Exception as bind_err:
+                        logger.error(
+                            "Worker '%s' failed to bind derived files for job %s: %s",
+                            self.worker_id, job.id, bind_err,
+                        )
 
                 ctx = _job_context()
                 logger.info(

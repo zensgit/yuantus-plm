@@ -203,6 +203,7 @@ class VersionService:
 
         version.checked_out_by_id = None
         version.checked_out_at = None
+        self.file_version_service.release_all_file_locks(version.id)
 
         self._log_history(version, "checkin", user_id, comment, changes=properties)
         return version

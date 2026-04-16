@@ -37,15 +37,20 @@ from yuantus.context import get_request_context
 from yuantus.meta_engine.models.file import (
     FileContainer,
     ItemFile,
-    ConversionJob,
+    ConversionJob as LegacyConversionJob,
     FileRole,
     DocumentType,
     ConversionStatus,
+)
+from yuantus.meta_engine.models.job import (
+    ConversionJob as MetaConversionJob,
+    JobStatus,
 )
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.lifecycle.guard import is_item_locked
 from yuantus.meta_engine.services.cad_converter_service import CADConverterService
+from yuantus.meta_engine.services.job_service import JobService
 from yuantus.meta_engine.services.file_service import FileService
 from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.security.auth.database import get_identity_db
@@ -130,6 +135,31 @@ class ConversionJobResponse(BaseModel):
     status: str
     error_message: Optional[str] = None
     result_file_id: Optional[str] = None
+
+
+_PREVIEW_FORMATS = frozenset({"png", "jpg", "jpeg", "thumbnail"})
+
+
+def _meta_job_to_response(job: "MetaConversionJob") -> "ConversionJobResponse":
+    """Map a meta_conversion_jobs row to ConversionJobResponse.
+
+    Fix 2: result_file_id comes from payload["result"]["file_id"] for
+    completed jobs, None otherwise.
+    """
+    payload = job.payload if isinstance(job.payload, dict) else {}
+    task_type = job.task_type or ""
+    is_preview = task_type == "cad_preview"
+    result = payload.get("result") if isinstance(payload.get("result"), dict) else {}
+    result_file_id = result.get("file_id") if job.status == JobStatus.COMPLETED.value else None
+    return ConversionJobResponse(
+        id=job.id,
+        source_file_id=payload.get("file_id", ""),
+        target_format=payload.get("target_format", "png" if is_preview else "gltf"),
+        operation_type="preview" if is_preview else "convert",
+        status=job.status or "",
+        error_message=job.last_error,
+        result_file_id=result_file_id,
+    )
 
 
 class AttachFileRequest(BaseModel):
@@ -512,20 +542,20 @@ async def upload_file(
         )
         db.add(file_container)
 
-        # Generate preview for CAD files (Async)
+        # Generate preview for CAD files (Async) — canonical meta_conversion_jobs
         preview_url = None
         if generate_preview and file_container.is_cad_file():
-            # Note: CADConverterService needs update to use FileService too.
-            # For now, we assume it works or we fix it later.
             try:
-                converter = CADConverterService(db, vault_base_path=VAULT_DIR)
-                job = converter.create_conversion_job(
-                    source_file_id=file_id,
-                    target_format="png",
-                    operation_type="preview",
-                    priority=50,
+                js = JobService(db)
+                js.create_job(
+                    "cad_preview",
+                    {
+                        "file_id": file_id,
+                        "filename": file_container.filename,
+                        "cad_format": (file_container.get_extension() or "").upper() or None,
+                    },
+                    priority=50, max_attempts=3, dedupe=True,
                 )
-                # preview_url = f"/api/file/{file_id}/preview"
             except Exception as e:
                 print(f"Preview generation failed: {e}")
 
@@ -1077,21 +1107,19 @@ async def request_conversion(
         raise HTTPException(status_code=400, detail="File is not a CAD file")
 
     try:
-        converter = CADConverterService(db, vault_base_path=VAULT_DIR)
-        job = converter.create_conversion_job(
-            source_file_id=file_id,
-            target_format=target_format,
-            operation_type="convert",
-        )
+        fmt = (target_format or "obj").strip().lower()
+        task_type = "cad_preview" if fmt in _PREVIEW_FORMATS else "cad_geometry"
+        payload: Dict[str, Any] = {
+            "file_id": file_id,
+            "filename": file_container.filename,
+            "cad_format": (file_container.get_extension() or "").upper() or None,
+        }
+        if task_type == "cad_geometry":
+            payload["target_format"] = fmt
+        js = JobService(db)
+        job = js.create_job(task_type, payload, max_attempts=3, dedupe=True)
         db.commit()
-
-        return ConversionJobResponse(
-            id=job.id,
-            source_file_id=job.source_file_id,
-            target_format=job.target_format,
-            operation_type=job.operation_type,
-            status=job.status,
-        )
+        return _meta_job_to_response(job)
 
     except Exception as e:
         db.rollback()
@@ -1100,20 +1128,27 @@ async def request_conversion(
 
 @file_router.get("/conversion/{job_id}", response_model=ConversionJobResponse)
 async def get_conversion_status(job_id: str, db: Session = Depends(get_db)):
-    """Get status of a conversion job."""
-    job = db.get(ConversionJob, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Conversion job not found")
+    """Get status of a conversion job.
 
-    return ConversionJobResponse(
-        id=job.id,
-        source_file_id=job.source_file_id,
-        target_format=job.target_format,
-        operation_type=job.operation_type,
-        status=job.status,
-        error_message=job.error_message,
-        result_file_id=job.result_file_id,
-    )
+    Dual-read: canonical meta_conversion_jobs first, then legacy fallback.
+    """
+    meta_job = db.get(MetaConversionJob, job_id)
+    if meta_job:
+        return _meta_job_to_response(meta_job)
+
+    legacy_job = db.get(LegacyConversionJob, job_id)
+    if legacy_job:
+        return ConversionJobResponse(
+            id=legacy_job.id,
+            source_file_id=legacy_job.source_file_id,
+            target_format=legacy_job.target_format,
+            operation_type=legacy_job.operation_type,
+            status=legacy_job.status,
+            error_message=legacy_job.error_message,
+            result_file_id=legacy_job.result_file_id,
+        )
+
+    raise HTTPException(status_code=404, detail="Conversion job not found")
 
 
 @file_router.get("/conversions/pending")
@@ -1121,55 +1156,59 @@ async def list_pending_conversions(
     limit: int = Query(50, le=100),
     db: Session = Depends(get_db),
 ):
-    """List pending conversion jobs."""
+    """List pending conversion jobs from canonical meta_conversion_jobs."""
     jobs = (
-        db.query(ConversionJob)
+        db.query(MetaConversionJob)
         .filter(
-            ConversionJob.status.in_(
-                [
-                    ConversionStatus.PENDING.value,
-                    ConversionStatus.PROCESSING.value,
-                ]
-            )
+            MetaConversionJob.task_type.in_(["cad_preview", "cad_geometry"]),
+            MetaConversionJob.status.in_(
+                [JobStatus.PENDING.value, JobStatus.PROCESSING.value]
+            ),
         )
-        .order_by(ConversionJob.priority.asc(), ConversionJob.created_at.asc())
+        .order_by(
+            MetaConversionJob.priority.asc(),
+            MetaConversionJob.created_at.asc(),
+        )
         .limit(limit)
         .all()
     )
-
-    return [
-        ConversionJobResponse(
-            id=job.id,
-            source_file_id=job.source_file_id,
-            target_format=job.target_format,
-            operation_type=job.operation_type,
-            status=job.status,
-            error_message=job.error_message,
-            result_file_id=job.result_file_id,
-        )
-        for job in jobs
-    ]
+    return [_meta_job_to_response(job) for job in jobs]
 
 
-@file_router.post("/conversions/process")
+@file_router.post("/conversions/process", deprecated=True)
 async def process_conversion_queue(
     batch_size: int = Query(10, le=50),
     db: Session = Depends(get_db),
 ):
-    """
-    Process pending conversion jobs.
+    """[DEPRECATED] Process pending conversion jobs.
 
-    This endpoint is typically called by a background worker.
+    The canonical path is the ``yuantus worker`` CLI.  This endpoint uses
+    the request session + checks per-job status for accurate stats (Fix 3).
     """
-    try:
-        converter = CADConverterService(db, vault_base_path=VAULT_DIR)
-        results = converter.process_batch(batch_size)
-        db.commit()
-        return results
+    from yuantus.meta_engine.services.job_worker import JobWorker
+    from yuantus.meta_engine.tasks.cad_pipeline_tasks import (
+        cad_preview_with_binding,
+        cad_geometry_with_binding,
+    )
 
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+    worker = JobWorker(worker_id="http-batch")
+    worker.register_handler("cad_preview", cad_preview_with_binding)
+    worker.register_handler("cad_geometry", cad_geometry_with_binding)
+
+    js = JobService(db)
+    results = {"processed": 0, "succeeded": 0, "failed": 0}
+    for _ in range(batch_size):
+        job = js.poll_next_job("http-batch")
+        if not job:
+            break
+        worker._execute_job(job, js)
+        results["processed"] += 1
+        db.refresh(job)
+        if job.status == JobStatus.COMPLETED.value:
+            results["succeeded"] += 1
+        else:
+            results["failed"] += 1
+    return results
 
 
 # ============================================================================
@@ -1347,13 +1386,18 @@ async def process_cad_legacy(payload: dict, db: Session = Depends(get_db)):
     # Try to find FileContainer
     file_container = db.get(FileContainer, file_id)
     if file_container:
-        # Use new conversion system
-        converter = CADConverterService(db, vault_base_path=VAULT_DIR)
-        job = converter.create_conversion_job(
-            source_file_id=file_id,
-            target_format=target_format,
-            operation_type="convert",
-        )
+        # Canonical meta_conversion_jobs path
+        fmt = (target_format or "obj").strip().lower()
+        task_type = "cad_preview" if fmt in _PREVIEW_FORMATS else "cad_geometry"
+        payload_dict: Dict[str, Any] = {
+            "file_id": file_id,
+            "filename": file_container.filename,
+            "cad_format": (file_container.get_extension() or "").upper() or None,
+        }
+        if task_type == "cad_geometry":
+            payload_dict["target_format"] = fmt
+        js = JobService(db)
+        job = js.create_job(task_type, payload_dict, max_attempts=3, dedupe=True)
         db.commit()
         return {
             "status": "queued",

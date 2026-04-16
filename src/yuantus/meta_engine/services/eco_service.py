@@ -1267,7 +1267,11 @@ class ECOApprovalService:
             return False
         if user.is_superuser:
             return True
-        user_role_names = {r.name for r in (user.roles or [])}
+        # Only consider active roles
+        user_role_names = {
+            r.name for r in (user.roles or [])
+            if getattr(r, "is_active", True)
+        }
         return any(role_name in user_role_names for role_name in (stage.approval_roles or []))
 
     def get_pending_approvals(self, user_id: int) -> List[Dict[str, Any]]:
@@ -1360,6 +1364,325 @@ class ECOApprovalService:
             )
         return overdue
 
+    # ------------------------------------------------------------------
+    # P2-3: Approval Dashboard
+    # ------------------------------------------------------------------
+
+    def _base_dashboard_query(
+        self,
+        *,
+        company_id: Optional[str] = None,
+        eco_type: Optional[str] = None,
+        eco_state: Optional[str] = None,
+        deadline_from: Optional[datetime] = None,
+        deadline_to: Optional[datetime] = None,
+    ):
+        """Canonical base query for both summary and items.
+
+        Joins: ECO → ECOStage (current) → ECOApproval (same stage only).
+        Filters: active ECO + approval_type != none + pending approval +
+                 approval bound to ECO's *current* stage.
+
+        Optional filters (P2-3.1 PR-1):
+            company_id, eco_type (category), eco_state, deadline window.
+        """
+        states = [ECOState.DRAFT.value, ECOState.PROGRESS.value]
+        if eco_state:
+            states = [eco_state]
+
+        query = (
+            self.session.query(ECO, ECOStage, ECOApproval)
+            .join(ECOStage, ECO.stage_id == ECOStage.id)
+            .join(ECOApproval, (
+                (ECOApproval.eco_id == ECO.id)
+                & (ECOApproval.stage_id == ECO.stage_id)
+            ))
+            .filter(
+                ECO.state.in_(states),
+                ECOStage.approval_type != "none",
+                ECOApproval.status == "pending",
+            )
+        )
+
+        if company_id:
+            query = query.filter(ECO.company_id == company_id)
+        if eco_type:
+            query = query.filter(ECO.eco_type == eco_type)
+        if deadline_from:
+            query = query.filter(ECO.approval_deadline >= deadline_from)
+        if deadline_to:
+            query = query.filter(ECO.approval_deadline <= deadline_to)
+
+        return query
+
+    def get_approval_dashboard_summary(
+        self,
+        *,
+        company_id: Optional[str] = None,
+        eco_type: Optional[str] = None,
+        eco_state: Optional[str] = None,
+        deadline_from: Optional[datetime] = None,
+        deadline_to: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """Aggregate counts from the same base query as items."""
+        now = datetime.utcnow()
+        rows = self._base_dashboard_query(
+            company_id=company_id, eco_type=eco_type, eco_state=eco_state,
+            deadline_from=deadline_from, deadline_to=deadline_to,
+        ).all()
+
+        pending_count = 0
+        overdue_count = 0
+        escalated_count = 0
+        by_stage: Dict[str, Dict[str, Any]] = {}
+        by_role: Dict[str, int] = {}
+        by_assignee_map: Dict[int, Dict[str, Any]] = {}
+
+        for eco, stage, approval in rows:
+            is_overdue = bool(eco.approval_deadline and eco.approval_deadline <= now)
+            is_escalated = approval.required_role == "admin"
+
+            if is_overdue:
+                overdue_count += 1
+            else:
+                pending_count += 1
+            if is_escalated:
+                escalated_count += 1
+
+            sk = stage.id
+            if sk not in by_stage:
+                by_stage[sk] = {"stage_id": sk, "stage_name": stage.name, "pending": 0, "overdue": 0}
+            if is_overdue:
+                by_stage[sk]["overdue"] += 1
+            else:
+                by_stage[sk]["pending"] += 1
+
+            for role in (stage.approval_roles or []):
+                by_role[role] = by_role.get(role, 0) + 1
+
+            uid = approval.user_id
+            if uid not in by_assignee_map:
+                user = self.session.get(RBACUser, uid)
+                by_assignee_map[uid] = {
+                    "user_id": uid,
+                    "username": user.username if user else str(uid),
+                    "pending_count": 0,
+                }
+            by_assignee_map[uid]["pending_count"] += 1
+
+        return {
+            "pending_count": pending_count,
+            "overdue_count": overdue_count,
+            "escalated_count": escalated_count,
+            "by_stage": list(by_stage.values()),
+            "by_role": [{"role": r, "count": c} for r, c in sorted(by_role.items())],
+            "by_assignee": sorted(by_assignee_map.values(), key=lambda x: -x["pending_count"]),
+        }
+
+    def get_approval_dashboard_items(
+        self,
+        *,
+        status_filter: Optional[str] = None,
+        stage_id: Optional[str] = None,
+        assignee_id: Optional[int] = None,
+        role: Optional[str] = None,
+        company_id: Optional[str] = None,
+        eco_type: Optional[str] = None,
+        eco_state: Optional[str] = None,
+        deadline_from: Optional[datetime] = None,
+        deadline_to: Optional[datetime] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """Filtered items from the same base query as summary."""
+        now = datetime.utcnow()
+        query = self._base_dashboard_query(
+            company_id=company_id, eco_type=eco_type, eco_state=eco_state,
+            deadline_from=deadline_from, deadline_to=deadline_to,
+        )
+
+        if stage_id:
+            query = query.filter(ECOStage.id == stage_id)
+        if assignee_id:
+            query = query.filter(ECOApproval.user_id == assignee_id)
+        if role:
+            query = query.filter(ECOStage.approval_roles.contains([role]))
+
+        if status_filter == "overdue":
+            query = query.filter(
+                ECO.approval_deadline.isnot(None),
+                ECO.approval_deadline <= now,
+            )
+        elif status_filter == "escalated":
+            query = query.filter(ECOApproval.required_role == "admin")
+        elif status_filter == "pending":
+            query = query.filter(
+                ECO.approval_deadline.is_(None)
+                | (ECO.approval_deadline > now)
+            )
+
+        rows = query.order_by(ECO.approval_deadline.asc().nullslast()).limit(limit).all()
+
+        items = []
+        for eco, stage, approval in rows:
+            is_overdue = bool(eco.approval_deadline and eco.approval_deadline <= now)
+            user = self.session.get(RBACUser, approval.user_id)
+            items.append({
+                "eco_id": eco.id,
+                "eco_name": eco.name,
+                "eco_state": eco.state,
+                "stage_id": stage.id,
+                "stage_name": stage.name,
+                "approval_id": approval.id,
+                "assignee_id": approval.user_id,
+                "assignee_username": user.username if user else str(approval.user_id),
+                "approval_type": approval.approval_type,
+                "required_role": approval.required_role,
+                "is_overdue": is_overdue,
+                "is_escalated": approval.required_role == "admin",
+                "approval_deadline": (
+                    eco.approval_deadline.isoformat() if eco.approval_deadline else None
+                ),
+                "hours_overdue": (
+                    (now - eco.approval_deadline).total_seconds() / 3600
+                    if is_overdue else None
+                ),
+            })
+        return items
+
+    # ------------------------------------------------------------------
+    # P2-3.1 PR-2: Dashboard Export
+    # ------------------------------------------------------------------
+
+    _EXPORT_COLUMNS = [
+        "eco_id", "eco_name", "eco_state", "stage_id", "stage_name",
+        "approval_id", "assignee_id", "assignee_username",
+        "approval_type", "required_role", "is_overdue", "is_escalated",
+        "approval_deadline", "hours_overdue",
+    ]
+
+    def export_dashboard_items(
+        self,
+        fmt: str = "json",
+        **filter_kwargs,
+    ) -> str:
+        """Export dashboard items as JSON or CSV string.
+
+        Uses the same ``get_approval_dashboard_items`` query — no second口径.
+        """
+        items = self.get_approval_dashboard_items(**filter_kwargs)
+
+        if fmt == "csv":
+            import csv
+            import io
+            buf = io.StringIO()
+            writer = csv.DictWriter(buf, fieldnames=self._EXPORT_COLUMNS, extrasaction="ignore")
+            writer.writeheader()
+            for item in items:
+                writer.writerow(item)
+            return buf.getvalue()
+
+        # default: json
+        import json
+        return json.dumps(items, ensure_ascii=False, default=str)
+
+    # ------------------------------------------------------------------
+    # P2-3.1 PR-3: Approval Ops Audit
+    # ------------------------------------------------------------------
+
+    def get_approval_anomalies(self) -> Dict[str, Any]:
+        """Lightweight anomaly report for operations.
+
+        Returns three categories of stuck approvals:
+        - no_candidates: stages needing approval but 0 eligible users
+        - escalated_unresolved: admin-escalated approvals still pending
+        - overdue_not_escalated: overdue but not yet escalated
+        """
+        now = datetime.utcnow()
+
+        # Active ECOs with approval stages
+        ecos_with_stages = (
+            self.session.query(ECO, ECOStage)
+            .join(ECOStage, ECO.stage_id == ECOStage.id)
+            .filter(
+                ECO.state.in_([ECOState.DRAFT.value, ECOState.PROGRESS.value]),
+                ECOStage.approval_type != "none",
+            )
+            .all()
+        )
+
+        no_candidates = []
+        for eco, stage in ecos_with_stages:
+            candidates = self._resolve_candidate_users(stage)
+            if not candidates:
+                no_candidates.append({
+                    "eco_id": eco.id,
+                    "eco_name": eco.name,
+                    "stage_id": stage.id,
+                    "stage_name": stage.name,
+                    "approval_roles": stage.approval_roles,
+                    "reason": "no active users with matching active roles",
+                })
+
+        # Escalated but still pending
+        escalated_unresolved = []
+        esc_rows = (
+            self.session.query(ECOApproval, ECO, ECOStage)
+            .join(ECO, ECOApproval.eco_id == ECO.id)
+            .join(ECOStage, ECOApproval.stage_id == ECOStage.id)
+            .filter(
+                ECOApproval.required_role == "admin",
+                ECOApproval.status == "pending",
+                ECOApproval.stage_id == ECO.stage_id,  # current stage only
+                ECO.state.in_([ECOState.DRAFT.value, ECOState.PROGRESS.value]),
+            )
+            .all()
+        )
+        for appr, eco, stage in esc_rows:
+            user = self.session.get(RBACUser, appr.user_id)
+            escalated_unresolved.append({
+                "eco_id": eco.id,
+                "eco_name": eco.name,
+                "stage_id": stage.id,
+                "stage_name": stage.name,
+                "admin_user_id": appr.user_id,
+                "admin_username": user.username if user else str(appr.user_id),
+                "approval_id": appr.id,
+            })
+
+        # Overdue but not yet escalated (no admin approval exists)
+        overdue_not_escalated = []
+        overdue_ecos = self.list_overdue_approvals()
+        for entry in overdue_ecos:
+            eco_id = entry["eco_id"]
+            stage_id = entry.get("stage_id")
+            if not stage_id:
+                continue
+            has_admin = (
+                self.session.query(ECOApproval)
+                .filter_by(eco_id=eco_id, stage_id=stage_id, required_role="admin")
+                .first()
+            )
+            if not has_admin:
+                overdue_not_escalated.append({
+                    "eco_id": eco_id,
+                    "eco_name": entry.get("eco_name"),
+                    "stage_id": stage_id,
+                    "stage_name": entry.get("stage_name"),
+                    "hours_overdue": entry.get("hours_overdue"),
+                    "reason": "overdue but no escalation triggered",
+                })
+
+        return {
+            "no_candidates": no_candidates,
+            "escalated_unresolved": escalated_unresolved,
+            "overdue_not_escalated": overdue_not_escalated,
+            "total_anomalies": (
+                len(no_candidates)
+                + len(escalated_unresolved)
+                + len(overdue_not_escalated)
+            ),
+        }
+
     def notify_overdue_approvals(self) -> Dict[str, Any]:
         overdue = self.list_overdue_approvals()
         notified = 0
@@ -1430,6 +1753,14 @@ class ECOApprovalService:
                 eco.stage_id = next_stage.id
                 eco.state = ECOState.PROGRESS.value
                 self._apply_stage_sla(eco, next_stage)
+                self.session.add(eco)
+                self.session.flush()
+                # P2-2a: auto-assign approvers for the new stage.
+                # Only skip when next stage genuinely needs no approval.
+                # All other failures (permission, bridge, DB) must propagate
+                # so stage doesn't advance with half-built approval state.
+                if next_stage.approval_type != "none":
+                    self.auto_assign_stage_approvers(eco.id, user_id)
                 self.notification_service.notify(
                     "eco.stage_assigned",
                     {
@@ -1634,3 +1965,323 @@ class ECOApprovalService:
         if required_approvals >= stage.min_approvals:
             return True
         return False
+
+    # ------------------------------------------------------------------
+    # P2-2a: Auto-assign stage approvers
+    # ------------------------------------------------------------------
+
+    def _resolve_candidate_users(self, stage: ECOStage) -> List[RBACUser]:
+        """Resolve active RBAC users whose *active* roles match stage.approval_roles."""
+        target_roles = set(stage.approval_roles or [])
+        if not target_roles:
+            return []
+        users = self.session.query(RBACUser).filter(RBACUser.is_active.is_(True)).all()
+        result = []
+        for u in users:
+            if u.is_superuser:
+                result.append(u)
+                continue
+            active_role_names = {
+                r.name for r in (u.roles or [])
+                if getattr(r, "is_active", True)
+            }
+            if active_role_names & target_roles:
+                result.append(u)
+        return result
+
+    def _check_user_eco_permission(self, user_id: int, action: str) -> None:
+        """Real RBAC permission check for ECO operations.
+
+        Uses RBACUser.has_permission — not the broken MetaPermissionService()
+        instantiated without session.
+        """
+        user = self.session.query(RBACUser).filter(RBACUser.id == user_id).first()
+        if not user:
+            from yuantus.exceptions.handlers import PermissionError
+            raise PermissionError(
+                action=action, resource="ECO",
+                details={"reason": f"User {user_id} not found"},
+            )
+        if user.is_superuser:
+            return
+        perm_name = f"eco.{action}"
+        if not user.has_permission(perm_name):
+            from yuantus.exceptions.handlers import PermissionError
+            raise PermissionError(
+                action=action, resource="ECO",
+                details={"reason": f"User {user_id} lacks '{perm_name}' permission"},
+            )
+
+    def auto_assign_stage_approvers(self, eco_id: str, user_id: int) -> Dict[str, Any]:
+        """Pre-create pending ECOApproval + bridge ApprovalRequest for eligible users.
+
+        Raises:
+            PermissionError — user lacks eco.auto_assign permission
+            ValueError — ECO not found / no stage / stage does not require approval
+        """
+        # Fix 1: real RBAC permission check
+        self._check_user_eco_permission(user_id, "auto_assign")
+
+        eco = self.session.get(ECO, eco_id)
+        if not eco:
+            raise ValueError(f"ECO {eco_id} not found")
+        if not eco.stage_id:
+            raise ValueError(f"ECO {eco_id} has no current stage")
+
+        stage = self.session.get(ECOStage, eco.stage_id)
+        if not stage:
+            raise ValueError(f"ECO stage {eco.stage_id} not found")
+        if stage.approval_type == "none":
+            raise ValueError(
+                f"Stage '{stage.name}' does not require approval (approval_type=none)"
+            )
+
+        candidates = self._resolve_candidate_users(stage)
+        if not candidates:
+            raise ValueError(
+                f"Stage '{stage.name}' requires approval (roles={stage.approval_roles}) "
+                f"but no active users with matching active roles were found"
+            )
+        assigned = []
+        ar_ids = []
+        newly_assigned_user_ids = []
+
+        for cand in candidates:
+            existing = (
+                self.session.query(ECOApproval)
+                .filter_by(eco_id=eco_id, stage_id=stage.id, user_id=cand.id)
+                .first()
+            )
+            if existing:
+                assigned.append({
+                    "user_id": cand.id,
+                    "username": cand.username,
+                    "approval_id": existing.id,
+                    "already_existed": True,
+                })
+                continue
+
+            approval = ECOApproval(
+                id=str(uuid.uuid4()),
+                eco_id=eco_id,
+                stage_id=stage.id,
+                user_id=cand.id,
+                approval_type="mandatory",
+                required_role=None,
+                status="pending",
+            )
+            self.session.add(approval)
+            assigned.append({
+                "user_id": cand.id,
+                "username": cand.username,
+                "approval_id": approval.id,
+                "already_existed": False,
+            })
+            newly_assigned_user_ids.append(cand.id)
+
+        self.session.flush()
+
+        # Fix 2: Stage-aware bridge with state check
+        # Fix 3: No silent swallow — bridge failures raise and roll back
+        from yuantus.meta_engine.approvals.models import ApprovalRequest, ApprovalState
+        from yuantus.meta_engine.approvals.service import ApprovalService
+        ar_service = ApprovalService(self.session)
+        for entry in assigned:
+            if entry.get("already_existed"):
+                continue
+            # Stage-aware dedup: same eco + stage + user
+            #   draft → transition to pending, reuse
+            #   pending → reuse as-is
+            #   approved/rejected/cancelled → create new pending
+            existing_ar = (
+                self.session.query(ApprovalRequest)
+                .filter(
+                    ApprovalRequest.entity_type == "eco",
+                    ApprovalRequest.entity_id == eco_id,
+                    ApprovalRequest.assigned_to_id == entry["user_id"],
+                    ApprovalRequest.properties["stage_id"].as_string() == stage.id,
+                    ApprovalRequest.state.in_([
+                        ApprovalState.DRAFT.value,
+                        ApprovalState.PENDING.value,
+                    ]),
+                )
+                .first()
+            )
+            if existing_ar:
+                if existing_ar.state == ApprovalState.DRAFT.value:
+                    ar_service.transition_request(existing_ar.id, target_state="pending")
+                ar_ids.append(existing_ar.id)
+                continue
+            # approved/rejected/cancelled or different stage → new
+            ar = ar_service.create_request(
+                title=f"ECO approval: {eco.name} — stage {stage.name}",
+                entity_type="eco",
+                entity_id=eco_id,
+                priority="normal",
+                assigned_to_id=entry["user_id"],
+                user_id=eco.created_by_id,
+                description=f"stage_id={stage.id}",
+            )
+            ar.properties = {"stage_id": stage.id, "eco_name": eco.name}
+            self.session.add(ar)
+            self.session.flush()
+            ar_service.transition_request(ar.id, target_state="pending")
+            ar_ids.append(ar.id)
+
+        # Fix 4: Notify only newly assigned user IDs, not role bucket
+        if newly_assigned_user_ids:
+            self.notification_service.notify(
+                "eco.approvers_assigned",
+                {
+                    "eco_id": eco_id,
+                    "eco_name": eco.name,
+                    "stage_id": stage.id,
+                    "stage_name": stage.name,
+                    "assigned_user_ids": newly_assigned_user_ids,
+                    "assigned_count": len(newly_assigned_user_ids),
+                    "approval_deadline": (
+                        eco.approval_deadline.isoformat() if eco.approval_deadline else None
+                    ),
+                },
+                recipients=[str(uid) for uid in newly_assigned_user_ids],
+            )
+
+        return {"assigned": assigned, "approval_request_ids": ar_ids}
+
+    # ------------------------------------------------------------------
+    # P2-2b: Escalate overdue approvals
+    # ------------------------------------------------------------------
+
+    def escalate_overdue_approvals(self, user_id: int) -> Dict[str, Any]:
+        """Escalate overdue pending ECO approvals to admin/superuser.
+
+        Raises:
+            PermissionError — caller lacks eco.escalate_overdue permission.
+        """
+        self._check_user_eco_permission(user_id, "escalate_overdue")
+
+        overdue = self.list_overdue_approvals()
+        escalated_items = []
+
+        # Resolve escalation targets: active superusers
+        admins = (
+            self.session.query(RBACUser)
+            .filter(RBACUser.is_active.is_(True), RBACUser.is_superuser.is_(True))
+            .all()
+        )
+        if not admins:
+            raise ValueError("No active admin/superuser found for escalation")
+
+        from yuantus.meta_engine.approvals.models import ApprovalRequest, ApprovalState
+        from yuantus.meta_engine.approvals.service import ApprovalService
+        ar_service = ApprovalService(self.session)
+
+        for entry in overdue:
+            eco_id = entry["eco_id"]
+            stage_id = entry.get("stage_id")
+            if not stage_id:
+                continue
+
+            eco = self.session.get(ECO, eco_id)
+            stage = self.session.get(ECOStage, stage_id) if stage_id else None
+            if not eco or not stage:
+                continue
+            # Fix 2: exclude stages that don't require approval
+            if stage.approval_type == "none":
+                continue
+
+            pending = (
+                self.session.query(ECOApproval)
+                .filter_by(eco_id=eco_id, stage_id=stage_id, status="pending")
+                .all()
+            )
+            if not pending:
+                continue
+
+            admin_ids = {a.id for a in admins}
+            newly_escalated = []
+
+            for admin in admins:
+                # Check if admin already has ECOApproval for this eco+stage
+                existing_appr = (
+                    self.session.query(ECOApproval)
+                    .filter_by(eco_id=eco_id, stage_id=stage_id, user_id=admin.id)
+                    .first()
+                )
+                appr_id = None
+                if existing_appr:
+                    appr_id = existing_appr.id
+                else:
+                    new_appr = ECOApproval(
+                        id=str(uuid.uuid4()),
+                        eco_id=eco_id,
+                        stage_id=stage_id,
+                        user_id=admin.id,
+                        approval_type="mandatory",
+                        required_role="admin",
+                        status="pending",
+                    )
+                    self.session.add(new_appr)
+                    appr_id = new_appr.id
+
+                # Fix 1: Bridge ALWAYS — even when ECOApproval already existed
+                existing_ar = (
+                    self.session.query(ApprovalRequest)
+                    .filter(
+                        ApprovalRequest.entity_type == "eco",
+                        ApprovalRequest.entity_id == eco_id,
+                        ApprovalRequest.assigned_to_id == admin.id,
+                        ApprovalRequest.properties["stage_id"].as_string() == stage_id,
+                        ApprovalRequest.state.in_([
+                            ApprovalState.DRAFT.value,
+                            ApprovalState.PENDING.value,
+                        ]),
+                    )
+                    .first()
+                )
+                if existing_ar:
+                    if existing_ar.state == ApprovalState.DRAFT.value:
+                        ar_service.transition_request(existing_ar.id, target_state="pending")
+                else:
+                    ar = ar_service.create_request(
+                        title=f"ECO escalation: {eco.name} — stage {stage.name}",
+                        entity_type="eco",
+                        entity_id=eco_id,
+                        priority="urgent",
+                        assigned_to_id=admin.id,
+                        user_id=user_id,
+                        description=f"stage_id={stage_id} escalated",
+                    )
+                    ar.properties = {"stage_id": stage_id, "eco_name": eco.name, "escalated": True}
+                    self.session.add(ar)
+                    self.session.flush()
+                    ar_service.transition_request(ar.id, target_state="pending")
+
+                if not existing_appr:
+                    newly_escalated.append({
+                        "escalated_to_user_id": admin.id,
+                        "escalated_to_username": admin.username,
+                        "approval_id": appr_id,
+                    })
+
+            if newly_escalated:
+                self.session.flush()
+                self.notification_service.notify(
+                    "eco.approval_escalated",
+                    {
+                        "eco_id": eco_id,
+                        "eco_name": entry.get("eco_name"),
+                        "stage_id": stage_id,
+                        "hours_overdue": entry.get("hours_overdue"),
+                        "escalated_count": len(newly_escalated),
+                    },
+                    recipients=[str(e["escalated_to_user_id"]) for e in newly_escalated],
+                )
+                escalated_items.append({
+                    "eco_id": eco_id,
+                    "stage_id": stage_id,
+                    "hours_overdue": entry.get("hours_overdue"),
+                    "escalated": newly_escalated,
+                })
+
+        return {"escalated": len(escalated_items), "items": escalated_items}

@@ -1364,3 +1364,38 @@ def cad_bom(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
         "cad_bom_path": stored_key,
         "import_result": import_result,
     }
+
+
+# ---------------------------------------------------------------------------
+# P1-5: VersionFile binding wrappers
+# ---------------------------------------------------------------------------
+
+def _enrich_with_derived_files(
+    result: Dict[str, Any], payload: Dict[str, Any], file_role: str,
+) -> Dict[str, Any]:
+    """Append ``derived_files`` for the worker post-processor."""
+    if not result.get("ok"):
+        return result
+    file_id = result.get("file_id")
+    version_id = (payload or {}).get("version_id")
+    if file_id and version_id:
+        result["derived_files"] = [
+            {"file_id": file_id, "file_role": file_role, "version_id": version_id}
+        ]
+    return result
+
+
+def cad_preview_with_binding(
+    payload: Dict[str, Any], session: Session,
+) -> Dict[str, Any]:
+    """``cad_preview`` + VersionFile binding enrichment."""
+    result = cad_preview(payload, session)
+    return _enrich_with_derived_files(result, payload, "preview")
+
+
+def cad_geometry_with_binding(
+    payload: Dict[str, Any], session: Session,
+) -> Dict[str, Any]:
+    """``cad_geometry`` + VersionFile binding enrichment."""
+    result = cad_geometry(payload, session)
+    return _enrich_with_derived_files(result, payload, "geometry")

@@ -187,6 +187,10 @@ class VersionFile(Base):
     # Is this the primary/main file?
     is_primary = Column(Boolean, default=False)
 
+    # File-level checkout / lock
+    checked_out_by_id = Column(Integer, ForeignKey("rbac_users.id"), nullable=True)
+    checked_out_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

@@ -44,6 +44,10 @@ class SetThumbnailRequest(BaseModel):
     thumbnail_data: str  # Base64 encoded
 
 
+class VersionFileCheckoutRequest(BaseModel):
+    file_role: Optional[str] = None
+
+
 # ===============================
 # Service Helpers
 # ===============================
@@ -78,6 +82,19 @@ def _ensure_version_file_editable(
             status_code=409,
             detail=f"Version {version.id} is checked out by another user",
         )
+
+
+def _ensure_version_file_lock_clear(
+    db: Session, *, version_id: str, file_id: str, user_id: int,
+    file_role: Optional[str] = None,
+) -> None:
+    svc = VersionFileService(db)
+    try:
+        svc.assert_file_unlocked(
+            file_id, user_id, version_id=version_id, file_role=file_role,
+        )
+    except VersionFileError as e:
+        raise HTTPException(status_code=409, detail=str(e))
 
 
 @version_router.post("/items/{item_id}/init")
@@ -386,6 +403,9 @@ def detach_file_from_version(
     if not version:
         raise HTTPException(status_code=404, detail="Version not found")
     _ensure_version_file_editable(version, user_id)
+    _ensure_version_file_lock_clear(
+        db, version_id=version_id, file_id=file_id, user_id=user_id, file_role=file_role,
+    )
     file_service = VersionFileService(db)
     success = file_service.detach_file(version_id, file_id, file_role)
     if not success:
@@ -408,12 +428,80 @@ def get_version_files(
             "file_role": vf.file_role,
             "sequence": vf.sequence,
             "is_primary": vf.is_primary,
+            "checked_out_by_id": vf.checked_out_by_id,
+            "checked_out_at": (
+                vf.checked_out_at.isoformat() if vf.checked_out_at else None
+            ),
             "filename": vf.file.filename if vf.file else None,
             "file_type": vf.file.file_type if vf.file else None,
             "file_size": vf.file.file_size if vf.file else None,
         }
         for vf in files
     ]
+
+
+@version_router.post("/{version_id}/files/{file_id}/checkout")
+def checkout_version_file(
+    version_id: str, file_id: str,
+    request: VersionFileCheckoutRequest = Body(default_factory=VersionFileCheckoutRequest),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    svc = VersionFileService(db)
+    try:
+        vf = svc.checkout_file(version_id, file_id, user_id, file_role=request.file_role)
+        db.commit()
+        return {
+            "id": vf.id, "version_id": vf.version_id, "file_id": vf.file_id,
+            "file_role": vf.file_role, "checked_out_by_id": vf.checked_out_by_id,
+            "checked_out_at": (
+                vf.checked_out_at.isoformat() if vf.checked_out_at else None
+            ),
+        }
+    except VersionFileError as e:
+        db.rollback()
+        detail = str(e)
+        status_code = 409 if ("checked out" in detail.lower() or "locked" in detail.lower()) else 400
+        if "not attached" in detail.lower() or "not found" in detail.lower():
+            status_code = 404
+        raise HTTPException(status_code=status_code, detail=detail)
+
+
+@version_router.post("/{version_id}/files/{file_id}/undo-checkout")
+def undo_checkout_version_file(
+    version_id: str, file_id: str,
+    request: VersionFileCheckoutRequest = Body(default_factory=VersionFileCheckoutRequest),
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    svc = VersionFileService(db)
+    try:
+        vf = svc.undo_checkout_file(version_id, file_id, user_id, file_role=request.file_role)
+        db.commit()
+        return {
+            "id": vf.id, "version_id": vf.version_id, "file_id": vf.file_id,
+            "file_role": vf.file_role, "checked_out_by_id": None, "checked_out_at": None,
+        }
+    except VersionFileError as e:
+        db.rollback()
+        detail = str(e)
+        status_code = 409 if ("checked out" in detail.lower() or "locked" in detail.lower()) else 400
+        if "not attached" in detail.lower() or "not found" in detail.lower():
+            status_code = 404
+        raise HTTPException(status_code=status_code, detail=detail)
+
+
+@version_router.get("/{version_id}/files/{file_id}/lock")
+def get_version_file_lock(
+    version_id: str, file_id: str,
+    file_role: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    svc = VersionFileService(db)
+    try:
+        return svc.get_file_lock(version_id, file_id, file_role)
+    except VersionFileError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @version_router.put("/{version_id}/files/primary")
