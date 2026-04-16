@@ -218,7 +218,17 @@ This index aggregates all delivery‑related documents for private deployments.
 - P1 Version Router Conflict Mapping: `docs/DEV_AND_VERIFICATION_P1_VERSION_ROUTER_CONFLICT_MAPPING_20260415.md`
 - P1 Version Source Checkout Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_SOURCE_CHECKOUT_GUARDS_20260415.md`
 - P1 Version Sync Lock Guards: `docs/DEV_AND_VERIFICATION_P1_VERSION_SYNC_LOCK_GUARDS_20260415.md`
+- P2 Approval Chain Delivery: `docs/DEV_AND_VERIFICATION_P2_2_APPROVAL_CHAIN_DELIVERY.md`
+- P2 Approval Auto-Assign: `docs/DEV_AND_VERIFICATION_P2_2a_APPROVAL_AUTO_ASSIGN.md`
+- P2 Overdue Escalation: `docs/DEV_AND_VERIFICATION_P2_2b_OVERDUE_ESCALATION.md`
+- P2 Dashboard Filters: `docs/DEV_AND_VERIFICATION_P2_3_1_PR1_DASHBOARD_FILTERS.md`
+- P2 Dashboard Export: `docs/DEV_AND_VERIFICATION_P2_3_1_PR2_DASHBOARD_EXPORT.md`
+- P2 Ops Audit: `docs/DEV_AND_VERIFICATION_P2_3_1_PR3_APPROVAL_OPS_AUDIT.md`
+- P2 SLA Dashboard: `docs/DEV_AND_VERIFICATION_P2_3_SLA_DASHBOARD.md`
+- P2 Approval Chain Clean Replay: `docs/DEV_AND_VERIFICATION_P2_APPROVAL_CHAIN_CLEAN_REPLAY_20260416.md`
+- P2 Approval Chain PR220 Contracts Remediation: `docs/DEV_AND_VERIFICATION_P2_APPROVAL_CHAIN_PR220_CONTRACTS_REMEDIATION_20260416.md`
 - P2 ECO Approval Routing MVP: `docs/DEV_AND_VERIFICATION_P2_ECO_APPROVAL_ROUTING_MVP_20260415.md`
+- P2 Ops Observation Template Verification: `docs/DEV_AND_VERIFICATION_P2_OPS_OBSERVATION_TEMPLATE_20260416.md`
 - Phase 2 Variant BOM: `docs/DEV_AND_VERIFICATION_P2_VARIANT_BOM_20260206.md`
 - Phase 3 Day 1 WorkCenter API Skeleton: `docs/DEV_AND_VERIFICATION_P3_DAY1_WORKCENTER_20260206.md`
 - Phase 3 Day 2 WorkCenter Guardrails: `docs/DEV_AND_VERIFICATION_P3_DAY2_WORKCENTER_GUARDRAILS_20260206.md`
@@ -383,6 +393,8 @@ This index aggregates all delivery‑related documents for private deployments.
 - Where-Used API-only E2E Verification: `docs/DEV_AND_VERIFICATION_WHERE_USED_E2E_20260214.md`
 - WorkCenter API-only E2E Verification: `docs/DEV_AND_VERIFICATION_WORKCENTER_E2E_20260214.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
+- P2 Ops Observation Template: `docs/P2_OPS_OBSERVATION_TEMPLATE.md`
+- P2 Ops Runbook: `docs/P2_OPS_RUNBOOK.md`
 - P5 Reports/Search Performance Report (2026-02-08): `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-192938.md`
 - P5 Reports/Search Performance Trend: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND.md`
 - Roadmap 9.3 Performance Report (2026-02-07): `docs/PERFORMANCE_REPORTS/ROADMAP_9_3_20260207-135822.md`

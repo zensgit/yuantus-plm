@@ -15,7 +15,7 @@ BEFORE parameterized routes (/{eco_id}) to ensure correct matching.
 
 import io
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List, Optional
@@ -23,7 +23,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from yuantus.database import get_db
-from yuantus.api.dependencies.auth import get_current_user, get_current_user_id_optional
+from yuantus.api.dependencies.auth import get_current_user, get_current_user_id, get_current_user_id_optional
 from yuantus.exceptions.handlers import PermissionError
 from yuantus.meta_engine.schemas.aml import AMLAction
 from yuantus.meta_engine.services.meta_permission_service import MetaPermissionService
@@ -59,23 +59,12 @@ class ECOCreate(BaseModel):
 
 
 class ECOUpdate(BaseModel):
-    """Schema for updating an ECO.
-
-    Only mutable metadata fields are accepted here.
-    Product binding must go through POST /{eco_id}/bind-product.
-    """
+    """Schema for updating an ECO."""
 
     name: Optional[str] = None
     description: Optional[str] = None
     priority: Optional[str] = None
     effectivity_date: Optional[datetime] = None
-
-
-class BindProductRequest(BaseModel):
-    """Schema for binding a product to an ECO."""
-
-    product_id: str = Field(..., min_length=1)
-    create_target_revision: bool = Field(default=False)
 
 
 class MoveStageRequest(BaseModel):
@@ -94,18 +83,6 @@ class RejectRequest(BaseModel):
     """Schema for rejection."""
 
     comment: str = Field(..., min_length=1)
-
-
-class SuspendRequest(BaseModel):
-    """Schema for suspend action."""
-
-    reason: Optional[str] = None
-
-
-class UnsuspendRequest(BaseModel):
-    """Schema for unsuspend action."""
-
-    resume_state: Optional[str] = None
 
 
 class StageCreate(BaseModel):
@@ -146,15 +123,6 @@ def _ensure_can_apply_eco(service: ECOService, *, eco_id: str, user_id: int) -> 
     try:
         service.permission_service.check_permission(
             user_id, "execute", "ECO", resource_id=eco_id, field="apply"
-        )
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
-
-
-def _ensure_can_unsuspend_eco(service: ECOService, *, eco_id: str, user_id: int) -> None:
-    try:
-        service.permission_service.check_permission(
-            user_id, "execute", "ECO", resource_id=eco_id, field="unsuspend"
         )
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
@@ -388,27 +356,163 @@ async def notify_overdue_approvals(db: Session = Depends(get_db)):
     return service.notify_overdue_approvals()
 
 
-@eco_router.get("/{eco_id}/approval-routing", response_model=Dict[str, Any])
-async def get_eco_approval_routing(
-    eco_id: str,
-    user_id: int = Depends(get_current_user_id_optional),
+def _parse_deadline(value: Optional[str], param_name: str):
+    """Parse ISO datetime string or raise 400."""
+    if not value:
+        return None
+    from datetime import datetime as dt
+    try:
+        return dt.fromisoformat(value)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid {param_name}: '{value}' is not a valid ISO datetime",
+        )
+
+
+@eco_router.get("/approvals/dashboard/summary", response_model=Dict[str, Any])
+async def approval_dashboard_summary(
+    company_id: Optional[str] = Query(None),
+    eco_type: Optional[str] = Query(None, description="bom|routing|..."),
+    eco_state: Optional[str] = Query(None, description="draft|progress"),
+    deadline_from: Optional[str] = Query(None, description="ISO datetime"),
+    deadline_to: Optional[str] = Query(None, description="ISO datetime"),
     db: Session = Depends(get_db),
 ):
-    """Return the effective approval routing summary for the ECO's current stage."""
+    """P2-3: Aggregate counts — overdue, pending, escalated, by stage/role/assignee.
+    P2-3.1: Optional filters for company, category (eco_type), state, deadline window.
+    """
+    dfrom = _parse_deadline(deadline_from, "deadline_from")
+    dto = _parse_deadline(deadline_to, "deadline_to")
+    service = ECOApprovalService(db)
+    return service.get_approval_dashboard_summary(
+        company_id=company_id, eco_type=eco_type, eco_state=eco_state,
+        deadline_from=dfrom, deadline_to=dto,
+    )
+
+
+@eco_router.get("/approvals/dashboard/items", response_model=List[Dict[str, Any]])
+async def approval_dashboard_items(
+    status: Optional[str] = Query(None, description="overdue|pending|escalated"),
+    stage_id: Optional[str] = Query(None),
+    assignee_id: Optional[int] = Query(None),
+    role: Optional[str] = Query(None),
+    company_id: Optional[str] = Query(None),
+    eco_type: Optional[str] = Query(None),
+    eco_state: Optional[str] = Query(None),
+    deadline_from: Optional[str] = Query(None, description="ISO datetime"),
+    deadline_to: Optional[str] = Query(None, description="ISO datetime"),
+    limit: int = Query(50, le=200),
+    db: Session = Depends(get_db),
+):
+    """P2-3: Filtered approval items for the operations dashboard.
+    P2-3.1: Optional filters for company, category (eco_type), state, deadline window.
+    """
+    dfrom = _parse_deadline(deadline_from, "deadline_from")
+    dto = _parse_deadline(deadline_to, "deadline_to")
+    service = ECOApprovalService(db)
+    return service.get_approval_dashboard_items(
+        status_filter=status, stage_id=stage_id, assignee_id=assignee_id,
+        role=role, company_id=company_id, eco_type=eco_type, eco_state=eco_state,
+        deadline_from=dfrom, deadline_to=dto, limit=limit,
+    )
+
+
+@eco_router.get("/approvals/dashboard/export")
+async def approval_dashboard_export(
+    fmt: str = Query("json", description="json|csv"),
+    status: Optional[str] = Query(None, description="overdue|pending|escalated"),
+    stage_id: Optional[str] = Query(None),
+    assignee_id: Optional[int] = Query(None),
+    role: Optional[str] = Query(None),
+    company_id: Optional[str] = Query(None),
+    eco_type: Optional[str] = Query(None),
+    eco_state: Optional[str] = Query(None),
+    deadline_from: Optional[str] = Query(None),
+    deadline_to: Optional[str] = Query(None),
+    limit: int = Query(1000, le=5000),
+    db: Session = Depends(get_db),
+):
+    """P2-3.1 PR-2: Export dashboard items as JSON or CSV.
+
+    Same filters as /items. Default limit raised to 1000 for export.
+    """
+    dfrom = _parse_deadline(deadline_from, "deadline_from")
+    dto = _parse_deadline(deadline_to, "deadline_to")
+    if fmt not in ("json", "csv"):
+        raise HTTPException(status_code=400, detail=f"Unsupported format: '{fmt}'. Use 'json' or 'csv'.")
+    service = ECOApprovalService(db)
+    content = service.export_dashboard_items(
+        fmt=fmt,
+        status_filter=status, stage_id=stage_id, assignee_id=assignee_id,
+        role=role, company_id=company_id, eco_type=eco_type, eco_state=eco_state,
+        deadline_from=dfrom, deadline_to=dto, limit=limit,
+    )
+    media_type = "text/csv" if fmt == "csv" else "application/json"
+    filename = f"approval_dashboard.{fmt}"
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@eco_router.get("/approvals/audit/anomalies", response_model=Dict[str, Any])
+async def approval_anomalies(db: Session = Depends(get_db)):
+    """P2-3.1 PR-3: Lightweight anomaly report.
+
+    Returns: no_candidates, escalated_unresolved, overdue_not_escalated.
+    Tells ops "why is this stuck" without building a template system.
+    """
+    service = ECOApprovalService(db)
+    return service.get_approval_anomalies()
+
+
+@eco_router.post("/{eco_id}/auto-assign-approvers", response_model=Dict[str, Any])
+async def auto_assign_approvers(
+    eco_id: str,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """P2-2a: Auto-assign approvers for the current stage based on approval_roles.
+
+    Auth: get_current_user_id (401 on no user).
+    Permission: RBACUser.has_permission("eco.auto_assign") (403 on deny).
+    """
     service = ECOApprovalService(db)
     try:
-        service.permission_service.check_permission(
-            user_id, "read", "ECO", resource_id=eco_id
-        )
-        return service.get_approval_routing(eco_id)
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
-    except ValueError as exc:
-        detail = str(exc)
-        raise HTTPException(
-            status_code=404 if "not found" in detail.lower() else 400,
-            detail=detail,
-        ) from exc
+        result = service.auto_assign_stage_approvers(eco_id, user_id)
+        db.commit()
+        return result
+    except PermissionError:
+        db.rollback()
+        raise HTTPException(status_code=403, detail="Forbidden: insufficient ECO permission")
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@eco_router.post("/approvals/escalate-overdue", response_model=Dict[str, Any])
+async def escalate_overdue_approvals(
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """P2-2b: Escalate overdue pending approvals to admin/superuser.
+
+    Auth: get_current_user_id (401 on no user).
+    Permission: RBACUser.has_permission("eco.escalate_overdue") (403 on deny).
+    """
+    service = ECOApprovalService(db)
+    try:
+        result = service.escalate_overdue_approvals(user_id)
+        db.commit()
+        return result
+    except PermissionError:
+        db.rollback()
+        raise HTTPException(status_code=403, detail="Forbidden: insufficient ECO permission")
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ============================================================
@@ -495,59 +599,34 @@ async def get_eco(eco_id: str, db: Session = Depends(get_db)):
     return eco.to_dict()
 
 
-@eco_router.post("/{eco_id}/bind-product", response_model=Dict[str, Any])
-async def bind_product_to_eco(
-    eco_id: str,
-    data: BindProductRequest,
-    user_id: int = Depends(get_current_user_id_optional),
-    db: Session = Depends(get_db),
-):
-    """Bind a product to an ECO.
-
-    This is the canonical entry point for associating a product with an ECO.
-    Idempotent if the same product is already bound. Rejects rebinding to a
-    different product. Optionally creates a target revision branch.
-    """
-    service = ECOService(db)
-    try:
-        eco = service.bind_product(
-            eco_id,
-            data.product_id,
-            user_id,
-            create_target_revision=data.create_target_revision,
-        )
-        db.commit()
-        return eco.to_dict()
-    except ValueError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-
-
 @eco_router.put("/{eco_id}", response_model=Dict[str, Any])
-async def update_eco(
-    eco_id: str,
-    data: ECOUpdate,
-    user_id: int = Depends(get_current_user_id_optional),
-    db: Session = Depends(get_db),
-):
-    """Update mutable metadata on an ECO.
-
-    Product binding is NOT allowed here — use POST /{eco_id}/bind-product.
-    State guard and field whitelist are enforced by ECOService.update_eco().
-    """
+async def update_eco(eco_id: str, data: ECOUpdate, db: Session = Depends(get_db)):
+    """Update an ECO."""
     service = ECOService(db)
-    updates = data.model_dump(exclude_unset=True)
-    if not updates:
-        eco = service.get_eco(eco_id)
-        if not eco:
-            raise HTTPException(status_code=404, detail="ECO not found")
-        return eco.to_dict()
+    eco = service.get_eco(eco_id)
+    if not eco:
+        raise HTTPException(status_code=404, detail="ECO not found")
+
+    # Only allow updates in draft/progress state
+    if eco.state not in (ECOState.DRAFT.value, ECOState.PROGRESS.value):
+        raise HTTPException(
+            status_code=400, detail=f"Cannot update ECO in {eco.state} state"
+        )
 
     try:
-        eco = service.update_eco(eco_id, updates, user_id)
+        if data.name is not None:
+            eco.name = data.name
+        if data.description is not None:
+            eco.description = data.description
+        if data.priority is not None:
+            eco.priority = data.priority
+        if data.effectivity_date is not None:
+            eco.effectivity_date = data.effectivity_date
+
+        eco.updated_at = datetime.utcnow()
         db.commit()
         return eco.to_dict()
-    except ValueError as e:
+    except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -975,39 +1054,6 @@ async def get_eco_apply_diagnostics(
     )
 
 
-@eco_router.get("/{eco_id}/unsuspend-diagnostics", response_model=ReleaseDiagnosticsResponse)
-async def get_eco_unsuspend_diagnostics(
-    eco_id: str,
-    resume_state: Optional[str] = Query(None),
-    ruleset_id: str = Query("default"),
-    user_id: int = Depends(get_current_user_id_optional),
-    db: Session = Depends(get_db),
-) -> ReleaseDiagnosticsResponse:
-    service = ECOService(db)
-    eco = service.get_eco(eco_id)
-    if eco:
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Authentication required")
-        _ensure_can_unsuspend_eco(service, eco_id=eco_id, user_id=int(user_id))
-
-    diagnostics = service.get_unsuspend_diagnostics(
-        eco_id,
-        int(user_id or 0),
-        resume_state=resume_state,
-        ruleset_id=ruleset_id,
-    )
-    errors = [issue_to_response(issue) for issue in (diagnostics.get("errors") or [])]
-    warnings = [issue_to_response(issue) for issue in (diagnostics.get("warnings") or [])]
-    return ReleaseDiagnosticsResponse(
-        ok=len(errors) == 0,
-        resource_type="eco",
-        resource_id=eco_id,
-        ruleset_id=str(diagnostics.get("ruleset_id") or ruleset_id),
-        errors=errors,
-        warnings=warnings,
-    )
-
-
 @eco_router.post("/{eco_id}/cancel", response_model=Dict[str, Any])
 async def cancel_eco(
     eco_id: str,
@@ -1021,81 +1067,6 @@ async def cancel_eco(
         eco = service.action_cancel(eco_id, user_id, reason)
         db.commit()
         return eco.to_dict()
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@eco_router.post("/{eco_id}/suspend", response_model=Dict[str, Any])
-async def suspend_eco(
-    eco_id: str,
-    data: SuspendRequest,
-    user_id: int = Depends(get_current_user_id_optional),
-    db: Session = Depends(get_db),
-):
-    """Suspend an ECO without canceling it."""
-    service = ECOService(db)
-    try:
-        eco = service.action_suspend(eco_id, user_id, data.reason)
-        db.commit()
-        return eco.to_dict()
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@eco_router.post("/{eco_id}/unsuspend", response_model=Dict[str, Any])
-async def unsuspend_eco(
-    eco_id: str,
-    data: UnsuspendRequest,
-    force: bool = Query(False),
-    ruleset_id: str = Query("default"),
-    user_id: int = Depends(get_current_user_id_optional),
-    db: Session = Depends(get_db),
-):
-    """Unsuspend an ECO and resume it into a working state."""
-    service = ECOService(db)
-    try:
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Authentication required")
-
-        if not force:
-            eco = service.get_eco(eco_id)
-            if eco:
-                _ensure_can_unsuspend_eco(service, eco_id=eco_id, user_id=int(user_id))
-            diagnostics = service.get_unsuspend_diagnostics(
-                eco_id,
-                int(user_id),
-                resume_state=data.resume_state,
-                ruleset_id=ruleset_id,
-            )
-            err_count = len(diagnostics.get("errors") or [])
-            warn_count = len(diagnostics.get("warnings") or [])
-            if err_count:
-                resume_query = (
-                    f"&resume_state={data.resume_state}" if data.resume_state else ""
-                )
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        f"ECO unsuspend blocked: errors={err_count}, warnings={warn_count}. "
-                        f"Run /api/v1/eco/{eco_id}/unsuspend-diagnostics?ruleset_id={ruleset_id}{resume_query} for details."
-                    ),
-                )
-
-        eco = service.action_unsuspend(
-            eco_id,
-            int(user_id),
-            resume_state=data.resume_state,
-        )
-        db.commit()
-        return eco.to_dict()
-    except HTTPException:
-        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -1139,24 +1110,14 @@ async def get_bom_changes(eco_id: str, db: Session = Depends(get_db)):
 
 
 @eco_router.post("/{eco_id}/compute-changes", response_model=List[Dict[str, Any]])
-async def compute_bom_changes(
-    eco_id: str,
-    compare_mode: Optional[str] = Query(
-        None,
-        description=(
-            "Optional compare mode: only_product, summarized, by_item, num_qty, "
-            "by_position, by_reference, by_find_refdes"
-        ),
-    ),
-    db: Session = Depends(get_db),
-):
+async def compute_bom_changes(eco_id: str, db: Session = Depends(get_db)):
     """
     Compute BOM differences between source and target versions.
     Creates/updates ECOBOMChange records.
     """
     service = ECOService(db)
     try:
-        changes = service.compute_bom_changes(eco_id, compare_mode=compare_mode)
+        changes = service.compute_bom_changes(eco_id)
         db.commit()
         return [c.to_dict() for c in changes]
     except ValueError as e:
@@ -1179,46 +1140,6 @@ async def detect_conflicts(eco_id: str, db: Session = Depends(get_db)):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============ Routing Changes Endpoints ============
-
-
-@eco_router.get("/{eco_id}/routing-changes", response_model=List[Dict[str, Any]])
-async def get_routing_changes(eco_id: str, db: Session = Depends(get_db)):
-    """Get all routing changes for an ECO."""
-    service = ECOService(db)
-    eco = service.get_eco(eco_id)
-    if not eco:
-        raise HTTPException(status_code=404, detail="ECO not found")
-
-    changes = service.get_routing_changes(eco_id)
-    return [c.to_dict() for c in changes]
-
-
-@eco_router.post("/{eco_id}/compute-routing-changes", response_model=List[Dict[str, Any]])
-async def compute_routing_changes(
-    eco_id: str,
-    compare_mode: Optional[str] = Query(
-        None,
-        description="Optional compare mode for routing change computation",
-    ),
-    db: Session = Depends(get_db),
-):
-    """
-    Compute routing/operation differences between source and target versions.
-    Creates/updates ECORoutingChange records.
-    """
-    service = ECOService(db)
-    try:
-        changes = service.compute_routing_changes(eco_id, compare_mode=compare_mode)
-        db.commit()
-        return changes
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 
