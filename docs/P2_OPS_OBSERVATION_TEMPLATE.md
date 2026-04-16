@@ -1,7 +1,7 @@
 # P2 Approval Operations Observation Template
 
 **Date:** 2026-04-16
-**Scope:** `P2-2a / P2-2b / P2-3 / P2-3.1` 进入真实运营观察期后的记录模板。
+**Scope:** `P2-2a / P2-2b / P2-3 / P2-3.1` 已签收后的真实运营观察记录模板。
 
 ---
 
@@ -11,7 +11,7 @@
 - 建议频率：
   - `每日`: 填写晨检记录和异常明细
   - `每周`: 汇总配置复用观察和 `P2-4` 启动信号
-- 指标口径以 runbook 第 4 节为准，不另起一套定义。
+- 所有指标口径以 runbook 第 4 节为准，不另起一套定义。
 
 ---
 
@@ -23,7 +23,7 @@
 |  |  |  |  |  |  |  |  |
 |  |  |  |  |  |  |  |  |
 
-建议晨检命令：
+建议晨检时至少执行：
 
 ```bash
 curl $AUTH /api/v1/eco/approvals/audit/anomalies
@@ -41,6 +41,11 @@ curl $AUTH /api/v1/eco/approvals/dashboard/summary
 |  | `overdue_not_escalated` |  |  |  |  |  | 手动触发 escalation |  |  |  |
 |  |  |  |  |  |  |  |  |  |  |  |
 
+说明：
+- `no_candidates`: stage 需要审批，但没有 active users with matching active roles
+- `escalated_unresolved`: 已升级到 admin，但仍 pending
+- `overdue_not_escalated`: 已超时，但尚未升级
+
 ---
 
 ## 4. 配置复用观察
@@ -50,6 +55,10 @@ curl $AUTH /api/v1/eco/approvals/dashboard/summary
 | 2026-04-16 |  | `bom` |  | `engineering, qa` | 1 | 24 | 否 |  |  |  |
 |  |  |  |  |  |  |  |  |  |  |  |
 |  |  |  |  |  |  |  |  |  |  |  |
+
+用于判断：
+- 是否已经出现重复审批配置
+- 是否值得把手工 stage 配置抽象为模板
 
 ---
 
@@ -62,7 +71,6 @@ curl $AUTH /api/v1/eco/approvals/dashboard/summary
 |  |  |  |  |  |  |  |  |  |
 
 建议判断标准：
-
 - `重复配置信号`: 两个以上不同 `eco_type` 复用同一套 `approval_roles + min_approvals + sla_hours`
 - `串行/并行诉求`: 运营明确提出顺序审批需求
 - `escalation 分类差异`: 不同 `eco_type` 需要不同升级目标
@@ -99,7 +107,7 @@ curl $AUTH /api/v1/eco/approvals/dashboard/summary
 
 ---
 
-## 7. 建议保留的证据
+## 7. 附：建议保留的证据
 
 - `dashboard summary` 的 JSON 截图或导出
 - `dashboard export` 的 CSV
