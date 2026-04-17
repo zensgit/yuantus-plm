@@ -161,7 +161,17 @@ curl $AUTH /api/v1/eco/approvals/audit/anomalies
 - 制造 1 个 `approval_roles` 无活跃用户匹配的 stage
 - 确认：
   - auto-assign 明确失败
-  - `audit` 出现 `no_candidates`
+  - 在**无 active superuser 环境**下，`audit` 才会出现 `no_candidates`
+
+说明：
+
+- 如果环境中仍存在 active superuser，`no_candidates` 可能不会命中
+- 这属于当前产品设计中的运营 bypass，不应单独视为观察失败
+- 此时可用：
+  - `auto-assign` 明确失败
+  - `overdue_not_escalated`
+
+  作为 RBAC 缺口的替代信号
 
 ### 6.3 Escalation
 

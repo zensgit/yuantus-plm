@@ -42,9 +42,13 @@ curl $AUTH /api/v1/eco/approvals/dashboard/summary
 |  |  |  |  |  |  |  |  |  |  |  |
 
 说明：
-- `no_candidates`: stage 需要审批，但没有 active users with matching active roles
+- `no_candidates`: stage 需要审批，且系统层面没有 active users with matching active roles，并且没有 active superuser bypass
 - `escalated_unresolved`: 已升级到 admin，但仍 pending
 - `overdue_not_escalated`: 已超时，但尚未升级
+
+补充：
+- 如果环境中存在 active superuser，`no_candidates` 可能长期保持 `0`
+- 这种情况下，RBAC 缺口可通过 `auto-assign` 明确失败和 `overdue_not_escalated` 间接识别
 
 ---
 

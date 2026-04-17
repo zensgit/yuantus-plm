@@ -101,13 +101,20 @@ curl $AUTH "/api/v1/eco/approvals/dashboard/summary?company_id=acme&eco_type=bom
 | `pending_count` | ECO 在 current stage，有 pending ECOApproval，未超时 | ECOApproval 行 |
 | `overdue_count` | ECO 在 current stage，有 pending ECOApproval，`approval_deadline <= now` | ECOApproval 行 |
 | `escalated_count` | pending ECOApproval 且 `required_role == "admin"` | ECOApproval 行 |
-| `no_candidates` | Stage 需审批但 `_resolve_candidate_users` 返回空 | ECO × Stage 对 |
+| `no_candidates` | Stage 需审批且系统层面不存在任何 active role hit，且不存在 active superuser bypass | ECO × Stage 对 |
 | `escalated_unresolved` | Admin ECOApproval pending on current stage | ECOApproval 行 |
 | `overdue_not_escalated` | 超时但无 admin ECOApproval 存在 | ECO × Stage 对 |
 
 **所有指标只看 ECO 当前 stage**。历史 stage 的 pending 不计入。
 
 **`by_role` 按 stage 配置的 `approval_roles` 聚合**，不是按 assignee 实际持有的 RBAC 角色。
+
+**`no_candidates` 在存在 active superuser 的环境里可能长期为 0**。这是当前产品设计的一部分，不应单独被当成观察失败；此时可结合：
+
+- `overdue_not_escalated`
+- `auto-assign` 明确失败
+
+一起判断 RBAC 配置缺口。
 
 ---
 
@@ -119,6 +126,11 @@ curl $AUTH "/api/v1/eco/approvals/dashboard/summary?company_id=acme&eco_type=bom
 | `no_candidates` 连续出现同一 stage | 补 RBAC 角色或调整 stage 配置 |
 | `overdue_not_escalated > 0` | 触发 `POST /escalate-overdue` |
 | `escalated_unresolved` 超过 24h | 人工联系 admin |
+
+补充：
+
+- 如果环境存在 active superuser，`no_candidates = 0` 不代表没有 RBAC 缺口
+- 这时优先看 `auto-assign` 失败与 `overdue_not_escalated`
 
 ---
 
