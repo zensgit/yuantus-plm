@@ -50,7 +50,18 @@ curl $AUTH -X POST /api/v1/eco/approvals/escalate-overdue
 curl $AUTH "/api/v1/eco/approvals/dashboard/export?fmt=csv&deadline_from=2026-04-09T00:00:00&deadline_to=2026-04-16T00:00:00" -o weekly_approvals.csv
 ```
 
-### 2.3 按公司/类型切片
+### 2.3 观察结果归档
+
+```bash
+python3 scripts/render_p2_observation_result.py \
+  ./tmp/p2-observation-alite/results \
+  --operator "<name>" \
+  --environment "shared-dev"
+```
+
+默认会在结果目录下生成 `OBSERVATION_RESULT.md`，可直接作为观察记录初稿。
+
+### 2.4 按公司/类型切片
 
 ```bash
 # 只看 ACME 公司的 BOM 类 ECO

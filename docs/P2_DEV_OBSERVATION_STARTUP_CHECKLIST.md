@@ -142,6 +142,15 @@ curl $AUTH /api/v1/eco/approvals/audit/anomalies
 
 - [P2_OPS_OBSERVATION_TEMPLATE.md](./P2_OPS_OBSERVATION_TEMPLATE.md)
 
+也可以把结果目录直接渲染成 Markdown：
+
+```bash
+python3 scripts/render_p2_observation_result.py \
+  ./tmp/p2-observation-alite/results \
+  --operator "<name>" \
+  --environment "local-a-lite"
+```
+
 ---
 
 ## 6. 运营事件演练
