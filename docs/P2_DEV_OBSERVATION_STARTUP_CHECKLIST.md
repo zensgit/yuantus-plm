@@ -88,6 +88,8 @@ curl $AUTH /api/v1/eco/approvals/audit/anomalies
 ```bash
 BASE_URL=http://localhost:8000 \
 TOKEN=your-jwt-token-here \
+TENANT_ID=tenant-1 \
+ORG_ID=org-1 \
 scripts/verify_p2_dev_observation_startup.sh
 ```
 

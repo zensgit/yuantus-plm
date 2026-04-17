@@ -21,6 +21,8 @@ Optional env:
   DEADLINE_TO           Optional ISO datetime filter
   RUN_WRITE_SMOKE       Set to 1 to exercise write endpoints
   AUTO_ASSIGN_ECO_ID    Required when RUN_WRITE_SMOKE=1
+  TENANT_ID             Optional x-tenant-id header (required in db-per-tenant modes)
+  ORG_ID                Optional x-org-id header (required in db-per-tenant-org mode)
 
 Notes:
   - Read endpoints are always exercised.
@@ -51,6 +53,16 @@ output_dir="${OUTPUT_DIR:-./tmp/p2-dev-observation-${timestamp}}"
 mkdir -p "${output_dir}"
 
 auth_header="Authorization: Bearer ${TOKEN}"
+tenant_header=()
+org_header=()
+
+if [[ -n "${TENANT_ID:-}" ]]; then
+  tenant_header=(-H "x-tenant-id: ${TENANT_ID}")
+fi
+
+if [[ -n "${ORG_ID:-}" ]]; then
+  org_header=(-H "x-org-id: ${ORG_ID}")
+fi
 
 build_query() {
   local first=1
@@ -94,6 +106,8 @@ request() {
     -X "${method}" \
     -H "${auth_header}" \
     -H "Accept: application/json" \
+    "${tenant_header[@]}" \
+    "${org_header[@]}" \
     -o "${outfile}" \
     -w "%{http_code}" \
     "${url}")"
@@ -139,6 +153,8 @@ Filters:
   eco_state=${ECO_STATE:-}
   deadline_from=${DEADLINE_FROM:-}
   deadline_to=${DEADLINE_TO:-}
+  tenant_id=${TENANT_ID:-}
+  org_id=${ORG_ID:-}
 Write smoke enabled: ${RUN_WRITE_SMOKE:-0}
 
 Artifacts:

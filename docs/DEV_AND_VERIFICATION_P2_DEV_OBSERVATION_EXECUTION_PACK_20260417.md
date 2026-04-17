@@ -24,17 +24,18 @@
 `verify_p2_dev_observation_startup.sh` 提供：
 
 1. 读取 `BASE_URL` 和 `TOKEN`
-2. 采集只读基线证据：
+2. 可选读取 `TENANT_ID` / `ORG_ID`，用于 `db-per-tenant` / `db-per-tenant-org` 环境
+3. 采集只读基线证据：
    - `dashboard/summary`
    - `dashboard/items`
    - `dashboard/export?fmt=json`
    - `dashboard/export?fmt=csv`
    - `audit/anomalies`
-3. 可选执行 write smoke：
+4. 可选执行 write smoke：
    - `POST /eco/{eco_id}/auto-assign-approvers`
    - `POST /eco/approvals/escalate-overdue`
-4. 将结果写入带时间戳的 `OUTPUT_DIR`
-5. 生成简单 `README.txt`，方便把结果附到观察模板
+5. 将结果写入带时间戳的 `OUTPUT_DIR`
+6. 生成简单 `README.txt`，方便把结果附到观察模板
 
 ## 运行方式
 
@@ -43,6 +44,8 @@
 ```bash
 BASE_URL=http://localhost:8000 \
 TOKEN=your-jwt-token-here \
+TENANT_ID=tenant-1 \
+ORG_ID=org-1 \
 scripts/verify_p2_dev_observation_startup.sh
 ```
 
@@ -51,6 +54,8 @@ scripts/verify_p2_dev_observation_startup.sh
 ```bash
 BASE_URL=http://localhost:8000 \
 TOKEN=your-jwt-token-here \
+TENANT_ID=tenant-1 \
+ORG_ID=org-1 \
 RUN_WRITE_SMOKE=1 \
 AUTO_ASSIGN_ECO_ID=eco-123 \
 scripts/verify_p2_dev_observation_startup.sh
