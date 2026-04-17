@@ -20,6 +20,7 @@
 
 - [P2_OPS_RUNBOOK.md](./P2_OPS_RUNBOOK.md)
 - [P2_OPS_OBSERVATION_TEMPLATE.md](./P2_OPS_OBSERVATION_TEMPLATE.md)
+- 执行脚本：`scripts/verify_p2_dev_observation_startup.sh`
 
 ---
 
@@ -80,6 +81,14 @@ AUTH="-H 'Authorization: Bearer $TOKEN'"
 
 curl $AUTH /api/v1/eco/approvals/dashboard/summary
 curl $AUTH /api/v1/eco/approvals/audit/anomalies
+```
+
+也可以直接用执行脚本一次性收集基线证据：
+
+```bash
+BASE_URL=http://localhost:8000 \
+TOKEN=your-jwt-token-here \
+scripts/verify_p2_dev_observation_startup.sh
 ```
 
 ---
