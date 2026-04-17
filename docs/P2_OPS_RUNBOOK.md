@@ -19,6 +19,8 @@
 所有 dashboard 读面共享 `_base_dashboard_query`，只看 ECO 当前 stage 的 pending 审批。
 
 > **认证前提**: 以下所有命令假设已处于认证会话中。写接口（POST）需要有效的 `Authorization: Bearer <token>` 头或等效的 session cookie。未认证调用会返回 401。
+>
+> **启动脚本**: 开发环境观察期启动时，可直接运行 `scripts/verify_p2_dev_observation_startup.sh` 收集 `summary/items/export/anomalies` 基线证据，并按需开启 write smoke。
 
 ---
 
