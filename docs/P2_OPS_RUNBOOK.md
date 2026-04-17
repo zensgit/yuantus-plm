@@ -20,7 +20,7 @@
 
 > **认证前提**: 以下所有命令假设已处于认证会话中。写接口（POST）需要有效的 `Authorization: Bearer <token>` 头或等效的 session cookie。未认证调用会返回 401。
 >
-> **启动脚本**: 开发环境观察期启动时，可直接运行 `scripts/verify_p2_dev_observation_startup.sh` 收集 `summary/items/export/anomalies` 基线证据，并按需开启 write smoke。
+> **启动脚本**: 开发环境观察期启动时，可直接运行 `scripts/verify_p2_dev_observation_startup.sh` 收集 `summary/items/export/anomalies` 基线证据，并按需开启 write smoke。若环境启用了 `db-per-tenant` 或 `db-per-tenant-org`，同时传入 `TENANT_ID` / `ORG_ID`。
 
 ---
 
