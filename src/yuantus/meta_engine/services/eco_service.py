@@ -44,6 +44,10 @@ from yuantus.security.rbac.models import RBACUser
 
 
 class ECOService:
+    _UPDATE_ALLOWED_FIELDS = frozenset(
+        {"name", "description", "priority", "effectivity_date"}
+    )
+
     def __init__(self, session: Session):
         self.session = session
         self.bom_service = BOMService(session)
@@ -554,10 +558,76 @@ class ECOService:
         if not eco:
             raise ValueError(f"ECO with ID {eco_id} not found.")
 
+        if eco.state not in (ECOState.DRAFT.value, ECOState.PROGRESS.value):
+            raise ValueError(
+                f"Cannot update ECO in '{eco.state}' state (must be draft or progress)"
+            )
+
+        applied: Dict[str, Any] = {}
         for key, value in updates.items():
+            if key not in self._UPDATE_ALLOWED_FIELDS:
+                raise ValueError(
+                    f"Field '{key}' cannot be updated via update_eco "
+                    f"(allowed: {', '.join(sorted(self._UPDATE_ALLOWED_FIELDS))})"
+                )
             setattr(eco, key, value)
+            applied[key] = value
         eco.updated_at = datetime.utcnow()
-        self._enqueue_eco_updated(eco, changes=updates)
+        self._enqueue_eco_updated(eco, changes=applied)
+        return eco
+
+    def bind_product(
+        self,
+        eco_id: str,
+        product_id: str,
+        user_id: int,
+        *,
+        create_target_revision: bool = False,
+    ) -> ECO:
+        self.permission_service.check_permission(
+            user_id, "update", "ECO", resource_id=eco_id, field="bind_product"
+        )
+
+        eco = self.get_eco(eco_id)
+        if not eco:
+            raise ValueError(f"ECO with ID {eco_id} not found.")
+
+        if eco.state not in (ECOState.DRAFT.value, ECOState.PROGRESS.value):
+            raise ValueError(
+                f"Cannot bind product in '{eco.state}' state (must be draft or progress)"
+            )
+
+        if eco.product_id == product_id:
+            if create_target_revision and not eco.target_version_id:
+                self.action_new_revision(eco_id, user_id)
+                self.session.flush()
+                eco = self.get_eco(eco_id)
+            return eco
+
+        if eco.product_id is not None:
+            raise ValueError(
+                f"ECO is already bound to product '{eco.product_id}'; "
+                f"cannot rebind to '{product_id}'"
+            )
+
+        if eco.target_version_id:
+            raise ValueError("ECO already has a target_version_id; cannot bind a new product")
+
+        product = self.session.get(Item, product_id)
+        if not product:
+            raise ValueError(f"Product with ID '{product_id}' not found.")
+
+        eco.product_id = product_id
+        eco.updated_at = datetime.utcnow()
+        self.session.add(eco)
+        self._enqueue_eco_updated(eco, changes={"product_id": product_id})
+
+        if create_target_revision:
+            self.session.flush()
+            self.action_new_revision(eco_id, user_id)
+            self.session.flush()
+            eco = self.get_eco(eco_id)
+
         return eco
 
     def delete_eco(self, eco_id: str, user_id: int):
