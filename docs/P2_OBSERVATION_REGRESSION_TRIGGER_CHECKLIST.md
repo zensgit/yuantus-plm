@@ -74,6 +74,33 @@ OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
 scripts/run_p2_observation_regression.sh
 ```
 
+### 2.5 自动判定
+
+只读回归：
+
+```bash
+python3 scripts/evaluate_p2_observation_results.py \
+  "$OUTPUT_DIR" \
+  --mode readonly \
+  --baseline-dir <baseline_dir>
+```
+
+状态变更回归：
+
+```bash
+python3 scripts/evaluate_p2_observation_results.py \
+  "$OUTPUT_DIR" \
+  --mode state-change \
+  --baseline-dir <baseline_dir> \
+  --expect-delta overdue_count=1 \
+  --expect-delta escalated_count=1 \
+  --expect-delta items_count=1 \
+  --expect-delta export_json_count=1 \
+  --expect-delta export_csv_rows=1 \
+  --expect-delta escalated_unresolved=1 \
+  --expect-delta overdue_not_escalated=-1
+```
+
 ---
 
 ## 3. 什么时候只做只读回归
@@ -142,6 +169,7 @@ scripts/run_p2_observation_regression.sh
 - `summary / items / export / anomalies` 全部成功
 - `OBSERVATION_RESULT.md` 生成成功
 - `OBSERVATION_DIFF.md` 生成成功
+- `OBSERVATION_EVAL.md` 通过，或其失败能被本轮目标明确解释
 - 观察面口径内部一致
 - 差异能被本轮改动目标解释
 

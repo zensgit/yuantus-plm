@@ -25,11 +25,17 @@ Optional env:
                         default: baseline
   CURRENT_LABEL         Label used in OBSERVATION_DIFF.md for the current column
                         default: current
+  EVAL_MODE             Optional. current-only | readonly | state-change
+  EXPECT_DELTAS         Optional. Comma-separated metric=delta pairs for state-change
+                        example: overdue_count=1,escalated_count=1
+  EVAL_OUTPUT           Optional. Output path for OBSERVATION_EVAL.md
+                        default: <OUTPUT_DIR>/OBSERVATION_EVAL.md
 
 Behavior:
   1. Runs verify_p2_dev_observation_startup.sh
   2. Renders OBSERVATION_RESULT.md
   3. If BASELINE_DIR is set, renders OBSERVATION_DIFF.md
+  4. If EVAL_MODE is set, renders OBSERVATION_EVAL.md
 EOF
 }
 
@@ -56,6 +62,7 @@ operator="${OPERATOR:-${USER:-unknown}}"
 environment_name="${ENVIRONMENT:-regression}"
 baseline_label="${BASELINE_LABEL:-baseline}"
 current_label="${CURRENT_LABEL:-current}"
+eval_output="${EVAL_OUTPUT:-${output_dir}/OBSERVATION_EVAL.md}"
 
 echo "== P2 observation regression run =="
 echo "BASE_URL=${BASE_URL}"
@@ -87,9 +94,35 @@ if [[ -n "${BASELINE_DIR:-}" ]]; then
     --current-label "${current_label}"
 fi
 
+if [[ -n "${EVAL_MODE:-}" ]]; then
+  eval_cmd=(
+    python3 scripts/evaluate_p2_observation_results.py
+    "${output_dir}"
+    --mode "${EVAL_MODE}"
+    --output "${eval_output}"
+  )
+  if [[ -n "${BASELINE_DIR:-}" ]]; then
+    eval_cmd+=(--baseline-dir "${BASELINE_DIR}")
+  fi
+  if [[ -n "${EXPECT_DELTAS:-}" ]]; then
+    old_ifs="$IFS"
+    IFS=','
+    read -r -a expect_delta_pairs <<< "${EXPECT_DELTAS}"
+    IFS="$old_ifs"
+    for pair in "${expect_delta_pairs[@]}"; do
+      [[ -n "${pair}" ]] || continue
+      eval_cmd+=(--expect-delta "${pair}")
+    done
+  fi
+  "${eval_cmd[@]}"
+fi
+
 echo
 echo "Done:"
 echo "  ${output_dir}/OBSERVATION_RESULT.md"
 if [[ -n "${BASELINE_DIR:-}" ]]; then
   echo "  ${output_dir}/OBSERVATION_DIFF.md"
+fi
+if [[ -n "${EVAL_MODE:-}" ]]; then
+  echo "  ${eval_output}"
 fi

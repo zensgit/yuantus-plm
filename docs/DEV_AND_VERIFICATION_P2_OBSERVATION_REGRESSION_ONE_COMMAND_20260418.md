@@ -16,6 +16,7 @@ The wrapper:
 1. runs `scripts/verify_p2_dev_observation_startup.sh`
 2. runs `scripts/render_p2_observation_result.py`
 3. optionally runs `scripts/compare_p2_observation_results.py` when `BASELINE_DIR` is set
+4. optionally runs `scripts/evaluate_p2_observation_results.py` when `EVAL_MODE` is set
 
 ## Verification
 

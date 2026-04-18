@@ -179,6 +179,15 @@ python3 scripts/compare_p2_observation_results.py \
   --current-label current-round
 ```
 
+如果要把只读回归判定也自动化，再执行：
+
+```bash
+python3 scripts/evaluate_p2_observation_results.py \
+  "$OUT" \
+  --mode readonly \
+  --baseline-dir <baseline_dir>
+```
+
 ### 6. 只判断这一份结果
 
 优先只看：
