@@ -34,7 +34,19 @@ workflow 支持两种认证来源，优先级与 shell wrapper 一致：
 - `P2_OBSERVATION_TOKEN`
 - `P2_OBSERVATION_PASSWORD`
 
-如果两者都没有，workflow 会在 `Validate auth configuration` 步骤直接失败。
+如果两者都没有，workflow 不会静默退出。它会生成：
+
+- `WORKFLOW_PRECHECK.md`
+- `workflow_precheck.json`
+
+然后在最后的 failure gate 明确失败。
+
+如果你有 `gh` 权限，也可以直接配置：
+
+```bash
+gh secret set P2_OBSERVATION_PASSWORD --repo zensgit/yuantus-plm
+gh secret set P2_OBSERVATION_TOKEN --repo zensgit/yuantus-plm
+```
 
 ---
 
@@ -82,6 +94,11 @@ artifact `p2-observation-regression` 内至少包含：
 - `OBSERVATION_RESULT.md`
 - `OBSERVATION_EVAL.md`
 
+如果 precheck 失败，则至少包含：
+
+- `WORKFLOW_PRECHECK.md`
+- `workflow_precheck.json`
+
 ---
 
 ## 6. 适用边界
@@ -90,4 +107,3 @@ artifact `p2-observation-regression` 内至少包含：
 - 不适合：本地 seed 演示、需要 baseline diff 的双轮状态迁移验证
 
 如果要做显式 delta 验证，仍然用 shell 模式配合 `BASELINE_DIR` 和 `state-change`。
-

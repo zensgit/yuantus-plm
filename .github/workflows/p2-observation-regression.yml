@@ -79,18 +79,61 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Prepare output directory
+        run: |
+          set -euo pipefail
+          mkdir -p "${OUTPUT_DIR}"
+
       - name: Validate auth configuration
+        id: validate_auth_config
         env:
           TOKEN: ${{ secrets.P2_OBSERVATION_TOKEN }}
           PASSWORD: ${{ secrets.P2_OBSERVATION_PASSWORD }}
         run: |
           set -euo pipefail
           if [[ -z "${TOKEN:-}" && -z "${PASSWORD:-}" ]]; then
-            echo "ERROR: provide secrets.P2_OBSERVATION_TOKEN or secrets.P2_OBSERVATION_PASSWORD" >&2
-            exit 2
+            cat > "${OUTPUT_DIR}/WORKFLOW_PRECHECK.md" <<EOF
+          # P2 Observation Regression Precheck
+
+          - result: failure
+          - reason: missing authentication secret
+          - required: \`P2_OBSERVATION_TOKEN\` or \`P2_OBSERVATION_PASSWORD\`
+          - workflow: \`${{ github.workflow }}\`
+          - actor: \`${{ github.actor }}\`
+          - base_url: \`${{ github.event.inputs.base_url }}\`
+          EOF
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          Path("tmp/p2-observation-workflow/${{ github.run_id }}/workflow_precheck.json").write_text(
+              json.dumps(
+                  {
+                      "result": "failure",
+                      "reason": "missing authentication secret",
+                      "required": [
+                          "P2_OBSERVATION_TOKEN",
+                          "P2_OBSERVATION_PASSWORD",
+                      ],
+                      "workflow": "${{ github.workflow }}",
+                      "actor": "${{ github.actor }}",
+                      "base_url": "${{ github.event.inputs.base_url }}",
+                  },
+                  ensure_ascii=True,
+                  indent=2,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+            echo "auth_ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "auth_ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Run P2 observation regression
+        id: run_p2_observation_regression
+        if: steps.validate_auth_config.outputs.auth_ready == 'true'
         env:
           BASE_URL: ${{ github.event.inputs.base_url }}
           TENANT_ID: ${{ github.event.inputs.tenant_id }}
@@ -111,13 +154,20 @@ jobs:
           bash scripts/run_p2_observation_regression.sh
 
       - name: Write observation summary to job summary
+        if: always()
         run: |
           set -euo pipefail
           echo "## P2 Observation Regression" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- output_dir: \`${OUTPUT_DIR}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- auth_ready: \`${{ steps.validate_auth_config.outputs.auth_ready }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- run_outcome: \`${{ steps.run_p2_observation_regression.outcome }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- evaluation_mode: \`current-only\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "${OUTPUT_DIR}/WORKFLOW_PRECHECK.md" ]]; then
+            cat "${OUTPUT_DIR}/WORKFLOW_PRECHECK.md" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if [[ -f "${OUTPUT_DIR}/OBSERVATION_RESULT.md" ]]; then
             cat "${OUTPUT_DIR}/OBSERVATION_RESULT.md" >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -134,3 +184,16 @@ jobs:
           path: tmp/p2-observation-workflow/${{ github.run_id }}
           if-no-files-found: error
           retention-days: 14
+
+      - name: Fail workflow when precheck or observation execution failed
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.validate_auth_config.outputs.auth_ready }}" != "true" ]]; then
+            echo "ERROR: authentication precheck failed" >&2
+            exit 1
+          fi
+          if [[ "${{ steps.run_p2_observation_regression.outcome }}" != "success" ]]; then
+            echo "ERROR: observation regression execution failed" >&2
+            exit 1
+          fi
