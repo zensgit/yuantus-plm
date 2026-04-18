@@ -21,6 +21,12 @@ This implementation takes the minimal fixed-entry shape:
 3. current-only evaluation in workflow
 4. artifact upload for observation evidence
 
+The wrapper coverage also now includes:
+
+- `TOKEN` short-circuit path
+- login HTTP failure path
+- login success response missing `access_token` path
+
 It intentionally does **not** inject P2 observation into `strict-gate` and does **not** reuse `release_orchestration`.
 
 ## Verification
@@ -36,7 +42,7 @@ PYTHONPATH=src python3 -m pytest -q \
 
 Observed:
 
-- `6 passed`
+- `9 passed`
 
 ### 2. Workflow / docs contracts
 

@@ -130,7 +130,10 @@ import os
 from pathlib import Path
 
 payload = json.loads(Path(os.environ["LOGIN_JSON_PATH"]).read_text(encoding="utf-8"))
-print(payload["access_token"])
+access_token = payload.get("access_token")
+if not isinstance(access_token, str) or not access_token:
+    raise SystemExit("missing access_token in login response")
+print(access_token)
 PY
   )"
   if [[ -z "${TOKEN}" ]]; then

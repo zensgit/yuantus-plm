@@ -102,6 +102,38 @@ class _ObservationHandler(BaseHTTPRequestHandler):
         self.send_error(404)
 
 
+class _LoginFailureHandler(BaseHTTPRequestHandler):
+    def log_message(self, format: str, *args) -> None:  # noqa: A003
+        return
+
+    def do_POST(self) -> None:  # noqa: N802
+        if self.path == "/api/v1/auth/login":
+            body = json.dumps({"detail": "bad credentials"}).encode("utf-8")
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_error(404)
+
+
+class _LoginMissingTokenHandler(BaseHTTPRequestHandler):
+    def log_message(self, format: str, *args) -> None:  # noqa: A003
+        return
+
+    def do_POST(self) -> None:  # noqa: N802
+        if self.path == "/api/v1/auth/login":
+            body = json.dumps({"token_type": "bearer"}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_error(404)
+
+
 def _find_repo_root(start: Path) -> Path:
     cur = start.resolve()
     for _ in range(12):
@@ -179,3 +211,125 @@ def test_p2_observation_regression_wrapper_supports_login_flow(tmp_path: Path) -
     assert set(_ObservationHandler.tenant_headers) == {"tenant-1"}
     assert set(_ObservationHandler.org_headers) == {"org-1"}
 
+
+def test_p2_observation_regression_wrapper_skips_login_when_token_is_provided(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_observation_regression.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    _ObservationHandler.login_requests = []
+    _ObservationHandler.observed_paths = []
+    _ObservationHandler.auth_headers = []
+    _ObservationHandler.tenant_headers = []
+    _ObservationHandler.org_headers = []
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _ObservationHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    output_dir = tmp_path / "token-result"
+    env = {
+        "BASE_URL": f"http://127.0.0.1:{server.server_port}",
+        "TENANT_ID": "tenant-1",
+        "ORG_ID": "org-1",
+        "TOKEN": "test-token",
+        "OUTPUT_DIR": str(output_dir),
+        "OPERATOR": "pytest",
+        "ENVIRONMENT": "token-test",
+        "EVAL_MODE": "current-only",
+        "PY": "python3",
+    }
+
+    try:
+        cp = subprocess.run(  # noqa: S603,S607
+            ["bash", str(script)],
+            text=True,
+            capture_output=True,
+            cwd=repo_root,
+            env={**env},
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert _ObservationHandler.login_requests == []
+    assert set(_ObservationHandler.auth_headers) == {"Bearer test-token"}
+    assert (output_dir / "OBSERVATION_RESULT.md").is_file()
+    assert (output_dir / "OBSERVATION_EVAL.md").is_file()
+
+
+def test_p2_observation_regression_wrapper_fails_cleanly_on_login_http_error(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_observation_regression.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _LoginFailureHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    env = {
+        "BASE_URL": f"http://127.0.0.1:{server.server_port}",
+        "TENANT_ID": "tenant-1",
+        "ORG_ID": "org-1",
+        "USERNAME": "admin",
+        "PASSWORD": "wrong-password",
+        "OUTPUT_DIR": str(tmp_path / "failure-result"),
+        "PY": "python3",
+    }
+
+    try:
+        cp = subprocess.run(  # noqa: S603,S607
+            ["bash", str(script)],
+            text=True,
+            capture_output=True,
+            cwd=repo_root,
+            env={**env},
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    assert cp.returncode != 0
+    assert "ERROR: observation login failed -> HTTP 401" in cp.stderr
+    assert "bad credentials" in cp.stderr
+
+
+def test_p2_observation_regression_wrapper_fails_cleanly_when_login_response_lacks_token(
+    tmp_path: Path,
+) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_observation_regression.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _LoginMissingTokenHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    env = {
+        "BASE_URL": f"http://127.0.0.1:{server.server_port}",
+        "TENANT_ID": "tenant-1",
+        "ORG_ID": "org-1",
+        "USERNAME": "admin",
+        "PASSWORD": "admin-secret",
+        "OUTPUT_DIR": str(tmp_path / "missing-token-result"),
+        "PY": "python3",
+    }
+
+    try:
+        cp = subprocess.run(  # noqa: S603,S607
+            ["bash", str(script)],
+            text=True,
+            capture_output=True,
+            cwd=repo_root,
+            env={**env},
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    assert cp.returncode != 0
+    assert "missing access_token in login response" in cp.stderr
