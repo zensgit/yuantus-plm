@@ -646,6 +646,40 @@ async def list_ecos(
     return [eco.to_dict() for eco in ecos]
 
 
+@eco_router.get("/{eco_id}/routing-changes", response_model=List[Dict[str, Any]])
+async def get_routing_changes(eco_id: str, db: Session = Depends(get_db)):
+    """Get all routing changes for an ECO."""
+    service = ECOService(db)
+    eco = service.get_eco(eco_id)
+    if not eco:
+        raise HTTPException(status_code=404, detail="ECO not found")
+
+    changes = service.get_routing_changes(eco_id)
+    return [change.to_dict() for change in changes]
+
+
+@eco_router.post("/{eco_id}/compute-routing-changes", response_model=List[Dict[str, Any]])
+async def compute_routing_changes(
+    eco_id: str,
+    compare_mode: Optional[str] = Query(
+        None,
+        description="Optional compare mode for routing change computation",
+    ),
+    db: Session = Depends(get_db),
+):
+    """Compute routing differences between the ECO source and target versions."""
+    service = ECOService(db)
+    try:
+        changes = service.compute_routing_changes(eco_id, compare_mode=compare_mode)
+        db.commit()
+        return changes
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @eco_router.get("/{eco_id}", response_model=Dict[str, Any])
 async def get_eco(eco_id: str, db: Session = Depends(get_db)):
     """Get ECO by ID."""
