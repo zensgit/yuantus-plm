@@ -7,7 +7,12 @@ from pathlib import Path
 
 
 def load_json(path: Path):
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise SystemExit(f"Error reading artifact {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Error parsing JSON artifact {path}: {exc}") from exc
 
 
 def summarize_items(items):
@@ -115,7 +120,7 @@ def main():
     anomalies_path = result_dir / "anomalies.json"
 
     for path in (summary_path, items_path, anomalies_path):
-        if not path.exists():
+        if not path.is_file():
             raise SystemExit(f"Missing required artifact: {path}")
 
     output_path = Path(args.output).resolve() if args.output else result_dir / "OBSERVATION_RESULT.md"

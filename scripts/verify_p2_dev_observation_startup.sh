@@ -48,6 +48,10 @@ require_env() {
 require_env BASE_URL
 require_env TOKEN
 
+while [[ "${BASE_URL}" == */ ]]; do
+  BASE_URL="${BASE_URL%/}"
+done
+
 timestamp="$(date +%Y%m%d-%H%M%S)"
 output_dir="${OUTPUT_DIR:-./tmp/p2-dev-observation-${timestamp}}"
 mkdir -p "${output_dir}"
@@ -64,30 +68,65 @@ if [[ -n "${ORG_ID:-}" ]]; then
   org_header=(-H "x-org-id: ${ORG_ID}")
 fi
 
+urlencode() {
+  local value="$1"
+  local encoded=""
+  local char=""
+  local i=0
+
+  for ((i = 0; i < ${#value}; i++)); do
+    char="${value:i:1}"
+    case "${char}" in
+      [a-zA-Z0-9.~_-])
+        encoded+="${char}"
+        ;;
+      *)
+        printf -v char '%%%02X' "'${char}"
+        encoded+="${char}"
+        ;;
+    esac
+  done
+
+  printf '%s' "${encoded}"
+}
+
 build_query() {
-  local first=1
   local query=""
-  local add_pair=""
+  local parts=()
+  local value=""
+  local i=0
 
-  add_pair() {
-    local key="$1"
-    local value="$2"
-    if [[ -z "${value}" ]]; then
-      return
-    fi
-    if [[ ${first} -eq 1 ]]; then
-      query+="?${key}=${value}"
-      first=0
-    else
-      query+="&${key}=${value}"
-    fi
-  }
+  value="${COMPANY_ID:-}"
+  if [[ -n "${value}" ]]; then
+    parts+=("company_id=$(urlencode "${value}")")
+  fi
 
-  add_pair "company_id" "${COMPANY_ID:-}"
-  add_pair "eco_type" "${ECO_TYPE:-}"
-  add_pair "eco_state" "${ECO_STATE:-}"
-  add_pair "deadline_from" "${DEADLINE_FROM:-}"
-  add_pair "deadline_to" "${DEADLINE_TO:-}"
+  value="${ECO_TYPE:-}"
+  if [[ -n "${value}" ]]; then
+    parts+=("eco_type=$(urlencode "${value}")")
+  fi
+
+  value="${ECO_STATE:-}"
+  if [[ -n "${value}" ]]; then
+    parts+=("eco_state=$(urlencode "${value}")")
+  fi
+
+  value="${DEADLINE_FROM:-}"
+  if [[ -n "${value}" ]]; then
+    parts+=("deadline_from=$(urlencode "${value}")")
+  fi
+
+  value="${DEADLINE_TO:-}"
+  if [[ -n "${value}" ]]; then
+    parts+=("deadline_to=$(urlencode "${value}")")
+  fi
+
+  if [[ ${#parts[@]} -gt 0 ]]; then
+    query="?${parts[0]}"
+    for ((i = 1; i < ${#parts[@]}; i++)); do
+      query+="&${parts[i]}"
+    done
+  fi
 
   printf '%s' "${query}"
 }
@@ -99,18 +138,33 @@ request() {
   local path="$2"
   local outfile="$3"
   local expected_codes="$4"
+  local accept_header="${5:-application/json}"
   local url="${BASE_URL}${path}"
   local status
+  local curl_args=(
+    -sS
+    --connect-timeout 10
+    --max-time 30
+    -X "${method}"
+    -H "${auth_header}"
+    -H "Accept: ${accept_header}"
+  )
 
-  status="$(curl -sS \
-    -X "${method}" \
-    -H "${auth_header}" \
-    -H "Accept: application/json" \
-    "${tenant_header[@]}" \
-    "${org_header[@]}" \
-    -o "${outfile}" \
-    -w "%{http_code}" \
-    "${url}")"
+  if [[ ${#tenant_header[@]} -gt 0 ]]; then
+    curl_args+=("${tenant_header[@]}")
+  fi
+
+  if [[ ${#org_header[@]} -gt 0 ]]; then
+    curl_args+=("${org_header[@]}")
+  fi
+
+  curl_args+=(
+    -o "${outfile}"
+    -w "%{http_code}"
+    "${url}"
+  )
+
+  status="$(curl "${curl_args[@]}")"
 
   case ",${expected_codes}," in
     *,"${status}",*)
@@ -132,12 +186,14 @@ echo
 request "GET" "/api/v1/eco/approvals/dashboard/summary${query}" "${output_dir}/summary.json" "200"
 request "GET" "/api/v1/eco/approvals/dashboard/items${query}" "${output_dir}/items.json" "200"
 request "GET" "/api/v1/eco/approvals/dashboard/export?fmt=json${query:+&${query#\?}}" "${output_dir}/export.json" "200"
-request "GET" "/api/v1/eco/approvals/dashboard/export?fmt=csv${query:+&${query#\?}}" "${output_dir}/export.csv" "200"
+request "GET" "/api/v1/eco/approvals/dashboard/export?fmt=csv${query:+&${query#\?}}" "${output_dir}/export.csv" "200" "text/csv"
 request "GET" "/api/v1/eco/approvals/audit/anomalies" "${output_dir}/anomalies.json" "200"
 
 if [[ "${RUN_WRITE_SMOKE:-0}" == "1" ]]; then
+  auto_assign_eco_id=""
   require_env AUTO_ASSIGN_ECO_ID
-  request "POST" "/api/v1/eco/${AUTO_ASSIGN_ECO_ID}/auto-assign-approvers" "${output_dir}/auto_assign.json" "200,400,403"
+  auto_assign_eco_id="$(urlencode "${AUTO_ASSIGN_ECO_ID}")"
+  request "POST" "/api/v1/eco/${auto_assign_eco_id}/auto-assign-approvers" "${output_dir}/auto_assign.json" "200,400,403"
   request "POST" "/api/v1/eco/approvals/escalate-overdue" "${output_dir}/escalate.json" "200,403"
 else
   echo "[skip] write smoke disabled (set RUN_WRITE_SMOKE=1 to enable)"
@@ -170,6 +226,6 @@ EOF
 echo
 echo "Artifacts written to ${output_dir}"
 echo "Next:"
-echo "  1. Fill docs/P2_DEV_OBSERVATION_STARTUP_CHECKLIST.md section 2 / 10"
+echo "  1. Fill docs/P2_DEV_OBSERVATION_STARTUP_CHECKLIST.md sections 5 (基线观察) and 10 (启动确认)"
 echo "  2. Fill docs/P2_OPS_OBSERVATION_TEMPLATE.md daily baseline row"
 echo "  3. Attach export.csv and anomalies.json as observation evidence"

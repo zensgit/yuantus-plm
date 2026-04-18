@@ -13,12 +13,30 @@
 - 重渲染 `OBSERVATION_RESULT.md`
 - 在需要时做一次最小 `escalate-overdue` 复核
 
+## 会话变量
+
+先通过安全渠道获取本次冻结观察面的连接信息与账号密码，只在当前 shell 会话里导出，不要把实际值回写到仓库文档：
+
+```bash
+export REMOTE_HOST='<remote-host>'
+export REMOTE_USER='mainuser'
+export REMOTE_WORKSPACE='<remote-workspace>'
+export SSH_KEY='<ssh-key>'
+export API_CONTAINER='yuantus-p2-api'
+export BASE_URL='http://127.0.0.1:7910'
+export ADMIN_USERNAME='admin'
+export VIEWER_USERNAME='ops-viewer'
+
+read -rsp 'Admin password: ' ADMIN_PASSWORD; echo
+read -rsp 'Viewer password (optional): ' VIEWER_PASSWORD; echo
+```
+
 ## 当前观察面身份
 
-- 主机：`142.171.239.56`
-- 目录：`/home/mainuser/Yuantus-p2-mini`
-- 容器：`yuantus-p2-api`
-- 地址：`http://127.0.0.1:7910`
+- 主机：`$REMOTE_HOST`（实际值通过安全渠道获取）
+- 目录：`$REMOTE_WORKSPACE`
+- 容器：`$API_CONTAINER`
+- 地址：`$BASE_URL`
 - 身份：临时远端 `local-dev-env`
 
 这个环境已经冻结为回归观察面。
@@ -47,42 +65,43 @@
 操作者需要：
 
 - 可用 SSH：
-  - `ssh -i ~/.ssh/metasheet2_deploy mainuser@142.171.239.56`
-- 远端目录 `/home/mainuser/Yuantus-p2-mini` 仍在
-- 容器 `yuantus-p2-api` 仍在运行
-- 可使用 `admin / admin`
+  - `ssh -i "$SSH_KEY" "${REMOTE_USER}@${REMOTE_HOST}"`
+- 远端目录 `$REMOTE_WORKSPACE` 仍在
+- 容器 `$API_CONTAINER` 仍在运行
+- 可使用用户名 `admin` 登录；密码请按既定 seed 流程重置或通过安全渠道获取，不要在文档中记录明文密码
+- 如需补做权限拒绝复核，可使用用户名 `ops-viewer`；密码同样通过安全渠道获取
 
 ## 最小执行步骤
 
 ### 1. 登录远端并做存活检查
 
 ```bash
-ssh -i ~/.ssh/metasheet2_deploy mainuser@142.171.239.56
+ssh -i "$SSH_KEY" "${REMOTE_USER}@${REMOTE_HOST}"
 
-cd /home/mainuser/Yuantus-p2-mini
+cd "$REMOTE_WORKSPACE"
 
-docker ps --filter name=yuantus-p2-api --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
-curl -fsS http://127.0.0.1:7910/api/v1/health
+docker ps --filter "name=${API_CONTAINER}" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+curl -fsS "$BASE_URL/api/v1/health"
 ```
 
 如果这里失败，先不要继续采集，先看：
 
-- `docker logs --tail 100 yuantus-p2-api`
+- `docker logs --tail 100 "$API_CONTAINER"`
 - `docs/DEV_AND_VERIFICATION_REMOTE_DEPLOY_REMEDIATION_20260418.md`
 
 ### 2. 准备一个新的结果目录
 
 不要覆盖已有：
 
-- `/home/mainuser/Yuantus-p2-mini/local-dev-env/results`
-- `/home/mainuser/Yuantus-p2-mini/remote-dev-results/round1-before`
-- `/home/mainuser/Yuantus-p2-mini/remote-dev-results/round1-after`
+- `$REMOTE_WORKSPACE/local-dev-env/results`
+- `$REMOTE_WORKSPACE/remote-dev-results/round1-before`
+- `$REMOTE_WORKSPACE/remote-dev-results/round1-after`
 
 建议每次新建一个带时间戳的目录：
 
 ```bash
 TS=$(date +%Y%m%d-%H%M%S)
-OUT="/home/mainuser/Yuantus-p2-mini/remote-dev-results/${TS}-baseline"
+OUT="${REMOTE_WORKSPACE}/remote-dev-results/${TS}-baseline"
 mkdir -p "$OUT"
 ```
 
@@ -91,25 +110,35 @@ mkdir -p "$OUT"
 `verify_p2_dev_observation_startup.sh` 不负责登录，必须先拿 token。
 
 ```bash
-ADMIN_TOKEN=$(curl -sS -X POST http://127.0.0.1:7910/api/v1/auth/login \
-  -H 'content-type: application/json' \
-  -d '{"tenant_id":"tenant-1","username":"admin","password":"admin","org_id":"org-1"}' \
-  | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])')
+: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD from a secure channel before continuing}"
+
+ADMIN_TOKEN=$(
+  python3 -c 'import json, os, sys; json.dump({"tenant_id": "tenant-1", "username": os.environ["ADMIN_USERNAME"], "password": os.environ["ADMIN_PASSWORD"], "org_id": "org-1"}, sys.stdout)' \
+  | curl -sS -X POST "$BASE_URL/api/v1/auth/login" \
+      -H 'content-type: application/json' \
+      --data-binary @- \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])'
+)
 ```
 
 如果要额外复核一次权限拒绝，再拿 `ops-viewer` token：
 
 ```bash
-VIEWER_TOKEN=$(curl -sS -X POST http://127.0.0.1:7910/api/v1/auth/login \
-  -H 'content-type: application/json' \
-  -d '{"tenant_id":"tenant-1","username":"ops-viewer","password":"ops123","org_id":"org-1"}' \
-  | python3 -c 'import sys,json; print(json.load(sys.stdin)["access_token"])')
+: "${VIEWER_PASSWORD:?Set VIEWER_PASSWORD from a secure channel before continuing}"
+
+VIEWER_TOKEN=$(
+  python3 -c 'import json, os, sys; json.dump({"tenant_id": "tenant-1", "username": os.environ["VIEWER_USERNAME"], "password": os.environ["VIEWER_PASSWORD"], "org_id": "org-1"}, sys.stdout)' \
+  | curl -sS -X POST "$BASE_URL/api/v1/auth/login" \
+      -H 'content-type: application/json' \
+      --data-binary @- \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])'
+)
 ```
 
 ### 4. 采集只读 baseline
 
 ```bash
-BASE_URL=http://127.0.0.1:7910 \
+BASE_URL="$BASE_URL" \
 TOKEN="$ADMIN_TOKEN" \
 TENANT_ID=tenant-1 \
 ORG_ID=org-1 \
@@ -127,17 +156,17 @@ bash scripts/verify_p2_dev_observation_startup.sh
 优先直接在容器里跑 renderer，避免依赖远端宿主机 Python 环境。
 
 ```bash
-docker exec -w /work yuantus-p2-api \
+docker exec -w /work "$API_CONTAINER" \
   python scripts/render_p2_observation_result.py \
   "/work/remote-dev-results/$(basename "$OUT")" \
-  --operator mainuser \
+  --operator "$REMOTE_USER" \
   --environment remote-local-dev-env
 ```
 
 查看结果：
 
 ```bash
-sed -n '1,220p' "$OUT/OBSERVATION_RESULT.md"
+cat "$OUT/OBSERVATION_RESULT.md"
 ```
 
 ### 6. 只判断这一份结果
@@ -168,10 +197,10 @@ sed -n '1,220p' "$OUT/OBSERVATION_RESULT.md"
 ### 1. 再打一发 `escalate-overdue`
 
 ```bash
-AFTER="/home/mainuser/Yuantus-p2-mini/remote-dev-results/${TS}-after"
+AFTER="${REMOTE_WORKSPACE}/remote-dev-results/${TS}-after"
 mkdir -p "$AFTER"
 
-curl -sS -X POST http://127.0.0.1:7910/api/v1/eco/approvals/escalate-overdue \
+curl -sS -X POST "$BASE_URL/api/v1/eco/approvals/escalate-overdue" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H 'x-tenant-id: tenant-1' \
   -H 'x-org-id: org-1' \
@@ -189,17 +218,17 @@ cat "$AFTER/escalate-response.json"
 ### 2. 再采一轮并重渲染
 
 ```bash
-BASE_URL=http://127.0.0.1:7910 \
+BASE_URL="$BASE_URL" \
 TOKEN="$ADMIN_TOKEN" \
 TENANT_ID=tenant-1 \
 ORG_ID=org-1 \
 OUTPUT_DIR="$AFTER" \
 bash scripts/verify_p2_dev_observation_startup.sh
 
-docker exec -w /work yuantus-p2-api \
+docker exec -w /work "$API_CONTAINER" \
   python scripts/render_p2_observation_result.py \
   "/work/remote-dev-results/$(basename "$AFTER")" \
-  --operator mainuser \
+  --operator "$REMOTE_USER" \
   --environment remote-local-dev-env
 ```
 
@@ -218,12 +247,12 @@ docker exec -w /work yuantus-p2-api \
 如果只想补一轮 `403 / 200` 语义复核，可单独执行，不要和 frozen baseline 比对混在一起。
 
 ```bash
-curl -sS -X POST "http://127.0.0.1:7910/api/v1/eco/<eco-specialist-id>/auto-assign-approvers" \
+curl -sS -X POST "$BASE_URL/api/v1/eco/<eco-specialist-id>/auto-assign-approvers" \
   -H "Authorization: Bearer $VIEWER_TOKEN" \
   -H 'x-tenant-id: tenant-1' \
   -H 'x-org-id: org-1'
 
-curl -sS -X POST "http://127.0.0.1:7910/api/v1/eco/<eco-specialist-id>/auto-assign-approvers" \
+curl -sS -X POST "$BASE_URL/api/v1/eco/<eco-specialist-id>/auto-assign-approvers" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H 'x-tenant-id: tenant-1' \
   -H 'x-org-id: org-1'
@@ -276,5 +305,5 @@ curl -sS -X POST "http://127.0.0.1:7910/api/v1/eco/<eco-specialist-id>/auto-assi
 如果脚本失败，优先看输出目录里的响应体，再看：
 
 ```bash
-docker logs --tail 100 yuantus-p2-api
+docker logs --tail 100 "$API_CONTAINER"
 ```
