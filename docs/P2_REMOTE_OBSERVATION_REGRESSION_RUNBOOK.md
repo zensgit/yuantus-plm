@@ -169,6 +169,16 @@ docker exec -w /work "$API_CONTAINER" \
 cat "$OUT/OBSERVATION_RESULT.md"
 ```
 
+如果要和已冻结基线做快速差异对比，可在本地或远端执行：
+
+```bash
+python3 scripts/compare_p2_observation_results.py \
+  <baseline_dir> \
+  "$OUT" \
+  --baseline-label frozen-baseline \
+  --current-label current-round
+```
+
 ### 6. 只判断这一份结果
 
 优先只看：

@@ -13,6 +13,10 @@
 - `docs/P2_DEV_OBSERVATION_STARTUP_CHECKLIST.md`
 - `docs/P2_OPS_RUNBOOK.md`
 
+如果要判断“这次改动是否必须重跑回归”，再加看：
+
+- `docs/P2_OBSERVATION_REGRESSION_TRIGGER_CHECKLIST.md`
+
 其余 `DEV_AND_VERIFICATION_*` 文档默认都当归档，不需要日常阅读。
 
 ---
@@ -37,6 +41,16 @@ python3 scripts/render_p2_observation_result.py \
   "$OUTPUT_DIR" \
   --operator "<name>" \
   --environment "shared-dev"
+```
+
+### 2.3 可选：和基线做差异对比
+
+```bash
+python3 scripts/compare_p2_observation_results.py \
+  <baseline_dir> \
+  "$OUTPUT_DIR" \
+  --baseline-label baseline \
+  --current-label current
 ```
 
 ---
