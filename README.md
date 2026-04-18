@@ -113,6 +113,9 @@ Read-only Claude reviewer sidecar:
 
 - `docs/ERROR_CODES_JOBS.md` (Jobs error codes)
 - `docs/OPS_RUNBOOK_MT.md` (Multi-tenancy ops)
+- `docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md` (P2 observation workflow dispatch)
+- `docs/P2_ONE_PAGE_DEV_GUIDE.md` (P2 observation single-page execution guide)
+- `docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md` (P2 remote/shared-dev observation rerun)
 - `docs/RUNBOOK_BACKUP_RESTORE.md` (Backup/restore)
 - `docs/RUNBOOK_CAD_LEGACY_CONVERSION_QUEUE_AUDIT.md` (Legacy CAD conversion queue audit)
 - `docs/RUNBOOK_CI_CHANGE_SCOPE.md` (CI/regression skip rules + force full runs)

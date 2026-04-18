@@ -10,7 +10,7 @@
 
 - 有真实共享 `dev` 环境
 - 有有效 `BASE_URL`
-- 有可用 `JWT`
+- 有可用 `JWT`，或可安全提供一次性账号密码
 - 已知 `TENANT_ID / ORG_ID`
 
 不适用场景：
@@ -23,7 +23,7 @@
 操作者需要准备：
 
 - `BASE_URL`
-- `TOKEN`
+- `TOKEN`，或 `USERNAME / PASSWORD`
 - `TENANT_ID`
 - `ORG_ID`
 
@@ -40,7 +40,7 @@ export TENANT_ID="<tenant>"
 export ORG_ID="<org>"
 ```
 
-### 2. 执行只读 baseline smoke
+### 2. 执行 canonical shell wrapper
 
 ```bash
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
@@ -48,8 +48,23 @@ BASE_URL="$BASE_URL" \
 TOKEN="$TOKEN" \
 TENANT_ID="$TENANT_ID" \
 ORG_ID="$ORG_ID" \
+ENVIRONMENT="shared-dev" \
 OUTPUT_DIR="$OUTPUT_DIR" \
-scripts/verify_p2_dev_observation_startup.sh
+scripts/run_p2_observation_regression.sh
+```
+
+如果没有现成 `JWT`，可改用 wrapper 自带登录：
+
+```bash
+OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
+BASE_URL="$BASE_URL" \
+USERNAME="<user>" \
+PASSWORD="<password>" \
+TENANT_ID="$TENANT_ID" \
+ORG_ID="$ORG_ID" \
+ENVIRONMENT="shared-dev" \
+OUTPUT_DIR="$OUTPUT_DIR" \
+scripts/run_p2_observation_regression.sh
 ```
 
 ### 3. 打包证据
@@ -67,6 +82,7 @@ tar -czf "${OUTPUT_DIR}.tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTP
 - `anomalies.json`
 - `export.csv`
 - `README.txt`
+- `OBSERVATION_RESULT.md`
 
 如果可以，直接回传整个：
 
@@ -103,5 +119,6 @@ scripts/verify_p2_dev_observation_startup.sh
 可直接运行：
 
 - `scripts/print_p2_shared_dev_observation_commands.sh`
+- `scripts/run_p2_observation_regression_workflow.sh`
 
-用于打印完整执行命令，减少口头转述误差。
+前者用于打印 shell 执行命令；后者用于本地直接触发 GitHub Actions workflow。

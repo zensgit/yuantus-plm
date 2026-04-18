@@ -26,7 +26,45 @@
 
 ## 2. 你真正要跑的命令
 
-### 2.1 采集观察结果
+### 2.1 首选：单条 shell wrapper
+
+```bash
+BASE_URL=http://<dev-host> TOKEN=<jwt> [TENANT_ID=... ORG_ID=...] \
+OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
+scripts/run_p2_observation_regression.sh
+```
+
+如果没有现成 `JWT`，可直接让 wrapper 登录：
+
+```bash
+BASE_URL=http://<dev-host> USERNAME=<user> PASSWORD=<password> [TENANT_ID=... ORG_ID=...] \
+OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
+scripts/run_p2_observation_regression.sh
+```
+
+### 2.2 GitHub workflow 入口
+
+如果你不想在本地 shell 里手工拼 `gh workflow run/list/watch/download`，直接用：
+
+```bash
+scripts/run_p2_observation_regression_workflow.sh \
+  --base-url http://<dev-host> \
+  --tenant-id <tenant> \
+  --org-id <org> \
+  --environment shared-dev \
+  --out-dir ./tmp/p2-observation-workflow-$(date +%Y%m%d-%H%M%S)
+```
+
+这条命令会：
+
+1. 触发 `p2-observation-regression`
+2. 等待 workflow 完成
+3. 下载 `p2-observation-regression` artifact
+4. 生成 `WORKFLOW_DISPATCH_RESULT.md`
+
+### 2.3 原始 verify/render 命令
+
+只有在你需要调试最底层采集脚本时，才回到这组命令：
 
 ```bash
 BASE_URL=http://<dev-host> \
@@ -37,8 +75,6 @@ OUTPUT_DIR=./tmp/p2-observation-shared-dev-$(date +%Y%m%d-%H%M%S) \
 scripts/verify_p2_dev_observation_startup.sh
 ```
 
-### 2.2 固化成 Markdown 结果
-
 ```bash
 python3 scripts/render_p2_observation_result.py \
   "$OUTPUT_DIR" \
@@ -46,7 +82,7 @@ python3 scripts/render_p2_observation_result.py \
   --environment "shared-dev"
 ```
 
-### 2.3 可选：和基线做差异对比
+### 2.4 可选：和基线做差异对比
 
 ```bash
 python3 scripts/compare_p2_observation_results.py \
@@ -54,15 +90,6 @@ python3 scripts/compare_p2_observation_results.py \
   "$OUTPUT_DIR" \
   --baseline-label baseline \
   --current-label current
-```
-
-### 2.4 更省事的单条回归命令
-
-```bash
-BASE_URL=... TOKEN=... [TENANT_ID=... ORG_ID=...] \
-BASELINE_DIR=<baseline_dir> \
-OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
-scripts/run_p2_observation_regression.sh
 ```
 
 ### 2.5 自动判定是否通过
@@ -85,9 +112,9 @@ python3 scripts/evaluate_p2_observation_results.py \
   --expect-delta escalated_count=1
 ```
 
-### 2.6 固定 workflow 入口
+### 2.6 只在需要时直接用原始 gh 命令
 
-如果你不想在本地 shell 里拼命令，也可以直接触发：
+如果你只是想最小化触发，不需要本地等待和下载，也可以直接用：
 
 ```bash
 gh workflow run p2-observation-regression \
@@ -96,8 +123,6 @@ gh workflow run p2-observation-regression \
   --field org_id=<org> \
   --field environment=shared-dev
 ```
-
-这条入口固定跑 `current-only`，并上传 `p2-observation-regression` artifact。
 
 ---
 
