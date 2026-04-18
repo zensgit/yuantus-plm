@@ -35,8 +35,8 @@ Observed:
 
 Created PR:
 
-- PR: `<pending>`
-- URL: `<pending>`
+- PR: `#245`
+- URL: `https://github.com/zensgit/yuantus-plm/pull/245`
 - Title: `docs: add p2 observation regression rerun workflow`
 
 Base / head:
