@@ -33,6 +33,7 @@ scripts/run_p2_observation_regression.sh
 1. 跑 `scripts/verify_p2_dev_observation_startup.sh`
 2. 生成 `OBSERVATION_RESULT.md`
 3. 如果提供 `BASELINE_DIR`，再生成 `OBSERVATION_DIFF.md`
+4. 如果提供 `EVAL_MODE`，再生成 `OBSERVATION_EVAL.md`
 
 ---
 
@@ -51,6 +52,10 @@ scripts/run_p2_observation_regression.sh
 
 - `OBSERVATION_DIFF.md`
 
+如果给了 `EVAL_MODE`，还会有：
+
+- `OBSERVATION_EVAL.md`
+
 ---
 
 ## 5. 推荐参数
@@ -62,6 +67,19 @@ BASELINE_LABEL="baseline"
 CURRENT_LABEL="rerun"
 ```
 
+自动判定只读回归是否通过：
+
+```bash
+EVAL_MODE="readonly"
+```
+
+自动判定状态变更回归是否命中预期：
+
+```bash
+EVAL_MODE="state-change"
+EXPECT_DELTAS="overdue_count=1,escalated_count=1,items_count=1,export_json_count=1,export_csv_rows=1,escalated_unresolved=1,overdue_not_escalated=-1"
+```
+
 ---
 
 ## 6. 看什么
@@ -70,5 +88,6 @@ CURRENT_LABEL="rerun"
 
 - `OBSERVATION_RESULT.md`
 - `OBSERVATION_DIFF.md`
+- `OBSERVATION_EVAL.md`
 
 只有在 diff 或结果异常时，再回头看原始 JSON/CSV。

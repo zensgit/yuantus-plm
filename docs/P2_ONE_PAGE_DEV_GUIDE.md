@@ -17,6 +17,7 @@
 
 - `docs/P2_OBSERVATION_REGRESSION_TRIGGER_CHECKLIST.md`
 - `docs/P2_OBSERVATION_REGRESSION_ONE_COMMAND.md`
+- `docs/P2_OBSERVATION_REGRESSION_EVALUATION.md`
 
 其余 `DEV_AND_VERIFICATION_*` 文档默认都当归档，不需要日常阅读。
 
@@ -63,6 +64,26 @@ OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
 scripts/run_p2_observation_regression.sh
 ```
 
+### 2.5 自动判定是否通过
+
+```bash
+python3 scripts/evaluate_p2_observation_results.py \
+  "$OUTPUT_DIR" \
+  --mode readonly \
+  --baseline-dir <baseline_dir>
+```
+
+如果这轮本来就预期会发生状态迁移，则改用：
+
+```bash
+python3 scripts/evaluate_p2_observation_results.py \
+  "$OUTPUT_DIR" \
+  --mode state-change \
+  --baseline-dir <baseline_dir> \
+  --expect-delta overdue_count=1 \
+  --expect-delta escalated_count=1
+```
+
 ---
 
 ## 3. 你只需要看什么结果
@@ -70,6 +91,7 @@ scripts/run_p2_observation_regression.sh
 优先只看：
 
 - `$OUTPUT_DIR/OBSERVATION_RESULT.md`
+- `$OUTPUT_DIR/OBSERVATION_EVAL.md`
 
 不要先钻：
 
@@ -79,6 +101,7 @@ scripts/run_p2_observation_regression.sh
 - `export.csv`
 
 只有在 `OBSERVATION_RESULT.md` 显示异常时，再回头看原始产物。
+如果 `OBSERVATION_EVAL.md` 已失败，先修口径或期望，再做业务判断。
 
 ---
 
