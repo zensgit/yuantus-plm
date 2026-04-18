@@ -19,6 +19,8 @@
 所有 dashboard 读面共享 `_base_dashboard_query`，只看 ECO 当前 stage 的 pending 审批。
 
 > **认证前提**: 以下所有命令假设已处于认证会话中。写接口（POST）需要有效的 `Authorization: Bearer <token>` 头或等效的 session cookie。未认证调用会返回 401。
+>
+> **启动脚本**: 开发环境观察期启动时，可直接运行 `scripts/verify_p2_dev_observation_startup.sh` 收集 `summary/items/export/anomalies` 基线证据，并按需开启 write smoke。若环境启用了 `db-per-tenant` 或 `db-per-tenant-org`，同时传入 `TENANT_ID` / `ORG_ID`。
 
 ---
 
@@ -48,7 +50,18 @@ curl $AUTH -X POST /api/v1/eco/approvals/escalate-overdue
 curl $AUTH "/api/v1/eco/approvals/dashboard/export?fmt=csv&deadline_from=2026-04-09T00:00:00&deadline_to=2026-04-16T00:00:00" -o weekly_approvals.csv
 ```
 
-### 2.3 按公司/类型切片
+### 2.3 观察结果归档
+
+```bash
+python3 scripts/render_p2_observation_result.py \
+  ./tmp/p2-observation-alite/results \
+  --operator "<name>" \
+  --environment "shared-dev"
+```
+
+默认会在结果目录下生成 `OBSERVATION_RESULT.md`，可直接作为观察记录初稿。
+
+### 2.4 按公司/类型切片
 
 ```bash
 # 只看 ACME 公司的 BOM 类 ECO
@@ -99,13 +112,20 @@ curl $AUTH "/api/v1/eco/approvals/dashboard/summary?company_id=acme&eco_type=bom
 | `pending_count` | ECO 在 current stage，有 pending ECOApproval，未超时 | ECOApproval 行 |
 | `overdue_count` | ECO 在 current stage，有 pending ECOApproval，`approval_deadline <= now` | ECOApproval 行 |
 | `escalated_count` | pending ECOApproval 且 `required_role == "admin"` | ECOApproval 行 |
-| `no_candidates` | Stage 需审批但 `_resolve_candidate_users` 返回空 | ECO × Stage 对 |
+| `no_candidates` | Stage 需审批且系统层面不存在任何 active role hit，且不存在 active superuser bypass | ECO × Stage 对 |
 | `escalated_unresolved` | Admin ECOApproval pending on current stage | ECOApproval 行 |
 | `overdue_not_escalated` | 超时但无 admin ECOApproval 存在 | ECO × Stage 对 |
 
 **所有指标只看 ECO 当前 stage**。历史 stage 的 pending 不计入。
 
 **`by_role` 按 stage 配置的 `approval_roles` 聚合**，不是按 assignee 实际持有的 RBAC 角色。
+
+**`no_candidates` 在存在 active superuser 的环境里可能长期为 0**。这是当前产品设计的一部分，不应单独被当成观察失败；此时可结合：
+
+- `overdue_not_escalated`
+- `auto-assign` 明确失败
+
+一起判断 RBAC 配置缺口。
 
 ---
 
@@ -117,6 +137,11 @@ curl $AUTH "/api/v1/eco/approvals/dashboard/summary?company_id=acme&eco_type=bom
 | `no_candidates` 连续出现同一 stage | 补 RBAC 角色或调整 stage 配置 |
 | `overdue_not_escalated > 0` | 触发 `POST /escalate-overdue` |
 | `escalated_unresolved` 超过 24h | 人工联系 admin |
+
+补充：
+
+- 如果环境存在 active superuser，`no_candidates = 0` 不代表没有 RBAC 缺口
+- 这时优先看 `auto-assign` 失败与 `overdue_not_escalated`
 
 ---
 

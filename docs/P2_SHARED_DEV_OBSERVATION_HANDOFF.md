@@ -1,0 +1,107 @@
+# P2 Shared Dev Observation Handoff
+
+日期：2026-04-17
+
+## 目标
+
+这份 handoff 用于把 `P2` 观察期 startup smoke 交给持有共享 dev 环境访问权限的操作者执行。
+
+适用场景：
+
+- 有真实共享 `dev` 环境
+- 有有效 `BASE_URL`
+- 有可用 `JWT`
+- 已知 `TENANT_ID / ORG_ID`
+
+不适用场景：
+
+- 没有共享 dev 凭证
+- 只想做本地 smoke
+
+## 前提
+
+操作者需要准备：
+
+- `BASE_URL`
+- `TOKEN`
+- `TENANT_ID`
+- `ORG_ID`
+
+不要把长期凭证直接写进仓库。
+
+## 最小执行步骤
+
+### 1. 导出环境变量
+
+```bash
+export BASE_URL="http://<dev-host>"
+export TOKEN="<jwt>"
+export TENANT_ID="<tenant>"
+export ORG_ID="<org>"
+```
+
+### 2. 执行只读 baseline smoke
+
+```bash
+OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
+BASE_URL="$BASE_URL" \
+TOKEN="$TOKEN" \
+TENANT_ID="$TENANT_ID" \
+ORG_ID="$ORG_ID" \
+OUTPUT_DIR="$OUTPUT_DIR" \
+scripts/verify_p2_dev_observation_startup.sh
+```
+
+### 3. 打包证据
+
+```bash
+tar -czf "${OUTPUT_DIR}.tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTPUT_DIR")"
+```
+
+## 需要回传的结果
+
+至少回传：
+
+- `summary.json`
+- `items.json`
+- `anomalies.json`
+- `export.csv`
+- `README.txt`
+
+如果可以，直接回传整个：
+
+- `${OUTPUT_DIR}.tar.gz`
+
+## 可选 write smoke
+
+只有在值班人明确允许时才执行：
+
+```bash
+BASE_URL="$BASE_URL" \
+TOKEN="$TOKEN" \
+TENANT_ID="$TENANT_ID" \
+ORG_ID="$ORG_ID" \
+RUN_WRITE_SMOKE=1 \
+AUTO_ASSIGN_ECO_ID="<eco-id>" \
+OUTPUT_DIR="$OUTPUT_DIR-write" \
+scripts/verify_p2_dev_observation_startup.sh
+```
+
+## 回传后如何处理
+
+回传产物后，由审阅方：
+
+1. 审 `summary / items / anomalies` 是否一致
+2. 检查 `export.csv` 是否和 dashboard 口径一致
+3. 判断是否需要：
+   - 补 observation template
+   - 开一条 docs-only baseline 记录
+   - 进入异常处理/升级流程
+
+## 辅助脚本
+
+可直接运行：
+
+- `scripts/print_p2_shared_dev_observation_commands.sh`
+
+用于打印完整执行命令，减少口头转述误差。
