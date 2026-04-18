@@ -13,6 +13,11 @@
 - `docs/P2_DEV_OBSERVATION_STARTUP_CHECKLIST.md`
 - `docs/P2_OPS_RUNBOOK.md`
 
+如果要判断“这次改动是否必须重跑回归”，再加看：
+
+- `docs/P2_OBSERVATION_REGRESSION_TRIGGER_CHECKLIST.md`
+- `docs/P2_OBSERVATION_REGRESSION_ONE_COMMAND.md`
+
 其余 `DEV_AND_VERIFICATION_*` 文档默认都当归档，不需要日常阅读。
 
 ---
@@ -37,6 +42,25 @@ python3 scripts/render_p2_observation_result.py \
   "$OUTPUT_DIR" \
   --operator "<name>" \
   --environment "shared-dev"
+```
+
+### 2.3 可选：和基线做差异对比
+
+```bash
+python3 scripts/compare_p2_observation_results.py \
+  <baseline_dir> \
+  "$OUTPUT_DIR" \
+  --baseline-label baseline \
+  --current-label current
+```
+
+### 2.4 更省事的单条回归命令
+
+```bash
+BASE_URL=... TOKEN=... [TENANT_ID=... ORG_ID=...] \
+BASELINE_DIR=<baseline_dir> \
+OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
+scripts/run_p2_observation_regression.sh
 ```
 
 ---
