@@ -6,14 +6,20 @@ usage() {
   cat <<'EOF'
 Usage:
   BASE_URL=http://localhost:8000 TOKEN=<jwt> scripts/run_p2_observation_regression.sh
+  BASE_URL=http://localhost:8000 USERNAME=<user> PASSWORD=<password> scripts/run_p2_observation_regression.sh
 
 Required env:
   BASE_URL              API base URL
-  TOKEN                 Bearer token
+  Authentication        Either:
+                        - TOKEN=<jwt>
+                        - USERNAME=<user> PASSWORD=<password>
 
 Optional env:
   TENANT_ID             x-tenant-id header value
   ORG_ID                x-org-id header value
+  USERNAME              Login username when TOKEN is not provided
+                        default: admin
+  PASSWORD              Login password when TOKEN is not provided
   OUTPUT_DIR            Where to store the new regression run
                         default: ./tmp/p2-observation-rerun-<timestamp>
   OPERATOR              Operator name recorded in OBSERVATION_RESULT.md
@@ -32,6 +38,7 @@ Optional env:
                         default: <OUTPUT_DIR>/OBSERVATION_EVAL.md
 
 Behavior:
+  0. If TOKEN is absent, logs in via /api/v1/auth/login using USERNAME/PASSWORD
   1. Runs verify_p2_dev_observation_startup.sh
   2. Renders OBSERVATION_RESULT.md
   3. If BASELINE_DIR is set, renders OBSERVATION_DIFF.md
@@ -54,7 +61,6 @@ require_env() {
 }
 
 require_env BASE_URL
-require_env TOKEN
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
 output_dir="${OUTPUT_DIR:-./tmp/p2-observation-rerun-${timestamp}}"
@@ -63,6 +69,77 @@ environment_name="${ENVIRONMENT:-regression}"
 baseline_label="${BASELINE_LABEL:-baseline}"
 current_label="${CURRENT_LABEL:-current}"
 eval_output="${EVAL_OUTPUT:-${output_dir}/OBSERVATION_EVAL.md}"
+PY="${PY:-python3}"
+
+ensure_token() {
+  if [[ -n "${TOKEN:-}" ]]; then
+    return 0
+  fi
+
+  if [[ -z "${PASSWORD:-}" ]]; then
+    echo "Missing authentication env: provide TOKEN or PASSWORD (with optional USERNAME)" >&2
+    usage >&2
+    exit 1
+  fi
+
+  local login_json
+  local login_body
+  local username
+  local code
+  username="${USERNAME:-admin}"
+  login_json="$(mktemp)"
+  trap 'rm -f "$login_json" >/dev/null 2>&1 || true' RETURN
+
+  login_body="$(
+    TENANT_ID_VALUE="${TENANT_ID:-}" \
+    ORG_ID_VALUE="${ORG_ID:-}" \
+    USERNAME_VALUE="${username}" \
+    PASSWORD_VALUE="${PASSWORD}" \
+    "$PY" - <<'PY'
+import json
+import os
+import sys
+
+payload = {
+    "tenant_id": os.environ["TENANT_ID_VALUE"],
+    "org_id": os.environ["ORG_ID_VALUE"],
+    "username": os.environ["USERNAME_VALUE"],
+    "password": os.environ["PASSWORD_VALUE"],
+}
+json.dump(payload, sys.stdout, ensure_ascii=True, separators=(",", ":"))
+PY
+  )"
+
+  code="$(
+    curl -sS -o "$login_json" -w "%{http_code}" \
+      -X POST "${BASE_URL}/api/v1/auth/login" \
+      -H 'content-type: application/json' \
+      --data-binary "${login_body}"
+  )"
+  if [[ "${code}" != "200" ]]; then
+    echo "ERROR: observation login failed -> HTTP ${code}" >&2
+    cat "$login_json" >&2 || true
+    exit 1
+  fi
+
+  TOKEN="$(
+    LOGIN_JSON_PATH="${login_json}" \
+    "$PY" - <<'PY'
+import json
+import os
+from pathlib import Path
+
+payload = json.loads(Path(os.environ["LOGIN_JSON_PATH"]).read_text(encoding="utf-8"))
+print(payload["access_token"])
+PY
+  )"
+  if [[ -z "${TOKEN}" ]]; then
+    echo "ERROR: failed to parse access_token from login response" >&2
+    exit 1
+  fi
+}
+
+ensure_token
 
 echo "== P2 observation regression run =="
 echo "BASE_URL=${BASE_URL}"

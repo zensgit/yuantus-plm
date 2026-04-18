@@ -1,0 +1,136 @@
+name: p2-observation-regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Target API base URL for the observation surface"
+        type: string
+        required: true
+      tenant_id:
+        description: "Tenant header value passed to observation requests"
+        type: string
+        required: false
+        default: "tenant-1"
+      org_id:
+        description: "Org header value passed to observation requests"
+        type: string
+        required: false
+        default: "org-1"
+      username:
+        description: "Login username when JWT secret is not provided"
+        type: string
+        required: false
+        default: "admin"
+      environment:
+        description: "Environment label recorded in OBSERVATION_RESULT.md"
+        type: string
+        required: false
+        default: "workflow-dispatch"
+      company_id:
+        description: "Optional company filter for summary/items/export"
+        type: string
+        required: false
+        default: ""
+      eco_type:
+        description: "Optional ECO category filter for summary/items/export"
+        type: string
+        required: false
+        default: ""
+      eco_state:
+        description: "Optional ECO state filter for summary/items/export"
+        type: string
+        required: false
+        default: ""
+      deadline_from:
+        description: "Optional ISO datetime lower bound for deadline filtering"
+        type: string
+        required: false
+        default: ""
+      deadline_to:
+        description: "Optional ISO datetime upper bound for deadline filtering"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  p2_observation_regression:
+    name: p2_observation_regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      OUTPUT_DIR: tmp/p2-observation-workflow/${{ github.run_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Validate auth configuration
+        env:
+          TOKEN: ${{ secrets.P2_OBSERVATION_TOKEN }}
+          PASSWORD: ${{ secrets.P2_OBSERVATION_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${TOKEN:-}" && -z "${PASSWORD:-}" ]]; then
+            echo "ERROR: provide secrets.P2_OBSERVATION_TOKEN or secrets.P2_OBSERVATION_PASSWORD" >&2
+            exit 2
+          fi
+
+      - name: Run P2 observation regression
+        env:
+          BASE_URL: ${{ github.event.inputs.base_url }}
+          TENANT_ID: ${{ github.event.inputs.tenant_id }}
+          ORG_ID: ${{ github.event.inputs.org_id }}
+          USERNAME: ${{ github.event.inputs.username }}
+          PASSWORD: ${{ secrets.P2_OBSERVATION_PASSWORD }}
+          TOKEN: ${{ secrets.P2_OBSERVATION_TOKEN }}
+          COMPANY_ID: ${{ github.event.inputs.company_id }}
+          ECO_TYPE: ${{ github.event.inputs.eco_type }}
+          ECO_STATE: ${{ github.event.inputs.eco_state }}
+          DEADLINE_FROM: ${{ github.event.inputs.deadline_from }}
+          DEADLINE_TO: ${{ github.event.inputs.deadline_to }}
+          OPERATOR: ${{ github.actor }}
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+          EVAL_MODE: current-only
+        run: |
+          set -euo pipefail
+          bash scripts/run_p2_observation_regression.sh
+
+      - name: Write observation summary to job summary
+        run: |
+          set -euo pipefail
+          echo "## P2 Observation Regression" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- output_dir: \`${OUTPUT_DIR}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- evaluation_mode: \`current-only\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "${OUTPUT_DIR}/OBSERVATION_RESULT.md" ]]; then
+            cat "${OUTPUT_DIR}/OBSERVATION_RESULT.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -f "${OUTPUT_DIR}/OBSERVATION_EVAL.md" ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "${OUTPUT_DIR}/OBSERVATION_EVAL.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload P2 observation regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2-observation-regression
+          path: tmp/p2-observation-workflow/${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 14

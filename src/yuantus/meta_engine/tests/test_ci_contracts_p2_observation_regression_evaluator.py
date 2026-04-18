@@ -68,6 +68,8 @@ def test_p2_observation_regression_wrapper_help_exposes_eval_contract() -> None:
     assert "EVAL_MODE" in out
     assert "EXPECT_DELTAS" in out
     assert "EVAL_OUTPUT" in out
+    assert "USERNAME" in out
+    assert "PASSWORD" in out
     assert "OBSERVATION_EVAL.md" in out
 
 
@@ -100,6 +102,11 @@ def test_p2_observation_regression_docs_keep_evaluator_entrypoints_linked() -> N
             "OBSERVATION_RESULT.md",
             "readonly",
         ],
+        repo_root / "docs" / "P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md": [
+            "gh workflow run p2-observation-regression",
+            "P2_OBSERVATION_PASSWORD",
+            "current-only",
+        ],
     }
 
     for path, tokens in docs_with_tokens.items():
@@ -116,6 +123,7 @@ def test_delivery_doc_index_tracks_p2_observation_evaluator_docs() -> None:
 
     required_entries = [
         "docs/P2_OBSERVATION_REGRESSION_EVALUATION.md",
+        "docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md",
         "docs/DEV_AND_VERIFICATION_P2_OBSERVATION_REGRESSION_EVALUATION_20260418.md",
         "docs/DEV_AND_VERIFICATION_P2_OBSERVATION_REGRESSION_EVALUATOR_CI_CONTRACT_20260418.md",
     ]

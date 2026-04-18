@@ -18,6 +18,7 @@
 - `docs/P2_OBSERVATION_REGRESSION_TRIGGER_CHECKLIST.md`
 - `docs/P2_OBSERVATION_REGRESSION_ONE_COMMAND.md`
 - `docs/P2_OBSERVATION_REGRESSION_EVALUATION.md`
+- `docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md`
 
 其余 `DEV_AND_VERIFICATION_*` 文档默认都当归档，不需要日常阅读。
 
@@ -83,6 +84,20 @@ python3 scripts/evaluate_p2_observation_results.py \
   --expect-delta overdue_count=1 \
   --expect-delta escalated_count=1
 ```
+
+### 2.6 固定 workflow 入口
+
+如果你不想在本地 shell 里拼命令，也可以直接触发：
+
+```bash
+gh workflow run p2-observation-regression \
+  --field base_url=http://<dev-host> \
+  --field tenant_id=<tenant> \
+  --field org_id=<org> \
+  --field environment=shared-dev
+```
+
+这条入口固定跑 `current-only`，并上传 `p2-observation-regression` artifact。
 
 ---
 
