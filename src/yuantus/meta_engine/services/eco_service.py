@@ -19,11 +19,13 @@ from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.eco import (
     ECO,
     ECOBOMChange,
+    ECORoutingChange,
     ECOStage,
     ECOApproval,
     ECOState,
     ApprovalStatus,
 )
+from yuantus.meta_engine.manufacturing.models import Operation, Routing
 from yuantus.meta_engine.services.bom_service import BOMService
 from yuantus.meta_engine.version.service import VersionError, VersionService
 from yuantus.meta_engine.version.file_service import VersionFileService, VersionFileError
@@ -1270,7 +1272,7 @@ class ECOService:
     def detect_rebase_conflicts(self, eco_id: str) -> List[Dict[str, Any]]:
         """
         Detect conflicts between this ECO and the current product version.
-        Returns a list of conflict details.
+        Returns a list of conflict details (BOM + routing).
         """
         if not self.check_rebase_needed(eco_id):
             return []
@@ -1285,8 +1287,10 @@ class ECOService:
             return []
 
         product = self.session.get(Item, eco.product_id)
+        if not product:
+            return []
         self.session.refresh(product)  # Ensure product state is fresh
-        if not product or not product.current_version_id:
+        if not product.current_version_id:
             return []
 
         # 1. Get 3 BOM snapshots
@@ -1337,6 +1341,9 @@ class ECOService:
                 # Both modified the same line in the same way (auto-merge, no conflict)
                 pass
 
+        routing_conflicts = self._detect_routing_rebase_conflicts(eco, product)
+        conflicts.extend(routing_conflicts)
+
         return conflicts
 
     def _flatten_bom_children(self, bom_tree: Dict[str, Any]) -> Dict[str, Any]:
@@ -1361,6 +1368,246 @@ class ECOService:
             flattened[key] = {**properties}
 
         return flattened
+
+    _ROUTING_SNAPSHOT_FIELDS = (
+        "workcenter_id",
+        "setup_time",
+        "run_time",
+        "sequence",
+        "name",
+        "operation_type",
+    )
+
+    def _operation_snapshot(self, op: Operation) -> Dict[str, Any]:
+        """Build a structured snapshot dict for a single Operation."""
+        return {
+            field: getattr(op, field, None) for field in self._ROUTING_SNAPSHOT_FIELDS
+        }
+
+    def _operation_match_key(self, op: Operation) -> str:
+        """
+        Build a version-stable identity key for matching operations across clones.
+
+        Routing copy/clone flows regenerate Operation.id, so we match on the
+        business identifier preserved across versions.
+        """
+        operation_number = str(getattr(op, "operation_number", "") or "").strip()
+        if operation_number:
+            return operation_number
+        return str(getattr(op, "id", "") or "").strip()
+
+    def _get_operations_for_product_version(
+        self, product_id: str, version_id: Optional[str]
+    ) -> List[Operation]:
+        """
+        Get operations linked to a product via its routings for a given version.
+
+        Routing is linked to the product via ``Routing.item_id``. When a version
+        is available, match routing.version to the resolved ItemVersion label.
+        """
+        if not product_id:
+            return []
+
+        query = (
+            self.session.query(Operation)
+            .join(Routing, Operation.routing_id == Routing.id)
+            .filter(Routing.item_id == product_id)
+        )
+
+        if version_id:
+            version = self.session.get(ItemVersion, version_id)
+            if version and version.version_label:
+                query = query.filter(Routing.version == version.version_label)
+
+        return query.all()
+
+    def get_routing_changes(self, eco_id: str) -> List[ECORoutingChange]:
+        """Get stored routing changes for an ECO."""
+        return (
+            self.session.query(ECORoutingChange)
+            .filter(ECORoutingChange.eco_id == eco_id)
+            .order_by(ECORoutingChange.created_at.asc())
+            .all()
+        )
+
+    def compute_routing_changes(
+        self, eco_id: str, *, compare_mode: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Compute routing changes between the ECO source and target versions.
+        """
+        del compare_mode  # Reserved for parity with compare-style endpoints.
+
+        eco = self.get_eco(eco_id)
+        if not eco:
+            raise ValueError(f"ECO {eco_id} not found")
+        if not eco.product_id:
+            raise ValueError("ECO is missing product_id")
+        if not eco.source_version_id or not eco.target_version_id:
+            raise ValueError("ECO is missing source_version_id or target_version_id")
+
+        self.session.query(ECORoutingChange).filter(
+            ECORoutingChange.eco_id == eco_id
+        ).delete()
+        self.session.flush()
+
+        source_ops = self._get_operations_for_product_version(
+            eco.product_id, eco.source_version_id
+        )
+        target_ops = self._get_operations_for_product_version(
+            eco.product_id, eco.target_version_id
+        )
+
+        source_map: Dict[str, Operation] = {
+            self._operation_match_key(op): op for op in source_ops
+        }
+        target_map: Dict[str, Operation] = {
+            self._operation_match_key(op): op for op in target_ops
+        }
+
+        all_op_ids = set(source_map.keys()) | set(target_map.keys())
+        changes: List[ECORoutingChange] = []
+
+        for op_key in sorted(all_op_ids):
+            source_op = source_map.get(op_key)
+            target_op = target_map.get(op_key)
+
+            if source_op is None and target_op is not None:
+                changes.append(
+                    self._create_eco_routing_change(
+                        eco_id=eco_id,
+                        change_type="add",
+                        routing_id=target_op.routing_id,
+                        operation_id=target_op.id,
+                        old_snapshot=None,
+                        new_snapshot=self._operation_snapshot(target_op),
+                    )
+                )
+                continue
+
+            if source_op is not None and target_op is None:
+                changes.append(
+                    self._create_eco_routing_change(
+                        eco_id=eco_id,
+                        change_type="remove",
+                        routing_id=source_op.routing_id,
+                        operation_id=source_op.id,
+                        old_snapshot=self._operation_snapshot(source_op),
+                        new_snapshot=None,
+                    )
+                )
+                continue
+
+            if source_op is None or target_op is None:
+                continue
+
+            old_snapshot = self._operation_snapshot(source_op)
+            new_snapshot = self._operation_snapshot(target_op)
+            if old_snapshot != new_snapshot:
+                changes.append(
+                    self._create_eco_routing_change(
+                        eco_id=eco_id,
+                        change_type="update",
+                        routing_id=target_op.routing_id,
+                        operation_id=target_op.id,
+                        old_snapshot=old_snapshot,
+                        new_snapshot=new_snapshot,
+                    )
+                )
+
+        self.session.flush()
+        return [change.to_dict() for change in changes]
+
+    def _create_eco_routing_change(
+        self,
+        eco_id: str,
+        change_type: str,
+        routing_id: Optional[str],
+        operation_id: Optional[str],
+        old_snapshot: Optional[Dict[str, Any]],
+        new_snapshot: Optional[Dict[str, Any]],
+        conflict: bool = False,
+        conflict_reason: Optional[str] = None,
+    ) -> ECORoutingChange:
+        """Helper to create an ECORoutingChange record."""
+        routing_change = ECORoutingChange(
+            id=str(uuid.uuid4()),
+            eco_id=eco_id,
+            change_type=change_type,
+            routing_id=routing_id,
+            operation_id=operation_id,
+            old_snapshot=old_snapshot,
+            new_snapshot=new_snapshot,
+            conflict=conflict,
+            conflict_reason=conflict_reason,
+        )
+        self.session.add(routing_change)
+        return routing_change
+
+    def _detect_routing_rebase_conflicts(
+        self, eco: ECO, product: Item
+    ) -> List[Dict[str, Any]]:
+        """
+        Detect routing-specific rebase conflicts using 3-way merge.
+        """
+        base_ops = self._get_operations_for_product_version(
+            eco.product_id, eco.source_version_id
+        )
+        my_ops = self._get_operations_for_product_version(
+            eco.product_id, eco.target_version_id
+        )
+        theirs_ops = self._get_operations_for_product_version(
+            eco.product_id, product.current_version_id
+        )
+
+        base_map = {self._operation_match_key(op): op for op in base_ops}
+        my_map = {self._operation_match_key(op): op for op in my_ops}
+        theirs_map = {self._operation_match_key(op): op for op in theirs_ops}
+
+        all_op_ids = set(base_map.keys()) | set(my_map.keys()) | set(theirs_map.keys())
+        conflicts: List[Dict[str, Any]] = []
+
+        for op_key in sorted(all_op_ids):
+            base_op = base_map.get(op_key)
+            my_op = my_map.get(op_key)
+            theirs_op = theirs_map.get(op_key)
+
+            base_value = self._operation_snapshot(base_op) if base_op is not None else None
+            my_value = self._operation_snapshot(my_op) if my_op is not None else None
+            theirs_value = (
+                self._operation_snapshot(theirs_op) if theirs_op is not None else None
+            )
+
+            my_changed = base_value != my_value
+            theirs_changed = base_value != theirs_value
+
+            if my_changed and theirs_changed and my_value != theirs_value:
+                operation_id = my_op.id if my_op is not None else op_key
+                conflicts.append(
+                    {
+                        "type": "routing",
+                        "operation_id": operation_id,
+                        "base_value": base_value,
+                        "my_value": my_value,
+                        "their_value": theirs_value,
+                        "reason": "concurrent_routing_modification",
+                    }
+                )
+                self._create_eco_routing_change(
+                    eco_id=eco.id,
+                    change_type="update",
+                    routing_id=None,
+                    operation_id=operation_id,
+                    old_snapshot=base_value,
+                    new_snapshot=my_value,
+                    conflict=True,
+                    conflict_reason="concurrent_routing_modification",
+                )
+
+        if conflicts:
+            self.session.flush()
+
+        return conflicts
 
     def get_apply_diagnostics(
         self,
