@@ -65,6 +65,15 @@ python3 scripts/compare_p2_observation_results.py \
   --current-label rerun
 ```
 
+### 2.4 或直接单条执行
+
+```bash
+BASE_URL=... TOKEN=... [TENANT_ID=... ORG_ID=...] \
+BASELINE_DIR=<baseline_dir> \
+OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
+scripts/run_p2_observation_regression.sh
+```
+
 ---
 
 ## 3. 什么时候只做只读回归
