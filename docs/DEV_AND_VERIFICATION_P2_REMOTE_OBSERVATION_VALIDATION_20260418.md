@@ -185,6 +185,61 @@ Interpretation:
 - The remote environment remains stable as a read-only regression baseline after the clean PR merge.
 - No further write-path proof is needed on this environment unless a deliberate reset is planned.
 
+## Result H - PR #222 Runtime Post-Merge Read-Only Re-Run
+
+After PR `#222` was merged into `main`, the frozen remote observation surface was re-checked again, still without rebuild, reseed, or workflow-state mutation.
+
+The repo baseline for this re-run was:
+
+- `origin/main = 20151a4`
+
+The latest mainline runtime copies of these files were synced to the frozen remote workspace:
+
+- `src/yuantus/meta_engine/web/eco_router.py`
+- `src/yuantus/meta_engine/services/eco_service.py`
+
+The new read-only result set was written under:
+
+- `<remote-workspace>/remote-dev-results/20260418-092259-pr222-postmerge`
+
+`verify_p2_dev_observation_startup.sh` again completed successfully. The following read endpoints all returned `200`:
+
+- `GET /api/v1/eco/approvals/dashboard/summary`
+- `GET /api/v1/eco/approvals/dashboard/items`
+- `GET /api/v1/eco/approvals/dashboard/export?fmt=json`
+- `GET /api/v1/eco/approvals/dashboard/export?fmt=csv`
+- `GET /api/v1/eco/approvals/audit/anomalies`
+
+The re-rendered `OBSERVATION_RESULT.md` again matched the frozen baseline:
+
+- `pending_count = 2`
+- `overdue_count = 3`
+- `escalated_count = 1`
+- `total_anomalies = 2`
+- `escalated_unresolved = 1`
+- `overdue_not_escalated = 1`
+- `no_candidates = 0`
+
+Additional `#222` route-contract probes were executed against an existing `ECO` sample and a missing `ECO` id:
+
+| Scenario | HTTP | Observed behavior |
+|---|---:|---|
+| anonymous `GET /api/v1/eco/eco-404/unsuspend-diagnostics` | `200` | returns structured diagnostics with `code=eco_not_found` |
+| anonymous `GET /api/v1/eco/{existing}/unsuspend-diagnostics` | `401` | returns `Authentication required` |
+| `ops-viewer` `GET /api/v1/eco/{existing}/unsuspend-diagnostics` | `200` | returns structured diagnostics with `code=eco_not_suspended` |
+| anonymous `POST /api/v1/eco/{existing}/suspend` | `401` | returns `Unauthorized` |
+| anonymous `POST /api/v1/eco/{existing}/unsuspend` | `401` | returns `Unauthorized` |
+
+Interpretation:
+
+- The merged `#222` runtime preserves the intended route split:
+  - missing `ECO` diagnostics can still return a structured payload without authentication
+  - existing `ECO` diagnostics require authentication
+  - `suspend` / `unsuspend` reject anonymous callers at the route layer
+- The current frozen remote environment allows `ops-viewer` to read diagnostics on an existing `ECO`, so this probe returned `200` with a service-generated diagnostic payload rather than a permission `403`
+- This does not contradict the `PermissionError -> 403` remediation in `#222`; that path remains covered by the focused local tests
+- Because this round stayed read-only from a workflow-state perspective, the frozen observation baseline remained unchanged
+
 ## Freeze Decision
 
 - Keep the current `<remote-host>:<remote-workspace>` deployment as the temporary remote `local-dev-env` observation surface
@@ -197,8 +252,10 @@ Interpretation:
 - Frozen round-1 baseline result: `<remote-workspace>/remote-dev-results/round1-before/OBSERVATION_RESULT.md`
 - Frozen round-1 re-check result: `<remote-workspace>/remote-dev-results/round1-after/OBSERVATION_RESULT.md`
 - Post-merge read-only regression result: `<remote-workspace>/remote-dev-results/20260418-084517-baseline/OBSERVATION_RESULT.md`
+- PR `#222` runtime post-merge re-run result: `<remote-workspace>/remote-dev-results/20260418-092259-pr222-postmerge/OBSERVATION_RESULT.md`
 - Operator runbook: `docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md`
 - Related remediation notes: `docs/DEV_AND_VERIFICATION_REMOTE_DEPLOY_REMEDIATION_20260418.md`
+- ECO route remediation notes: `docs/DEV_AND_VERIFICATION_ECO_PARALLEL_FLOW_HOOK_REVIEW_REMEDIATION_20260418.md`
 
 ## Verification
 
