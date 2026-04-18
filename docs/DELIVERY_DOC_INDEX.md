@@ -113,6 +113,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - docs/DESIGN_PARALLEL_C7_BOM_COMPARE_SUMMARIZED_SNAPSHOT_20260318.md: `docs/DESIGN_PARALLEL_C7_BOM_COMPARE_SUMMARIZED_SNAPSHOT_20260318.md`
 - docs/DESIGN_PARALLEL_C8_QUALITY_MRP_BOOTSTRAP_INTEGRATION_20260318.md: `docs/DESIGN_PARALLEL_C8_QUALITY_MRP_BOOTSTRAP_INTEGRATION_20260318.md`
 - docs/DESIGN_PARALLEL_C9_MAINTENANCE_WORKCENTER_READINESS_20260318.md: `docs/DESIGN_PARALLEL_C9_MAINTENANCE_WORKCENTER_READINESS_20260318.md`
+- docs/DEV_AND_VERIFICATION_AML_METADATA_DOC_PACK_REPLAY_20260418.md: `docs/DEV_AND_VERIFICATION_AML_METADATA_DOC_PACK_REPLAY_20260418.md`
 - docs/DEV_AND_VERIFICATION_BASELINE_CORRECTION_AUDIT_20260414.md: `docs/DEV_AND_VERIFICATION_BASELINE_CORRECTION_AUDIT_20260414.md`
 - docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md: `docs/DEV_AND_VERIFICATION_BASELINE_E2E_20260214.md`
 - docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md: `docs/DEV_AND_VERIFICATION_BASELINE_FILTERS_E2E_20260214.md`
@@ -415,6 +416,10 @@ This index aggregates all delivery‑related documents for private deployments.
 - docs/PHASE3_PROGRESS_SNAPSHOT_20260206.md: `docs/PHASE3_PROGRESS_SNAPSHOT_20260206.md`
 - docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md: `docs/PLAN_ODOO18_PLM_PARALLEL_EXECUTION.md`
 - docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md: `docs/VERIFICATION_ODOO18_PLM_PARALLEL_EXECUTION.md`
+- docs/development/aml-metadata-doc-index-20260411.md: `docs/development/aml-metadata-doc-index-20260411.md`
+- docs/development/aml-metadata-federation-design-verification-20260411.md: `docs/development/aml-metadata-federation-design-verification-20260411.md`
+- docs/development/aml-metadata-pact-design-and-verification-20260411.md: `docs/development/aml-metadata-pact-design-and-verification-20260411.md`
+- docs/development/aml-metadata-session-handoff-20260411.md: `docs/development/aml-metadata-session-handoff-20260411.md`
 
 ## Optional
 
