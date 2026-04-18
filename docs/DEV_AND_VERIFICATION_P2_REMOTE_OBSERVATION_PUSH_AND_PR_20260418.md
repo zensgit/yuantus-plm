@@ -8,46 +8,46 @@ Record the actual branch push and GitHub PR creation step for the P2 observation
 
 ## Branch
 
-- Branch: `feature/p2-observation-smoke-20260416`
+- Branch: `feature/p2-observation-clean-20260418`
 - Base branch: `main`
 
 ## Local commit pushed
 
 The branch was pushed with this commit at the tip:
 
-1. `c093755` `docs: capture p2 remote observation workflow`
+1. `4d7c0af` `docs: capture P2 observation workflow and remote regression runbook`
 
-The pushed branch also includes the earlier P2 observation helper/doc commits already present on top of `origin/main`.
+This clean replay branch carries the full P2 observation helper/doc chain on top of the latest `origin/main`.
 
 ## Push execution
 
 Command:
 
 ```bash
-git push -u origin feature/p2-observation-smoke-20260416
+git push -u origin feature/p2-observation-clean-20260418
 ```
 
 Observed:
 
 - remote branch updated successfully
-- local branch now tracks `origin/feature/p2-observation-smoke-20260416`
+- local branch now tracks `origin/feature/p2-observation-clean-20260418`
 
 ## PR creation
 
 Created PR:
 
-- PR: `#229`
-- URL: `https://github.com/zensgit/yuantus-plm/pull/229`
+- PR: `#230`
+- URL: `https://github.com/zensgit/yuantus-plm/pull/230`
 - Title: `docs: capture P2 observation workflow and remote regression runbook`
 
 Base / head:
 
 - base: `main`
-- head: `feature/p2-observation-smoke-20260416`
+- head: `feature/p2-observation-clean-20260418`
 
 ## PR scope summary
 
-This PR carries the full P2 observation documentation and helper chain, including:
+This clean PR carries the full P2 observation documentation and helper chain, including:
 
 - local observation baseline and experiment notes
 - shared-dev handoff guidance
@@ -57,7 +57,7 @@ This PR carries the full P2 observation documentation and helper chain, includin
 - rendered-result helper and startup verification helper
 - delivery doc index updates
 
-It is not only the final docs-only follow-up commit; it represents the full P2 observation workflow branch.
+It supersedes the earlier conflicting PR `#229` and is the version intended for merge.
 
 ## Verification snapshot used for push / PR
 
@@ -80,9 +80,9 @@ Result:
 
 The PR references the already frozen remote regression surface:
 
-- host: `142.171.239.56`
-- workspace: `/home/mainuser/Yuantus-p2-mini`
-- container: `yuantus-p2-api`
+- host: `<remote-host>`
+- workspace: `<remote-workspace>`
+- container: `<api-container>`
 - environment identity: temporary remote `local-dev-env`
 
 This environment is documented as a regression observation surface, not a shared-dev baseline.
@@ -95,5 +95,5 @@ This environment is documented as a regression observation surface, not a shared
 
 ## Limits
 
-- This document records the push/PR step, not a fresh rerun of the remote environment
+- This document records the clean replay push/PR step, not a fresh rerun of the remote environment
 - The actual remote execution evidence remains in the earlier validation and remediation docs

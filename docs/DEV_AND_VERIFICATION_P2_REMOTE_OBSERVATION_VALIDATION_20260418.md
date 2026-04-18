@@ -6,15 +6,15 @@ Freeze this round of remote P2 observation execution as a compact verification r
 
 ## Environment Boundary
 
-- Host: `142.171.239.56`
-- Remote workspace: `/home/mainuser/Yuantus-p2-mini`
-- Runtime container: `yuantus-p2-api`
+- Host: `<remote-host>`
+- Remote workspace: `<remote-workspace>`
+- Runtime container: `<api-container>`
 - Base URL: `http://127.0.0.1:7910`
 - Environment identity: temporary remote `local-dev-env`
 - Tenant / org: `tenant-1 / org-1`
-- Users:
-  - `admin / admin`
-  - `ops-viewer / ops123`
+- Accounts:
+  - seeded `admin`
+  - seeded `ops-viewer`
 
 This run used `local-dev-env` semantics on a remote host. It proves the observation toolchain can run remotely, but it is not a shared-dev observation baseline.
 
@@ -96,7 +96,7 @@ After the initial remote validation, the environment was intentionally kept in p
 
 The frozen round-1 baseline was rendered from:
 
-- `/home/mainuser/Yuantus-p2-mini/remote-dev-results/round1-before`
+- `<remote-workspace>/remote-dev-results/round1-before`
 
 The rendered `OBSERVATION_RESULT.md` reported:
 
@@ -125,7 +125,7 @@ Observed result:
 
 The re-rendered result from:
 
-- `/home/mainuser/Yuantus-p2-mini/remote-dev-results/round1-after`
+- `<remote-workspace>/remote-dev-results/round1-after`
 
 remained unchanged:
 
@@ -145,15 +145,15 @@ This means the frozen remote environment is stable, but it is no longer suitable
 
 ## Freeze Decision
 
-- Keep `142.171.239.56:/home/mainuser/Yuantus-p2-mini` as the temporary remote `local-dev-env` observation surface
+- Keep the current `<remote-host>:<remote-workspace>` deployment as the temporary remote `local-dev-env` observation surface
 - Do not rebuild or reseed it unless the goal is to intentionally reset the baseline
 - Use the current frozen state as the remote regression observation surface before future P2 approval-chain changes
 
 ## Artifacts
 
-- Initial remote validation result: `/home/mainuser/Yuantus-p2-mini/local-dev-env/results/OBSERVATION_RESULT.md`
-- Frozen round-1 baseline result: `/home/mainuser/Yuantus-p2-mini/remote-dev-results/round1-before/OBSERVATION_RESULT.md`
-- Frozen round-1 re-check result: `/home/mainuser/Yuantus-p2-mini/remote-dev-results/round1-after/OBSERVATION_RESULT.md`
+- Initial remote validation result: `<remote-workspace>/local-dev-env/results/OBSERVATION_RESULT.md`
+- Frozen round-1 baseline result: `<remote-workspace>/remote-dev-results/round1-before/OBSERVATION_RESULT.md`
+- Frozen round-1 re-check result: `<remote-workspace>/remote-dev-results/round1-after/OBSERVATION_RESULT.md`
 - Operator runbook: `docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md`
 - Related remediation notes: `docs/DEV_AND_VERIFICATION_REMOTE_DEPLOY_REMEDIATION_20260418.md`
 

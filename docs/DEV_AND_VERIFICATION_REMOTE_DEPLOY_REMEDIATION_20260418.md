@@ -1,7 +1,7 @@
 # Remote Deployment Remediation
 
 **Date:** 2026-04-18
-**Target host:** `142.171.239.56`
+**Target host:** `<remote-host>`
 **Target service:** `Yuantus` P2 observation environment
 **Repo baseline:** `6fd28be`
 
@@ -31,7 +31,7 @@
 1. 远端主机缺少可直接使用的 Python 开发环境
    - `python3 -m venv` 失败
    - 主机无 `pip`
-   - `mainuser` 无免密 `sudo`
+   - 当前远端操作者无免密 `sudo`
 
 2. 首轮大目录同步不稳定
    - 远端工作目录缺失关键源码文件
@@ -56,10 +56,10 @@
 
 远端使用的是独立目录，不污染已有 `metasheet2` 部署：
 
-- 工作目录：`/home/mainuser/Yuantus-p2-mini`
-- 结果目录：`/home/mainuser/Yuantus-p2-mini/local-dev-env/results`
-- 数据库：`/home/mainuser/Yuantus-p2-mini/local-dev-env/data/yuantus.db`
-- 容器：`yuantus-p2-api`
+- 工作目录：`<remote-workspace>`
+- 结果目录：`<remote-workspace>/local-dev-env/results`
+- 数据库：`<remote-workspace>/local-dev-env/data/yuantus.db`
+- 容器：`<api-container>`
 
 运行策略没有依赖远端系统 Python，而是复用已构建成功的镜像：
 
@@ -102,7 +102,7 @@
 
 新建独立目录：
 
-- `/home/mainuser/Yuantus-p2-mini`
+- `<remote-workspace>`
 
 只放运行 observation 所需最小文件集：
 
@@ -120,8 +120,8 @@
 
 在远端删除：
 
-- `find /home/mainuser/Yuantus-p2-mini -name '._*' -delete`
-- `find /home/mainuser/Yuantus-p2-mini -name '.DS_Store' -delete`
+- `find <remote-workspace> -name '._*' -delete`
+- `find <remote-workspace> -name '.DS_Store' -delete`
 
 这一步是让 `alembic` 恢复可读迁移目录的关键修复。
 
@@ -205,13 +205,13 @@ python -m uvicorn yuantus.api.app:app --host 0.0.0.0 --port 7910
 
 最终观察结果文件：
 
-- `/home/mainuser/Yuantus-p2-mini/local-dev-env/results/OBSERVATION_RESULT.md`
+- `<remote-workspace>/local-dev-env/results/OBSERVATION_RESULT.md`
 
 ## Residual Risks and Follow-ups
 
 1. 当前 sqlite 文件由容器内 `root` 写入
    - 远端文件属主目前是 `root`
-   - 若后续需要由 `mainuser` 直接修改或清理，可能要补 `chown`
+   - 若后续需要由远端操作者直接修改或清理，可能要补 `chown`
 
 2. macOS 到 Linux 的传输链路需要显式排除：
    - `._*`
