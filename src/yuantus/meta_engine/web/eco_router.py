@@ -73,6 +73,13 @@ class ECOUpdate(BaseModel):
     effectivity_date: Optional[datetime] = None
 
 
+class BindProductRequest(BaseModel):
+    """Schema for binding a product to an ECO."""
+
+    product_id: str = Field(..., min_length=1)
+    create_target_revision: bool = Field(default=False)
+
+
 class MoveStageRequest(BaseModel):
     """Schema for moving to a stage."""
 
@@ -649,34 +656,47 @@ async def get_eco(eco_id: str, db: Session = Depends(get_db)):
     return eco.to_dict()
 
 
-@eco_router.put("/{eco_id}", response_model=Dict[str, Any])
-async def update_eco(eco_id: str, data: ECOUpdate, db: Session = Depends(get_db)):
-    """Update an ECO."""
+@eco_router.post("/{eco_id}/bind-product", response_model=Dict[str, Any])
+async def bind_product_to_eco(
+    eco_id: str,
+    data: BindProductRequest,
+    user_id: int = Depends(get_current_user_id_optional),
+    db: Session = Depends(get_db),
+):
+    """Bind a product to an ECO."""
     service = ECOService(db)
-    eco = service.get_eco(eco_id)
-    if not eco:
-        raise HTTPException(status_code=404, detail="ECO not found")
-
-    # Only allow updates in draft/progress state
-    if eco.state not in (ECOState.DRAFT.value, ECOState.PROGRESS.value):
-        raise HTTPException(
-            status_code=400, detail=f"Cannot update ECO in {eco.state} state"
-        )
-
     try:
-        if data.name is not None:
-            eco.name = data.name
-        if data.description is not None:
-            eco.description = data.description
-        if data.priority is not None:
-            eco.priority = data.priority
-        if data.effectivity_date is not None:
-            eco.effectivity_date = data.effectivity_date
-
-        eco.updated_at = datetime.utcnow()
+        eco = service.bind_product(
+            eco_id,
+            data.product_id,
+            user_id,
+            create_target_revision=data.create_target_revision,
+        )
         db.commit()
         return eco.to_dict()
-    except Exception as e:
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@eco_router.put("/{eco_id}", response_model=Dict[str, Any])
+async def update_eco(
+    eco_id: str,
+    data: ECOUpdate,
+    user_id: int = Depends(get_current_user_id_optional),
+    db: Session = Depends(get_db),
+):
+    """Update an ECO."""
+    service = ECOService(db)
+    updates = data.dict(exclude_unset=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields provided for update")
+
+    try:
+        eco = service.update_eco(eco_id, updates, user_id)
+        db.commit()
+        return eco.to_dict()
+    except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
