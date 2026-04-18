@@ -57,14 +57,25 @@ def test_p2_observation_regression_workflow_contracts() -> None:
 
     for token in (
         "Validate auth configuration",
+        "id: validate_auth_config",
         "secrets.P2_OBSERVATION_TOKEN",
         "secrets.P2_OBSERVATION_PASSWORD",
-        "provide secrets.P2_OBSERVATION_TOKEN or secrets.P2_OBSERVATION_PASSWORD",
+        "WORKFLOW_PRECHECK.md",
+        "workflow_precheck.json",
+        '"reason": "missing authentication secret"',
+        "echo \"auth_ready=false\" >> \"$GITHUB_OUTPUT\"",
+        "echo \"auth_ready=true\" >> \"$GITHUB_OUTPUT\"",
         "Run P2 observation regression",
+        "id: run_p2_observation_regression",
+        "if: steps.validate_auth_config.outputs.auth_ready == 'true'",
         "bash scripts/run_p2_observation_regression.sh",
         "EVAL_MODE: current-only",
         "OUTPUT_DIR: tmp/p2-observation-workflow/${{ github.run_id }}",
         "Write observation summary to job summary",
+        "steps.validate_auth_config.outputs.auth_ready",
+        "steps.run_p2_observation_regression.outcome",
+        'if [[ -f "${OUTPUT_DIR}/WORKFLOW_PRECHECK.md" ]]',
+        'cat "${OUTPUT_DIR}/WORKFLOW_PRECHECK.md" >> "$GITHUB_STEP_SUMMARY"',
         'echo "## P2 Observation Regression" >> "$GITHUB_STEP_SUMMARY"',
         'cat "${OUTPUT_DIR}/OBSERVATION_RESULT.md" >> "$GITHUB_STEP_SUMMARY"',
         'cat "${OUTPUT_DIR}/OBSERVATION_EVAL.md" >> "$GITHUB_STEP_SUMMARY"',
@@ -74,6 +85,9 @@ def test_p2_observation_regression_workflow_contracts() -> None:
         "path: tmp/p2-observation-workflow/${{ github.run_id }}",
         "if-no-files-found: error",
         "retention-days: 14",
+        "Fail workflow when precheck or observation execution failed",
+        "ERROR: authentication precheck failed",
+        "ERROR: observation regression execution failed",
     ):
         assert token in wf_text, f"workflow missing execution/artifact token: {token}"
 
@@ -84,6 +98,8 @@ def test_p2_observation_regression_workflow_contracts() -> None:
         "gh workflow run p2-observation-regression",
         "P2_OBSERVATION_TOKEN",
         "P2_OBSERVATION_PASSWORD",
+        "WORKFLOW_PRECHECK.md",
+        "workflow_precheck.json",
         "current-only",
         "p2-observation-regression",
     ):
