@@ -286,6 +286,57 @@ Interpretation:
 - This re-run is the latest practical remote regression baseline before the next real development slice starts from current `main`
 - It still must not be presented as shared-dev operational evidence; it remains a frozen remote `local-dev-env` observation surface
 
+## Result J - Post-PR236 Frozen Baseline Re-Run
+
+After PR `#236` was merged into `main`, the frozen remote observation surface was re-checked again with the same minimal read-only baseline flow.
+
+The repo baseline for this re-run was:
+
+- `origin/main = 103200e`
+
+Because `#236` is a doc-only merge, no runtime files were changed for this round. To keep the operator workspace aligned with current `main`, the latest copies of these helper scripts were synced to the frozen remote workspace before execution:
+
+- `scripts/verify_p2_dev_observation_startup.sh`
+- `scripts/render_p2_observation_result.py`
+
+This round wrote a new result set under:
+
+- `<remote-workspace>/remote-dev-results/20260418-110513-baseline-after-pr236-doc-replay`
+
+The executed flow remained the minimal frozen-remote regression path:
+
+1. `scripts/verify_p2_dev_observation_startup.sh`
+2. `scripts/render_p2_observation_result.py`
+3. review the newly rendered `OBSERVATION_RESULT.md`
+
+No write smoke, escalation, or route-contract probes were executed in this round.
+
+`verify_p2_dev_observation_startup.sh` again completed successfully. The following read endpoints all returned `200`:
+
+- `GET /api/v1/eco/approvals/dashboard/summary`
+- `GET /api/v1/eco/approvals/dashboard/items`
+- `GET /api/v1/eco/approvals/dashboard/export?fmt=json`
+- `GET /api/v1/eco/approvals/dashboard/export?fmt=csv`
+- `GET /api/v1/eco/approvals/audit/anomalies`
+
+The re-rendered `OBSERVATION_RESULT.md` again matched the frozen baseline exactly:
+
+- `pending_count = 2`
+- `overdue_count = 3`
+- `escalated_count = 1`
+- `total_anomalies = 2`
+- `escalated_unresolved = 1`
+- `overdue_not_escalated = 1`
+- `no_candidates = 0`
+- `items total = 5`
+
+Interpretation:
+
+- The latest `main` helper scripts still execute cleanly against the frozen remote observation surface
+- The doc-only merge in `#236` did not introduce any observation regression on the remote baseline
+- The frozen remote environment remains stable and usable as a read-only regression surface for the next real P2 runtime slice
+- It still must not be presented as shared-dev operational evidence; it remains a frozen remote `local-dev-env` observation surface
+
 ## Freeze Decision
 
 - Keep the current `<remote-host>:<remote-workspace>` deployment as the temporary remote `local-dev-env` observation surface
@@ -300,6 +351,7 @@ Interpretation:
 - Post-merge read-only regression result: `<remote-workspace>/remote-dev-results/20260418-084517-baseline/OBSERVATION_RESULT.md`
 - PR `#222` runtime post-merge re-run result: `<remote-workspace>/remote-dev-results/20260418-092259-pr222-postmerge/OBSERVATION_RESULT.md`
 - Post-PR219-closeout frozen baseline result: `<remote-workspace>/remote-dev-results/20260418-104908-baseline-after-pr219-closeout/OBSERVATION_RESULT.md`
+- Post-PR236 frozen baseline result: `<remote-workspace>/remote-dev-results/20260418-110513-baseline-after-pr236-doc-replay/OBSERVATION_RESULT.md`
 - Operator runbook: `docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md`
 - Related remediation notes: `docs/DEV_AND_VERIFICATION_REMOTE_DEPLOY_REMEDIATION_20260418.md`
 - ECO route remediation notes: `docs/DEV_AND_VERIFICATION_ECO_PARALLEL_FLOW_HOOK_REVIEW_REMEDIATION_20260418.md`
