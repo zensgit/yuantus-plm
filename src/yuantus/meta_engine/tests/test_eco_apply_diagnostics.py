@@ -4,13 +4,14 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
-from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.api.dependencies.auth import get_current_user_id_optional, get_current_user_optional
 from yuantus.database import get_db
 from yuantus.exceptions.handlers import PermissionError
 
 
 def _client_with_user_id(user_id: int):
     mock_db_session = MagicMock()
+    user = SimpleNamespace(id=user_id, roles=["admin"])
 
     def override_get_db():
         try:
@@ -24,6 +25,23 @@ def _client_with_user_id(user_id: int):
     app = create_app()
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = override_get_user_id
+    app.dependency_overrides[get_current_user_optional] = lambda: user
+    return TestClient(app), mock_db_session
+
+
+def _client_without_user():
+    mock_db_session = MagicMock()
+
+    def override_get_db():
+        try:
+            yield mock_db_session
+        finally:
+            pass
+
+    app = create_app()
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user_id_optional] = lambda: None
+    app.dependency_overrides[get_current_user_optional] = lambda: None
     return TestClient(app), mock_db_session
 
 
@@ -272,6 +290,69 @@ def test_unsuspend_diagnostics_200_when_eco_missing():
     assert data["errors"][0]["code"] == "eco_not_found"
 
 
+def test_unsuspend_diagnostics_uses_anonymous_user_zero_when_eco_missing():
+    client, _db = _client_without_user()
+
+    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+        service = service_cls.return_value
+        service.get_eco.return_value = None
+        service.get_unsuspend_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [
+                {
+                    "code": "eco_not_found",
+                    "message": "ECO not found: eco-404",
+                    "rule_id": "eco.exists",
+                    "details": {"eco_id": "eco-404"},
+                }
+            ],
+            "warnings": [],
+        }
+
+        resp = client.get("/api/v1/eco/eco-404/unsuspend-diagnostics")
+
+    assert resp.status_code == 200
+    service.get_unsuspend_diagnostics.assert_called_once_with(
+        "eco-404",
+        0,
+        resume_state=None,
+        ruleset_id="default",
+    )
+
+
+def test_unsuspend_diagnostics_requires_authentication_when_eco_exists():
+    client, _db = _client_without_user()
+
+    eco = SimpleNamespace(id="eco-1")
+
+    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+        service = service_cls.return_value
+        service.get_eco.return_value = eco
+
+        resp = client.get("/api/v1/eco/eco-1/unsuspend-diagnostics")
+
+    assert resp.status_code == 401
+    assert service.get_unsuspend_diagnostics.call_count == 0
+
+
+def test_unsuspend_diagnostics_denies_when_permission_check_fails():
+    client, _db = _client_with_user_id(2)
+
+    eco = SimpleNamespace(id="eco-1")
+
+    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+        service = service_cls.return_value
+        service.get_eco.return_value = eco
+        service.permission_service.check_permission.side_effect = PermissionError(
+            action="execute", resource="ECO"
+        )
+
+        resp = client.get("/api/v1/eco/eco-1/unsuspend-diagnostics")
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["code"] == "PERMISSION_DENIED"
+
+
 def test_unsuspend_endpoint_blocks_when_diagnostics_errors_present():
     client, _db = _client_with_user_id(1)
 
@@ -306,6 +387,65 @@ def test_unsuspend_endpoint_blocks_when_diagnostics_errors_present():
     assert resp.status_code == 400
     assert "ECO unsuspend blocked" in (resp.json().get("detail") or "")
     assert service.action_unsuspend.call_count == 0
+
+
+def test_suspend_endpoint_requires_authentication():
+    client, _db = _client_without_user()
+
+    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+        service = service_cls.return_value
+        resp = client.post("/api/v1/eco/eco-1/suspend", json={})
+
+    assert resp.status_code == 401
+    assert service.action_suspend.call_count == 0
+
+
+def test_suspend_endpoint_maps_permission_error_to_403():
+    client, _db = _client_with_user_id(7)
+
+    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+        service = service_cls.return_value
+        service.action_suspend.side_effect = PermissionError(
+            action="execute", resource="ECO"
+        )
+
+        resp = client.post("/api/v1/eco/eco-1/suspend", json={})
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["code"] == "PERMISSION_DENIED"
+
+
+def test_unsuspend_endpoint_requires_authentication():
+    client, _db = _client_without_user()
+
+    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+        service = service_cls.return_value
+        resp = client.post("/api/v1/eco/eco-1/unsuspend", json={})
+
+    assert resp.status_code == 401
+    assert service.get_unsuspend_diagnostics.call_count == 0
+    assert service.action_unsuspend.call_count == 0
+
+
+def test_unsuspend_endpoint_maps_permission_error_to_403():
+    client, _db = _client_with_user_id(7)
+
+    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+        service = service_cls.return_value
+        service.action_unsuspend.side_effect = PermissionError(
+            action="execute", resource="ECO"
+        )
+        service.get_eco.return_value = None
+        service.get_unsuspend_diagnostics.return_value = {
+            "ruleset_id": "default",
+            "errors": [],
+            "warnings": [],
+        }
+
+        resp = client.post("/api/v1/eco/eco-1/unsuspend", json={})
+
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["code"] == "PERMISSION_DENIED"
 
 
 def test_unsuspend_endpoint_force_bypasses_diagnostics():

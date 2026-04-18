@@ -25,7 +25,7 @@ from yuantus.meta_engine.models.eco import (
     ApprovalStatus,
 )
 from yuantus.meta_engine.services.bom_service import BOMService
-from yuantus.meta_engine.version.service import VersionService
+from yuantus.meta_engine.version.service import VersionError, VersionService
 from yuantus.meta_engine.version.file_service import VersionFileService, VersionFileError
 from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.meta_engine.services.audit_service import AuditService
@@ -55,11 +55,7 @@ class ECOService:
     def _resolve_actor_roles(self, user_id: Optional[int]) -> List[str]:
         if user_id is None:
             return []
-        try:
-            normalized_user_id = int(user_id)
-        except Exception:
-            return []
-        user = self.session.get(RBACUser, normalized_user_id)
+        user = self.session.get(RBACUser, user_id)
         if not user:
             return []
         roles: List[str] = []
@@ -178,7 +174,7 @@ class ECOService:
         if product.current_version_id and product.current_version_id != target_version.id:
             try:
                 current_version = self.version_service.get_version(product.current_version_id)
-            except Exception:
+            except VersionError:
                 current_version = None
             if current_version:
                 _append_checkout_issue(current_version, "Current version")
@@ -1377,7 +1373,7 @@ class ECOService:
                 if eco.target_version_id:
                     try:
                         self.version_service.get_version(eco.target_version_id)
-                    except Exception:
+                    except VersionError:
                         errors.append(
                             ValidationIssue(
                                 code="eco_target_version_not_found",
@@ -1396,7 +1392,7 @@ class ECOService:
                     if product:
                         try:
                             target_version = self.version_service.get_version(eco.target_version_id)
-                        except Exception:
+                        except VersionError:
                             target_version = None
                         if target_version:
                             errors.extend(

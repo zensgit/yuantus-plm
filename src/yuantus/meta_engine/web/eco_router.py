@@ -23,7 +23,13 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from yuantus.database import get_db
-from yuantus.api.dependencies.auth import get_current_user, get_current_user_id, get_current_user_id_optional
+from yuantus.api.dependencies.auth import (
+    CurrentUser,
+    get_current_user,
+    get_current_user_id,
+    get_current_user_id_optional,
+    get_current_user_optional,
+)
 from yuantus.exceptions.handlers import PermissionError
 from yuantus.meta_engine.schemas.aml import AMLAction
 from yuantus.meta_engine.services.meta_permission_service import MetaPermissionService
@@ -1100,19 +1106,19 @@ async def get_eco_unsuspend_diagnostics(
     eco_id: str,
     resume_state: Optional[str] = Query(None),
     ruleset_id: str = Query("default"),
-    user_id: int = Depends(get_current_user_id_optional),
+    user: Optional[CurrentUser] = Depends(get_current_user_optional),
     db: Session = Depends(get_db),
 ) -> ReleaseDiagnosticsResponse:
     service = ECOService(db)
     eco = service.get_eco(eco_id)
     if eco:
-        if user_id is None:
+        if user is None:
             raise HTTPException(status_code=401, detail="Authentication required")
-        _ensure_can_unsuspend_eco(service, eco_id=eco_id, user_id=int(user_id))
+        _ensure_can_unsuspend_eco(service, eco_id=eco_id, user_id=user.id)
 
     diagnostics = service.get_unsuspend_diagnostics(
         eco_id,
-        int(user_id or 0),
+        user.id if user is not None else 0,
         resume_state=resume_state,
         ruleset_id=ruleset_id,
     )
@@ -1132,7 +1138,7 @@ async def get_eco_unsuspend_diagnostics(
 async def suspend_eco(
     eco_id: str,
     data: SuspendRequest,
-    user_id: int = Depends(get_current_user_id_optional),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """Suspend an ECO without canceling it."""
@@ -1141,6 +1147,9 @@ async def suspend_eco(
         eco = service.action_suspend(eco_id, user_id, data.reason)
         db.commit()
         return eco.to_dict()
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -1154,22 +1163,19 @@ async def unsuspend_eco(
     data: UnsuspendRequest,
     force: bool = Query(False),
     ruleset_id: str = Query("default"),
-    user_id: int = Depends(get_current_user_id_optional),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     """Unsuspend an ECO and resume it into a working state."""
     service = ECOService(db)
     try:
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Authentication required")
-
         if not force:
             eco = service.get_eco(eco_id)
             if eco:
-                _ensure_can_unsuspend_eco(service, eco_id=eco_id, user_id=int(user_id))
+                _ensure_can_unsuspend_eco(service, eco_id=eco_id, user_id=user_id)
             diagnostics = service.get_unsuspend_diagnostics(
                 eco_id,
-                int(user_id),
+                user_id,
                 resume_state=data.resume_state,
                 ruleset_id=ruleset_id,
             )
@@ -1187,13 +1193,16 @@ async def unsuspend_eco(
 
         eco = service.action_unsuspend(
             eco_id,
-            int(user_id),
+            user_id,
             resume_state=data.resume_state,
         )
         db.commit()
         return eco.to_dict()
     except HTTPException:
         raise
+    except PermissionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
