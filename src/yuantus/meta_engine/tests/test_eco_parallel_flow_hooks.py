@@ -5,8 +5,27 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from yuantus.meta_engine.models.eco import ECOState
+from yuantus.security.rbac.models import RBACUser
 from yuantus.meta_engine.version.file_service import VersionFileError
+from yuantus.meta_engine.version.service import VersionError
 from yuantus.meta_engine.services.eco_service import ECOApprovalService, ECOService
+
+
+def test_resolve_actor_roles_uses_user_id_without_int_coercion():
+    session = MagicMock()
+    user_id = object()
+    session.get.return_value = SimpleNamespace(
+        roles=[
+            SimpleNamespace(name=" Planner "),
+            SimpleNamespace(name="planner"),
+            SimpleNamespace(name="QA"),
+        ]
+    )
+
+    service = ECOService(session)
+
+    assert service._resolve_actor_roles(user_id) == ["planner", "qa"]
+    session.get.assert_called_once_with(RBACUser, user_id)
 
 
 def test_move_to_stage_runs_activity_gate_and_custom_actions_hooks():
@@ -277,6 +296,77 @@ def test_apply_diagnostics_reports_foreign_file_locks():
     assert diagnostics["errors"][0].code == "eco_version_file_locks_held_by_another_user"
     assert diagnostics["errors"][0].rule_id == "eco.version_locks_clear"
     assert diagnostics["errors"][0].details["version_id"] == "v-2"
+
+
+def test_apply_diagnostics_treats_missing_target_version_as_validation_error():
+    session = MagicMock()
+    service = ECOService(session)
+    eco = SimpleNamespace(
+        id="eco-1",
+        state=ECOState.APPROVED.value,
+        product_id="item-1",
+        target_version_id="v-missing",
+    )
+    product = SimpleNamespace(id="item-1", current_version_id="v-1")
+
+    service.get_eco = MagicMock(return_value=eco)
+    service._collect_apply_version_lock_issues = MagicMock(return_value=[])
+    session.get.side_effect = lambda model, value: product if value == "item-1" else None
+    service.version_service.get_version = MagicMock(
+        side_effect=[
+            VersionError("Version v-missing not found"),
+            VersionError("Version v-missing not found"),
+        ]
+    )
+
+    with patch(
+        "yuantus.meta_engine.services.eco_service.get_release_ruleset",
+        return_value=["eco.exists", "eco.target_version_exists", "eco.version_locks_clear"],
+    ):
+        diagnostics = service.get_apply_diagnostics("eco-1", user_id=1)
+
+    assert [error.code for error in diagnostics["errors"]] == ["eco_target_version_not_found"]
+    service._collect_apply_version_lock_issues.assert_not_called()
+
+
+def test_apply_diagnostics_propagates_unexpected_target_version_lookup_errors():
+    session = MagicMock()
+    service = ECOService(session)
+    eco = SimpleNamespace(
+        id="eco-1",
+        state=ECOState.APPROVED.value,
+        product_id="item-1",
+        target_version_id="v-2",
+    )
+
+    service.get_eco = MagicMock(return_value=eco)
+    service.version_service.get_version = MagicMock(side_effect=RuntimeError("boom"))
+
+    with pytest.raises(RuntimeError, match="boom"):
+        service.get_apply_diagnostics("eco-1", user_id=1)
+
+
+def test_apply_diagnostics_propagates_unexpected_version_lock_lookup_errors():
+    session = MagicMock()
+    service = ECOService(session)
+    eco = SimpleNamespace(
+        id="eco-1",
+        state=ECOState.APPROVED.value,
+        product_id="item-1",
+        target_version_id="v-2",
+    )
+    product = SimpleNamespace(id="item-1", current_version_id="v-1")
+
+    service.get_eco = MagicMock(return_value=eco)
+    session.get.side_effect = lambda model, value: product if value == "item-1" else None
+    service.version_service.get_version = MagicMock(side_effect=RuntimeError("boom"))
+
+    with patch(
+        "yuantus.meta_engine.services.eco_service.get_release_ruleset",
+        return_value=["eco.exists", "eco.version_locks_clear"],
+    ):
+        with pytest.raises(RuntimeError, match="boom"):
+            service.get_apply_diagnostics("eco-1", user_id=1)
 
 
 def test_run_custom_actions_includes_runtime_scope_context():

@@ -22,6 +22,37 @@
 - [P2_OPS_OBSERVATION_TEMPLATE.md](./P2_OPS_OBSERVATION_TEMPLATE.md)
 - 执行脚本：`scripts/verify_p2_dev_observation_startup.sh`
 
+### 1.1 Replay Remediation Baseline
+
+在进入开发环境观察前，`PR #222` 这条 ECO replay remediation 需要先保持 focused slice 全绿。
+
+已知 replay 修复状态：
+
+| Test File | Previous Failures | Status | Resolution |
+|---|---|---|
+| `test_eco_parallel_flow_hooks.py` | 15 | ✅ Fixed | hook `context`、suspend guards、`compare_mode` support restored |
+| `test_eco_apply_diagnostics.py` | 5 | ✅ Fixed | suspend/unsuspend routes、diagnostics、apply lock guards restored |
+
+参考：
+
+- `docs/DEV_AND_VERIFICATION_ECO_PARALLEL_FLOW_HOOK_REPLAY_REMEDIATION_20260416.md`
+- `docs/DEV_AND_VERIFICATION_ECO_PARALLEL_FLOW_HOOK_REVIEW_REMEDIATION_20260418.md`
+
+建议先确认这两个 focused slices 仍然通过：
+
+```bash
+PYTHONPATH=src python3 -m pytest -q \
+  src/yuantus/meta_engine/tests/test_eco_parallel_flow_hooks.py \
+  src/yuantus/meta_engine/tests/test_eco_apply_diagnostics.py
+
+PYTHONPATH=src python3 -m pytest -q \
+  src/yuantus/meta_engine/tests/test_eco_approval_auto_assign.py \
+  src/yuantus/meta_engine/tests/test_eco_approval_escalation.py \
+  src/yuantus/meta_engine/tests/test_eco_approval_dashboard.py \
+  src/yuantus/meta_engine/tests/test_eco_approval_dashboard_export.py \
+  src/yuantus/meta_engine/tests/test_eco_approval_audit.py
+```
+
 ---
 
 ## 2. 环境准备

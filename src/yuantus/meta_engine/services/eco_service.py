@@ -25,7 +25,7 @@ from yuantus.meta_engine.models.eco import (
     ApprovalStatus,
 )
 from yuantus.meta_engine.services.bom_service import BOMService
-from yuantus.meta_engine.version.service import VersionService
+from yuantus.meta_engine.version.service import VersionError, VersionService
 from yuantus.meta_engine.version.file_service import VersionFileService, VersionFileError
 from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.meta_engine.services.audit_service import AuditService
@@ -51,6 +51,20 @@ class ECOService:
         self.permission_service = MetaPermissionService()  # Instantiate without session
         self.audit_service = AuditService(session)
         self.notification_service = NotificationService(session)
+
+    def _resolve_actor_roles(self, user_id: Optional[int]) -> List[str]:
+        if user_id is None:
+            return []
+        user = self.session.get(RBACUser, user_id)
+        if not user:
+            return []
+        roles: List[str] = []
+        for role in getattr(user, "roles", []) or []:
+            name = str(getattr(role, "name", "") or "").strip().lower()
+            if not name or name in roles:
+                continue
+            roles.append(name)
+        return roles
 
     def _enqueue_eco_created(self, eco: ECO) -> None:
         enqueue_event(
@@ -111,6 +125,65 @@ class ECOService:
             recipients=recipients,
         )
 
+    def _collect_apply_version_lock_issues(
+        self,
+        *,
+        product: Item,
+        target_version: ItemVersion,
+        user_id: int,
+        rule_id: str,
+    ) -> List[ValidationIssue]:
+        issues: List[ValidationIssue] = []
+        vf_service = VersionFileService(self.session)
+
+        def _append_checkout_issue(version: ItemVersion, label: str) -> None:
+            checked_out_by_id = getattr(version, "checked_out_by_id", None)
+            if checked_out_by_id and checked_out_by_id != user_id:
+                issues.append(
+                    ValidationIssue(
+                        code="eco_version_checked_out_by_another_user",
+                        message=f"{label} {version.id} is checked out by another user ({checked_out_by_id})",
+                        rule_id=rule_id,
+                        details={"version_id": version.id, "owner_user_id": checked_out_by_id},
+                    )
+                )
+
+        def _append_file_lock_issue(version: ItemVersion, label: str) -> None:
+            blocking_locks = vf_service.get_blocking_file_locks(version.id, user_id=user_id)
+            if not blocking_locks:
+                return
+            owners = sorted(
+                {
+                    str(vf.checked_out_by_id)
+                    for vf in blocking_locks
+                    if getattr(vf, "checked_out_by_id", None) is not None
+                }
+            )
+            issues.append(
+                ValidationIssue(
+                    code="eco_version_file_locks_held_by_another_user",
+                    message=(
+                        f"{label} {version.id} has file-level locks held by another user"
+                        + (f" ({', '.join(owners)})" if owners else "")
+                    ),
+                    rule_id=rule_id,
+                    details={"version_id": version.id, "owner_user_ids": owners},
+                )
+            )
+
+        if product.current_version_id and product.current_version_id != target_version.id:
+            try:
+                current_version = self.version_service.get_version(product.current_version_id)
+            except VersionError:
+                current_version = None
+            if current_version:
+                _append_checkout_issue(current_version, "Current version")
+                _append_file_lock_issue(current_version, "Current version")
+
+        _append_checkout_issue(target_version, "Target version")
+        _append_file_lock_issue(target_version, "Target version")
+        return issues
+
     def _ensure_activity_gate_ready(self, eco_id: str) -> None:
         """
         Block critical ECO transitions when activity gate reports unresolved blockers.
@@ -140,6 +213,7 @@ class ECOService:
         from_state: Optional[str],
         to_state: Optional[str],
         trigger_phase: str,
+        context: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Execute workflow custom actions bound to ECO state transition hooks.
@@ -148,17 +222,25 @@ class ECOService:
             WorkflowCustomActionService,
         )
 
+        runtime_context = {
+            "source": "eco_service",
+            "eco_id": eco.id,
+            "stage_id": eco.stage_id,
+            "eco_priority": (str(getattr(eco, "priority", "") or "").strip().lower() or None),
+            "eco_type": (str(getattr(eco, "eco_type", "") or "").strip().lower() or None),
+            "product_id": (str(getattr(eco, "product_id", "") or "").strip() or None),
+            "workflow_map_id": (str(getattr(eco, "workflow_map_id", "") or "").strip() or None),
+        }
+        if context:
+            runtime_context.update(dict(context))
+
         WorkflowCustomActionService(self.session).evaluate_transition(
             object_id=eco.id,
             target_object="ECO",
             from_state=from_state,
             to_state=to_state,
             trigger_phase=trigger_phase,
-            context={
-                "source": "eco_service",
-                "eco_id": eco.id,
-                "stage_id": eco.stage_id,
-            },
+            context=runtime_context,
         )
 
     def _summarize_impact_scope(self, impact_count: int) -> str:
@@ -503,6 +585,8 @@ class ECOService:
         eco = self.get_eco(eco_id)
         if not eco:
             raise ValueError(f"ECO {eco_id} not found")
+        if eco.state == ECOState.SUSPENDED.value:
+            raise ValueError("ECO is suspended; unsuspend before moving stages")
 
         # Verify stage exists
         stage = self.session.query(ECOStage).get(stage_id)
@@ -519,6 +603,10 @@ class ECOService:
             from_state=from_state,
             to_state=to_state,
             trigger_phase="before",
+            context={
+                "stage_id": stage_id,
+                "actor_roles": self._resolve_actor_roles(user_id),
+            },
         )
 
         # Update ECO stage
@@ -538,6 +626,10 @@ class ECOService:
             from_state=from_state,
             to_state=eco.state,
             trigger_phase="after",
+            context={
+                "stage_id": eco.stage_id,
+                "actor_roles": self._resolve_actor_roles(user_id),
+            },
         )
         return eco
 
@@ -552,6 +644,8 @@ class ECOService:
         eco = self.get_eco(eco_id)
         if not eco:
             raise ValueError(f"ECO {eco_id} not found")
+        if eco.state == ECOState.SUSPENDED.value:
+            raise ValueError("ECO is suspended; unsuspend before creating a new revision")
 
         if not eco.product_id:
             raise ValueError("ECO is missing product_id")
@@ -595,6 +689,232 @@ class ECOService:
             },
         )
         return target_version
+
+    def action_suspend(self, eco_id: str, user_id: int, reason: Optional[str] = None) -> ECO:
+        self.permission_service.check_permission(
+            user_id, "execute", "ECO", resource_id=eco_id, field="suspend"
+        )
+
+        eco = self.get_eco(eco_id)
+        if not eco:
+            raise ValueError(f"ECO {eco_id} not found")
+        if eco.state == ECOState.SUSPENDED.value:
+            raise ValueError("ECO is already suspended")
+        if eco.state in {ECOState.DONE.value, ECOState.CANCELED.value}:
+            raise ValueError(f"Cannot suspend ECO in {eco.state} state")
+
+        from_state = eco.state
+        runtime_context = {
+            "reason": reason,
+            "actor_roles": self._resolve_actor_roles(user_id),
+        }
+        self._run_custom_actions(
+            eco=eco,
+            from_state=from_state,
+            to_state=ECOState.SUSPENDED.value,
+            trigger_phase="before",
+            context=runtime_context,
+        )
+
+        eco.state = ECOState.SUSPENDED.value
+        eco.kanban_state = "blocked"
+        eco.approval_deadline = None
+        if reason:
+            if eco.description:
+                eco.description = f"{eco.description}\n\n[SUSPENDED] {reason}"
+            else:
+                eco.description = f"[SUSPENDED] {reason}"
+        eco.updated_at = datetime.utcnow()
+        self.session.add(eco)
+
+        self._enqueue_eco_updated(
+            eco,
+            changes={"state": eco.state, "kanban_state": eco.kanban_state},
+        )
+        self._run_custom_actions(
+            eco=eco,
+            from_state=from_state,
+            to_state=eco.state,
+            trigger_phase="after",
+            context=runtime_context,
+        )
+        return eco
+
+    def action_unsuspend(
+        self,
+        eco_id: str,
+        user_id: int,
+        *,
+        resume_state: Optional[str] = None,
+    ) -> ECO:
+        self.permission_service.check_permission(
+            user_id, "execute", "ECO", resource_id=eco_id, field="unsuspend"
+        )
+
+        eco = self.get_eco(eco_id)
+        if not eco:
+            raise ValueError(f"ECO {eco_id} not found")
+        if eco.state != ECOState.SUSPENDED.value:
+            raise ValueError("ECO is not suspended")
+
+        normalized_resume_state = str(resume_state or ECOState.PROGRESS.value).strip().lower()
+        allowed_resume_states = {
+            ECOState.DRAFT.value,
+            ECOState.PROGRESS.value,
+            ECOState.CONFLICT.value,
+            ECOState.APPROVED.value,
+        }
+        if normalized_resume_state not in allowed_resume_states:
+            raise ValueError("resume_state must be one of: draft, progress, conflict, approved")
+
+        stage = self.session.get(ECOStage, eco.stage_id) if eco.stage_id else None
+        runtime_context = {
+            "resume_state": normalized_resume_state,
+            "actor_roles": self._resolve_actor_roles(user_id),
+        }
+        self._run_custom_actions(
+            eco=eco,
+            from_state=ECOState.SUSPENDED.value,
+            to_state=normalized_resume_state,
+            trigger_phase="before",
+            context=runtime_context,
+        )
+
+        eco.state = normalized_resume_state
+        eco.kanban_state = "normal"
+        if normalized_resume_state == ECOState.APPROVED.value:
+            eco.approval_deadline = None
+        else:
+            self._apply_stage_sla(eco, stage)
+        eco.updated_at = datetime.utcnow()
+        self.session.add(eco)
+
+        self._enqueue_eco_updated(
+            eco,
+            changes={"state": eco.state, "kanban_state": eco.kanban_state},
+        )
+        self._run_custom_actions(
+            eco=eco,
+            from_state=ECOState.SUSPENDED.value,
+            to_state=eco.state,
+            trigger_phase="after",
+            context=runtime_context,
+        )
+        return eco
+
+    def get_unsuspend_diagnostics(
+        self,
+        eco_id: str,
+        user_id: int,
+        *,
+        resume_state: Optional[str] = None,
+        ruleset_id: str = "default",
+    ) -> Dict[str, Any]:
+        errors: List[ValidationIssue] = []
+        warnings: List[ValidationIssue] = []
+
+        eco = self.get_eco(eco_id)
+        if not eco:
+            errors.append(
+                ValidationIssue(
+                    code="eco_not_found",
+                    message=f"ECO not found: {eco_id}",
+                    rule_id="eco.exists",
+                    details={"eco_id": eco_id},
+                )
+            )
+            return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
+
+        normalized_resume_state = str(resume_state or ECOState.PROGRESS.value).strip().lower()
+        allowed_resume_states = {
+            ECOState.DRAFT.value,
+            ECOState.PROGRESS.value,
+            ECOState.CONFLICT.value,
+            ECOState.APPROVED.value,
+        }
+
+        if eco.state != ECOState.SUSPENDED.value:
+            errors.append(
+                ValidationIssue(
+                    code="eco_not_suspended",
+                    message=f"ECO must be in '{ECOState.SUSPENDED.value}' state before unsuspending (current: {eco.state})",
+                    rule_id="eco.state_suspended",
+                    details={"eco_id": eco_id, "state": eco.state},
+                )
+            )
+        if normalized_resume_state not in allowed_resume_states:
+            errors.append(
+                ValidationIssue(
+                    code="eco_invalid_resume_state",
+                    message="resume_state must be one of: draft, progress, conflict, approved",
+                    rule_id="resume_state.allowed",
+                    details={
+                        "eco_id": eco_id,
+                        "resume_state": normalized_resume_state,
+                        "allowed": sorted(allowed_resume_states),
+                    },
+                )
+            )
+
+        stage = self.session.get(ECOStage, eco.stage_id) if eco.stage_id else None
+        if eco.stage_id and not stage:
+            errors.append(
+                ValidationIssue(
+                    code="eco_stage_not_found",
+                    message=f"ECO stage not found: {eco.stage_id}",
+                    rule_id="eco.stage_consistency",
+                    details={"eco_id": eco_id, "stage_id": eco.stage_id},
+                )
+            )
+
+        try:
+            self._ensure_activity_gate_ready(eco_id)
+        except ValueError as exc:
+            errors.append(
+                ValidationIssue(
+                    code="eco_activity_blockers_present",
+                    message=str(exc),
+                    rule_id="eco.activity_blockers_clear",
+                    details={"eco_id": eco_id},
+                )
+            )
+
+        if (
+            normalized_resume_state == ECOState.APPROVED.value
+            and stage
+            and stage.approval_type != "none"
+            and not ECOApprovalService(self.session).check_stage_approvals_complete(eco_id, stage.id)
+        ):
+            errors.append(
+                ValidationIssue(
+                    code="eco_stage_approvals_incomplete",
+                    message="Current stage approvals must be complete before resuming into approved state.",
+                    rule_id="eco.approval_consistency",
+                    details={
+                        "eco_id": eco_id,
+                        "stage_id": stage.id,
+                        "resume_state": normalized_resume_state,
+                    },
+                )
+            )
+
+        return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
+
+    def can_unsuspend(
+        self,
+        eco_id: str,
+        user_id: int,
+        *,
+        resume_state: Optional[str] = None,
+        ruleset_id: str = "default",
+    ) -> bool:
+        diagnostics = self.get_unsuspend_diagnostics(
+            eco_id,
+            user_id,
+            resume_state=resume_state,
+            ruleset_id=ruleset_id,
+        )
+        return len(diagnostics.get("errors") or []) == 0
 
     def action_cancel(self, eco_id: str, user_id: int, reason: Optional[str] = None) -> ECO:
         self.permission_service.check_permission(
@@ -717,7 +1037,38 @@ class ECOService:
             }
         return flattened
 
-    def compute_bom_changes(self, eco_id: str) -> List[ECOBOMChange]:
+    def _create_eco_bom_change_from_compare_entry(
+        self,
+        *,
+        eco_id: str,
+        change_type: str,
+        entry: Dict[str, Any],
+    ) -> ECOBOMChange:
+        relationship_id = entry.get("relationship_id")
+        parent_id = entry.get("parent_id")
+        child_id = entry.get("child_id")
+
+        if change_type == "add":
+            old_properties = None
+            new_properties = entry.get("properties") or entry.get("after_line") or {}
+        elif change_type == "remove":
+            old_properties = entry.get("properties") or entry.get("before_line") or {}
+            new_properties = None
+        else:
+            old_properties = entry.get("before_line") or entry.get("before") or {}
+            new_properties = entry.get("after_line") or entry.get("after") or {}
+
+        return self._create_eco_bom_change(
+            eco_id=eco_id,
+            change_type=change_type,
+            relationship_item=self.session.get(Item, relationship_id) if relationship_id else None,
+            parent_item=self.session.get(Item, parent_id) if parent_id else None,
+            child_item=self.session.get(Item, child_id) if child_id else None,
+            old_properties=old_properties,
+            new_properties=new_properties,
+        )
+
+    def compute_bom_changes(self, eco_id: str, *, compare_mode: Optional[str] = None) -> List[ECOBOMChange]:
         """
         Compute BOM differences between source and target versions (level-1).
         Creates new ECOBOMChange rows (overwrites existing computed changes).
@@ -733,6 +1084,39 @@ class ECOService:
         # Recompute: delete previous change rows
         self.session.query(ECOBOMChange).filter(ECOBOMChange.eco_id == eco_id).delete()
         self.session.flush()
+
+        if compare_mode:
+            diff = self.get_bom_diff(eco_id, max_levels=1, compare_mode=compare_mode)
+            changes: List[ECOBOMChange] = []
+            for entry in diff.get("added") or []:
+                if isinstance(entry, dict):
+                    changes.append(
+                        self._create_eco_bom_change_from_compare_entry(
+                            eco_id=eco_id,
+                            change_type="add",
+                            entry=entry,
+                        )
+                    )
+            for entry in diff.get("removed") or []:
+                if isinstance(entry, dict):
+                    changes.append(
+                        self._create_eco_bom_change_from_compare_entry(
+                            eco_id=eco_id,
+                            change_type="remove",
+                            entry=entry,
+                        )
+                    )
+            for entry in diff.get("changed") or []:
+                if isinstance(entry, dict):
+                    changes.append(
+                        self._create_eco_bom_change_from_compare_entry(
+                            eco_id=eco_id,
+                            change_type="update",
+                            entry=entry,
+                        )
+                    )
+            self.session.flush()
+            return changes
 
         base_tree = self.bom_service.get_bom_for_version(eco.source_version_id, levels=1)
         target_tree = self.bom_service.get_bom_for_version(eco.target_version_id, levels=1)
@@ -989,7 +1373,7 @@ class ECOService:
                 if eco.target_version_id:
                     try:
                         self.version_service.get_version(eco.target_version_id)
-                    except Exception:
+                    except VersionError:
                         errors.append(
                             ValidationIssue(
                                 code="eco_target_version_not_found",
@@ -1001,6 +1385,24 @@ class ECOService:
                                 },
                             )
                         )
+
+            elif rule == "eco.version_locks_clear":
+                if eco.product_id and eco.target_version_id:
+                    product = self.session.get(Item, eco.product_id)
+                    if product:
+                        try:
+                            target_version = self.version_service.get_version(eco.target_version_id)
+                        except VersionError:
+                            target_version = None
+                        if target_version:
+                            errors.extend(
+                                self._collect_apply_version_lock_issues(
+                                    product=product,
+                                    target_version=target_version,
+                                    user_id=user_id,
+                                    rule_id=rule,
+                                )
+                            )
 
             elif rule == "eco.rebase_conflicts_absent":
                 if ignore_conflicts:
@@ -1058,6 +1460,7 @@ class ECOService:
             from_state=from_state,
             to_state=ECOState.DONE.value,
             trigger_phase="before",
+            context={"actor_roles": self._resolve_actor_roles(user_id)},
         )
 
         # If rebase is needed, it must be resolved manually (i.e., conflicts list should be empty)
@@ -1075,6 +1478,14 @@ class ECOService:
             raise ValueError(f"Product with ID {eco.product_id} not found.")
 
         target_version = self.version_service.get_version(eco.target_version_id)
+        lock_issues = self._collect_apply_version_lock_issues(
+            product=product,
+            target_version=target_version,
+            user_id=user_id,
+            rule_id="eco.version_locks_clear",
+        )
+        if lock_issues:
+            raise ValueError(lock_issues[0].message)
 
         # Switch current pointer + flags (best-effort)
         if product.current_version_id and product.current_version_id != target_version.id:
@@ -1099,6 +1510,7 @@ class ECOService:
             VersionFileService(self.session).sync_version_files_to_item(
                 version_id=target_version.id,
                 item_id=product.id,
+                user_id=user_id,
                 remove_missing=True,
             )
         except VersionFileError as exc:
@@ -1122,6 +1534,7 @@ class ECOService:
             from_state=from_state,
             to_state=eco.state,
             trigger_phase="after",
+            context={"actor_roles": self._resolve_actor_roles(user_id)},
         )
         return True
 
@@ -1704,6 +2117,8 @@ class ECOApprovalService:
         eco = self.session.get(ECO, eco_id)
         if not eco:
             raise ValueError("ECO not found")
+        if eco.state == ECOState.SUSPENDED.value:
+            raise ValueError("ECO is suspended; unsuspend before approving")
         if not eco.stage_id:
             raise ValueError("ECO has no stage assigned")
 
@@ -1816,6 +2231,8 @@ class ECOApprovalService:
         eco = self.session.get(ECO, eco_id)
         if not eco:
             raise ValueError("ECO not found")
+        if eco.state == ECOState.SUSPENDED.value:
+            raise ValueError("ECO is suspended; unsuspend before rejecting")
         if not eco.stage_id:
             raise ValueError("ECO has no stage assigned")
 
