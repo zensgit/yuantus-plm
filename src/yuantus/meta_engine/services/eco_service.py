@@ -1673,6 +1673,184 @@ class ECOApprovalService:
     def get_eco_approvals(self, eco_id: str) -> List[ECOApproval]:
         return self.list_approvals_for_eco(eco_id)
 
+    def _resolve_stage_candidate_users(self, stage: ECOStage) -> List[Dict[str, Any]]:
+        roles = [
+            str(role).strip()
+            for role in (stage.approval_roles or [])
+            if str(role).strip()
+        ]
+        if not roles:
+            return []
+
+        candidates: List[Dict[str, Any]] = []
+        seen_user_ids = set()
+        users = self.session.query(RBACUser).all()
+        for user in users:
+            user_id = getattr(user, "id", None)
+            if user_id in seen_user_ids:
+                continue
+            if getattr(user, "is_active", True) is False:
+                continue
+
+            matched_roles = sorted(
+                {
+                    str(getattr(role, "name", "")).strip()
+                    for role in (getattr(user, "roles", None) or [])
+                    if getattr(role, "is_active", True) is not False
+                    and str(getattr(role, "name", "")).strip() in roles
+                }
+            )
+            if not matched_roles:
+                continue
+
+            seen_user_ids.add(user_id)
+            candidates.append(
+                {
+                    "user_id": user_id,
+                    "username": getattr(user, "username", None),
+                    "email": getattr(user, "email", None),
+                    "matched_roles": matched_roles,
+                }
+            )
+
+        candidates.sort(
+            key=lambda row: (
+                str(row.get("username") or ""),
+                int(row.get("user_id") or 0),
+            )
+        )
+        return candidates
+
+    def get_approval_routing(self, eco_id: str) -> Dict[str, Any]:
+        eco = self.session.get(ECO, eco_id)
+        if not eco:
+            raise ValueError("ECO not found")
+
+        stage = self.session.get(ECOStage, eco.stage_id) if eco.stage_id else None
+        if not stage:
+            return {
+                "eco_id": eco.id,
+                "eco_state": eco.state,
+                "stage_id": eco.stage_id,
+                "stage_name": None,
+                "approval_type": "none",
+                "approval_roles": [],
+                "min_approvals": 0,
+                "approval_deadline": eco.approval_deadline.isoformat()
+                if eco.approval_deadline
+                else None,
+                "is_overdue": False,
+                "routing_mode": "none",
+                "routing_ready": False,
+                "routing_gap": "ECO has no stage assigned",
+                "candidate_approvers": [],
+                "candidate_approver_count": 0,
+                "approvals": [],
+                "approved_count": 0,
+                "rejected_count": 0,
+                "remaining_required": 0,
+                "stage_complete": False,
+            }
+
+        approvals = (
+            self.session.query(ECOApproval)
+            .filter_by(eco_id=eco.id, stage_id=stage.id)
+            .all()
+        )
+        approval_rows: List[Dict[str, Any]] = []
+        latest_by_user: Dict[int, ECOApproval] = {}
+        approved_count = 0
+        rejected_count = 0
+        for approval in approvals:
+            if (
+                approval.status == ApprovalStatus.APPROVED.value
+                and approval.approval_type == "mandatory"
+            ):
+                approved_count += 1
+            if approval.status == ApprovalStatus.REJECTED.value:
+                rejected_count += 1
+
+            if approval.user_id is not None:
+                current = latest_by_user.get(approval.user_id)
+                current_ts = getattr(current, "approved_at", None) or getattr(
+                    current, "created_at", None
+                )
+                approval_ts = getattr(approval, "approved_at", None) or getattr(
+                    approval, "created_at", None
+                )
+                if current is None or (
+                    approval_ts is not None
+                    and (current_ts is None or approval_ts >= current_ts)
+                ):
+                    latest_by_user[approval.user_id] = approval
+
+            approval_rows.append(
+                {
+                    "approval_id": approval.id,
+                    "user_id": approval.user_id,
+                    "status": approval.status,
+                    "approval_type": approval.approval_type,
+                    "required_role": approval.required_role,
+                    "comment": approval.comment,
+                    "approved_at": approval.approved_at.isoformat()
+                    if approval.approved_at
+                    else None,
+                    "created_at": approval.created_at.isoformat()
+                    if approval.created_at
+                    else None,
+                }
+            )
+
+        stage_complete = self.check_stage_approvals_complete(eco.id, stage.id)
+        remaining_required = max(int(stage.min_approvals or 0) - approved_count, 0)
+        deadline = eco.approval_deadline
+        is_overdue = bool(deadline and deadline <= datetime.utcnow())
+
+        candidate_approvers = self._resolve_stage_candidate_users(stage)
+        for candidate in candidate_approvers:
+            latest = latest_by_user.get(candidate["user_id"])
+            candidate["decision_status"] = (
+                latest.status if latest else ApprovalStatus.PENDING.value
+            )
+            candidate["approval_id"] = latest.id if latest else None
+
+        if stage.approval_type == "none":
+            routing_mode = "none"
+            routing_ready = True
+            routing_gap = None
+        elif stage.approval_roles:
+            routing_mode = "role_based"
+            routing_ready = True
+            routing_gap = None
+        else:
+            routing_mode = "open"
+            routing_ready = False
+            routing_gap = (
+                "Stage approval_roles not configured; approvals are not explicitly routed"
+            )
+
+        return {
+            "eco_id": eco.id,
+            "eco_state": eco.state,
+            "stage_id": stage.id,
+            "stage_name": stage.name,
+            "approval_type": stage.approval_type,
+            "approval_roles": list(stage.approval_roles or []),
+            "min_approvals": int(stage.min_approvals or 0),
+            "approval_deadline": deadline.isoformat() if deadline else None,
+            "is_overdue": is_overdue,
+            "routing_mode": routing_mode,
+            "routing_ready": routing_ready,
+            "routing_gap": routing_gap,
+            "candidate_approvers": candidate_approvers,
+            "candidate_approver_count": len(candidate_approvers),
+            "approvals": approval_rows,
+            "approved_count": approved_count,
+            "rejected_count": rejected_count,
+            "remaining_required": remaining_required,
+            "stage_complete": stage_complete,
+        }
+
     def _user_has_stage_role(self, user: Optional[RBACUser], stage: ECOStage) -> bool:
         if not stage.approval_roles:
             return True
