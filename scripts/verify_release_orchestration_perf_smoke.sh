@@ -31,14 +31,7 @@ if [[ ! -x "$PY_BIN" ]]; then
 fi
 
 YUANTUS_BIN="${YUANTUS_BIN:-${REPO_ROOT}/.venv/bin/yuantus}"
-if [[ ! -x "$YUANTUS_BIN" ]]; then
-  YUANTUS_BIN="yuantus"
-fi
-
 UVICORN_BIN="${UVICORN_BIN:-${REPO_ROOT}/.venv/bin/uvicorn}"
-if [[ ! -x "$UVICORN_BIN" ]]; then
-  UVICORN_BIN="uvicorn"
-fi
 
 PORT="${PORT:-0}"
 if [[ "$PORT" == "0" ]]; then
@@ -67,6 +60,28 @@ export YUANTUS_SCHEMA_MODE="create_all"
 export YUANTUS_DATABASE_URL="sqlite:////${db_path_norm}"
 export YUANTUS_IDENTITY_DATABASE_URL="sqlite:////${db_path_norm}"
 
+YUANTUS_CMD=()
+if [[ -x "$YUANTUS_BIN" ]] && "$YUANTUS_BIN" --help >/dev/null 2>&1; then
+  YUANTUS_CMD=("$YUANTUS_BIN")
+elif "$PY_BIN" -c 'from yuantus.cli import main; main()' --help >/dev/null 2>&1; then
+  YUANTUS_CMD=("$PY_BIN" "-c" "from yuantus.cli import main; main()")
+elif command -v yuantus >/dev/null 2>&1 && yuantus --help >/dev/null 2>&1; then
+  YUANTUS_CMD=("yuantus")
+else
+  fail "unable to resolve a runnable yuantus CLI"
+fi
+
+UVICORN_CMD=()
+if [[ -x "$UVICORN_BIN" ]] && "$UVICORN_BIN" --version >/dev/null 2>&1; then
+  UVICORN_CMD=("$UVICORN_BIN")
+elif "$PY_BIN" -m uvicorn --version >/dev/null 2>&1; then
+  UVICORN_CMD=("$PY_BIN" "-m" "uvicorn")
+elif command -v uvicorn >/dev/null 2>&1 && uvicorn --version >/dev/null 2>&1; then
+  UVICORN_CMD=("uvicorn")
+else
+  fail "unable to resolve a runnable uvicorn CLI"
+fi
+
 rm -f "${DB_PATH}" "${DB_PATH}-shm" "${DB_PATH}-wal" 2>/dev/null || true
 
 plan_ms_file="${OUT_DIR}/plan_ms.txt"
@@ -75,15 +90,15 @@ exec_ms_file="${OUT_DIR}/execute_dry_run_ms.txt"
 : > "$exec_ms_file"
 
 log "Seed identity/meta (db=${DB_PATH})"
-"$YUANTUS_BIN" seed-identity \
+"${YUANTUS_CMD[@]}" seed-identity \
   --tenant "$TENANT_ID" --org "$ORG_ID" \
   --username "$USERNAME" --password "$PASSWORD" \
   --user-id 1 --roles admin --superuser >/dev/null
-"$YUANTUS_BIN" seed-meta >/dev/null
+"${YUANTUS_CMD[@]}" seed-meta >/dev/null
 
 server_log="${OUT_DIR}/server.log"
 log "Start API server (base=${BASE_URL})"
-"$UVICORN_BIN" yuantus.api.app:app --host 127.0.0.1 --port "$PORT" >"$server_log" 2>&1 &
+"${UVICORN_CMD[@]}" yuantus.api.app:app --host 127.0.0.1 --port "$PORT" >"$server_log" 2>&1 &
 server_pid="$!"
 
 cleanup() {
