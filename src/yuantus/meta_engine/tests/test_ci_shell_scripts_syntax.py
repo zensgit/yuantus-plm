@@ -92,6 +92,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_docs_parallel_split_helper.sh",
         scripts_dir / "print_mainline_baseline_switch_commands.sh",
         scripts_dir / "print_p2_shared_dev_bootstrap_commands.sh",
+        scripts_dir / "print_p2_shared_dev_142_readonly_rerun_commands.sh",
         scripts_dir / "print_p2_shared_dev_first_run_commands.sh",
         scripts_dir / "print_p2_shared_dev_mode_selection.sh",
         scripts_dir / "precheck_p2_observation_regression.sh",
