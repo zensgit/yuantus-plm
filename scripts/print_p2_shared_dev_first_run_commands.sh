@@ -8,6 +8,11 @@ P2 shared-dev first-run checklist
 
 Run all repo-relative commands below from the Yuantus repo root.
 
+Use this sheet only after you have explicitly confirmed the shared-dev environment may be reset or initialized.
+If reset approval is unknown, stop here and use:
+- bash scripts/print_p2_shared_dev_mode_selection.sh
+- bash scripts/print_p2_shared_dev_observation_commands.sh
+
 0. Generate both env files locally
 
 scripts/generate_p2_shared_dev_bootstrap_env.sh \

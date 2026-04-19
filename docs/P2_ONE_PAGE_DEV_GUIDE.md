@@ -26,6 +26,21 @@
 
 ## 2. 你真正要跑的命令
 
+### 2.0 先判定你走哪条 shared-dev 路径
+
+如果你不确定当前 shared-dev 能不能重置，不要先碰 bootstrap，默认按 **existing shared-dev rerun** 处理。
+
+直接看：
+
+- `bash scripts/print_p2_shared_dev_mode_selection.sh`
+
+结论只有两条：
+
+- **不确定能否重置 / 环境可能已在用**：
+  - `bash scripts/print_p2_shared_dev_observation_commands.sh`
+- **明确可以重置 / fresh shared-dev**：
+  - `bash scripts/print_p2_shared_dev_first_run_commands.sh`
+
 ### 2.1 首选：env file + 本地 precheck
 
 如果不想每次重新 `export` shared-dev 凭证，先在本地准备一个不入库的 env 文件：

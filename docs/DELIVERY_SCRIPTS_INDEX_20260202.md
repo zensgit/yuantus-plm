@@ -34,6 +34,9 @@
 - print_dirty_tree_domain_coverage.sh
 - print_dirty_tree_split_matrix.sh
 - print_docs_parallel_split_helper.sh
+- print_p2_shared_dev_bootstrap_commands.sh
+- print_p2_shared_dev_first_run_commands.sh
+- print_p2_shared_dev_mode_selection.sh
 - print_p2_shared_dev_observation_commands.sh
 - precheck_p2_observation_regression.sh
 - print_strict_gate_split_helper.sh
@@ -71,6 +74,9 @@
 - `print_dirty_tree_domain_coverage.sh` prints dirty-tree coverage totals, per-domain counts, and uncovered residual paths.
 - `print_dirty_tree_split_matrix.sh` prints the single-entry overview for the full dirty-tree split sequence.
 - `print_docs_parallel_split_helper.sh` prints the fast-path staging commands for the docs-parallel split.
+- `print_p2_shared_dev_bootstrap_commands.sh` prints the server-side shared-dev bootstrap and post-bootstrap observation handoff commands.
+- `print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.
+- `print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.
 - `print_p2_shared_dev_observation_commands.sh` prints the canonical P2 shared-dev shell and workflow entry commands.
 - `precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe for auth plus the dashboard summary read surface, and writes `OBSERVATION_PRECHECK.md`.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
