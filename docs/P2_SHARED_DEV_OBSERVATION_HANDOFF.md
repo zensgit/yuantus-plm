@@ -22,6 +22,10 @@
 
 - `bash scripts/run_p2_shared_dev_142_workflow_probe.sh`
 
+如果你要的是 **GitHub Actions 采集 + official frozen baseline readonly compare/eval**，直接用：
+
+- `bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh`
+
 适用场景：
 
 - 有真实共享 `dev` 环境

@@ -98,6 +98,7 @@ def test_p2_observation_regression_workflow_contracts() -> None:
         "gh workflow run p2-observation-regression",
         "scripts/run_p2_observation_regression_workflow.sh",
         "scripts/run_p2_shared_dev_142_workflow_probe.sh",
+        "scripts/run_p2_shared_dev_142_workflow_readonly_check.sh",
         "P2_OBSERVATION_TOKEN",
         "P2_OBSERVATION_PASSWORD",
         "WORKFLOW_PRECHECK.md",
