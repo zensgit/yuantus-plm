@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: print_mainline_baseline_switch_commands.sh [--repo PATH] [--base-branch REF] [--worktree-name NAME] [--backup-branch NAME]
+Usage: print_mainline_baseline_switch_commands.sh [--repo PATH] [--base-branch REF] [--worktree-name NAME] [--worktree-branch NAME] [--backup-branch NAME]
 
 Print safe command templates for preserving a dirty feature worktree and
 switching to a clean mainline baseline worktree.
@@ -22,6 +22,8 @@ BASE_BRANCH="origin/main"
 CURRENT_BRANCH="$(git -C "${REPO_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'main')"
 STAMP="$(date '+%Y%m%d-%H%M%S')"
 WORKTREE_NAME="mainline-${STAMP}"
+WORKTREE_BRANCH="baseline/${WORKTREE_NAME}"
+WORKTREE_BRANCH_EXPLICIT="0"
 BACKUP_BRANCH="backup/${CURRENT_BRANCH//\//-}-${STAMP}"
 
 while (($# > 0)); do
@@ -42,6 +44,11 @@ while (($# > 0)); do
       BACKUP_BRANCH="${2:-}"
       shift 2
       ;;
+    --worktree-branch)
+      WORKTREE_BRANCH="${2:-}"
+      WORKTREE_BRANCH_EXPLICIT="1"
+      shift 2
+      ;;
     --help|-h)
       usage
       exit 0
@@ -54,6 +61,10 @@ while (($# > 0)); do
   esac
 done
 
+if [[ "${WORKTREE_BRANCH_EXPLICIT}" != "1" ]]; then
+  WORKTREE_BRANCH="baseline/${WORKTREE_NAME}"
+fi
+
 WORKTREE_PARENT="$(dirname "${REPO_PATH}")/$(basename "${REPO_PATH}")-worktrees"
 WORKTREE_PATH="${WORKTREE_PARENT}/${WORKTREE_NAME}"
 
@@ -62,6 +73,7 @@ base_q="$(printf '%q' "${BASE_BRANCH}")"
 backup_q="$(printf '%q' "${BACKUP_BRANCH}")"
 worktree_parent_q="$(printf '%q' "${WORKTREE_PARENT}")"
 worktree_path_q="$(printf '%q' "${WORKTREE_PATH}")"
+worktree_branch_q="$(printf '%q' "${WORKTREE_BRANCH}")"
 
 cat <<EOF
 # Mainline baseline switch templates
@@ -70,6 +82,7 @@ cat <<EOF
 # baseline ref: ${BASE_BRANCH}
 # suggested backup branch: ${BACKUP_BRANCH}
 # suggested worktree: ${WORKTREE_PATH}
+# suggested worktree branch: ${WORKTREE_BRANCH}
 
 ## 1) Inspect current state
 git -C ${repo_q} status --short
@@ -83,7 +96,7 @@ git -C ${repo_q} stash push -u -m 'baseline-switch ${STAMP}'
 
 ## 3) Create a clean mainline worktree
 mkdir -p ${worktree_parent_q}
-git -C ${repo_q} worktree add ${worktree_path_q} ${base_q}
+git -C ${repo_q} worktree add -b ${worktree_branch_q} ${worktree_path_q} ${base_q}
 
 ## 4) Re-apply only the current-branch unique commits if still wanted
 git -C ${worktree_path_q} cherry-pick f9076f4 09b30e2 e42c79e d24b5a4 6738eac a50f400

@@ -60,8 +60,12 @@ git stash push -u -m 'baseline-switch <stamp>'
 
 ```bash
 mkdir -p ../Yuantus-worktrees
-git worktree add ../Yuantus-worktrees/mainline-<stamp> origin/main
+git worktree add -b baseline/mainline-<stamp> \
+  ../Yuantus-worktrees/mainline-<stamp> origin/main
 ```
+
+Using a dedicated local branch is preferred over a detached worktree when the
+new worktree is meant to become an ongoing development baseline.
 
 ### 4. Re-apply only what still matters
 
