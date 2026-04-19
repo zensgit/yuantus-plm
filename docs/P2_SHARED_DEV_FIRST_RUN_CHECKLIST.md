@@ -66,9 +66,11 @@ scp "$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env" \
 
 ```bash
 cd <server-repo>
-docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env \
+docker compose -f docker-compose.yml --env-file ./deployments/docker/shared-dev.bootstrap.env \
   --profile bootstrap run --rm bootstrap
 ```
+
+这里明确固定到仓库跟踪的 `docker-compose.yml`。fresh shared-dev first-run 不应隐式依赖任何机器本地的 `docker-compose.override.yml`。
 
 预期：
 
@@ -81,7 +83,7 @@ docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env \
 ### 5. 启动常驻服务
 
 ```bash
-docker compose up -d api worker
+docker compose -f docker-compose.yml up -d api worker
 ```
 
 ### 6. 做最小存活检查
