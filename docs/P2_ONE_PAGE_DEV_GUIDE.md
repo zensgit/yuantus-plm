@@ -26,10 +26,40 @@
 
 ## 2. 你真正要跑的命令
 
-### 2.1 首选：单条 shell wrapper
+### 2.1 首选：env file + 单条 shell wrapper
+
+如果不想每次重新 `export` shared-dev 凭证，先在本地准备一个不入库的 env 文件：
+
+```bash
+cat > ./p2-shared-dev.env <<'ENVEOF'
+BASE_URL=http://<dev-host>
+TOKEN=<jwt>
+TENANT_ID=<tenant>
+ORG_ID=<org>
+ENVIRONMENT=shared-dev
+ARCHIVE_RESULT=1
+ENVEOF
+```
+
+然后直接跑：
+
+```bash
+OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
+scripts/run_p2_observation_regression.sh \
+  --env-file ./p2-shared-dev.env
+```
+
+这会额外生成同级归档：
+
+```text
+<OUTPUT_DIR>.tar.gz
+```
+
+### 2.2 直接环境变量：单条 shell wrapper
 
 ```bash
 BASE_URL=http://<dev-host> TOKEN=<jwt> [TENANT_ID=... ORG_ID=...] \
+ARCHIVE_RESULT=1 \
 OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
 scripts/run_p2_observation_regression.sh
 ```
@@ -38,11 +68,12 @@ scripts/run_p2_observation_regression.sh
 
 ```bash
 BASE_URL=http://<dev-host> USERNAME=<user> PASSWORD=<password> [TENANT_ID=... ORG_ID=...] \
+ARCHIVE_RESULT=1 \
 OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
 scripts/run_p2_observation_regression.sh
 ```
 
-### 2.2 GitHub workflow 入口
+### 2.3 GitHub workflow 入口
 
 如果你不想在本地 shell 里手工拼 `gh workflow run/list/watch/download`，直接用：
 
@@ -62,7 +93,7 @@ scripts/run_p2_observation_regression_workflow.sh \
 3. 下载 `p2-observation-regression` artifact
 4. 生成 `WORKFLOW_DISPATCH_RESULT.md`
 
-### 2.3 原始 verify/render 命令
+### 2.4 原始 verify/render 命令
 
 只有在你需要调试最底层采集脚本时，才回到这组命令：
 
@@ -82,7 +113,7 @@ python3 scripts/render_p2_observation_result.py \
   --environment "shared-dev"
 ```
 
-### 2.4 可选：和基线做差异对比
+### 2.5 可选：和基线做差异对比
 
 ```bash
 python3 scripts/compare_p2_observation_results.py \
@@ -92,7 +123,7 @@ python3 scripts/compare_p2_observation_results.py \
   --current-label current
 ```
 
-### 2.5 自动判定是否通过
+### 2.6 自动判定是否通过
 
 ```bash
 python3 scripts/evaluate_p2_observation_results.py \
@@ -112,7 +143,7 @@ python3 scripts/evaluate_p2_observation_results.py \
   --expect-delta escalated_count=1
 ```
 
-### 2.6 只在需要时直接用原始 gh 命令
+### 2.7 只在需要时直接用原始 gh 命令
 
 如果你只是想最小化触发，不需要本地等待和下载，也可以直接用：
 

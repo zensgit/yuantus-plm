@@ -31,43 +31,71 @@
 
 ## 最小执行步骤
 
-### 1. 导出环境变量
+### 1. 首选：准备本地 env 文件
 
 ```bash
-export BASE_URL="http://<dev-host>"
-export TOKEN="<jwt>"
-export TENANT_ID="<tenant>"
-export ORG_ID="<org>"
+cat > ./p2-shared-dev.env <<'ENVEOF'
+BASE_URL="http://<dev-host>"
+TOKEN="<jwt>"
+TENANT_ID="<tenant>"
+ORG_ID="<org>"
+ENVIRONMENT="shared-dev"
+ARCHIVE_RESULT=1
+ENVEOF
 ```
 
 ### 2. 执行 canonical shell wrapper
 
 ```bash
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
-BASE_URL="$BASE_URL" \
-TOKEN="$TOKEN" \
-TENANT_ID="$TENANT_ID" \
-ORG_ID="$ORG_ID" \
-ENVIRONMENT="shared-dev" \
-OUTPUT_DIR="$OUTPUT_DIR" \
-scripts/run_p2_observation_regression.sh
+OUTPUT_DIR="$OUTPUT_DIR" scripts/run_p2_observation_regression.sh --env-file ./p2-shared-dev.env
 ```
 
 如果没有现成 `JWT`，可改用 wrapper 自带登录：
 
 ```bash
+cat > ./p2-shared-dev.env <<'ENVEOF'
+BASE_URL="http://<dev-host>"
+USERNAME="<user>"
+PASSWORD="<password>"
+TENANT_ID="<tenant>"
+ORG_ID="<org>"
+ENVIRONMENT="shared-dev"
+ARCHIVE_RESULT=1
+ENVEOF
+
+OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
+OUTPUT_DIR="$OUTPUT_DIR" scripts/run_p2_observation_regression.sh --env-file ./p2-shared-dev.env
+```
+
+如果你不想落 env 文件，也可以继续沿用直接导出环境变量方式：
+
+```bash
+export BASE_URL="http://<dev-host>"
+export TOKEN="<jwt>"
+export TENANT_ID="<tenant>"
+export ORG_ID="<org>"
+
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
 BASE_URL="$BASE_URL" \
-USERNAME="<user>" \
-PASSWORD="<password>" \
+TOKEN="$TOKEN" \
 TENANT_ID="$TENANT_ID" \
 ORG_ID="$ORG_ID" \
 ENVIRONMENT="shared-dev" \
+ARCHIVE_RESULT=1 \
 OUTPUT_DIR="$OUTPUT_DIR" \
 scripts/run_p2_observation_regression.sh
 ```
 
 ### 3. 打包证据
+
+如果上面用了 `ARCHIVE_RESULT=1`，wrapper 会自动生成：
+
+```bash
+${OUTPUT_DIR}.tar.gz
+```
+
+否则手工打包：
 
 ```bash
 tar -czf "${OUTPUT_DIR}.tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTPUT_DIR")"

@@ -73,7 +73,7 @@
 - `print_p2_shared_dev_observation_commands.sh` prints the canonical P2 shared-dev shell and workflow entry commands.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
-- `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, and supports either `TOKEN` or `USERNAME/PASSWORD`.
+- `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, supports either `TOKEN` or `USERNAME/PASSWORD`, can load defaults from `--env-file`, and can auto-write `<OUTPUT_DIR>.tar.gz`.
 - `run_p2_observation_regression_workflow.sh` is the canonical local wrapper for `gh workflow run/list/watch/download` against `p2-observation-regression`.
 - `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.

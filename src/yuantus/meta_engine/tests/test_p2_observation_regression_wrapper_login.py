@@ -260,6 +260,70 @@ def test_p2_observation_regression_wrapper_skips_login_when_token_is_provided(tm
     assert (output_dir / "OBSERVATION_EVAL.md").is_file()
 
 
+def test_p2_observation_regression_wrapper_supports_env_file_defaults_and_archive(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_observation_regression.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    _ObservationHandler.login_requests = []
+    _ObservationHandler.observed_paths = []
+    _ObservationHandler.auth_headers = []
+    _ObservationHandler.tenant_headers = []
+    _ObservationHandler.org_headers = []
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _ObservationHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    output_dir = tmp_path / "env-file-result"
+    env_file = tmp_path / "p2-shared-dev.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                f"BASE_URL=http://127.0.0.1:{server.server_port}",
+                "TOKEN=test-token",
+                "TENANT_ID=tenant-from-file",
+                "ORG_ID=org-from-file",
+                f"OUTPUT_DIR={output_dir}",
+                "OPERATOR=env-file-operator",
+                "ENVIRONMENT=env-file",
+                "EVAL_MODE=current-only",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    archive_path = Path(f"{output_dir}.tar.gz")
+
+    env = {
+        "TENANT_ID": "tenant-override",
+        "PY": "python3",
+    }
+
+    try:
+        cp = subprocess.run(  # noqa: S603,S607
+            ["bash", str(script), "--env-file", str(env_file), "--archive"],
+            text=True,
+            capture_output=True,
+            cwd=repo_root,
+            env={**env},
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert _ObservationHandler.login_requests == []
+    assert set(_ObservationHandler.auth_headers) == {"Bearer test-token"}
+    assert set(_ObservationHandler.tenant_headers) == {"tenant-override"}
+    assert set(_ObservationHandler.org_headers) == {"org-from-file"}
+    assert (output_dir / "OBSERVATION_RESULT.md").is_file()
+    assert (output_dir / "OBSERVATION_EVAL.md").is_file()
+    assert archive_path.is_file()
+    assert str(archive_path) in (cp.stdout or "")
+
+
 def test_p2_observation_regression_wrapper_fails_cleanly_on_login_http_error(tmp_path: Path) -> None:
     repo_root = _find_repo_root(Path(__file__))
     script = repo_root / "scripts" / "run_p2_observation_regression.sh"
