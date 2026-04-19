@@ -10,6 +10,27 @@ workflow 名称：
 
 - `p2-observation-regression`
 
+推荐本地 wrapper：
+
+```bash
+scripts/run_p2_observation_regression_workflow.sh \
+  --base-url http://<target-host> \
+  --tenant-id tenant-1 \
+  --org-id org-1 \
+  --environment shared-dev \
+  --out-dir ./tmp/p2-observation-workflow-$(date +%Y%m%d-%H%M%S)
+```
+
+它会自动完成：
+
+1. `gh workflow run`
+2. `gh run list` 定位 run id
+3. `gh run watch`
+4. `gh run download`
+5. 生成：
+   - `WORKFLOW_DISPATCH_RESULT.md`
+   - `workflow_dispatch.json`
+
 手工触发：
 
 ```bash
@@ -93,6 +114,11 @@ artifact `p2-observation-regression` 内至少包含：
 - `anomalies.json`
 - `OBSERVATION_RESULT.md`
 - `OBSERVATION_EVAL.md`
+
+如果用本地 wrapper，还会另外生成：
+
+- `WORKFLOW_DISPATCH_RESULT.md`
+- `workflow_dispatch.json`
 
 如果 precheck 失败，则至少包含：
 

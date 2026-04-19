@@ -96,6 +96,7 @@ def test_p2_observation_regression_workflow_contracts() -> None:
     doc_text = _read(doc)
     for token in (
         "gh workflow run p2-observation-regression",
+        "scripts/run_p2_observation_regression_workflow.sh",
         "P2_OBSERVATION_TOKEN",
         "P2_OBSERVATION_PASSWORD",
         "WORKFLOW_PRECHECK.md",

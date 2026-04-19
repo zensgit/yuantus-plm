@@ -94,6 +94,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_subcontracting_first_cut_anchors.sh",
         scripts_dir / "run_claude_code_parallel_reviewer.sh",
         scripts_dir / "run_p2_observation_regression.sh",
+        scripts_dir / "run_p2_observation_regression_workflow.sh",
         scripts_dir / "verify_run_h_e2e.sh",
         scripts_dir / "verify_run_h.sh",
     ]
@@ -235,3 +236,26 @@ def test_strict_gate_recent_perf_audit_regression_script_has_help() -> None:
     assert "--success-conclusion" in out
     assert "--summary-json" in out
     assert "--out-dir" in out
+
+
+def test_p2_observation_regression_workflow_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_observation_regression_workflow.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    assert "Usage:" in out
+    assert "run_p2_observation_regression_workflow.sh" in out
+    assert "--base-url" in out
+    assert "--workflow" in out
+    assert "--artifact-name" in out
+    assert "--poll-interval-sec" in out
+    assert "--max-discovery-sec" in out
+    assert "WORKFLOW_DISPATCH_RESULT.md" in out
+    assert "workflow_dispatch.json" in out

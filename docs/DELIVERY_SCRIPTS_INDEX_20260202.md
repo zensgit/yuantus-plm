@@ -34,9 +34,16 @@
 - print_dirty_tree_domain_coverage.sh
 - print_dirty_tree_split_matrix.sh
 - print_docs_parallel_split_helper.sh
+- print_p2_shared_dev_observation_commands.sh
 - print_strict_gate_split_helper.sh
 - run_claude_code_parallel_reviewer.sh
+- run_p2_observation_regression.sh
+- run_p2_observation_regression_workflow.sh
 - sync_metasheet2_pact.sh
+- compare_p2_observation_results.py
+- evaluate_p2_observation_results.py
+- render_p2_observation_result.py
+- verify_p2_dev_observation_startup.sh
 - verify_run_h.sh
 - verify_effectivity_extended.sh
 - verify_lifecycle_suspended.sh
@@ -63,7 +70,10 @@
 - `print_dirty_tree_domain_coverage.sh` prints dirty-tree coverage totals, per-domain counts, and uncovered residual paths.
 - `print_dirty_tree_split_matrix.sh` prints the single-entry overview for the full dirty-tree split sequence.
 - `print_docs_parallel_split_helper.sh` prints the fast-path staging commands for the docs-parallel split.
+- `print_p2_shared_dev_observation_commands.sh` prints the canonical P2 shared-dev shell and workflow entry commands.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
+- `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, and supports either `TOKEN` or `USERNAME/PASSWORD`.
+- `run_p2_observation_regression_workflow.sh` is the canonical local wrapper for `gh workflow run/list/watch/download` against `p2-observation-regression`.
 - `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.

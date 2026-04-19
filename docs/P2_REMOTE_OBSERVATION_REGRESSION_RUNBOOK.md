@@ -105,23 +105,39 @@ OUT="${REMOTE_WORKSPACE}/remote-dev-results/${TS}-baseline"
 mkdir -p "$OUT"
 ```
 
-### 3. 获取 admin token
+### 3. 用 canonical wrapper 跑 admin baseline
 
-`verify_p2_dev_observation_startup.sh` 不负责登录，必须先拿 token。
+优先不要手工 `curl login + verify + render`，直接用 wrapper：
 
 ```bash
 : "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD from a secure channel before continuing}"
 
-ADMIN_TOKEN=$(
-  python3 -c 'import json, os, sys; json.dump({"tenant_id": "tenant-1", "username": os.environ["ADMIN_USERNAME"], "password": os.environ["ADMIN_PASSWORD"], "org_id": "org-1"}, sys.stdout)' \
-  | curl -sS -X POST "$BASE_URL/api/v1/auth/login" \
-      -H 'content-type: application/json' \
-      --data-binary @- \
-  | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])'
-)
+BASE_URL="$BASE_URL" \
+USERNAME="$ADMIN_USERNAME" \
+PASSWORD="$ADMIN_PASSWORD" \
+TENANT_ID=tenant-1 \
+ORG_ID=org-1 \
+OPERATOR="$REMOTE_USER" \
+ENVIRONMENT=remote-local-dev-env \
+OUTPUT_DIR="$OUT" \
+bash scripts/run_p2_observation_regression.sh
 ```
 
-如果要额外复核一次权限拒绝，再拿 `ops-viewer` token：
+预期：
+
+- `summary / items / export / anomalies` 全部返回 `200`
+- `OBSERVATION_RESULT.md` 自动生成
+- 结果写入 `$OUT`
+
+### 4. 查看结果
+
+```bash
+cat "$OUT/OBSERVATION_RESULT.md"
+```
+
+### 5. 可选：额外复核一次权限拒绝
+
+如果要单独看 `401/403/200` 行为，再拿 `ops-viewer` token：
 
 ```bash
 : "${VIEWER_PASSWORD:?Set VIEWER_PASSWORD from a secure channel before continuing}"
@@ -133,40 +149,6 @@ VIEWER_TOKEN=$(
       --data-binary @- \
   | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])'
 )
-```
-
-### 4. 采集只读 baseline
-
-```bash
-BASE_URL="$BASE_URL" \
-TOKEN="$ADMIN_TOKEN" \
-TENANT_ID=tenant-1 \
-ORG_ID=org-1 \
-OUTPUT_DIR="$OUT" \
-bash scripts/verify_p2_dev_observation_startup.sh
-```
-
-预期：
-
-- `summary / items / export / anomalies` 全部返回 `200`
-- 结果写入 `$OUT`
-
-### 5. 渲染结果
-
-优先直接在容器里跑 renderer，避免依赖远端宿主机 Python 环境。
-
-```bash
-docker exec -w /work "$API_CONTAINER" \
-  python scripts/render_p2_observation_result.py \
-  "/work/remote-dev-results/$(basename "$OUT")" \
-  --operator "$REMOTE_USER" \
-  --environment remote-local-dev-env
-```
-
-查看结果：
-
-```bash
-cat "$OUT/OBSERVATION_RESULT.md"
 ```
 
 如果要和已冻结基线做快速差异对比，可在本地或远端执行：
@@ -219,6 +201,16 @@ python3 scripts/evaluate_p2_observation_results.py \
 AFTER="${REMOTE_WORKSPACE}/remote-dev-results/${TS}-after"
 mkdir -p "$AFTER"
 
+: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD from a secure channel before continuing}"
+
+ADMIN_TOKEN=$(
+  python3 -c 'import json, os, sys; json.dump({"tenant_id": "tenant-1", "username": os.environ["ADMIN_USERNAME"], "password": os.environ["ADMIN_PASSWORD"], "org_id": "org-1"}, sys.stdout)' \
+  | curl -sS -X POST "$BASE_URL/api/v1/auth/login" \
+      -H 'content-type: application/json' \
+      --data-binary @- \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])'
+)
+
 curl -sS -X POST "$BASE_URL/api/v1/eco/approvals/escalate-overdue" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H 'x-tenant-id: tenant-1' \
@@ -241,14 +233,10 @@ BASE_URL="$BASE_URL" \
 TOKEN="$ADMIN_TOKEN" \
 TENANT_ID=tenant-1 \
 ORG_ID=org-1 \
+OPERATOR="$REMOTE_USER" \
+ENVIRONMENT=remote-local-dev-env \
 OUTPUT_DIR="$AFTER" \
-bash scripts/verify_p2_dev_observation_startup.sh
-
-docker exec -w /work "$API_CONTAINER" \
-  python scripts/render_p2_observation_result.py \
-  "/work/remote-dev-results/$(basename "$AFTER")" \
-  --operator "$REMOTE_USER" \
-  --environment remote-local-dev-env
+bash scripts/run_p2_observation_regression.sh
 ```
 
 ### 3. 结果判定
