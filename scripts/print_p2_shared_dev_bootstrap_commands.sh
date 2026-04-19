@@ -6,14 +6,22 @@ cat <<'EOF'
 P2 shared-dev bootstrap handoff
 ===============================
 
+0. Preferred: generate both env files locally first
+
+scripts/generate_p2_shared_dev_bootstrap_env.sh \
+  --base-url "https://<shared-dev-host>"
+
 Server-side bootstrap
 ---------------------
 
 1. Prepare bootstrap env
 
-cp deployments/docker/shared-dev.bootstrap.env.example deployments/docker/shared-dev.bootstrap.env
+cp "$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env" \
+  deployments/docker/shared-dev.bootstrap.env
 
-# Edit at least:
+# If you did not run the helper above, fall back to:
+# cp deployments/docker/shared-dev.bootstrap.env.example deployments/docker/shared-dev.bootstrap.env
+# then edit:
 # - YUANTUS_BOOTSTRAP_ADMIN_PASSWORD
 # - YUANTUS_BOOTSTRAP_VIEWER_PASSWORD
 
