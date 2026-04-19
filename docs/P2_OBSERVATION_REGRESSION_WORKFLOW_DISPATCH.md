@@ -10,6 +10,24 @@ workflow 名称：
 
 - `p2-observation-regression`
 
+如果目标就是 **shared-dev 142**，优先直接用固定 wrapper：
+
+```bash
+bash scripts/run_p2_shared_dev_142_workflow_probe.sh
+```
+
+这条入口固定：
+
+- `base_url=http://142.171.239.56:7910`
+- `tenant_id=tenant-1`
+- `org_id=org-1`
+- `environment=shared-dev-142-workflow-probe`
+
+并明确保持：
+
+- `current-only`
+- 不替代本地 readonly baseline compare
+
 推荐本地 wrapper：
 
 ```bash
