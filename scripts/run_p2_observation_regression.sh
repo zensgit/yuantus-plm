@@ -298,6 +298,11 @@ BASE_URL="${BASE_URL}" \
 TOKEN="${TOKEN}" \
 TENANT_ID="${TENANT_ID:-}" \
 ORG_ID="${ORG_ID:-}" \
+COMPANY_ID="${COMPANY_ID:-}" \
+ECO_TYPE="${ECO_TYPE:-}" \
+ECO_STATE="${ECO_STATE:-}" \
+DEADLINE_FROM="${DEADLINE_FROM:-}" \
+DEADLINE_TO="${DEADLINE_TO:-}" \
 OUTPUT_DIR="${output_dir}" \
 bash scripts/verify_p2_dev_observation_startup.sh
 

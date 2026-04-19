@@ -31,6 +31,7 @@ Behavior:
 Notes:
   - do not commit the generated files
   - copy the bootstrap file to the shared-dev server before running docker compose bootstrap
+  - run from the repo root when using the follow-up commands below
 EOF
 }
 
@@ -159,12 +160,14 @@ Bootstrap credentials:
   ops-viewer -> ${viewer_username} / ${viewer_password}
 
 Next steps:
-  1. Copy bootstrap env to the server:
+  1. From the repo root, validate the generated files:
+       scripts/validate_p2_shared_dev_env.sh --mode both --bootstrap-env "${bootstrap_out}" --observation-env "${observation_out}"
+  2. Copy bootstrap env to the server:
        cp "${bootstrap_out}" <server-repo>/deployments/docker/shared-dev.bootstrap.env
-  2. On the server run:
+  3. On the server, from the repo root, run:
        docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env --profile bootstrap run --rm bootstrap
        docker compose up -d api worker
-  3. Locally run:
+  4. Locally, from the repo root, run:
        scripts/precheck_p2_observation_regression.sh --env-file "${observation_out}"
        OUTPUT_DIR="./tmp/p2-shared-dev-observation-\$(date +%Y%m%d-%H%M%S)" ARCHIVE_RESULT=1 scripts/run_p2_observation_regression.sh --env-file "${observation_out}"
 EOF

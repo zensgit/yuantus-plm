@@ -6,10 +6,14 @@ cat <<'EOF'
 P2 shared-dev bootstrap handoff
 ===============================
 
+Run all repo-relative commands below from the Yuantus repo root.
+
 0. Preferred: generate both env files locally first
 
 scripts/generate_p2_shared_dev_bootstrap_env.sh \
   --base-url "https://<shared-dev-host>"
+
+scripts/validate_p2_shared_dev_env.sh
 
 Server-side bootstrap
 ---------------------
@@ -55,6 +59,8 @@ ENVIRONMENT="shared-dev"
 ENVEOF
 
 chmod 600 "$ENV_FILE"
+
+scripts/validate_p2_shared_dev_env.sh --mode observation --observation-env "$ENV_FILE"
 
 Observation execution
 ---------------------

@@ -6,6 +6,8 @@ cat <<'EOF'
 P2 shared dev observation handoff
 =================================
 
+Run all repo-relative commands below from the Yuantus repo root.
+
 1. Preferred: put shared-dev defaults in a local env file
 
 ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"
@@ -20,6 +22,8 @@ ENVIRONMENT="shared-dev"
 ENVEOF
 
 chmod 600 "$ENV_FILE"
+
+scripts/validate_p2_shared_dev_env.sh --mode observation --observation-env "$ENV_FILE"
 
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)" \
 scripts/precheck_p2_observation_regression.sh \
