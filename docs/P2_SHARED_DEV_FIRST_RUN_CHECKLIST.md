@@ -33,8 +33,10 @@
 
 ```bash
 scripts/generate_p2_shared_dev_bootstrap_env.sh \
-  --base-url "https://<shared-dev-host>"
+  --base-url "https://change-me-shared-dev-host"
 ```
+
+这里的 `change-me-shared-dev-host` 必须先替换成真实 shared-dev 域名或网关地址，再继续第 2 步。
 
 默认生成：
 
@@ -125,10 +127,12 @@ scripts/run_p2_observation_regression.sh \
 
 - `OBSERVATION_PRECHECK.md`
 - `observation_precheck.json`
+- `summary_probe.json`
 - `summary.json`
 - `items.json`
 - `anomalies.json`
 - `export.csv`
+- `README.txt`
 - `OBSERVATION_RESULT.md`
 - `${OUTPUT_DIR}.tar.gz`
 

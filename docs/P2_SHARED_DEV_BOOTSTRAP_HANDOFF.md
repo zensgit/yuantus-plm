@@ -72,8 +72,10 @@
 
 ```bash
 scripts/generate_p2_shared_dev_bootstrap_env.sh \
-  --base-url "https://<shared-dev-host>"
+  --base-url "https://change-me-shared-dev-host"
 ```
+
+这里的 `change-me-shared-dev-host` 必须先替换成真实 shared-dev 域名或网关地址，再继续校验。
 
 默认会生成两份 `0600` 文件：
 
@@ -165,7 +167,7 @@ ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"
 mkdir -p "$(dirname "$ENV_FILE")"
 
 cat > "$ENV_FILE" <<'ENVEOF'
-BASE_URL="https://<shared-dev-host>"
+BASE_URL="https://change-me-shared-dev-host"
 USERNAME="admin"
 PASSWORD="<same bootstrap admin password>"
 TENANT_ID="tenant-1"
@@ -246,10 +248,12 @@ bootstrap 成功后，shared-dev 初始 observation 应能得到：
 
 - `OBSERVATION_PRECHECK.md`
 - `observation_precheck.json`
+- `summary_probe.json`
 - `summary.json`
 - `items.json`
 - `anomalies.json`
 - `export.csv`
+- `README.txt`
 - `OBSERVATION_RESULT.md`
 
 如果 wrapper 开了 `ARCHIVE_RESULT=1`，优先直接回传：

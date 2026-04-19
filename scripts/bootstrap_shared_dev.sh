@@ -101,7 +101,7 @@ Create this local regression env file on the operator machine:
   \$HOME/.config/yuantus/p2-shared-dev.env
 
 Suggested contents:
-  BASE_URL="https://<shared-dev-host>"
+  BASE_URL="https://change-me-shared-dev-host"
   USERNAME="${admin_username}"
   PASSWORD="${admin_password}"
   TENANT_ID="${tenant_id}"

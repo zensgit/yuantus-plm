@@ -66,6 +66,7 @@ scripts/precheck_p2_observation_regression.sh --env-file "$ENV_FILE"
 
 - `OBSERVATION_PRECHECK.md`
 - `observation_precheck.json`
+- `summary_probe.json`
 
 如果这一步不绿，不要继续 full observation。
 
@@ -140,6 +141,7 @@ tar -czf "${OUTPUT_DIR}.tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTP
 
 - `OBSERVATION_PRECHECK.md`
 - `observation_precheck.json`
+- `summary_probe.json`
 - `summary.json`
 - `items.json`
 - `anomalies.json`

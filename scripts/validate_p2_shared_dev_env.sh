@@ -18,7 +18,7 @@ Options:
 
 Behavior:
   - parses env files with the same quoted-value rules used by the observation wrappers
-  - rejects common placeholders such as <jwt>, <dev-host>, change-me-*
+  - rejects common placeholders such as <jwt>, <dev-host>, *change-me*
   - requires tenant/org ids for shared-dev execution
   - requires either TOKEN or USERNAME/PASSWORD for the observation env
 
@@ -116,7 +116,7 @@ placeholder_like() {
   local value="$1"
   [[ -z "${value}" ]] && return 0
   [[ "${value}" == *"<"*">"* ]] && return 0
-  [[ "${value}" == change-me* ]] && return 0
+  [[ "${value}" == *change-me* ]] && return 0
   return 1
 }
 

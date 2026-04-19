@@ -13,7 +13,7 @@ Options:
   --observation-out <path>  Output path for the operator-side observation env file
                             default: $HOME/.config/yuantus/p2-shared-dev.env
   --base-url <url>          BASE_URL for the observation env
-                            default: https://<shared-dev-host>
+                            default: https://change-me-shared-dev-host
   --tenant-id <id>          default: tenant-1
   --org-id <id>             default: org-1
   --admin-username <name>   default: admin
@@ -37,7 +37,7 @@ EOF
 
 bootstrap_out="${HOME}/.config/yuantus/bootstrap/shared-dev.bootstrap.env"
 observation_out="${HOME}/.config/yuantus/p2-shared-dev.env"
-base_url="https://<shared-dev-host>"
+base_url="https://change-me-shared-dev-host"
 tenant_id="tenant-1"
 org_id="org-1"
 admin_username="admin"
