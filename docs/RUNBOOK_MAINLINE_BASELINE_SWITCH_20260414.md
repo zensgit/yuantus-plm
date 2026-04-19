@@ -67,7 +67,22 @@ git worktree add -b baseline/mainline-<stamp> \
 Using a dedicated local branch is preferred over a detached worktree when the
 new worktree is meant to become an ongoing development baseline.
 
-### 4. Re-apply only what still matters
+### 4. Before editing, cut a real topic branch in the new worktree
+
+```bash
+git -C ../Yuantus-worktrees/mainline-<stamp> switch -c feature/<topic>-<YYYYMMDD>
+```
+
+This keeps:
+
+- `baseline/mainline-<stamp>` as the clean reference branch
+- `feature/<topic>-<YYYYMMDD>` as the writable development branch
+
+If you are operating inside one of the constrained `Claude C*` tracks, use the
+corresponding branch pattern from `contracts/claude_allowed_paths.json`, for
+example `feature/claude-c12-<slug>`.
+
+### 5. Re-apply only what still matters
 
 Current-branch unique commits:
 
@@ -84,7 +99,7 @@ Re-apply them in a clean worktree only if they are still wanted:
 git cherry-pick f9076f4 09b30e2 e42c79e d24b5a4 6738eac a50f400
 ```
 
-### 5. Keep Claude Code isolated if you use it later
+### 6. Keep Claude Code isolated if you use it later
 
 This repo already has a dedicated runbook:
 
@@ -99,6 +114,14 @@ Use the helper script to print a ready-to-run sequence:
 
 ```bash
 bash scripts/print_mainline_baseline_switch_commands.sh
+```
+
+If you already know the next topic branch name, print a fully resolved command
+set with:
+
+```bash
+bash scripts/print_mainline_baseline_switch_commands.sh \
+  --topic-branch feature/<topic>-<YYYYMMDD>
 ```
 
 ## Important cautions
