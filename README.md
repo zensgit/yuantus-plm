@@ -50,6 +50,13 @@ Use these as the canonical first-run entrypoints:
 - `docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md`
 - `bash scripts/print_p2_shared_dev_first_run_commands.sh`
 
+Fresh shared-dev first-run is pinned to the tracked base compose file:
+
+- `docker compose -f docker-compose.yml --env-file ./deployments/docker/shared-dev.bootstrap.env --profile bootstrap run --rm bootstrap`
+- `docker compose -f docker-compose.yml up -d api worker`
+
+Do not implicitly rely on any machine-local `docker-compose.override.yml` when initializing a fresh shared-dev.
+
 The default dataset mode is now `p2-observation`; it seeds the minimal ECO set that should yield:
 - baseline: `pending=1 / overdue=2 / escalated=0`
 - after one `escalate-overdue`: `pending=1 / overdue=3 / escalated=1`

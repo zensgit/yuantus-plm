@@ -284,6 +284,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_pr_triage_summary.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_product_strategy_docs_execution_card.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_router_surface_misc_execution_card.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_shared_dev_first_run_base_compose.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_split_branch_pr_drafts.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_split_branches_summary.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_split_pr_review_order.py \

@@ -165,9 +165,12 @@ Next steps:
   2. Copy bootstrap env to the server:
        cp "${bootstrap_out}" <server-repo>/deployments/docker/shared-dev.bootstrap.env
   3. On the server, from the repo root, run:
-       docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env --profile bootstrap run --rm bootstrap
-       docker compose up -d api worker
+       docker compose -f docker-compose.yml --env-file ./deployments/docker/shared-dev.bootstrap.env --profile bootstrap run --rm bootstrap
+       docker compose -f docker-compose.yml up -d api worker
   4. Locally, from the repo root, run:
        scripts/precheck_p2_observation_regression.sh --env-file "${observation_out}"
        OUTPUT_DIR="./tmp/p2-shared-dev-observation-\$(date +%Y%m%d-%H%M%S)" ARCHIVE_RESULT=1 scripts/run_p2_observation_regression.sh --env-file "${observation_out}"
+
+Fresh shared-dev first-run is pinned to the tracked base compose file and must
+not implicitly rely on any machine-local docker-compose.override.yml.
 EOF

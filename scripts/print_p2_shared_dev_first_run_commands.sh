@@ -32,14 +32,17 @@ scp "$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env" \
 
 3. On the shared-dev server, go to the repo root and run the one-shot bootstrap
 
+# Fresh shared-dev first-run must use the tracked base compose file.
+# Do not rely on any machine-local docker-compose.override.yml.
+
 cd <server-repo>
 
-docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env \
+docker compose -f docker-compose.yml --env-file ./deployments/docker/shared-dev.bootstrap.env \
   --profile bootstrap run --rm bootstrap
 
 4. Start long-running services
 
-docker compose up -d api worker
+docker compose -f docker-compose.yml up -d api worker
 
 5. Basic health check
 
