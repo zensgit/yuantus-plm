@@ -272,6 +272,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_native_workspace_playwright_entrypoints.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_native_workspace_scope_script.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_no_inline_echo_000_in_scripts.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_p2_observation_discoverability.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_p2_observation_regression_evaluator.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_pact_provider_gate.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_pact_sync_helper.py \
