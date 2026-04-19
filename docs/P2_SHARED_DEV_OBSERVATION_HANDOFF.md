@@ -13,6 +13,11 @@
 - `docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md`
 - `bash scripts/print_p2_shared_dev_first_run_commands.sh`
 
+如果当前目标环境就是 **shared-dev 142 的 official readonly baseline**，优先直接用：
+
+- `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
+- `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
+
 适用场景：
 
 - 有真实共享 `dev` 环境

@@ -43,6 +43,7 @@
 - precheck_p2_observation_regression.sh
 - print_strict_gate_split_helper.sh
 - run_claude_code_parallel_reviewer.sh
+- run_p2_shared_dev_142_readonly_rerun.sh
 - run_p2_observation_regression.sh
 - run_p2_observation_regression_workflow.sh
 - sync_metasheet2_pact.sh
@@ -85,6 +86,7 @@
 - `precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe for auth plus the dashboard summary read surface, and writes `OBSERVATION_PRECHECK.md`.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
+- `run_p2_shared_dev_142_readonly_rerun.sh` runs the current official shared-dev 142 readonly rerun end-to-end with fixed baseline defaults, optional baseline restore, precheck, and readonly evaluation.
 - `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, supports either `TOKEN` or `USERNAME/PASSWORD`, can load defaults from `--env-file`, and can auto-write `<OUTPUT_DIR>.tar.gz`.
 - `run_p2_observation_regression_workflow.sh` is the canonical local wrapper for `gh workflow run/list/watch/download` against `p2-observation-regression`.
 - `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.

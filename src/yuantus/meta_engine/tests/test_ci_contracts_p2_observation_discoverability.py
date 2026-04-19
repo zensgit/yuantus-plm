@@ -43,6 +43,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "print_p2_shared_dev_142_readonly_rerun_commands.sh",
         "print_p2_shared_dev_first_run_commands.sh",
         "print_p2_shared_dev_mode_selection.sh",
+        "run_p2_shared_dev_142_readonly_rerun.sh",
         "precheck_p2_observation_regression.sh",
         "verify_p2_dev_observation_startup.sh",
         "run_p2_observation_regression.sh",
@@ -54,6 +55,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "`print_p2_shared_dev_142_readonly_rerun_commands.sh` prints the fixed readonly rerun commands for the current official shared-dev 142 baseline, including the canonical `BASELINE_DIR`.",
         "`print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.",
         "`print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.",
+        "`run_p2_shared_dev_142_readonly_rerun.sh` runs the current official shared-dev 142 readonly rerun end-to-end with fixed baseline defaults, optional baseline restore, precheck, and readonly evaluation.",
         "`precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe",
         "`run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper",
         "`run_p2_observation_regression_workflow.sh` is the canonical local wrapper",
@@ -138,6 +140,7 @@ def test_p2_shared_dev_mode_selection_script_is_present() -> None:
         repo_root / "scripts" / "print_p2_shared_dev_first_run_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_mode_selection.sh",
         repo_root / "scripts" / "print_p2_shared_dev_observation_commands.sh",
+        repo_root / "scripts" / "run_p2_shared_dev_142_readonly_rerun.sh",
     ):
         assert path.is_file(), f"Missing shared-dev observation script: {path}"
 
@@ -156,3 +159,23 @@ def test_p2_shared_dev_142_readonly_helper_tracks_current_official_baseline() ->
         "`142.171.239.56`",
     ):
         assert token in text, f"shared-dev 142 readonly helper missing token: {token}"
+
+
+def test_p2_shared_dev_142_readonly_runner_tracks_current_official_baseline() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    path = repo_root / "scripts" / "run_p2_shared_dev_142_readonly_rerun.sh"
+    assert path.is_file(), f"Missing shared-dev 142 readonly runner: {path}"
+
+    text = _read(path)
+    for token in (
+        "$HOME/.config/yuantus/p2-shared-dev.env",
+        "./tmp/p2-shared-dev-observation-20260419-193242",
+        "./tmp/p2-shared-dev-observation-20260419-193242.tar.gz",
+        "shared-dev-142-readonly-20260419",
+        "shared-dev-142-readonly-precheck",
+        "shared-dev-142-readonly",
+        "scripts/validate_p2_shared_dev_env.sh",
+        "scripts/precheck_p2_observation_regression.sh",
+        "scripts/run_p2_observation_regression.sh",
+    ):
+        assert token in text, f"shared-dev 142 readonly runner missing token: {token}"

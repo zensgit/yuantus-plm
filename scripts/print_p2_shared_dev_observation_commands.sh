@@ -11,6 +11,7 @@ Run all repo-relative commands below from the Yuantus repo root.
 Use this sheet only when the shared-dev environment already exists and you already have valid credentials.
 If you are not sure whether the environment may be reset, default to this rerun path.
 For the current official readonly baseline on shared-dev host `142.171.239.56`, prefer:
+- bash scripts/run_p2_shared_dev_142_readonly_rerun.sh
 - bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh
 For fresh shared-dev bootstrap, use:
 - bash scripts/print_p2_shared_dev_mode_selection.sh
