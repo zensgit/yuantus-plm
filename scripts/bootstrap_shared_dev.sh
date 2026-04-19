@@ -1,0 +1,89 @@
+#!/usr/bin/env sh
+
+set -eu
+
+tenant_id="${YUANTUS_BOOTSTRAP_TENANT_ID:-tenant-1}"
+org_id="${YUANTUS_BOOTSTRAP_ORG_ID:-org-1}"
+admin_username="${YUANTUS_BOOTSTRAP_ADMIN_USERNAME:-admin}"
+admin_password="${YUANTUS_BOOTSTRAP_ADMIN_PASSWORD:-}"
+admin_user_id="${YUANTUS_BOOTSTRAP_ADMIN_USER_ID:-1}"
+admin_roles="${YUANTUS_BOOTSTRAP_ADMIN_ROLES:-admin}"
+viewer_username="${YUANTUS_BOOTSTRAP_VIEWER_USERNAME:-ops-viewer}"
+viewer_password="${YUANTUS_BOOTSTRAP_VIEWER_PASSWORD:-}"
+viewer_user_id="${YUANTUS_BOOTSTRAP_VIEWER_USER_ID:-2}"
+viewer_roles="${YUANTUS_BOOTSTRAP_VIEWER_ROLES:-ops-viewer}"
+skip_meta="${YUANTUS_BOOTSTRAP_SKIP_META:-0}"
+skip_sample_data="${YUANTUS_BOOTSTRAP_SKIP_SAMPLE_DATA:-0}"
+
+if [ -z "${admin_password}" ]; then
+  echo "Missing required env: YUANTUS_BOOTSTRAP_ADMIN_PASSWORD" >&2
+  exit 1
+fi
+
+if [ -z "${viewer_password}" ]; then
+  echo "Missing required env: YUANTUS_BOOTSTRAP_VIEWER_PASSWORD" >&2
+  exit 1
+fi
+
+echo "Running database migrations..."
+yuantus db upgrade
+
+if [ -n "${YUANTUS_IDENTITY_DATABASE_URL:-}" ]; then
+  echo "Running identity migrations..."
+  if [ "${YUANTUS_IDENTITY_MIGRATIONS_MODE:-identity-only}" = "full" ]; then
+    yuantus db upgrade --identity
+  else
+    yuantus db upgrade --identity-only
+  fi
+else
+  echo "Skipping identity migrations (empty YUANTUS_IDENTITY_DATABASE_URL)"
+fi
+
+echo "Seeding identity: ${admin_username} (bootstrap admin)"
+yuantus seed-identity \
+  --tenant "${tenant_id}" \
+  --org "${org_id}" \
+  --username "${admin_username}" \
+  --password "${admin_password}" \
+  --user-id "${admin_user_id}" \
+  --roles "${admin_roles}"
+
+echo "Seeding identity: ${viewer_username} (bootstrap non-superuser)"
+yuantus seed-identity \
+  --tenant "${tenant_id}" \
+  --org "${org_id}" \
+  --username "${viewer_username}" \
+  --password "${viewer_password}" \
+  --user-id "${viewer_user_id}" \
+  --roles "${viewer_roles}" \
+  --no-superuser
+
+if [ "${skip_meta}" != "1" ]; then
+  echo "Seeding meta..."
+  yuantus seed-meta
+else
+  echo "Skipping meta seed (YUANTUS_BOOTSTRAP_SKIP_META=1)"
+fi
+
+if [ "${skip_sample_data}" != "1" ]; then
+  echo "Seeding shared-dev generic demo data..."
+  yuantus seed-data --tenant "${tenant_id}" --org "${org_id}"
+else
+  echo "Skipping sample data seed (YUANTUS_BOOTSTRAP_SKIP_SAMPLE_DATA=1)"
+fi
+
+cat <<EOF
+Shared-dev bootstrap complete.
+
+Create this local regression env file on the operator machine:
+
+  \$HOME/.config/yuantus/p2-shared-dev.env
+
+Suggested contents:
+  BASE_URL="https://<shared-dev-host>"
+  USERNAME="${admin_username}"
+  PASSWORD="${admin_password}"
+  TENANT_ID="${tenant_id}"
+  ORG_ID="${org_id}"
+  ENVIRONMENT="shared-dev"
+EOF

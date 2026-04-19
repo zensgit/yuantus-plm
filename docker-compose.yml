@@ -161,6 +161,39 @@ services:
         yuantus start
       "
 
+  bootstrap:
+    profiles: ["bootstrap"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
+    environment:
+      YUANTUS_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus
+      YUANTUS_SCHEMA_MODE: migrations
+      YUANTUS_TENANCY_MODE: ${YUANTUS_TENANCY_MODE:-single}
+      YUANTUS_DATABASE_URL_TEMPLATE: ${YUANTUS_DATABASE_URL_TEMPLATE:-}
+      YUANTUS_IDENTITY_DATABASE_URL: ${YUANTUS_IDENTITY_DATABASE_URL:-postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus_identity}
+      YUANTUS_IDENTITY_MIGRATIONS_MODE: ${YUANTUS_IDENTITY_MIGRATIONS_MODE:-identity-only}
+      YUANTUS_BOOTSTRAP_TENANT_ID: ${YUANTUS_BOOTSTRAP_TENANT_ID:-tenant-1}
+      YUANTUS_BOOTSTRAP_ORG_ID: ${YUANTUS_BOOTSTRAP_ORG_ID:-org-1}
+      YUANTUS_BOOTSTRAP_ADMIN_USERNAME: ${YUANTUS_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      YUANTUS_BOOTSTRAP_ADMIN_PASSWORD: ${YUANTUS_BOOTSTRAP_ADMIN_PASSWORD:-}
+      YUANTUS_BOOTSTRAP_ADMIN_USER_ID: ${YUANTUS_BOOTSTRAP_ADMIN_USER_ID:-1}
+      YUANTUS_BOOTSTRAP_ADMIN_ROLES: ${YUANTUS_BOOTSTRAP_ADMIN_ROLES:-admin}
+      YUANTUS_BOOTSTRAP_VIEWER_USERNAME: ${YUANTUS_BOOTSTRAP_VIEWER_USERNAME:-ops-viewer}
+      YUANTUS_BOOTSTRAP_VIEWER_PASSWORD: ${YUANTUS_BOOTSTRAP_VIEWER_PASSWORD:-}
+      YUANTUS_BOOTSTRAP_VIEWER_USER_ID: ${YUANTUS_BOOTSTRAP_VIEWER_USER_ID:-2}
+      YUANTUS_BOOTSTRAP_VIEWER_ROLES: ${YUANTUS_BOOTSTRAP_VIEWER_ROLES:-ops-viewer}
+      YUANTUS_BOOTSTRAP_SKIP_META: ${YUANTUS_BOOTSTRAP_SKIP_META:-0}
+      YUANTUS_BOOTSTRAP_SKIP_SAMPLE_DATA: ${YUANTUS_BOOTSTRAP_SKIP_SAMPLE_DATA:-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["sh", "./scripts/bootstrap_shared_dev.sh"]
+    restart: "no"
+
   worker:
     build:
       context: .

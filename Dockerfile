@@ -21,6 +21,7 @@ COPY pyproject.toml README.md ./
 COPY requirements.lock ./
 COPY src/ ./src/
 COPY plugins/ ./plugins/
+COPY scripts/ ./scripts/
 COPY alembic.ini ./
 COPY alembic.identity.ini ./
 COPY migrations/ ./migrations/
