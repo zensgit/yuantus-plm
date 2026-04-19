@@ -43,7 +43,7 @@ docker compose up --build
 
 ## Shared-dev bootstrap (docker)
 
-For a fresh shared-dev deployment, initialize tenant/org/users and a generic demo seed once before running the regression scripts.
+For a fresh shared-dev deployment, initialize tenant/org/users and the P2 observation fixtures once before running the regression scripts.
 
 1. Copy the bootstrap env template and set real passwords:
 ```bash
@@ -55,6 +55,17 @@ cp deployments/docker/shared-dev.bootstrap.env.example deployments/docker/shared
 docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env \
   --profile bootstrap run --rm bootstrap
 ```
+
+The default dataset mode is now `p2-observation`; it seeds the minimal ECO set that should yield:
+- baseline: `pending=1 / overdue=2 / escalated=0`
+- after one `escalate-overdue`: `pending=1 / overdue=3 / escalated=1`
+- write tri-state on `eco-specialist`: `401 / 403 / 200`
+
+The bootstrap fixture step also materializes the local `RBACUser` records for both:
+- `admin`
+- `ops-viewer`
+
+so a fresh shared-dev database does not need a separate local-dev-only seeding step.
 
 3. Start the long-running services:
 ```bash
@@ -84,8 +95,10 @@ scripts/run_p2_observation_regression.sh --env-file "$HOME/.config/yuantus/p2-sh
 ```
 
 Note:
-- The bootstrap service guarantees identity/bootstrap credentials and generic demo data.
-- If you need a non-zero P2 observation baseline with specific overdue/escalation behavior, provision those ECO fixtures separately before treating the result as a regression baseline.
+- The bootstrap service now seeds the tracked P2 observation fixtures and writes a manifest path such as `./tmp/p2_observation_fixture_manifest.json`.
+- The bootstrap output also prints the non-superuser `ops-viewer` credentials for the `403` branch of the observation smoke.
+- Set `YUANTUS_BOOTSTRAP_DATASET_MODE=generic` if you only want generic Part/Document/BOM demo data.
+- Set `YUANTUS_BOOTSTRAP_DATASET_MODE=none` if you only want identity/bootstrap users.
 
 ## CAD ML Docker helpers
 
