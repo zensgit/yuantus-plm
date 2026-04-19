@@ -151,6 +151,19 @@ bootstrap 成功后，第一次 observation 预期接近：
   - `overdue=3`
   - `escalated=1`
 
+如果在这之后又继续执行任何写接口验证，例如：
+
+- `admin -> auto-assign-approvers`
+- 额外的 `escalate-overdue`
+- 其他会新增 / 迁移 approval 的 write smoke
+
+那么旧的 frozen baseline 就已经失效。  
+此时不要再把 earlier baseline 用作后续 readonly rerun 的对比基线，而应：
+
+1. 先在“所有允许的写操作都完成之后”重新跑一次只读 observation
+2. 把这次最新结果冻结成新的 readonly baseline
+3. 之后所有常规 rerun 都对比这份新基线
+
 ## 快速入口
 
 如果只想直接拿命令，不看正文：
