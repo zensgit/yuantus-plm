@@ -3,10 +3,15 @@
 set -euo pipefail
 
 cat <<'EOF'
-P2 shared dev observation handoff
-=================================
+P2 shared dev observation rerun handoff
+=======================================
 
 Run all repo-relative commands below from the Yuantus repo root.
+
+Use this sheet only when the shared-dev environment already exists and you already have valid credentials.
+For fresh shared-dev bootstrap, use:
+- docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md
+- bash scripts/print_p2_shared_dev_first_run_commands.sh
 
 1. Preferred: put shared-dev defaults in a local env file
 

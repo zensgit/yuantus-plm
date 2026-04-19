@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cat <<'EOF'
+P2 shared-dev first-run checklist
+=================================
+
+Run all repo-relative commands below from the Yuantus repo root.
+
+0. Generate both env files locally
+
+scripts/generate_p2_shared_dev_bootstrap_env.sh \
+  --base-url "https://<shared-dev-host>"
+
+1. Validate both generated env files before touching the server
+
+scripts/validate_p2_shared_dev_env.sh
+
+2. Copy the bootstrap env onto the shared-dev server
+
+# Example via scp; replace host and repo path:
+scp "$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env" \
+  <user>@<server-host>:<server-repo>/deployments/docker/shared-dev.bootstrap.env
+
+3. On the shared-dev server, go to the repo root and run the one-shot bootstrap
+
+cd <server-repo>
+
+docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env \
+  --profile bootstrap run --rm bootstrap
+
+4. Start long-running services
+
+docker compose up -d api worker
+
+5. Basic health check
+
+docker compose ps
+curl -fsS http://127.0.0.1:7910/api/v1/health
+
+6. On the operator machine, validate the local observation env again
+
+scripts/validate_p2_shared_dev_env.sh \
+  --mode observation \
+  --observation-env "$HOME/.config/yuantus/p2-shared-dev.env"
+
+7. Run the cheap shared-dev precheck first
+
+scripts/precheck_p2_observation_regression.sh \
+  --env-file "$HOME/.config/yuantus/p2-shared-dev.env"
+
+8. If the precheck is green, run the canonical wrapper
+
+OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)" \
+ARCHIVE_RESULT=1 \
+scripts/run_p2_observation_regression.sh \
+  --env-file "$HOME/.config/yuantus/p2-shared-dev.env"
+
+9. Return these artifacts at minimum
+
+- OBSERVATION_PRECHECK.md
+- observation_precheck.json
+- summary.json
+- items.json
+- anomalies.json
+- export.csv
+- OBSERVATION_RESULT.md
+- <OUTPUT_DIR>.tar.gz
+
+10. Optional non-superuser smoke reminder
+
+# username: ops-viewer
+# password: <same bootstrap viewer password>
+EOF

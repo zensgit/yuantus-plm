@@ -6,6 +6,13 @@
 
 这份 handoff 用于把 `P2` 观察期 startup smoke 交给持有共享 dev 环境访问权限的操作者执行。
 
+它假设 shared-dev 已经存在，并且操作者已经持有有效凭证。
+
+如果是 **fresh shared-dev 的第一次执行**，不要从这里开始，直接改走：
+
+- `docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md`
+- `bash scripts/print_p2_shared_dev_first_run_commands.sh`
+
 适用场景：
 
 - 有真实共享 `dev` 环境
