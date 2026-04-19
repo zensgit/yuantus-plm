@@ -68,6 +68,11 @@ def test_p2_observation_regression_wrapper_help_exposes_eval_contract() -> None:
     assert "EVAL_MODE" in out
     assert "EXPECT_DELTAS" in out
     assert "EVAL_OUTPUT" in out
+    assert "ENV_FILE" in out
+    assert "--env-file" in out
+    assert "ARCHIVE_RESULT" in out
+    assert "ARCHIVE_PATH" in out
+    assert "--archive" in out
     assert "USERNAME" in out
     assert "PASSWORD" in out
     assert "OBSERVATION_EVAL.md" in out

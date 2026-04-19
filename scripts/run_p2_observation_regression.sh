@@ -7,6 +7,13 @@ usage() {
 Usage:
   BASE_URL=http://localhost:8000 TOKEN=<jwt> scripts/run_p2_observation_regression.sh
   BASE_URL=http://localhost:8000 USERNAME=<user> PASSWORD=<password> scripts/run_p2_observation_regression.sh
+  scripts/run_p2_observation_regression.sh --env-file ./p2-shared-dev.env
+
+Options:
+  --env-file <path>      Load unset wrapper env vars from a local KEY=VALUE file
+                         File values act as defaults; already-exported env wins
+  --archive              Force tar.gz archive creation after the run
+  -h, --help             Show this help
 
 Required env:
   BASE_URL              API base URL
@@ -26,6 +33,7 @@ Optional env:
                         default: $USER or "unknown"
   ENVIRONMENT           Environment label for OBSERVATION_RESULT.md
                         default: regression
+  ENV_FILE              Optional default env file, same behavior as --env-file
   BASELINE_DIR          Existing observation result directory to compare against
   BASELINE_LABEL        Label used in OBSERVATION_DIFF.md for the baseline column
                         default: baseline
@@ -36,20 +44,27 @@ Optional env:
                         example: overdue_count=1,escalated_count=1
   EVAL_OUTPUT           Optional. Output path for OBSERVATION_EVAL.md
                         default: <OUTPUT_DIR>/OBSERVATION_EVAL.md
+  ARCHIVE_RESULT        Optional. Set to 1 to tar.gz the result directory
+  ARCHIVE_PATH          Optional. Archive output path
+                        default: <OUTPUT_DIR>.tar.gz
+  COMPANY_ID            Optional filter forwarded to verify_p2_dev_observation_startup.sh
+  ECO_TYPE              Optional filter forwarded to verify_p2_dev_observation_startup.sh
+  ECO_STATE             Optional filter forwarded to verify_p2_dev_observation_startup.sh
+  DEADLINE_FROM         Optional filter forwarded to verify_p2_dev_observation_startup.sh
+  DEADLINE_TO           Optional filter forwarded to verify_p2_dev_observation_startup.sh
+  RUN_WRITE_SMOKE       Optional. Set to 1 to exercise write endpoints
+  AUTO_ASSIGN_ECO_ID    Required when RUN_WRITE_SMOKE=1
 
 Behavior:
+  0. If ENV_FILE/--env-file is provided, load missing wrapper env defaults from it
   0. If TOKEN is absent, logs in via /api/v1/auth/login using USERNAME/PASSWORD
   1. Runs verify_p2_dev_observation_startup.sh
   2. Renders OBSERVATION_RESULT.md
   3. If BASELINE_DIR is set, renders OBSERVATION_DIFF.md
   4. If EVAL_MODE is set, renders OBSERVATION_EVAL.md
+  5. If ARCHIVE_RESULT=1 or --archive is passed, writes <OUTPUT_DIR>.tar.gz
 EOF
 }
-
-if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
-  usage
-  exit 0
-fi
 
 require_env() {
   local name="$1"
@@ -60,6 +75,119 @@ require_env() {
   fi
 }
 
+load_env_file() {
+  local env_file="$1"
+  local key=""
+  local value=""
+  local parser="python3"
+
+  if [[ ! -f "${env_file}" ]]; then
+    echo "Missing env file: ${env_file}" >&2
+    exit 1
+  fi
+
+  while IFS='=' read -r key value; do
+    [[ -n "${key}" ]] || continue
+    if [[ -z "${!key+x}" ]]; then
+      printf -v "${key}" '%s' "${value}"
+      export "${key}"
+    fi
+  done < <(
+    "${parser}" - "${env_file}" <<'PY'
+import re
+import shlex
+import sys
+from pathlib import Path
+
+allowed = {
+    "ARCHIVE_PATH",
+    "ARCHIVE_RESULT",
+    "AUTO_ASSIGN_ECO_ID",
+    "BASELINE_DIR",
+    "BASELINE_LABEL",
+    "BASE_URL",
+    "COMPANY_ID",
+    "CURRENT_LABEL",
+    "DEADLINE_FROM",
+    "DEADLINE_TO",
+    "ECO_STATE",
+    "ECO_TYPE",
+    "ENVIRONMENT",
+    "EVAL_MODE",
+    "EVAL_OUTPUT",
+    "EXPECT_DELTAS",
+    "OPERATOR",
+    "ORG_ID",
+    "OUTPUT_DIR",
+    "PASSWORD",
+    "PY",
+    "RUN_WRITE_SMOKE",
+    "TENANT_ID",
+    "TOKEN",
+    "USERNAME",
+}
+
+path = Path(sys.argv[1])
+for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    stripped = raw.strip()
+    if not stripped or stripped.startswith("#"):
+        continue
+    if stripped.startswith("export "):
+        stripped = stripped[7:].strip()
+    if "=" not in stripped:
+        raise SystemExit(f"{path}:{lineno}: expected KEY=VALUE")
+    key, value = stripped.split("=", 1)
+    key = key.strip()
+    value = value.strip()
+    if not re.fullmatch(r"[A-Z_][A-Z0-9_]*", key):
+        raise SystemExit(f"{path}:{lineno}: invalid env key '{key}'")
+    if key not in allowed:
+        raise SystemExit(f"{path}:{lineno}: unsupported env key '{key}'")
+    if value and value[0] in "\"'":
+        parsed = shlex.split(value, posix=True)
+        if len(parsed) != 1:
+            raise SystemExit(f"{path}:{lineno}: quoted value must resolve to one token")
+        value = parsed[0]
+    print(f"{key}={value}")
+PY
+  )
+}
+
+env_file_arg=""
+archive_flag="0"
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --env-file)
+      if [[ $# -lt 2 || -z "${2:-}" ]]; then
+        echo "Missing value for --env-file" >&2
+        usage >&2
+        exit 1
+      fi
+      env_file_arg="$2"
+      shift 2
+      ;;
+    --archive)
+      archive_flag="1"
+      shift
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
+env_file_path="${env_file_arg:-${ENV_FILE:-}}"
+if [[ -n "${env_file_path}" ]]; then
+  load_env_file "${env_file_path}"
+fi
+
 require_env BASE_URL
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
@@ -69,7 +197,13 @@ environment_name="${ENVIRONMENT:-regression}"
 baseline_label="${BASELINE_LABEL:-baseline}"
 current_label="${CURRENT_LABEL:-current}"
 eval_output="${EVAL_OUTPUT:-${output_dir}/OBSERVATION_EVAL.md}"
+archive_result="${ARCHIVE_RESULT:-0}"
+archive_path="${ARCHIVE_PATH:-${output_dir%/}.tar.gz}"
 PY="${PY:-python3}"
+
+if [[ "${archive_flag}" == "1" ]]; then
+  archive_result="1"
+fi
 
 ensure_token() {
   if [[ -n "${TOKEN:-}" ]]; then
@@ -149,8 +283,14 @@ echo "BASE_URL=${BASE_URL}"
 echo "OUTPUT_DIR=${output_dir}"
 echo "OPERATOR=${operator}"
 echo "ENVIRONMENT=${environment_name}"
+if [[ -n "${env_file_path}" ]]; then
+  echo "ENV_FILE=${env_file_path}"
+fi
 if [[ -n "${BASELINE_DIR:-}" ]]; then
   echo "BASELINE_DIR=${BASELINE_DIR}"
+fi
+if [[ "${archive_result}" == "1" ]]; then
+  echo "ARCHIVE_PATH=${archive_path}"
 fi
 echo
 
@@ -197,6 +337,11 @@ if [[ -n "${EVAL_MODE:-}" ]]; then
   "${eval_cmd[@]}"
 fi
 
+if [[ "${archive_result}" == "1" ]]; then
+  mkdir -p "$(dirname "${archive_path}")"
+  tar -czf "${archive_path}" -C "$(dirname "${output_dir}")" "$(basename "${output_dir}")"
+fi
+
 echo
 echo "Done:"
 echo "  ${output_dir}/OBSERVATION_RESULT.md"
@@ -205,4 +350,7 @@ if [[ -n "${BASELINE_DIR:-}" ]]; then
 fi
 if [[ -n "${EVAL_MODE:-}" ]]; then
   echo "  ${eval_output}"
+fi
+if [[ "${archive_result}" == "1" ]]; then
+  echo "  ${archive_path}"
 fi

@@ -16,11 +16,32 @@
 
 ## 2. 最小用法
 
+### 2.1 env file 模式
+
+```bash
+cat > ./p2-observation.env <<'ENVEOF'
+BASE_URL=http://<dev-host>
+TOKEN=<jwt>
+TENANT_ID=<tenant>
+ORG_ID=<org>
+ENVIRONMENT=shared-dev
+ARCHIVE_RESULT=1
+ENVEOF
+
+OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
+BASELINE_DIR=<baseline_dir> \
+scripts/run_p2_observation_regression.sh \
+  --env-file ./p2-observation.env
+```
+
+### 2.2 直接环境变量模式
+
 ```bash
 BASE_URL=http://<dev-host> \
 TOKEN=<jwt> \
 TENANT_ID=<tenant> \
 ORG_ID=<org> \
+ARCHIVE_RESULT=1 \
 BASELINE_DIR=<baseline_dir> \
 OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
 scripts/run_p2_observation_regression.sh
@@ -55,6 +76,10 @@ scripts/run_p2_observation_regression.sh
 如果给了 `EVAL_MODE`，还会有：
 
 - `OBSERVATION_EVAL.md`
+
+如果启用了 `ARCHIVE_RESULT=1` 或传入 `--archive`，还会有：
+
+- `<OUTPUT_DIR>.tar.gz`
 
 ---
 
