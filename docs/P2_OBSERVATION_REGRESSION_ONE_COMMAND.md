@@ -15,7 +15,7 @@
 如果这是 shared-dev 首次执行，或刚换了一组凭证，建议先跑：
 
 ```bash
-scripts/precheck_p2_observation_regression.sh --env-file ./p2-observation.env
+scripts/precheck_p2_observation_regression.sh --env-file "$HOME/.config/yuantus/p2-observation.env"
 ```
 
 ---
@@ -25,19 +25,24 @@ scripts/precheck_p2_observation_regression.sh --env-file ./p2-observation.env
 ### 2.1 env file 模式
 
 ```bash
-cat > ./p2-observation.env <<'ENVEOF'
+ENV_FILE="$HOME/.config/yuantus/p2-observation.env"
+mkdir -p "$(dirname "$ENV_FILE")"
+
+cat > "$ENV_FILE" <<'ENVEOF'
 BASE_URL=http://<dev-host>
 TOKEN=<jwt>
 TENANT_ID=<tenant>
 ORG_ID=<org>
 ENVIRONMENT=shared-dev
-ARCHIVE_RESULT=1
 ENVEOF
 
+chmod 600 "$ENV_FILE"
+
 OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
+ARCHIVE_RESULT=1 \
 BASELINE_DIR=<baseline_dir> \
 scripts/run_p2_observation_regression.sh \
-  --env-file ./p2-observation.env
+  --env-file "$ENV_FILE"
 ```
 
 ### 2.2 直接环境变量模式
