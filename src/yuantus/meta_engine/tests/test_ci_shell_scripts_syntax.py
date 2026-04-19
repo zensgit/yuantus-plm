@@ -100,6 +100,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_subcontracting_first_cut_anchors.sh",
         scripts_dir / "run_claude_code_parallel_reviewer.sh",
         scripts_dir / "run_p2_shared_dev_142_readonly_rerun.sh",
+        scripts_dir / "run_p2_shared_dev_142_workflow_probe.sh",
         scripts_dir / "run_p2_observation_regression.sh",
         scripts_dir / "run_p2_observation_regression_workflow.sh",
         scripts_dir / "verify_run_h_e2e.sh",
@@ -146,6 +147,28 @@ def test_p2_observation_scripts_help_uses_repo_safe_env_file_examples() -> None:
         out = cp.stdout or ""
         assert "$HOME/.config/yuantus/" in out, f"{name} help should keep env-file examples outside repo root"
         assert "./p2-shared-dev.env" not in out, f"{name} help should not point shared-dev credentials at repo root"
+
+
+def test_p2_shared_dev_142_workflow_probe_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_workflow_probe.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    for token in (
+        "Usage:",
+        "http://142.171.239.56:7910",
+        "shared-dev-142-workflow-probe",
+        "current-only workflow probe",
+        "run_p2_shared_dev_142_readonly_rerun.sh",
+    ):
+        assert token in out, f"run_p2_shared_dev_142_workflow_probe.sh help missing token: {token}"
 
 
 def test_strict_gate_report_script_has_help() -> None:

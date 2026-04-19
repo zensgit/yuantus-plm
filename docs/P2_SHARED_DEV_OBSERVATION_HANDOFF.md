@@ -18,6 +18,10 @@
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 - `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
 
+如果你只想让 **GitHub Actions** 对 `142` 打一轮固定 `current-only` probe，直接用：
+
+- `bash scripts/run_p2_shared_dev_142_workflow_probe.sh`
+
 适用场景：
 
 - 有真实共享 `dev` 环境

@@ -128,6 +128,18 @@ scripts/run_p2_observation_regression_workflow.sh \
   --out-dir ./tmp/p2-observation-workflow-$(date +%Y%m%d-%H%M%S)
 ```
 
+如果目标就是 **shared-dev 142**，并且你只需要 GitHub Actions 做一轮 `current-only` probe，直接用：
+
+```bash
+bash scripts/run_p2_shared_dev_142_workflow_probe.sh
+```
+
+注意：
+
+- 这条入口不会做 frozen baseline 的 readonly compare/eval
+- 如果你要的是 `142` 的正式 readonly rerun，仍然用：
+  - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
+
 这条命令会：
 
 1. 触发 `p2-observation-regression`

@@ -44,6 +44,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "print_p2_shared_dev_first_run_commands.sh",
         "print_p2_shared_dev_mode_selection.sh",
         "run_p2_shared_dev_142_readonly_rerun.sh",
+        "run_p2_shared_dev_142_workflow_probe.sh",
         "precheck_p2_observation_regression.sh",
         "verify_p2_dev_observation_startup.sh",
         "run_p2_observation_regression.sh",
@@ -56,6 +57,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "`print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.",
         "`print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.",
         "`run_p2_shared_dev_142_readonly_rerun.sh` runs the current official shared-dev 142 readonly rerun end-to-end with fixed baseline defaults, optional baseline restore, precheck, and readonly evaluation.",
+        "`run_p2_shared_dev_142_workflow_probe.sh` runs the fixed GitHub workflow-dispatch current-only probe for shared-dev host `142.171.239.56` and downloads the resulting artifact locally.",
         "`precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe",
         "`run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper",
         "`run_p2_observation_regression_workflow.sh` is the canonical local wrapper",
@@ -141,6 +143,7 @@ def test_p2_shared_dev_mode_selection_script_is_present() -> None:
         repo_root / "scripts" / "print_p2_shared_dev_mode_selection.sh",
         repo_root / "scripts" / "print_p2_shared_dev_observation_commands.sh",
         repo_root / "scripts" / "run_p2_shared_dev_142_readonly_rerun.sh",
+        repo_root / "scripts" / "run_p2_shared_dev_142_workflow_probe.sh",
     ):
         assert path.is_file(), f"Missing shared-dev observation script: {path}"
 
@@ -179,3 +182,20 @@ def test_p2_shared_dev_142_readonly_runner_tracks_current_official_baseline() ->
         "scripts/run_p2_observation_regression.sh",
     ):
         assert token in text, f"shared-dev 142 readonly runner missing token: {token}"
+
+
+def test_p2_shared_dev_142_workflow_probe_tracks_fixed_host_defaults() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    path = repo_root / "scripts" / "run_p2_shared_dev_142_workflow_probe.sh"
+    assert path.is_file(), f"Missing shared-dev 142 workflow probe wrapper: {path}"
+
+    text = _read(path)
+    for token in (
+        "http://142.171.239.56:7910",
+        "tenant-1",
+        "org-1",
+        "shared-dev-142-workflow-probe",
+        "current-only workflow probe",
+        "scripts/run_p2_observation_regression_workflow.sh",
+    ):
+        assert token in text, f"shared-dev 142 workflow probe wrapper missing token: {token}"
