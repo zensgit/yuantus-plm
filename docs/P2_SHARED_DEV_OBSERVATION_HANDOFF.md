@@ -168,6 +168,12 @@ OUTPUT_DIR="$OUTPUT_DIR-write" \
 scripts/verify_p2_dev_observation_startup.sh
 ```
 
+注意：
+
+- 任何成功的 write smoke 都会改变环境状态
+- 一旦执行过 `auto-assign-approvers`、`escalate-overdue` 或其他 workflow write 接口，之前的 frozen baseline 就不再适合作为 readonly rerun 的对比基线
+- 正确做法是：写操作全部结束后，再补跑一次只读 observation，并把该结果冻结为新的 baseline
+
 ## 回传后如何处理
 
 回传产物后，由审阅方：
