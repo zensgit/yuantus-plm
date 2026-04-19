@@ -12,6 +12,12 @@
 
 - `docs/P2_OBSERVATION_REGRESSION_TRIGGER_CHECKLIST.md`
 
+如果当前目标就是 **shared-dev 142 的 official readonly baseline**，优先直接用固定 wrapper，而不是自己再拼 `BASELINE_DIR`：
+
+```bash
+bash scripts/run_p2_shared_dev_142_readonly_rerun.sh
+```
+
 如果这是 shared-dev 首次执行，或刚换了一组凭证，建议先跑：
 
 ```bash

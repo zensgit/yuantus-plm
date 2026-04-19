@@ -11,6 +11,12 @@ Run all repo-relative commands below from the Yuantus repo root.
 Use this helper only for the current official readonly baseline on shared-dev host `142.171.239.56`.
 If you are not explicitly sure the environment may be reset, this is the correct path.
 
+Preferred one-command runner
+
+- `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
+
+Use the expanded commands below only when you want to inspect or tweak each step manually.
+
 Canonical readonly baseline
 
 - baseline dir:

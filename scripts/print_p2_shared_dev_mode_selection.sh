@@ -27,6 +27,7 @@ Then use:
 
 If the environment is the current official readonly baseline on shared-dev host `142.171.239.56`, prefer:
 
+- bash scripts/run_p2_shared_dev_142_readonly_rerun.sh
 - bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh
 
 Use first-run bootstrap only when all of these are true:

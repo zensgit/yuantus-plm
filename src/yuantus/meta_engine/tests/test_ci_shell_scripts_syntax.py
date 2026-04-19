@@ -99,6 +99,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_strict_gate_split_helper.sh",
         scripts_dir / "print_subcontracting_first_cut_anchors.sh",
         scripts_dir / "run_claude_code_parallel_reviewer.sh",
+        scripts_dir / "run_p2_shared_dev_142_readonly_rerun.sh",
         scripts_dir / "run_p2_observation_regression.sh",
         scripts_dir / "run_p2_observation_regression_workflow.sh",
         scripts_dir / "verify_run_h_e2e.sh",
@@ -130,6 +131,7 @@ def test_p2_observation_scripts_help_uses_repo_safe_env_file_examples() -> None:
     repo_root = _find_repo_root(Path(__file__))
     for name in (
         "precheck_p2_observation_regression.sh",
+        "run_p2_shared_dev_142_readonly_rerun.sh",
         "run_p2_observation_regression.sh",
     ):
         script = repo_root / "scripts" / name
