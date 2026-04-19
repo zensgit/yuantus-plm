@@ -6,6 +6,11 @@
 
 这份 handoff 用于把 **fresh shared-dev 初始化** 交给持有远端部署权限的操作者执行。
 
+如果你只需要一份单页执行顺序，直接看：
+
+- `docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md`
+- `scripts/print_p2_shared_dev_first_run_commands.sh`
+
 它解决的是：
 
 - 如何在远端第一次把 `tenant / org / admin / ops-viewer / meta / p2-observation fixture` 初始化出来
@@ -94,14 +99,14 @@ scripts/validate_p2_shared_dev_env.sh
 ### 1. 服务器侧：准备 bootstrap env
 
 ```bash
-cp "$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env" \
-  deployments/docker/shared-dev.bootstrap.env
+scp "$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env" \
+  <user>@<server-host>:<server-repo>/deployments/docker/shared-dev.bootstrap.env
 ```
 
 如果你没用 helper，也可以继续手工：
 
 ```bash
-cp deployments/docker/shared-dev.bootstrap.env.example deployments/docker/shared-dev.bootstrap.env
+cp deployments/docker/shared-dev.bootstrap.env.example /tmp/shared-dev.bootstrap.env
 ```
 
 然后至少修改：
@@ -117,9 +122,14 @@ cp deployments/docker/shared-dev.bootstrap.env.example deployments/docker/shared
 - `YUANTUS_BOOTSTRAP_VIEWER_USERNAME=ops-viewer`
 - `YUANTUS_BOOTSTRAP_DATASET_MODE=p2-observation`
 
+如果不用 `scp`，也必须用等价的安全方式把最终 env 文件放到远端：
+
+- `<server-repo>/deployments/docker/shared-dev.bootstrap.env`
+
 ### 2. 服务器侧：跑一次 bootstrap
 
 ```bash
+cd <server-repo>
 docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env \
   --profile bootstrap run --rm bootstrap
 ```
@@ -194,6 +204,8 @@ scripts/precheck_p2_observation_regression.sh --env-file "$ENV_FILE"
 如果这一步不绿，不要继续 full regression。
 
 ### 7. 操作机侧：跑 canonical wrapper
+
+仅在 precheck 通过后执行：
 
 ```bash
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"

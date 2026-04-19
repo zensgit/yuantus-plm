@@ -18,19 +18,22 @@ scripts/validate_p2_shared_dev_env.sh
 Server-side bootstrap
 ---------------------
 
-1. Prepare bootstrap env
+1. Transfer bootstrap env to the shared-dev server
 
-cp "$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env" \
-  deployments/docker/shared-dev.bootstrap.env
+# Example via scp; replace host and repo path:
+scp "$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env" \
+  <user>@<server-host>:<server-repo>/deployments/docker/shared-dev.bootstrap.env
 
 # If you did not run the helper above, fall back to:
-# cp deployments/docker/shared-dev.bootstrap.env.example deployments/docker/shared-dev.bootstrap.env
+# scp a manually edited shared-dev.bootstrap.env file into:
+# <server-repo>/deployments/docker/shared-dev.bootstrap.env
 # then edit:
 # - YUANTUS_BOOTSTRAP_ADMIN_PASSWORD
 # - YUANTUS_BOOTSTRAP_VIEWER_PASSWORD
 
 2. Run one-shot bootstrap
 
+cd <server-repo>
 docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env \
   --profile bootstrap run --rm bootstrap
 
@@ -66,6 +69,8 @@ Observation execution
 ---------------------
 
 scripts/precheck_p2_observation_regression.sh --env-file "$ENV_FILE"
+
+Only if the precheck is green:
 
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
 OUTPUT_DIR="$OUTPUT_DIR" ARCHIVE_RESULT=1 \
