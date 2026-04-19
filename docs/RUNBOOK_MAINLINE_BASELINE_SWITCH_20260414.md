@@ -82,7 +82,21 @@ If you are operating inside one of the constrained `Claude C*` tracks, use the
 corresponding branch pattern from `contracts/claude_allowed_paths.json`, for
 example `feature/claude-c12-<slug>`.
 
-### 5. Re-apply only what still matters
+### 5. Publish the new topic branch if you want the worktree recoverable
+
+Once the clean worktree has a real `feature/*` branch, publish it once so the
+branch is recoverable across shells, clones, or later regression sessions:
+
+```bash
+git -C ../Yuantus-worktrees/mainline-<stamp> push -u origin feature/<topic>-<YYYYMMDD>
+```
+
+This keeps:
+
+- `baseline/mainline-<stamp>` as the local frozen baseline
+- `origin/feature/<topic>-<YYYYMMDD>` as the remote recovery point for ongoing work
+
+### 6. Re-apply only what still matters
 
 Current-branch unique commits:
 
@@ -99,7 +113,7 @@ Re-apply them in a clean worktree only if they are still wanted:
 git cherry-pick f9076f4 09b30e2 e42c79e d24b5a4 6738eac a50f400
 ```
 
-### 6. Keep Claude Code isolated if you use it later
+### 7. Keep Claude Code isolated if you use it later
 
 This repo already has a dedicated runbook:
 
@@ -123,6 +137,9 @@ set with:
 bash scripts/print_mainline_baseline_switch_commands.sh \
   --topic-branch feature/<topic>-<YYYYMMDD>
 ```
+
+With `--topic-branch`, the helper will also print the recommended
+`push -u origin ...` command for that clean worktree branch.
 
 ## Important cautions
 
