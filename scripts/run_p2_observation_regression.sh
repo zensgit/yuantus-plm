@@ -7,7 +7,7 @@ usage() {
 Usage:
   BASE_URL=http://localhost:8000 TOKEN=<jwt> scripts/run_p2_observation_regression.sh
   BASE_URL=http://localhost:8000 USERNAME=<user> PASSWORD=<password> scripts/run_p2_observation_regression.sh
-  scripts/run_p2_observation_regression.sh --env-file ./p2-shared-dev.env
+  scripts/run_p2_observation_regression.sh --env-file "$HOME/.config/yuantus/p2-shared-dev.env"
 
 Options:
   --env-file <path>      Load unset wrapper env vars from a local KEY=VALUE file
