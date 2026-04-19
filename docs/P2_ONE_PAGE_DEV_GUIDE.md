@@ -134,6 +134,12 @@ scripts/run_p2_observation_regression_workflow.sh \
 bash scripts/run_p2_shared_dev_142_workflow_probe.sh
 ```
 
+如果你要的是 **GitHub Actions 采集 + official frozen baseline readonly compare/eval**，直接用：
+
+```bash
+bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh
+```
+
 注意：
 
 - 这条入口不会做 frozen baseline 的 readonly compare/eval

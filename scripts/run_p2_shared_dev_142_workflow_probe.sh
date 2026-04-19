@@ -42,7 +42,8 @@ Behavior:
 Boundary:
   - this is a current-only workflow probe
   - it does not perform readonly baseline compare/evaluate against the frozen 142 baseline
-  - for readonly compare/eval, use: bash scripts/run_p2_shared_dev_142_readonly_rerun.sh
+  - for workflow probe + readonly compare/eval, use: bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh
+  - for the direct local readonly rerun path, use: bash scripts/run_p2_shared_dev_142_readonly_rerun.sh
 EOF
 }
 

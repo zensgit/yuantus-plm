@@ -28,6 +28,21 @@ bash scripts/run_p2_shared_dev_142_workflow_probe.sh
 - `current-only`
 - 不替代本地 readonly baseline compare
 
+如果你要的是 **workflow 路径采集 + 142 official frozen baseline readonly compare/eval**，直接用：
+
+```bash
+bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh
+```
+
+它会：
+
+1. 先跑固定的 `142 workflow probe`
+2. 再把下载下来的 artifact 和官方 frozen baseline 做本地 `readonly` compare/eval
+3. 额外生成：
+   - `WORKFLOW_READONLY_DIFF.md`
+   - `WORKFLOW_READONLY_EVAL.md`
+   - `WORKFLOW_READONLY_CHECK.md`
+
 推荐本地 wrapper：
 
 ```bash
