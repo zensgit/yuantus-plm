@@ -201,6 +201,16 @@ python3 scripts/evaluate_p2_observation_results.py \
 AFTER="${REMOTE_WORKSPACE}/remote-dev-results/${TS}-after"
 mkdir -p "$AFTER"
 
+: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD from a secure channel before continuing}"
+
+ADMIN_TOKEN=$(
+  python3 -c 'import json, os, sys; json.dump({"tenant_id": "tenant-1", "username": os.environ["ADMIN_USERNAME"], "password": os.environ["ADMIN_PASSWORD"], "org_id": "org-1"}, sys.stdout)' \
+  | curl -sS -X POST "$BASE_URL/api/v1/auth/login" \
+      -H 'content-type: application/json' \
+      --data-binary @- \
+  | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])'
+)
+
 curl -sS -X POST "$BASE_URL/api/v1/eco/approvals/escalate-overdue" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H 'x-tenant-id: tenant-1' \
@@ -223,14 +233,10 @@ BASE_URL="$BASE_URL" \
 TOKEN="$ADMIN_TOKEN" \
 TENANT_ID=tenant-1 \
 ORG_ID=org-1 \
+OPERATOR="$REMOTE_USER" \
+ENVIRONMENT=remote-local-dev-env \
 OUTPUT_DIR="$AFTER" \
-bash scripts/verify_p2_dev_observation_startup.sh
-
-docker exec -w /work "$API_CONTAINER" \
-  python scripts/render_p2_observation_result.py \
-  "/work/remote-dev-results/$(basename "$AFTER")" \
-  --operator "$REMOTE_USER" \
-  --environment remote-local-dev-env
+bash scripts/run_p2_observation_regression.sh
 ```
 
 ### 3. 结果判定

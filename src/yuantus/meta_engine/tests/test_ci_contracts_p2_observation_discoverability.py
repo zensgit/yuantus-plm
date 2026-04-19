@@ -66,3 +66,18 @@ def test_p2_observation_handoff_and_runbooks_are_indexed_in_delivery_doc_index()
         "docs/DEV_AND_VERIFICATION_P2_OBSERVATION_WORKFLOW_WRAPPER_20260418.md",
     ):
         assert token in text, f"DELIVERY_DOC_INDEX missing P2 observation doc token: {token}"
+
+
+def test_p2_remote_observation_runbook_stays_on_wrapper_path_for_baseline_and_rerun() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    runbook_path = repo_root / "docs" / "P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md"
+    assert runbook_path.is_file(), f"Missing {runbook_path}"
+
+    text = _read(runbook_path)
+    for token in (
+        "bash scripts/run_p2_observation_regression.sh",
+        'TOKEN="$ADMIN_TOKEN"',
+        'ADMIN_TOKEN=$(',
+        'Authorization: Bearer $ADMIN_TOKEN',
+    ):
+        assert token in text, f"P2 remote observation runbook missing token: {token}"

@@ -124,7 +124,7 @@ raise SystemExit(2)
             "bash",
             str(script),
             "--base-url",
-            "https://dev.example.invalid",
+            "https://dev.example.invalid/",
             "--tenant-id",
             "tenant-1",
             "--org-id",
@@ -158,6 +158,7 @@ raise SystemExit(2)
     payload = json.loads((out_dir / "workflow_dispatch.json").read_text(encoding="utf-8"))
     assert payload["result"] == "success"
     assert payload["repo"] == "zensgit/yuantus-plm"
+    assert payload["base_url"] == "https://dev.example.invalid"
     assert payload["run_id"] == "202"
     assert payload["run_conclusion"] == "success"
     assert payload["run_url"] == "https://example.invalid/runs/202"

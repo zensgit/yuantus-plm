@@ -10,7 +10,7 @@ Usage:
 Options:
   --base-url <url>               Required. API base URL passed to workflow_dispatch.
   --repo <owner/name>            Optional repository override for gh (-R).
-  --ref <branch-or-tag>          Ref used for workflow_dispatch (default: main).
+  --ref <branch>                 Ref used for workflow_dispatch (default: main).
   --workflow <name>              Workflow identifier (default: p2-observation-regression).
   --artifact-name <name>         Artifact name to download (default: p2-observation-regression).
   --tenant-id <id>               Tenant header value (default: tenant-1).
@@ -155,6 +155,7 @@ if [[ -z "${BASE_URL}" ]]; then
   usage >&2
   exit 2
 fi
+BASE_URL="${BASE_URL%/}"
 if ! [[ "${POLL_INTERVAL_SEC}" =~ ^[0-9]+$ ]] || [[ "${POLL_INTERVAL_SEC}" -lt 1 ]]; then
   echo "ERROR: --poll-interval-sec must be a positive integer (got: ${POLL_INTERVAL_SEC})" >&2
   exit 2
