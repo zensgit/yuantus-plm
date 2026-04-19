@@ -84,3 +84,39 @@ def test_p2_remote_observation_runbook_stays_on_wrapper_path_for_baseline_and_re
         'Authorization: Bearer $ADMIN_TOKEN',
     ):
         assert token in text, f"P2 remote observation runbook missing token: {token}"
+
+
+def _extract_env_blocks(text: str) -> list[str]:
+    blocks: list[str] = []
+    current: list[str] | None = None
+    for line in text.splitlines():
+        if "<<'ENVEOF'" in line or '<<"ENVEOF"' in line or "<<ENVEOF" in line:
+            current = []
+            continue
+        if current is not None and line.strip() == "ENVEOF":
+            blocks.append("\n".join(current))
+            current = None
+            continue
+        if current is not None:
+            current.append(line)
+    return blocks
+
+
+def test_p2_shared_dev_env_file_examples_stay_repo_safe_and_precheck_compatible() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    targets = (
+        repo_root / "docs" / "P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
+        repo_root / "docs" / "P2_ONE_PAGE_DEV_GUIDE.md",
+        repo_root / "docs" / "P2_OBSERVATION_REGRESSION_ONE_COMMAND.md",
+        repo_root / "docs" / "DEV_AND_VERIFICATION_P2_OBSERVATION_SHARED_DEV_EXECUTION_GATE_20260419.md",
+        repo_root / "scripts" / "print_p2_shared_dev_observation_commands.sh",
+    )
+
+    for path in targets:
+        text = _read(path)
+        assert "$HOME/.config/yuantus/" in text, f"{path} should keep shared-dev env files outside the repo"
+        assert "./p2-shared-dev.env" not in text, f"{path} should not point shared-dev credentials at repo root"
+        assert "./p2-observation.env" not in text, f"{path} should not point observation credentials at repo root"
+        assert "ARCHIVE_RESULT=1" in text, f"{path} should still document archive enablement"
+        for block in _extract_env_blocks(text):
+            assert "ARCHIVE_RESULT=1" not in block, f"{path} env-file example must stay precheck-compatible"

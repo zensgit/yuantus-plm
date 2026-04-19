@@ -40,7 +40,7 @@ Local execution audit confirmed:
   - `PASSWORD`
   - `TENANT_ID`
   - `ORG_ID`
-- the existing repo-root `.env` and `tmp/p2-observation-alite/.env` are local runtime config files, not shared-dev observation credentials
+- any existing repo-root `.env` and `tmp/p2-observation-alite/.env` files on this machine are local runtime config files, not shared-dev observation credentials
 
 Because of that, a real `shared-dev` precheck or regression run cannot be executed from this machine at this time.
 
@@ -66,19 +66,24 @@ Do:
 When shared-dev credentials become available, use the existing flow unchanged:
 
 ```bash
-cat > ./p2-shared-dev.env <<'ENVEOF'
+ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"
+mkdir -p "$(dirname "$ENV_FILE")"
+
+cat > "$ENV_FILE" <<'ENVEOF'
 BASE_URL="http://<dev-host>"
 TOKEN="<jwt>"
 TENANT_ID="<tenant>"
 ORG_ID="<org>"
 ENVIRONMENT="shared-dev"
-ARCHIVE_RESULT=1
 ENVEOF
 
-scripts/precheck_p2_observation_regression.sh --env-file ./p2-shared-dev.env
+chmod 600 "$ENV_FILE"
+
+scripts/precheck_p2_observation_regression.sh --env-file "$ENV_FILE"
 
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
-OUTPUT_DIR="$OUTPUT_DIR" scripts/run_p2_observation_regression.sh --env-file ./p2-shared-dev.env
+OUTPUT_DIR="$OUTPUT_DIR" ARCHIVE_RESULT=1 \
+  scripts/run_p2_observation_regression.sh --env-file "$ENV_FILE"
 ```
 
 If `TOKEN` is not available, reuse the existing login-capable wrapper path documented in:
@@ -86,6 +91,8 @@ If `TOKEN` is not available, reuse the existing login-capable wrapper path docum
 - `docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md`
 - `docs/P2_OBSERVATION_REGRESSION_ONE_COMMAND.md`
 - `docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md`
+
+Do not write real shared-dev credentials to a repo-root env file.
 
 ## Verification
 

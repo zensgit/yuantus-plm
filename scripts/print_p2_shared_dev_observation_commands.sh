@@ -8,22 +8,26 @@ P2 shared dev observation handoff
 
 1. Preferred: put shared-dev defaults in a local env file
 
-cat > ./p2-shared-dev.env <<'ENVEOF'
+ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"
+mkdir -p "$(dirname "$ENV_FILE")"
+
+cat > "$ENV_FILE" <<'ENVEOF'
 BASE_URL="http://<dev-host>"
 TENANT_ID="<tenant>"
 ORG_ID="<org>"
 TOKEN="<jwt>"
 ENVIRONMENT="shared-dev"
-ARCHIVE_RESULT=1
 ENVEOF
+
+chmod 600 "$ENV_FILE"
 
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)" \
 scripts/precheck_p2_observation_regression.sh \
-  --env-file ./p2-shared-dev.env
+  --env-file "$ENV_FILE"
 
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)" \
-scripts/run_p2_observation_regression.sh \
-  --env-file ./p2-shared-dev.env
+ARCHIVE_RESULT=1 scripts/run_p2_observation_regression.sh \
+  --env-file "$ENV_FILE"
 
 2. Fallback: export environment directly
 

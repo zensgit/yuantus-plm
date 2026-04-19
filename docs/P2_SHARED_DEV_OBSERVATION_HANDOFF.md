@@ -28,26 +28,31 @@
 - `ORG_ID`
 
 不要把长期凭证直接写进仓库。
+如果落 env 文件，放在仓库外，例如：`$HOME/.config/yuantus/p2-shared-dev.env`，并设置为 `0600`。
 
 ## 最小执行步骤
 
 ### 1. 首选：准备本地 env 文件
 
 ```bash
-cat > ./p2-shared-dev.env <<'ENVEOF'
+ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"
+mkdir -p "$(dirname "$ENV_FILE")"
+
+cat > "$ENV_FILE" <<'ENVEOF'
 BASE_URL="http://<dev-host>"
 TOKEN="<jwt>"
 TENANT_ID="<tenant>"
 ORG_ID="<org>"
 ENVIRONMENT="shared-dev"
-ARCHIVE_RESULT=1
 ENVEOF
+
+chmod 600 "$ENV_FILE"
 ```
 
 ### 2. 执行本地 precheck
 
 ```bash
-scripts/precheck_p2_observation_regression.sh --env-file ./p2-shared-dev.env
+scripts/precheck_p2_observation_regression.sh --env-file "$ENV_FILE"
 ```
 
 预期产物：
@@ -61,24 +66,30 @@ scripts/precheck_p2_observation_regression.sh --env-file ./p2-shared-dev.env
 
 ```bash
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
-OUTPUT_DIR="$OUTPUT_DIR" scripts/run_p2_observation_regression.sh --env-file ./p2-shared-dev.env
+OUTPUT_DIR="$OUTPUT_DIR" ARCHIVE_RESULT=1 \
+  scripts/run_p2_observation_regression.sh --env-file "$ENV_FILE"
 ```
 
 如果没有现成 `JWT`，可改用 wrapper 自带登录：
 
 ```bash
-cat > ./p2-shared-dev.env <<'ENVEOF'
+ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"
+mkdir -p "$(dirname "$ENV_FILE")"
+
+cat > "$ENV_FILE" <<'ENVEOF'
 BASE_URL="http://<dev-host>"
 USERNAME="<user>"
 PASSWORD="<password>"
 TENANT_ID="<tenant>"
 ORG_ID="<org>"
 ENVIRONMENT="shared-dev"
-ARCHIVE_RESULT=1
 ENVEOF
 
+chmod 600 "$ENV_FILE"
+
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
-OUTPUT_DIR="$OUTPUT_DIR" scripts/run_p2_observation_regression.sh --env-file ./p2-shared-dev.env
+OUTPUT_DIR="$OUTPUT_DIR" ARCHIVE_RESULT=1 \
+  scripts/run_p2_observation_regression.sh --env-file "$ENV_FILE"
 ```
 
 如果你不想落 env 文件，也可以继续沿用直接导出环境变量方式：

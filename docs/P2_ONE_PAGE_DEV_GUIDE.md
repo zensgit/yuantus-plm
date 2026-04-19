@@ -31,21 +31,25 @@
 如果不想每次重新 `export` shared-dev 凭证，先在本地准备一个不入库的 env 文件：
 
 ```bash
-cat > ./p2-shared-dev.env <<'ENVEOF'
+ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"
+mkdir -p "$(dirname "$ENV_FILE")"
+
+cat > "$ENV_FILE" <<'ENVEOF'
 BASE_URL=http://<dev-host>
 TOKEN=<jwt>
 TENANT_ID=<tenant>
 ORG_ID=<org>
 ENVIRONMENT=shared-dev
-ARCHIVE_RESULT=1
 ENVEOF
+
+chmod 600 "$ENV_FILE"
 ```
 
 先跑本地 precheck：
 
 ```bash
 scripts/precheck_p2_observation_regression.sh \
-  --env-file ./p2-shared-dev.env
+  --env-file "$ENV_FILE"
 ```
 
 这一步只验证：
@@ -62,8 +66,9 @@ scripts/precheck_p2_observation_regression.sh \
 
 ```bash
 OUTPUT_DIR=./tmp/p2-observation-rerun-$(date +%Y%m%d-%H%M%S) \
+ARCHIVE_RESULT=1 \
 scripts/run_p2_observation_regression.sh \
-  --env-file ./p2-shared-dev.env
+  --env-file "$ENV_FILE"
 ```
 
 这会额外生成同级归档：
