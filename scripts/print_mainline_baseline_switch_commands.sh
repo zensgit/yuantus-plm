@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: print_mainline_baseline_switch_commands.sh [--repo PATH] [--base-branch REF] [--worktree-name NAME] [--worktree-branch NAME] [--backup-branch NAME]
+Usage: print_mainline_baseline_switch_commands.sh [--repo PATH] [--base-branch REF] [--worktree-name NAME] [--worktree-branch NAME] [--topic-branch NAME] [--backup-branch NAME]
 
 Print safe command templates for preserving a dirty feature worktree and
 switching to a clean mainline baseline worktree.
@@ -25,6 +25,7 @@ WORKTREE_NAME="mainline-${STAMP}"
 WORKTREE_BRANCH="baseline/${WORKTREE_NAME}"
 WORKTREE_BRANCH_EXPLICIT="0"
 BACKUP_BRANCH="backup/${CURRENT_BRANCH//\//-}-${STAMP}"
+TOPIC_BRANCH=""
 
 while (($# > 0)); do
   case "$1" in
@@ -42,6 +43,10 @@ while (($# > 0)); do
       ;;
     --backup-branch)
       BACKUP_BRANCH="${2:-}"
+      shift 2
+      ;;
+    --topic-branch)
+      TOPIC_BRANCH="${2:-}"
       shift 2
       ;;
     --worktree-branch)
@@ -74,6 +79,7 @@ backup_q="$(printf '%q' "${BACKUP_BRANCH}")"
 worktree_parent_q="$(printf '%q' "${WORKTREE_PARENT}")"
 worktree_path_q="$(printf '%q' "${WORKTREE_PATH}")"
 worktree_branch_q="$(printf '%q' "${WORKTREE_BRANCH}")"
+topic_branch_q="$(printf '%q' "${TOPIC_BRANCH}")"
 
 cat <<EOF
 # Mainline baseline switch templates
@@ -83,6 +89,15 @@ cat <<EOF
 # suggested backup branch: ${BACKUP_BRANCH}
 # suggested worktree: ${WORKTREE_PATH}
 # suggested worktree branch: ${WORKTREE_BRANCH}
+EOF
+
+if [[ -n "${TOPIC_BRANCH}" ]]; then
+  cat <<EOF
+# suggested topic branch: ${TOPIC_BRANCH}
+EOF
+fi
+
+cat <<EOF
 
 ## 1) Inspect current state
 git -C ${repo_q} status --short
@@ -98,14 +113,30 @@ git -C ${repo_q} stash push -u -m 'baseline-switch ${STAMP}'
 mkdir -p ${worktree_parent_q}
 git -C ${repo_q} worktree add -b ${worktree_branch_q} ${worktree_path_q} ${base_q}
 
-## 4) Re-apply only the current-branch unique commits if still wanted
+## 4) Start a real development branch inside the clean worktree
+EOF
+
+if [[ -n "${TOPIC_BRANCH}" ]]; then
+  cat <<EOF
+git -C ${worktree_path_q} switch -c ${topic_branch_q}
+EOF
+else
+  cat <<'EOF'
+# choose a real topic before editing, for example:
+git -C <worktree-path> switch -c feature/<topic>-<YYYYMMDD>
+EOF
+fi
+
+cat <<EOF
+
+## 5) Re-apply only the current-branch unique commits if still wanted
 git -C ${worktree_path_q} cherry-pick f9076f4 09b30e2 e42c79e d24b5a4 6738eac a50f400
 
-## 5) Optional: run Claude Code in the clean worktree
+## 6) Optional: run Claude Code in the clean worktree
 claude auth status
 claude --worktree ${WORKTREE_NAME} --add-dir ${repo_q} 'Work only in the clean ${BASE_BRANCH} baseline worktree. Re-apply the minimal current-branch deltas, keep the scope narrow, and inspect git status first.'
 
-## 6) Rollback / recovery references
+## 7) Rollback / recovery references
 git -C ${repo_q} stash list --max-count=5
 git -C ${repo_q} branch --list ${backup_q}
 
