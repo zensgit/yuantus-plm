@@ -11,7 +11,9 @@ Run all repo-relative commands below from the Yuantus repo root.
 0. Generate both env files locally
 
 scripts/generate_p2_shared_dev_bootstrap_env.sh \
-  --base-url "https://<shared-dev-host>"
+  --base-url "https://change-me-shared-dev-host"
+
+# Replace change-me-shared-dev-host with the real shared-dev origin before continuing.
 
 1. Validate both generated env files before touching the server
 
@@ -61,10 +63,12 @@ scripts/run_p2_observation_regression.sh \
 
 - OBSERVATION_PRECHECK.md
 - observation_precheck.json
+- summary_probe.json
 - summary.json
 - items.json
 - anomalies.json
 - export.csv
+- README.txt
 - OBSERVATION_RESULT.md
 - <OUTPUT_DIR>.tar.gz
 

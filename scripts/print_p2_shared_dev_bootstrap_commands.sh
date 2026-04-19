@@ -11,7 +11,9 @@ Run all repo-relative commands below from the Yuantus repo root.
 0. Preferred: generate both env files locally first
 
 scripts/generate_p2_shared_dev_bootstrap_env.sh \
-  --base-url "https://<shared-dev-host>"
+  --base-url "https://change-me-shared-dev-host"
+
+# Replace change-me-shared-dev-host with the real shared-dev origin before continuing.
 
 scripts/validate_p2_shared_dev_env.sh
 
@@ -53,7 +55,7 @@ ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"
 mkdir -p "$(dirname "$ENV_FILE")"
 
 cat > "$ENV_FILE" <<'ENVEOF'
-BASE_URL="https://<shared-dev-host>"
+BASE_URL="https://change-me-shared-dev-host"
 USERNAME="admin"
 PASSWORD="<same bootstrap admin password>"
 TENANT_ID="tenant-1"

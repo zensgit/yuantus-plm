@@ -85,6 +85,7 @@ tar -czf "${OUTPUT_DIR}.tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTP
 
 - OBSERVATION_PRECHECK.md
 - observation_precheck.json
+- summary_probe.json
 - summary.json
 - items.json
 - anomalies.json
