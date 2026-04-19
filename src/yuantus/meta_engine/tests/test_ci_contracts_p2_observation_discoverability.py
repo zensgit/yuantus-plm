@@ -39,6 +39,9 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
 
     text = _read(index_path)
     for token in (
+        "print_p2_shared_dev_bootstrap_commands.sh",
+        "print_p2_shared_dev_first_run_commands.sh",
+        "print_p2_shared_dev_mode_selection.sh",
         "precheck_p2_observation_regression.sh",
         "verify_p2_dev_observation_startup.sh",
         "run_p2_observation_regression.sh",
@@ -46,6 +49,9 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "render_p2_observation_result.py",
         "compare_p2_observation_results.py",
         "evaluate_p2_observation_results.py",
+        "`print_p2_shared_dev_bootstrap_commands.sh` prints the server-side shared-dev bootstrap and post-bootstrap observation handoff commands.",
+        "`print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.",
+        "`print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.",
         "`precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe",
         "`run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper",
         "`run_p2_observation_regression_workflow.sh` is the canonical local wrapper",
@@ -120,3 +126,14 @@ def test_p2_shared_dev_env_file_examples_stay_repo_safe_and_precheck_compatible(
         assert "ARCHIVE_RESULT=1" in text, f"{path} should still document archive enablement"
         for block in _extract_env_blocks(text):
             assert "ARCHIVE_RESULT=1" not in block, f"{path} env-file example must stay precheck-compatible"
+
+
+def test_p2_shared_dev_mode_selection_script_is_present() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    for path in (
+        repo_root / "scripts" / "print_p2_shared_dev_bootstrap_commands.sh",
+        repo_root / "scripts" / "print_p2_shared_dev_first_run_commands.sh",
+        repo_root / "scripts" / "print_p2_shared_dev_mode_selection.sh",
+        repo_root / "scripts" / "print_p2_shared_dev_observation_commands.sh",
+    ):
+        assert path.is_file(), f"Missing shared-dev observation script: {path}"
