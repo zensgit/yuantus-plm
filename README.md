@@ -45,12 +45,25 @@ docker compose up --build
 
 For a fresh shared-dev deployment, initialize tenant/org/users and the P2 observation fixtures once before running the regression scripts.
 
-1. Copy the bootstrap env template and set real passwords:
+1. Preferred: generate both env files locally first:
+```bash
+scripts/generate_p2_shared_dev_bootstrap_env.sh \
+  --base-url "https://<shared-dev-host>"
+scripts/validate_p2_shared_dev_env.sh
+```
+
+2. Copy the generated bootstrap env onto the server:
+```bash
+cp "$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env" \
+  deployments/docker/shared-dev.bootstrap.env
+```
+
+Fallback: copy the bootstrap env template and set real passwords manually:
 ```bash
 cp deployments/docker/shared-dev.bootstrap.env.example deployments/docker/shared-dev.bootstrap.env
 ```
 
-2. Run the one-shot bootstrap service:
+3. Run the one-shot bootstrap service:
 ```bash
 docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env \
   --profile bootstrap run --rm bootstrap
@@ -67,12 +80,12 @@ The bootstrap fixture step also materializes the local `RBACUser` records for bo
 
 so a fresh shared-dev database does not need a separate local-dev-only seeding step.
 
-3. Start the long-running services:
+4. Start the long-running services:
 ```bash
 docker compose up -d api worker
 ```
 
-4. Create the local regression env file on the operator machine:
+5. Create the local regression env file on the operator machine:
 ```bash
 mkdir -p "$HOME/.config/yuantus"
 cat > "$HOME/.config/yuantus/p2-shared-dev.env" <<'EOF'
@@ -84,9 +97,10 @@ ORG_ID="org-1"
 ENVIRONMENT="shared-dev"
 EOF
 chmod 600 "$HOME/.config/yuantus/p2-shared-dev.env"
+scripts/validate_p2_shared_dev_env.sh --mode observation --observation-env "$HOME/.config/yuantus/p2-shared-dev.env"
 ```
 
-5. Then run:
+6. Then run:
 ```bash
 scripts/precheck_p2_observation_regression.sh --env-file "$HOME/.config/yuantus/p2-shared-dev.env"
 OUTPUT_DIR=./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S) \

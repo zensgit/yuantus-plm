@@ -61,6 +61,8 @@
 
 ## 推荐执行顺序
 
+所有相对路径命令都默认从 **仓库根目录** 执行。
+
 ### 0. 首选：先用 helper 生成两份 env
 
 ```bash
@@ -82,6 +84,12 @@ scripts/generate_p2_shared_dev_bootstrap_env.sh \
 - 后续该执行的命令
 
 如果你不想手工想密码，优先用这一步。
+
+紧接着先校验两份 env：
+
+```bash
+scripts/validate_p2_shared_dev_env.sh
+```
 
 ### 1. 服务器侧：准备 bootstrap env
 
@@ -159,6 +167,12 @@ chmod 600 "$ENV_FILE"
 ```
 
 如果第 0 步已经跑过，通常不需要再手工创建这份文件。
+
+手工创建时，先校验：
+
+```bash
+scripts/validate_p2_shared_dev_env.sh --mode observation --observation-env "$ENV_FILE"
+```
 
 如果后面要单独补 `403` 分支 smoke，另记下：
 
