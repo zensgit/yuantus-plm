@@ -35,6 +35,7 @@
 - print_dirty_tree_split_matrix.sh
 - print_docs_parallel_split_helper.sh
 - print_p2_shared_dev_observation_commands.sh
+- precheck_p2_observation_regression.sh
 - print_strict_gate_split_helper.sh
 - run_claude_code_parallel_reviewer.sh
 - run_p2_observation_regression.sh
@@ -71,6 +72,7 @@
 - `print_dirty_tree_split_matrix.sh` prints the single-entry overview for the full dirty-tree split sequence.
 - `print_docs_parallel_split_helper.sh` prints the fast-path staging commands for the docs-parallel split.
 - `print_p2_shared_dev_observation_commands.sh` prints the canonical P2 shared-dev shell and workflow entry commands.
+- `precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe for auth plus the dashboard summary read surface, and writes `OBSERVATION_PRECHECK.md`.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
 - `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, supports either `TOKEN` or `USERNAME/PASSWORD`, can load defaults from `--env-file`, and can auto-write `<OUTPUT_DIR>.tar.gz`.

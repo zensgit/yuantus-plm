@@ -18,6 +18,10 @@ ARCHIVE_RESULT=1
 ENVEOF
 
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)" \
+scripts/precheck_p2_observation_regression.sh \
+  --env-file ./p2-shared-dev.env
+
+OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)" \
 scripts/run_p2_observation_regression.sh \
   --env-file ./p2-shared-dev.env
 
@@ -30,7 +34,11 @@ export TOKEN="<jwt>"
 export USERNAME="admin"
 export PASSWORD="<password>"
 
-3. Run canonical shell wrapper
+3. Run local precheck
+
+scripts/precheck_p2_observation_regression.sh
+
+4. Run canonical shell wrapper
 
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
 BASE_URL="$BASE_URL" \
@@ -44,7 +52,7 @@ ARCHIVE_RESULT=1 \
 OUTPUT_DIR="$OUTPUT_DIR" \
 scripts/run_p2_observation_regression.sh
 
-4. Optional: trigger GitHub workflow instead of local shell
+5. Optional: trigger GitHub workflow instead of local shell
 
 scripts/run_p2_observation_regression_workflow.sh \
   --base-url "$BASE_URL" \
@@ -53,15 +61,17 @@ scripts/run_p2_observation_regression_workflow.sh \
   --environment shared-dev \
   --out-dir "./tmp/p2-observation-workflow-$(date +%Y%m%d-%H%M%S)"
 
-5. Archive evidence to send back
+6. Archive evidence to send back
 
 # If ARCHIVE_RESULT=1 was set above, this file already exists:
 # "${OUTPUT_DIR}.tar.gz"
 
 tar -czf "${OUTPUT_DIR}.tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTPUT_DIR")"
 
-6. Return these files at minimum
+7. Return these files at minimum
 
+- OBSERVATION_PRECHECK.md
+- observation_precheck.json
 - summary.json
 - items.json
 - anomalies.json
@@ -69,7 +79,7 @@ tar -czf "${OUTPUT_DIR}.tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTP
 - README.txt
 - OBSERVATION_RESULT.md
 
-7. Optional: run raw write smoke only when explicitly allowed
+8. Optional: run raw write smoke only when explicitly allowed
 
 BASE_URL="$BASE_URL" \
 TOKEN="$TOKEN" \

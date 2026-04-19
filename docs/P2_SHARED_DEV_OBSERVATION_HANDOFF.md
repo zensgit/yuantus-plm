@@ -44,7 +44,20 @@ ARCHIVE_RESULT=1
 ENVEOF
 ```
 
-### 2. 执行 canonical shell wrapper
+### 2. 执行本地 precheck
+
+```bash
+scripts/precheck_p2_observation_regression.sh --env-file ./p2-shared-dev.env
+```
+
+预期产物：
+
+- `OBSERVATION_PRECHECK.md`
+- `observation_precheck.json`
+
+如果这一步不绿，不要继续 full observation。
+
+### 3. 执行 canonical shell wrapper
 
 ```bash
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
@@ -76,6 +89,8 @@ export TOKEN="<jwt>"
 export TENANT_ID="<tenant>"
 export ORG_ID="<org>"
 
+scripts/precheck_p2_observation_regression.sh
+
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S)"
 BASE_URL="$BASE_URL" \
 TOKEN="$TOKEN" \
@@ -87,7 +102,7 @@ OUTPUT_DIR="$OUTPUT_DIR" \
 scripts/run_p2_observation_regression.sh
 ```
 
-### 3. 打包证据
+### 4. 打包证据
 
 如果上面用了 `ARCHIVE_RESULT=1`，wrapper 会自动生成：
 
@@ -105,6 +120,8 @@ tar -czf "${OUTPUT_DIR}.tar.gz" -C "$(dirname "$OUTPUT_DIR")" "$(basename "$OUTP
 
 至少回传：
 
+- `OBSERVATION_PRECHECK.md`
+- `observation_precheck.json`
 - `summary.json`
 - `items.json`
 - `anomalies.json`

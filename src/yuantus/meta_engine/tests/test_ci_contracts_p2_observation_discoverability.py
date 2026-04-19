@@ -39,12 +39,14 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
 
     text = _read(index_path)
     for token in (
+        "precheck_p2_observation_regression.sh",
         "verify_p2_dev_observation_startup.sh",
         "run_p2_observation_regression.sh",
         "run_p2_observation_regression_workflow.sh",
         "render_p2_observation_result.py",
         "compare_p2_observation_results.py",
         "evaluate_p2_observation_results.py",
+        "`precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe",
         "`run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper",
         "`run_p2_observation_regression_workflow.sh` is the canonical local wrapper",
         "`print_p2_shared_dev_observation_commands.sh` prints the canonical P2 shared-dev shell and workflow entry commands.",
@@ -75,6 +77,7 @@ def test_p2_remote_observation_runbook_stays_on_wrapper_path_for_baseline_and_re
 
     text = _read(runbook_path)
     for token in (
+        "scripts/precheck_p2_observation_regression.sh",
         "bash scripts/run_p2_observation_regression.sh",
         'TOKEN="$ADMIN_TOKEN"',
         'ADMIN_TOKEN=$(',

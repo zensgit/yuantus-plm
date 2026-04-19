@@ -90,6 +90,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_dirty_tree_domain_coverage.sh",
         scripts_dir / "print_dirty_tree_split_matrix.sh",
         scripts_dir / "print_docs_parallel_split_helper.sh",
+        scripts_dir / "precheck_p2_observation_regression.sh",
         scripts_dir / "print_strict_gate_split_helper.sh",
         scripts_dir / "print_subcontracting_first_cut_anchors.sh",
         scripts_dir / "run_claude_code_parallel_reviewer.sh",
@@ -259,3 +260,22 @@ def test_p2_observation_regression_workflow_script_has_help() -> None:
     assert "--max-discovery-sec" in out
     assert "WORKFLOW_DISPATCH_RESULT.md" in out
     assert "workflow_dispatch.json" in out
+
+
+def test_p2_observation_precheck_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "precheck_p2_observation_regression.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    assert "Usage:" in out
+    assert "precheck_p2_observation_regression.sh" in out
+    assert "--env-file" in out
+    assert "OBSERVATION_PRECHECK.md" in out
+    assert "observation_precheck.json" in out
