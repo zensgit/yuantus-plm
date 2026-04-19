@@ -61,13 +61,42 @@
 
 ## 推荐执行顺序
 
+### 0. 首选：先用 helper 生成两份 env
+
+```bash
+scripts/generate_p2_shared_dev_bootstrap_env.sh \
+  --base-url "https://<shared-dev-host>"
+```
+
+默认会生成两份 `0600` 文件：
+
+- 服务器侧：
+  - `$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env`
+- 操作机侧：
+  - `$HOME/.config/yuantus/p2-shared-dev.env`
+
+并会直接打印：
+
+- `admin` 密码
+- `ops-viewer` 密码
+- 后续该执行的命令
+
+如果你不想手工想密码，优先用这一步。
+
 ### 1. 服务器侧：准备 bootstrap env
+
+```bash
+cp "$HOME/.config/yuantus/bootstrap/shared-dev.bootstrap.env" \
+  deployments/docker/shared-dev.bootstrap.env
+```
+
+如果你没用 helper，也可以继续手工：
 
 ```bash
 cp deployments/docker/shared-dev.bootstrap.env.example deployments/docker/shared-dev.bootstrap.env
 ```
 
-至少修改：
+然后至少修改：
 
 - `YUANTUS_BOOTSTRAP_ADMIN_PASSWORD`
 - `YUANTUS_BOOTSTRAP_VIEWER_PASSWORD`
@@ -128,6 +157,8 @@ ENVEOF
 
 chmod 600 "$ENV_FILE"
 ```
+
+如果第 0 步已经跑过，通常不需要再手工创建这份文件。
 
 如果后面要单独补 `403` 分支 smoke，另记下：
 
