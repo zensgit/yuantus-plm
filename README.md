@@ -41,6 +41,52 @@ Run API + Worker + Postgres + MinIO via docker compose:
 docker compose up --build
 ```
 
+## Shared-dev bootstrap (docker)
+
+For a fresh shared-dev deployment, initialize tenant/org/users and a generic demo seed once before running the regression scripts.
+
+1. Copy the bootstrap env template and set real passwords:
+```bash
+cp deployments/docker/shared-dev.bootstrap.env.example deployments/docker/shared-dev.bootstrap.env
+```
+
+2. Run the one-shot bootstrap service:
+```bash
+docker compose --env-file ./deployments/docker/shared-dev.bootstrap.env \
+  --profile bootstrap run --rm bootstrap
+```
+
+3. Start the long-running services:
+```bash
+docker compose up -d api worker
+```
+
+4. Create the local regression env file on the operator machine:
+```bash
+mkdir -p "$HOME/.config/yuantus"
+cat > "$HOME/.config/yuantus/p2-shared-dev.env" <<'EOF'
+BASE_URL="https://<shared-dev-host>"
+USERNAME="admin"
+PASSWORD="<same bootstrap admin password>"
+TENANT_ID="tenant-1"
+ORG_ID="org-1"
+ENVIRONMENT="shared-dev"
+EOF
+chmod 600 "$HOME/.config/yuantus/p2-shared-dev.env"
+```
+
+5. Then run:
+```bash
+scripts/precheck_p2_observation_regression.sh --env-file "$HOME/.config/yuantus/p2-shared-dev.env"
+OUTPUT_DIR=./tmp/p2-shared-dev-observation-$(date +%Y%m%d-%H%M%S) \
+ARCHIVE_RESULT=1 \
+scripts/run_p2_observation_regression.sh --env-file "$HOME/.config/yuantus/p2-shared-dev.env"
+```
+
+Note:
+- The bootstrap service guarantees identity/bootstrap credentials and generic demo data.
+- If you need a non-zero P2 observation baseline with specific overdue/escalation behavior, provision those ECO fixtures separately before treating the result as a regression baseline.
+
 ## CAD ML Docker helpers
 
 Use the one-click scripts to start/stop cad-ml-platform (default ports 18000/19090/16379):
