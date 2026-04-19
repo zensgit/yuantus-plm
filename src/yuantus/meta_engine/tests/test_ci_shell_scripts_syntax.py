@@ -121,6 +121,26 @@ def test_release_orchestration_script_has_help() -> None:
     assert "release_orchestration.sh execute" in (cp.stdout or "")
 
 
+def test_p2_observation_scripts_help_uses_repo_safe_env_file_examples() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    for name in (
+        "precheck_p2_observation_regression.sh",
+        "run_p2_observation_regression.sh",
+    ):
+        script = repo_root / "scripts" / name
+        assert script.is_file(), f"Missing script: {script}"
+
+        cp = subprocess.run(  # noqa: S603,S607
+            ["bash", str(script), "--help"],
+            text=True,
+            capture_output=True,
+        )
+        assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+        out = cp.stdout or ""
+        assert "$HOME/.config/yuantus/" in out, f"{name} help should keep env-file examples outside repo root"
+        assert "./p2-shared-dev.env" not in out, f"{name} help should not point shared-dev credentials at repo root"
+
+
 def test_strict_gate_report_script_has_help() -> None:
     repo_root = _find_repo_root(Path(__file__))
     script = repo_root / "scripts" / "strict_gate_report.sh"
