@@ -41,6 +41,10 @@
 - **明确可以重置 / fresh shared-dev**：
   - `bash scripts/print_p2_shared_dev_first_run_commands.sh`
 
+如果当前环境就是 **shared-dev 142 的 official readonly baseline**，不要手工再找 `BASELINE_DIR`，直接用：
+
+- `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
+
 ### 2.1 首选：env file + 本地 precheck
 
 如果不想每次重新 `export` shared-dev 凭证，先在本地准备一个不入库的 env 文件：

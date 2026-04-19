@@ -40,6 +40,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
     text = _read(index_path)
     for token in (
         "print_p2_shared_dev_bootstrap_commands.sh",
+        "print_p2_shared_dev_142_readonly_rerun_commands.sh",
         "print_p2_shared_dev_first_run_commands.sh",
         "print_p2_shared_dev_mode_selection.sh",
         "precheck_p2_observation_regression.sh",
@@ -50,6 +51,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "compare_p2_observation_results.py",
         "evaluate_p2_observation_results.py",
         "`print_p2_shared_dev_bootstrap_commands.sh` prints the server-side shared-dev bootstrap and post-bootstrap observation handoff commands.",
+        "`print_p2_shared_dev_142_readonly_rerun_commands.sh` prints the fixed readonly rerun commands for the current official shared-dev 142 baseline, including the canonical `BASELINE_DIR`.",
         "`print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.",
         "`print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.",
         "`precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe",
@@ -132,8 +134,25 @@ def test_p2_shared_dev_mode_selection_script_is_present() -> None:
     repo_root = _find_repo_root(Path(__file__))
     for path in (
         repo_root / "scripts" / "print_p2_shared_dev_bootstrap_commands.sh",
+        repo_root / "scripts" / "print_p2_shared_dev_142_readonly_rerun_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_first_run_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_mode_selection.sh",
         repo_root / "scripts" / "print_p2_shared_dev_observation_commands.sh",
     ):
         assert path.is_file(), f"Missing shared-dev observation script: {path}"
+
+
+def test_p2_shared_dev_142_readonly_helper_tracks_current_official_baseline() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    path = repo_root / "scripts" / "print_p2_shared_dev_142_readonly_rerun_commands.sh"
+    assert path.is_file(), f"Missing shared-dev 142 readonly helper: {path}"
+
+    text = _read(path)
+    for token in (
+        "./tmp/p2-shared-dev-observation-20260419-193242",
+        "./tmp/p2-shared-dev-observation-20260419-193242.tar.gz",
+        'BASELINE_LABEL="shared-dev-142-readonly-20260419"',
+        'EVAL_MODE="readonly"',
+        "`142.171.239.56`",
+    ):
+        assert token in text, f"shared-dev 142 readonly helper missing token: {token}"

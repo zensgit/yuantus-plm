@@ -25,6 +25,10 @@ Then use:
 - docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md
 - bash scripts/print_p2_shared_dev_observation_commands.sh
 
+If the environment is the current official readonly baseline on shared-dev host `142.171.239.56`, prefer:
+
+- bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh
+
 Use first-run bootstrap only when all of these are true:
 
 - this is a fresh shared-dev environment, or
