@@ -105,7 +105,27 @@ OUT="${REMOTE_WORKSPACE}/remote-dev-results/${TS}-baseline"
 mkdir -p "$OUT"
 ```
 
-### 3. 用 canonical wrapper 跑 admin baseline
+### 3. 先做本地 precheck
+
+```bash
+: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD from a secure channel before continuing}"
+
+BASE_URL="$BASE_URL" \
+USERNAME="$ADMIN_USERNAME" \
+PASSWORD="$ADMIN_PASSWORD" \
+TENANT_ID=tenant-1 \
+ORG_ID=org-1 \
+OUTPUT_DIR="$OUT" \
+bash scripts/precheck_p2_observation_regression.sh
+```
+
+预期：
+
+- `OBSERVATION_PRECHECK.md` 自动生成
+- `observation_precheck.json` 自动生成
+- `summary_probe.json` 返回 `200`
+
+### 4. 用 canonical wrapper 跑 admin baseline
 
 优先不要手工 `curl login + verify + render`，直接用 wrapper：
 
@@ -129,13 +149,13 @@ bash scripts/run_p2_observation_regression.sh
 - `OBSERVATION_RESULT.md` 自动生成
 - 结果写入 `$OUT`
 
-### 4. 查看结果
+### 5. 查看结果
 
 ```bash
 cat "$OUT/OBSERVATION_RESULT.md"
 ```
 
-### 5. 可选：额外复核一次权限拒绝
+### 6. 可选：额外复核一次权限拒绝
 
 如果要单独看 `401/403/200` 行为，再拿 `ops-viewer` token：
 

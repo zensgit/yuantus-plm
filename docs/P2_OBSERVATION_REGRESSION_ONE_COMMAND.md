@@ -12,6 +12,12 @@
 
 - `docs/P2_OBSERVATION_REGRESSION_TRIGGER_CHECKLIST.md`
 
+如果这是 shared-dev 首次执行，或刚换了一组凭证，建议先跑：
+
+```bash
+scripts/precheck_p2_observation_regression.sh --env-file ./p2-observation.env
+```
+
 ---
 
 ## 2. 最小用法
