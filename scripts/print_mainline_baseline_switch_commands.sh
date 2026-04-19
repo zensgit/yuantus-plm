@@ -19,12 +19,13 @@ REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
 
 REPO_PATH="${REPO_ROOT}"
 BASE_BRANCH="origin/main"
-CURRENT_BRANCH="$(git -C "${REPO_ROOT}" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'main')"
 STAMP="$(date '+%Y%m%d-%H%M%S')"
 WORKTREE_NAME="mainline-${STAMP}"
+CURRENT_BRANCH=""
 WORKTREE_BRANCH="baseline/${WORKTREE_NAME}"
 WORKTREE_BRANCH_EXPLICIT="0"
-BACKUP_BRANCH="backup/${CURRENT_BRANCH//\//-}-${STAMP}"
+BACKUP_BRANCH=""
+BACKUP_BRANCH_EXPLICIT="0"
 TOPIC_BRANCH=""
 
 while (($# > 0)); do
@@ -43,6 +44,7 @@ while (($# > 0)); do
       ;;
     --backup-branch)
       BACKUP_BRANCH="${2:-}"
+      BACKUP_BRANCH_EXPLICIT="1"
       shift 2
       ;;
     --topic-branch)
@@ -68,6 +70,12 @@ done
 
 if [[ "${WORKTREE_BRANCH_EXPLICIT}" != "1" ]]; then
   WORKTREE_BRANCH="baseline/${WORKTREE_NAME}"
+fi
+
+CURRENT_BRANCH="$(git -C "${REPO_PATH}" rev-parse --abbrev-ref HEAD 2>/dev/null || printf 'main')"
+
+if [[ "${BACKUP_BRANCH_EXPLICIT}" != "1" ]]; then
+  BACKUP_BRANCH="backup/${CURRENT_BRANCH//\//-}-${STAMP}"
 fi
 
 WORKTREE_PARENT="$(dirname "${REPO_PATH}")/$(basename "${REPO_PATH}")-worktrees"
@@ -129,14 +137,30 @@ fi
 
 cat <<EOF
 
-## 5) Re-apply only the current-branch unique commits if still wanted
+## 5) Recommended: publish the topic branch so the clean worktree is recoverable
+EOF
+
+if [[ -n "${TOPIC_BRANCH}" ]]; then
+  cat <<EOF
+git -C ${worktree_path_q} push -u origin ${topic_branch_q}
+EOF
+else
+  cat <<'EOF'
+# after choosing the topic branch, publish it once:
+git -C <worktree-path> push -u origin feature/<topic>-<YYYYMMDD>
+EOF
+fi
+
+cat <<EOF
+
+## 6) Re-apply only the current-branch unique commits if still wanted
 git -C ${worktree_path_q} cherry-pick f9076f4 09b30e2 e42c79e d24b5a4 6738eac a50f400
 
-## 6) Optional: run Claude Code in the clean worktree
+## 7) Optional: run Claude Code in the clean worktree
 claude auth status
 claude --worktree ${WORKTREE_NAME} --add-dir ${repo_q} 'Work only in the clean ${BASE_BRANCH} baseline worktree. Re-apply the minimal current-branch deltas, keep the scope narrow, and inspect git status first.'
 
-## 7) Rollback / recovery references
+## 8) Rollback / recovery references
 git -C ${repo_q} stash list --max-count=5
 git -C ${repo_q} branch --list ${backup_q}
 
