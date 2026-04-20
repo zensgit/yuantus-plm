@@ -36,6 +36,12 @@ bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands
 bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit
 ```
 
+如果你已经确认有 drift，并且要先固定一轮 investigation evidence pack，而不是立刻 refreeze，继续用：
+
+```bash
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation
+```
+
 如果你只需要 GitHub Actions 做一轮 `current-only` probe：
 
 ```bash
@@ -107,6 +113,11 @@ scripts/run_p2_observation_regression.sh
 
 - `DRIFT_AUDIT.md`
 - `drift_audit.json`
+
+如果走的是 `shared-dev 142` 的 `drift-investigation` 入口，还会额外生成：
+
+- `DRIFT_INVESTIGATION.md`
+- `drift_investigation.json`
 
 ---
 

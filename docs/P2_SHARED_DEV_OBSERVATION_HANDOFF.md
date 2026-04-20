@@ -23,12 +23,16 @@
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-drift-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-investigation-commands`
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 - `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
 - `bash scripts/run_p2_shared_dev_142_drift_audit.sh`
 - `bash scripts/print_p2_shared_dev_142_drift_audit_commands.sh`
+- `bash scripts/run_p2_shared_dev_142_drift_investigation.sh`
+- `bash scripts/print_p2_shared_dev_142_drift_investigation_commands.sh`
 
 如果你只想让 **GitHub Actions** 对 `142` 打一轮固定 `current-only` probe，直接用：
 
@@ -45,6 +49,13 @@
 - `docs/P2_SHARED_DEV_142_DRIFT_AUDIT_CHECKLIST.md`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
 - `bash scripts/run_p2_shared_dev_142_drift_audit.sh`
+
+如果 drift-audit 已经确认有漂移，而你现在要的是固定一轮 investigation evidence pack，再决定是否 refreeze，直接用：
+
+- `docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-investigation-commands`
+- `bash scripts/run_p2_shared_dev_142_drift_investigation.sh`
 
 适用场景：
 
