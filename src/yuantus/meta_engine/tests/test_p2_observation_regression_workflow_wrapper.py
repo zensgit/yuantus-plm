@@ -765,6 +765,143 @@ def test_render_p2_shared_dev_142_drift_audit_summarizes_metric_and_item_drift(t
     assert payload["removed_approval_ids"] == ["a-2"]
 
 
+def test_run_p2_shared_dev_142_drift_audit_still_renders_when_readonly_rerun_fails(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    temp_repo = tmp_path / "repo"
+    scripts_dir = temp_repo / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+
+    drift_runner = repo_root / "scripts" / "run_p2_shared_dev_142_drift_audit.sh"
+    drift_renderer = repo_root / "scripts" / "render_p2_shared_dev_142_drift_audit.py"
+    assert drift_runner.is_file(), f"Missing script: {drift_runner}"
+    assert drift_renderer.is_file(), f"Missing script: {drift_renderer}"
+
+    (scripts_dir / "run_p2_shared_dev_142_drift_audit.sh").write_text(
+        drift_runner.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (scripts_dir / "run_p2_shared_dev_142_drift_audit.sh").chmod(0o755)
+    (scripts_dir / "render_p2_shared_dev_142_drift_audit.py").write_text(
+        drift_renderer.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    (scripts_dir / "render_p2_shared_dev_142_drift_audit.py").chmod(0o755)
+
+    stub_readonly = scripts_dir / "run_p2_shared_dev_142_readonly_rerun.sh"
+    stub_readonly.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+
+output_dir=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --output-dir)
+      output_dir="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+mkdir -p "${output_dir}" "${output_dir}-precheck"
+printf '%s\\n' '{"pending_count":1,"overdue_count":4,"escalated_count":1}' > "${output_dir}/summary.json"
+printf '%s\\n' '[{"approval_id":"a-1","is_overdue":false,"is_escalated":false},{"approval_id":"a-3","is_overdue":true,"is_escalated":false},{"approval_id":"a-4","is_overdue":true,"is_escalated":true},{"approval_id":"a-5","is_overdue":true,"is_escalated":false},{"approval_id":"a-6","is_overdue":true,"is_escalated":false}]' > "${output_dir}/items.json"
+printf '%s\\n' '{"total_anomalies":3,"no_candidates":[],"escalated_unresolved":[{"approval_id":"a-4"}],"overdue_not_escalated":[{"approval_id":"a-3"},{"approval_id":"a-6"}]}' > "${output_dir}/anomalies.json"
+printf '%s\\n' '[{"approval_id":"a-1"},{"approval_id":"a-3"},{"approval_id":"a-4"},{"approval_id":"a-5"},{"approval_id":"a-6"}]' > "${output_dir}/export.json"
+cat <<'EOF' > "${output_dir}/export.csv"
+approval_id
+a-1
+a-3
+a-4
+a-5
+a-6
+EOF
+printf '%s\\n' '# result' > "${output_dir}/OBSERVATION_RESULT.md"
+printf '%s\\n' '# diff' > "${output_dir}/OBSERVATION_DIFF.md"
+printf '%s\\n' '# eval' > "${output_dir}/OBSERVATION_EVAL.md"
+printf '%s\\n' '# precheck' > "${output_dir}-precheck/OBSERVATION_PRECHECK.md"
+printf '%s\\n' '{"status":"ok"}' > "${output_dir}-precheck/observation_precheck.json"
+printf '%s\\n' '{"http_status":200}' > "${output_dir}-precheck/summary_probe.json"
+exit 1
+""",
+        encoding="utf-8",
+    )
+    stub_readonly.chmod(0o755)
+
+    baseline_dir = temp_repo / "tmp" / "p2-shared-dev-observation-20260419-193242"
+    baseline_dir.mkdir(parents=True, exist_ok=True)
+    (baseline_dir / "summary.json").write_text(
+        json.dumps({"pending_count": 2, "overdue_count": 3, "escalated_count": 1}) + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "items.json").write_text(
+        json.dumps(
+            [
+                {"approval_id": "a-1", "is_overdue": False, "is_escalated": False},
+                {"approval_id": "a-2", "is_overdue": False, "is_escalated": False},
+                {"approval_id": "a-3", "is_overdue": True, "is_escalated": False},
+                {"approval_id": "a-4", "is_overdue": True, "is_escalated": True},
+                {"approval_id": "a-5", "is_overdue": True, "is_escalated": False},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "anomalies.json").write_text(
+        json.dumps(
+            {
+                "total_anomalies": 2,
+                "no_candidates": [],
+                "escalated_unresolved": [{"approval_id": "a-4"}],
+                "overdue_not_escalated": [{"approval_id": "a-3"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "export.json").write_text(
+        json.dumps([{"approval_id": f"a-{n}"} for n in range(1, 6)]) + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "export.csv").write_text(
+        "approval_id\na-1\na-2\na-3\na-4\na-5\n",
+        encoding="utf-8",
+    )
+
+    output_dir = temp_repo / "tmp" / "drift-audit"
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(scripts_dir / "run_p2_shared_dev_142_drift_audit.sh"),
+            "--env-file",
+            str(temp_repo / "fake.env"),
+            "--output-dir",
+            str(output_dir),
+            "--baseline-dir",
+            str(baseline_dir),
+            "--skip-precheck",
+            "--no-archive",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(temp_repo),
+    )
+
+    assert cp.returncode == 1, cp.stdout + "\n" + cp.stderr
+    assert "Readonly rerun exited with status 1; continuing to render top-level drift audit." in cp.stderr
+    assert "READONLY_EXIT_STATUS=1" in cp.stdout
+    assert "DRIFT_VERDICT=FAIL" in cp.stdout
+    assert (output_dir / "DRIFT_AUDIT.md").is_file()
+    assert (output_dir / "drift_audit.json").is_file()
+
+    payload = json.loads((output_dir / "drift_audit.json").read_text(encoding="utf-8"))
+    assert payload["verdict"] == "FAIL"
+    assert payload["added_approval_ids"] == ["a-6"]
+    assert payload["removed_approval_ids"] == ["a-2"]
+
+
 def test_p2_shared_dev_142_entrypoint_wrapper_rejects_invalid_mode(tmp_path: Path) -> None:
     repo_root = _find_repo_root(Path(__file__))
     script = repo_root / "scripts" / "run_p2_shared_dev_142_entrypoint.sh"

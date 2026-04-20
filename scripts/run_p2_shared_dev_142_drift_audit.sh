@@ -160,7 +160,13 @@ if [[ "${allow_restore}" != "1" ]]; then
   readonly_cmd+=(--no-restore)
 fi
 
-"${readonly_cmd[@]}"
+readonly_status="0"
+if "${readonly_cmd[@]}"; then
+  readonly_status="0"
+else
+  readonly_status="$?"
+  echo "Readonly rerun exited with status ${readonly_status}; continuing to render top-level drift audit." >&2
+fi
 
 python3 scripts/render_p2_shared_dev_142_drift_audit.py \
   "${baseline_dir}" \
@@ -175,6 +181,17 @@ if [[ "${archive_result}" == "1" ]]; then
   tar -czf "${archive_path}" -C "$(dirname "${output_dir}")" "$(basename "${output_dir}")"
 fi
 
+drift_verdict="$(
+  python3 - <<'PY' "${drift_audit_json}"
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+print(payload.get("verdict", "FAIL"))
+PY
+)"
+
 echo
 echo "Done:"
 if [[ "${run_precheck}" == "1" ]]; then
@@ -187,4 +204,13 @@ echo "  ${drift_audit_md}"
 echo "  ${drift_audit_json}"
 if [[ "${archive_result}" == "1" ]]; then
   echo "  ${archive_path}"
+fi
+echo "READONLY_EXIT_STATUS=${readonly_status}"
+echo "DRIFT_VERDICT=${drift_verdict}"
+
+if [[ "${readonly_status}" != "0" ]]; then
+  exit "${readonly_status}"
+fi
+if [[ "${drift_verdict}" != "PASS" ]]; then
+  exit 1
 fi
