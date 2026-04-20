@@ -15,7 +15,12 @@ from typing import Any, Dict, Optional
 
 from sqlalchemy.orm import Session
 
-from yuantus.config import get_settings
+from yuantus.config import (
+    cad_connector_base_url_configured,
+    cad_connector_enabled_for_profile,
+    get_settings,
+    normalize_cad_connector_mode,
+)
 from yuantus.integrations.cad_ml import CadMLClient
 from yuantus.integrations.dedup_vision import DedupVisionClient
 from yuantus.integrations.cad_connector import CadConnectorClient
@@ -25,6 +30,9 @@ from yuantus.meta_engine.services.cad_converter_service import CADConverterServi
 from yuantus.meta_engine.services.cadgf_converter_service import (
     CADGFConverterService,
     CadgfConversionError,
+)
+from yuantus.meta_engine.services.cad_backend_profile_service import (
+    CadBackendProfileService,
 )
 from yuantus.meta_engine.services.cad_service import CadService, normalize_cad_attributes
 from yuantus.meta_engine.services.cad_bom_import_service import CadBomImportService
@@ -166,15 +174,47 @@ def _load_preview_bytes(
 
 
 def _cad_connector_mode() -> str:
-    mode = (get_settings().CAD_CONNECTOR_MODE or "optional").strip().lower()
-    if mode not in {"disabled", "optional", "required"}:
-        return "optional"
-    return mode
+    return normalize_cad_connector_mode(get_settings().CAD_CONNECTOR_MODE)
 
 
-def _cad_connector_enabled() -> bool:
-    settings = get_settings()
-    return bool(settings.CAD_CONNECTOR_BASE_URL) and _cad_connector_mode() != "disabled"
+def _cad_backend_profile_resolution(
+    session: Optional[Session] = None,
+) -> Dict[str, Any]:
+    ctx = get_request_context()
+    resolution = CadBackendProfileService(session, get_settings()).resolve(
+        tenant_id=ctx.tenant_id,
+        org_id=ctx.org_id,
+    )
+    return {
+        "configured": resolution.configured,
+        "effective": resolution.effective,
+        "source": resolution.source,
+        "scope": resolution.scope,
+    }
+
+
+def _cad_connector_enabled(session: Optional[Session] = None) -> bool:
+    effective = _cad_backend_profile_resolution(session)["effective"]
+    return effective != "local-baseline" and cad_connector_base_url_configured(get_settings())
+
+
+def _cad_connector_required(session: Optional[Session] = None) -> bool:
+    return _cad_backend_profile_resolution(session)["effective"] == "external-enterprise"
+
+
+def _require_connector_for_remote_3d(
+    file_container: FileContainer, *, operation: str, session: Optional[Session] = None
+) -> None:
+    if file_container.document_type != "3d":
+        return
+    if not _cad_connector_required(session):
+        return
+    if _cad_connector_enabled(session):
+        return
+    profile_name = _cad_backend_profile_resolution(session)["effective"]
+    raise JobFatalError(
+        f"CAD connector {operation} requires configured connector under backend profile {profile_name}"
+    )
 
 
 def _resolve_connector_authorization(payload: Dict[str, Any]) -> Optional[str]:
@@ -573,8 +613,9 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
     _ensure_source_exists(file_service, file_container.system_path)
     use_s3 = _is_s3_storage()
     vault_base_path = _vault_base_path()
+    _require_connector_for_remote_3d(file_container, operation="preview", session=session)
 
-    if _cad_connector_enabled() and file_container.document_type == "3d":
+    if _cad_connector_enabled(session) and file_container.document_type == "3d":
         try:
             resp = _call_cad_connector_convert(
                 payload=payload,
@@ -604,7 +645,7 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                     "source": "connector",
                 }
         except Exception as exc:
-            if _cad_connector_mode() == "required":
+            if _cad_connector_required(session):
                 raise JobFatalError(f"CAD connector preview failed: {exc}") from exc
             logger.warning("CAD connector preview failed, fallback to local: %s", exc)
 
@@ -738,7 +779,9 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
             "note": "already_viewable",
         }
 
-    if _cad_connector_enabled() and file_container.document_type == "3d" and ext not in {"dwg", "dxf"}:
+    _require_connector_for_remote_3d(file_container, operation="geometry", session=session)
+
+    if _cad_connector_enabled(session) and file_container.document_type == "3d" and ext not in {"dwg", "dxf"}:
         try:
             resp = _call_cad_connector_convert(
                 payload=payload,
@@ -781,7 +824,7 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                     "source": "connector",
                 }
         except Exception as exc:
-            if _cad_connector_mode() == "required":
+            if _cad_connector_required(session):
                 raise JobFatalError(f"CAD connector geometry failed: {exc}") from exc
             logger.warning("CAD connector geometry failed, fallback to local: %s", exc)
 
@@ -1312,7 +1355,7 @@ def cad_bom(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
     file_service = FileService()
     _ensure_source_exists(file_service, file_container.system_path)
 
-    if not _cad_connector_enabled():
+    if not _cad_connector_enabled(session):
         raise JobFatalError("CAD connector not configured")
 
     resp = _call_cad_connector_convert(

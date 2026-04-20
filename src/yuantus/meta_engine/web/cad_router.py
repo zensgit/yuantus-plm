@@ -27,7 +27,12 @@ from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 
 from yuantus.database import get_db
-from yuantus.config import get_settings
+from yuantus.config import (
+    cad_connector_base_url_configured,
+    get_settings,
+    normalize_cad_connector_mode,
+)
+from yuantus.context import get_request_context
 from yuantus.integrations.cad_connectors import (
     registry as cad_registry,
     reload_connectors,
@@ -44,6 +49,10 @@ from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.meta_engine.schemas.aml import AMLAction, GenericItem
 from yuantus.meta_engine.services.cad_service import CadService
+from yuantus.meta_engine.services.cad_backend_profile_service import (
+    CadBackendProfileResolution,
+    CadBackendProfileService,
+)
 from yuantus.meta_engine.services.cad_converter_service import CADConverterService
 from yuantus.meta_engine.services.engine import AMLEngine
 from yuantus.meta_engine.services.file_service import FileService
@@ -426,6 +435,19 @@ class CadCapabilitiesResponse(BaseModel):
     extensions: Dict[str, List[str]]
     features: Dict[str, CadCapabilityMode]
     integrations: Dict[str, Any]
+
+
+class CadBackendProfileResponse(BaseModel):
+    configured: str
+    effective: str
+    source: str
+    options: List[str] = Field(default_factory=list)
+    scope: Dict[str, Optional[str]]
+
+
+class CadBackendProfileUpdateRequest(BaseModel):
+    profile: str
+    scope: str = Field(default="org", description="org|tenant")
 
 
 def _feature_status(
@@ -984,8 +1006,81 @@ def list_cad_connectors() -> List[CadConnectorInfoResponse]:
     ]
 
 
+def _resolve_cad_backend_profile_response(db: Session) -> CadBackendProfileResolution:
+    ctx = get_request_context()
+    return CadBackendProfileService(db, get_settings()).resolve(
+        tenant_id=ctx.tenant_id,
+        org_id=ctx.org_id,
+    )
+
+
+@router.get("/backend-profile", response_model=CadBackendProfileResponse)
+def get_cad_backend_profile(
+    db: Session = Depends(get_db),
+    _current_user: CurrentUser = Depends(get_current_user),
+) -> CadBackendProfileResponse:
+    resolution = _resolve_cad_backend_profile_response(db)
+    return CadBackendProfileResponse(
+        configured=resolution.configured,
+        effective=resolution.effective,
+        source=resolution.source,
+        options=list(resolution.options),
+        scope=dict(resolution.scope),
+    )
+
+
+@router.put("/backend-profile", response_model=CadBackendProfileResponse)
+def update_cad_backend_profile(
+    payload: CadBackendProfileUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(require_admin),
+) -> CadBackendProfileResponse:
+    ctx = get_request_context()
+    try:
+        resolution = CadBackendProfileService(db, get_settings()).update_override(
+            tenant_id=ctx.tenant_id,
+            org_id=ctx.org_id,
+            user_id=getattr(current_user, "id", None),
+            profile=payload.profile,
+            scope=payload.scope,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return CadBackendProfileResponse(
+        configured=resolution.configured,
+        effective=resolution.effective,
+        source=resolution.source,
+        options=list(resolution.options),
+        scope=dict(resolution.scope),
+    )
+
+
+@router.delete("/backend-profile", response_model=CadBackendProfileResponse)
+def delete_cad_backend_profile(
+    scope: str = Query("org", description="org|tenant"),
+    db: Session = Depends(get_db),
+    _current_user: CurrentUser = Depends(require_admin),
+) -> CadBackendProfileResponse:
+    ctx = get_request_context()
+    try:
+        resolution = CadBackendProfileService(db, get_settings()).delete_override(
+            tenant_id=ctx.tenant_id,
+            org_id=ctx.org_id,
+            scope=scope,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return CadBackendProfileResponse(
+        configured=resolution.configured,
+        effective=resolution.effective,
+        source=resolution.source,
+        options=list(resolution.options),
+        scope=dict(resolution.scope),
+    )
+
+
 @router.get("/capabilities", response_model=CadCapabilitiesResponse)
-def get_cad_capabilities() -> CadCapabilitiesResponse:
+def get_cad_capabilities(db: Session = Depends(get_db)) -> CadCapabilitiesResponse:
     settings = get_settings()
     connectors = sorted(cad_registry.list(), key=lambda info: info.id)
 
@@ -1011,9 +1106,23 @@ def get_cad_capabilities() -> CadCapabilitiesResponse:
         for ext in info.extensions
     )
 
-    cad_connector_enabled = bool(settings.CAD_CONNECTOR_BASE_URL) and (
-        (settings.CAD_CONNECTOR_MODE or "optional").strip().lower() != "disabled"
+    resolution = _resolve_cad_backend_profile_response(db)
+    cad_connector_mode = normalize_cad_connector_mode(settings.CAD_CONNECTOR_MODE)
+    cad_connector_enabled = (
+        resolution.effective != "local-baseline"
+        and cad_connector_base_url_configured(settings)
     )
+    cad_backend_profile = {
+        "configured": resolution.configured,
+        "effective": resolution.effective,
+        "source": resolution.source,
+        "options": list(resolution.options),
+    }
+    cad_connector_disabled_reason = "CAD connector service not configured"
+    if cad_connector_base_url_configured(settings) and not cad_connector_enabled:
+        cad_connector_disabled_reason = (
+            f"CAD backend profile {cad_backend_profile['effective']} selected"
+        )
     cad_extractor_enabled = bool(settings.CAD_EXTRACTOR_BASE_URL)
     cad_ml_enabled = bool(settings.CAD_ML_BASE_URL)
     cadgf_enabled = bool(settings.CADGF_ROUTER_BASE_URL)
@@ -1127,20 +1236,18 @@ def get_cad_capabilities() -> CadCapabilitiesResponse:
         features=features,
         integrations={
             "cad_connector": {
-                "configured": bool(settings.CAD_CONNECTOR_BASE_URL),
+                "configured": cad_connector_base_url_configured(settings),
                 "enabled": cad_connector_enabled,
-                "mode": settings.CAD_CONNECTOR_MODE,
+                "mode": cad_connector_mode,
+                "profile": cad_backend_profile,
                 "base_url": settings.CAD_CONNECTOR_BASE_URL or None,
                 **_integration_status(
-                    configured=bool(settings.CAD_CONNECTOR_BASE_URL),
+                    configured=cad_connector_base_url_configured(settings),
                     available=cad_connector_enabled,
                     fallback_reason="local fallback only"
                     if not cad_connector_enabled
                     else None,
-                    disabled_reason="CAD connector mode disabled"
-                    if bool(settings.CAD_CONNECTOR_BASE_URL)
-                    and not cad_connector_enabled
-                    else "CAD connector service not configured",
+                    disabled_reason=cad_connector_disabled_reason,
                 ),
             },
             "cad_extractor": {

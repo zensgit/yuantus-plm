@@ -8,13 +8,25 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from yuantus.database import get_db
+from yuantus.meta_engine.services.cad_backend_profile_service import (
+    CadBackendProfileResolution,
+)
 from yuantus.meta_engine.web.cad_router import router as cad_router
 from yuantus.meta_engine.web.file_router import file_router
 
 
 def _cad_client() -> TestClient:
+    mock_db = MagicMock()
+
+    def override_get_db():
+        try:
+            yield mock_db
+        finally:
+            pass
+
     app = FastAPI()
     app.include_router(cad_router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = override_get_db
     return TestClient(app)
 
 
@@ -60,6 +72,7 @@ def test_cad_capabilities_endpoint_returns_consolidated_contract_shape():
     settings = SimpleNamespace(
         CAD_CONNECTOR_BASE_URL="http://cad-connector.local",
         CAD_CONNECTOR_MODE="required",
+        CAD_CONVERSION_BACKEND_PROFILE="auto",
         CAD_EXTRACTOR_BASE_URL="http://cad-extractor.local",
         CAD_EXTRACTOR_MODE="required",
         CAD_ML_BASE_URL="http://cad-ml.local",
@@ -110,6 +123,16 @@ def test_cad_capabilities_endpoint_returns_consolidated_contract_shape():
             "configured": True,
             "enabled": True,
             "mode": "required",
+            "profile": {
+                "configured": "auto",
+                "effective": "external-enterprise",
+                "source": "legacy-mode",
+                "options": [
+                    "local-baseline",
+                    "hybrid-auto",
+                    "external-enterprise",
+                ],
+            },
             "base_url": "http://cad-connector.local",
             "status": "ok",
             "degraded_reason": None,
@@ -153,6 +176,7 @@ def test_cad_capabilities_endpoint_disables_connector_backed_modes_when_unconfig
     settings = SimpleNamespace(
         CAD_CONNECTOR_BASE_URL="",
         CAD_CONNECTOR_MODE="optional",
+        CAD_CONVERSION_BACKEND_PROFILE="auto",
         CAD_EXTRACTOR_BASE_URL="",
         CAD_EXTRACTOR_MODE="optional",
         CAD_ML_BASE_URL="",
@@ -192,6 +216,16 @@ def test_cad_capabilities_endpoint_disables_connector_backed_modes_when_unconfig
             "configured": False,
             "enabled": False,
             "mode": "optional",
+            "profile": {
+                "configured": "auto",
+                "effective": "local-baseline",
+                "source": "legacy-mode",
+                "options": [
+                    "local-baseline",
+                    "hybrid-auto",
+                    "external-enterprise",
+                ],
+            },
             "base_url": None,
             "status": "degraded",
             "degraded_reason": "local fallback only",
@@ -216,6 +250,132 @@ def test_cad_capabilities_endpoint_disables_connector_backed_modes_when_unconfig
             "degraded_reason": "CADGF router not configured",
         },
     }
+
+
+def test_cad_capabilities_endpoint_reports_explicit_backend_profile_override():
+    client = _cad_client()
+    settings = SimpleNamespace(
+        CAD_CONNECTOR_BASE_URL="http://cad-connector.local",
+        CAD_CONNECTOR_MODE="disabled",
+        CAD_CONVERSION_BACKEND_PROFILE="hybrid-auto",
+        CAD_EXTRACTOR_BASE_URL="",
+        CAD_EXTRACTOR_MODE="optional",
+        CAD_ML_BASE_URL="",
+        CADGF_ROUTER_BASE_URL="",
+    )
+
+    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=[]):
+            response = client.get("/api/v1/cad/capabilities")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["integrations"]["cad_connector"] == {
+        "configured": True,
+        "enabled": True,
+        "mode": "disabled",
+        "profile": {
+            "configured": "hybrid-auto",
+            "effective": "hybrid-auto",
+            "source": "profile",
+            "options": [
+                "local-baseline",
+                "hybrid-auto",
+                "external-enterprise",
+            ],
+        },
+        "base_url": "http://cad-connector.local",
+        "status": "ok",
+        "degraded_reason": None,
+    }
+
+
+def test_cad_capabilities_endpoint_honors_scoped_local_override():
+    client = _cad_client()
+    settings = SimpleNamespace(
+        CAD_CONNECTOR_BASE_URL="http://cad-connector.local",
+        CAD_CONNECTOR_MODE="required",
+        CAD_CONVERSION_BACKEND_PROFILE="external-enterprise",
+        CAD_EXTRACTOR_BASE_URL="",
+        CAD_EXTRACTOR_MODE="optional",
+        CAD_ML_BASE_URL="",
+        CADGF_ROUTER_BASE_URL="",
+    )
+
+    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=[]):
+            with patch(
+                "yuantus.meta_engine.web.cad_router._resolve_cad_backend_profile_response",
+                return_value=CadBackendProfileResolution(
+                    configured="local-baseline",
+                    effective="local-baseline",
+                    source="plugin-config:tenant-org",
+                    options=[
+                        "local-baseline",
+                        "hybrid-auto",
+                        "external-enterprise",
+                    ],
+                    scope={
+                        "tenant_id": "tenant-1",
+                        "org_id": "org-1",
+                        "level": "tenant-org",
+                    },
+                ),
+            ):
+                response = client.get("/api/v1/cad/capabilities")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["features"]["preview"]["modes"] == ["local"]
+    assert body["features"]["geometry"]["modes"] == ["local"]
+    assert body["features"]["bom"]["available"] is False
+    assert body["integrations"]["cad_connector"]["enabled"] is False
+    assert body["integrations"]["cad_connector"]["profile"]["source"] == "plugin-config:tenant-org"
+
+
+def test_cad_capabilities_endpoint_honors_scoped_upgrade_override_when_env_is_local():
+    client = _cad_client()
+    settings = SimpleNamespace(
+        CAD_CONNECTOR_BASE_URL="http://cad-connector.local",
+        CAD_CONNECTOR_MODE="disabled",
+        CAD_CONVERSION_BACKEND_PROFILE="local-baseline",
+        CAD_EXTRACTOR_BASE_URL="",
+        CAD_EXTRACTOR_MODE="optional",
+        CAD_ML_BASE_URL="",
+        CADGF_ROUTER_BASE_URL="",
+    )
+
+    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=[]):
+            with patch(
+                "yuantus.meta_engine.web.cad_router._resolve_cad_backend_profile_response",
+                return_value=CadBackendProfileResolution(
+                    configured="hybrid-auto",
+                    effective="hybrid-auto",
+                    source="plugin-config:tenant-org",
+                    options=[
+                        "local-baseline",
+                        "hybrid-auto",
+                        "external-enterprise",
+                    ],
+                    scope={
+                        "tenant_id": "tenant-1",
+                        "org_id": "org-1",
+                        "level": "tenant-org",
+                    },
+                ),
+            ):
+                response = client.get("/api/v1/cad/capabilities")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["features"]["preview"]["modes"] == ["local", "connector"]
+    assert body["features"]["geometry"]["modes"] == ["local", "connector"]
+    assert body["features"]["bom"]["available"] is True
+    assert body["integrations"]["cad_connector"]["configured"] is True
+    assert body["integrations"]["cad_connector"]["enabled"] is True
+    assert body["integrations"]["cad_connector"]["profile"]["source"] == "plugin-config:tenant-org"
 
 
 def test_supported_formats_endpoint_remains_legacy_but_payload_is_unchanged():

@@ -63,6 +63,8 @@ The extractor should return these keys (map via `is_cad_synced` + `ui_options.ca
   - Lists available connectors and their capabilities.
 - `/api/v1/cad/capabilities`
   - Aggregated capability payload (formats/extensions/features/integrations).
+  - `integrations.cad_connector.profile` shows the configured backend-selection mode and the effective runtime profile.
+  - When tenant/org scoped policy exists, this payload reflects that scoped effective profile.
   - Example:
     ```json
     {
@@ -73,6 +75,15 @@ The extractor should return these keys (map via `is_cad_synced` + `ui_options.ca
 - `/api/v1/cad/files/{file_id}/attributes`
   - Returns the latest `cad_extract` job result for the file.
   - Attributes are persisted on the file metadata (`meta_files.cad_attributes`).
+- `/api/v1/cad/backend-profile`
+  - `GET`: returns the current effective backend profile for the current tenant/org scope.
+  - `PUT`: admin-only; stores an org-level or tenant-default override.
+  - `DELETE`: admin-only; removes an org-level or tenant-default override.
+  - Verification helper:
+    - `BASE_URL=http://localhost:8000 TOKEN=<jwt> TENANT_ID=tenant-1 ORG_ID=org-1 scripts/verify_cad_backend_profile_scope.sh`
+    - `BASE_URL=http://localhost:8000 LOGIN_USERNAME=admin PASSWORD=admin TENANT_ID=tenant-1 ORG_ID=org-1 scripts/verify_cad_backend_profile_scope.sh`
+    - The helper safely restores the original org scope and skips tenant-default verification when an active org override masks the tenant-default read surface.
+    - Do not run it concurrently against the same tenant/org scope.
 
 - `CadService.extract_attributes`
   - Delegates to a connector when available.
@@ -100,6 +111,35 @@ Expected API (example):
   - response: `{ "ok": true, "attributes": { ... } }`
 
 If `CAD_EXTRACTOR_MODE=required`, any extractor failure will fail the `cad_extract` job.
+
+## CAD Conversion Backend Profiles
+
+Yuantus supports three customer-facing CAD conversion profiles for connector-eligible 3D files:
+
+- `local-baseline`
+  - Use only built-in conversion paths such as CadQuery, FreeCAD, Trimesh, and CADGF.
+- `hybrid-auto`
+  - Prefer the external CAD connector when configured, but fall back to local conversion.
+- `external-enterprise`
+  - Require the external CAD connector for connector-backed 3D preview/geometry jobs.
+
+Environment variables:
+
+- `YUANTUS_CAD_CONVERSION_BACKEND_PROFILE`
+  - `auto|local-baseline|hybrid-auto|external-enterprise`
+  - Default `auto` preserves legacy `YUANTUS_CAD_CONNECTOR_MODE` behavior.
+- `YUANTUS_CAD_CONNECTOR_BASE_URL`
+- `YUANTUS_CAD_CONNECTOR_SERVICE_TOKEN`
+- `YUANTUS_CAD_CONNECTOR_TIMEOUT_SECONDS`
+- `YUANTUS_CAD_CONNECTOR_MODE`
+  - Legacy compatibility switch used only when `YUANTUS_CAD_CONVERSION_BACKEND_PROFILE=auto`
+
+Notes:
+
+- The profile governs connector-backed 3D preview/geometry routing. It does not replace direct-view mesh short-circuits for `stl/obj/gltf/glb`.
+- `dwg/dxf` still use the CADGF path and are outside the connector-backed 3D routing decision.
+- Tenant/org scoped overrides are stored in `meta_plugin_configs` under plugin id `cad-backend-profile`.
+- Resolution order is `tenant+org override -> tenant default override -> environment profile`.
 
 Reference implementation (in this repo):
 - `services/cad-extractor` (FastAPI microservice)
