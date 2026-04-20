@@ -13,7 +13,7 @@ Enable only specific plugins with:
 export YUANTUS_PLUGINS_ENABLED=yuantus-bom-compare,yuantus-pack-and-go
 ```
 
-The API process auto-loads plugins when `YUANTUS_PLUGINS_AUTOLOAD=true` (default).
+The API process keeps plugin autoload disabled by default. Set `YUANTUS_PLUGINS_AUTOLOAD=true` for broad startup loading, or prefer an explicit `YUANTUS_PLUGINS_ENABLED=...` allowlist when you want controlled activation.
 
 ## BOM Compare Plugin
 

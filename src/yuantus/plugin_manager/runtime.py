@@ -16,6 +16,14 @@ def _parse_csv(value: str) -> list[str]:
     return [p.strip() for p in (value or "").split(",") if p.strip()]
 
 
+def _should_bootstrap_plugins(*, autoload: bool, enabled: set[str]) -> bool:
+    return autoload or bool(enabled)
+
+
+def _should_load_plugin(plugin_id: str, *, autoload: bool, enabled: set[str]) -> bool:
+    return plugin_id in enabled if enabled else autoload
+
+
 def _iter_routers(obj) -> Iterable[APIRouter]:
     if obj is None:
         return []
@@ -60,20 +68,20 @@ def load_plugins(app: FastAPI) -> Optional[PluginManager]:
     if not plugin_dirs:
         return None
 
+    enabled = set(_parse_csv(getattr(settings, "PLUGINS_ENABLED", "")))
+    autoload = bool(getattr(settings, "PLUGINS_AUTOLOAD", False))
+    if not _should_bootstrap_plugins(autoload=autoload, enabled=enabled):
+        logger.info("Plugin bootstrap skipped: autoload disabled and no plugins explicitly enabled")
+        return None
+
     manager = PluginManager(plugin_dirs)
     manager.discover_plugins()
 
     # Attach for observability (API can expose it)
     app.state.plugin_manager = manager
 
-    enabled = set(_parse_csv(getattr(settings, "PLUGINS_ENABLED", "")))
-    autoload = bool(getattr(settings, "PLUGINS_AUTOLOAD", False))
-
-    if not autoload:
-        return manager
-
     for plugin in manager.list_plugins():
-        if enabled and plugin.id not in enabled:
+        if not _should_load_plugin(plugin.id, autoload=autoload, enabled=enabled):
             continue
         if not manager.load_plugin(plugin.id):
             logger.warning(f"Plugin load failed: {plugin.id}")
@@ -88,4 +96,3 @@ def load_plugins(app: FastAPI) -> Optional[PluginManager]:
             app.include_router(router, prefix="/api/v1")
 
     return manager
-

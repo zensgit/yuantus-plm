@@ -14,6 +14,14 @@ def _parse_csv(value: str) -> list[str]:
     return [part.strip() for part in (value or "").split(",") if part.strip()]
 
 
+def _should_bootstrap_plugins(*, autoload: bool, enabled: set[str]) -> bool:
+    return autoload or bool(enabled)
+
+
+def _should_load_plugin(plugin_id: str, *, autoload: bool, enabled: set[str]) -> bool:
+    return plugin_id in enabled if enabled else autoload
+
+
 def _iter_register_targets(plugin) -> Iterable[object]:
     instance = plugin.get_instance()
     module = plugin.get_module()
@@ -30,21 +38,28 @@ def register_plugin_job_handlers(worker) -> int:
     if not plugin_dirs:
         return 0
 
-    manager = PluginManager(plugin_dirs)
-    manager.discover_plugins()
-
     enabled = set(_parse_csv(getattr(settings, "PLUGINS_ENABLED", "")))
     autoload = bool(getattr(settings, "PLUGINS_AUTOLOAD", False))
     registered = 0
 
+    if not _should_bootstrap_plugins(autoload=autoload, enabled=enabled):
+        logger.info(
+            "Plugin job handler registration skipped: autoload disabled and no plugins explicitly enabled"
+        )
+        return 0
+
+    manager = PluginManager(plugin_dirs)
+    manager.discover_plugins()
+
     for plugin in manager.list_plugins():
-        if enabled and plugin.id not in enabled:
+        if not _should_load_plugin(plugin.id, autoload=autoload, enabled=enabled):
             continue
         if not manager.load_plugin(plugin.id):
             logger.warning("Plugin load failed for job handlers: %s", plugin.id)
             continue
-        if autoload and not manager.activate_plugin(plugin.id):
+        if not manager.activate_plugin(plugin.id):
             logger.warning("Plugin activation failed for job handlers: %s", plugin.id)
+            continue
 
         for target in _iter_register_targets(plugin):
             register = getattr(target, "register_job_handlers", None)
@@ -61,4 +76,3 @@ def register_plugin_job_handlers(worker) -> int:
                 )
 
     return registered
-

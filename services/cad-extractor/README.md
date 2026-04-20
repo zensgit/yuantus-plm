@@ -20,7 +20,7 @@ Notes:
 
 ## Environment
 
-- `CAD_EXTRACTOR_AUTH_MODE` = `disabled`|`optional`|`required` (default: `disabled`)
+- `CAD_EXTRACTOR_AUTH_MODE` = `disabled`|`optional`|`required` (default: `required`)
 - `CAD_EXTRACTOR_SERVICE_TOKEN` = token used for bearer auth
 - `CAD_EXTRACTOR_MAX_UPLOAD_MB` = max upload size in MB (default: `200`)
 - `CAD_EXTRACTOR_HASH_ALG` = optional hash algorithm (e.g. `sha256`)

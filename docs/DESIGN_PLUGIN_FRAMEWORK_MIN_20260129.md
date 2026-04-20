@@ -8,7 +8,7 @@ Provide a minimal but complete plugin framework with:
 
 ## Components
 - **Discovery**: `PLUGIN_DIRS` (default `./plugins`) + manifest (`plugin.json`)
-- **Autoload**: `PLUGINS_AUTOLOAD=true` (default)
+- **Autoload**: `PLUGINS_AUTOLOAD=false` by default; operators can enable broad autoload or keep it disabled and use `PLUGINS_ENABLED` as an explicit allowlist
 - **Activation**: `PluginManager` loads and activates plugins
 - **Routers**: plugin routers mounted under `/api/v1`
 
