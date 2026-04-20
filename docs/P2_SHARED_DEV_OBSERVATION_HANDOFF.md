@@ -22,9 +22,13 @@
 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-drift-commands`
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 - `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
+- `bash scripts/run_p2_shared_dev_142_drift_audit.sh`
+- `bash scripts/print_p2_shared_dev_142_drift_audit_commands.sh`
 
 如果你只想让 **GitHub Actions** 对 `142` 打一轮固定 `current-only` probe，直接用：
 
@@ -35,6 +39,12 @@
 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check`
 - `bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh`
+
+如果 readonly guard 或 readonly rerun 已经报告 baseline 漂移，而你需要在 refreeze 前固定一轮本地 triage，直接用：
+
+- `docs/P2_SHARED_DEV_142_DRIFT_AUDIT_CHECKLIST.md`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
+- `bash scripts/run_p2_shared_dev_142_drift_audit.sh`
 
 适用场景：
 

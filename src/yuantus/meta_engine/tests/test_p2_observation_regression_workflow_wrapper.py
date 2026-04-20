@@ -585,6 +585,12 @@ def test_p2_shared_dev_142_entrypoint_wrapper_dry_run_routes_modes(tmp_path: Pat
     assert "TARGET=scripts/run_p2_shared_dev_142_readonly_rerun.sh" in readonly.stdout
     assert "DRY_RUN=1" in readonly.stdout
 
+    drift_audit = _run("drift-audit", "--skip-precheck")
+    assert drift_audit.returncode == 0, drift_audit.stdout + "\n" + drift_audit.stderr
+    assert "MODE=drift-audit" in drift_audit.stdout
+    assert "TARGET=scripts/run_p2_shared_dev_142_drift_audit.sh" in drift_audit.stdout
+    assert "DRY_RUN=1" in drift_audit.stdout
+
     workflow_readonly = _run("workflow-readonly-check", "--eco-type", "ECR")
     assert workflow_readonly.returncode == 0, workflow_readonly.stdout + "\n" + workflow_readonly.stderr
     assert "MODE=workflow-readonly-check" in workflow_readonly.stdout
@@ -609,6 +615,154 @@ def test_p2_shared_dev_142_entrypoint_wrapper_dry_run_routes_modes(tmp_path: Pat
     assert "TARGET=scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh" in print_mode.stdout
     assert "FORWARDED_ARGS=<none>" in print_mode.stdout
     assert "DRY_RUN=1" in print_mode.stdout
+
+    print_drift_mode = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--mode",
+            "print-drift-commands",
+            "--dry-run",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert print_drift_mode.returncode == 0, print_drift_mode.stdout + "\n" + print_drift_mode.stderr
+    assert "MODE=print-drift-commands" in print_drift_mode.stdout
+    assert "TARGET=scripts/print_p2_shared_dev_142_drift_audit_commands.sh" in print_drift_mode.stdout
+    assert "FORWARDED_ARGS=<none>" in print_drift_mode.stdout
+    assert "DRY_RUN=1" in print_drift_mode.stdout
+
+
+def test_render_p2_shared_dev_142_drift_audit_summarizes_metric_and_item_drift(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "render_p2_shared_dev_142_drift_audit.py"
+    assert script.is_file(), f"Missing script: {script}"
+
+    baseline_dir = tmp_path / "baseline"
+    current_dir = tmp_path / "current"
+    baseline_dir.mkdir(parents=True, exist_ok=True)
+    current_dir.mkdir(parents=True, exist_ok=True)
+
+    (baseline_dir / "summary.json").write_text(
+        json.dumps({"pending_count": 2, "overdue_count": 3, "escalated_count": 1}) + "\n",
+        encoding="utf-8",
+    )
+    (current_dir / "summary.json").write_text(
+        json.dumps({"pending_count": 1, "overdue_count": 4, "escalated_count": 1}) + "\n",
+        encoding="utf-8",
+    )
+
+    (baseline_dir / "items.json").write_text(
+        json.dumps(
+            [
+                {"approval_id": "a-1", "is_overdue": False, "is_escalated": False},
+                {"approval_id": "a-2", "is_overdue": False, "is_escalated": False},
+                {"approval_id": "a-3", "is_overdue": True, "is_escalated": False},
+                {"approval_id": "a-4", "is_overdue": True, "is_escalated": True},
+                {"approval_id": "a-5", "is_overdue": True, "is_escalated": False},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (current_dir / "items.json").write_text(
+        json.dumps(
+            [
+                {"approval_id": "a-1", "is_overdue": False, "is_escalated": False},
+                {"approval_id": "a-3", "is_overdue": True, "is_escalated": False},
+                {"approval_id": "a-4", "is_overdue": True, "is_escalated": True},
+                {"approval_id": "a-5", "is_overdue": True, "is_escalated": False},
+                {"approval_id": "a-6", "is_overdue": True, "is_escalated": False},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    (baseline_dir / "anomalies.json").write_text(
+        json.dumps(
+            {
+                "total_anomalies": 2,
+                "no_candidates": [],
+                "escalated_unresolved": [{"approval_id": "a-4"}],
+                "overdue_not_escalated": [{"approval_id": "a-3"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (current_dir / "anomalies.json").write_text(
+        json.dumps(
+            {
+                "total_anomalies": 3,
+                "no_candidates": [],
+                "escalated_unresolved": [{"approval_id": "a-4"}],
+                "overdue_not_escalated": [{"approval_id": "a-3"}, {"approval_id": "a-6"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    (baseline_dir / "export.json").write_text(
+        json.dumps([{"approval_id": f"a-{n}"} for n in range(1, 6)]) + "\n",
+        encoding="utf-8",
+    )
+    (current_dir / "export.json").write_text(
+        json.dumps([{"approval_id": "a-1"}, {"approval_id": "a-3"}, {"approval_id": "a-4"}, {"approval_id": "a-5"}, {"approval_id": "a-6"}]) + "\n",
+        encoding="utf-8",
+    )
+
+    (baseline_dir / "export.csv").write_text(
+        "approval_id\na-1\na-2\na-3\na-4\na-5\n",
+        encoding="utf-8",
+    )
+    (current_dir / "export.csv").write_text(
+        "approval_id\na-1\na-3\na-4\na-5\na-6\n",
+        encoding="utf-8",
+    )
+
+    md_path = current_dir / "DRIFT_AUDIT.md"
+    json_path = current_dir / "drift_audit.json"
+    cp = subprocess.run(  # noqa: S603
+        [
+            "python3",
+            str(script),
+            str(baseline_dir),
+            str(current_dir),
+            "--baseline-label",
+            "shared-dev-142-readonly-20260419",
+            "--current-label",
+            "current-drift-audit",
+            "--output-md",
+            str(md_path),
+            "--output-json",
+            str(json_path),
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert md_path.is_file()
+    assert json_path.is_file()
+
+    md_text = md_path.read_text(encoding="utf-8")
+    assert "verdict：FAIL" in md_text
+    assert "`pending_count`" in md_text
+    assert "`2` | `1` | `-1`" in md_text
+    assert "`overdue_count`" in md_text
+    assert "`3` | `4` | `1`" in md_text
+    assert "`a-6`" in md_text
+    assert "`a-2`" in md_text
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["verdict"] == "FAIL"
+    assert payload["added_approval_ids"] == ["a-6"]
+    assert payload["removed_approval_ids"] == ["a-2"]
 
 
 def test_p2_shared_dev_142_entrypoint_wrapper_rejects_invalid_mode(tmp_path: Path) -> None:

@@ -30,6 +30,12 @@ bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
 bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands
 ```
 
+如果 guard / readonly rerun 已经提示 `142` 相对 frozen baseline 漂移，但你还不准备直接 refreeze，先跑：
+
+```bash
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit
+```
+
 如果你只需要 GitHub Actions 做一轮 `current-only` probe：
 
 ```bash
@@ -96,6 +102,11 @@ scripts/run_p2_observation_regression.sh
 2. 生成 `OBSERVATION_RESULT.md`
 3. 如果提供 `BASELINE_DIR`，再生成 `OBSERVATION_DIFF.md`
 4. 如果提供 `EVAL_MODE`，再生成 `OBSERVATION_EVAL.md`
+
+如果走的是 `shared-dev 142` 的 `drift-audit` 入口，还会额外生成：
+
+- `DRIFT_AUDIT.md`
+- `drift_audit.json`
 
 ---
 

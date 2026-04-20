@@ -45,8 +45,10 @@
 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
+- `bash scripts/run_p2_shared_dev_142_drift_audit.sh`
 - `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
 
 ### 2.1 首选：env file + 本地 precheck
@@ -147,6 +149,7 @@ bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check
 
 - `workflow-probe` 不会做 frozen baseline 的 readonly compare/eval
 - `workflow-readonly-check` 会做 frozen baseline 的 readonly compare/eval
+- `drift-audit` 会先跑 fixed readonly rerun，再输出 `DRIFT_AUDIT.md` / `drift_audit.json`
 - 如果你要的是 `142` 的正式 readonly rerun，仍然用：
   - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 

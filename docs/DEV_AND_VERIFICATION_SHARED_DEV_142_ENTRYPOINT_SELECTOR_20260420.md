@@ -5,7 +5,7 @@
 
 ## 目标
 
-把 shared-dev `142` 当前已经固定好的四条入口再收口成一个统一模式选择器，减少操作者记忆脚本名的成本。
+把 shared-dev `142` 当前已经固定好的多条入口再收口成一个统一模式选择器，减少操作者记忆脚本名的成本。
 
 本轮不新增运行时能力，只新增一个总入口：
 
@@ -13,12 +13,14 @@
 
 ## 问题
 
-上一轮之后，`142` 已经有四条固定入口：
+上一轮之后，`142` 已经有多条固定入口：
 
 1. `run_p2_shared_dev_142_readonly_rerun.sh`
-2. `run_p2_shared_dev_142_workflow_probe.sh`
-3. `run_p2_shared_dev_142_workflow_readonly_check.sh`
-4. `print_p2_shared_dev_142_readonly_rerun_commands.sh`
+2. `run_p2_shared_dev_142_drift_audit.sh`
+3. `run_p2_shared_dev_142_workflow_probe.sh`
+4. `run_p2_shared_dev_142_workflow_readonly_check.sh`
+5. `print_p2_shared_dev_142_readonly_rerun_commands.sh`
+6. `print_p2_shared_dev_142_drift_audit_commands.sh`
 
 这些入口本身已经稳定，但操作者仍然要先记住：
 
@@ -41,12 +43,14 @@
 
 - `--mode <mode>`
 
-当前支持四个模式：
+当前支持六个模式：
 
 - `readonly-rerun`
+- `drift-audit`
 - `workflow-probe`
 - `workflow-readonly-check`
 - `print-readonly-commands`
+- `print-drift-commands`
 
 内部只做一件事：
 
@@ -55,9 +59,11 @@
 即：
 
 - `readonly-rerun` -> `scripts/run_p2_shared_dev_142_readonly_rerun.sh`
+- `drift-audit` -> `scripts/run_p2_shared_dev_142_drift_audit.sh`
 - `workflow-probe` -> `scripts/run_p2_shared_dev_142_workflow_probe.sh`
 - `workflow-readonly-check` -> `scripts/run_p2_shared_dev_142_workflow_readonly_check.sh`
 - `print-readonly-commands` -> `scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
+- `print-drift-commands` -> `scripts/print_p2_shared_dev_142_drift_audit_commands.sh`
 
 ### 2. 加 `--dry-run`
 
@@ -95,6 +101,7 @@
    - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 2. 再按目标选模式：
    - `--mode readonly-rerun`
+   - `--mode drift-audit`
    - `--mode workflow-probe`
    - `--mode workflow-readonly-check`
 
