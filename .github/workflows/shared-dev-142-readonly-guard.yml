@@ -7,10 +7,10 @@ on:
 
 permissions:
   contents: read
-  actions: write
+  actions: read
 
 concurrency:
-  group: shared-dev-142-readonly-guard
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
