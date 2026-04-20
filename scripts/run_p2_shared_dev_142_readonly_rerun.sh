@@ -14,9 +14,9 @@ Options:
                             default: ./tmp/p2-shared-dev-observation-142-readonly-rerun-<timestamp>
   --baseline-dir <path>     Baseline directory for readonly compare/eval
                             default: ./tmp/p2-shared-dev-observation-20260419-193242
+                            tracked fallback dir: ./artifacts/p2-observation/shared-dev-142-readonly-20260419
   --baseline-archive <path> Baseline archive used only when the canonical baseline dir is missing
                             default: ./tmp/p2-shared-dev-observation-20260419-193242.tar.gz
-                            fallback: ./artifacts/p2-observation/shared-dev-142-readonly-20260419
   --baseline-label <label>  Baseline label for OBSERVATION_DIFF.md
                             default: shared-dev-142-readonly-20260419
   --skip-precheck           Skip precheck and run readonly rerun directly

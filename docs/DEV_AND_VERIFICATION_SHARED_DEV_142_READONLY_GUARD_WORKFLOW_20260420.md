@@ -45,6 +45,7 @@
 - 去掉 baseline artifact 中的个人标识
 - 把本机绝对路径改成相对占位路径
 - 把 `README.txt` 里的固定 shared-dev 地址改成 `<base-url>`
+- 把 readonly wrapper help 中的 tracked fallback 文案移到 `--baseline-dir`，避免误写成 archive fallback
 
 ### 2. 让两个 readonly wrapper 都能回退到受控 baseline
 
@@ -116,6 +117,19 @@ python3 -m pytest -q \
 
 - shell syntax: 通过
 - pytest: 通过
+
+review follow-up：
+
+```bash
+python3 -m pytest -q \
+  src/yuantus/meta_engine/tests/test_shared_dev_142_readonly_guard_workflow_contracts.py \
+  src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \
+  src/yuantus/meta_engine/tests/test_workflow_permissions_contracts.py
+```
+
+结果：
+
+- `15 passed`
 
 额外确认：
 

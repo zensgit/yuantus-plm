@@ -12,9 +12,9 @@ Options:
                             default: ./tmp/p2-shared-dev-142-workflow-readonly-check-<timestamp>
   --baseline-dir <path>     Baseline directory for readonly compare/eval
                             default: ./tmp/p2-shared-dev-observation-20260419-193242
+                            tracked fallback dir: ./artifacts/p2-observation/shared-dev-142-readonly-20260419
   --baseline-archive <path> Baseline archive used only when the canonical baseline dir is missing
                             default: ./tmp/p2-shared-dev-observation-20260419-193242.tar.gz
-                            fallback: ./artifacts/p2-observation/shared-dev-142-readonly-20260419
   --baseline-label <label>  Baseline label for readonly diff
                             default: shared-dev-142-readonly-20260419
   --current-label <label>   Current label for readonly diff
