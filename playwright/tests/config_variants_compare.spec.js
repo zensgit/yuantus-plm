@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { postWithSqliteRetry } = require('./helpers/sqliteRetry');
 
 async function login(request) {
   const loginResp = await request.post('/api/v1/auth/login', {
@@ -42,7 +43,7 @@ async function createPart(request, headers, number, name) {
 
 async function promoteReleased(request, headers, id) {
   const promoteTo = async (targetState) =>
-    request.post('/api/v1/aml/apply', {
+    postWithSqliteRetry(request, '/api/v1/aml/apply', {
       headers,
       data: {
         type: 'Part',
@@ -52,14 +53,14 @@ async function promoteReleased(request, headers, id) {
       },
     });
 
-  let reviewResp = await promoteTo('Review');
-  if (!reviewResp.ok()) {
-    reviewResp = await promoteTo('In Review');
+  let review = await promoteTo('Review');
+  if (!review.resp.ok()) {
+    review = await promoteTo('In Review');
   }
-  expect(reviewResp.ok(), await reviewResp.text()).toBeTruthy();
+  expect(review.resp.ok(), review.body).toBeTruthy();
 
-  const releaseResp = await promoteTo('Released');
-  expect(releaseResp.ok(), await releaseResp.text()).toBeTruthy();
+  const release = await promoteTo('Released');
+  expect(release.resp.ok(), release.body).toBeTruthy();
 }
 
 test('Config compare: selection differences + BOM differences', async ({ request }) => {
@@ -71,11 +72,11 @@ test('Config compare: selection differences + BOM differences', async ({ request
   const child = await createPart(request, headers, `CFG-C-${ts}`, 'Config Child');
   await promoteReleased(request, headers, child);
 
-  const addChildResp = await request.post(`/api/v1/bom/${parent}/children`, {
+  const addChildResp = await postWithSqliteRetry(request, `/api/v1/bom/${parent}/children`, {
     headers,
     data: { child_id: child, quantity: 1, uom: 'EA' },
   });
-  expect(addChildResp.ok()).toBeTruthy();
+  expect(addChildResp.resp.ok(), addChildResp.body).toBeTruthy();
 
   // Create a unique option set and options, so reusing an existing server/DB won't collide.
   const colorKey = `Color_${ts}`;

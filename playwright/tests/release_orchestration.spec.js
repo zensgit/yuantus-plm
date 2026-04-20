@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { postWithSqliteRetry } = require('./helpers/sqliteRetry');
 
 async function login(request) {
   const loginResp = await request.post('/api/v1/auth/login', {
@@ -43,7 +44,7 @@ async function createPart(request, headers, number, name) {
 
 async function promoteReleased(request, headers, id) {
   const promoteTo = async (targetState) =>
-    request.post('/api/v1/aml/apply', {
+    postWithSqliteRetry(request, '/api/v1/aml/apply', {
       headers,
       data: {
         type: 'Part',
@@ -53,14 +54,14 @@ async function promoteReleased(request, headers, id) {
       },
     });
 
-  let reviewResp = await promoteTo('Review');
-  if (!reviewResp.ok()) {
-    reviewResp = await promoteTo('In Review');
+  let review = await promoteTo('Review');
+  if (!review.resp.ok()) {
+    review = await promoteTo('In Review');
   }
-  expect(reviewResp.ok(), await reviewResp.text()).toBeTruthy();
+  expect(review.resp.ok(), review.body).toBeTruthy();
 
-  const releaseResp = await promoteTo('Released');
-  expect(releaseResp.ok(), await releaseResp.text()).toBeTruthy();
+  const release = await promoteTo('Released');
+  expect(release.resp.ok(), release.body).toBeTruthy();
 }
 
 async function createBaseline(request, headers, rootItemId, name) {
@@ -80,12 +81,12 @@ async function createBaseline(request, headers, rootItemId, name) {
 }
 
 async function addBomChild(request, headers, parentId, childId) {
-  const resp = await request.post(`/api/v1/bom/${parentId}/children`, {
+  const resp = await postWithSqliteRetry(request, `/api/v1/bom/${parentId}/children`, {
     headers,
     data: { child_id: childId, quantity: 1, uom: 'EA' },
   });
-  expect(resp.ok()).toBeTruthy();
-  return await resp.json();
+  expect(resp.resp.ok(), resp.body).toBeTruthy();
+  return await resp.resp.json();
 }
 
 async function createMbomFromEbom(request, headers, sourceItemId, name) {

@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { postWithSqliteRetry } = require('./helpers/sqliteRetry');
 
 async function login(request) {
   const loginResp = await request.post('/api/v1/auth/login', {
@@ -43,7 +44,7 @@ async function createPart(request, headers, number, name, extra = {}) {
 
 async function promoteReleased(request, headers, id) {
   const promoteTo = async (targetState) =>
-    request.post('/api/v1/aml/apply', {
+    postWithSqliteRetry(request, '/api/v1/aml/apply', {
       headers,
       data: {
         type: 'Part',
@@ -53,14 +54,14 @@ async function promoteReleased(request, headers, id) {
       },
     });
 
-  let reviewResp = await promoteTo('Review');
-  if (!reviewResp.ok()) {
-    reviewResp = await promoteTo('In Review');
+  let review = await promoteTo('Review');
+  if (!review.resp.ok()) {
+    review = await promoteTo('In Review');
   }
-  expect(reviewResp.ok(), await reviewResp.text()).toBeTruthy();
+  expect(review.resp.ok(), review.body).toBeTruthy();
 
-  const releaseResp = await promoteTo('Released');
-  expect(releaseResp.ok(), await releaseResp.text()).toBeTruthy();
+  const release = await promoteTo('Released');
+  expect(release.resp.ok(), release.body).toBeTruthy();
 }
 
 async function markObsolete(request, headers, id) {
@@ -99,11 +100,11 @@ test('BOM obsolete scan + resolve', async ({ request }) => {
   await promoteReleased(request, headers, childOld);
   await promoteReleased(request, headers, childNew);
 
-  const addResp = await request.post(`/api/v1/bom/${parent}/children`, {
+  const addResp = await postWithSqliteRetry(request, `/api/v1/bom/${parent}/children`, {
     headers,
     data: { child_id: childOld, quantity: 1 },
   });
-  expect(addResp.ok()).toBeTruthy();
+  expect(addResp.resp.ok(), addResp.body).toBeTruthy();
 
   const scanResp = await request.get(`/api/v1/bom/${parent}/obsolete`, { headers });
   expect(scanResp.ok()).toBeTruthy();
@@ -144,17 +145,17 @@ test('BOM weight rollup + write_back', async ({ request }) => {
   await promoteReleased(request, headers, child1);
   await promoteReleased(request, headers, child2);
 
-  const addResp1 = await request.post(`/api/v1/bom/${parent}/children`, {
+  const addResp1 = await postWithSqliteRetry(request, `/api/v1/bom/${parent}/children`, {
     headers,
     data: { child_id: child1, quantity: 2 },
   });
-  expect(addResp1.ok()).toBeTruthy();
+  expect(addResp1.resp.ok(), addResp1.body).toBeTruthy();
 
-  const addResp2 = await request.post(`/api/v1/bom/${parent}/children`, {
+  const addResp2 = await postWithSqliteRetry(request, `/api/v1/bom/${parent}/children`, {
     headers,
     data: { child_id: child2, quantity: 3 },
   });
-  expect(addResp2.ok()).toBeTruthy();
+  expect(addResp2.resp.ok(), addResp2.body).toBeTruthy();
 
   const rollupResp = await request.post(`/api/v1/bom/${parent}/rollup/weight`, {
     headers,

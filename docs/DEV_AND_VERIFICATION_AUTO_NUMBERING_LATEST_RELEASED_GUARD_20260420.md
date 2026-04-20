@@ -238,6 +238,42 @@ BASE_URL=http://127.0.0.1:7910 npx playwright test \
 - latest released guard 没有被回退；问题确实出在旧测试夹具不再满足准入条件
 - Playwright seed 环境里的 `Part` 生命周期实际是 `Draft -> Review -> Released`，不是之前假设的直跳 `Released`
 
+## 第三轮 Follow-up：SQLite 并发写锁
+
+`7745050` 推上去后，远端 `playwright-esign` 又暴露了另一类问题：
+
+- 不再是 latest released 语义失败
+- 失败日志指向 GitHub Actions 的 SQLite 并发写锁
+  - `sqlite3.OperationalError: database is locked`
+  - 触发点落在 `promote -> Released` 和 `POST /api/v1/bom/{parent}/children`
+
+这个问题的性质是测试环境瞬时争锁，不是业务判断错误，所以本轮继续只修 Playwright 夹具：
+
+- 新增 `playwright/tests/helpers/sqliteRetry.js`
+- 对本次受影响的 `promoteReleased` / `addBomChild` 写请求增加短重试
+  - 仅在 `5xx` 或响应体包含 `database is locked` 时重试
+  - 最多 3 次，线性退避
+  - 不改生产代码，不扩大到其他业务路径
+
+## 第三轮验证命令
+
+本地用与 CI 更接近的并发参数复跑全量 Playwright：
+
+```bash
+export BASE_URL=http://127.0.0.1:7910
+BASE_URL=http://127.0.0.1:7910 npx playwright test --workers=2
+```
+
+## 第三轮验证结果
+
+- Playwright full suite（CI-like, SQLite, `--workers=2`）：`36 passed, 1 skipped`
+
+这轮额外确认：
+
+- `bom_obsolete_weight.spec.js` 的剩余失败确实可由 transient retry 吸收
+- 在保留 latest released guard 的前提下，本地全量 Playwright 已恢复为绿
+- 远端 `contracts` 已在同一轮 CI 中转绿，说明 Pact 夹具补丁已生效
+
 ## 已知边界
 
 - 首版只默认覆盖 `Part` / `Document` 自动编号；其他类型需要在 `ItemType.ui_layout.numbering` 提供规则

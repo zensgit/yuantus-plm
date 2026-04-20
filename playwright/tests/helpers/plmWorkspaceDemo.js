@@ -1,4 +1,5 @@
 const { expect } = require('@playwright/test');
+const { postWithSqliteRetry } = require('./sqliteRetry');
 
 async function login(request) {
   const loginResp = await request.post('/api/v1/auth/login', {
@@ -57,7 +58,7 @@ async function createPart(request, headers, number, name) {
 
 async function promoteReleased(request, headers, type, itemId) {
   const promoteTo = async (targetState) =>
-    request.post('/api/v1/aml/apply', {
+    postWithSqliteRetry(request, '/api/v1/aml/apply', {
       headers,
       data: {
         type,
@@ -69,18 +70,18 @@ async function promoteReleased(request, headers, type, itemId) {
       },
     });
 
-  let reviewResp = await promoteTo('Review');
-  if (!reviewResp.ok()) {
-    reviewResp = await promoteTo('In Review');
+  let review = await promoteTo('Review');
+  if (!review.resp.ok()) {
+    review = await promoteTo('In Review');
   }
-  expect(reviewResp.ok(), await reviewResp.text()).toBeTruthy();
+  expect(review.resp.ok(), review.body).toBeTruthy();
 
-  const releaseResp = await promoteTo('Released');
-  expect(releaseResp.ok(), await releaseResp.text()).toBeTruthy();
+  const release = await promoteTo('Released');
+  expect(release.resp.ok(), release.body).toBeTruthy();
 }
 
 async function addBomChild(request, headers, parentId, childId, quantity = 1, uom = 'EA') {
-  const resp = await request.post(`/api/v1/bom/${parentId}/children`, {
+  const resp = await postWithSqliteRetry(request, `/api/v1/bom/${parentId}/children`, {
     headers,
     data: {
       child_id: childId,
@@ -88,7 +89,7 @@ async function addBomChild(request, headers, parentId, childId, quantity = 1, uo
       uom,
     },
   });
-  expect(resp.ok()).toBeTruthy();
+  expect(resp.resp.ok(), resp.body).toBeTruthy();
 }
 
 async function createBaseline(request, headers, rootItemId, name) {
