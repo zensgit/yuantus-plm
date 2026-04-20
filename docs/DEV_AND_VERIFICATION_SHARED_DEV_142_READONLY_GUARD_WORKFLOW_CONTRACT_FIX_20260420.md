@@ -41,14 +41,18 @@
 
 ```bash
 .venv/bin/python -m pytest -q \
+  src/yuantus/meta_engine/tests/test_shared_dev_142_readonly_guard_workflow_contracts.py \
   src/yuantus/meta_engine/tests/test_workflow_concurrency_all_contracts.py \
   src/yuantus/meta_engine/tests/test_workflow_concurrency_group_template_contracts.py \
-  src/yuantus/meta_engine/tests/test_workflow_permissions_least_privilege_contracts.py
+  src/yuantus/meta_engine/tests/test_workflow_permissions_least_privilege_contracts.py \
+  src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
+  src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py \
+  src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
 ```
 
 结果：
 
-- `3 passed`
+- `7 passed`
 
 ## 影响
 
