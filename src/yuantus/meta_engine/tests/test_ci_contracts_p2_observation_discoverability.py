@@ -31,6 +31,7 @@ def test_p2_observation_docs_are_discoverable_from_readme_runbooks() -> None:
         "docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md",
         "docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md",
         "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
+        "docs/P2_SHARED_DEV_142_RERUN_CHECKLIST.md",
     ):
         assert token in text, f"README.md missing P2 observation runbook token: {token}"
 
@@ -62,6 +63,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
     for token in (
         "print_p2_shared_dev_bootstrap_commands.sh",
         "print_p2_shared_dev_142_readonly_rerun_commands.sh",
+        "print_p2_shared_dev_142_rerun_commands.sh",
         "print_p2_shared_dev_first_run_commands.sh",
         "print_p2_shared_dev_mode_selection.sh",
         "run_p2_shared_dev_142_entrypoint.sh",
@@ -75,6 +77,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "render_p2_observation_result.py",
         "compare_p2_observation_results.py",
         "evaluate_p2_observation_results.py",
+        "`print_p2_shared_dev_142_rerun_commands.sh` prints the fixed rerun checklist for the already-initialized `142` shared-dev environment.",
         "`print_p2_shared_dev_bootstrap_commands.sh` prints the server-side shared-dev bootstrap and post-bootstrap observation handoff commands.",
         "`print_p2_shared_dev_142_readonly_rerun_commands.sh` prints the fixed readonly rerun commands for the current official shared-dev 142 baseline, including the canonical `BASELINE_DIR`.",
         "`print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.",
@@ -103,6 +106,7 @@ def test_p2_observation_handoff_and_runbooks_are_indexed_in_delivery_doc_index()
         "docs/P2_ONE_PAGE_DEV_GUIDE.md",
         "docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md",
         "docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md",
+        "docs/P2_SHARED_DEV_142_RERUN_CHECKLIST.md",
         "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
         "docs/DEV_AND_VERIFICATION_P2_OBSERVATION_WORKFLOW_WRAPPER_20260418.md",
     ):
@@ -182,9 +186,11 @@ def test_p2_shared_dev_env_file_examples_stay_repo_safe_and_precheck_compatible(
     repo_root = _find_repo_root(Path(__file__))
     targets = (
         repo_root / "docs" / "P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
+        repo_root / "docs" / "P2_SHARED_DEV_142_RERUN_CHECKLIST.md",
         repo_root / "docs" / "P2_ONE_PAGE_DEV_GUIDE.md",
         repo_root / "docs" / "P2_OBSERVATION_REGRESSION_ONE_COMMAND.md",
         repo_root / "docs" / "DEV_AND_VERIFICATION_P2_OBSERVATION_SHARED_DEV_EXECUTION_GATE_20260419.md",
+        repo_root / "scripts" / "print_p2_shared_dev_142_rerun_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_observation_commands.sh",
     )
 
@@ -203,6 +209,7 @@ def test_p2_shared_dev_mode_selection_script_is_present() -> None:
     for path in (
         repo_root / "scripts" / "print_p2_shared_dev_bootstrap_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_142_readonly_rerun_commands.sh",
+        repo_root / "scripts" / "print_p2_shared_dev_142_rerun_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_first_run_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_mode_selection.sh",
         repo_root / "scripts" / "print_p2_shared_dev_observation_commands.sh",

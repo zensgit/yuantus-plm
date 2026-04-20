@@ -26,6 +26,10 @@ For fresh shared-dev bootstrap, use:
 - docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md
 - bash scripts/print_p2_shared_dev_first_run_commands.sh
 
+For the already-initialized `142` shared-dev, prefer the dedicated rerun entrypoint:
+- docs/P2_SHARED_DEV_142_RERUN_CHECKLIST.md
+- bash scripts/print_p2_shared_dev_142_rerun_commands.sh
+
 1. Preferred: put shared-dev defaults in a local env file
 
 ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"

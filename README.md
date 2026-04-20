@@ -164,6 +164,7 @@ Read-only Claude reviewer sidecar:
 - `docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md` (P2 observation workflow dispatch)
 - `docs/P2_ONE_PAGE_DEV_GUIDE.md` (P2 observation single-page execution guide)
 - `docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md` (P2 remote/shared-dev observation rerun)
+- `docs/P2_SHARED_DEV_142_RERUN_CHECKLIST.md` (142 shared-dev 常规 rerun checklist)
 - `docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md` (P2 shared-dev first-run checklist)
 - `docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md` (P2 shared-dev observation handoff)
 - `docs/RUNBOOK_BACKUP_RESTORE.md` (Backup/restore)
