@@ -89,3 +89,26 @@ class PluginConfigService:
         self.session.add(record)
         self.session.commit()
         return record
+
+    def delete_config(
+        self,
+        *,
+        plugin_id: str,
+        tenant_id: Optional[str],
+        org_id: Optional[str],
+    ) -> bool:
+        tenant_value, org_value = self._normalize_scope(tenant_id, org_id)
+        existing = (
+            self.session.query(PluginConfig)
+            .filter(
+                PluginConfig.plugin_id == plugin_id,
+                PluginConfig.tenant_id == tenant_value,
+                PluginConfig.org_id == org_value,
+            )
+            .first()
+        )
+        if not existing:
+            return False
+        self.session.delete(existing)
+        self.session.commit()
+        return True

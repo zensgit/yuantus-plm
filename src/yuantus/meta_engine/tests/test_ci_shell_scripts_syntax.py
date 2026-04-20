@@ -72,6 +72,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_baseline_e2e.sh",
         scripts_dir / "verify_baseline_filters_e2e.sh",
         scripts_dir / "verify_workcenter_e2e.sh",
+        scripts_dir / "verify_cad_backend_profile_scope.sh",
         scripts_dir / "verify_cad_dedup_vision_s3.sh",
         scripts_dir / "verify_cad_dedup_relationship_s3.sh",
         scripts_dir / "verify_cad_ml_quick.sh",

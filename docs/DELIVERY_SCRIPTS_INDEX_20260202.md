@@ -59,6 +59,7 @@
 - verify_lifecycle_suspended.sh
 - verify_bom_obsolete.sh
 - verify_bom_weight_rollup.sh
+- verify_cad_backend_profile_scope.sh
 - verify_cad_ml_quick.sh
 - verify_cad_ml_metrics.sh
 - verify_cad_ml_queue_smoke.sh
@@ -96,4 +97,5 @@
 - `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, supports either `TOKEN` or `USERNAME/PASSWORD`, can load defaults from `--env-file`, and can auto-write `<OUTPUT_DIR>.tar.gz`.
 - `run_p2_observation_regression_workflow.sh` is the canonical local wrapper for `gh workflow run/list/watch/download` against `p2-observation-regression`.
 - `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.
+- `verify_cad_backend_profile_scope.sh` verifies `GET/PUT/DELETE /api/v1/cad/backend-profile` plus `GET /api/v1/cad/capabilities`, restores the original org scope, and skips tenant-default verification when an org override masks that read surface.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.

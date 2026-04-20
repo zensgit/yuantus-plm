@@ -132,6 +132,13 @@ class Settings(BaseSettings):
         default="optional",
         description="disabled|optional|required (fail when CAD connector fails)",
     )
+    CAD_CONVERSION_BACKEND_PROFILE: str = Field(
+        default="auto",
+        description=(
+            "auto|local-baseline|hybrid-auto|external-enterprise; "
+            "auto preserves legacy CAD_CONNECTOR_MODE behavior"
+        ),
+    )
     CAD_CONNECTORS_CONFIG_PATH: str = Field(
         default="",
         description="Optional JSON config path for custom CAD connectors",

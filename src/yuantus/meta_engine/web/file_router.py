@@ -1053,7 +1053,7 @@ async def upload_file(
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
-@file_router.get("/supported-formats")
+@file_router.get("/supported-formats", deprecated=True)
 async def get_supported_formats(db: Session = Depends(get_db)):
     """Get list of supported file formats and conversion capabilities."""
     converter = CADConverterService(db, vault_base_path=VAULT_DIR)
