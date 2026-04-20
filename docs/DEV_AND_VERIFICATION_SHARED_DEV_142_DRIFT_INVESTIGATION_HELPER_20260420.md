@@ -62,6 +62,14 @@ This helper still does not:
 
 That keeps all shared-dev 142 readonly triage paths under one selector.
 
+This follow-up also closes the last operator handoff gap:
+
+- `docs/P2_SHARED_DEV_142_DRIFT_AUDIT_CHECKLIST.md` now explicitly hands off to
+  - `docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md`
+  - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
+  - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-investigation-commands`
+- `docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md` now points workflow operators at the same investigation path once readonly drift is confirmed
+
 ## Verification
 
 ### Syntax
@@ -80,10 +88,15 @@ python3 -m pytest -q \
   src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \
   src/yuantus/meta_engine/tests/test_ci_contracts_p2_observation_discoverability.py \
   src/yuantus/meta_engine/tests/test_ci_contracts_p2_observation_regression_evaluator.py \
+  src/yuantus/meta_engine/tests/test_p2_observation_regression_workflow_contracts.py \
   src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py \
   src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
   src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py
 ```
+
+Result:
+
+- `53 passed`
 
 ### Expected runtime semantics
 
