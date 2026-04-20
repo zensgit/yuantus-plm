@@ -16,6 +16,7 @@ Options:
                             default: ./tmp/p2-shared-dev-observation-20260419-193242
   --baseline-archive <path> Baseline archive used only when the canonical baseline dir is missing
                             default: ./tmp/p2-shared-dev-observation-20260419-193242.tar.gz
+                            fallback: ./artifacts/p2-observation/shared-dev-142-readonly-20260419
   --baseline-label <label>  Baseline label for OBSERVATION_DIFF.md
                             default: shared-dev-142-readonly-20260419
   --skip-precheck           Skip precheck and run readonly rerun directly
@@ -35,6 +36,7 @@ EOF
 default_env_file="${HOME}/.config/yuantus/p2-shared-dev.env"
 default_baseline_dir="./tmp/p2-shared-dev-observation-20260419-193242"
 default_baseline_archive="./tmp/p2-shared-dev-observation-20260419-193242.tar.gz"
+default_tracked_baseline_dir="./artifacts/p2-observation/shared-dev-142-readonly-20260419"
 default_baseline_label="shared-dev-142-readonly-20260419"
 timestamp="$(date +%Y%m%d-%H%M%S)"
 
@@ -74,7 +76,22 @@ restore_canonical_baseline_if_missing() {
   fi
 
   if [[ ! -f "${baseline_archive}" ]]; then
-    echo "Missing baseline dir and archive: ${baseline_dir} / ${baseline_archive}" >&2
+    if [[ -d "${default_tracked_baseline_dir}" ]]; then
+      mkdir -p "$(dirname "${baseline_dir}")"
+      rm -rf "${baseline_dir}"
+      cp -R "${default_tracked_baseline_dir}" "${baseline_dir}"
+
+      if [[ ! -d "${baseline_dir}" ]]; then
+        echo "Tracked repo baseline restore completed but directory still missing: ${baseline_dir}" >&2
+        exit 1
+      fi
+
+      echo "Restored canonical baseline dir from tracked repo baseline:"
+      echo "  ${default_tracked_baseline_dir}"
+      return 0
+    fi
+
+    echo "Missing baseline dir, archive, and tracked repo baseline: ${baseline_dir} / ${baseline_archive} / ${default_tracked_baseline_dir}" >&2
     exit 1
   fi
 
