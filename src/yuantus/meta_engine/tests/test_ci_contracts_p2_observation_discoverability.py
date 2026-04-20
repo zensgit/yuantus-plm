@@ -42,7 +42,9 @@ def test_p2_shared_dev_142_entrypoint_is_discoverable_from_readme_top_level_shar
         "docs/P2_ONE_PAGE_DEV_GUIDE.md",
         "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --help",
+        "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun",
+        "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check",
     ):
         assert token in text, f"README.md missing shared-dev 142 selector token: {token}"
@@ -112,7 +114,9 @@ def test_p2_remote_observation_runbook_stays_on_wrapper_path_for_baseline_and_re
         "scripts/precheck_p2_observation_regression.sh",
         "bash scripts/run_p2_observation_regression.sh",
         "scripts/run_p2_shared_dev_142_entrypoint.sh",
+        "print-readonly-commands",
         "readonly-rerun",
+        "workflow-probe",
         "workflow-readonly-check",
         'TOKEN="$ADMIN_TOKEN"',
         'ADMIN_TOKEN=$(',

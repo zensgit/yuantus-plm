@@ -20,7 +20,9 @@
 
 - `docs/P2_ONE_PAGE_DEV_GUIDE.md`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check`
 
 这样操作者从仓库首页就能知道：
@@ -35,7 +37,9 @@
 - 这份 runbook 只对应冻结的远端 `local-dev-env`
 - 如果目标是 official shared-dev `142` readonly baseline，改走：
   - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
+  - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
   - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+  - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe`
   - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check`
   - `docs/P2_ONE_PAGE_DEV_GUIDE.md`
 

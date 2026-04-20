@@ -83,7 +83,9 @@ For post-bootstrap reruns with existing shared-dev credentials, use:
 For the current official readonly baseline on shared-dev host `142.171.239.56`, start with:
 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check`
 
 ## CAD ML Docker helpers
