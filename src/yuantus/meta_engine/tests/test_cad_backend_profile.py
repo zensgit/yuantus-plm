@@ -145,5 +145,5 @@ def test_profile_resolution_requires_tenant_context(monkeypatch) -> None:
         lambda: SimpleNamespace(tenant_id=None, org_id="org-1"),
     )
 
-    with pytest.raises(RuntimeError, match="requires tenant context"):
+    with pytest.raises(JobFatalError, match="requires tenant context"):
         cad_pipeline_tasks._cad_backend_profile_resolution()

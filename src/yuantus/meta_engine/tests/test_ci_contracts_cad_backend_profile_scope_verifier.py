@@ -78,6 +78,10 @@ class _VerifierFailureHandler(BaseHTTPRequestHandler):
         state["configured"] = profile
         state["effective"] = profile
         state["source"] = source
+        if state["fail_put_after_apply"]:
+            state["fail_put_after_apply"] = False
+            self._write_json(500, {"detail": "apply_then_fail"})
+            return
         self._write_json(
             200,
             {
@@ -122,6 +126,7 @@ class _VerifierFailureServer(ThreadingHTTPServer):
             "puts": [],
             "deletes": [],
             "capabilities_calls": 0,
+            "fail_put_after_apply": False,
         }
 
 
@@ -237,5 +242,45 @@ def test_cad_backend_profile_scope_verifier_restores_scope_on_mid_run_failure(
     assert server.state["capabilities_calls"] == 1
     assert server.state["deletes"] == ["org"]
     assert server.state["puts"], "Expected override PUT before failure"
+    assert server.state["effective"] == server.state["initial"]["effective"]
+    assert server.state["source"] == server.state["initial"]["source"]
+
+
+def test_cad_backend_profile_scope_verifier_restores_scope_when_put_returns_error(
+    tmp_path,
+) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "verify_cad_backend_profile_scope.sh"
+
+    server = _VerifierFailureServer(("127.0.0.1", 0), _VerifierFailureHandler)
+    server.state["fail_put_after_apply"] = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        env = os.environ.copy()
+        env.update(
+            {
+                "BASE_URL": f"http://127.0.0.1:{server.server_port}",
+                "TOKEN": "test-token",
+                "OUTPUT_DIR": str(tmp_path),
+                "RUN_TENANT_SCOPE": "0",
+            }
+        )
+        cp = subprocess.run(  # noqa: S603,S607
+            ["bash", str(script)],
+            text=True,
+            capture_output=True,
+            env=env,
+        )
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
+        server.server_close()
+
+    assert cp.returncode != 0, cp.stdout + "\n" + cp.stderr
+    combined = (cp.stdout or "") + "\n" + (cp.stderr or "")
+    assert "[trap] restored org scope" in combined
+    assert server.state["puts"], "Expected override PUT before failure"
+    assert server.state["deletes"] == ["org"]
     assert server.state["effective"] == server.state["initial"]["effective"]
     assert server.state["source"] == server.state["initial"]["source"]

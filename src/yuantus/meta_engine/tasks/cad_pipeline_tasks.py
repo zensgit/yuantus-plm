@@ -182,7 +182,7 @@ def _cad_backend_profile_resolution(
 ) -> Dict[str, Any]:
     ctx = get_request_context()
     if ctx.tenant_id is None:
-        raise RuntimeError(
+        raise JobFatalError(
             "CAD backend profile resolution requires tenant context; "
             "check job payload includes tenant_id/org_id"
         )

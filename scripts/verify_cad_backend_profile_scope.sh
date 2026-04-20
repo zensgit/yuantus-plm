@@ -437,8 +437,8 @@ verify_scope_flow() {
   restore_override_applied=0
 
   write_put_body "${target_profile}" "${scope}" "${put_body}"
-  request_json "PUT" "/api/v1/cad/backend-profile" "${put_file}" "200" "${put_body}"
   restore_override_applied=1
+  request_json "PUT" "/api/v1/cad/backend-profile" "${put_file}" "200" "${put_body}"
   assert_json_equals "${put_file}" "configured" "${target_profile}"
   assert_json_equals "${put_file}" "effective" "${target_profile}"
   assert_json_equals "${put_file}" "source" "${expected_source}"
