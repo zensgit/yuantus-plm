@@ -298,6 +298,43 @@ PY
 EOF
 }
 
+extract_artifact_precheck_failure_reason() {
+  local precheck_json="${ARTIFACT_DIR}/workflow_precheck.json"
+  if [[ ! -f "${precheck_json}" ]]; then
+    return 1
+  fi
+
+  PRECHECK_JSON="${precheck_json}" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+path = Path(os.environ["PRECHECK_JSON"])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+
+if not isinstance(payload, dict):
+    raise SystemExit(1)
+
+reason = payload.get("reason")
+required = payload.get("required")
+parts: list[str] = []
+if isinstance(reason, str) and reason:
+    parts.append(reason)
+if isinstance(required, list):
+    required_tokens = [str(item) for item in required if str(item)]
+    if required_tokens:
+        parts.append("required: " + ", ".join(required_tokens))
+
+if not parts:
+    raise SystemExit(1)
+
+print("; ".join(parts))
+PY
+}
+
 on_exit() {
   local exit_code=$?
   trap - EXIT
@@ -449,6 +486,10 @@ echo "[4/4] Download artifact ${ARTIFACT_NAME}"
 "${GH_BASE[@]}" run download "${RUN_ID}" -n "${ARTIFACT_NAME}" -D "${ARTIFACT_DIR}" >/dev/null || die "failed to download artifact ${ARTIFACT_NAME} for run ${RUN_ID}"
 
 if [[ "${WATCH_EXIT_CODE}" != "0" || "${RUN_CONCLUSION}" != "success" ]]; then
+  PRECHECK_FAILURE_REASON="$(extract_artifact_precheck_failure_reason || true)"
+  if [[ -n "${PRECHECK_FAILURE_REASON}" ]]; then
+    die "workflow run ${RUN_ID} precheck failed: ${PRECHECK_FAILURE_REASON}"
+  fi
   die "workflow run ${RUN_ID} completed with conclusion=${RUN_CONCLUSION:-unknown}"
 fi
 

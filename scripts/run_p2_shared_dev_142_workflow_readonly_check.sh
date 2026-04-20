@@ -118,6 +118,60 @@ restore_canonical_baseline_if_missing() {
   echo "  ${baseline_archive}"
 }
 
+extract_probe_failure_reason() {
+  local summary_json="${probe_output_dir}/workflow_dispatch.json"
+  if [[ ! -f "${summary_json}" ]]; then
+    return 1
+  fi
+
+  SUMMARY_JSON="${summary_json}" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+path = Path(os.environ["SUMMARY_JSON"])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+
+if not isinstance(payload, dict):
+    raise SystemExit(1)
+
+reason = payload.get("failure_reason")
+if not isinstance(reason, str) or not reason:
+    raise SystemExit(1)
+
+print(reason)
+PY
+}
+
+write_probe_failure_summary() {
+  local failure_reason="$1"
+  mkdir -p "${output_dir}"
+  cat > "${summary_output}" <<EOF
+# Shared-dev 142 Workflow Readonly Check
+
+- status: failure
+- reason: ${failure_reason}
+- workflow_probe_dir: \`${probe_output_dir}\`
+- workflow_dispatch_result: \`${probe_output_dir}/WORKFLOW_DISPATCH_RESULT.md\`
+- current_artifact_dir: \`${current_dir}\`
+- baseline_dir: \`${baseline_dir}\`
+- diff: not generated
+- eval: not generated
+- verdict: unavailable
+
+## Next
+
+- open \`${probe_output_dir}/WORKFLOW_DISPATCH_RESULT.md\`
+- inspect \`${probe_output_dir}/artifact/WORKFLOW_PRECHECK.md\` when present
+- if the probe failed during workflow auth precheck, configure \`P2_OBSERVATION_TOKEN\` or \`P2_OBSERVATION_PASSWORD\` for \`p2-observation-regression\`
+- if you need the direct local path instead of GitHub workflow dispatch, use:
+  - \`bash scripts/run_p2_shared_dev_142_readonly_rerun.sh\`
+EOF
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --output-dir)
@@ -264,7 +318,12 @@ if [[ -n "${deadline_to}" ]]; then
   cmd+=(--deadline-to "${deadline_to}")
 fi
 
-"${cmd[@]}"
+if ! "${cmd[@]}"; then
+  probe_failure_reason="$(extract_probe_failure_reason || true)"
+  probe_failure_reason="${probe_failure_reason:-workflow probe failed before readonly compare/eval}"
+  write_probe_failure_summary "${probe_failure_reason}"
+  exit 1
+fi
 
 if [[ ! -d "${current_dir}" ]]; then
   echo "Missing workflow artifact dir: ${current_dir}" >&2
