@@ -15,7 +15,13 @@
 如果当前目标就是 **shared-dev 142 的 official readonly baseline**，优先直接用固定 wrapper，而不是自己再拼 `BASELINE_DIR`：
 
 ```bash
-bash scripts/run_p2_shared_dev_142_readonly_rerun.sh
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
+```
+
+如果你只是想先展开 `142` 的固定 readonly 命令，再决定是否执行：
+
+```bash
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands
 ```
 
 如果这是 shared-dev 首次执行，或刚换了一组凭证，建议先跑：

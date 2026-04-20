@@ -45,6 +45,7 @@
 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 - `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
 
