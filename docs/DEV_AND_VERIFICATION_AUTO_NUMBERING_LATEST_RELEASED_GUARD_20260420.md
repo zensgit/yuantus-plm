@@ -129,6 +129,19 @@
 4. GraphQL 读面之前仍然只认 legacy `number`
    - `schema.py` / `loaders.py` 已统一切到 shared helper / shared filter
 
+## PR 自审 Follow-up
+
+PR `#294` 首轮 CI 中，`contracts` job 失败，原因不是业务逻辑，而是新增的
+`src/yuantus/meta_engine/tests/test_graphql_item_number_alias_contracts.py`
+未接入 `.github/workflows/ci.yml` 的 `Contract checks` 显式清单。
+
+本轮补丁：
+
+- 将 `test_graphql_item_number_alias_contracts.py` 接入 `CI -> contracts` step
+- 本地补跑 workflow wiring / 排序契约，确认没有再引入 CI 清单漂移
+
+这轮 follow-up 不改业务代码，只修 CI wiring。
+
 补充基线说明：
 
 - 额外抽样复跑了 3 个更宽 router 测试：
