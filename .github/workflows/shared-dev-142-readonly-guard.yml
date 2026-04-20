@@ -1,0 +1,89 @@
+name: shared-dev-142-readonly-guard
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "20 18 * * *"
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shared_dev_142_readonly_guard:
+    name: shared_dev_142_readonly_guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+      OUTPUT_DIR: tmp/p2-shared-dev-142-readonly-guard/${{ github.run_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Prepare output directory
+        run: |
+          set -euo pipefail
+          mkdir -p "${OUTPUT_DIR}"
+
+      - name: Run shared-dev 142 readonly guard
+        id: run_shared_dev_142_readonly_guard
+        run: |
+          set -euo pipefail
+          bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh \
+            --output-dir "${OUTPUT_DIR}" \
+            --repo "${{ github.repository }}" \
+            --ref main
+
+      - name: Write readonly guard summary to job summary
+        if: always()
+        run: |
+          set -euo pipefail
+          echo "## Shared-dev 142 Readonly Guard" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- output_dir: \`${OUTPUT_DIR}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- run_outcome: \`${{ steps.run_shared_dev_142_readonly_guard.outcome }}\`" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "${OUTPUT_DIR}/workflow-probe/WORKFLOW_DISPATCH_RESULT.md" ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "${OUTPUT_DIR}/workflow-probe/WORKFLOW_DISPATCH_RESULT.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -f "${OUTPUT_DIR}/WORKFLOW_READONLY_CHECK.md" ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "${OUTPUT_DIR}/WORKFLOW_READONLY_CHECK.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [[ -f "${OUTPUT_DIR}/WORKFLOW_READONLY_EVAL.md" ]]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "${OUTPUT_DIR}/WORKFLOW_READONLY_EVAL.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload readonly guard evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-dev-142-readonly-guard
+          path: |
+            tmp/p2-shared-dev-142-readonly-guard/${{ github.run_id }}
+            tmp/p2-shared-dev-142-readonly-guard/${{ github.run_id }}.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Fail workflow when readonly guard failed
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.run_shared_dev_142_readonly_guard.outcome }}" != "success" ]]; then
+            echo "ERROR: shared-dev 142 readonly guard execution failed" >&2
+            exit 1
+          fi

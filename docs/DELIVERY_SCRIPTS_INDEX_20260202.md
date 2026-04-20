@@ -35,6 +35,7 @@
 - print_dirty_tree_split_matrix.sh
 - print_docs_parallel_split_helper.sh
 - print_mainline_baseline_switch_commands.sh
+- print_p2_shared_dev_142_rerun_commands.sh
 - print_p2_shared_dev_bootstrap_commands.sh
 - print_p2_shared_dev_142_readonly_rerun_commands.sh
 - print_p2_shared_dev_first_run_commands.sh
@@ -84,6 +85,7 @@
 - `print_mainline_baseline_switch_commands.sh` prints safe command templates for preserving a dirty feature worktree, moving into a clean `baseline/mainline-*` worktree, cutting a real `feature/*` branch, and publishing that branch to `origin`.
 - `print_p2_shared_dev_bootstrap_commands.sh` prints the server-side shared-dev bootstrap and post-bootstrap observation handoff commands.
 - `print_p2_shared_dev_142_readonly_rerun_commands.sh` prints the fixed readonly rerun commands for the current official shared-dev 142 baseline, including the canonical `BASELINE_DIR`.
+- `print_p2_shared_dev_142_rerun_commands.sh` prints the fixed rerun checklist for the already-initialized `142` shared-dev environment.
 - `print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.
 - `print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.
 - `print_p2_shared_dev_observation_commands.sh` prints the canonical P2 shared-dev shell and workflow entry commands.
