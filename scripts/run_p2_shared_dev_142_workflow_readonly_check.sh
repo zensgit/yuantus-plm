@@ -118,6 +118,82 @@ restore_canonical_baseline_if_missing() {
   echo "  ${baseline_archive}"
 }
 
+extract_probe_failure_reason() {
+  local summary_json="${probe_output_dir}/workflow_dispatch.json"
+  if [[ ! -f "${summary_json}" ]]; then
+    return 1
+  fi
+
+  SUMMARY_JSON="${summary_json}" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+path = Path(os.environ["SUMMARY_JSON"])
+try:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+
+if not isinstance(payload, dict):
+    raise SystemExit(1)
+
+reason = payload.get("failure_reason")
+if not isinstance(reason, str) or not reason:
+    raise SystemExit(1)
+
+print(reason)
+PY
+}
+
+format_output_ref_or_not_generated() {
+  local path="$1"
+  if [[ -e "${path}" ]]; then
+    printf '\`%s\`' "${path}"
+    return 0
+  fi
+  printf 'not generated'
+}
+
+write_failure_summary() {
+  local failure_reason="$1"
+  local diff_ref
+  local eval_ref
+  local diff_log_ref
+  local eval_log_ref
+
+  diff_ref="$(format_output_ref_or_not_generated "${diff_output}")"
+  eval_ref="$(format_output_ref_or_not_generated "${eval_output}")"
+  diff_log_ref="$(format_output_ref_or_not_generated "${diff_log_output}")"
+  eval_log_ref="$(format_output_ref_or_not_generated "${eval_log_output}")"
+
+  mkdir -p "${output_dir}"
+  cat > "${summary_output}" <<EOF
+# Shared-dev 142 Workflow Readonly Check
+
+- status: failure
+- reason: ${failure_reason}
+- workflow_probe_dir: \`${probe_output_dir}\`
+- workflow_dispatch_result: \`${probe_output_dir}/WORKFLOW_DISPATCH_RESULT.md\`
+- current_artifact_dir: \`${current_dir}\`
+- baseline_dir: \`${baseline_dir}\`
+- diff: ${diff_ref}
+- eval: ${eval_ref}
+- diff_log: ${diff_log_ref}
+- eval_log: ${eval_log_ref}
+- verdict: unavailable
+
+## Next
+
+- open \`${probe_output_dir}/WORKFLOW_DISPATCH_RESULT.md\`
+- inspect \`${probe_output_dir}/artifact/WORKFLOW_PRECHECK.md\` when present
+- inspect diff/eval log files when present
+- if the probe failed during workflow auth precheck, configure \`P2_OBSERVATION_TOKEN\` or \`P2_OBSERVATION_PASSWORD\` for \`p2-observation-regression\`
+- if you need the direct local path instead of GitHub workflow dispatch, use:
+  - \`bash scripts/run_p2_shared_dev_142_readonly_rerun.sh\`
+EOF
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --output-dir)
@@ -221,6 +297,8 @@ current_dir="${probe_output_dir}/artifact"
 diff_output="${output_dir}/WORKFLOW_READONLY_DIFF.md"
 eval_output="${output_dir}/WORKFLOW_READONLY_EVAL.md"
 summary_output="${output_dir}/WORKFLOW_READONLY_CHECK.md"
+diff_log_output="${output_dir}/WORKFLOW_READONLY_DIFF.log"
+eval_log_output="${output_dir}/WORKFLOW_READONLY_EVAL.log"
 archive_path="${output_dir}.tar.gz"
 
 echo "== Shared-dev 142 workflow readonly check =="
@@ -264,25 +342,40 @@ if [[ -n "${deadline_to}" ]]; then
   cmd+=(--deadline-to "${deadline_to}")
 fi
 
-"${cmd[@]}"
+if ! "${cmd[@]}"; then
+  probe_failure_reason="$(extract_probe_failure_reason || true)"
+  probe_failure_reason="${probe_failure_reason:-workflow probe failed before readonly compare/eval}"
+  write_failure_summary "${probe_failure_reason}"
+  exit 1
+fi
 
 if [[ ! -d "${current_dir}" ]]; then
   echo "Missing workflow artifact dir: ${current_dir}" >&2
   exit 1
 fi
 
-python3 scripts/compare_p2_observation_results.py \
+if ! python3 scripts/compare_p2_observation_results.py \
   "${baseline_dir}" \
   "${current_dir}" \
   --baseline-label "${baseline_label}" \
   --current-label "${current_label}" \
-  --output "${diff_output}"
+  --output "${diff_output}" \
+  >"${diff_log_output}" 2>&1; then
+  write_failure_summary "readonly diff generation failed; see ${diff_log_output}"
+  exit 1
+fi
+rm -f "${diff_log_output}"
 
-python3 scripts/evaluate_p2_observation_results.py \
+if ! python3 scripts/evaluate_p2_observation_results.py \
   "${current_dir}" \
   --mode readonly \
   --baseline-dir "${baseline_dir}" \
-  --output "${eval_output}"
+  --output "${eval_output}" \
+  >"${eval_log_output}" 2>&1; then
+  write_failure_summary "readonly evaluation failed; see ${eval_log_output}"
+  exit 1
+fi
+rm -f "${eval_log_output}"
 
 verdict="$(
   grep -E '^- verdict: ' "${eval_output}" | head -n 1 | sed 's/^- verdict: //' || true

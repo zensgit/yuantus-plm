@@ -266,6 +266,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_docs_parallel_split_helper.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_http_code_normalization_cad_scripts.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_mainline_baseline_switch_helper.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_native_workspace_bundle_scope.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_native_workspace_local_temp_ignored.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_native_workspace_playwright_aggregate_wrapper.py \
