@@ -45,11 +45,15 @@
 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-readiness`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-readiness-commands`
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
+- `bash scripts/run_p2_shared_dev_142_refreeze_readiness.sh`
 - `bash scripts/run_p2_shared_dev_142_drift_audit.sh`
+- `bash scripts/print_p2_shared_dev_142_refreeze_readiness_commands.sh`
 - `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
 
 ### 2.1 首选：env file + 本地 precheck

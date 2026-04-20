@@ -78,6 +78,7 @@ For post-bootstrap reruns with existing shared-dev credentials, use:
 
 - `docs/P2_ONE_PAGE_DEV_GUIDE.md`
 - `docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md`
+- `docs/P2_SHARED_DEV_142_READONLY_REFREEZE_READINESS_CHECKLIST.md`
 - `bash scripts/print_p2_shared_dev_observation_commands.sh`
 
 For the current official readonly baseline on shared-dev host `142.171.239.56`, start with:
@@ -85,6 +86,8 @@ For the current official readonly baseline on shared-dev host `142.171.239.56`, 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-readiness-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-readiness`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe`

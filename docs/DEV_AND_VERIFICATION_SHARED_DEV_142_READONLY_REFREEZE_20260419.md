@@ -12,6 +12,21 @@
 1. 最新 `origin/main` 下，`precheck + observation regression` 工具链是否仍能跑通
 2. 当前远端观察面是否还能作为稳定 readonly baseline
 
+## 2026-04-20 Update
+
+这份文档记录的是 **2026-04-19 当天** 的一次成功 refreeze 过程。  
+后续不要再直接复用这里的命令作为默认入口。
+
+从 `#298` 之后，`shared-dev 142` 已经确认存在 **time-drift / deadline-rollover** 风险。  
+因此新的默认顺序应改成：
+
+1. 先跑：
+   - `bash scripts/run_p2_shared_dev_142_refreeze_readiness.sh`
+2. 只有 `REFREEZE_READY=1` 时，才继续做真正的 tracked baseline refresh
+
+如果 `REFREEZE_READY=0`，说明当前结果里还有 future-deadline pending item，
+此时直接 refreeze 只会把一个很快再次老化的状态冻进 repo。
+
 ## 目标环境
 
 - remote host:

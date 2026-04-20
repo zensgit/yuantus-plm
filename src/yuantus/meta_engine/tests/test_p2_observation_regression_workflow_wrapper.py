@@ -585,6 +585,12 @@ def test_p2_shared_dev_142_entrypoint_wrapper_dry_run_routes_modes(tmp_path: Pat
     assert "TARGET=scripts/run_p2_shared_dev_142_readonly_rerun.sh" in readonly.stdout
     assert "DRY_RUN=1" in readonly.stdout
 
+    refreeze_readiness = _run("refreeze-readiness", "--skip-precheck")
+    assert refreeze_readiness.returncode == 0, refreeze_readiness.stdout + "\n" + refreeze_readiness.stderr
+    assert "MODE=refreeze-readiness" in refreeze_readiness.stdout
+    assert "TARGET=scripts/run_p2_shared_dev_142_refreeze_readiness.sh" in refreeze_readiness.stdout
+    assert "DRY_RUN=1" in refreeze_readiness.stdout
+
     drift_audit = _run("drift-audit", "--skip-precheck")
     assert drift_audit.returncode == 0, drift_audit.stdout + "\n" + drift_audit.stderr
     assert "MODE=drift-audit" in drift_audit.stdout
@@ -621,6 +627,24 @@ def test_p2_shared_dev_142_entrypoint_wrapper_dry_run_routes_modes(tmp_path: Pat
     assert "TARGET=scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh" in print_mode.stdout
     assert "FORWARDED_ARGS=<none>" in print_mode.stdout
     assert "DRY_RUN=1" in print_mode.stdout
+
+    print_refreeze_mode = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--mode",
+            "print-refreeze-readiness-commands",
+            "--dry-run",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert print_refreeze_mode.returncode == 0, print_refreeze_mode.stdout + "\n" + print_refreeze_mode.stderr
+    assert "MODE=print-refreeze-readiness-commands" in print_refreeze_mode.stdout
+    assert "TARGET=scripts/print_p2_shared_dev_142_refreeze_readiness_commands.sh" in print_refreeze_mode.stdout
+    assert "FORWARDED_ARGS=<none>" in print_refreeze_mode.stdout
+    assert "DRY_RUN=1" in print_refreeze_mode.stdout
 
     print_drift_mode = subprocess.run(  # noqa: S603
         [
@@ -848,6 +872,68 @@ def test_render_p2_shared_dev_142_drift_investigation_summarizes_classification_
         for entry in payload["candidate_write_sources"]
     )
     assert "result_markdown" in payload["evidence_paths"]
+
+
+def test_render_p2_shared_dev_142_refreeze_readiness_blocks_future_deadline_pending_items(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "render_p2_shared_dev_142_refreeze_readiness.py"
+    assert script.is_file(), f"Missing script: {script}"
+
+    current_dir = tmp_path / "current"
+    current_dir.mkdir(parents=True, exist_ok=True)
+    (current_dir / "summary.json").write_text(
+        json.dumps({"pending_count": 1, "overdue_count": 4, "escalated_count": 1}) + "\n",
+        encoding="utf-8",
+    )
+    (current_dir / "anomalies.json").write_text(
+        json.dumps({"total_anomalies": 3, "overdue_not_escalated": [{}], "escalated_unresolved": [{}]}) + "\n",
+        encoding="utf-8",
+    )
+    (current_dir / "items.json").write_text(
+        json.dumps(
+            [
+                {
+                    "approval_id": "a-pending",
+                    "eco_name": "eco-specialist",
+                    "stage_name": "SpecialistReview",
+                    "assignee_username": "admin",
+                    "approval_deadline": "2026-04-21T09:34:33.658929",
+                    "is_overdue": False,
+                },
+                {
+                    "approval_id": "a-overdue",
+                    "eco_name": "eco-overdue",
+                    "stage_name": "Review",
+                    "assignee_username": "admin",
+                    "approval_deadline": "2026-04-19T04:34:33.658929",
+                    "is_overdue": True,
+                },
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    md_path = tmp_path / "REFREEZE_READINESS.md"
+    json_path = tmp_path / "refreeze_readiness.json"
+    cp = subprocess.run(  # noqa: S603
+        ["python3", str(script), str(current_dir), "--output-md", str(md_path), "--output-json", str(json_path)],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["ready"] is False
+    assert payload["verdict"] == "FAIL"
+    assert payload["decision"]["kind"] == "future-deadline-pending"
+    assert payload["future_deadline_pending_items"][0]["approval_id"] == "a-pending"
+
+    md_text = md_path.read_text(encoding="utf-8")
+    assert "ready：false" in md_text
+    assert "future-deadline-pending" in md_text
+    assert "`a-pending`" in md_text
 
 
 def test_render_p2_shared_dev_142_drift_investigation_detects_time_drift_from_deadline_rollover(tmp_path: Path) -> None:
