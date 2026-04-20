@@ -30,6 +30,7 @@ def test_p2_observation_docs_are_discoverable_from_readme_runbooks() -> None:
         "docs/P2_ONE_PAGE_DEV_GUIDE.md",
         "docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md",
         "docs/P2_SHARED_DEV_142_DRIFT_AUDIT_CHECKLIST.md",
+        "docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md",
         "docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md",
         "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
         "docs/P2_SHARED_DEV_142_RERUN_CHECKLIST.md",
@@ -50,6 +51,7 @@ def test_p2_shared_dev_142_entrypoint_is_discoverable_from_readme_top_level_shar
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit",
+        "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check",
     ):
@@ -64,6 +66,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
     text = _read(index_path)
     for token in (
         "print_p2_shared_dev_142_drift_audit_commands.sh",
+        "print_p2_shared_dev_142_drift_investigation_commands.sh",
         "print_p2_shared_dev_bootstrap_commands.sh",
         "print_p2_shared_dev_142_readonly_rerun_commands.sh",
         "print_p2_shared_dev_142_rerun_commands.sh",
@@ -71,6 +74,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "print_p2_shared_dev_mode_selection.sh",
         "run_p2_shared_dev_142_entrypoint.sh",
         "run_p2_shared_dev_142_drift_audit.sh",
+        "run_p2_shared_dev_142_drift_investigation.sh",
         "run_p2_shared_dev_142_readonly_rerun.sh",
         "run_p2_shared_dev_142_workflow_probe.sh",
         "run_p2_shared_dev_142_workflow_readonly_check.sh",
@@ -82,13 +86,15 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "compare_p2_observation_results.py",
         "evaluate_p2_observation_results.py",
         "`print_p2_shared_dev_142_drift_audit_commands.sh` prints the fixed drift-audit command sequence for investigating shared-dev 142 readonly baseline deltas before any refreeze.",
+        "`print_p2_shared_dev_142_drift_investigation_commands.sh` prints the fixed drift-investigation command sequence for turning a shared-dev 142 drift-audit result into an evidence pack before any refreeze decision.",
         "`print_p2_shared_dev_142_rerun_commands.sh` prints the fixed rerun checklist for the already-initialized `142` shared-dev environment.",
         "`print_p2_shared_dev_bootstrap_commands.sh` prints the server-side shared-dev bootstrap and post-bootstrap observation handoff commands.",
         "`print_p2_shared_dev_142_readonly_rerun_commands.sh` prints the fixed readonly rerun commands for the current official shared-dev 142 baseline, including the canonical `BASELINE_DIR`.",
         "`print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.",
         "`print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.",
-        "`run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to readonly-rerun, drift-audit, workflow-probe, workflow-readonly-check, and the expanded readonly/drift command printouts.",
+        "`run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to readonly-rerun, drift-audit, drift-investigation, workflow-probe, workflow-readonly-check, and the expanded readonly/drift/investigation command printouts.",
         "`run_p2_shared_dev_142_drift_audit.sh` runs the fixed readonly rerun into a dedicated current result dir and renders a top-level `DRIFT_AUDIT.md` plus `drift_audit.json`.",
+        "`run_p2_shared_dev_142_drift_investigation.sh` runs the fixed drift-audit flow into a nested result dir and renders a top-level `DRIFT_INVESTIGATION.md` plus `drift_investigation.json`.",
         "`run_p2_shared_dev_142_readonly_rerun.sh` runs the current official shared-dev 142 readonly rerun end-to-end with fixed baseline defaults, optional baseline restore, precheck, and readonly evaluation.",
         "`run_p2_shared_dev_142_workflow_probe.sh` runs the fixed GitHub workflow-dispatch current-only probe for shared-dev host `142.171.239.56` and downloads the resulting artifact locally.",
         "`run_p2_shared_dev_142_workflow_readonly_check.sh` runs the fixed shared-dev 142 workflow probe, then locally compares the downloaded artifact against the official frozen readonly baseline and writes readonly diff/eval outputs.",
@@ -112,6 +118,7 @@ def test_p2_observation_handoff_and_runbooks_are_indexed_in_delivery_doc_index()
         "docs/P2_ONE_PAGE_DEV_GUIDE.md",
         "docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md",
         "docs/P2_SHARED_DEV_142_DRIFT_AUDIT_CHECKLIST.md",
+        "docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md",
         "docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md",
         "docs/P2_SHARED_DEV_142_RERUN_CHECKLIST.md",
         "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
@@ -216,6 +223,7 @@ def test_p2_shared_dev_mode_selection_script_is_present() -> None:
     for path in (
         repo_root / "scripts" / "print_p2_shared_dev_bootstrap_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_142_drift_audit_commands.sh",
+        repo_root / "scripts" / "print_p2_shared_dev_142_drift_investigation_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_142_readonly_rerun_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_142_rerun_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_first_run_commands.sh",
@@ -223,6 +231,7 @@ def test_p2_shared_dev_mode_selection_script_is_present() -> None:
         repo_root / "scripts" / "print_p2_shared_dev_observation_commands.sh",
         repo_root / "scripts" / "run_p2_shared_dev_142_entrypoint.sh",
         repo_root / "scripts" / "run_p2_shared_dev_142_drift_audit.sh",
+        repo_root / "scripts" / "run_p2_shared_dev_142_drift_investigation.sh",
         repo_root / "scripts" / "run_p2_shared_dev_142_readonly_rerun.sh",
         repo_root / "scripts" / "run_p2_shared_dev_142_workflow_probe.sh",
         repo_root / "scripts" / "run_p2_shared_dev_142_workflow_readonly_check.sh",
@@ -275,17 +284,21 @@ def test_p2_shared_dev_142_entrypoint_wrapper_exposes_all_modes() -> None:
     for token in (
         "readonly-rerun",
         "drift-audit",
+        "drift-investigation",
         "workflow-probe",
         "workflow-readonly-check",
         "print-readonly-commands",
         "print-drift-commands",
+        "print-investigation-commands",
         "--dry-run",
         "scripts/run_p2_shared_dev_142_readonly_rerun.sh",
         "scripts/run_p2_shared_dev_142_drift_audit.sh",
+        "scripts/run_p2_shared_dev_142_drift_investigation.sh",
         "scripts/run_p2_shared_dev_142_workflow_probe.sh",
         "scripts/run_p2_shared_dev_142_workflow_readonly_check.sh",
         "scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh",
         "scripts/print_p2_shared_dev_142_drift_audit_commands.sh",
+        "scripts/print_p2_shared_dev_142_drift_investigation_commands.sh",
     ):
         assert token in text, f"shared-dev 142 entrypoint wrapper missing token: {token}"
 
@@ -300,10 +313,12 @@ def test_dev_and_verification_shared_dev_142_entrypoint_selector_doc_keeps_all_m
         "scripts/run_p2_shared_dev_142_entrypoint.sh",
         "readonly-rerun",
         "drift-audit",
+        "drift-investigation",
         "workflow-probe",
         "workflow-readonly-check",
         "print-readonly-commands",
         "print-drift-commands",
+        "print-investigation-commands",
         "--dry-run",
     ):
         assert token in text, f"shared-dev 142 selector dev doc missing token: {token}"
@@ -327,6 +342,26 @@ def test_p2_shared_dev_142_drift_audit_runner_tracks_current_official_baseline()
         "scripts/render_p2_shared_dev_142_drift_audit.py",
     ):
         assert token in text, f"shared-dev 142 drift audit runner missing token: {token}"
+
+
+def test_p2_shared_dev_142_drift_investigation_runner_tracks_current_official_baseline() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    path = repo_root / "scripts" / "run_p2_shared_dev_142_drift_investigation.sh"
+    assert path.is_file(), f"Missing shared-dev 142 drift investigation runner: {path}"
+
+    text = _read(path)
+    for token in (
+        "$HOME/.config/yuantus/p2-shared-dev.env",
+        "./tmp/p2-shared-dev-observation-20260419-193242",
+        "./tmp/p2-shared-dev-observation-20260419-193242.tar.gz",
+        "shared-dev-142-readonly-20260419",
+        "current-drift-audit",
+        "DRIFT_INVESTIGATION.md",
+        "drift_investigation.json",
+        "scripts/run_p2_shared_dev_142_drift_audit.sh",
+        "scripts/render_p2_shared_dev_142_drift_investigation.py",
+    ):
+        assert token in text, f"shared-dev 142 drift investigation runner missing token: {token}"
 
 
 def test_p2_shared_dev_142_workflow_probe_tracks_fixed_host_defaults() -> None:

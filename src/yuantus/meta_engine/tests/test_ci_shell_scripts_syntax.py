@@ -93,6 +93,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_docs_parallel_split_helper.sh",
         scripts_dir / "print_mainline_baseline_switch_commands.sh",
         scripts_dir / "print_p2_shared_dev_142_drift_audit_commands.sh",
+        scripts_dir / "print_p2_shared_dev_142_drift_investigation_commands.sh",
         scripts_dir / "print_p2_shared_dev_142_rerun_commands.sh",
         scripts_dir / "print_p2_shared_dev_bootstrap_commands.sh",
         scripts_dir / "print_p2_shared_dev_142_readonly_rerun_commands.sh",
@@ -104,6 +105,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "run_claude_code_parallel_reviewer.sh",
         scripts_dir / "run_p2_shared_dev_142_entrypoint.sh",
         scripts_dir / "run_p2_shared_dev_142_drift_audit.sh",
+        scripts_dir / "run_p2_shared_dev_142_drift_investigation.sh",
         scripts_dir / "run_p2_shared_dev_142_readonly_rerun.sh",
         scripts_dir / "run_p2_shared_dev_142_workflow_probe.sh",
         scripts_dir / "run_p2_shared_dev_142_workflow_readonly_check.sh",
@@ -195,10 +197,12 @@ def test_p2_shared_dev_142_entrypoint_script_has_help() -> None:
         "--mode <mode>",
         "readonly-rerun",
         "drift-audit",
+        "drift-investigation",
         "workflow-probe",
         "workflow-readonly-check",
         "print-readonly-commands",
         "print-drift-commands",
+        "print-investigation-commands",
         "--dry-run",
         "`142.171.239.56`",
     ):
@@ -227,6 +231,30 @@ def test_p2_shared_dev_142_drift_audit_script_has_help() -> None:
         "run_p2_shared_dev_142_readonly_rerun.sh",
     ):
         assert token in out, f"run_p2_shared_dev_142_drift_audit.sh help missing token: {token}"
+
+
+def test_p2_shared_dev_142_drift_investigation_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_drift_investigation.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    for token in (
+        "Usage:",
+        "./tmp/p2-shared-dev-observation-20260419-193242",
+        "shared-dev-142-readonly-20260419",
+        "current-drift-audit",
+        "DRIFT_INVESTIGATION.md",
+        "drift_investigation.json",
+        "run_p2_shared_dev_142_drift_audit.sh",
+    ):
+        assert token in out, f"run_p2_shared_dev_142_drift_investigation.sh help missing token: {token}"
 
 
 def test_p2_shared_dev_142_workflow_readonly_check_script_has_help() -> None:

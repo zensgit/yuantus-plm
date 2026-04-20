@@ -43,14 +43,16 @@
 
 - `--mode <mode>`
 
-当前支持六个模式：
+当前支持八个模式：
 
 - `readonly-rerun`
 - `drift-audit`
+- `drift-investigation`
 - `workflow-probe`
 - `workflow-readonly-check`
 - `print-readonly-commands`
 - `print-drift-commands`
+- `print-investigation-commands`
 
 内部只做一件事：
 
@@ -60,10 +62,12 @@
 
 - `readonly-rerun` -> `scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 - `drift-audit` -> `scripts/run_p2_shared_dev_142_drift_audit.sh`
+- `drift-investigation` -> `scripts/run_p2_shared_dev_142_drift_investigation.sh`
 - `workflow-probe` -> `scripts/run_p2_shared_dev_142_workflow_probe.sh`
 - `workflow-readonly-check` -> `scripts/run_p2_shared_dev_142_workflow_readonly_check.sh`
 - `print-readonly-commands` -> `scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
 - `print-drift-commands` -> `scripts/print_p2_shared_dev_142_drift_audit_commands.sh`
+- `print-investigation-commands` -> `scripts/print_p2_shared_dev_142_drift_investigation_commands.sh`
 
 ### 2. 加 `--dry-run`
 

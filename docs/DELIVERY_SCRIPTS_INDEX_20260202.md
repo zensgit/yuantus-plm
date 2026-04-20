@@ -36,6 +36,7 @@
 - print_docs_parallel_split_helper.sh
 - print_mainline_baseline_switch_commands.sh
 - print_p2_shared_dev_142_drift_audit_commands.sh
+- print_p2_shared_dev_142_drift_investigation_commands.sh
 - print_p2_shared_dev_142_rerun_commands.sh
 - print_p2_shared_dev_bootstrap_commands.sh
 - print_p2_shared_dev_142_readonly_rerun_commands.sh
@@ -47,6 +48,7 @@
 - run_claude_code_parallel_reviewer.sh
 - run_p2_shared_dev_142_entrypoint.sh
 - run_p2_shared_dev_142_drift_audit.sh
+- run_p2_shared_dev_142_drift_investigation.sh
 - run_p2_shared_dev_142_readonly_rerun.sh
 - run_p2_shared_dev_142_workflow_probe.sh
 - run_p2_shared_dev_142_workflow_readonly_check.sh
@@ -56,6 +58,7 @@
 - compare_p2_observation_results.py
 - evaluate_p2_observation_results.py
 - render_p2_shared_dev_142_drift_audit.py
+- render_p2_shared_dev_142_drift_investigation.py
 - render_p2_observation_result.py
 - verify_p2_dev_observation_startup.sh
 - verify_run_h.sh
@@ -87,6 +90,7 @@
 - `print_docs_parallel_split_helper.sh` prints the fast-path staging commands for the docs-parallel split.
 - `print_mainline_baseline_switch_commands.sh` prints safe command templates for preserving a dirty feature worktree, moving into a clean `baseline/mainline-*` worktree, cutting a real `feature/*` branch, and publishing that branch to `origin`.
 - `print_p2_shared_dev_142_drift_audit_commands.sh` prints the fixed drift-audit command sequence for investigating shared-dev 142 readonly baseline deltas before any refreeze.
+- `print_p2_shared_dev_142_drift_investigation_commands.sh` prints the fixed drift-investigation command sequence for turning a shared-dev 142 drift-audit result into an evidence pack before any refreeze decision.
 - `print_p2_shared_dev_bootstrap_commands.sh` prints the server-side shared-dev bootstrap and post-bootstrap observation handoff commands.
 - `print_p2_shared_dev_142_readonly_rerun_commands.sh` prints the fixed readonly rerun commands for the current official shared-dev 142 baseline, including the canonical `BASELINE_DIR`.
 - `print_p2_shared_dev_142_rerun_commands.sh` prints the fixed rerun checklist for the already-initialized `142` shared-dev environment.
@@ -96,12 +100,14 @@
 - `precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe for auth plus the dashboard summary read surface, and writes `OBSERVATION_PRECHECK.md`.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
-- `run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to readonly-rerun, drift-audit, workflow-probe, workflow-readonly-check, and the expanded readonly/drift command printouts.
+- `run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to readonly-rerun, drift-audit, drift-investigation, workflow-probe, workflow-readonly-check, and the expanded readonly/drift/investigation command printouts.
 - `run_p2_shared_dev_142_drift_audit.sh` runs the fixed readonly rerun into a dedicated current result dir and renders a top-level `DRIFT_AUDIT.md` plus `drift_audit.json`.
+- `run_p2_shared_dev_142_drift_investigation.sh` runs the fixed drift-audit flow into a nested result dir and renders a top-level `DRIFT_INVESTIGATION.md` plus `drift_investigation.json`.
 - `run_p2_shared_dev_142_readonly_rerun.sh` runs the current official shared-dev 142 readonly rerun end-to-end with fixed baseline defaults, optional baseline restore, precheck, and readonly evaluation.
 - `run_p2_shared_dev_142_workflow_probe.sh` runs the fixed GitHub workflow-dispatch current-only probe for shared-dev host `142.171.239.56` and downloads the resulting artifact locally.
 - `run_p2_shared_dev_142_workflow_readonly_check.sh` runs the fixed shared-dev 142 workflow probe, then locally compares the downloaded artifact against the official frozen readonly baseline and writes readonly diff/eval outputs.
 - `render_p2_shared_dev_142_drift_audit.py` renders a drift audit from baseline/current observation result dirs, including key metric deltas and approval-id add/remove sets.
+- `render_p2_shared_dev_142_drift_investigation.py` renders a drift investigation evidence pack from a drift-audit result dir, including drift classification, candidate write sources, and evidence path inventory.
 - `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, supports either `TOKEN` or `USERNAME/PASSWORD`, can load defaults from `--env-file`, and can auto-write `<OUTPUT_DIR>.tar.gz`.
 - `run_p2_observation_regression_workflow.sh` is the canonical local wrapper for `gh workflow run/list/watch/download` against `p2-observation-regression`.
 - `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.
