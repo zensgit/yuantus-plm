@@ -111,6 +111,24 @@ python3 -m pytest -q \
 - shell syntax: 通过
 - pytest: 通过
 
+额外确认：
+
+```bash
+gh workflow run shared-dev-142-readonly-guard.yml \
+  --ref codex/shared-dev-142-guard-20260420 \
+  -R zensgit/yuantus-plm
+```
+
+GitHub 返回：
+
+- `HTTP 404: workflow shared-dev-142-readonly-guard.yml not found on the default branch`
+
+说明：
+
+- 这是 GitHub Actions 的注册边界，不是实现故障
+- 新 workflow 在合并到 `main` 之前不会被默认分支索引，所以不能在分支上先做真正的 dispatch 验证
+- 这条线的真实运行验证需要等 PR 合并后，再从 Actions 页或 `gh workflow run` 触发一次
+
 ## 结论
 
 到这一步，shared-dev `142` 的 readonly/workflow 路径已经不再依赖操作者本机 `tmp/` 残留状态：
