@@ -13,8 +13,12 @@ workflow 名称：
 如果目标就是 **shared-dev 142**，优先直接用固定 wrapper：
 
 ```bash
-bash scripts/run_p2_shared_dev_142_workflow_probe.sh
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe
 ```
+
+对应的底层固定脚本仍然是：
+
+- `bash scripts/run_p2_shared_dev_142_workflow_probe.sh`
 
 这条入口固定：
 
@@ -31,7 +35,17 @@ bash scripts/run_p2_shared_dev_142_workflow_probe.sh
 如果你要的是 **workflow 路径采集 + 142 official frozen baseline readonly compare/eval**，直接用：
 
 ```bash
-bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check
+```
+
+对应的底层固定脚本仍然是：
+
+- `bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh`
+
+如果你只是先看 shared-dev `142` 到底有哪些固定模式，先跑：
+
+```bash
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --help
 ```
 
 它会：

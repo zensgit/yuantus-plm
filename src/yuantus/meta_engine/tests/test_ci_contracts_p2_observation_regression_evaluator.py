@@ -90,6 +90,8 @@ def test_p2_observation_regression_docs_keep_evaluator_entrypoints_linked() -> N
         repo_root / "docs" / "P2_OBSERVATION_REGRESSION_ONE_COMMAND.md": [
             "scripts/precheck_p2_observation_regression.sh",
             "scripts/run_p2_observation_regression.sh",
+            "scripts/run_p2_shared_dev_142_entrypoint.sh",
+            "print-readonly-commands",
             'EVAL_MODE="readonly"',
             "OBSERVATION_DIFF.md",
         ],
@@ -101,11 +103,15 @@ def test_p2_observation_regression_docs_keep_evaluator_entrypoints_linked() -> N
         repo_root / "docs" / "P2_ONE_PAGE_DEV_GUIDE.md": [
             "scripts/precheck_p2_observation_regression.sh",
             "scripts/run_p2_observation_regression.sh",
+            "scripts/run_p2_shared_dev_142_entrypoint.sh",
+            "print-readonly-commands",
             "scripts/evaluate_p2_observation_results.py",
             "OBSERVATION_EVAL.md",
         ],
         repo_root / "docs" / "P2_SHARED_DEV_OBSERVATION_HANDOFF.md": [
             "scripts/precheck_p2_observation_regression.sh",
+            "scripts/run_p2_shared_dev_142_entrypoint.sh",
+            "print-readonly-commands",
             "OBSERVATION_PRECHECK.md",
             "observation_precheck.json",
         ],

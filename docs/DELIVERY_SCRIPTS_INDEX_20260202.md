@@ -43,6 +43,7 @@
 - precheck_p2_observation_regression.sh
 - print_strict_gate_split_helper.sh
 - run_claude_code_parallel_reviewer.sh
+- run_p2_shared_dev_142_entrypoint.sh
 - run_p2_shared_dev_142_readonly_rerun.sh
 - run_p2_shared_dev_142_workflow_probe.sh
 - run_p2_shared_dev_142_workflow_readonly_check.sh
@@ -88,6 +89,7 @@
 - `precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe for auth plus the dashboard summary read surface, and writes `OBSERVATION_PRECHECK.md`.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
+- `run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to readonly-rerun, workflow-probe, workflow-readonly-check, or the expanded readonly command printout.
 - `run_p2_shared_dev_142_readonly_rerun.sh` runs the current official shared-dev 142 readonly rerun end-to-end with fixed baseline defaults, optional baseline restore, precheck, and readonly evaluation.
 - `run_p2_shared_dev_142_workflow_probe.sh` runs the fixed GitHub workflow-dispatch current-only probe for shared-dev host `142.171.239.56` and downloads the resulting artifact locally.
 - `run_p2_shared_dev_142_workflow_readonly_check.sh` runs the fixed shared-dev 142 workflow probe, then locally compares the downloaded artifact against the official frozen readonly baseline and writes readonly diff/eval outputs.

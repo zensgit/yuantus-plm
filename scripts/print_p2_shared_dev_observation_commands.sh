@@ -11,11 +11,15 @@ Run all repo-relative commands below from the Yuantus repo root.
 Use this sheet only when the shared-dev environment already exists and you already have valid credentials.
 If you are not sure whether the environment may be reset, default to this rerun path.
 For the current official readonly baseline on shared-dev host `142.171.239.56`, prefer:
+- bash scripts/run_p2_shared_dev_142_entrypoint.sh --help
+- bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
 - bash scripts/run_p2_shared_dev_142_readonly_rerun.sh
 - bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh
 For a GitHub Actions current-only probe against shared-dev host `142.171.239.56`, use:
+- bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe
 - bash scripts/run_p2_shared_dev_142_workflow_probe.sh
 For a GitHub Actions probe plus local readonly baseline compare against shared-dev host `142.171.239.56`, use:
+- bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check
 - bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh
 For fresh shared-dev bootstrap, use:
 - bash scripts/print_p2_shared_dev_mode_selection.sh
