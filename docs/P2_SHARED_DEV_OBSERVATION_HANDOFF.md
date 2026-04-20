@@ -15,15 +15,19 @@
 
 如果当前目标环境就是 **shared-dev 142 的 official readonly baseline**，优先直接用：
 
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 - `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
 
 如果你只想让 **GitHub Actions** 对 `142` 打一轮固定 `current-only` probe，直接用：
 
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe`
 - `bash scripts/run_p2_shared_dev_142_workflow_probe.sh`
 
 如果你要的是 **GitHub Actions 采集 + official frozen baseline readonly compare/eval**，直接用：
 
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check`
 - `bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh`
 
 适用场景：

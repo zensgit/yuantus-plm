@@ -43,6 +43,8 @@
 
 如果当前环境就是 **shared-dev 142 的 official readonly baseline**，不要手工再找 `BASELINE_DIR`，直接用：
 
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 - `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
 
@@ -131,18 +133,19 @@ scripts/run_p2_observation_regression_workflow.sh \
 如果目标就是 **shared-dev 142**，并且你只需要 GitHub Actions 做一轮 `current-only` probe，直接用：
 
 ```bash
-bash scripts/run_p2_shared_dev_142_workflow_probe.sh
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe
 ```
 
 如果你要的是 **GitHub Actions 采集 + official frozen baseline readonly compare/eval**，直接用：
 
 ```bash
-bash scripts/run_p2_shared_dev_142_workflow_readonly_check.sh
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check
 ```
 
 注意：
 
-- 这条入口不会做 frozen baseline 的 readonly compare/eval
+- `workflow-probe` 不会做 frozen baseline 的 readonly compare/eval
+- `workflow-readonly-check` 会做 frozen baseline 的 readonly compare/eval
 - 如果你要的是 `142` 的正式 readonly rerun，仍然用：
   - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 

@@ -388,6 +388,87 @@ raise SystemExit(2)
     assert "eco_state=open" in dispatch_args
 
 
+def test_p2_shared_dev_142_entrypoint_wrapper_dry_run_routes_modes(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_entrypoint.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    def _run(mode: str, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(  # noqa: S603
+            [
+                "bash",
+                str(script),
+                "--mode",
+                mode,
+                "--dry-run",
+                "--",
+                *args,
+            ],
+            text=True,
+            capture_output=True,
+            cwd=str(repo_root),
+        )
+
+    probe = _run("workflow-probe", "--eco-state", "open")
+    assert probe.returncode == 0, probe.stdout + "\n" + probe.stderr
+    assert "MODE=workflow-probe" in probe.stdout
+    assert "TARGET=scripts/run_p2_shared_dev_142_workflow_probe.sh" in probe.stdout
+    assert "FORWARDED_ARGS=--eco-state open " in probe.stdout
+    assert "DRY_RUN=1" in probe.stdout
+
+    readonly = _run("readonly-rerun", "--skip-precheck")
+    assert readonly.returncode == 0, readonly.stdout + "\n" + readonly.stderr
+    assert "MODE=readonly-rerun" in readonly.stdout
+    assert "TARGET=scripts/run_p2_shared_dev_142_readonly_rerun.sh" in readonly.stdout
+    assert "DRY_RUN=1" in readonly.stdout
+
+    workflow_readonly = _run("workflow-readonly-check", "--eco-type", "ECR")
+    assert workflow_readonly.returncode == 0, workflow_readonly.stdout + "\n" + workflow_readonly.stderr
+    assert "MODE=workflow-readonly-check" in workflow_readonly.stdout
+    assert "TARGET=scripts/run_p2_shared_dev_142_workflow_readonly_check.sh" in workflow_readonly.stdout
+    assert "FORWARDED_ARGS=--eco-type ECR " in workflow_readonly.stdout
+    assert "DRY_RUN=1" in workflow_readonly.stdout
+
+    print_mode = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--mode",
+            "print-readonly-commands",
+            "--dry-run",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert print_mode.returncode == 0, print_mode.stdout + "\n" + print_mode.stderr
+    assert "MODE=print-readonly-commands" in print_mode.stdout
+    assert "TARGET=scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh" in print_mode.stdout
+    assert "FORWARDED_ARGS=<none>" in print_mode.stdout
+    assert "DRY_RUN=1" in print_mode.stdout
+
+
+def test_p2_shared_dev_142_entrypoint_wrapper_rejects_invalid_mode(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_entrypoint.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--mode",
+            "bad-mode",
+            "--dry-run",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert cp.returncode != 0
+    assert "Unsupported --mode: bad-mode" in (cp.stderr or "")
+
+
 def test_p2_shared_dev_142_workflow_readonly_check_wrapper_runs_probe_then_compare(tmp_path: Path) -> None:
     repo_root = _find_repo_root(Path(__file__))
     script = repo_root / "scripts" / "run_p2_shared_dev_142_workflow_readonly_check.sh"

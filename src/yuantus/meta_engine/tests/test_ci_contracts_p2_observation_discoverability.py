@@ -43,6 +43,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "print_p2_shared_dev_142_readonly_rerun_commands.sh",
         "print_p2_shared_dev_first_run_commands.sh",
         "print_p2_shared_dev_mode_selection.sh",
+        "run_p2_shared_dev_142_entrypoint.sh",
         "run_p2_shared_dev_142_readonly_rerun.sh",
         "run_p2_shared_dev_142_workflow_probe.sh",
         "run_p2_shared_dev_142_workflow_readonly_check.sh",
@@ -57,6 +58,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "`print_p2_shared_dev_142_readonly_rerun_commands.sh` prints the fixed readonly rerun commands for the current official shared-dev 142 baseline, including the canonical `BASELINE_DIR`.",
         "`print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.",
         "`print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.",
+        "`run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to readonly-rerun, workflow-probe, workflow-readonly-check, or the expanded readonly command printout.",
         "`run_p2_shared_dev_142_readonly_rerun.sh` runs the current official shared-dev 142 readonly rerun end-to-end with fixed baseline defaults, optional baseline restore, precheck, and readonly evaluation.",
         "`run_p2_shared_dev_142_workflow_probe.sh` runs the fixed GitHub workflow-dispatch current-only probe for shared-dev host `142.171.239.56` and downloads the resulting artifact locally.",
         "`run_p2_shared_dev_142_workflow_readonly_check.sh` runs the fixed shared-dev 142 workflow probe, then locally compares the downloaded artifact against the official frozen readonly baseline and writes readonly diff/eval outputs.",
@@ -144,6 +146,7 @@ def test_p2_shared_dev_mode_selection_script_is_present() -> None:
         repo_root / "scripts" / "print_p2_shared_dev_first_run_commands.sh",
         repo_root / "scripts" / "print_p2_shared_dev_mode_selection.sh",
         repo_root / "scripts" / "print_p2_shared_dev_observation_commands.sh",
+        repo_root / "scripts" / "run_p2_shared_dev_142_entrypoint.sh",
         repo_root / "scripts" / "run_p2_shared_dev_142_readonly_rerun.sh",
         repo_root / "scripts" / "run_p2_shared_dev_142_workflow_probe.sh",
         repo_root / "scripts" / "run_p2_shared_dev_142_workflow_readonly_check.sh",
@@ -185,6 +188,26 @@ def test_p2_shared_dev_142_readonly_runner_tracks_current_official_baseline() ->
         "scripts/run_p2_observation_regression.sh",
     ):
         assert token in text, f"shared-dev 142 readonly runner missing token: {token}"
+
+
+def test_p2_shared_dev_142_entrypoint_wrapper_exposes_all_modes() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    path = repo_root / "scripts" / "run_p2_shared_dev_142_entrypoint.sh"
+    assert path.is_file(), f"Missing shared-dev 142 entrypoint wrapper: {path}"
+
+    text = _read(path)
+    for token in (
+        "readonly-rerun",
+        "workflow-probe",
+        "workflow-readonly-check",
+        "print-readonly-commands",
+        "--dry-run",
+        "scripts/run_p2_shared_dev_142_readonly_rerun.sh",
+        "scripts/run_p2_shared_dev_142_workflow_probe.sh",
+        "scripts/run_p2_shared_dev_142_workflow_readonly_check.sh",
+        "scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh",
+    ):
+        assert token in text, f"shared-dev 142 entrypoint wrapper missing token: {token}"
 
 
 def test_p2_shared_dev_142_workflow_probe_tracks_fixed_host_defaults() -> None:

@@ -99,6 +99,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_strict_gate_split_helper.sh",
         scripts_dir / "print_subcontracting_first_cut_anchors.sh",
         scripts_dir / "run_claude_code_parallel_reviewer.sh",
+        scripts_dir / "run_p2_shared_dev_142_entrypoint.sh",
         scripts_dir / "run_p2_shared_dev_142_readonly_rerun.sh",
         scripts_dir / "run_p2_shared_dev_142_workflow_probe.sh",
         scripts_dir / "run_p2_shared_dev_142_workflow_readonly_check.sh",
@@ -171,6 +172,31 @@ def test_p2_shared_dev_142_workflow_probe_script_has_help() -> None:
         "run_p2_shared_dev_142_readonly_rerun.sh",
     ):
         assert token in out, f"run_p2_shared_dev_142_workflow_probe.sh help missing token: {token}"
+
+
+def test_p2_shared_dev_142_entrypoint_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_entrypoint.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    for token in (
+        "Usage:",
+        "--mode <mode>",
+        "readonly-rerun",
+        "workflow-probe",
+        "workflow-readonly-check",
+        "print-readonly-commands",
+        "--dry-run",
+        "`142.171.239.56`",
+    ):
+        assert token in out, f"run_p2_shared_dev_142_entrypoint.sh help missing token: {token}"
 
 
 def test_p2_shared_dev_142_workflow_readonly_check_script_has_help() -> None:
