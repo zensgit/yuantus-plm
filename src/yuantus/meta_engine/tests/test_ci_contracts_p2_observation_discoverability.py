@@ -29,6 +29,7 @@ def test_p2_observation_docs_are_discoverable_from_readme_runbooks() -> None:
         "docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md",
         "docs/P2_ONE_PAGE_DEV_GUIDE.md",
         "docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md",
+        "docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md",
         "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
     ):
         assert token in text, f"README.md missing P2 observation runbook token: {token}"
@@ -101,6 +102,7 @@ def test_p2_observation_handoff_and_runbooks_are_indexed_in_delivery_doc_index()
         "docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md",
         "docs/P2_ONE_PAGE_DEV_GUIDE.md",
         "docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md",
+        "docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md",
         "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
         "docs/DEV_AND_VERIFICATION_P2_OBSERVATION_WORKFLOW_WRAPPER_20260418.md",
     ):
@@ -122,6 +124,21 @@ def test_dev_and_verification_p2_readme_runbook_alignment_doc_tracks_promoted_p2
         "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
     ):
         assert token in text, f"P2 README runbook alignment dev doc missing token: {token}"
+
+
+def test_dev_and_verification_p2_readme_first_run_checklist_doc_tracks_first_run_entrypoint() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    path = repo_root / "docs" / "DEV_AND_VERIFICATION_P2_README_FIRST_RUN_CHECKLIST_DISCOVERABILITY_20260420.md"
+    assert path.is_file(), f"Missing P2 first-run discoverability dev doc: {path}"
+
+    text = _read(path)
+    for token in (
+        "README.md",
+        "docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md",
+        "docs/P2_OBSERVATION_REGRESSION_ONE_COMMAND.md",
+        "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
+    ):
+        assert token in text, f"P2 first-run discoverability dev doc missing token: {token}"
 
 
 def test_p2_remote_observation_runbook_stays_on_wrapper_path_for_baseline_and_rerun() -> None:
