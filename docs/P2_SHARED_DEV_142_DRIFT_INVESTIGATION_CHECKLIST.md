@@ -95,7 +95,15 @@ bash scripts/run_p2_shared_dev_142_drift_investigation.sh
 - approval id 没变
 - 但 `pending / overdue / anomalies` 变了
 
-就按 **state-drift** 处理，优先排查状态推进来源，不要直接 refreeze。
+先看 `DRIFT_INVESTIGATION.md` 里的 `Likely Cause`：
+
+- 如果是 `deadline-rollover`
+  - 就按 **time-drift** 处理
+  - 先确认没人带 `RUN_WRITE_SMOKE=1` 跑过
+  - 再判断是不是 readonly baseline 本身已经过期
+- 如果没有明确 `Likely Cause`
+  - 再按 **state-drift** 处理
+  - 优先排查状态推进来源，不要直接 refreeze。
 
 ## 候选写入来源
 
@@ -121,6 +129,15 @@ bash scripts/run_p2_shared_dev_142_drift_investigation.sh
 则下一步进入 readonly refreeze：
 
 - `docs/DEV_AND_VERIFICATION_SHARED_DEV_142_READONLY_REFREEZE_20260419.md`
+
+如果 investigation 结论是：
+
+- drift 能被 `deadline-rollover` 解释
+
+则先判断这是不是一个应接受的时间敏感 baseline：
+
+- 如果接受，就进入 readonly refreeze
+- 如果不接受，就应该回头把 baseline 设计成非时间敏感样本
 
 如果 investigation 结论是：
 

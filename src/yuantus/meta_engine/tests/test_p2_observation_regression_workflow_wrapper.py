@@ -842,11 +842,122 @@ def test_render_p2_shared_dev_142_drift_investigation_summarizes_classification_
 
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert payload["classification"] == "state-drift"
+    assert payload["likely_cause"]["kind"] == "unknown"
     assert any(
         entry["path"] == "src/yuantus/meta_engine/web/eco_router.py"
         for entry in payload["candidate_write_sources"]
     )
     assert "result_markdown" in payload["evidence_paths"]
+
+
+def test_render_p2_shared_dev_142_drift_investigation_detects_time_drift_from_deadline_rollover(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "render_p2_shared_dev_142_drift_investigation.py"
+    assert script.is_file(), f"Missing script: {script}"
+
+    baseline_dir = tmp_path / "baseline"
+    current_dir = tmp_path / "current"
+    drift_dir = tmp_path / "drift-audit"
+    baseline_dir.mkdir(parents=True, exist_ok=True)
+    current_dir.mkdir(parents=True, exist_ok=True)
+    drift_dir.mkdir(parents=True, exist_ok=True)
+
+    baseline_items = [
+        {
+            "approval_id": "a-1",
+            "eco_id": "eco-1",
+            "eco_name": "eco-pending",
+            "stage_id": "stage-1",
+            "stage_name": "Review",
+            "approval_deadline": "2026-04-20T05:34:33.658929",
+            "is_overdue": False,
+            "hours_overdue": None,
+        },
+        {
+            "approval_id": "a-2",
+            "eco_id": "eco-2",
+            "eco_name": "eco-overdue",
+            "stage_id": "stage-1",
+            "stage_name": "Review",
+            "approval_deadline": "2026-04-19T05:34:33.658929",
+            "is_overdue": True,
+            "hours_overdue": 6.9,
+        },
+    ]
+    current_items = [
+        {
+            "approval_id": "a-1",
+            "eco_id": "eco-1",
+            "eco_name": "eco-pending",
+            "stage_id": "stage-1",
+            "stage_name": "Review",
+            "approval_deadline": "2026-04-20T05:34:33.658929",
+            "is_overdue": True,
+            "hours_overdue": 9.0,
+        },
+        {
+            "approval_id": "a-2",
+            "eco_id": "eco-2",
+            "eco_name": "eco-overdue",
+            "stage_id": "stage-1",
+            "stage_name": "Review",
+            "approval_deadline": "2026-04-19T05:34:33.658929",
+            "is_overdue": True,
+            "hours_overdue": 32.0,
+        },
+    ]
+
+    (baseline_dir / "items.json").write_text(json.dumps(baseline_items) + "\n", encoding="utf-8")
+    (current_dir / "items.json").write_text(json.dumps(current_items) + "\n", encoding="utf-8")
+    (drift_dir / "drift_audit.json").write_text(
+        json.dumps(
+            {
+                "verdict": "FAIL",
+                "baseline_dir": str(baseline_dir),
+                "current_dir": str(current_dir),
+                "metric_deltas": {
+                    "pending_count": {"baseline": 2, "current": 1, "delta": -1},
+                    "overdue_count": {"baseline": 3, "current": 4, "delta": 1},
+                    "total_anomalies": {"baseline": 2, "current": 3, "delta": 1},
+                    "overdue_not_escalated": {"baseline": 1, "current": 2, "delta": 1},
+                },
+                "added_approval_ids": [],
+                "removed_approval_ids": [],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    md_path = tmp_path / "DRIFT_INVESTIGATION.md"
+    json_path = tmp_path / "drift_investigation.json"
+    cp = subprocess.run(  # noqa: S603
+        [
+            "python3",
+            str(script),
+            str(drift_dir),
+            "--output-md",
+            str(md_path),
+            "--output-json",
+            str(json_path),
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["classification"] == "time-drift"
+    assert payload["likely_cause"]["kind"] == "deadline-rollover"
+    assert payload["time_drift_approval_ids"] == ["a-1"]
+    assert payload["approval_change_rows"][0]["approval_id"] == "a-1"
+
+    md_text = md_path.read_text(encoding="utf-8")
+    assert "classification：time-drift" in md_text
+    assert "deadline-rollover" in md_text
+    assert "`a-1`" in md_text
+    assert "Changed Approvals" in md_text
 
 
 def test_run_p2_shared_dev_142_drift_audit_still_renders_when_readonly_rerun_fails(tmp_path: Path) -> None:
