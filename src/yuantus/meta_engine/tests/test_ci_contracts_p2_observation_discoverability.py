@@ -344,6 +344,23 @@ def test_p2_shared_dev_142_drift_audit_runner_tracks_current_official_baseline()
         assert token in text, f"shared-dev 142 drift audit runner missing token: {token}"
 
 
+def test_p2_shared_dev_142_drift_audit_checklist_hands_off_to_investigation() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    path = repo_root / "docs" / "P2_SHARED_DEV_142_DRIFT_AUDIT_CHECKLIST.md"
+    assert path.is_file(), f"Missing shared-dev 142 drift audit checklist: {path}"
+
+    text = _read(path)
+    for token in (
+        "docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md",
+        "drift-investigation",
+        "print-investigation-commands",
+        "run_p2_shared_dev_142_drift_investigation.sh",
+        "DRIFT_INVESTIGATION.md",
+        "drift_investigation.json",
+    ):
+        assert token in text, f"shared-dev 142 drift audit checklist missing token: {token}"
+
+
 def test_p2_shared_dev_142_drift_investigation_runner_tracks_current_official_baseline() -> None:
     repo_root = _find_repo_root(Path(__file__))
     path = repo_root / "scripts" / "run_p2_shared_dev_142_drift_investigation.sh"

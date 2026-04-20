@@ -96,3 +96,15 @@ bash scripts/run_p2_shared_dev_142_drift_audit.sh
 - 观测面本身可能已经异常
 
 则下一步先做原因排查，不做 refreeze。
+
+这一步优先固定 investigation evidence pack：
+
+- `docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-investigation-commands`
+- `bash scripts/run_p2_shared_dev_142_drift_investigation.sh`
+
+预期额外产物：
+
+- `DRIFT_INVESTIGATION.md`
+- `drift_investigation.json`
