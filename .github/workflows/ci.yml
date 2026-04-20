@@ -241,9 +241,11 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_change_scope_contracts.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_branch_closeout_summary.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_breakage_worker_handlers.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_cad_backend_profile_scope_verifier.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_cad_import_dedup_index.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_claude_code_parallel_helper.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_compose_security_defaults.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_compose_sku_profiles.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_compose_worker_dedup_vision_url.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_cross_domain_services_split_helper.py \
