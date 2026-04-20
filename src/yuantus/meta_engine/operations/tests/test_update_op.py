@@ -45,7 +45,7 @@ class TestUpdateOperation(unittest.TestCase):
         
         # Mock validation result
         self.mock_validator.validate_and_normalize.return_value = {
-            "name": "Updated Name", "number": "P-100"
+            "name": "Updated Name", "item_number": "P-100", "number": "P-100"
         }
         
         # Act
@@ -56,13 +56,49 @@ class TestUpdateOperation(unittest.TestCase):
         self.mock_session.get.assert_called_with(Item, "item-1")
         
         # Verify validation called with MERGED properties
-        expected_merged = {"name": "Updated Name", "number": "P-100"}
+        expected_merged = {"name": "Updated Name", "item_number": "P-100", "number": "P-100"}
         self.mock_validator.validate_and_normalize.assert_called_with(mock_item_type, expected_merged)
         
         # Verify item properties updated
         self.assertEqual(mock_item.properties["name"], "Updated Name")
         
         self.assertEqual(result["status"], "updated")
+
+    def test_update_keeps_item_number_and_number_aliases_in_sync(self):
+        mock_item_type = MagicMock()
+        mock_item_type.id = "Part"
+        mock_item_type.on_after_update_method_id = None
+        mock_item_type.lifecycle_map_id = None
+
+        aml = GenericItem(
+            id="item-1",
+            type="Part",
+            action=AMLAction.update,
+            properties={"number": "P-200"},
+        )
+
+        mock_item = MagicMock()
+        mock_item.id = "item-1"
+        mock_item.item_type_id = "Part"
+        mock_item.properties = {"name": "Bracket", "item_number": "P-100", "number": "P-100"}
+        mock_item.current_state = None
+        mock_item.state = "Draft"
+        mock_item.created_by_id = None
+
+        self.mock_session.get.return_value = mock_item
+        self.mock_perm.check_permission.return_value = True
+        self.mock_validator.validate_and_normalize.return_value = {
+            "name": "Bracket",
+            "item_number": "P-200",
+            "number": "P-200",
+        }
+
+        self.op.execute(mock_item_type, aml)
+
+        expected_merged = {"name": "Bracket", "item_number": "P-200", "number": "P-200"}
+        self.mock_validator.validate_and_normalize.assert_called_with(mock_item_type, expected_merged)
+        self.assertEqual(mock_item.properties["item_number"], "P-200")
+        self.assertEqual(mock_item.properties["number"], "P-200")
 
 if __name__ == '__main__':
     unittest.main()

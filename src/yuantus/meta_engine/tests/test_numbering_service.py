@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.numbering import NumberingSequence
 from yuantus.meta_engine.services.numbering_service import (
     NumberingRule,
@@ -180,3 +181,57 @@ def test_sqlite_allocation_is_monotonic_and_unique_under_parallel_calls(tmp_path
         values = list(executor.map(lambda _: _worker(), range(8)))
 
     assert sorted(values) == [f"PART-{idx:06d}" for idx in range(1, 9)]
+
+
+def test_floor_allocated_value_bootstraps_from_existing_item_numbers() -> None:
+    session = MagicMock()
+    service = NumberingService(session)
+    session.query.return_value.filter.return_value.all.return_value = [
+        SimpleNamespace(properties={"item_number": "PART-000017"}),
+        SimpleNamespace(properties={"number": "PART-000003"}),
+        SimpleNamespace(properties={"item_number": "DOC-000099"}),
+        SimpleNamespace(properties={"item_number": "PART-ABC"}),
+    ]
+
+    value = service._floor_allocated_value(
+        item_type_id="Part",
+        rule=NumberingRule(prefix="PART-", width=6, start=1),
+    )
+
+    assert value == 18
+    session.query.assert_called_once_with(Item)
+
+
+def test_generic_allocation_respects_existing_item_number_floor_when_sequence_lags() -> None:
+    session = MagicMock()
+    service = NumberingService(session)
+
+    row_query = MagicMock()
+    item_query = MagicMock()
+
+    def _query(model):
+        if model is NumberingSequence:
+            return row_query
+        if model is Item:
+            return item_query
+        raise AssertionError(f"unexpected query model: {model}")
+
+    session.query.side_effect = _query
+    row_query.filter.return_value.one_or_none.return_value = SimpleNamespace(last_value=2)
+    item_query.filter.return_value.all.return_value = [
+        SimpleNamespace(properties={"item_number": "PART-000020"})
+    ]
+    session.execute.return_value = SimpleNamespace(rowcount=1)
+
+    with patch.object(
+        service,
+        "_scope",
+        return_value=NumberingScope(tenant_id="tenant-1", org_id="org-1"),
+    ):
+        value = service._allocate_counter_generic(
+            item_type_id="Part",
+            rule=NumberingRule(prefix="PART-", width=6, start=1),
+        )
+
+    assert value == 21
+    session.flush.assert_called_once()

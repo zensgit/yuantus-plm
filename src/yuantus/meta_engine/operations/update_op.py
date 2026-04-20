@@ -6,6 +6,10 @@ from yuantus.exceptions.handlers import PermissionError, StateLockedError, Valid
 from yuantus.meta_engine.lifecycle.guard import is_item_locked
 from yuantus.meta_engine.events.domain_events import ItemUpdatedEvent
 from yuantus.meta_engine.events.transactional import enqueue_event
+from yuantus.meta_engine.services.item_number_keys import (
+    ensure_item_number_aliases,
+    get_item_number,
+)
 
 if TYPE_CHECKING:
     from ..models.meta_schema import ItemType
@@ -39,7 +43,9 @@ class UpdateOperation(BaseOperation):
 
         merged = dict(item.properties or {})
         merged.update(aml.properties or {})
-        
+        alias_value = get_item_number(aml.properties or {}) or get_item_number(merged)
+        merged = ensure_item_number_aliases(merged, alias_value)
+
         # Access engine validator for validation
         validated = self.engine.validator.validate_and_normalize(item_type, merged)
         item.properties = validated

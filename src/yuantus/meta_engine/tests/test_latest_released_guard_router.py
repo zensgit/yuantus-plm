@@ -11,6 +11,7 @@ from yuantus.database import get_db
 from yuantus.meta_engine.services.latest_released_guard import NotLatestReleasedError
 from yuantus.meta_engine.web.bom_router import bom_router
 from yuantus.meta_engine.web.effectivity_router import effectivity_router
+from yuantus.meta_engine.web import router as meta_router_module
 
 
 def _current_user() -> CurrentUser:
@@ -29,7 +30,10 @@ def _client_with_db(db) -> TestClient:
     app = FastAPI()
     app.include_router(bom_router, prefix="/api/v1")
     app.include_router(effectivity_router, prefix="/api/v1")
+    app.include_router(meta_router_module.meta_router, prefix="/api/v1")
     app.dependency_overrides[get_current_user] = _current_user
+    if meta_router_module.get_current_user:
+        app.dependency_overrides[meta_router_module.get_current_user] = _current_user
     app.dependency_overrides[get_db] = lambda: db
     return TestClient(app)
 
@@ -100,3 +104,34 @@ def test_effectivity_create_maps_not_latest_released_to_409() -> None:
 
     assert resp.status_code == 409
     assert resp.json()["detail"]["target_id"] == "item-1"
+
+
+def test_aml_apply_maps_not_latest_released_to_409() -> None:
+    client = _client_with_db(MagicMock())
+
+    with patch.object(
+        meta_router_module.AMLEngine,
+        "apply",
+        side_effect=NotLatestReleasedError(
+            reason="not_latest_released",
+            target_id="child-1",
+        ),
+    ):
+        resp = client.post(
+            "/api/v1/aml/apply",
+            json={
+                "type": "Part",
+                "action": "update",
+                "id": "parent-1",
+                "relationships": [
+                    {
+                        "type": "Part BOM",
+                        "action": "add",
+                        "properties": {"related_id": "child-1"},
+                    }
+                ],
+            },
+        )
+
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["error"] == "NOT_LATEST_RELEASED"

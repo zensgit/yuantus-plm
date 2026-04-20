@@ -71,9 +71,11 @@
 - `src/yuantus/meta_engine/services/search_service.py`
 - `src/yuantus/meta_engine/web/graphql/schema.py`
 - `src/yuantus/meta_engine/web/graphql/loaders.py`
+- `src/yuantus/meta_engine/web/router.py`
 - `src/yuantus/meta_engine/bootstrap.py`
 - `src/yuantus/config/settings.py`
 - `src/yuantus/meta_engine/operations/tests/test_add_op.py`
+- `src/yuantus/meta_engine/operations/tests/test_update_op.py`
 - `docs/DELIVERY_DOC_INDEX.md`
 
 ## 测试命令
@@ -273,6 +275,75 @@ BASE_URL=http://127.0.0.1:7910 npx playwright test --workers=2
 - `bom_obsolete_weight.spec.js` 的剩余失败确实可由 transient retry 吸收
 - 在保留 latest released guard 的前提下，本地全量 Playwright 已恢复为绿
 - 远端 `contracts` 已在同一轮 CI 中转绿，说明 Pact 夹具补丁已生效
+
+## 第四轮 Follow-up：审阅 blocker remediation
+
+对 `PR #294` 的独立代码审阅后，又收了 3 个需要在合并前落掉的问题：
+
+1. 通用 `/aml/apply` 写入口仍可通过 nested relationship add 绕过 latest released guard
+2. 自动编号在已有数据库、但 `meta_numbering_sequences` 还是空表时，会从 `1` 起跳，存在历史撞号风险
+3. `UpdateOperation` 没有同步 `item_number` / `number` 双写，旧客户端只改 `number` 时会出现“写了但读不到新编号”
+
+本轮修复：
+
+- `src/yuantus/meta_engine/operations/add_op.py`
+  - 在通用 `AddOperation` 增加 relationship write-time guard
+  - 覆盖 `Part BOM` / `Manufacturing BOM` -> `bom_child`
+  - 覆盖 `Part BOM Substitute` -> `substitute`
+  - 位置放在 `on_before_add` 之后，按最终 `related_id` 判定，避免 method hook 改了 target 后被漏检
+- `src/yuantus/meta_engine/web/router.py`
+  - `/aml/apply` 新增 `NotLatestReleasedError -> 409` 映射
+  - 这样通用 AML 入口与 BOM / Effectivity 专用 router 的冲突语义保持一致
+- `src/yuantus/meta_engine/services/numbering_service.py`
+  - 新增历史编号 floor 计算
+  - sequence 空表时，不再盲目从 `start=1` 起跳，而是先扫描同 `ItemType` 下已有 `item_number/number`
+  - generic update 分支也会尊重这个 floor，sequence 落后于真实历史数据时会自动追平
+  - 若测试环境尚未建 `meta_items`，floor 计算会安全降级为空历史，不让最小化单测夹具报错
+- `src/yuantus/meta_engine/operations/update_op.py`
+  - update 时优先取本次请求里的 `item_number/number`，再同步回两个 alias
+  - 避免老数据里已有 `item_number` 时，把新传入的 legacy `number` 覆盖回旧值
+- focused tests 补充：
+  - `test_add_op.py`：新增通用 relationship guard 调用覆盖
+  - `test_update_op.py`：新增 alias 双写兼容覆盖
+  - `test_latest_released_guard_router.py`：新增 `/aml/apply` -> `409` 覆盖
+  - `test_numbering_service.py`：新增历史编号 bootstrap / sequence 落后补齐覆盖
+
+## 第四轮验证命令
+
+```bash
+/Users/chouhua/Downloads/Github/Yuantus/.venv/bin/python -m pytest -q \
+  src/yuantus/meta_engine/operations/tests/test_add_op.py \
+  src/yuantus/meta_engine/operations/tests/test_update_op.py \
+  src/yuantus/meta_engine/tests/test_latest_released_guard_router.py \
+  src/yuantus/meta_engine/tests/test_latest_released_write_paths.py \
+  src/yuantus/meta_engine/tests/test_numbering_service.py
+
+/Users/chouhua/Downloads/Github/Yuantus/.venv/bin/python -m pytest -q \
+  src/yuantus/meta_engine/tests/test_numbering_service.py \
+  src/yuantus/meta_engine/tests/test_latest_released_guard.py \
+  src/yuantus/meta_engine/tests/test_latest_released_write_paths.py \
+  src/yuantus/meta_engine/tests/test_latest_released_guard_router.py \
+  src/yuantus/meta_engine/tests/test_graphql_item_number_alias_contracts.py \
+  src/yuantus/meta_engine/operations/tests/test_add_op.py \
+  src/yuantus/meta_engine/operations/tests/test_update_op.py
+
+/Users/chouhua/Downloads/Github/Yuantus/.venv/bin/python -m pytest -q \
+  src/yuantus/api/tests/test_pact_provider_yuantus_plm.py
+```
+
+## 第四轮验证结果
+
+- add/update focused：`6 passed`
+- router/write focused：`9 passed`
+- numbering focused：`12 passed`
+- broader remediation suite：`36 passed`
+- Pact provider：`1 passed`
+
+这轮补完后，最初审阅提出的 3 个 blocker 已全部落地：
+
+- latest released guard 不再只存在于显式 service 写路径，通用 AML nested relationship add 也被兜住
+- 自动编号不会在已有库上从 `1` 重新起跳
+- canonical `item_number` 与 legacy `number` 的更新兼容被固定住
 
 ## 已知边界
 

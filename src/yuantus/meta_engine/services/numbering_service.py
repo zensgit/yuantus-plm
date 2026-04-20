@@ -6,11 +6,12 @@ from types import SimpleNamespace
 from typing import Any, Optional
 import uuid
 
-from sqlalchemy import update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func, update
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from yuantus.context import get_request_context
+from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.models.numbering import NumberingSequence
 from yuantus.meta_engine.services.item_number_keys import (
@@ -123,6 +124,10 @@ class NumberingService:
             dialect_insert=pg_insert,
             item_type_id=item_type_id,
             rule=rule,
+            conflict_value_expr_factory=lambda floor_value: func.greatest(
+                NumberingSequence.last_value + 1,
+                floor_value,
+            ),
         )
 
     def _allocate_counter_sqlite(self, *, item_type_id: str, rule: NumberingRule) -> int:
@@ -132,11 +137,23 @@ class NumberingService:
             dialect_insert=sqlite_insert,
             item_type_id=item_type_id,
             rule=rule,
+            conflict_value_expr_factory=lambda floor_value: func.max(
+                NumberingSequence.last_value + 1,
+                floor_value,
+            ),
         )
 
-    def _allocate_counter_upsert(self, *, dialect_insert, item_type_id: str, rule: NumberingRule) -> int:
+    def _allocate_counter_upsert(
+        self,
+        *,
+        dialect_insert,
+        item_type_id: str,
+        rule: NumberingRule,
+        conflict_value_expr_factory,
+    ) -> int:
         scope = self._scope()
         now = datetime.utcnow()
+        floor_value = self._floor_allocated_value(item_type_id=item_type_id, rule=rule)
         stmt = dialect_insert(NumberingSequence).values(
             id=str(uuid.uuid4()),
             item_type_id=item_type_id,
@@ -144,14 +161,14 @@ class NumberingService:
             org_id=scope.org_id,
             prefix=rule.prefix,
             width=rule.width,
-            last_value=rule.start,
+            last_value=floor_value,
             created_at=now,
             updated_at=now,
         )
         stmt = stmt.on_conflict_do_update(
             index_elements=["item_type_id", "tenant_id", "org_id", "prefix"],
             set_={
-                "last_value": NumberingSequence.last_value + 1,
+                "last_value": conflict_value_expr_factory(floor_value),
                 "width": rule.width,
                 "updated_at": now,
             },
@@ -161,6 +178,7 @@ class NumberingService:
 
     def _allocate_counter_generic(self, *, item_type_id: str, rule: NumberingRule) -> int:
         scope = self._scope()
+        floor_value = self._floor_allocated_value(item_type_id=item_type_id, rule=rule)
         filters = (
             NumberingSequence.item_type_id == item_type_id,
             NumberingSequence.tenant_id == scope.tenant_id,
@@ -183,7 +201,7 @@ class NumberingService:
                         org_id=scope.org_id,
                         prefix=rule.prefix,
                         width=rule.width,
-                        last_value=rule.start,
+                        last_value=floor_value,
                     )
                     self.session.add(row)
                     self.session.flush()
@@ -195,22 +213,52 @@ class NumberingService:
                     continue
 
             previous = int(row.last_value)
+            next_value = max(previous + 1, floor_value)
             result = self.session.execute(
                 update(NumberingSequence)
                 .where(*filters, NumberingSequence.last_value == previous)
                 .values(
-                    last_value=previous + 1,
+                    last_value=next_value,
                     width=rule.width,
                     updated_at=datetime.utcnow(),
                 )
             )
             if result.rowcount == 1:
                 self.session.flush()
-                return previous + 1
+                return next_value
 
             self.session.expire_all()
 
         raise RuntimeError("Failed to allocate numbering sequence after retries")
+
+    def _floor_allocated_value(self, *, item_type_id: str, rule: NumberingRule) -> int:
+        existing_max = rule.start - 1
+        try:
+            rows = (
+                self.session.query(Item)
+                .filter(Item.item_type_id == item_type_id)
+                .all()
+            )
+        except OperationalError:
+            return existing_max + 1
+        for row in rows:
+            candidate = self._parse_allocated_value(
+                get_item_number(getattr(row, "properties", None)),
+                prefix=rule.prefix,
+            )
+            if candidate is not None and candidate > existing_max:
+                existing_max = candidate
+        return existing_max + 1
+
+    @staticmethod
+    def _parse_allocated_value(value: Optional[str], *, prefix: str) -> Optional[int]:
+        text = str(value or "").strip()
+        if not text or not text.startswith(prefix):
+            return None
+        suffix = text[len(prefix) :].strip()
+        if not suffix.isdigit():
+            return None
+        return int(suffix)
 
 
 def apply_auto_numbering(session: Session, item_type: ItemType, properties: Optional[dict]) -> dict:
