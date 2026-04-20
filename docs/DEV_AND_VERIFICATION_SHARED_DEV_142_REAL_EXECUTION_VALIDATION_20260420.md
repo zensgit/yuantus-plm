@@ -124,12 +124,23 @@ bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
   - `diff_log/eval_log` 路径
   - 下一步是补 `P2_OBSERVATION_TOKEN` 或 `P2_OBSERVATION_PASSWORD`，或直接检查 compare/eval log
 
+### 3. `.github/workflows/ci.yml`
+
+本轮 PR 在远端 `contracts` gate 暴露出一个现存仓库级 drift：
+
+- `test_ci_contracts_mainline_baseline_switch_helper.py` 已存在
+- 但 `contracts` job 的 pytest 清单漏列该文件
+
+因此本轮顺手补齐了 `ci.yml` 的 contracts 测试列表，避免 PR 因无关 gate 缺口卡住。
+
 ## 验证
 
 自动化：
 
 ```bash
 PYTHONPATH=src python3 -m pytest -q \
+  src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
+  src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py \
   src/yuantus/meta_engine/tests/test_p2_observation_regression_workflow_wrapper.py \
   src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \
   src/yuantus/meta_engine/tests/test_p2_observation_regression_workflow_contracts.py \
@@ -140,7 +151,7 @@ PYTHONPATH=src python3 -m pytest -q \
 
 结果：
 
-- `26 passed`
+- `28 passed`
 
 真实执行：
 
