@@ -4,8 +4,9 @@ import asyncio
 from typing import Any, Awaitable, Dict, Optional
 
 import httpx
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Depends, Header
 
+from yuantus.api.dependencies.auth import get_current_user_id
 from yuantus.context import get_request_context
 from yuantus.integrations.athena import AthenaClient
 from yuantus.integrations.cad_ml import CadMLClient
@@ -14,25 +15,52 @@ from yuantus.integrations.dedup_vision import DedupVisionClient
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 
-async def _probe(name: str, base_url: str, call: Awaitable[Dict[str, Any]]) -> Dict[str, Any]:
+def _error_summary(error_code: str, *, status_code: Optional[int] = None, error_type: str) -> str:
+    if error_code == "upstream_http_error":
+        return f"upstream returned HTTP {status_code} ({error_type})"
+    if error_code == "upstream_request_error":
+        return f"upstream request failed ({error_type})"
+    return f"upstream internal failure ({error_type})"
+
+
+async def _probe(call: Awaitable[Dict[str, Any]]) -> Dict[str, Any]:
     try:
         detail = await call
-        return {"ok": True, "base_url": base_url, "detail": detail}
+        return {"ok": True, "detail": detail}
     except httpx.HTTPStatusError as exc:
+        error_code = "upstream_http_error"
         return {
             "ok": False,
-            "base_url": base_url,
+            "error_code": error_code,
             "status_code": exc.response.status_code,
-            "error": exc.response.text,
+            "error_type": type(exc).__name__,
+            "summary": _error_summary(
+                error_code,
+                status_code=exc.response.status_code,
+                error_type=type(exc).__name__,
+            ),
         }
     except httpx.RequestError as exc:
-        return {"ok": False, "base_url": base_url, "error": str(exc)}
+        error_code = "upstream_request_error"
+        return {
+            "ok": False,
+            "error_code": error_code,
+            "error_type": type(exc).__name__,
+            "summary": _error_summary(error_code, error_type=type(exc).__name__),
+        }
     except Exception as exc:  # pragma: no cover - defensive
-        return {"ok": False, "base_url": base_url, "error": str(exc)}
+        error_code = "upstream_internal_error"
+        return {
+            "ok": False,
+            "error_code": error_code,
+            "error_type": type(exc).__name__,
+            "summary": _error_summary(error_code, error_type=type(exc).__name__),
+        }
 
 
 @router.get("/health")
 async def integrations_health(
+    _: int = Depends(get_current_user_id),
     authorization: Optional[str] = Header(default=None),
     athena_authorization: Optional[str] = Header(
         default=None, alias="X-Athena-Authorization"
@@ -46,14 +74,12 @@ async def integrations_health(
 
     tasks = {
         "athena": _probe(
-            "athena",
-            athena.base_url,
             athena.health(
                 authorization=None, athena_authorization=athena_authorization
             ),
         ),
-        "cad_ml": _probe("cad_ml", cad_ml.base_url, cad_ml.health(authorization=authorization)),
-        "dedup_vision": _probe("dedup_vision", dedup.base_url, dedup.health(authorization=authorization)),
+        "cad_ml": _probe(cad_ml.health(authorization=authorization)),
+        "dedup_vision": _probe(dedup.health(authorization=authorization)),
     }
 
     results = await asyncio.gather(*tasks.values())

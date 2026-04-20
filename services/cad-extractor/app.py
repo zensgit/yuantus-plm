@@ -27,9 +27,9 @@ def _parse_auth_token(authorization: Optional[str]) -> Optional[str]:
 
 
 def _check_auth(authorization: Optional[str]) -> None:
-    mode = os.getenv("CAD_EXTRACTOR_AUTH_MODE", "disabled").strip().lower()
+    mode = os.getenv("CAD_EXTRACTOR_AUTH_MODE", "required").strip().lower()
     if mode not in {"disabled", "optional", "required"}:
-        mode = "disabled"
+        mode = "required"
 
     if mode == "disabled":
         return

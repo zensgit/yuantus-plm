@@ -207,7 +207,7 @@ class Settings(BaseSettings):
 
     # Auth (built-in / dev-first)
     AUTH_MODE: str = Field(
-        default="optional", description="disabled|optional|required"
+        default="required", description="disabled|optional|required"
     )
     JWT_SECRET_KEY: str = Field(
         default="yuantus-dev-secret-change-me",
@@ -275,11 +275,12 @@ class Settings(BaseSettings):
         default="./plugins", description="Comma-separated plugin directories"
     )
     PLUGINS_AUTOLOAD: bool = Field(
-        default=True, description="Auto-discover/load plugins on startup"
+        default=False,
+        description="Auto-discover/load plugins on startup; keep false unless explicit allowlist or controlled startup",
     )
     PLUGINS_ENABLED: str = Field(
         default="",
-        description="Comma-separated plugin ids to load; empty means all discovered",
+        description="Comma-separated plugin ids to load; empty keeps plugins disabled unless autoload is explicitly enabled",
     )
 
     S3_BUCKET_NAME: str = Field(default="yuantus")
