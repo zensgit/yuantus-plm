@@ -15,6 +15,7 @@ from yuantus.meta_engine.lifecycle.guard import is_item_locked
 from yuantus.meta_engine.schemas.aml import AMLAction
 from yuantus.meta_engine.services.bom_service import BOMService, CycleDetectedError
 from yuantus.meta_engine.services.bom_conversion_service import BOMConversionService
+from yuantus.meta_engine.services.latest_released_guard import NotLatestReleasedError
 from yuantus.meta_engine.services.bom_obsolete_service import BOMObsoleteService
 from yuantus.meta_engine.services.bom_rollup_service import BOMRollupService
 from yuantus.meta_engine.services.substitute_service import SubstituteService
@@ -482,6 +483,9 @@ async def add_bom_child(
             status_code=409,
             content=e.to_dict(),
         )
+    except NotLatestReleasedError as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=e.to_detail())
     except ValueError as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -1429,6 +1433,9 @@ async def add_bom_substitute(
             properties=request.properties,
             user_id=int(user.id),
         )
+    except NotLatestReleasedError as e:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=e.to_detail())
     except ValueError as e:
         msg = str(e)
         if "not found" in msg or "Invalid BOM Line" in msg:

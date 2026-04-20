@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import CurrentUser, get_current_user
 from yuantus.database import get_db
+from yuantus.meta_engine.services.latest_released_guard import NotLatestReleasedError
 from yuantus.meta_engine.services.effectivity_service import EffectivityService
 
 
@@ -103,15 +104,19 @@ def create_effectivity(
             )
 
     service = EffectivityService(db)
-    eff = service.create_effectivity(
-        item_id=request.item_id,
-        version_id=request.version_id,
-        effectivity_type=effectivity_type,
-        start_date=request.start_date,
-        end_date=request.end_date,
-        payload=payload,
-        created_by_id=user.id,
-    )
+    try:
+        eff = service.create_effectivity(
+            item_id=request.item_id,
+            version_id=request.version_id,
+            effectivity_type=effectivity_type,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            payload=payload,
+            created_by_id=user.id,
+        )
+    except NotLatestReleasedError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.to_detail()) from exc
     db.commit()
     return _serialize_effectivity(eff)
 

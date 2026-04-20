@@ -20,6 +20,7 @@ except ImportError:
 from yuantus.config import get_settings
 from yuantus.meta_engine.models.eco import ECO
 from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.services.item_number_keys import get_item_number
 
 logger = logging.getLogger(__name__)
 
@@ -311,7 +312,7 @@ class SearchService:
             "item_type_id": item.item_type_id,
             "config_id": item.config_id,
             "state": item.state,
-            "item_number": props.get("item_number"),
+            "item_number": get_item_number(props),
             "name": props.get("name"),
             "description": props.get("description"),
             "search_text": self._build_search_text(props),

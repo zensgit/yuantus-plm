@@ -44,6 +44,7 @@ class TestAddOperation(unittest.TestCase):
         # Configure the Mock Item instance
         mock_new_item = MagicMock()
         mock_new_item.id = "valid-uuid-string"
+        mock_new_item.properties = dict(aml.properties)
         MockItemClass.return_value = mock_new_item
         
         # Act
@@ -61,6 +62,36 @@ class TestAddOperation(unittest.TestCase):
         
         self.assertEqual(result["status"], "created")
         self.assertEqual(result["type"], "Part")
+
+    @patch("yuantus.meta_engine.operations.add_op.apply_auto_numbering")
+    @patch("yuantus.meta_engine.operations.add_op.Item")
+    def test_execute_routes_properties_through_auto_numbering(self, MockItemClass, numbering_fn):
+        mock_item_type = MagicMock()
+        mock_item_type.id = "Part"
+        mock_item_type.is_relationship = False
+        mock_item_type.permission_id = "perm1"
+        mock_item_type.on_before_add_method_id = None
+
+        aml = GenericItem(
+            type="Part",
+            action=AMLAction.add,
+            properties={"name": "Washer"},
+        )
+
+        self.mock_perm.check_permission.return_value = True
+        numbering_fn.return_value = {"item_number": "PART-000001", "number": "PART-000001", "name": "Washer"}
+        self.mock_validator.validate_and_normalize.return_value = numbering_fn.return_value
+
+        mock_new_item = MagicMock()
+        mock_new_item.id = "valid-uuid-string"
+        mock_new_item.properties = dict(aml.properties)
+        MockItemClass.return_value = mock_new_item
+
+        self.op.execute(mock_item_type, aml)
+
+        numbering_fn.assert_called_once()
+        self.assertEqual(mock_new_item.properties["item_number"], "PART-000001")
+        self.assertEqual(mock_new_item.properties["number"], "PART-000001")
 
 if __name__ == '__main__':
     unittest.main()

@@ -257,6 +257,10 @@ class Settings(BaseSettings):
         default="",
         description="Optional JSON mapping release validation rulesets (routing_release/mbom_release).",
     )
+    LATEST_RELEASED_GUARD_DISABLED: bool = Field(
+        default=False,
+        description="Disable latest-released write guard globally (tenant/org plugin config can override).",
+    )
 
     # Search engine (optional)
     SEARCH_ENGINE_INDEX_PREFIX: str = Field(default="yuantus")

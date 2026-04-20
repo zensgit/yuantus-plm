@@ -1,0 +1,156 @@
+# DEV AND VERIFICATION - AUTO NUMBERING + LATEST RELEASED GUARD - 2026-04-20
+
+## 目标
+
+在不碰 P1/P2/CAD 主线的前提下，落一个 bounded backend increment：
+
+1. 标准 AML `add` 主链缺号时自动生成 `item_number`
+2. BOM child / Substitute / Effectivity 三条写路径只允许消费 latest released target
+
+## 设计选择
+
+### 1. 自动编号
+
+- canonical 字段固定为 `properties.item_number`
+- `properties.number` 仅作为兼容镜像，同步写入，避免旧读面分叉
+- 读路径兼容统一走共享 helper / 常量，不再散落 `item_number or number`
+- 新增 `NumberingService`
+- 编号状态持久化到新表 `meta_numbering_sequences`
+- 计数实现不走 `max+1`
+  - SQLite / PostgreSQL: `INSERT ... ON CONFLICT DO UPDATE` 原子递增
+  - 其他方言: insert retry + compare-and-swap update，避免 generic 方言裸奔撞号
+- 首版默认仅给 `Part` / `Document` 自动编号
+  - `Part` -> `PART-000001`
+  - `Document` -> `DOC-000001`
+- 显式传入 `item_number` 或 legacy `number` 时不覆盖
+
+### 2. latest released guard
+
+- 新增 `latest_released_guard.py`
+- 统一入口：`assert_latest_released(session, target_id, *, context)`
+- 自定义异常：`NotLatestReleasedError(reason, target_id)`
+- Router 统一映射为 `409 Conflict`
+- 判定口径拆开处理 `Item.is_current` 与 `ItemVersion.is_released`
+- Effectivity 对 relationship item 的场景先校验 relationship 自身 `is_current`，再校验 `related_id`
+- Effectivity 同时传 `item_id` + `version_id` 时双重校验，不能再用 current item 掩盖 stale version
+
+### 3. 回滚开关
+
+- 默认开启
+- 支持 settings fallback：`YUANTUS_LATEST_RELEASED_GUARD_DISABLED=true`
+- 支持 tenant/org scoped plugin config：
+  - `plugin_id=latest-released-guard`
+  - `config.disabled=true`
+
+## 改动范围
+
+新增：
+
+- `src/yuantus/meta_engine/models/numbering.py`
+- `src/yuantus/meta_engine/services/item_number_keys.py`
+- `src/yuantus/meta_engine/services/numbering_service.py`
+- `src/yuantus/meta_engine/services/latest_released_guard.py`
+- `migrations/versions/e3f4a5b6c7d8_add_numbering_sequences.py`
+- `src/yuantus/meta_engine/tests/test_numbering_service.py`
+- `src/yuantus/meta_engine/tests/test_latest_released_guard.py`
+- `src/yuantus/meta_engine/tests/test_latest_released_write_paths.py`
+- `src/yuantus/meta_engine/tests/test_latest_released_guard_router.py`
+- `src/yuantus/meta_engine/tests/test_graphql_item_number_alias_contracts.py`
+- `docs/DEV_AND_VERIFICATION_AUTO_NUMBERING_LATEST_RELEASED_GUARD_20260420.md`
+
+修改：
+
+- `src/yuantus/meta_engine/operations/add_op.py`
+- `src/yuantus/meta_engine/services/bom_service.py`
+- `src/yuantus/meta_engine/services/substitute_service.py`
+- `src/yuantus/meta_engine/services/effectivity_service.py`
+- `src/yuantus/meta_engine/web/bom_router.py`
+- `src/yuantus/meta_engine/web/effectivity_router.py`
+- `src/yuantus/meta_engine/services/product_service.py`
+- `src/yuantus/meta_engine/services/query_service.py`
+- `src/yuantus/meta_engine/services/search_service.py`
+- `src/yuantus/meta_engine/web/graphql/schema.py`
+- `src/yuantus/meta_engine/web/graphql/loaders.py`
+- `src/yuantus/meta_engine/bootstrap.py`
+- `src/yuantus/config/settings.py`
+- `src/yuantus/meta_engine/operations/tests/test_add_op.py`
+- `docs/DELIVERY_DOC_INDEX.md`
+
+## 测试命令
+
+```bash
+/Users/chouhua/Downloads/Github/Yuantus/.venv/bin/python -m pytest -q \
+  src/yuantus/meta_engine/operations/tests/test_add_op.py \
+  src/yuantus/meta_engine/tests/test_numbering_service.py \
+  src/yuantus/meta_engine/tests/test_latest_released_guard.py \
+  src/yuantus/meta_engine/tests/test_latest_released_write_paths.py \
+  src/yuantus/meta_engine/tests/test_latest_released_guard_router.py \
+  src/yuantus/meta_engine/tests/test_graphql_item_number_alias_contracts.py \
+  src/yuantus/meta_engine/tests/test_effectivity.py \
+  src/yuantus/meta_engine/tests/test_search_service_fallback.py \
+  src/yuantus/meta_engine/tests/test_product_detail_service.py \
+  src/yuantus/meta_engine/tests/test_product_detail_cockpit_extensions.py \
+  src/yuantus/meta_engine/tests/test_migration_table_coverage_contracts.py \
+  src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
+  src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py \
+  src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
+```
+
+## 测试结果
+
+- 本轮聚焦 + 邻接回归 + docs/index：`48 passed`
+
+覆盖点：
+
+- AddOperation 已接入自动编号
+- explicit number 不覆盖
+- SQLite 并发下编号单调递增且无重复
+- PostgreSQL / SQLite / generic 方言分支已覆盖
+- generic 分支的 insert race / conflicting update retry 已覆盖
+- latest released 判定覆盖 non-current / unreleased / relationship target
+- relationship stale 但 child current 的误放行已补回归
+- effectivity 同传 `item_id` + `version_id` 的 stale version 绕过已补回归
+- BOM / Substitute / Effectivity 三条写路径都接了 guard
+- Router `409` 映射已覆盖
+- GraphQL `number` 读面和过滤口径已与 shared helper 对齐
+- 本地 venv 未安装 `strawberry`，GraphQL 这轮按源码契约测试验证 helper / filter 接线，不伪装成运行时通过
+- migration coverage contract 通过
+
+## 独立审阅后的追加修复
+
+独立审阅指出的 4 个问题，本轮已全部落地：
+
+1. `effectivity_service.create_effectivity()` 之前只校验 `item_id or version_id` 的第一个非空值
+   - 已改为两个 target 都校验，避免 current item 掩盖 stale version
+2. relationship-target effectivity 之前只看 `related_id`
+   - 已改为 relationship 自身先过 `is_current`，再校验 `related_id`
+3. `NumberingService` generic 方言之前是 `SELECT -> INSERT/UPDATE` 裸奔
+   - 已改为 insert retry + CAS update retry
+4. GraphQL 读面之前仍然只认 legacy `number`
+   - `schema.py` / `loaders.py` 已统一切到 shared helper / shared filter
+
+补充基线说明：
+
+- 额外抽样复跑了 3 个更宽 router 测试：
+  - `test_compare_bom_summarized_transforms_rows_and_defaults_to_summarized_mode`
+  - `test_version_checkout_passes_when_doc_sync_gate_clear`
+  - `test_obsolete_scan_not_found`
+- 这 3 个用例在当前 PR worktree 下返回 `401`
+- 同样 3 个用例在干净 `origin/main@f001b11` 临时 worktree 下也返回 `401`
+- 结论：这批失败是当前主线已有的认证基线问题，不归因本次自动编号 / latest released guard 改动
+
+## 已知边界
+
+- 首版只默认覆盖 `Part` / `Document` 自动编号；其他类型需要在 `ItemType.ui_layout.numbering` 提供规则
+- 读面常量本轮显式收敛在 `product_service` / `query_service` / `search_service` / `graphql`
+- latest released guard 的 scoped rollback 目前只做 plugin config + settings fallback，没有补单独管理 UI
+- Effectivity relationship 场景当前按“relationship 自身 current + related item latest released”处理
+- 更宽一圈 BOM summarized / version doc-sync router 测试目前在 `origin/main` 也受统一认证基线影响，未在本 PR 内顺手修 unrelated auth harness
+
+## 结论
+
+这轮交付已经从“任务书”进入“可审 PR”的状态：
+
+- 自动编号不再依赖调用方手工传号
+- 写路径上的 latest released 准入从事后扫描前移到了 service 层拦截
+- 变更面维持在纯后端 bounded increment，没有顺手扩成 scheduler / UI / router 重构

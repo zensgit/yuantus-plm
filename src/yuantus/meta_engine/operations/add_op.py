@@ -8,6 +8,7 @@ from yuantus.meta_engine.schemas.aml import AMLAction, GenericItem
 from yuantus.exceptions.handlers import PermissionError, ValidationError
 from yuantus.meta_engine.events.domain_events import ItemCreatedEvent
 from yuantus.meta_engine.events.transactional import enqueue_event
+from yuantus.meta_engine.services.numbering_service import apply_auto_numbering
 
 class AddOperation(BaseOperation):
     """
@@ -53,7 +54,11 @@ class AddOperation(BaseOperation):
                 item_type.on_before_add_method_id, new_item, aml
             )
 
-        # 6. Validate & Normalize
+        # 6. Auto numbering + validate/normalize
+        new_item.properties = apply_auto_numbering(
+            self.session, item_type, dict(new_item.properties or {})
+        )
+
         # We access the engine's validator
         validated_props = self.engine.validator.validate_and_normalize(
             item_type, dict(new_item.properties or {})

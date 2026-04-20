@@ -5,11 +5,15 @@ AML Query Service (ADR-007)
 
 from typing import Any, Dict, List, Optional, Set
 from sqlalchemy.orm import Session
-from sqlalchemy import String, and_, asc, cast, desc
+from sqlalchemy import String, and_, asc, cast, desc, func, or_
 
 from yuantus.meta_engine.schemas.aml import AMLQueryRequest, AMLQueryResponse
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
+from yuantus.meta_engine.services.item_number_keys import (
+    ITEM_NUMBER_READ_KEYS,
+    get_item_number,
+)
 import logging
 
 
@@ -149,9 +153,15 @@ class AMLQueryService:
                 conditions.append(self._json_text(Item.properties[prop_key]) == str(value))
             elif key == "state":
                 conditions.append(Item.state == value)
-            elif key == "number":
-                # number 存储在 properties JSONB 中
-                conditions.append(self._json_text(Item.properties["number"]) == str(value))
+            elif key in {"number", "item_number"}:
+                conditions.append(
+                    or_(
+                        *[
+                            self._json_text(Item.properties[prop_key]) == str(value)
+                            for prop_key in ITEM_NUMBER_READ_KEYS
+                        ]
+                    )
+                )
             elif key == "name":
                 # name 存储在 properties JSONB 中
                 conditions.append(self._json_text(Item.properties["name"]) == str(value))
@@ -208,9 +218,13 @@ class AMLQueryService:
                 col = Item.created_at
             elif field == "updated_at" or field == "modified_at":
                 col = Item.updated_at
-            elif field == "number":
-                # number 存储在 properties JSONB 中
-                col = self._json_text(Item.properties["number"])
+            elif field in {"number", "item_number"}:
+                col = func.coalesce(
+                    *[
+                        self._json_text(Item.properties[prop_key])
+                        for prop_key in ITEM_NUMBER_READ_KEYS
+                    ]
+                )
             elif field == "name":
                 # name 存储在 properties JSONB 中
                 col = self._json_text(Item.properties["name"])
@@ -232,10 +246,12 @@ class AMLQueryService:
     def _item_to_dict(self, item: Item) -> Dict[str, Any]:
         """Item 转字典"""
         props = item.properties or {}
+        item_number = get_item_number(props)
         return {
             "id": item.id,
             "type": item.item_type_id,
-            "number": props.get("number"),
+            "item_number": item_number,
+            "number": item_number,
             "name": props.get("name"),
             "revision": props.get("revision"),
             "generation": item.generation,

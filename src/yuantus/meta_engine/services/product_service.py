@@ -16,6 +16,7 @@ from yuantus.meta_engine.services.eco_service import ECOApprovalService, ECOServ
 from yuantus.meta_engine.services.bom_obsolete_service import BOMObsoleteService
 from yuantus.meta_engine.services.bom_rollup_service import BOMRollupService
 from yuantus.meta_engine.services.bom_service import BOMService
+from yuantus.meta_engine.services.item_number_keys import get_item_number
 from yuantus.meta_engine.services.impact_analysis_service import (
     CurrentUserView,
     ImpactAnalysisService,
@@ -334,7 +335,7 @@ class ProductDetailService:
 
     def _serialize_item(self, item: Item) -> Dict[str, Any]:
         props = item.properties or {}
-        item_number = props.get("item_number") or props.get("number")
+        item_number = get_item_number(props)
         name = props.get("name")
         created_at = item.created_at.isoformat() if item.created_at else None
         updated_at = item.updated_at.isoformat() if item.updated_at else None
@@ -581,9 +582,7 @@ class ProductDetailService:
         for entry in parents[:5]:
             parent = entry.get("parent") or {}
             props = parent.get("properties") or {}
-            item_number = parent.get("item_number") or props.get("item_number") or props.get(
-                "number"
-            )
+            item_number = get_item_number(parent) or get_item_number(props)
             sample.append(
                 {
                     "id": parent.get("id"),
@@ -712,7 +711,7 @@ class ProductDetailService:
             state_counts[doc.state] = state_counts.get(doc.state, 0) + 1
             if len(sample) < 5:
                 props = doc.properties or {}
-                item_number = props.get("item_number") or props.get("number")
+                item_number = get_item_number(props)
                 sample.append(
                     {
                         "id": doc.id,

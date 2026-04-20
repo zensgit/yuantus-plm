@@ -9,6 +9,7 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, or_
 
+from yuantus.meta_engine.services.item_number_keys import get_item_number
 from .types import (
     Part,
     Document,
@@ -35,7 +36,7 @@ def _item_to_part(item) -> Part:
     props = item.properties or {}
     return Part(
         id=item.id,
-        number=props.get("number") or getattr(item, "number", None),
+        number=get_item_number(props) or getattr(item, "number", None),
         name=props.get("name") or getattr(item, "name", None),
         state=item.state,
         generation=item.generation or 1,
@@ -52,7 +53,7 @@ def _item_to_document(item) -> Document:
     props = item.properties or {}
     return Document(
         id=item.id,
-        number=props.get("number") or getattr(item, "number", None),
+        number=get_item_number(props) or getattr(item, "number", None),
         name=props.get("name") or getattr(item, "name", None),
         state=item.state,
         generation=item.generation or 1,
@@ -70,7 +71,7 @@ def _item_to_generic(item) -> GenericItem:
     return GenericItem(
         id=item.id,
         type=item.item_type_id or "Unknown",
-        number=props.get("number") or getattr(item, "number", None),
+        number=get_item_number(props) or getattr(item, "number", None),
         name=props.get("name") or getattr(item, "name", None),
         state=item.state,
         generation=item.generation or 1,
@@ -316,7 +317,7 @@ async def load_where_used(
                 level=1,
                 path=f"{item.source_id}/{item.related_id}",
                 parent_id=item.source_id,
-                parent_number=parent_props.get("number") if parent else None,
+                parent_number=get_item_number(parent_props) if parent else None,
                 parent_name=parent_props.get("name") if parent else None,
                 quantity=float(props.get("quantity", 1)),
                 unit=props.get("unit") or props.get("uom"),
