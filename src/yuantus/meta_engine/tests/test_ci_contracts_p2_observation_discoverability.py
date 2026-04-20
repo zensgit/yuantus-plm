@@ -32,6 +32,24 @@ def test_p2_observation_docs_are_discoverable_from_readme_runbooks() -> None:
         assert token in text, f"README.md missing P2 observation runbook token: {token}"
 
 
+def test_p2_shared_dev_142_entrypoint_is_discoverable_from_readme_top_level_shared_dev_section() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    readme = repo_root / "README.md"
+    assert readme.is_file(), f"Missing {readme}"
+
+    text = _read(readme)
+    for token in (
+        "docs/P2_ONE_PAGE_DEV_GUIDE.md",
+        "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
+        "bash scripts/run_p2_shared_dev_142_entrypoint.sh --help",
+        "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands",
+        "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun",
+        "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe",
+        "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check",
+    ):
+        assert token in text, f"README.md missing shared-dev 142 selector token: {token}"
+
+
 def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -> None:
     repo_root = _find_repo_root(Path(__file__))
     index_path = repo_root / "docs" / "DELIVERY_SCRIPTS_INDEX_20260202.md"
@@ -95,6 +113,11 @@ def test_p2_remote_observation_runbook_stays_on_wrapper_path_for_baseline_and_re
     for token in (
         "scripts/precheck_p2_observation_regression.sh",
         "bash scripts/run_p2_observation_regression.sh",
+        "scripts/run_p2_shared_dev_142_entrypoint.sh",
+        "print-readonly-commands",
+        "readonly-rerun",
+        "workflow-probe",
+        "workflow-readonly-check",
         'TOKEN="$ADMIN_TOKEN"',
         'ADMIN_TOKEN=$(',
         'Authorization: Bearer $ADMIN_TOKEN',
@@ -208,6 +231,23 @@ def test_p2_shared_dev_142_entrypoint_wrapper_exposes_all_modes() -> None:
         "scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh",
     ):
         assert token in text, f"shared-dev 142 entrypoint wrapper missing token: {token}"
+
+
+def test_dev_and_verification_shared_dev_142_entrypoint_selector_doc_keeps_all_modes_visible() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    path = repo_root / "docs" / "DEV_AND_VERIFICATION_SHARED_DEV_142_ENTRYPOINT_SELECTOR_20260420.md"
+    assert path.is_file(), f"Missing shared-dev 142 selector dev doc: {path}"
+
+    text = _read(path)
+    for token in (
+        "scripts/run_p2_shared_dev_142_entrypoint.sh",
+        "readonly-rerun",
+        "workflow-probe",
+        "workflow-readonly-check",
+        "print-readonly-commands",
+        "--dry-run",
+    ):
+        assert token in text, f"shared-dev 142 selector dev doc missing token: {token}"
 
 
 def test_p2_shared_dev_142_workflow_probe_tracks_fixed_host_defaults() -> None:
