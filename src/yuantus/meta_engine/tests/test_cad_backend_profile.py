@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from yuantus.config.cad_backend_profile import (
+    cad_connector_base_url_configured,
     cad_connector_enabled_for_profile,
     configured_cad_backend_profile_name,
     effective_cad_backend_profile,
@@ -76,6 +77,43 @@ def test_explicit_hybrid_profile_overrides_legacy_disabled_mode() -> None:
     assert configured_cad_backend_profile_name(settings) == "hybrid-auto"
     assert effective_cad_backend_profile(settings) == "hybrid"
     assert cad_connector_enabled_for_profile(settings) is True
+
+
+def test_connector_base_url_configured_is_scope_neutral() -> None:
+    settings = _settings(
+        profile="local-baseline",
+        base_url="http://cad-connector.local",
+        mode="disabled",
+    )
+
+    assert cad_connector_base_url_configured(settings) is True
+    assert cad_connector_enabled_for_profile(settings) is False
+
+
+def test_scoped_effective_profile_can_enable_connector_even_if_env_profile_is_local(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        cad_pipeline_tasks,
+        "get_settings",
+        lambda: _settings(
+            profile="local-baseline",
+            base_url="http://cad-connector.local",
+            mode="disabled",
+        ),
+    )
+    monkeypatch.setattr(
+        cad_pipeline_tasks,
+        "_cad_backend_profile_resolution",
+        lambda session=None: {
+            "configured": "hybrid-auto",
+            "effective": "hybrid-auto",
+            "source": "plugin-config:tenant-org",
+            "scope": {"tenant_id": "tenant-1", "org_id": "org-1", "level": "tenant-org"},
+        },
+    )
+
+    assert cad_pipeline_tasks._cad_connector_enabled() is True
 
 
 def test_explicit_external_profile_requires_configured_connector(monkeypatch) -> None:

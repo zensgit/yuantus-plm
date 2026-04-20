@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 
 from yuantus.database import get_db
 from yuantus.config import (
-    cad_connector_enabled_for_profile,
+    cad_connector_base_url_configured,
     get_settings,
     normalize_cad_connector_mode,
 )
@@ -1110,7 +1110,7 @@ def get_cad_capabilities(db: Session = Depends(get_db)) -> CadCapabilitiesRespon
     cad_connector_mode = normalize_cad_connector_mode(settings.CAD_CONNECTOR_MODE)
     cad_connector_enabled = (
         resolution.effective != "local-baseline"
-        and cad_connector_enabled_for_profile(settings)
+        and cad_connector_base_url_configured(settings)
     )
     cad_backend_profile = {
         "configured": resolution.configured,
@@ -1119,7 +1119,7 @@ def get_cad_capabilities(db: Session = Depends(get_db)) -> CadCapabilitiesRespon
         "options": list(resolution.options),
     }
     cad_connector_disabled_reason = "CAD connector service not configured"
-    if bool(settings.CAD_CONNECTOR_BASE_URL) and not cad_connector_enabled:
+    if cad_connector_base_url_configured(settings) and not cad_connector_enabled:
         cad_connector_disabled_reason = (
             f"CAD backend profile {cad_backend_profile['effective']} selected"
         )
@@ -1236,13 +1236,13 @@ def get_cad_capabilities(db: Session = Depends(get_db)) -> CadCapabilitiesRespon
         features=features,
         integrations={
             "cad_connector": {
-                "configured": bool(settings.CAD_CONNECTOR_BASE_URL),
+                "configured": cad_connector_base_url_configured(settings),
                 "enabled": cad_connector_enabled,
                 "mode": cad_connector_mode,
                 "profile": cad_backend_profile,
                 "base_url": settings.CAD_CONNECTOR_BASE_URL or None,
                 **_integration_status(
-                    configured=bool(settings.CAD_CONNECTOR_BASE_URL),
+                    configured=cad_connector_base_url_configured(settings),
                     available=cad_connector_enabled,
                     fallback_reason="local fallback only"
                     if not cad_connector_enabled

@@ -2,6 +2,7 @@ from yuantus.config.settings import Settings, get_settings
 from yuantus.config.cad_backend_profile import (
     available_cad_backend_profiles,
     cad_backend_profile_source,
+    cad_connector_base_url_configured,
     cad_connector_enabled_for_profile,
     cad_connector_failure_is_fatal,
     configured_cad_backend_profile_name,
@@ -16,6 +17,7 @@ __all__ = [
     "get_settings",
     "available_cad_backend_profiles",
     "cad_backend_profile_source",
+    "cad_connector_base_url_configured",
     "cad_connector_enabled_for_profile",
     "cad_connector_failure_is_fatal",
     "configured_cad_backend_profile_name",

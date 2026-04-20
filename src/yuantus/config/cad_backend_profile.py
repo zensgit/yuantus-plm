@@ -77,11 +77,15 @@ def effective_cad_backend_profile_name(settings: Any) -> str:
     return _PROFILE_LABELS[effective_cad_backend_profile(settings)]
 
 
+def cad_connector_base_url_configured(settings: Any) -> bool:
+    return bool(str(getattr(settings, "CAD_CONNECTOR_BASE_URL", "") or "").strip())
+
+
 def cad_connector_enabled_for_profile(settings: Any) -> bool:
     effective = effective_cad_backend_profile(settings)
     if effective == "local":
         return False
-    return bool(str(getattr(settings, "CAD_CONNECTOR_BASE_URL", "") or "").strip())
+    return cad_connector_base_url_configured(settings)
 
 
 def cad_connector_failure_is_fatal(settings: Any) -> bool:

@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional
 from sqlalchemy.orm import Session
 
 from yuantus.config import (
+    cad_connector_base_url_configured,
     cad_connector_enabled_for_profile,
     get_settings,
     normalize_cad_connector_mode,
@@ -194,7 +195,7 @@ def _cad_backend_profile_resolution(
 
 def _cad_connector_enabled(session: Optional[Session] = None) -> bool:
     effective = _cad_backend_profile_resolution(session)["effective"]
-    return effective != "local-baseline" and cad_connector_enabled_for_profile(get_settings())
+    return effective != "local-baseline" and cad_connector_base_url_configured(get_settings())
 
 
 def _cad_connector_required(session: Optional[Session] = None) -> bool:

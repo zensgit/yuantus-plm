@@ -334,6 +334,50 @@ def test_cad_capabilities_endpoint_honors_scoped_local_override():
     assert body["integrations"]["cad_connector"]["profile"]["source"] == "plugin-config:tenant-org"
 
 
+def test_cad_capabilities_endpoint_honors_scoped_upgrade_override_when_env_is_local():
+    client = _cad_client()
+    settings = SimpleNamespace(
+        CAD_CONNECTOR_BASE_URL="http://cad-connector.local",
+        CAD_CONNECTOR_MODE="disabled",
+        CAD_CONVERSION_BACKEND_PROFILE="local-baseline",
+        CAD_EXTRACTOR_BASE_URL="",
+        CAD_EXTRACTOR_MODE="optional",
+        CAD_ML_BASE_URL="",
+        CADGF_ROUTER_BASE_URL="",
+    )
+
+    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=[]):
+            with patch(
+                "yuantus.meta_engine.web.cad_router._resolve_cad_backend_profile_response",
+                return_value=CadBackendProfileResolution(
+                    configured="hybrid-auto",
+                    effective="hybrid-auto",
+                    source="plugin-config:tenant-org",
+                    options=[
+                        "local-baseline",
+                        "hybrid-auto",
+                        "external-enterprise",
+                    ],
+                    scope={
+                        "tenant_id": "tenant-1",
+                        "org_id": "org-1",
+                        "level": "tenant-org",
+                    },
+                ),
+            ):
+                response = client.get("/api/v1/cad/capabilities")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["features"]["preview"]["modes"] == ["local", "connector"]
+    assert body["features"]["geometry"]["modes"] == ["local", "connector"]
+    assert body["features"]["bom"]["available"] is True
+    assert body["integrations"]["cad_connector"]["configured"] is True
+    assert body["integrations"]["cad_connector"]["enabled"] is True
+    assert body["integrations"]["cad_connector"]["profile"]["source"] == "plugin-config:tenant-org"
+
+
 def test_supported_formats_endpoint_remains_legacy_but_payload_is_unchanged():
     client = _file_client()
 
