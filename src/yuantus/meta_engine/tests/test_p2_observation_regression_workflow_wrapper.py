@@ -591,6 +591,12 @@ def test_p2_shared_dev_142_entrypoint_wrapper_dry_run_routes_modes(tmp_path: Pat
     assert "TARGET=scripts/run_p2_shared_dev_142_refreeze_readiness.sh" in refreeze_readiness.stdout
     assert "DRY_RUN=1" in refreeze_readiness.stdout
 
+    refreeze_candidate = _run("refreeze-candidate", "--skip-precheck")
+    assert refreeze_candidate.returncode == 0, refreeze_candidate.stdout + "\n" + refreeze_candidate.stderr
+    assert "MODE=refreeze-candidate" in refreeze_candidate.stdout
+    assert "TARGET=scripts/run_p2_shared_dev_142_refreeze_candidate.sh" in refreeze_candidate.stdout
+    assert "DRY_RUN=1" in refreeze_candidate.stdout
+
     drift_audit = _run("drift-audit", "--skip-precheck")
     assert drift_audit.returncode == 0, drift_audit.stdout + "\n" + drift_audit.stderr
     assert "MODE=drift-audit" in drift_audit.stdout
@@ -645,6 +651,24 @@ def test_p2_shared_dev_142_entrypoint_wrapper_dry_run_routes_modes(tmp_path: Pat
     assert "TARGET=scripts/print_p2_shared_dev_142_refreeze_readiness_commands.sh" in print_refreeze_mode.stdout
     assert "FORWARDED_ARGS=<none>" in print_refreeze_mode.stdout
     assert "DRY_RUN=1" in print_refreeze_mode.stdout
+
+    print_candidate_mode = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--mode",
+            "print-refreeze-candidate-commands",
+            "--dry-run",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert print_candidate_mode.returncode == 0, print_candidate_mode.stdout + "\n" + print_candidate_mode.stderr
+    assert "MODE=print-refreeze-candidate-commands" in print_candidate_mode.stdout
+    assert "TARGET=scripts/print_p2_shared_dev_142_refreeze_candidate_commands.sh" in print_candidate_mode.stdout
+    assert "FORWARDED_ARGS=<none>" in print_candidate_mode.stdout
+    assert "DRY_RUN=1" in print_candidate_mode.stdout
 
     print_drift_mode = subprocess.run(  # noqa: S603
         [
@@ -933,6 +957,151 @@ def test_render_p2_shared_dev_142_refreeze_readiness_blocks_future_deadline_pend
     md_text = md_path.read_text(encoding="utf-8")
     assert "ready：false" in md_text
     assert "future-deadline-pending" in md_text
+    assert "`a-pending`" in md_text
+
+
+def test_render_p2_shared_dev_142_refreeze_candidate_excludes_future_deadline_pending_items(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "render_p2_shared_dev_142_refreeze_candidate.py"
+    assert script.is_file(), f"Missing script: {script}"
+
+    current_dir = tmp_path / "current"
+    current_dir.mkdir(parents=True, exist_ok=True)
+    (current_dir / "summary.json").write_text(
+        json.dumps({"pending_count": 1, "overdue_count": 2, "escalated_count": 1}) + "\n",
+        encoding="utf-8",
+    )
+    (current_dir / "anomalies.json").write_text(
+        json.dumps(
+            {
+                "total_anomalies": 2,
+                "no_candidates": [],
+                "escalated_unresolved": [{"approval_id": "a-overdue-2"}],
+                "overdue_not_escalated": [{"approval_id": "a-overdue-1"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    items = [
+        {
+            "approval_id": "a-pending",
+            "eco_id": "eco-pending",
+            "eco_name": "eco-specialist",
+            "stage_id": "stage-2",
+            "stage_name": "SpecialistReview",
+            "assignee_id": 1,
+            "assignee_username": "admin",
+            "approval_deadline": "2026-04-21T09:34:33.658929",
+            "is_overdue": False,
+            "is_escalated": False,
+        },
+        {
+            "approval_id": "a-overdue-1",
+            "eco_id": "eco-overdue-1",
+            "eco_name": "eco-overdue-1",
+            "stage_id": "stage-1",
+            "stage_name": "Review",
+            "assignee_id": 1,
+            "assignee_username": "admin",
+            "approval_deadline": "2026-04-19T04:34:33.658929",
+            "is_overdue": True,
+            "is_escalated": False,
+        },
+        {
+            "approval_id": "a-overdue-2",
+            "eco_id": "eco-overdue-2",
+            "eco_name": "eco-overdue-2",
+            "stage_id": "stage-1",
+            "stage_name": "Review",
+            "assignee_id": 2,
+            "assignee_username": "ops-viewer",
+            "approval_deadline": "2026-04-19T06:34:33.658929",
+            "is_overdue": True,
+            "is_escalated": True,
+        },
+    ]
+    export_json = [
+        {
+            "approval_id": "a-pending",
+            "eco_id": "eco-pending",
+            "eco_name": "eco-specialist",
+            "approval_deadline": "2026-04-21T09:34:33.658929",
+            "is_overdue": False,
+        },
+        {
+            "approval_id": "a-overdue-1",
+            "eco_id": "eco-overdue-1",
+            "eco_name": "eco-overdue-1",
+            "approval_deadline": "2026-04-19T04:34:33.658929",
+            "is_overdue": True,
+        },
+        {
+            "approval_id": "a-overdue-2",
+            "eco_id": "eco-overdue-2",
+            "eco_name": "eco-overdue-2",
+            "approval_deadline": "2026-04-19T06:34:33.658929",
+            "is_overdue": True,
+        },
+    ]
+    (current_dir / "items.json").write_text(json.dumps(items) + "\n", encoding="utf-8")
+    (current_dir / "export.json").write_text(json.dumps(export_json) + "\n", encoding="utf-8")
+    (current_dir / "export.csv").write_text(
+        "approval_id,eco_id,eco_name,approval_deadline,is_overdue\n"
+        "a-pending,eco-pending,eco-specialist,2026-04-21T09:34:33.658929,False\n"
+        "a-overdue-1,eco-overdue-1,eco-overdue-1,2026-04-19T04:34:33.658929,True\n"
+        "a-overdue-2,eco-overdue-2,eco-overdue-2,2026-04-19T06:34:33.658929,True\n",
+        encoding="utf-8",
+    )
+
+    candidate_dir = tmp_path / "candidate"
+    md_path = tmp_path / "STABLE_READONLY_CANDIDATE.md"
+    json_path = tmp_path / "stable_readonly_candidate.json"
+    cp = subprocess.run(  # noqa: S603
+        [
+            "python3",
+            str(script),
+            str(current_dir),
+            "--output-dir",
+            str(candidate_dir),
+            "--output-md",
+            str(md_path),
+            "--output-json",
+            str(json_path),
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert (candidate_dir / "summary.json").is_file()
+    assert (candidate_dir / "items.json").is_file()
+    assert (candidate_dir / "anomalies.json").is_file()
+    assert (candidate_dir / "export.json").is_file()
+    assert (candidate_dir / "export.csv").is_file()
+    assert (candidate_dir / "OBSERVATION_RESULT.md").is_file()
+    assert (candidate_dir / "OBSERVATION_EVAL.md").is_file()
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["candidate_ready"] is True
+    assert payload["decision"]["kind"] == "overdue-only-stable-candidate"
+    assert payload["excluded_approval_ids"] == ["a-pending"]
+    assert payload["candidate_counts"]["pending_count"] == 0
+    assert payload["candidate_counts"]["overdue_count"] == 2
+    assert payload["candidate_counts"]["items_count"] == 2
+
+    candidate_summary = json.loads((candidate_dir / "summary.json").read_text(encoding="utf-8"))
+    assert candidate_summary["pending_count"] == 0
+    assert candidate_summary["overdue_count"] == 2
+    assert candidate_summary["escalated_count"] == 1
+
+    candidate_items = json.loads((candidate_dir / "items.json").read_text(encoding="utf-8"))
+    assert [entry["approval_id"] for entry in candidate_items] == ["a-overdue-1", "a-overdue-2"]
+
+    md_text = md_path.read_text(encoding="utf-8")
+    assert "candidate_ready：true" in md_text
+    assert "overdue-only-stable-candidate" in md_text
     assert "`a-pending`" in md_text
 
 
