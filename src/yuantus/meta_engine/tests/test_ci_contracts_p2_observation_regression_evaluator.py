@@ -116,6 +116,8 @@ def test_p2_observation_regression_docs_keep_evaluator_entrypoints_linked() -> N
             "observation_precheck.json",
         ],
         repo_root / "docs" / "P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md": [
+            "scripts/run_p2_shared_dev_142_entrypoint.sh",
+            "workflow-readonly-check",
             "scripts/evaluate_p2_observation_results.py",
             "OBSERVATION_RESULT.md",
             "readonly",

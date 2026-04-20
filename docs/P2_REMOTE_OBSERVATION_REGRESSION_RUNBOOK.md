@@ -60,6 +60,17 @@ read -rsp 'Viewer password (optional): ' VIEWER_PASSWORD; echo
 
 这不是 clean local seed 的初始态，而是“已做过一次 auto-assign + 一次 escalation”后的稳定态。
 
+## 边界
+
+如果目标其实是当前 official shared-dev `142` readonly baseline，不要继续沿用这份 `remote-local-dev-env` runbook，改走统一入口：
+
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check`
+- `docs/P2_ONE_PAGE_DEV_GUIDE.md`
+
+这份 runbook 只适用于当前冻结的远端 `local-dev-env` 观察面复跑，不负责 shared-dev `142` official baseline 的模式选择。
+
 ## 前提
 
 操作者需要：
