@@ -122,6 +122,11 @@ def test_explicit_external_profile_requires_configured_connector(monkeypatch) ->
         "get_settings",
         lambda: _settings(profile="external-enterprise", base_url="", mode="optional"),
     )
+    monkeypatch.setattr(
+        cad_pipeline_tasks,
+        "get_request_context",
+        lambda: SimpleNamespace(tenant_id="tenant-1", org_id="org-1"),
+    )
 
     with pytest.raises(
         JobFatalError,
@@ -131,3 +136,14 @@ def test_explicit_external_profile_requires_configured_connector(monkeypatch) ->
             SimpleNamespace(document_type="3d"),
             operation="preview",
         )
+
+
+def test_profile_resolution_requires_tenant_context(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cad_pipeline_tasks,
+        "get_request_context",
+        lambda: SimpleNamespace(tenant_id=None, org_id="org-1"),
+    )
+
+    with pytest.raises(RuntimeError, match="requires tenant context"):
+        cad_pipeline_tasks._cad_backend_profile_resolution()
