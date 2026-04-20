@@ -44,6 +44,10 @@ python3 -m pytest -q \
   src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py
 ```
 
+结果：
+
+- `34 passed`
+
 预期：
 
 - 新脚本语法通过
@@ -58,3 +62,9 @@ python3 -m pytest -q \
 `142` 后续常规 observation rerun 现在有了单独入口，不需要再从 first-run 或更泛的 remote runbook 里拼命令。
 
 在吃进主线新增的 `142 readonly/workflow` wrappers 后，这个入口仍保持 discoverable，并且对应 CI contracts wiring 也已和最新 `main` 对齐。
+
+最终 rebase 收口还补齐了 `docs/DELIVERY_DOC_INDEX.md` 的排序与冲突清理，因此这条 PR 现在同时满足：
+
+- rerun 入口可发现
+- README / delivery indexes 一致
+- CI contracts wiring 与排序约束一致
