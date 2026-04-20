@@ -23,15 +23,19 @@
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-readiness`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-candidate`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-readiness-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-candidate-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-drift-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-investigation-commands`
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 - `bash scripts/run_p2_shared_dev_142_refreeze_readiness.sh`
+- `bash scripts/run_p2_shared_dev_142_refreeze_candidate.sh`
 - `bash scripts/print_p2_shared_dev_142_refreeze_readiness_commands.sh`
+- `bash scripts/print_p2_shared_dev_142_refreeze_candidate_commands.sh`
 - `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
 - `bash scripts/run_p2_shared_dev_142_drift_audit.sh`
 - `bash scripts/print_p2_shared_dev_142_drift_audit_commands.sh`
@@ -60,6 +64,14 @@
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-investigation-commands`
 - `bash scripts/run_p2_shared_dev_142_drift_investigation.sh`
+
+如果 `refreeze-readiness` 已经失败，而你现在要的是先看一版不包含 future-deadline pending 项的稳定候选包，再决定 baseline 设计是否要改，直接用：
+
+- `docs/P2_SHARED_DEV_142_READONLY_REFREEZE_CANDIDATE_CHECKLIST.md`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-candidate`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-candidate-commands`
+- `bash scripts/run_p2_shared_dev_142_refreeze_candidate.sh`
+- `bash scripts/print_p2_shared_dev_142_refreeze_candidate_commands.sh`
 
 适用场景：
 

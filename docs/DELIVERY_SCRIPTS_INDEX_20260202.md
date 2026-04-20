@@ -94,6 +94,7 @@
 - `print_mainline_baseline_switch_commands.sh` prints safe command templates for preserving a dirty feature worktree, moving into a clean `baseline/mainline-*` worktree, cutting a real `feature/*` branch, and publishing that branch to `origin`.
 - `print_p2_shared_dev_142_drift_audit_commands.sh` prints the fixed drift-audit command sequence for investigating shared-dev 142 readonly baseline deltas before any refreeze.
 - `print_p2_shared_dev_142_drift_investigation_commands.sh` prints the fixed drift-investigation command sequence for turning a shared-dev 142 drift-audit result into an evidence pack before any refreeze decision.
+- `print_p2_shared_dev_142_refreeze_candidate_commands.sh` prints the fixed stable-candidate preview commands for reviewing an overdue-only shared-dev 142 baseline candidate before any tracked refreeze.
 - `print_p2_shared_dev_142_refreeze_readiness_commands.sh` prints the fixed readonly refreeze-readiness command sequence for checking whether shared-dev 142 can safely promote a new frozen baseline.
 - `print_p2_shared_dev_bootstrap_commands.sh` prints the server-side shared-dev bootstrap and post-bootstrap observation handoff commands.
 - `print_p2_shared_dev_142_readonly_rerun_commands.sh` prints the fixed readonly rerun commands for the current official shared-dev 142 baseline, including the canonical `BASELINE_DIR`.
@@ -104,15 +105,17 @@
 - `precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe for auth plus the dashboard summary read surface, and writes `OBSERVATION_PRECHECK.md`.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
-- `run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to readonly-rerun, refreeze-readiness, drift-audit, drift-investigation, workflow-probe, workflow-readonly-check, and the expanded readonly/refreeze/drift/investigation command printouts.
+- `run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to readonly-rerun, refreeze-readiness, refreeze-candidate, drift-audit, drift-investigation, workflow-probe, workflow-readonly-check, and the expanded readonly/refreeze/drift/investigation command printouts.
 - `run_p2_shared_dev_142_drift_audit.sh` runs the fixed readonly rerun into a dedicated current result dir and renders a top-level `DRIFT_AUDIT.md` plus `drift_audit.json`.
 - `run_p2_shared_dev_142_drift_investigation.sh` runs the fixed drift-audit flow into a nested result dir and renders a top-level `DRIFT_INVESTIGATION.md` plus `drift_investigation.json`.
+- `run_p2_shared_dev_142_refreeze_candidate.sh` runs the fixed readonly rerun into a nested current result dir, renders a stable candidate preview, and writes a top-level `STABLE_READONLY_CANDIDATE.md` plus `stable_readonly_candidate.json`.
 - `run_p2_shared_dev_142_refreeze_readiness.sh` runs the fixed readonly rerun into a nested current result dir and renders a top-level `REFREEZE_READINESS.md` plus `refreeze_readiness.json`.
 - `run_p2_shared_dev_142_readonly_rerun.sh` runs the current official shared-dev 142 readonly rerun end-to-end with fixed baseline defaults, optional baseline restore, precheck, and readonly evaluation.
 - `run_p2_shared_dev_142_workflow_probe.sh` runs the fixed GitHub workflow-dispatch current-only probe for shared-dev host `142.171.239.56` and downloads the resulting artifact locally.
 - `run_p2_shared_dev_142_workflow_readonly_check.sh` runs the fixed shared-dev 142 workflow probe, then locally compares the downloaded artifact against the official frozen readonly baseline and writes readonly diff/eval outputs.
 - `render_p2_shared_dev_142_drift_audit.py` renders a drift audit from baseline/current observation result dirs, including key metric deltas and approval-id add/remove sets.
 - `render_p2_shared_dev_142_drift_investigation.py` renders a drift investigation evidence pack from a drift-audit result dir, including drift classification, candidate write sources, and evidence path inventory.
+- `render_p2_shared_dev_142_refreeze_candidate.py` renders an overdue-only stable candidate pack from a current observation result dir, excluding future-deadline pending approvals and producing a candidate artifact bundle for review.
 - `render_p2_shared_dev_142_refreeze_readiness.py` renders a readonly refreeze-readiness decision pack from a current observation result dir, including any future-deadline pending approvals that would make a fresh frozen baseline age out again.
 - `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, supports either `TOKEN` or `USERNAME/PASSWORD`, can load defaults from `--env-file`, and can auto-write `<OUTPUT_DIR>.tar.gz`.
 - `run_p2_observation_regression_workflow.sh` is the canonical local wrapper for `gh workflow run/list/watch/download` against `p2-observation-regression`.

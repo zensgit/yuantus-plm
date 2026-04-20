@@ -72,4 +72,6 @@ bash scripts/print_p2_shared_dev_142_refreeze_readiness_commands.sh
 
 - 不要刷新 tracked baseline
 - 先等待未来 deadline 跨过
-- 或把 baseline 设计成不包含时间敏感 pending 项
+- 或先跑 stable candidate preview：
+  - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-candidate`
+  - 看一版不包含时间敏感 pending 项的候选包，再决定 baseline 设计是否要改
