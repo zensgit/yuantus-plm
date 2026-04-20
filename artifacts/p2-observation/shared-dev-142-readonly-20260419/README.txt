@@ -1,6 +1,6 @@
 P2 Dev Observation Startup Smoke
 Timestamp: 20260419-193243
-Base URL: http://142.171.239.56:7910
+Base URL: <base-url>
 Filters:
   company_id=
   eco_type=

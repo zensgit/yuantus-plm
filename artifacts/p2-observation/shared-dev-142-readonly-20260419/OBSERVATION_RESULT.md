@@ -1,12 +1,12 @@
 # P2 Observation Result
 
 日期：2026-04-19
-执行人：chouhua
+执行人：[redacted]
 环境：shared-dev
 
 ## 1. 输出目录
 
-- `/Users/chouhua/Downloads/Github/Yuantus/tmp/p2-shared-dev-observation-20260419-193242`
+- `./tmp/p2-shared-dev-observation-20260419-193242`
 
 ## 2. Dashboard / Audit 基线结果
 

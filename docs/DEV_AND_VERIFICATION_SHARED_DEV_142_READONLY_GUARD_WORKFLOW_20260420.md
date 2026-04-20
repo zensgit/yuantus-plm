@@ -40,6 +40,12 @@
 - `OBSERVATION_RESULT.md`
 - `README.txt`
 
+附加收口：
+
+- 去掉 baseline artifact 中的个人标识
+- 把本机绝对路径改成相对占位路径
+- 把 `README.txt` 里的固定 shared-dev 地址改成 `<base-url>`
+
 ### 2. 让两个 readonly wrapper 都能回退到受控 baseline
 
 更新脚本：
