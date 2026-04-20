@@ -2,6 +2,26 @@
 
 set -euo pipefail
 
+restore_scope=""
+restore_expected_source=""
+restore_initial_configured=""
+restore_initial_effective=""
+restore_initial_source=""
+restore_body_file=""
+restore_response_file=""
+restore_override_applied=0
+
+clear_restore_state() {
+  restore_scope=""
+  restore_expected_source=""
+  restore_initial_configured=""
+  restore_initial_effective=""
+  restore_initial_source=""
+  restore_body_file=""
+  restore_response_file=""
+  restore_override_applied=0
+}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -39,7 +59,7 @@ Behavior:
 
 Notes:
   - PUT/DELETE require an admin or superuser token.
-  - The script restores org scope to the original state before exiting.
+  - The script restores the mutated scope to the original state before exiting, even on failure/interruption.
   - Tenant-default verification is skipped if an org override is active, because the current
     read surface only exposes the effective profile for the current context.
   - Do not run this verifier concurrently against the same tenant/org scope, because it
@@ -281,7 +301,7 @@ request_json() {
     *)
       printf '[fail] %s %s -> %s expected one of %s\n' "${method}" "${path}" "${status}" "${expected_codes}" >&2
       printf 'Body saved to %s\n' "${outfile}" >&2
-      exit 1
+      return 1
       ;;
   esac
 }
@@ -322,7 +342,7 @@ assert_json_equals() {
   actual="$(json_get "${file}" "${path}")"
   if [[ "${actual}" != "${expected}" ]]; then
     printf 'Assertion failed for %s in %s: expected %s got %s\n' "${path}" "${file}" "${expected}" "${actual}" >&2
-    exit 1
+    return 1
   fi
   printf '[ok] assert %s == %s (%s)\n' "${path}" "${expected}" "${file}"
 }
@@ -354,6 +374,35 @@ choose_alternate_profile() {
   esac
 }
 
+restore_if_dirty() {
+  local exit_code=$?
+  trap - EXIT
+
+  if [[ "${restore_override_applied}" != "1" ]]; then
+    exit "${exit_code}"
+  fi
+
+  set +e
+  if [[ "${restore_initial_source}" == "${restore_expected_source}" ]]; then
+    write_put_body "${restore_initial_configured}" "${restore_scope}" "${restore_body_file}"
+    request_json "PUT" "/api/v1/cad/backend-profile" "${restore_response_file}" "200" "${restore_body_file}"
+  else
+    request_json "DELETE" "/api/v1/cad/backend-profile?scope=${restore_scope}" "${restore_response_file}" "200"
+  fi
+  local restore_status=$?
+  if [[ ${restore_status} -eq 0 ]]; then
+    printf '[trap] restored %s scope to %s (%s)\n' \
+      "${restore_scope}" "${restore_initial_effective}" "${restore_initial_source}"
+    clear_restore_state
+  else
+    printf '[trap-fail] failed to restore %s scope; original state was %s (%s)\n' \
+      "${restore_scope}" "${restore_initial_effective}" "${restore_initial_source}" >&2
+  fi
+  exit "${exit_code}"
+}
+
+trap restore_if_dirty EXIT
+
 verify_scope_flow() {
   local scope="$1"
   local expected_source="$2"
@@ -378,7 +427,17 @@ verify_scope_flow() {
   initial_source="$(json_get "${before_file}" "source")"
   target_profile="$(choose_alternate_profile "${initial_effective}")"
 
+  restore_scope="${scope}"
+  restore_expected_source="${expected_source}"
+  restore_initial_configured="${initial_configured}"
+  restore_initial_effective="${initial_effective}"
+  restore_initial_source="${initial_source}"
+  restore_body_file="${restore_body}"
+  restore_response_file="${restore_file}"
+  restore_override_applied=0
+
   write_put_body "${target_profile}" "${scope}" "${put_body}"
+  restore_override_applied=1
   request_json "PUT" "/api/v1/cad/backend-profile" "${put_file}" "200" "${put_body}"
   assert_json_equals "${put_file}" "configured" "${target_profile}"
   assert_json_equals "${put_file}" "effective" "${target_profile}"
@@ -404,6 +463,7 @@ verify_scope_flow() {
   request_json "GET" "/api/v1/cad/backend-profile" "${final_file}" "200"
   assert_json_equals "${final_file}" "effective" "${initial_effective}"
   assert_json_equals "${final_file}" "source" "${initial_source}"
+  clear_restore_state
 
   printf '[ok] %s scope restored to %s (%s)\n' "${scope}" "${initial_effective}" "${initial_source}"
 }

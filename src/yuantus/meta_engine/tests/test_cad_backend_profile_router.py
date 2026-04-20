@@ -95,6 +95,15 @@ def test_put_backend_profile_updates_tenant_scope() -> None:
     )
 
 
+def test_put_backend_profile_requires_admin() -> None:
+    client, _ = _client(SimpleNamespace(id=2, roles=["viewer"]))
+    response = client.put(
+        "/api/v1/cad/backend-profile",
+        json={"profile": "hybrid-auto", "scope": "tenant"},
+    )
+    assert response.status_code == 403
+
+
 def test_delete_backend_profile_requires_admin() -> None:
     client, _ = _client(SimpleNamespace(id=2, roles=["viewer"]))
     response = client.delete("/api/v1/cad/backend-profile?scope=org")
