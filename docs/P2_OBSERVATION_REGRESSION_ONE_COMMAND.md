@@ -12,7 +12,13 @@
 
 - `docs/P2_OBSERVATION_REGRESSION_TRIGGER_CHECKLIST.md`
 
-如果当前目标就是 **shared-dev 142 的 official readonly baseline**，优先直接用固定 wrapper，而不是自己再拼 `BASELINE_DIR`：
+如果当前目标就是 **shared-dev 142 的 official readonly baseline**，优先先看统一 selector，而不是自己再拼 `BASELINE_DIR`：
+
+```bash
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --help
+```
+
+按目标选：
 
 ```bash
 bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
@@ -22,6 +28,18 @@ bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
 
 ```bash
 bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands
+```
+
+如果你只需要 GitHub Actions 做一轮 `current-only` probe：
+
+```bash
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe
+```
+
+如果你要的是 GitHub Actions 采集加 official frozen baseline readonly compare/eval：
+
+```bash
+bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check
 ```
 
 如果这是 shared-dev 首次执行，或刚换了一组凭证，建议先跑：
