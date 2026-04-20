@@ -9,14 +9,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 
-from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.api.dependencies.auth import get_current_user_id
 from yuantus.api.warning_headers import append_quota_warning
 from yuantus.context import get_request_context
 from yuantus.database import get_db
 from yuantus.meta_engine.models.job import ConversionJob
 from yuantus.meta_engine.models.file import FileContainer
 from yuantus.meta_engine.services.file_service import FileService
-from yuantus.meta_engine.storage.local_storage import LocalStorageProvider
 from yuantus.config import get_settings
 from yuantus.meta_engine.services.job_service import JobService
 from yuantus.security.auth.database import get_identity_db
@@ -90,26 +89,21 @@ def _build_job_diagnostics(job: ConversionJob, db: Session) -> Optional[Dict[str
     settings = get_settings()
     file_service = FileService()
     system_path = file_container.system_path
-    resolved_source_path: Optional[str] = None
-    if isinstance(file_service.storage_provider, LocalStorageProvider):
-        resolved_source_path = file_service.storage_provider.get_local_path(system_path)
-    elif settings.STORAGE_TYPE == "s3" and system_path:
-        resolved_source_path = f"s3://{settings.S3_BUCKET_NAME}/{system_path}"
 
     diagnostics.update(
         {
             "storage_type": settings.STORAGE_TYPE,
-            "system_path": system_path,
-            "resolved_source_path": resolved_source_path,
             "cad_connector_id": file_container.cad_connector_id,
             "cad_format": file_container.cad_format,
             "document_type": file_container.document_type,
-            "preview_path": file_container.preview_path,
-            "geometry_path": file_container.geometry_path,
-            "cad_manifest_path": file_container.cad_manifest_path,
-            "cad_document_path": file_container.cad_document_path,
-            "cad_metadata_path": file_container.cad_metadata_path,
-            "cad_bom_path": file_container.cad_bom_path,
+            "assets": {
+                "preview": bool(file_container.preview_path or file_container.preview_data),
+                "geometry": bool(file_container.geometry_path),
+                "cad_manifest": bool(file_container.cad_manifest_path),
+                "cad_document": bool(file_container.cad_document_path),
+                "cad_metadata": bool(file_container.cad_metadata_path),
+                "cad_bom": bool(file_container.cad_bom_path),
+            },
         }
     )
     if system_path:
@@ -154,7 +148,7 @@ def _to_job_response(job: ConversionJob, diagnostics: Optional[Dict[str, Any]] =
 def create_job(
     req: CreateJobRequest,
     response: Response,
-    user_id: int = Depends(get_current_user_id_optional),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> JobResponse:
@@ -190,7 +184,11 @@ def create_job(
 
 
 @router.get("/{job_id}", response_model=JobResponse)
-def get_job(job_id: str, db: Session = Depends(get_db)) -> JobResponse:
+def get_job(
+    job_id: str,
+    _: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+) -> JobResponse:
     service = JobService(db)
     job = service.get_job(job_id)
     if not job:
@@ -206,6 +204,7 @@ def list_jobs(
     file_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
+    _: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     q = db.query(ConversionJob)

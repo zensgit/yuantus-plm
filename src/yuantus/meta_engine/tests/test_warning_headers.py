@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 from fastapi import Depends, FastAPI, Response
 from fastapi.testclient import TestClient
 
-from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.api.dependencies.auth import get_current_user_id
 from yuantus.api.routers.jobs import router as jobs_router
 from yuantus.api.warning_headers import (
     append_doc_sync_checkout_warning,
@@ -64,7 +64,7 @@ def _jobs_client_with_seed_warning() -> tuple[TestClient, MagicMock, MagicMock]:
     app.include_router(jobs_router, prefix="/api/v1", dependencies=[Depends(seed_warning)])
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_identity_db] = override_get_identity_db
-    app.dependency_overrides[get_current_user_id_optional] = override_get_user_id
+    app.dependency_overrides[get_current_user_id] = override_get_user_id
     return TestClient(app), mock_db, mock_identity_db
 
 

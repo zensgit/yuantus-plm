@@ -8,6 +8,7 @@ Provides:
 - Async job queue processing
 """
 
+import json
 import logging
 import os
 import uuid
@@ -15,6 +16,7 @@ import hashlib
 import subprocess
 import tempfile
 import shutil
+import re
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 from pathlib import Path
@@ -44,6 +46,8 @@ from yuantus.meta_engine.services.job_service import JobService
 
 
 _CANONICAL_CONVERSION_TASK_TYPES = ("cad_conversion", "cad_preview", "cad_geometry")
+_FREECAD_PARAMS_ENV_VAR = "YUANTUS_CAD_CONVERTER_PARAMS"
+_SAFE_PATH_COMPONENT_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def _build_canonical_conversion_worker():
@@ -384,27 +388,38 @@ class CADConverterService:
 
         # Create output path in generated files subfolder (DocDoku pattern)
         output_dir = self._get_generated_dir(source_file)
-        output_filename = f"{Path(source_file.filename).stem}.{target_format}"
+        output_filename = (
+            f"{self._get_safe_source_stem(source_file)}.{target_format}"
+        )
         output_path = os.path.join(output_dir, output_filename)
 
-        # Write FreeCAD conversion script
-        script_content = self._generate_freecad_script(
-            source_path, output_path, target_format
+        params_path = self._write_freecad_params(
+            {
+                "input_path": source_path,
+                "output_path": output_path,
+                "target_format": target_format,
+            }
         )
 
+        # Write FreeCAD conversion script
+        script_content = self._generate_freecad_script()
+
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
+            mode="w", suffix=".py", delete=False, encoding="utf-8"
         ) as script_file:
             script_file.write(script_content)
             script_path = script_file.name
 
         try:
             # Execute FreeCAD script
+            env = os.environ.copy()
+            env[_FREECAD_PARAMS_ENV_VAR] = params_path
             result = subprocess.run(
                 [self._freecad_path, "-c", script_path],
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 minute timeout
+                env=env,
             )
 
             if result.returncode != 0:
@@ -416,14 +431,13 @@ class CADConverterService:
             return output_path
 
         finally:
-            os.unlink(script_path)
+            for temp_path in (script_path, params_path):
+                try:
+                    os.unlink(temp_path)
+                except FileNotFoundError:
+                    pass
 
-    def _generate_freecad_script(
-        self,
-        input_path: str,
-        output_path: str,
-        target_format: str,
-    ) -> str:
+    def _generate_freecad_script(self) -> str:
         """
         Generate FreeCAD Python script for conversion.
         Based on DocDoku-PLM convert_step_obj.py pattern.
@@ -432,11 +446,26 @@ class CADConverterService:
 # FreeCAD conversion script (auto-generated)
 # Based on DocDoku-PLM pattern
 
+import json
 import sys
 import os
 
+PARAMS_ENV_VAR = {_FREECAD_PARAMS_ENV_VAR!r}
+
+def _load_params():
+    params_path = os.environ.get(PARAMS_ENV_VAR)
+    if not params_path:
+        raise RuntimeError(f"Missing {{PARAMS_ENV_VAR}} environment variable")
+    with open(params_path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+params = _load_params()
+input_path = params["input_path"]
+output_path = params["output_path"]
+target_format = params["target_format"]
+
 # Ensure output directory exists
-os.makedirs(os.path.dirname("{output_path}"), exist_ok=True)
+os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
 try:
     import FreeCAD
@@ -445,7 +474,7 @@ try:
 
     # Load STEP/IGES file
     shape = Part.Shape()
-    shape.read("{input_path}")
+    shape.read(input_path)
 
     # Create mesh from shape
     # Use deviation 0.1 for balance of quality/performance
@@ -454,15 +483,15 @@ try:
         mesh.addMesh(face.tessellate(0.1))
 
     # Export to target format
-    if "{target_format}" == "obj":
-        mesh.write("{output_path}")
-    elif "{target_format}" in ("gltf", "glb"):
+    if target_format == "obj":
+        mesh.write(output_path)
+    elif target_format in ("gltf", "glb"):
         # For glTF, we need additional processing
-        mesh.write("{output_path.replace('.gltf', '.obj').replace('.glb', '.obj')}")
-    elif "{target_format}" == "stl":
-        mesh.write("{output_path}")
+        mesh.write(output_path.replace(".gltf", ".obj").replace(".glb", ".obj"))
+    elif target_format == "stl":
+        mesh.write(output_path)
     else:
-        mesh.write("{output_path}")
+        mesh.write(output_path)
 
     print("CONVERSION_SUCCESS")
 
@@ -490,7 +519,7 @@ except Exception as e:
 
         # Create output path
         output_dir = self._get_generated_dir(source_file)
-        output_filename = f"{Path(source_file.filename).stem}.{target_format}"
+        output_filename = f"{self._get_safe_source_stem(source_file)}.{target_format}"
         output_path = os.path.join(output_dir, output_filename)
 
         # Export
@@ -512,7 +541,7 @@ except Exception as e:
 
         # Create output path
         output_dir = self._get_generated_dir(source_file)
-        output_filename = f"{Path(source_file.filename).stem}.{target_format}"
+        output_filename = f"{self._get_safe_source_stem(source_file)}.{target_format}"
         output_path = os.path.join(output_dir, output_filename)
 
         try:
@@ -551,7 +580,9 @@ except Exception as e:
         Based on Odoo PLM pattern: preview stored alongside original.
         """
         output_dir = self._get_generated_dir(source_file)
-        preview_filename = f"{Path(source_file.filename).stem}_preview.png"
+        preview_filename = (
+            f"{self._get_safe_source_stem(source_file)}_preview.png"
+        )
         preview_path = os.path.join(output_dir, preview_filename)
 
         ext = source_file.get_extension()
@@ -603,11 +634,64 @@ except Exception as e:
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-        script_content = f"""
+        params_path = self._write_freecad_params(
+            {
+                "input_path": source_path,
+                "output_path": output_path,
+            }
+        )
+        script_content = self._generate_freecad_preview_script()
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False, encoding="utf-8"
+        ) as script_file:
+            script_file.write(script_content)
+            script_path = script_file.name
+
+        try:
+            env = os.environ.copy()
+            env[_FREECAD_PARAMS_ENV_VAR] = params_path
+            subprocess.run(
+                [self._freecad_path, script_path],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=env,
+            )
+
+            if os.path.exists(output_path):
+                return output_path
+
+            return self._create_placeholder_preview(output_path)
+
+        finally:
+            for temp_path in (script_path, params_path):
+                try:
+                    os.unlink(temp_path)
+                except FileNotFoundError:
+                    pass
+
+    def _generate_freecad_preview_script(self) -> str:
+        """Generate FreeCAD Python script for preview rendering."""
+        return f"""
+import json
 import sys
 import os
 
-os.makedirs(os.path.dirname("{output_path}"), exist_ok=True)
+PARAMS_ENV_VAR = {_FREECAD_PARAMS_ENV_VAR!r}
+
+def _load_params():
+    params_path = os.environ.get(PARAMS_ENV_VAR)
+    if not params_path:
+        raise RuntimeError(f"Missing {{PARAMS_ENV_VAR}} environment variable")
+    with open(params_path, "r", encoding="utf-8") as handle:
+        return json.load(handle)
+
+params = _load_params()
+source_path = params["input_path"]
+output_path = params["output_path"]
+
+os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
 try:
     import FreeCAD
@@ -618,11 +702,11 @@ try:
     doc = FreeCAD.newDocument()
 
     shape = Part.Shape()
-    shape.read("{source_path}")
+    shape.read(source_path)
     Part.show(shape)
 
     FreeCADGui.ActiveDocument.ActiveView.fitAll()
-    FreeCADGui.ActiveDocument.ActiveView.saveImage("{output_path}", 256, 256)
+    FreeCADGui.ActiveDocument.ActiveView.saveImage(output_path, 256, 256)
 
     print("PREVIEW_SUCCESS")
 
@@ -630,28 +714,6 @@ except Exception as e:
     print(f"PREVIEW_ERROR: {{e}}", file=sys.stderr)
     sys.exit(1)
 """
-
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as script_file:
-            script_file.write(script_content)
-            script_path = script_file.name
-
-        try:
-            subprocess.run(
-                [self._freecad_path, script_path],
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-
-            if os.path.exists(output_path):
-                return output_path
-
-            return self._create_placeholder_preview(output_path)
-
-        finally:
-            os.unlink(script_path)
 
     def _create_placeholder_preview(
         self,
@@ -735,9 +797,35 @@ except Exception as e:
         Get directory for generated files (DocDoku pattern: _{filename}/).
         """
         base_dir = os.path.dirname(self._get_file_path(source_file))
-        generated_dir = os.path.join(base_dir, f"_{Path(source_file.filename).stem}")
+        generated_dir = os.path.join(
+            base_dir, f"_{self._get_safe_source_stem(source_file)}"
+        )
         os.makedirs(generated_dir, exist_ok=True)
         return generated_dir
+
+    def _get_safe_source_stem(self, source_file: FileContainer) -> str:
+        """Return a filesystem-safe stem derived from the source file name."""
+        raw_name = source_file.filename or source_file.system_path or source_file.id or "file"
+        stem = Path(raw_name).stem
+        return self._sanitize_path_component(stem)
+
+    def _sanitize_path_component(self, value: str, fallback: str = "file") -> str:
+        """Normalize a path component to a safe filesystem fragment."""
+        normalized = (value or "").replace("\x00", "")
+        if os.sep:
+            normalized = normalized.replace(os.sep, "_")
+        if os.altsep:
+            normalized = normalized.replace(os.altsep, "_")
+        normalized = _SAFE_PATH_COMPONENT_RE.sub("_", normalized).strip("._-")
+        return normalized or fallback
+
+    def _write_freecad_params(self, params: Dict[str, Any]) -> str:
+        """Persist FreeCAD parameters to a temporary JSON file."""
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as params_file:
+            json.dump(params, params_file)
+            return params_file.name
 
     def _create_result_file(
         self,
