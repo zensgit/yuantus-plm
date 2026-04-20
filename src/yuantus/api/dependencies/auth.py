@@ -313,7 +313,7 @@ def get_current_user_id(user: CurrentUser = Depends(get_current_user)) -> int:
 
 def get_current_user_id_optional(
     user: Optional[CurrentUser] = Depends(get_current_user_optional),
-) -> int:
+) -> Optional[int]:
     if user is None:
-        return 1
+        return None
     return user.id
