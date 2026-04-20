@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -15,6 +16,34 @@ def _find_repo_root(start: Path) -> Path:
             break
         cur = cur.parent
     raise AssertionError("Could not locate repo root (expected pyproject.toml + scripts/)")
+
+
+def _write_fake_python_proxy(path: Path, *, compare_exit: int | None = None, evaluate_exit: int | None = None) -> None:
+    path.write_text(
+        f"""#!{sys.executable}
+import subprocess
+import sys
+from pathlib import Path
+
+real_python = {sys.executable!r}
+compare_exit = {compare_exit!r}
+evaluate_exit = {evaluate_exit!r}
+target = Path(sys.argv[1]).name if len(sys.argv) > 1 else ""
+
+if target == "compare_p2_observation_results.py" and compare_exit is not None:
+    print("synthetic compare failure", file=sys.stderr)
+    raise SystemExit(compare_exit)
+
+if target == "evaluate_p2_observation_results.py" and evaluate_exit is not None:
+    print("synthetic evaluate failure", file=sys.stderr)
+    raise SystemExit(evaluate_exit)
+
+cp = subprocess.run([real_python, *sys.argv[1:]], check=False)
+raise SystemExit(cp.returncode)
+""",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
 
 
 def test_p2_observation_regression_workflow_wrapper_with_fake_gh(tmp_path: Path) -> None:
@@ -947,3 +976,225 @@ raise SystemExit(2)
     assert "missing authentication secret" in summary_text
     assert "P2_OBSERVATION_TOKEN" in summary_text
     assert "workflow-probe/WORKFLOW_DISPATCH_RESULT.md" in summary_text
+
+
+def test_p2_shared_dev_142_workflow_readonly_check_wrapper_writes_failure_summary_on_eval_failure(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_workflow_readonly_check.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(parents=True, exist_ok=True)
+    dispatch_log = tmp_path / "dispatch_args.json"
+
+    fake_gh = fake_bin / "gh"
+    fake_gh.write_text(
+        """#!/usr/bin/env python3
+import json
+import os
+import sys
+from pathlib import Path
+
+args = sys.argv[1:]
+
+if len(args) >= 2 and args[0] == "-R":
+    args = args[2:]
+
+if args[:2] == ["auth", "status"]:
+    raise SystemExit(0)
+
+if args[:2] == ["repo", "view"]:
+    print("zensgit/yuantus-plm")
+    raise SystemExit(0)
+
+if args[:2] == ["workflow", "run"]:
+    Path(os.environ["FAKE_GH_DISPATCH_LOG"]).write_text(
+        json.dumps(args, ensure_ascii=True),
+        encoding="utf-8",
+    )
+    raise SystemExit(0)
+
+if args[:2] == ["run", "list"]:
+    print(json.dumps([
+        {
+            "databaseId": 606,
+            "event": "workflow_dispatch",
+            "headBranch": "main",
+            "createdAt": "2099-01-01T00:00:00Z",
+        },
+    ]))
+    raise SystemExit(0)
+
+if args[:3] == ["run", "watch", "606"]:
+    raise SystemExit(0)
+
+if args[:3] == ["run", "view", "606"] and "--json" in args and "--jq" in args:
+    json_key = args[args.index("--json") + 1]
+    jq_expr = args[args.index("--jq") + 1]
+    if json_key == "status" and jq_expr == ".status":
+        print("completed")
+        raise SystemExit(0)
+    if json_key == "conclusion" and jq_expr == ".conclusion":
+        print("success")
+        raise SystemExit(0)
+    if json_key == "url" and jq_expr == ".url":
+        print("https://example.invalid/runs/606")
+        raise SystemExit(0)
+
+if args[:3] == ["run", "download", "606"]:
+    out_dir = "."
+    artifact_name = ""
+    i = 3
+    while i < len(args):
+        if args[i] == "-D" and i + 1 < len(args):
+            out_dir = args[i + 1]
+            i += 2
+            continue
+        if args[i] == "-n" and i + 1 < len(args):
+            artifact_name = args[i + 1]
+            i += 2
+            continue
+        i += 1
+    if artifact_name != "p2-observation-regression":
+        raise SystemExit(1)
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
+    summary = {
+        "pending_count": 2,
+        "overdue_count": 3,
+        "escalated_count": 1,
+    }
+    items = [
+        {"approval_id": "a-1", "is_overdue": False, "is_escalated": False},
+        {"approval_id": "a-2", "is_overdue": False, "is_escalated": False},
+        {"approval_id": "a-3", "is_overdue": True, "is_escalated": False},
+        {"approval_id": "a-4", "is_overdue": True, "is_escalated": True},
+        {"approval_id": "a-5", "is_overdue": True, "is_escalated": False},
+    ]
+    anomalies = {
+        "total_anomalies": 2,
+        "no_candidates": [],
+        "escalated_unresolved": [{"approval_id": "a-4"}],
+        "overdue_not_escalated": [{"approval_id": "a-3"}],
+    }
+    export_json = [
+        {"approval_id": "a-1"},
+        {"approval_id": "a-2"},
+        {"approval_id": "a-3"},
+        {"approval_id": "a-4"},
+        {"approval_id": "a-5"},
+    ]
+    (out_path / "summary.json").write_text(json.dumps(summary) + "\\n", encoding="utf-8")
+    (out_path / "items.json").write_text(json.dumps(items) + "\\n", encoding="utf-8")
+    (out_path / "anomalies.json").write_text(json.dumps(anomalies) + "\\n", encoding="utf-8")
+    (out_path / "export.json").write_text(json.dumps(export_json) + "\\n", encoding="utf-8")
+    (out_path / "export.csv").write_text("approval_id\\na-1\\na-2\\na-3\\na-4\\na-5\\n", encoding="utf-8")
+    (out_path / "OBSERVATION_RESULT.md").write_text("# result\\n", encoding="utf-8")
+    (out_path / "OBSERVATION_EVAL.md").write_text("# eval\\n- verdict: PASS\\n", encoding="utf-8")
+    raise SystemExit(0)
+
+print("unexpected fake gh invocation: " + " ".join(args), file=sys.stderr)
+raise SystemExit(2)
+""",
+        encoding="utf-8",
+    )
+    fake_gh.chmod(0o755)
+
+    fake_python = fake_bin / "python3"
+    _write_fake_python_proxy(fake_python, evaluate_exit=19)
+
+    baseline_dir = tmp_path / "baseline"
+    baseline_dir.mkdir(parents=True, exist_ok=True)
+    (baseline_dir / "summary.json").write_text(
+        json.dumps({"pending_count": 2, "overdue_count": 3, "escalated_count": 1}) + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "items.json").write_text(
+        json.dumps(
+            [
+                {"approval_id": "a-1", "is_overdue": False, "is_escalated": False},
+                {"approval_id": "a-2", "is_overdue": False, "is_escalated": False},
+                {"approval_id": "a-3", "is_overdue": True, "is_escalated": False},
+                {"approval_id": "a-4", "is_overdue": True, "is_escalated": True},
+                {"approval_id": "a-5", "is_overdue": True, "is_escalated": False},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "anomalies.json").write_text(
+        json.dumps(
+            {
+                "total_anomalies": 2,
+                "no_candidates": [],
+                "escalated_unresolved": [{"approval_id": "a-4"}],
+                "overdue_not_escalated": [{"approval_id": "a-3"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "export.json").write_text(
+        json.dumps(
+            [
+                {"approval_id": "a-1"},
+                {"approval_id": "a-2"},
+                {"approval_id": "a-3"},
+                {"approval_id": "a-4"},
+                {"approval_id": "a-5"},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "export.csv").write_text(
+        "approval_id\na-1\na-2\na-3\na-4\na-5\n",
+        encoding="utf-8",
+    )
+
+    out_dir = tmp_path / "out-workflow-readonly-eval-failure"
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}:{env.get('PATH', '')}"
+    env["FAKE_GH_DISPATCH_LOG"] = str(dispatch_log)
+
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--output-dir",
+            str(out_dir),
+            "--baseline-dir",
+            str(baseline_dir),
+            "--no-restore",
+            "--no-archive",
+            "--eco-type",
+            "ECR",
+        ],
+        text=True,
+        capture_output=True,
+        env=env,
+        cwd=str(repo_root),
+    )
+
+    assert cp.returncode != 0
+    assert (out_dir / "workflow-probe" / "WORKFLOW_DISPATCH_RESULT.md").is_file()
+    assert (out_dir / "workflow-probe" / "artifact" / "summary.json").is_file()
+    assert (out_dir / "WORKFLOW_READONLY_DIFF.md").is_file()
+    assert not (out_dir / "WORKFLOW_READONLY_EVAL.md").exists()
+    assert not (out_dir / "WORKFLOW_READONLY_DIFF.log").exists()
+    assert (out_dir / "WORKFLOW_READONLY_EVAL.log").is_file()
+    assert (out_dir / "WORKFLOW_READONLY_CHECK.md").is_file()
+
+    summary_text = (out_dir / "WORKFLOW_READONLY_CHECK.md").read_text(encoding="utf-8")
+    assert "status: failure" in summary_text
+    assert "readonly evaluation failed" in summary_text
+    assert "WORKFLOW_READONLY_DIFF.md" in summary_text
+    assert "WORKFLOW_READONLY_EVAL.log" in summary_text
+    assert "verdict: unavailable" in summary_text
+
+    eval_log_text = (out_dir / "WORKFLOW_READONLY_EVAL.log").read_text(encoding="utf-8")
+    assert "synthetic evaluate failure" in eval_log_text
+
+    dispatch_args = json.loads(dispatch_log.read_text(encoding="utf-8"))
+    assert "base_url=http://142.171.239.56:7910" in dispatch_args
+    assert "eco_type=ECR" in dispatch_args

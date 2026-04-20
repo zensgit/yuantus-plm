@@ -111,16 +111,18 @@ bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
 
 ### 2. `scripts/run_p2_shared_dev_142_workflow_readonly_check.sh`
 
-新增 probe failure summary：
+新增 failure summary 收口：
 
 - 当 workflow probe 失败时
-- 仍然写出顶层 `WORKFLOW_READONLY_CHECK.md`
+- 或 probe 成功但后续 `compare/evaluate` 失败时
+- 都会写出顶层 `WORKFLOW_READONLY_CHECK.md`
 - 明确记录：
   - `status: failure`
   - 失败原因
   - `workflow_dispatch_result` 路径
-  - `diff/eval` 未生成
-  - 下一步是补 `P2_OBSERVATION_TOKEN` 或 `P2_OBSERVATION_PASSWORD`
+  - `diff/eval` 是否已生成
+  - `diff_log/eval_log` 路径
+  - 下一步是补 `P2_OBSERVATION_TOKEN` 或 `P2_OBSERVATION_PASSWORD`，或直接检查 compare/eval log
 
 ## 验证
 
@@ -138,7 +140,7 @@ PYTHONPATH=src python3 -m pytest -q \
 
 结果：
 
-- `25 passed`
+- `26 passed`
 
 真实执行：
 
