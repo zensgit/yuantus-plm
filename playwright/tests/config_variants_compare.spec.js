@@ -40,6 +40,28 @@ async function createPart(request, headers, number, name) {
   return data.id;
 }
 
+async function promoteReleased(request, headers, id) {
+  const promoteTo = async (targetState) =>
+    request.post('/api/v1/aml/apply', {
+      headers,
+      data: {
+        type: 'Part',
+        action: 'promote',
+        id,
+        properties: { target_state: targetState },
+      },
+    });
+
+  let reviewResp = await promoteTo('Review');
+  if (!reviewResp.ok()) {
+    reviewResp = await promoteTo('In Review');
+  }
+  expect(reviewResp.ok(), await reviewResp.text()).toBeTruthy();
+
+  const releaseResp = await promoteTo('Released');
+  expect(releaseResp.ok(), await releaseResp.text()).toBeTruthy();
+}
+
 test('Config compare: selection differences + BOM differences', async ({ request }) => {
   const { headers } = await login(request);
   const ts = Date.now();
@@ -47,6 +69,7 @@ test('Config compare: selection differences + BOM differences', async ({ request
   // Create a simple BOM where a variant rule can modify quantity.
   const parent = await createPart(request, headers, `CFG-P-${ts}`, 'Config Parent');
   const child = await createPart(request, headers, `CFG-C-${ts}`, 'Config Child');
+  await promoteReleased(request, headers, child);
 
   const addChildResp = await request.post(`/api/v1/bom/${parent}/children`, {
     headers,
@@ -171,4 +194,3 @@ test('Config compare: selection differences + BOM differences', async ({ request
   expect(Number(bomDiff.changed[0].before_line.quantity)).toBe(2);
   expect(Number(bomDiff.changed[0].after_line.quantity)).toBe(1);
 });
-

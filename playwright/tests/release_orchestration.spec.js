@@ -41,6 +41,28 @@ async function createPart(request, headers, number, name) {
   return data.id;
 }
 
+async function promoteReleased(request, headers, id) {
+  const promoteTo = async (targetState) =>
+    request.post('/api/v1/aml/apply', {
+      headers,
+      data: {
+        type: 'Part',
+        action: 'promote',
+        id,
+        properties: { target_state: targetState },
+      },
+    });
+
+  let reviewResp = await promoteTo('Review');
+  if (!reviewResp.ok()) {
+    reviewResp = await promoteTo('In Review');
+  }
+  expect(reviewResp.ok(), await reviewResp.text()).toBeTruthy();
+
+  const releaseResp = await promoteTo('Released');
+  expect(releaseResp.ok(), await releaseResp.text()).toBeTruthy();
+}
+
 async function createBaseline(request, headers, rootItemId, name) {
   const resp = await request.post('/api/v1/baselines', {
     headers,
@@ -283,6 +305,7 @@ test('Release orchestration rolls back routing+mbom when baseline is blocked by 
 
   const parentId = await createPart(request, headers, `ORCH-RB-P-${ts}`, 'Orchestration Rollback Parent');
   const childId = await createPart(request, headers, `ORCH-RB-C-${ts}`, 'Orchestration Rollback Child');
+  await promoteReleased(request, headers, childId);
   await addBomChild(request, headers, parentId, childId);
 
   const baselineId = await createBaseline(request, headers, parentId, `BL-RB-${ts}`);
@@ -349,6 +372,7 @@ test('Release orchestration rolls back routings on injected failure during routi
 
   const parentId = await createPart(request, headers, `ORCH-FP-P-${ts}`, 'Orchestration Failpoint Parent');
   const childId = await createPart(request, headers, `ORCH-FP-C-${ts}`, 'Orchestration Failpoint Child');
+  await promoteReleased(request, headers, childId);
   await addBomChild(request, headers, parentId, childId);
 
   const mbom = await createMbomFromEbom(request, headers, parentId, `MBOM-FP-${ts}`);

@@ -41,6 +41,28 @@ async function createPart(request, headers, number, name, extra = {}) {
   return data.id;
 }
 
+async function promoteReleased(request, headers, id) {
+  const promoteTo = async (targetState) =>
+    request.post('/api/v1/aml/apply', {
+      headers,
+      data: {
+        type: 'Part',
+        action: 'promote',
+        id,
+        properties: { target_state: targetState },
+      },
+    });
+
+  let reviewResp = await promoteTo('Review');
+  if (!reviewResp.ok()) {
+    reviewResp = await promoteTo('In Review');
+  }
+  expect(reviewResp.ok(), await reviewResp.text()).toBeTruthy();
+
+  const releaseResp = await promoteTo('Released');
+  expect(releaseResp.ok(), await releaseResp.text()).toBeTruthy();
+}
+
 test('Product UI summaries include obsolete + weight rollup', async ({ request }) => {
   const { headers } = await login(request);
   const ts = Date.now();
@@ -56,6 +78,8 @@ test('Product UI summaries include obsolete + weight rollup', async ({ request }
     'Product UI Obsolete',
     { weight: 1.5, obsolete: true }
   );
+  await promoteReleased(request, headers, child);
+  await promoteReleased(request, headers, obsChild);
 
   const addResp = await request.post(`/api/v1/bom/${parent}/children`, {
     headers,

@@ -41,6 +41,28 @@ async function createPart(request, headers, number, name, extra = {}) {
   return data.id;
 }
 
+async function promoteReleased(request, headers, id) {
+  const promoteTo = async (targetState) =>
+    request.post('/api/v1/aml/apply', {
+      headers,
+      data: {
+        type: 'Part',
+        action: 'promote',
+        id,
+        properties: { target_state: targetState },
+      },
+    });
+
+  let reviewResp = await promoteTo('Review');
+  if (!reviewResp.ok()) {
+    reviewResp = await promoteTo('In Review');
+  }
+  expect(reviewResp.ok(), await reviewResp.text()).toBeTruthy();
+
+  const releaseResp = await promoteTo('Released');
+  expect(releaseResp.ok(), await releaseResp.text()).toBeTruthy();
+}
+
 async function markObsolete(request, headers, id) {
   const resp = await request.post('/api/v1/aml/apply', {
     headers,
@@ -74,6 +96,8 @@ test('BOM obsolete scan + resolve', async ({ request }) => {
     },
   });
   expect(updateResp.ok()).toBeTruthy();
+  await promoteReleased(request, headers, childOld);
+  await promoteReleased(request, headers, childNew);
 
   const addResp = await request.post(`/api/v1/bom/${parent}/children`, {
     headers,
@@ -117,6 +141,8 @@ test('BOM weight rollup + write_back', async ({ request }) => {
   const child2 = await createPart(request, headers, `ROLL-C2-${ts}`, 'Child 2', {
     weight: 1.0,
   });
+  await promoteReleased(request, headers, child1);
+  await promoteReleased(request, headers, child2);
 
   const addResp1 = await request.post(`/api/v1/bom/${parent}/children`, {
     headers,

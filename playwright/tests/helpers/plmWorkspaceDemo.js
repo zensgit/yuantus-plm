@@ -55,6 +55,30 @@ async function createPart(request, headers, number, name) {
   return data.id;
 }
 
+async function promoteReleased(request, headers, type, itemId) {
+  const promoteTo = async (targetState) =>
+    request.post('/api/v1/aml/apply', {
+      headers,
+      data: {
+        type,
+        action: 'promote',
+        id: itemId,
+        properties: {
+          target_state: targetState,
+        },
+      },
+    });
+
+  let reviewResp = await promoteTo('Review');
+  if (!reviewResp.ok()) {
+    reviewResp = await promoteTo('In Review');
+  }
+  expect(reviewResp.ok(), await reviewResp.text()).toBeTruthy();
+
+  const releaseResp = await promoteTo('Released');
+  expect(releaseResp.ok(), await releaseResp.text()).toBeTruthy();
+}
+
 async function addBomChild(request, headers, parentId, childId, quantity = 1, uom = 'EA') {
   const resp = await request.post(`/api/v1/bom/${parentId}/children`, {
     headers,
@@ -306,6 +330,8 @@ async function createConfigParentDemoFixture(request) {
   const parentId = await createPart(request, headers, partNumber, 'Config Parent');
   const childAId = await createPart(request, headers, childANumber, 'Config Child A');
   const childBId = await createPart(request, headers, childBNumber, 'Config Child B');
+  await promoteReleased(request, headers, 'Part', childAId);
+  await promoteReleased(request, headers, 'Part', childBId);
 
   await addBomChild(request, headers, parentId, childAId, 2, 'EA');
   await addBomChild(request, headers, parentId, childBId, 4, 'EA');
