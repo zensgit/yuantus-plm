@@ -10,12 +10,16 @@ Usage:
 Modes:
   readonly-rerun
       Direct local readonly rerun against the current official shared-dev 142 baseline.
+  drift-audit
+      Direct local readonly rerun plus drift summary against the current official shared-dev 142 baseline.
   workflow-probe
       GitHub Actions current-only probe against shared-dev host 142.
   workflow-readonly-check
       GitHub Actions probe plus local readonly compare/eval against the official frozen baseline.
   print-readonly-commands
       Print the expanded readonly rerun commands for manual inspection/debugging.
+  print-drift-commands
+      Print the expanded shared-dev 142 drift audit commands for manual inspection/debugging.
 
 Options:
   --mode <mode>   Required. One of the modes above.
@@ -25,6 +29,7 @@ Options:
 
 Examples:
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
+  bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe -- --eco-state open
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check -- --eco-type ECR
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands
@@ -91,6 +96,10 @@ case "${mode}" in
     target_script="scripts/run_p2_shared_dev_142_readonly_rerun.sh"
     mode_summary="direct local readonly rerun"
     ;;
+  drift-audit)
+    target_script="scripts/run_p2_shared_dev_142_drift_audit.sh"
+    mode_summary="direct local readonly rerun plus drift audit summary"
+    ;;
   workflow-probe)
     target_script="scripts/run_p2_shared_dev_142_workflow_probe.sh"
     mode_summary="GitHub workflow current-only probe"
@@ -102,6 +111,10 @@ case "${mode}" in
   print-readonly-commands)
     target_script="scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh"
     mode_summary="expanded readonly rerun command printout"
+    ;;
+  print-drift-commands)
+    target_script="scripts/print_p2_shared_dev_142_drift_audit_commands.sh"
+    mode_summary="expanded drift audit command printout"
     ;;
   *)
     echo "Unsupported --mode: ${mode}" >&2
