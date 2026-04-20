@@ -4,7 +4,10 @@ from pathlib import Path
 
 import yaml
 
-_ACTIONS_WRITE_ALLOWLIST = {"strict-gate-recent-perf-regression.yml"}
+_ACTIONS_WRITE_ALLOWLIST = {
+    "shared-dev-142-readonly-guard.yml",
+    "strict-gate-recent-perf-regression.yml",
+}
 
 
 def _find_repo_root(start: Path) -> Path:

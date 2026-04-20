@@ -34,7 +34,7 @@ def test_shared_dev_142_readonly_guard_workflow_contracts() -> None:
         "contents: read",
         "actions: write",
         "concurrency:",
-        "group: shared-dev-142-readonly-guard",
+        "group: ${{ github.workflow }}-${{ github.ref }}",
         "cancel-in-progress: true",
         "timeout-minutes: 45",
         "GH_TOKEN: ${{ github.token }}",
