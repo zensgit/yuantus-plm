@@ -21,7 +21,7 @@ SUSPENDED_GUARD_DISABLED_KEY = "disabled"
 
 _REASON_MESSAGES = {
     "target_suspended": "target item/version is in a suspended state",
-    "current_version_suspended": "target item's current version resides on a suspended state",
+    "current_version_suspended": "target item's current version resides in a suspended state",
 }
 
 
@@ -122,16 +122,22 @@ class SuspendedGuardService:
             raise ValueError(f"Effectivity target {target_id} not found")
         self._assert_version(version)
 
-    def _assert_item(self, item: Item, *, reason: str) -> None:
+    def _assert_item(
+        self, item: Item, *, reason: str, target_id: Optional[str] = None
+    ) -> None:
         item_type = self._item_type(item)
         state = get_lifecycle_state(self.session, item, item_type)
         if state and bool(getattr(state, "is_suspended", False)):
-            raise SuspendedStateError(reason=reason, target_id=item.id)
+            raise SuspendedStateError(reason=reason, target_id=target_id or item.id)
 
     def _assert_version(self, version: ItemVersion) -> None:
         item = self.session.get(Item, version.item_id)
         if item:
-            self._assert_item(item, reason="current_version_suspended")
+            self._assert_item(
+                item,
+                reason="current_version_suspended",
+                target_id=version.id,
+            )
             item_type = self._item_type(item)
             version_state = self._version_lifecycle_state(version, item_type)
             if version_state and bool(getattr(version_state, "is_suspended", False)):

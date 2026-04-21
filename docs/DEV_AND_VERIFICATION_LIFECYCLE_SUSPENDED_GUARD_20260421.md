@@ -155,7 +155,7 @@ Migration 特点：
   src/yuantus/meta_engine/tests/test_suspended_guard_seed_migration_contracts.py
 ```
 
-结果：`19 passed in 0.42s`
+结果：`20 passed in 0.41s`
 
 ### 5.2 Adjacent latest-released / router / add-op regression
 
@@ -182,7 +182,7 @@ Migration 特点：
   src/yuantus/meta_engine/tests/test_migration_table_coverage_contracts.py
 ```
 
-结果：`48 passed in 0.78s`
+结果：`49 passed in 0.88s`
 
 ### 5.4 Alembic SQLite upgrade
 
@@ -227,7 +227,19 @@ Contract checks missing from .github/workflows/ci.yml contracts step:
 
 结果：`4 passed in 0.01s`
 
-### 5.7 Full pytest attempt
+### 5.7 PR review remediation
+
+Copilot review 提出 3 条评论，均已处理：
+
+- version target 的 parent item 若处于 Suspended，`SuspendedStateError.target_id` 固定返回调用方传入的 version id，避免把 item id 误报为 target
+- `current_version_suspended` 文案从 `resides on` 修正为 `resides in`
+- `LATEST_RELEASED_GUARD_DISABLED` / `SUSPENDED_GUARD_DISABLED` 的 settings description 改为 hard disable，和实际 `is_enabled()` precedence 一致
+
+新增覆盖：
+
+- `test_effectivity_version_reports_version_id_when_parent_item_suspended`
+
+### 5.8 Full pytest attempt
 
 第一次直接执行：
 

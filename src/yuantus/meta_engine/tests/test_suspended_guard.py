@@ -174,6 +174,28 @@ def test_effectivity_version_checks_version_state_fallback() -> None:
         )
 
     assert exc_info.value.reason == "current_version_suspended"
+    assert exc_info.value.target_id == "ver-1"
+
+
+def test_effectivity_version_reports_version_id_when_parent_item_suspended() -> None:
+    state = LifecycleState(id="state-suspended", name="Suspended", is_suspended=True)
+    item = Item(id="item-1", item_type_id="Part", current_state="state-suspended")
+    item_type = ItemType(id="Part", lifecycle_map_id="lc-part")
+    version = ItemVersion(id="ver-1", item_id="item-1", state="Released")
+    session = _session_for(
+        items={"item-1": item},
+        item_types={"Part": item_type},
+        states={"state-suspended": state},
+        versions={"ver-1": version},
+    )
+
+    with pytest.raises(SuspendedStateError) as exc_info:
+        SuspendedGuardService(session, settings=_settings(False)).assert_not_suspended(
+            "ver-1", context="effectivity"
+        )
+
+    assert exc_info.value.reason == "current_version_suspended"
+    assert exc_info.value.target_id == "ver-1"
 
 
 def test_non_suspended_item_passes() -> None:

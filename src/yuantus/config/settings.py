@@ -259,11 +259,11 @@ class Settings(BaseSettings):
     )
     LATEST_RELEASED_GUARD_DISABLED: bool = Field(
         default=False,
-        description="Disable latest-released write guard globally (tenant/org plugin config can override).",
+        description="Disable latest-released write guard globally; this is a hard disable.",
     )
     SUSPENDED_GUARD_DISABLED: bool = Field(
         default=False,
-        description="Disable suspended-state write guard globally (tenant/org plugin config can override).",
+        description="Disable suspended-state write guard globally; this is a hard disable.",
     )
 
     # Search engine (optional)
