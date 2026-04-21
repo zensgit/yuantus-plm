@@ -62,6 +62,48 @@ def _normalize_refdes(value: Any) -> Optional[str]:
     return text or None
 
 
+def _normalize_uom(value: Optional[Any], *, default: str = "EA") -> str:
+    text = _normalize_text(value)
+    return (text or default).upper()
+
+
+def _refdes_tokens(value: Any) -> List[str]:
+    """Extract individual refdes tokens from a payload value.
+
+    Accepts list/tuple/set of values, or a comma-separated string. Returns
+    stripped, non-empty tokens preserving input order (dedup and sort happen
+    at emit time so aggregation can accumulate tokens across duplicate edges).
+    None entries and blank strings are filtered out.
+    """
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [
+            str(v).strip()
+            for v in value
+            if v is not None and str(v).strip()
+        ]
+    text = str(value).strip()
+    if not text:
+        return []
+    return [token.strip() for token in text.split(",") if token.strip()]
+
+
+def _join_refdes_tokens(tokens: Any) -> Optional[str]:
+    """Deduplicate + stable-sort (lexicographic) + comma-join a token collection.
+
+    None entries and blank strings are filtered out before dedup.
+    """
+    unique_sorted = sorted(
+        {
+            str(t).strip()
+            for t in (tokens or [])
+            if t is not None and str(t).strip()
+        }
+    )
+    return ",".join(unique_sorted) if unique_sorted else None
+
+
 def _normalize_bom_payload(payload: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
     nodes = payload.get("nodes")
     edges = payload.get("edges")
@@ -251,8 +293,13 @@ class CadBomImportService:
             node_map[node_id] = item.id
             created_items += 1
 
+        # Phase 1: resolve + aggregate duplicate edges by (parent, child, normalized_uom).
+        # Duplicates sum qty; find_num keeps first non-empty; refdes tokens accumulate
+        # across edges and are dedup/sorted at emit time.
         created_lines = 0
         skipped_lines = 0
+        aggregated: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
+        aggregation_order: List[Tuple[str, str, str]] = []
 
         for edge in edges:
             parent_id = _extract_node_value(edge, "parent", "from", "source")
@@ -267,19 +314,47 @@ class CadBomImportService:
                 continue
 
             qty = _parse_quantity(_extract_node_value(edge, "quantity", "qty", "count"), default=1.0)
-            uom = _normalize_text(_extract_node_value(edge, "uom", "unit")) or "EA"
+            uom = _normalize_uom(_extract_node_value(edge, "uom", "unit"))
             find_num = _normalize_text(_extract_node_value(edge, "find_num", "findno", "position"))
-            refdes = _normalize_refdes(_extract_node_value(edge, "refdes", "ref_des"))
+            refdes_tokens = _refdes_tokens(_extract_node_value(edge, "refdes", "ref_des"))
 
+            key = (parent_item_id, child_item_id, uom)
+            existing_agg = aggregated.get(key)
+            if existing_agg is None:
+                aggregated[key] = {
+                    "parent_item_id": parent_item_id,
+                    "child_item_id": child_item_id,
+                    "uom": uom,
+                    "quantity": qty,
+                    "find_num": find_num,
+                    "refdes_tokens": set(refdes_tokens),
+                    "merged_count": 1,
+                }
+                aggregation_order.append(key)
+            else:
+                existing_agg["quantity"] += qty
+                if not existing_agg.get("find_num") and find_num:
+                    existing_agg["find_num"] = find_num
+                existing_agg["refdes_tokens"].update(refdes_tokens)
+                existing_agg["merged_count"] += 1
+
+        dedup_aggregated = sum(
+            agg["merged_count"] - 1 for agg in aggregated.values()
+        )
+
+        # Phase 2: emit one add_child per aggregated key, preserving first-seen order.
+        for key in aggregation_order:
+            agg = aggregated[key]
+            refdes_str = _join_refdes_tokens(agg["refdes_tokens"])
             try:
                 self.bom_service.add_child(
-                    parent_item_id,
-                    child_item_id,
+                    agg["parent_item_id"],
+                    agg["child_item_id"],
                     user_id=user_id,
-                    quantity=qty,
-                    uom=uom,
-                    find_num=find_num,
-                    refdes=refdes,
+                    quantity=agg["quantity"],
+                    uom=agg["uom"],
+                    find_num=agg.get("find_num"),
+                    refdes=refdes_str,
                 )
                 created_lines += 1
             except Exception as exc:
@@ -292,5 +367,6 @@ class CadBomImportService:
             "existing_items": existing_items,
             "created_lines": created_lines,
             "skipped_lines": skipped_lines,
+            "dedup_aggregated": dedup_aggregated,
             "errors": errors,
         }
