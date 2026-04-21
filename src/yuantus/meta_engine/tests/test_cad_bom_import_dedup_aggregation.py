@@ -93,6 +93,18 @@ def test_join_refdes_tokens_orders_numeric_chunks_naturally() -> None:
     assert _join_refdes_tokens(["C10", "R1", "C2", "R10"]) == "C2,C10,R1,R10"
 
 
+def test_join_refdes_tokens_orders_multiple_numeric_chunks_naturally() -> None:
+    assert _join_refdes_tokens(["J1A10", "J1A2", "J1A1"]) == "J1A1,J1A2,J1A10"
+
+
+def test_join_refdes_tokens_keeps_leading_zero_tokens_deterministic() -> None:
+    assert _join_refdes_tokens(["R10", "R02", "R2"]) == "R2,R02,R10"
+
+
+def test_join_refdes_tokens_keeps_case_variants_distinct() -> None:
+    assert _join_refdes_tokens(["r2", "R2", "R10"]) == "R2,R10,r2"
+
+
 # --- import_bom aggregation integration tests (mock bom_service) ---
 
 
@@ -354,7 +366,7 @@ def test_import_bom_preserves_first_non_empty_find_num() -> None:
 
 
 def test_import_bom_merges_refdes_tokens_across_duplicates_deduped_and_sorted() -> None:
-    """refdes tokens accumulate across duplicate edges, deduped, lexicographic-sorted."""
+    """refdes tokens accumulate across duplicate edges, deduped, natural-sorted."""
     service, _, add_child = _make_service_and_add_child_mock()
     payload = _payload(
         [
@@ -374,6 +386,25 @@ def test_import_bom_merges_refdes_tokens_across_duplicates_deduped_and_sorted() 
     call_kw = add_child.call_args_list[0].kwargs
     assert call_kw["refdes"] == "R1,R2,R3"
     assert call_kw["quantity"] == 4
+
+
+def test_import_bom_natural_sorts_refdes_tokens_across_duplicate_edges() -> None:
+    service, _, add_child = _make_service_and_add_child_mock()
+    payload = _payload(
+        [
+            {"parent": "root", "child": "c1", "quantity": 1, "uom": "EA", "refdes": "R10"},
+            {"parent": "root", "child": "c1", "quantity": 1, "uom": "EA", "refdes": "R2,R1"},
+        ]
+    )
+
+    result = service.import_bom(
+        root_item_id="root-item-id", bom_payload=payload, user_id=1
+    )
+
+    assert result["dedup_aggregated"] == 1
+    assert result["created_lines"] == 1
+    call_kw = add_child.call_args_list[0].kwargs
+    assert call_kw["refdes"] == "R1,R2,R10"
 
 
 def test_import_bom_sorts_single_edge_comma_separated_refdes() -> None:
