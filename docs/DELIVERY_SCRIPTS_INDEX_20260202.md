@@ -61,6 +61,7 @@
 - run_p2_shared_dev_142_workflow_readonly_check.sh
 - run_p2_observation_regression.sh
 - run_p2_observation_regression_workflow.sh
+- run_scheduler_audit_retention_activation_smoke.sh
 - sync_metasheet2_pact.sh
 - compare_p2_observation_results.py
 - evaluate_p2_observation_results.py
@@ -130,6 +131,7 @@
 - `render_p2_shared_dev_142_refreeze_readiness.py` renders a readonly refreeze-readiness decision pack from a current observation result dir, including any future-deadline pending approvals that would make a fresh frozen baseline age out again.
 - `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, supports either `TOKEN` or `USERNAME/PASSWORD`, can load defaults from `--env-file`, and can auto-write `<OUTPUT_DIR>.tar.gz`.
 - `run_p2_observation_regression_workflow.sh` is the canonical local wrapper for `gh workflow run/list/watch/download` against `p2-observation-regression`.
+- `run_scheduler_audit_retention_activation_smoke.sh` runs a local-dev-only scheduler activation smoke for `audit_retention_prune`, refusing non-SQLite or non-`local-dev-env/data` DB targets and keeping shared-dev scheduler activation out of scope.
 - `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.
 - `verify_cad_backend_profile_scope.sh` verifies `GET/PUT/DELETE /api/v1/cad/backend-profile` plus `GET /api/v1/cad/capabilities`, restores the original org scope, and skips tenant-default verification when an org override masks that read surface.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.
