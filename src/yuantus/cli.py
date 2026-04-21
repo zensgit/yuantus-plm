@@ -80,6 +80,10 @@ def worker(
         cad_bom,
     )
     from yuantus.meta_engine.tasks.system_tasks import quota_test
+    from yuantus.meta_engine.tasks.scheduler_tasks import (
+        audit_retention_prune,
+        eco_approval_escalation,
+    )
     from yuantus.meta_engine.tasks.breakage_tasks import (
         breakage_helpdesk_sync_stub,
         breakage_incidents_export,
@@ -98,6 +102,8 @@ def worker(
     w.register_handler("cad_dedup_vision", cad_dedup_vision)
     w.register_handler("cad_ml_vision", cad_ml_vision)
     w.register_handler("quota_test", quota_test)
+    w.register_handler("eco_approval_escalation", eco_approval_escalation)
+    w.register_handler("audit_retention_prune", audit_retention_prune)
     w.register_handler("breakage_helpdesk_sync_stub", breakage_helpdesk_sync_stub)
     w.register_handler("breakage_incidents_export", breakage_incidents_export)
     w.register_handler(
@@ -128,6 +134,78 @@ def worker(
     except KeyboardInterrupt:
         w.stop()
         typer.echo(f"Worker '{w.worker_id}' stopped.", err=True)
+
+
+@app.command()
+def scheduler(
+    poll_interval: Optional[int] = typer.Option(
+        None,
+        help="Scheduler poll interval seconds",
+    ),
+    once: bool = typer.Option(False, help="Run one scheduler tick then exit"),
+    force: bool = typer.Option(
+        False,
+        help="Run even when SCHEDULER_ENABLED=false",
+    ),
+    tenant: Optional[str] = typer.Option(
+        None,
+        "--tenant",
+        help="Tenant id for scheduled job payload/context",
+    ),
+    org: Optional[str] = typer.Option(
+        None,
+        "--org",
+        help="Org id for scheduled job payload/context",
+    ),
+) -> None:
+    """Run the lightweight scheduler that enqueues due periodic jobs."""
+    if tenant is not None:
+        tenant_id_var.set(tenant)
+    if org is not None:
+        org_id_var.set(org)
+
+    from yuantus.meta_engine.bootstrap import import_all_models
+    from yuantus.database import get_db_session
+    from yuantus.meta_engine.services.scheduler_service import SchedulerService
+
+    import_all_models()
+    settings = get_settings()
+    interval = (
+        int(poll_interval)
+        if poll_interval is not None
+        else int(settings.SCHEDULER_POLL_INTERVAL_SECONDS or 60)
+    )
+
+    def _tick() -> int:
+        with get_db_session() as session:
+            result = SchedulerService(session).run_once(force=force)
+        typer.echo(
+            json.dumps(
+                {
+                    "enqueued": [d.__dict__ for d in result.enqueued],
+                    "skipped": [d.__dict__ for d in result.skipped],
+                    "disabled": [d.__dict__ for d in result.disabled],
+                },
+                sort_keys=True,
+            )
+        )
+        return result.enqueued_count
+
+    if once:
+        _tick()
+        return
+
+    if not force and not settings.SCHEDULER_ENABLED:
+        typer.echo("Scheduler disabled (set YUANTUS_SCHEDULER_ENABLED=true).", err=True)
+        return
+
+    typer.echo("Scheduler started. Press Ctrl+C to stop.", err=True)
+    try:
+        while True:
+            _tick()
+            time.sleep(max(interval, 1))
+    except KeyboardInterrupt:
+        typer.echo("Scheduler stopped.", err=True)
 
 
 @search_app.command("reindex")

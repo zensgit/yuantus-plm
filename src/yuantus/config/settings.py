@@ -325,6 +325,50 @@ class Settings(BaseSettings):
     JOB_STALE_TIMEOUT_SECONDS: int = Field(
         default=900, description="Requeue processing jobs after this timeout (seconds)"
     )
+    SCHEDULER_ENABLED: bool = Field(
+        default=False,
+        description="Enable the lightweight application scheduler loop",
+    )
+    SCHEDULER_POLL_INTERVAL_SECONDS: int = Field(
+        default=60,
+        description="Scheduler loop poll interval seconds",
+    )
+    SCHEDULER_SYSTEM_USER_ID: int = Field(
+        default=1,
+        description="User id used for scheduler-created jobs",
+    )
+    SCHEDULER_ECO_ESCALATION_ENABLED: bool = Field(
+        default=True,
+        description="Enable periodic ECO overdue approval escalation job enqueue",
+    )
+    SCHEDULER_ECO_ESCALATION_INTERVAL_SECONDS: int = Field(
+        default=300,
+        description="Minimum seconds between ECO overdue escalation scheduler jobs",
+    )
+    SCHEDULER_ECO_ESCALATION_PRIORITY: int = Field(
+        default=80,
+        description="Queue priority for ECO overdue escalation scheduler jobs",
+    )
+    SCHEDULER_ECO_ESCALATION_MAX_ATTEMPTS: int = Field(
+        default=1,
+        description="Max attempts for ECO overdue escalation scheduler jobs",
+    )
+    SCHEDULER_AUDIT_RETENTION_ENABLED: bool = Field(
+        default=True,
+        description="Enable periodic audit retention prune job enqueue",
+    )
+    SCHEDULER_AUDIT_RETENTION_INTERVAL_SECONDS: int = Field(
+        default=3600,
+        description="Minimum seconds between audit retention scheduler jobs",
+    )
+    SCHEDULER_AUDIT_RETENTION_PRIORITY: int = Field(
+        default=95,
+        description="Queue priority for audit retention scheduler jobs",
+    )
+    SCHEDULER_AUDIT_RETENTION_MAX_ATTEMPTS: int = Field(
+        default=1,
+        description="Max attempts for audit retention scheduler jobs",
+    )
 
 
 @lru_cache(maxsize=1)
