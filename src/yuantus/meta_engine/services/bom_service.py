@@ -599,7 +599,11 @@ class BOMService:
             .filter(Item.source_id == target_item_id, Item.is_current.is_(True))
             .all()
         )
-        current_map = {rel.related_id: rel for rel in current_rels if rel.related_id}
+        current_map = {
+            (rel.related_id, _normalize_bom_uom((rel.properties or {}).get("uom"))): rel
+            for rel in current_rels
+            if rel.related_id
+        }
 
         stats = {"added": 0, "updated": 0}
 
@@ -637,10 +641,13 @@ class BOMService:
 
             # Properties to merge (filter out system keys)
             props = {k: v for k, v in rel_data.items() if k not in system_keys}
+            normalized_uom = _normalize_bom_uom(props.get("uom"))
+            props["uom"] = normalized_uom
+            bom_line_key = (child_id, normalized_uom)
 
-            if child_id in current_map:
+            if bom_line_key in current_map:
                 # Update existing
-                rel_item = current_map[child_id]
+                rel_item = current_map[bom_line_key]
                 # Simple merge: overwrite properties
                 current_props = dict(rel_item.properties or {})
                 current_props.update(props)

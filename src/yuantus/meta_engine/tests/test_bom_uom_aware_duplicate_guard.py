@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +12,7 @@ from yuantus.meta_engine.bootstrap import import_all_models
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.services.bom_service import BOMService
+from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.models.base import Base
 from yuantus.models import user as _user  # noqa: F401 - registers users table
 
@@ -149,3 +151,92 @@ def test_remove_child_with_uom_removes_selected_line(bom_service: BOMService) ->
     assert [line.id for line in remaining] == [ea["relationship_id"]]
     assert remaining[0].properties["uom"] == "EA"
 
+
+def _add_source_parent_with_version(
+    bom_service: BOMService,
+    *,
+    item_id: str = "source-parent-1",
+    version_id: str = "source-version-1",
+) -> str:
+    session = bom_service.session
+    session.add_all(
+        [
+            Item(
+                id=item_id,
+                item_type_id="Part",
+                config_id=f"cfg-{item_id}",
+                generation=1,
+                is_current=True,
+                state="Active",
+                properties={"item_number": item_id.upper()},
+            ),
+            ItemVersion(
+                id=version_id,
+                item_id=item_id,
+                generation=1,
+                revision="A",
+                version_label="1.A",
+                state="Released",
+                is_current=True,
+                is_released=True,
+                created_at=datetime.utcnow(),
+            ),
+        ]
+    )
+    session.flush()
+    return version_id
+
+
+def test_merge_bom_updates_matching_uom_without_overwriting_other_uom(
+    bom_service: BOMService,
+) -> None:
+    source_version_id = _add_source_parent_with_version(bom_service)
+    bom_service.add_child(parent_id="parent-1", child_id="child-1", quantity=2, uom="EA")
+    bom_service.add_child(parent_id="parent-1", child_id="child-1", quantity=100, uom="MM")
+    bom_service.add_child(
+        parent_id="source-parent-1",
+        child_id="child-1",
+        quantity=3,
+        uom="ea",
+    )
+
+    stats = bom_service.merge_bom(
+        target_item_id="parent-1",
+        source_version_id=source_version_id,
+        user_id=7,
+    )
+
+    assert stats == {"added": 0, "updated": 1}
+    lines = bom_service.get_bom_lines_by_parent_child("parent-1", "child-1")
+    quantities_by_uom = {
+        (line.properties or {}).get("uom"): (line.properties or {}).get("quantity")
+        for line in lines
+    }
+    assert quantities_by_uom == {"EA": 3, "MM": 100}
+
+
+def test_merge_bom_adds_missing_uom_variant_without_collapsing_child(
+    bom_service: BOMService,
+) -> None:
+    source_version_id = _add_source_parent_with_version(bom_service)
+    bom_service.add_child(parent_id="parent-1", child_id="child-1", quantity=2, uom="EA")
+    bom_service.add_child(
+        parent_id="source-parent-1",
+        child_id="child-1",
+        quantity=100,
+        uom="mm",
+    )
+
+    stats = bom_service.merge_bom(
+        target_item_id="parent-1",
+        source_version_id=source_version_id,
+        user_id=7,
+    )
+
+    assert stats == {"added": 1, "updated": 0}
+    lines = bom_service.get_bom_lines_by_parent_child("parent-1", "child-1")
+    quantities_by_uom = {
+        (line.properties or {}).get("uom"): (line.properties or {}).get("quantity")
+        for line in lines
+    }
+    assert quantities_by_uom == {"EA": 2, "MM": 100}
