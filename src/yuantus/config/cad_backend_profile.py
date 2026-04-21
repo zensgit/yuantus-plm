@@ -18,6 +18,17 @@ _PROFILE_ALIASES = {
     "external-enterprise": "external",
 }
 
+_STEP_IGES_BACKEND_ALIASES = {
+    "auto": "auto",
+    "local": "local",
+    "local-baseline": "local",
+    "builtin": "local",
+    "built-in": "local",
+    "connector": "connector",
+    "external": "connector",
+    "external-enterprise": "connector",
+}
+
 
 def available_cad_backend_profiles() -> list[str]:
     return [
@@ -25,6 +36,10 @@ def available_cad_backend_profiles() -> list[str]:
         _PROFILE_LABELS["hybrid"],
         _PROFILE_LABELS["external"],
     ]
+
+
+def available_cad_step_iges_backends() -> list[str]:
+    return ["auto", "local", "connector"]
 
 
 def normalize_cad_connector_mode(raw: Optional[str]) -> str:
@@ -37,6 +52,44 @@ def normalize_cad_connector_mode(raw: Optional[str]) -> str:
 def normalize_cad_backend_profile(raw: Optional[str]) -> str:
     profile = (raw or "auto").strip().lower()
     return _PROFILE_ALIASES.get(profile, "auto")
+
+
+def normalize_cad_step_iges_backend(raw: Optional[str]) -> str:
+    backend = (raw or "auto").strip().lower()
+    return _STEP_IGES_BACKEND_ALIASES.get(backend, "auto")
+
+
+def configured_cad_step_iges_backend_name(settings: Any) -> str:
+    return normalize_cad_step_iges_backend(
+        getattr(settings, "CAD_STEP_IGES_BACKEND", "auto")
+    )
+
+
+def _profile_label(value: Optional[str]) -> str:
+    normalized = normalize_cad_backend_profile(value)
+    if normalized == "auto":
+        return ""
+    return _PROFILE_LABELS[normalized]
+
+
+def effective_cad_step_iges_backend(
+    settings: Any, *, effective_profile: Optional[str] = None
+) -> str:
+    profile = _profile_label(effective_profile) or effective_cad_backend_profile_name(
+        settings
+    )
+    if profile == "local-baseline":
+        return "local"
+    if profile == "external-enterprise":
+        return "connector"
+
+    configured = configured_cad_step_iges_backend_name(settings)
+    if configured != "auto":
+        return configured
+
+    if profile == "hybrid-auto" and cad_connector_base_url_configured(settings):
+        return "connector"
+    return "local"
 
 
 def cad_backend_profile_source(settings: Any) -> str:

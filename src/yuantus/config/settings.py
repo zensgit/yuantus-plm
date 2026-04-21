@@ -139,6 +139,13 @@ class Settings(BaseSettings):
             "auto preserves legacy CAD_CONNECTOR_MODE behavior"
         ),
     )
+    CAD_STEP_IGES_BACKEND: str = Field(
+        default="auto",
+        description=(
+            "auto|local|connector for STEP/IGES preview/geometry under hybrid-auto; "
+            "local-baseline and external-enterprise profiles keep their strict defaults"
+        ),
+    )
     CAD_CONNECTORS_CONFIG_PATH: str = Field(
         default="",
         description="Optional JSON config path for custom CAD connectors",
