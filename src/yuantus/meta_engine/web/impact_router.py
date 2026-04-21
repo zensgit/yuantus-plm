@@ -32,6 +32,8 @@ class WhereUsedHit(BaseModel):
     parent_name: Optional[str] = None
     relationship_id: Optional[str] = None
     level: int = 1
+    quantity: Optional[Any] = None
+    uom: Optional[str] = None
     line: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -232,6 +234,8 @@ def export_item_impact_summary(
                     "parent_name",
                     "relationship_id",
                     "level",
+                    "quantity",
+                    "uom",
                     "line",
                 ],
             ),

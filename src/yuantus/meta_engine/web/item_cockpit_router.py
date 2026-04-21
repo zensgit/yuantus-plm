@@ -371,6 +371,8 @@ def export_item_cockpit(
                     "parent_name",
                     "relationship_id",
                     "level",
+                    "quantity",
+                    "uom",
                     "line",
                 ],
             ),
@@ -454,4 +456,3 @@ def export_item_cockpit(
 
     headers = {"Content-Disposition": f'attachment; filename="item-cockpit-{item_id}.zip"'}
     return StreamingResponse(io.BytesIO(bundle), media_type="application/zip", headers=headers)
-

@@ -150,4 +150,6 @@ The visible behavior change is that different UOMs now produce separate line key
 
 No immediate follow-up is required for the UOM compare path.
 
+The where-used impact / cockpit export read-surface follow-up is closed by `DEV_AND_VERIFICATION_WHERE_USED_UOM_EXPORT_COLUMNS_20260421.md`.
+
 If product later wants UOM synonyms such as `EACH` -> `EA`, that should be implemented through a tenant-level UOM dictionary, not hardcoded inside compare logic.

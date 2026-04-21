@@ -110,3 +110,45 @@ def test_links_only_skips_heavy_services_for_impact_and_readiness():
     esign.assert_not_called()
     readiness.assert_not_called()
 
+
+def test_where_used_summary_sample_exposes_relationship_quantity_and_uom():
+    service = ProductDetailService(MagicMock(), user_id="1", roles=["admin"])
+
+    with patch("yuantus.meta_engine.services.product_service.BOMService") as bom_cls:
+        bom_cls.return_value.get_where_used.return_value = [
+            {
+                "relationship": {"id": "rel-ea"},
+                "parent": {
+                    "id": "parent-1",
+                    "properties": {"item_number": "P-1", "name": "Parent 1"},
+                },
+                "level": 1,
+                "line": {"quantity": 2, "uom": "ea"},
+                "line_normalized": {"quantity": 2.0, "uom": "EA"},
+            },
+            {
+                "relationship": {"id": "rel-mm"},
+                "parent": {
+                    "id": "parent-1",
+                    "properties": {"item_number": "P-1", "name": "Parent 1"},
+                },
+                "level": 1,
+                "line": {"quantity": 3, "uom": "mm"},
+                "line_normalized": {"quantity": 3.0, "uom": "MM"},
+            },
+        ]
+
+        result = service._get_where_used_summary(
+            "child-1",
+            recursive=False,
+            max_levels=10,
+        )
+
+    assert result["count"] == 2
+    assert result["sample"][0]["relationship_id"] == "rel-ea"
+    assert result["sample"][0]["quantity"] == 2
+    assert result["sample"][0]["uom"] == "EA"
+    assert result["sample"][0]["line"] == {"quantity": 2, "uom": "ea"}
+    assert result["sample"][1]["relationship_id"] == "rel-mm"
+    assert result["sample"][1]["quantity"] == 3
+    assert result["sample"][1]["uom"] == "MM"

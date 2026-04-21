@@ -5,12 +5,25 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 import zipfile
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.models.item import Item
+
+
+@pytest.fixture(autouse=True)
+def _optional_auth_mode_for_router_tests():
+    settings = get_settings()
+    previous = settings.AUTH_MODE
+    settings.AUTH_MODE = "optional"
+    try:
+        yield
+    finally:
+        settings.AUTH_MODE = previous
 
 
 def _client_with_user(user):
@@ -107,6 +120,23 @@ def test_cockpit_happy_path_includes_impact_readiness_ecos_and_links():
     ):
         impact = impact_cls.return_value
         _mock_impact_service(impact)
+        impact.where_used_summary.return_value = {
+            "total": 1,
+            "hits": [
+                {
+                    "parent_id": "p1",
+                    "parent_number": "P-1",
+                    "parent_name": "Parent1",
+                    "relationship_id": "rel-1",
+                    "level": 1,
+                    "quantity": 2,
+                    "uom": "MM",
+                    "line": {"quantity": 2, "uom": "MM"},
+                }
+            ],
+            "recursive": False,
+            "max_levels": 10,
+        }
 
         readiness = readiness_cls.return_value
         readiness.get_item_release_readiness.return_value = _mock_readiness_payload(
@@ -124,6 +154,8 @@ def test_cockpit_happy_path_includes_impact_readiness_ecos_and_links():
     assert data["item"]["id"] == "item-1"
     assert "generated_at" in data
     assert data["impact_summary"]["item_id"] == "item-1"
+    assert data["impact_summary"]["where_used"]["hits"][0]["quantity"] == 2
+    assert data["impact_summary"]["where_used"]["hits"][0]["uom"] == "MM"
     assert data["release_readiness"]["ruleset_id"] == "readiness"
     assert data["open_ecos"]["total"] == 0
     assert "impact_export" in data["links"]
@@ -192,6 +224,23 @@ def test_cockpit_export_zip_contains_expected_files():
     ):
         impact = impact_cls.return_value
         _mock_impact_service(impact)
+        impact.where_used_summary.return_value = {
+            "total": 1,
+            "hits": [
+                {
+                    "parent_id": "p1",
+                    "parent_number": "P-1",
+                    "parent_name": "Parent1",
+                    "relationship_id": "rel-1",
+                    "level": 1,
+                    "quantity": 2,
+                    "uom": "MM",
+                    "line": {"quantity": 2, "uom": "MM"},
+                }
+            ],
+            "recursive": False,
+            "max_levels": 10,
+        }
 
         readiness = readiness_cls.return_value
         readiness.get_item_release_readiness.return_value = _mock_readiness_payload(
@@ -217,4 +266,8 @@ def test_cockpit_export_zip_contains_expected_files():
     assert "readiness_errors.csv" in names
     assert "readiness_warnings.csv" in names
     assert "open_ecos.csv" in names
-
+    where_used_csv = zf.read("where_used.csv").decode("utf-8-sig")
+    assert where_used_csv.splitlines()[0] == (
+        "parent_id,parent_number,parent_name,relationship_id,level,quantity,uom,line"
+    )
+    assert "rel-1,1,2,MM," in where_used_csv
