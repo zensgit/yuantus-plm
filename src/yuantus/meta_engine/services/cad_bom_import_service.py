@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -13,6 +14,9 @@ from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.services.bom_service import BOMService
 from yuantus.meta_engine.services.cad_service import normalize_cad_attributes
+
+
+_NATURAL_SORT_RE = re.compile(r"(\d+)")
 
 
 def _json_text(expr):
@@ -89,8 +93,26 @@ def _refdes_tokens(value: Any) -> List[str]:
     return [token.strip() for token in text.split(",") if token.strip()]
 
 
+def _natural_refdes_sort_key(token: str) -> Tuple[Tuple[Any, ...], ...]:
+    """Sort reference designators by text prefix and numeric chunks.
+
+    This keeps deterministic grouping by designator prefix while ordering
+    R2 before R10, C2 before C10, etc. The original token is retained as a
+    final tie-breaker so case variants remain stable without normalizing data.
+    """
+    parts: List[Tuple[Any, ...]] = []
+    for part in _NATURAL_SORT_RE.split(str(token)):
+        if not part:
+            continue
+        if part.isdigit():
+            parts.append((1, int(part)))
+        else:
+            parts.append((0, part.casefold(), part))
+    return tuple(parts)
+
+
 def _join_refdes_tokens(tokens: Any) -> Optional[str]:
-    """Deduplicate + stable-sort (lexicographic) + comma-join a token collection.
+    """Deduplicate + natural-sort + comma-join a token collection.
 
     None entries and blank strings are filtered out before dedup.
     """
@@ -99,7 +121,8 @@ def _join_refdes_tokens(tokens: Any) -> Optional[str]:
             str(t).strip()
             for t in (tokens or [])
             if t is not None and str(t).strip()
-        }
+        },
+        key=_natural_refdes_sort_key,
     )
     return ",".join(unique_sorted) if unique_sorted else None
 

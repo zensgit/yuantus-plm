@@ -66,12 +66,17 @@ def test_refdes_tokens_from_list_preserves_input_order() -> None:
     assert _refdes_tokens(("R1", "", "R2", None, "  ")) == ["R1", "R2"]
 
 
-def test_join_refdes_tokens_sorts_and_deduplicates() -> None:
+def test_join_refdes_tokens_natural_sorts_and_deduplicates() -> None:
     assert _join_refdes_tokens(["R2", "R1", "R3", "R1"]) == "R1,R2,R3"
     assert _join_refdes_tokens({"R1", "R2"}) == "R1,R2"
     assert _join_refdes_tokens([]) is None
     assert _join_refdes_tokens(None) is None
     assert _join_refdes_tokens(["  ", None, ""]) is None
+
+
+def test_join_refdes_tokens_orders_numeric_chunks_naturally() -> None:
+    assert _join_refdes_tokens(["R10", "R2", "R1"]) == "R1,R2,R10"
+    assert _join_refdes_tokens(["C10", "R1", "C2", "R10"]) == "C2,C10,R1,R10"
 
 
 # --- import_bom aggregation integration tests (mock bom_service) ---
@@ -240,10 +245,10 @@ def test_import_bom_merges_refdes_tokens_across_duplicates_deduped_and_sorted() 
 
 
 def test_import_bom_sorts_single_edge_comma_separated_refdes() -> None:
-    """Single edge with comma-separated refdes still gets sorted + deduped."""
+    """Single edge with comma-separated refdes still gets natural-sorted + deduped."""
     service, _, add_child = _make_service_and_add_child_mock()
     payload = _payload(
-        [{"parent": "root", "child": "c1", "quantity": 1, "uom": "EA", "refdes": "R3,R1,R2,R1"}]
+        [{"parent": "root", "child": "c1", "quantity": 1, "uom": "EA", "refdes": "R10,R1,R2,R1"}]
     )
 
     result = service.import_bom(
@@ -252,7 +257,7 @@ def test_import_bom_sorts_single_edge_comma_separated_refdes() -> None:
 
     assert result["created_lines"] == 1
     call_kw = add_child.call_args_list[0].kwargs
-    assert call_kw["refdes"] == "R1,R2,R3"
+    assert call_kw["refdes"] == "R1,R2,R10"
 
 
 def test_import_bom_refdes_all_empty_yields_none() -> None:

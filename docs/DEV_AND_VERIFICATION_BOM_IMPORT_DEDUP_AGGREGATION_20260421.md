@@ -229,7 +229,7 @@ Real-session 测试明确了：同一 `(parent, child)` 对，两条 edge 分别
 
 - **同 (parent, child) 不同 uom 不能同时存在**：受 `BOMService.get_bom_line_by_parent_child` 的唯一键约束（只看 `source_id + related_id`，不看 uom）。Phase 2 第二行会被拦截 → `skipped_lines += 1`。扩大 scope 到把 uom 纳入唯一键是必然的后续增量，走独立 PR
 - `find_num` 保留首个非空已是足够策略；若未来需要跨 edge merge（如带 `find_num="10/20/30"` 语义），再独立升级
-- `_refdes_tokens` 的 lexicographic 排序对形如 `R10` / `R2` 的混合会产生 `R1,R10,R2` 这种「字符串序」结果；如需 natural sort（`R1,R2,R10`）走独立增量
+- `_refdes_tokens` 的 natural sort follow-up 已由 `DEV_AND_VERIFICATION_REFDES_NATURAL_SORT_20260421.md` 收敛：形如 `R10` / `R2` 的混合现在输出 `R1,R2,R10`
 - uom 归一只做到 upper + strip，未做同义映射（e.g. `"EACH"` ↔ `"EA"`、`"MMS"` ↔ `"MM"`）——PLM 里 UOM 字典应该由租户级配置而非硬编码
 - 跨 import 批次的重复检测仍然依赖 `BOMService.add_child` 的「relationship already exists」guard，本 PR 不改变那一侧
 
