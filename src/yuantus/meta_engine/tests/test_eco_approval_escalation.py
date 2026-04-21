@@ -44,11 +44,13 @@ def _overdue_entry(eco_id="eco-1", stage_id="s1"):
 # ========================================================================
 
 class TestHTTPAuth:
-    def _client_no_user(self):
+    def _client_no_user(self, monkeypatch):
         from fastapi.testclient import TestClient
         from yuantus.api.app import create_app
         from yuantus.api.dependencies.auth import get_current_user_id
+        from yuantus.config import get_settings
         from yuantus.database import get_db
+        monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
         app = create_app()
         def no_db():
             try: yield MagicMock()
@@ -60,35 +62,50 @@ class TestHTTPAuth:
         app.dependency_overrides[get_current_user_id] = no_user
         return TestClient(app)
 
-    def _client_with_user(self, uid):
+    def _client_with_user(self, uid, monkeypatch):
         from fastapi.testclient import TestClient
         from yuantus.api.app import create_app
-        from yuantus.api.dependencies.auth import get_current_user_id
+        from yuantus.api.dependencies.auth import (
+            CurrentUser,
+            get_current_user,
+            get_current_user_id,
+        )
+        from yuantus.config import get_settings
         from yuantus.database import get_db
+        monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
         app = create_app()
         db = MagicMock()
         def override_db():
             try: yield db
             finally: pass
         app.dependency_overrides[get_db] = override_db
+        app.dependency_overrides[get_current_user] = lambda: CurrentUser(
+            id=uid,
+            tenant_id="tenant-1",
+            org_id="org-1",
+            username=f"user-{uid}",
+            email=None,
+            roles=[],
+            is_superuser=(uid == 1),
+        )
         app.dependency_overrides[get_current_user_id] = lambda: uid
         return TestClient(app), db
 
-    def test_401_no_auth(self):
-        c = self._client_no_user()
+    def test_401_no_auth(self, monkeypatch):
+        c = self._client_no_user(monkeypatch)
         resp = c.post("/api/v1/eco/approvals/escalate-overdue")
         assert resp.status_code == 401
 
-    def test_403_no_permission(self):
-        c, db = self._client_with_user(7)
+    def test_403_no_permission(self, monkeypatch):
+        c, db = self._client_with_user(7, monkeypatch)
         with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
             M.return_value.escalate_overdue_approvals.side_effect = PermissionError(
                 action="escalate_overdue", resource="ECO", details={})
             resp = c.post("/api/v1/eco/approvals/escalate-overdue")
         assert resp.status_code == 403
 
-    def test_200_authorized(self):
-        c, db = self._client_with_user(1)
+    def test_200_authorized(self, monkeypatch):
+        c, db = self._client_with_user(1, monkeypatch)
         with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
             M.return_value.escalate_overdue_approvals.return_value = {"escalated": 0, "items": []}
             resp = c.post("/api/v1/eco/approvals/escalate-overdue")
