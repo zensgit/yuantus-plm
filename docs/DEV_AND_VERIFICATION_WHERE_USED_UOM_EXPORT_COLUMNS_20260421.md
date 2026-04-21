@@ -163,9 +163,10 @@ Existing JSON clients that read the nested `line` object continue to work. CSV c
 
 Not closed by this increment:
 
-- legacy `ReportService._flatten_bom()` still buckets by child without UOM
 - `BaselineService.compare_baselines()` snapshots do not carry UOM buckets
 
 The BOM rollup child-row UOM visibility follow-up is closed by `DEV_AND_VERIFICATION_BOM_ROLLUP_UOM_CHILD_VISIBILITY_20260421.md`.
 
-Those are separate read/reporting increments because each has different downstream compatibility risk.
+The legacy report flattened BOM follow-up is closed by `DEV_AND_VERIFICATION_REPORT_BOM_FLATTEN_UOM_BUCKETS_20260421.md`.
+
+Baseline snapshots remain a separate read/reporting increment because they have different downstream compatibility risk.

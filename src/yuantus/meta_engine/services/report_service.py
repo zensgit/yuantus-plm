@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from yuantus.meta_engine.services.bom_service import BOMService
+from yuantus.meta_engine.services.bom_service import BOMService, _normalize_bom_uom
 from yuantus.meta_engine.models.baseline import Baseline
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.eco import ECO, ECOStage
@@ -296,8 +296,10 @@ class ReportService:
             if not val_a:
                 diffs.append(
                     {
-                        "id": key,
+                        "id": val_b.get("id", key),
+                        "bucket_key": key,
                         "name": name,
+                        "uom": val_b.get("uom"),
                         "status": "added",
                         "new_qty": val_b["qty"],
                     }
@@ -306,8 +308,10 @@ class ReportService:
             elif not val_b:
                 diffs.append(
                     {
-                        "id": key,
+                        "id": val_a.get("id", key),
+                        "bucket_key": key,
                         "name": name,
+                        "uom": val_a.get("uom"),
                         "status": "removed",
                         "old_qty": val_a["qty"],
                     }
@@ -317,8 +321,10 @@ class ReportService:
                 if abs(val_a["qty"] - val_b["qty"]) > 0.000001:
                     diffs.append(
                         {
-                            "id": key,
+                            "id": val_a.get("id", key),
+                            "bucket_key": key,
                             "name": name,
+                            "uom": val_a.get("uom"),
                             "status": "modified",
                             "old_qty": val_a["qty"],
                             "new_qty": val_b["qty"],
@@ -338,7 +344,7 @@ class ReportService:
 
     def _flatten_bom(self, bom_tree: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         """
-        Flattens a BOM tree into a summary of {child_id: {qty: total_qty, name: ...}}
+        Flattens a BOM tree into UOM-aware buckets.
         """
         summary = {}
 
@@ -351,6 +357,7 @@ class ReportService:
                     # Get properties for quantity
                     rel = child_entry["relationship"]
                     props = rel.get("properties", {})
+                    uom = _normalize_bom_uom(props.get("uom"))
                     try:
                         qty = float(props.get("quantity", props.get("qty", 1.0)))
                     except (ValueError, TypeError):
@@ -362,9 +369,15 @@ class ReportService:
                     child_props = child_data.get("properties", {})
                     name = child_props.get("name", "Unknown")
 
-                    if child_id not in summary:
-                        summary[child_id] = {"qty": 0.0, "name": name}
-                    summary[child_id]["qty"] += total_qty
+                    bucket_key = f"{child_id}::{uom}"
+                    if bucket_key not in summary:
+                        summary[bucket_key] = {
+                            "id": child_id,
+                            "qty": 0.0,
+                            "name": name,
+                            "uom": uom,
+                        }
+                    summary[bucket_key]["qty"] += total_qty
 
                     # Recurse
                     _recurse(child_data, total_qty)
@@ -380,8 +393,13 @@ class ReportService:
         summary = self._flatten_bom(tree)
 
         result = []
-        for cid, data in summary.items():
+        for _bucket_key, data in summary.items():
             result.append(
-                {"id": cid, "name": data["name"], "total_quantity": data["qty"]}
+                {
+                    "id": data["id"],
+                    "name": data["name"],
+                    "total_quantity": data["qty"],
+                    "uom": data["uom"],
+                }
             )
         return result

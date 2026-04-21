@@ -147,9 +147,10 @@ Existing clients that ignore unknown child fields remain compatible. Product det
 
 ## 8. Follow-Up
 
-Still open as separate read/reporting increments:
+The legacy report flattened BOM follow-up is closed by `DEV_AND_VERIFICATION_REPORT_BOM_FLATTEN_UOM_BUCKETS_20260421.md`.
 
-- legacy `ReportService._flatten_bom()` buckets by child without UOM
+Still open as a separate read/reporting increment:
+
 - `BaselineService.compare_baselines()` snapshots do not carry UOM buckets
 
-Both have broader downstream compatibility impact than this additive rollup tree field.
+Baseline snapshots have broader downstream compatibility impact than this additive rollup tree field.
