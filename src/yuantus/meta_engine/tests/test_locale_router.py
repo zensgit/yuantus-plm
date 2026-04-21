@@ -3,10 +3,18 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
+from yuantus.config import get_settings
 from yuantus.database import get_db
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    """These tests mock router dependencies directly; middleware auth is out of scope."""
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _client_with_db():
