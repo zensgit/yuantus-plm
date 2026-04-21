@@ -160,4 +160,9 @@ pass
 
 This is not auto-translation and not report localization. It is the product/Item field helper needed before any UI or import pipeline can safely expose multilingual product descriptions.
 
-Next possible increment: wire CAD BOM import to preserve incoming multilingual description maps when the source data provides them.
+The CAD BOM import follow-up is closed by `DEV_AND_VERIFICATION_CAD_BOM_IMPORT_I18N_DESCRIPTION_PRESERVATION_20260421.md`.
+
+Remaining separate future work:
+
+- report-level language selection;
+- translation provider / auto-translation integration.

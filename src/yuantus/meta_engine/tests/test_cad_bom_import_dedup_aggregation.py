@@ -11,9 +11,11 @@ from sqlalchemy.orm import sessionmaker
 from yuantus.meta_engine.bootstrap import import_all_models
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
+from yuantus.meta_engine.locale.service import resolve_localized_property
 from yuantus.meta_engine.services.cad_bom_import_service import (
     CadBomImportService,
     _normalize_uom,
+    _normalize_localized_text_map,
     _refdes_tokens,
     _join_refdes_tokens,
 )
@@ -44,6 +46,18 @@ def test_normalize_uom_custom_default() -> None:
     assert _normalize_uom(None, default="UN") == "UN"
     assert _normalize_uom("", default="UN") == "UN"
     assert _normalize_uom("mm", default="UN") == "MM"
+
+
+# --- localized text helper tests ---
+
+
+def test_normalize_localized_text_map_filters_empty_values() -> None:
+    assert _normalize_localized_text_map(None) is None
+    assert _normalize_localized_text_map("Bolt") is None
+    assert _normalize_localized_text_map({"zh_CN": " 内六角螺栓 ", "en_US": ""}) == {
+        "zh_CN": "内六角螺栓"
+    }
+    assert _normalize_localized_text_map({"zh_CN": None, "en_US": "  "}) is None
 
 
 # --- _refdes_tokens / _join_refdes_tokens unit tests ---
@@ -99,6 +113,7 @@ def _make_service_and_add_child_mock():
         properties=[
             SimpleNamespace(name="item_number", is_cad_synced=False, ui_options={}),
             SimpleNamespace(name="name", is_cad_synced=False, ui_options={}),
+            SimpleNamespace(name="description", is_cad_synced=False, ui_options={}),
         ],
     )
 
@@ -119,6 +134,14 @@ def _make_service_and_add_child_mock():
     service.bom_service = MagicMock()
     service.bom_service.add_child = MagicMock(return_value={"ok": True})
     return service, session, service.bom_service.add_child
+
+
+def _created_item_properties(session, item_number: str):
+    for call in session.add.call_args_list:
+        item = call.args[0]
+        if isinstance(item, Item) and (item.properties or {}).get("item_number") == item_number:
+            return item.properties
+    raise AssertionError(f"created item not found: {item_number}")
 
 
 def _payload(edges, *, nodes=None, root="root"):
@@ -154,6 +177,115 @@ def test_import_bom_aggregates_duplicate_edges_same_uom() -> None:
     assert quantities == [1, 5]
     uoms = {c.kwargs["uom"] for c in add_child.call_args_list}
     assert uoms == {"EA"}
+
+
+def test_import_bom_preserves_direct_description_i18n_map() -> None:
+    service, session, _ = _make_service_and_add_child_mock()
+    payload = _payload(
+        [{"parent": "root", "child": "c1", "quantity": 1, "uom": "EA"}],
+        nodes=[
+            {"id": "root", "item_number": "ROOT-001"},
+            {
+                "id": "c1",
+                "item_number": "PART-I18N",
+                "description": {
+                    "zh_CN": "内六角螺栓",
+                    "en_US": "Hex bolt",
+                    "fr_FR": "  ",
+                },
+            },
+        ],
+    )
+
+    result = service.import_bom(
+        root_item_id="root-item-id", bom_payload=payload, user_id=1
+    )
+
+    assert result["created_items"] == 1
+    props = _created_item_properties(session, "PART-I18N")
+    assert props["description"] == "Hex bolt"
+    assert props["description_i18n"] == {
+        "zh_CN": "内六角螺栓",
+        "en_US": "Hex bolt",
+    }
+    resolved = resolve_localized_property(props, "description", lang="zh_CN")
+    assert resolved["value"] == "内六角螺栓"
+    assert resolved["source"] == "properties_i18n"
+
+
+def test_import_bom_preserves_nested_description_i18n_without_changing_scalar() -> None:
+    service, session, _ = _make_service_and_add_child_mock()
+    payload = _payload(
+        [{"parent": "root", "child": "c1", "quantity": 1, "uom": "EA"}],
+        nodes=[
+            {"id": "root", "item_number": "ROOT-001"},
+            {
+                "id": "c1",
+                "item_number": "PART-NESTED-I18N",
+                "description": "Hex bolt",
+                "i18n": {"description": {"zh_CN": "内六角螺栓"}},
+            },
+        ],
+    )
+
+    result = service.import_bom(
+        root_item_id="root-item-id", bom_payload=payload, user_id=1
+    )
+
+    assert result["created_items"] == 1
+    props = _created_item_properties(session, "PART-NESTED-I18N")
+    assert props["description"] == "Hex bolt"
+    assert props["description_i18n"] == {"zh_CN": "内六角螺栓"}
+
+
+def test_import_bom_preserves_name_i18n_map() -> None:
+    service, session, _ = _make_service_and_add_child_mock()
+    payload = _payload(
+        [{"parent": "root", "child": "c1", "quantity": 1, "uom": "EA"}],
+        nodes=[
+            {"id": "root", "item_number": "ROOT-001"},
+            {
+                "id": "c1",
+                "item_number": "PART-NAME-I18N",
+                "name_i18n": {"zh_CN": "支架", "en_US": "Bracket"},
+            },
+        ],
+    )
+
+    result = service.import_bom(
+        root_item_id="root-item-id", bom_payload=payload, user_id=1
+    )
+
+    assert result["created_items"] == 1
+    props = _created_item_properties(session, "PART-NAME-I18N")
+    assert props["name"] == "Bracket"
+    assert props["name_i18n"] == {"zh_CN": "支架", "en_US": "Bracket"}
+    resolved = resolve_localized_property(props, "name", lang="zh_CN")
+    assert resolved["value"] == "支架"
+
+
+def test_import_bom_scalar_description_does_not_create_i18n_sidecar() -> None:
+    service, session, _ = _make_service_and_add_child_mock()
+    payload = _payload(
+        [{"parent": "root", "child": "c1", "quantity": 1, "uom": "EA"}],
+        nodes=[
+            {"id": "root", "item_number": "ROOT-001"},
+            {
+                "id": "c1",
+                "item_number": "PART-SCALAR",
+                "description": "Plain CAD description",
+            },
+        ],
+    )
+
+    result = service.import_bom(
+        root_item_id="root-item-id", bom_payload=payload, user_id=1
+    )
+
+    assert result["created_items"] == 1
+    props = _created_item_properties(session, "PART-SCALAR")
+    assert props["description"] == "Plain CAD description"
+    assert "description_i18n" not in props
 
 
 def test_import_bom_normalizes_uom_case_and_whitespace() -> None:
