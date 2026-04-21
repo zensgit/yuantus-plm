@@ -101,6 +101,52 @@ def test_scheduler_force_enqueues_due_task_with_scoped_payload(session, scoped_c
     assert job.payload["scheduler_enqueued_at"] == now.isoformat()
 
 
+def test_scheduler_dry_run_reports_due_task_without_enqueue(session, scoped_context):
+    now = datetime(2026, 4, 21, 1, 0, 0)
+    service = SchedulerService(
+        session,
+        settings=_settings(SCHEDULER_ENABLED=False, SCHEDULER_SYSTEM_USER_ID=9),
+        tasks=[_task()],
+    )
+
+    result = service.run_once(now=now, force=True, dry_run=True)
+
+    assert result.enqueued == []
+    assert result.enqueued_count == 0
+    assert result.would_enqueue_count == 1
+    decision = result.would_enqueue[0]
+    assert decision.action == "would_enqueue"
+    assert decision.reason == "dry_run_due"
+    assert decision.task_type == "quota_test"
+    assert decision.job_id is None
+    assert decision.dedupe_key == "scheduler:sample:tenant:tenant-1:org:org-1"
+    assert session.query(ConversionJob).count() == 0
+
+
+def test_scheduler_dry_run_still_reports_active_existing_job(session, scoped_context):
+    session.add(
+        ConversionJob(
+            task_type="quota_test",
+            payload={"scheduler_task": "sample"},
+            status=JobStatus.PENDING.value,
+            dedupe_key="scheduler:sample:tenant:tenant-1:org:org-1",
+            created_at=datetime(2026, 4, 21, 1, 0, 0),
+        )
+    )
+    session.commit()
+    service = SchedulerService(session, settings=_settings(), tasks=[_task()])
+
+    result = service.run_once(
+        now=datetime(2026, 4, 21, 2, 0, 0),
+        force=True,
+        dry_run=True,
+    )
+
+    assert result.would_enqueue == []
+    assert [d.reason for d in result.skipped] == ["active_job_exists"]
+    assert session.query(ConversionJob).count() == 1
+
+
 def test_scheduler_skips_active_existing_job(session, scoped_context):
     session.add(
         ConversionJob(
@@ -265,6 +311,8 @@ def test_cli_registers_scheduler_command_and_worker_handlers():
     worker_src = inspect.getsource(cli.worker)
 
     assert "SchedulerService" in scheduler_src
-    assert "run_once(force=force)" in scheduler_src
+    assert "dry_run" in scheduler_src
+    assert "run_once(force=force, dry_run=dry_run)" in scheduler_src
+    assert '"would_enqueue": [d.__dict__ for d in result.would_enqueue]' in scheduler_src
     assert "eco_approval_escalation" in worker_src
     assert "audit_retention_prune" in worker_src

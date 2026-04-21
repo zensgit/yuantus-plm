@@ -38,10 +38,15 @@ class SchedulerRunResult:
     enqueued: List[SchedulerDecision]
     skipped: List[SchedulerDecision]
     disabled: List[SchedulerDecision]
+    would_enqueue: List[SchedulerDecision]
 
     @property
     def enqueued_count(self) -> int:
         return len(self.enqueued)
+
+    @property
+    def would_enqueue_count(self) -> int:
+        return len(self.would_enqueue)
 
 
 def default_scheduler_tasks(settings: Any) -> List[SchedulerTask]:
@@ -92,12 +97,17 @@ class SchedulerService:
         self.tasks = tasks if tasks is not None else default_scheduler_tasks(self.settings)
 
     def run_once(
-        self, *, now: Optional[datetime] = None, force: bool = False
+        self,
+        *,
+        now: Optional[datetime] = None,
+        force: bool = False,
+        dry_run: bool = False,
     ) -> SchedulerRunResult:
         now = now or datetime.utcnow()
         enqueued: List[SchedulerDecision] = []
         skipped: List[SchedulerDecision] = []
         disabled: List[SchedulerDecision] = []
+        would_enqueue: List[SchedulerDecision] = []
 
         if not force and not bool(getattr(self.settings, "SCHEDULER_ENABLED", False)):
             for task in self.tasks:
@@ -109,21 +119,43 @@ class SchedulerService:
                         reason="scheduler_disabled",
                     )
                 )
-            return SchedulerRunResult(enqueued=enqueued, skipped=skipped, disabled=disabled)
+            return SchedulerRunResult(
+                enqueued=enqueued,
+                skipped=skipped,
+                disabled=disabled,
+                would_enqueue=would_enqueue,
+            )
 
         for task in self.tasks:
-            decision = self._evaluate_task(task, now=now, force=force)
+            decision = self._evaluate_task(
+                task,
+                now=now,
+                force=force,
+                dry_run=dry_run,
+            )
             if decision.action == "enqueued":
                 enqueued.append(decision)
+            elif decision.action == "would_enqueue":
+                would_enqueue.append(decision)
             elif decision.action == "disabled":
                 disabled.append(decision)
             else:
                 skipped.append(decision)
 
-        return SchedulerRunResult(enqueued=enqueued, skipped=skipped, disabled=disabled)
+        return SchedulerRunResult(
+            enqueued=enqueued,
+            skipped=skipped,
+            disabled=disabled,
+            would_enqueue=would_enqueue,
+        )
 
     def _evaluate_task(
-        self, task: SchedulerTask, *, now: datetime, force: bool
+        self,
+        task: SchedulerTask,
+        *,
+        now: datetime,
+        force: bool,
+        dry_run: bool,
     ) -> SchedulerDecision:
         dedupe_key = self._dedupe_key(task)
         if not task.enabled:
@@ -165,6 +197,15 @@ class SchedulerService:
                 action="skipped",
                 reason="not_due",
                 job_id=last_job.id,
+                dedupe_key=dedupe_key,
+            )
+
+        if dry_run:
+            return SchedulerDecision(
+                name=task.name,
+                task_type=task.task_type,
+                action="would_enqueue",
+                reason="dry_run_due",
                 dedupe_key=dedupe_key,
             )
 
