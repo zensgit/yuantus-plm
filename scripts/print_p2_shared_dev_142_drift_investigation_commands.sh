@@ -26,9 +26,9 @@ OUTPUT_DIR="./tmp/p2-shared-dev-142-drift-investigation-$(date +%Y%m%d-%H%M%S)"
 bash scripts/run_p2_shared_dev_142_drift_audit.sh \
   --env-file "$ENV_FILE" \
   --output-dir "$OUTPUT_DIR/drift-audit" \
-  --baseline-dir "./tmp/p2-shared-dev-observation-20260419-193242" \
-  --baseline-archive "./tmp/p2-shared-dev-observation-20260419-193242.tar.gz" \
-  --baseline-label "shared-dev-142-readonly-20260419" \
+  --baseline-dir "./tmp/p2-shared-dev-observation-20260421-stable" \
+  --baseline-archive "./tmp/p2-shared-dev-observation-20260421-stable.tar.gz" \
+  --baseline-label "shared-dev-142-readonly-20260421" \
   --current-label "current-drift-audit" \
   --no-archive
 

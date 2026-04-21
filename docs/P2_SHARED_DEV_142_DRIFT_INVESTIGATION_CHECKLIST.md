@@ -38,9 +38,11 @@ bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-investigation-comm
 - observation env:
   - `$HOME/.config/yuantus/p2-shared-dev.env`
 - official readonly baseline:
-  - `./tmp/p2-shared-dev-observation-20260419-193242`
+  - `./tmp/p2-shared-dev-observation-20260421-stable`
 - baseline label:
-  - `shared-dev-142-readonly-20260419`
+  - `shared-dev-142-readonly-20260421`
+- baseline policy:
+  - `overdue-only-stable`
 
 ## 最小执行顺序
 
@@ -76,11 +78,14 @@ bash scripts/run_p2_shared_dev_142_drift_investigation.sh
 - `drift-audit/current/OBSERVATION_RESULT.md`
 - `drift-audit/current/OBSERVATION_DIFF.md`
 - `drift-audit/current/OBSERVATION_EVAL.md`
+- `drift-audit/current/STABLE_CURRENT_TRANSFORM.md`
+- `drift-audit/current/stable_current_transform.json`
 - `drift-audit/current/summary.json`
 - `drift-audit/current/items.json`
 - `drift-audit/current/anomalies.json`
 - `drift-audit/current/export.json`
 - `drift-audit/current/export.csv`
+- `drift-audit/current/raw-current/OBSERVATION_RESULT.md`
 
 ## 先看什么
 

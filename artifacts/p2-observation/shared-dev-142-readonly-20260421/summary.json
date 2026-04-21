@@ -1,0 +1,25 @@
+{
+  "pending_count": 0,
+  "overdue_count": 4,
+  "escalated_count": 1,
+  "by_stage": [
+    {
+      "stage_id": "5da342a5-dca1-4323-9bb9-3bf57feeace1",
+      "stage_name": "Review",
+      "pending": 0,
+      "overdue": 4
+    }
+  ],
+  "by_assignee": [
+    {
+      "user_id": 1,
+      "username": "admin",
+      "count": 3
+    },
+    {
+      "user_id": 2,
+      "username": "ops-viewer",
+      "count": 1
+    }
+  ]
+}

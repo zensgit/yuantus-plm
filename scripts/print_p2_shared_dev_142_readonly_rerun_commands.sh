@@ -20,11 +20,11 @@ Use the expanded commands below only when you want to inspect or tweak each step
 Canonical readonly baseline
 
 - baseline dir:
-  - `./tmp/p2-shared-dev-observation-20260419-193242`
+  - `./tmp/p2-shared-dev-observation-20260421-stable`
 - baseline archive:
-  - `./tmp/p2-shared-dev-observation-20260419-193242.tar.gz`
+  - `./tmp/p2-shared-dev-observation-20260421-stable.tar.gz`
 - baseline label:
-  - `shared-dev-142-readonly-20260419`
+  - `shared-dev-142-readonly-20260421`
 
 Frozen metrics
 
@@ -40,15 +40,15 @@ Frozen metrics
 
 Optional: restore the canonical baseline dir from the archived evidence
 
-tar -xzf ./tmp/p2-shared-dev-observation-20260419-193242.tar.gz -C ./tmp
+tar -xzf ./tmp/p2-shared-dev-observation-20260421-stable.tar.gz -C ./tmp
 
 # Optional override if you restored or copied the baseline elsewhere:
-export P2_SHARED_DEV_142_BASELINE_DIR=/path/to/p2-shared-dev-observation-20260419-193242
+export P2_SHARED_DEV_142_BASELINE_DIR=/path/to/p2-shared-dev-observation-20260421-stable
 
 Readonly rerun sequence
 
 ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"
-BASELINE_DIR="${P2_SHARED_DEV_142_BASELINE_DIR:-./tmp/p2-shared-dev-observation-20260419-193242}"
+BASELINE_DIR="${P2_SHARED_DEV_142_BASELINE_DIR:-./tmp/p2-shared-dev-observation-20260421-stable}"
 OUTPUT_DIR="./tmp/p2-shared-dev-observation-142-readonly-rerun-$(date +%Y%m%d-%H%M%S)"
 
 scripts/validate_p2_shared_dev_env.sh \
@@ -61,7 +61,7 @@ scripts/precheck_p2_observation_regression.sh \
   --env-file "$ENV_FILE"
 
 BASELINE_DIR="$BASELINE_DIR" \
-BASELINE_LABEL="shared-dev-142-readonly-20260419" \
+BASELINE_LABEL="shared-dev-142-readonly-20260421" \
 CURRENT_LABEL="current-rerun" \
 EVAL_MODE="readonly" \
 ENVIRONMENT="shared-dev-142-readonly" \

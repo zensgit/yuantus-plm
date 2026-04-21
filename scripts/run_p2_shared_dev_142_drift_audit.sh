@@ -13,11 +13,11 @@ Options:
   --output-dir <path>       Output root
                             default: ./tmp/p2-shared-dev-142-drift-audit-<timestamp>
   --baseline-dir <path>     Baseline directory for readonly compare/eval
-                            default: ./tmp/p2-shared-dev-observation-20260419-193242
+                            default: ./tmp/p2-shared-dev-observation-20260421-stable
   --baseline-archive <path> Baseline archive used only when the canonical baseline dir is missing
-                            default: ./tmp/p2-shared-dev-observation-20260419-193242.tar.gz
+                            default: ./tmp/p2-shared-dev-observation-20260421-stable.tar.gz
   --baseline-label <label>  Baseline label for readonly compare and drift audit
-                            default: shared-dev-142-readonly-20260419
+                            default: shared-dev-142-readonly-20260421
   --current-label <label>   Current label used in the drift audit
                             default: current-drift-audit
   --skip-precheck           Skip precheck and run the readonly rerun directly
@@ -42,9 +42,9 @@ EOF
 }
 
 default_env_file="${HOME}/.config/yuantus/p2-shared-dev.env"
-default_baseline_dir="./tmp/p2-shared-dev-observation-20260419-193242"
-default_baseline_archive="./tmp/p2-shared-dev-observation-20260419-193242.tar.gz"
-default_baseline_label="shared-dev-142-readonly-20260419"
+default_baseline_dir="./tmp/p2-shared-dev-observation-20260421-stable"
+default_baseline_archive="./tmp/p2-shared-dev-observation-20260421-stable.tar.gz"
+default_baseline_label="shared-dev-142-readonly-20260421"
 default_current_label="current-drift-audit"
 timestamp="$(date +%Y%m%d-%H%M%S)"
 

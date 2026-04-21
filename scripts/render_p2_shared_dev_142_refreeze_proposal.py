@@ -145,7 +145,7 @@ def main() -> None:
 
     proposed_counts = payload.get("candidate_counts", {})
     current_counts = payload.get("current_counts", {})
-    current_label = "shared-dev-142-readonly-20260419"
+    current_label = "shared-dev-142-readonly-20260421"
 
     result = {
         "verdict": verdict,

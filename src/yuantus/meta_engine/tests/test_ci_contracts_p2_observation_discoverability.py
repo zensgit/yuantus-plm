@@ -278,9 +278,9 @@ def test_p2_shared_dev_142_readonly_helper_tracks_current_official_baseline() ->
 
     text = _read(path)
     for token in (
-        "./tmp/p2-shared-dev-observation-20260419-193242",
-        "./tmp/p2-shared-dev-observation-20260419-193242.tar.gz",
-        'BASELINE_LABEL="shared-dev-142-readonly-20260419"',
+        "./tmp/p2-shared-dev-observation-20260421-stable",
+        "./tmp/p2-shared-dev-observation-20260421-stable.tar.gz",
+        'BASELINE_LABEL="shared-dev-142-readonly-20260421"',
         'EVAL_MODE="readonly"',
         "`142.171.239.56`",
     ):
@@ -295,14 +295,18 @@ def test_p2_shared_dev_142_readonly_runner_tracks_current_official_baseline() ->
     text = _read(path)
     for token in (
         "$HOME/.config/yuantus/p2-shared-dev.env",
-        "./tmp/p2-shared-dev-observation-20260419-193242",
-        "./tmp/p2-shared-dev-observation-20260419-193242.tar.gz",
-        "shared-dev-142-readonly-20260419",
+        "./tmp/p2-shared-dev-observation-20260421-stable",
+        "./tmp/p2-shared-dev-observation-20260421-stable.tar.gz",
+        "shared-dev-142-readonly-20260421",
+        "overdue-only-stable",
+        "raw-current",
+        "stable_current_transform.json",
         "shared-dev-142-readonly-precheck",
         "shared-dev-142-readonly",
         "scripts/validate_p2_shared_dev_env.sh",
         "scripts/precheck_p2_observation_regression.sh",
         "scripts/run_p2_observation_regression.sh",
+        "scripts/render_p2_shared_dev_142_stable_current.py",
     ):
         assert token in text, f"shared-dev 142 readonly runner missing token: {token}"
 
@@ -372,9 +376,9 @@ def test_p2_shared_dev_142_drift_audit_runner_tracks_current_official_baseline()
     text = _read(path)
     for token in (
         "$HOME/.config/yuantus/p2-shared-dev.env",
-        "./tmp/p2-shared-dev-observation-20260419-193242",
-        "./tmp/p2-shared-dev-observation-20260419-193242.tar.gz",
-        "shared-dev-142-readonly-20260419",
+        "./tmp/p2-shared-dev-observation-20260421-stable",
+        "./tmp/p2-shared-dev-observation-20260421-stable.tar.gz",
+        "shared-dev-142-readonly-20260421",
         "current-drift-audit",
         "DRIFT_AUDIT.md",
         "drift_audit.json",
@@ -409,9 +413,9 @@ def test_p2_shared_dev_142_drift_investigation_runner_tracks_current_official_ba
     text = _read(path)
     for token in (
         "$HOME/.config/yuantus/p2-shared-dev.env",
-        "./tmp/p2-shared-dev-observation-20260419-193242",
-        "./tmp/p2-shared-dev-observation-20260419-193242.tar.gz",
-        "shared-dev-142-readonly-20260419",
+        "./tmp/p2-shared-dev-observation-20260421-stable",
+        "./tmp/p2-shared-dev-observation-20260421-stable.tar.gz",
+        "shared-dev-142-readonly-20260421",
         "current-drift-audit",
         "DRIFT_INVESTIGATION.md",
         "drift_investigation.json",
@@ -445,10 +449,12 @@ def test_p2_shared_dev_142_workflow_readonly_check_wrapper_tracks_fixed_baseline
 
     text = _read(path)
     for token in (
-        "./tmp/p2-shared-dev-observation-20260419-193242",
-        "./tmp/p2-shared-dev-observation-20260419-193242.tar.gz",
-        "shared-dev-142-readonly-20260419",
+        "./tmp/p2-shared-dev-observation-20260421-stable",
+        "./tmp/p2-shared-dev-observation-20260421-stable.tar.gz",
+        "shared-dev-142-readonly-20260421",
         "workflow-probe-current",
+        "workflow_stable_current_transform.json",
+        "scripts/render_p2_shared_dev_142_stable_current.py",
         "WORKFLOW_READONLY_DIFF.md",
         "WORKFLOW_READONLY_EVAL.md",
         "WORKFLOW_READONLY_CHECK.md",

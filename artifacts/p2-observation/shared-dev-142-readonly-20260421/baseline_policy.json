@@ -1,0 +1,5 @@
+{
+  "kind": "overdue-only-stable",
+  "summary": "Official shared-dev 142 readonly compare/eval excludes pending approvals from the live current surface before diff and evaluation.",
+  "tracked_label": "shared-dev-142-readonly-20260421"
+}

@@ -1,0 +1,33 @@
+{
+  "no_candidates": [],
+  "escalated_unresolved": [
+    {
+      "eco_id": "957695cf-e6e9-4442-8543-9d889cf7fa3d",
+      "eco_name": "eco-overdue-opsview",
+      "stage_id": "5da342a5-dca1-4323-9bb9-3bf57feeace1",
+      "stage_name": "Review",
+      "admin_user_id": 1,
+      "admin_username": "admin",
+      "approval_id": "1977cb41-74e0-4ad9-8afd-df401cd5e470"
+    }
+  ],
+  "overdue_not_escalated": [
+    {
+      "eco_id": "f5f3e432-88b5-48a5-b6f3-c45cce567ee3",
+      "eco_name": "eco-overdue-admin",
+      "stage_id": "5da342a5-dca1-4323-9bb9-3bf57feeace1",
+      "stage_name": "Review",
+      "hours_overdue": 43.537778261666666,
+      "reason": "overdue but no escalation triggered"
+    },
+    {
+      "eco_id": "9121ceab-16f6-49eb-8117-a421d7df98c9",
+      "eco_name": "eco-pending",
+      "stage_id": "5da342a5-dca1-4323-9bb9-3bf57feeace1",
+      "stage_name": "Review",
+      "hours_overdue": 18.537778261666666,
+      "reason": "overdue but no escalation triggered"
+    }
+  ],
+  "total_anomalies": 3
+}

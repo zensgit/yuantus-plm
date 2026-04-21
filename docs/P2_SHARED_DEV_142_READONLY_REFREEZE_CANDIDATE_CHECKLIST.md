@@ -28,7 +28,7 @@ bash scripts/print_p2_shared_dev_142_refreeze_candidate_commands.sh
 - observation env:
   - `$HOME/.config/yuantus/p2-shared-dev.env`
 - current official readonly baseline:
-  - `./artifacts/p2-observation/shared-dev-142-readonly-20260419`
+  - `./artifacts/p2-observation/shared-dev-142-readonly-20260421`
 - source current result:
   - `current/*` from the nested readonly rerun
 

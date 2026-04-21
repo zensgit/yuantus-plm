@@ -39,8 +39,9 @@ bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-drift-commands
 - 本地 observation env:
   - `$HOME/.config/yuantus/p2-shared-dev.env`
 - 当前 official readonly baseline:
-  - `./tmp/p2-shared-dev-observation-20260419-193242`
-  - label: `shared-dev-142-readonly-20260419`
+  - `./tmp/p2-shared-dev-observation-20260421-stable`
+  - label: `shared-dev-142-readonly-20260421`
+  - policy: `overdue-only-stable`
 
 ## 最小执行顺序
 
@@ -61,6 +62,7 @@ bash scripts/run_p2_shared_dev_142_drift_audit.sh
 默认会生成：
 
 - `./tmp/p2-shared-dev-142-drift-audit-<timestamp>/current`
+- `./tmp/p2-shared-dev-142-drift-audit-<timestamp>/current/raw-current`
 - `./tmp/p2-shared-dev-142-drift-audit-<timestamp>/current-precheck`
 - `./tmp/p2-shared-dev-142-drift-audit-<timestamp>/DRIFT_AUDIT.md`
 - `./tmp/p2-shared-dev-142-drift-audit-<timestamp>/drift_audit.json`
@@ -73,8 +75,11 @@ bash scripts/run_p2_shared_dev_142_drift_audit.sh
 - `current/OBSERVATION_RESULT.md`
 - `current/OBSERVATION_DIFF.md`
 - `current/OBSERVATION_EVAL.md`
+- `current/STABLE_CURRENT_TRANSFORM.md`
+- `current/stable_current_transform.json`
 - `current/summary.json`
 - `current/anomalies.json`
+- `current/raw-current/OBSERVATION_RESULT.md`
 - `${OUTPUT_DIR}.tar.gz`
 
 ## 判断标准

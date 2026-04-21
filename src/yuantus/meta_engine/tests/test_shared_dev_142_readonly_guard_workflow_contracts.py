@@ -62,7 +62,7 @@ def test_shared_dev_142_readonly_guard_workflow_contracts() -> None:
         assert token in workflow_text, f"workflow missing token: {token}"
 
     tracked_baseline_dir = (
-        repo_root / "artifacts" / "p2-observation" / "shared-dev-142-readonly-20260419"
+        repo_root / "artifacts" / "p2-observation" / "shared-dev-142-readonly-20260421"
     )
     assert tracked_baseline_dir.is_dir(), (
         "Missing tracked readonly baseline dir for shared-dev 142: "
@@ -72,6 +72,7 @@ def test_shared_dev_142_readonly_guard_workflow_contracts() -> None:
         "OBSERVATION_RESULT.md",
         "README.txt",
         "anomalies.json",
+        "baseline_policy.json",
         "export.csv",
         "export.json",
         "items.json",
@@ -88,7 +89,7 @@ def test_shared_dev_142_readonly_guard_workflow_contracts() -> None:
     ):
         script_text = _read(repo_root / "scripts" / script_name)
         for token in (
-            'default_tracked_baseline_dir="./artifacts/p2-observation/shared-dev-142-readonly-20260419"',
+            'default_tracked_baseline_dir="./artifacts/p2-observation/shared-dev-142-readonly-20260421"',
             "Restored canonical baseline dir from tracked repo baseline:",
             "Missing baseline dir, archive, and tracked repo baseline:",
         ):
