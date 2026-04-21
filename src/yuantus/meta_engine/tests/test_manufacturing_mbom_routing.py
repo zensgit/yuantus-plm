@@ -103,6 +103,146 @@ def test_transform_ebom_to_mbom_rules():
     assert sub["make_buy"] == "buy"
 
 
+def test_compare_ebom_mbom_keeps_same_item_different_uom_separate():
+    service = MBOMService(MagicMock())
+    service.bom_service.get_bom_structure = MagicMock(
+        return_value={
+            "item": {"id": "ROOT", "properties": {}},
+            "children": [
+                {
+                    "relationship": {
+                        "id": "rel-ea",
+                        "properties": {"quantity": 2, "uom": "EA"},
+                    },
+                    "child": {
+                        "item": {"id": "CHILD", "properties": {}},
+                        "children": [],
+                    },
+                },
+                {
+                    "relationship": {
+                        "id": "rel-mm",
+                        "properties": {"quantity": 100, "uom": "mm"},
+                    },
+                    "child": {
+                        "item": {"id": "CHILD", "properties": {}},
+                        "children": [],
+                    },
+                },
+            ],
+        }
+    )
+    service.get_mbom_structure = MagicMock(
+        return_value={
+            "item": {"id": "ROOT", "properties": {}},
+            "children": [
+                {
+                    "item": {"id": "CHILD", "properties": {}},
+                    "quantity": 2,
+                    "unit": "EA",
+                    "children": [],
+                },
+                {
+                    "item": {"id": "CHILD", "properties": {}},
+                    "quantity": 120,
+                    "unit": "MM",
+                    "children": [],
+                },
+            ],
+        }
+    )
+
+    result = service.compare_ebom_mbom("ROOT", "mbom-1")
+
+    assert result["added_in_mbom"] == []
+    assert result["removed_from_ebom"] == []
+    assert result["quantity_changed"] == [
+        {
+            "item_id": "CHILD",
+            "bucket_key": "CHILD::MM",
+            "uom": "MM",
+            "ebom_quantity": 100,
+            "mbom_quantity": 120,
+        }
+    ]
+
+
+def test_compare_ebom_mbom_reports_uom_bucket_add_remove_not_synthetic_change():
+    service = MBOMService(MagicMock())
+    service.bom_service.get_bom_structure = MagicMock(
+        return_value={
+            "item": {"id": "ROOT", "properties": {}},
+            "children": [
+                {
+                    "relationship": {
+                        "id": "rel-ea",
+                        "properties": {"quantity": 2, "uom": "EA"},
+                    },
+                    "child": {"item": {"id": "CHILD", "properties": {}}},
+                }
+            ],
+        }
+    )
+    service.get_mbom_structure = MagicMock(
+        return_value={
+            "item": {"id": "ROOT", "properties": {}},
+            "children": [
+                {
+                    "item": {"id": "CHILD", "properties": {}},
+                    "quantity": 2,
+                    "unit": "MM",
+                }
+            ],
+        }
+    )
+
+    result = service.compare_ebom_mbom("ROOT", "mbom-1")
+
+    assert result["quantity_changed"] == []
+    assert result["removed_from_ebom"][0]["bucket_key"] == "CHILD::EA"
+    assert result["removed_from_ebom"][0]["item_id"] == "CHILD"
+    assert result["removed_from_ebom"][0]["uom"] == "EA"
+    assert result["added_in_mbom"][0]["bucket_key"] == "CHILD::MM"
+    assert result["added_in_mbom"][0]["item_id"] == "CHILD"
+    assert result["added_in_mbom"][0]["uom"] == "MM"
+
+
+def test_flatten_structure_uses_relationship_uom_and_quantity_bucket():
+    service = MBOMService(MagicMock())
+
+    result = service._flatten_structure(
+        {
+            "relationship": {
+                "id": "rel-mm",
+                "properties": {"quantity": 5, "uom": " mm "},
+            },
+            "child": {
+                "item": {"id": "CHILD", "properties": {}},
+                "children": [],
+            },
+        }
+    )
+
+    assert result["CHILD::MM"]["item_id"] == "CHILD"
+    assert result["CHILD::MM"]["quantity"] == 5
+    assert result["CHILD::MM"]["uom"] == "MM"
+
+
+def test_flatten_structure_accepts_relationship_top_level_uom_and_quantity():
+    service = MBOMService(MagicMock())
+
+    result = service._flatten_structure(
+        {
+            "relationship": {"id": "rel-kg", "quantity": 7, "uom": "kg"},
+            "child": {"item": {"id": "CHILD", "properties": {}}},
+        }
+    )
+
+    assert result["CHILD::KG"]["item_id"] == "CHILD"
+    assert result["CHILD::KG"]["quantity"] == 7
+    assert result["CHILD::KG"]["uom"] == "KG"
+
+
 def test_routing_time_and_cost_calculation():
     ops = [
         SimpleNamespace(

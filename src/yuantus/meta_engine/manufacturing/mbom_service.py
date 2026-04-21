@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from yuantus.meta_engine.manufacturing.models import BOMType, MBOMLine, ManufacturingBOM, Routing
 from yuantus.meta_engine.models.item import Item
-from yuantus.meta_engine.services.bom_service import BOMService
+from yuantus.meta_engine.services.bom_service import BOMService, _normalize_bom_uom
 from yuantus.meta_engine.services.release_validation import ValidationIssue, get_release_ruleset
 
 
@@ -309,20 +309,22 @@ class MBOMService:
         ebom_items = self._flatten_structure(ebom)
         mbom_items = self._flatten_structure(mbom_structure)
 
-        ebom_ids = set(ebom_items.keys())
-        mbom_ids = set(mbom_items.keys())
+        ebom_keys = set(ebom_items.keys())
+        mbom_keys = set(mbom_items.keys())
 
-        for item_id in mbom_ids - ebom_ids:
-            differences["added_in_mbom"].append(mbom_items[item_id])
-        for item_id in ebom_ids - mbom_ids:
-            differences["removed_from_ebom"].append(ebom_items[item_id])
-        for item_id in ebom_ids & mbom_ids:
-            ebom_qty = ebom_items[item_id].get("quantity", 1)
-            mbom_qty = mbom_items[item_id].get("quantity", 1)
+        for bucket_key in sorted(mbom_keys - ebom_keys):
+            differences["added_in_mbom"].append(mbom_items[bucket_key])
+        for bucket_key in sorted(ebom_keys - mbom_keys):
+            differences["removed_from_ebom"].append(ebom_items[bucket_key])
+        for bucket_key in sorted(ebom_keys & mbom_keys):
+            ebom_qty = ebom_items[bucket_key].get("quantity", 1)
+            mbom_qty = mbom_items[bucket_key].get("quantity", 1)
             if abs(float(ebom_qty) - float(mbom_qty)) > 0.0001:
                 differences["quantity_changed"].append(
                     {
-                        "item_id": item_id,
+                        "item_id": ebom_items[bucket_key].get("item_id"),
+                        "bucket_key": bucket_key,
+                        "uom": ebom_items[bucket_key].get("uom"),
                         "ebom_quantity": ebom_qty,
                         "mbom_quantity": mbom_qty,
                     }
@@ -337,20 +339,42 @@ class MBOMService:
         if result is None:
             result = {}
 
-        item = structure.get("item") or structure
+        relationship = structure.get("relationship") or {}
+        node = structure.get("child") or structure
+        item = node.get("item") or node
         item_id = item.get("id")
         if item_id:
-            result[item_id] = {
+            rel_props = relationship.get("properties") or {}
+            if not isinstance(rel_props, dict):
+                rel_props = {}
+            if not rel_props and isinstance(relationship, dict):
+                rel_props = relationship
+            raw_quantity = rel_props.get(
+                "quantity",
+                rel_props.get("qty", node.get("quantity", structure.get("quantity", 1))),
+            )
+            raw_uom = rel_props.get(
+                "uom",
+                rel_props.get(
+                    "unit",
+                    node.get("unit", node.get("uom", structure.get("unit", structure.get("uom")))),
+                ),
+            )
+            uom = _normalize_bom_uom(raw_uom)
+            bucket_key = f"{item_id}::{uom}"
+            result[bucket_key] = {
                 "item": item,
-                "quantity": structure.get("quantity", 1),
-                "level": structure.get("level", 0),
+                "item_id": item_id,
+                "bucket_key": bucket_key,
+                "uom": uom,
+                "quantity": raw_quantity,
+                "level": node.get("level", structure.get("level", 0)),
             }
 
-        for child in structure.get("children") or []:
-            child_struct = child.get("child") or child
-            self._flatten_structure(child_struct, result)
+        for child in node.get("children") or structure.get("children") or []:
+            self._flatten_structure(child, result)
 
-        for child in structure.get("roots") or []:
+        for child in node.get("roots") or structure.get("roots") or []:
             self._flatten_structure(child, result)
 
         return result
