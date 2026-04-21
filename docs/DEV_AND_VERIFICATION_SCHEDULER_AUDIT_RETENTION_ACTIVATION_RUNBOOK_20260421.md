@@ -21,6 +21,7 @@ Implemented:
 - this development and verification record
 - `DELIVERY_DOC_INDEX.md` registration
 - `DELIVERY_SCRIPTS_INDEX_20260202.md` registration
+- `.github/workflows/ci.yml` contracts-step registration for the new contract test
 
 Not implemented:
 
@@ -142,6 +143,7 @@ Focused tests:
   src/yuantus/meta_engine/tests/test_scheduler_audit_retention_activation_smoke_contracts.py \
   src/yuantus/meta_engine/tests/test_scheduler_service.py \
   src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \
+  src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
   src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
   src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py \
   src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
@@ -150,7 +152,7 @@ Focused tests:
 Result:
 
 ```text
-34 passed, 1 warning
+35 passed, 1 warning
 ```
 
 Syntax and whitespace:
