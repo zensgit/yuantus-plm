@@ -9,6 +9,7 @@ The renderer summarizes:
 - dry-run preflight,
 - audit-retention activation,
 - ECO escalation activation,
+- BOM to MBOM activation,
 - per-step validation status,
 - expected state transitions.
 
@@ -39,7 +40,10 @@ The report verdict is `PASS` only when all checks are true:
 - ECO escalation worker job completes,
 - ECO escalation returns `escalated=1`,
 - `overdue_not_escalated` changes `2 -> 1`,
-- `escalated_unresolved` changes `0 -> 1`.
+- `escalated_unresolved` changes `0 -> 1`,
+- BOM to MBOM worker job completes,
+- BOM to MBOM creates one `ManufacturingBOM`,
+- BOM to MBOM creates at least two `MBOMLine` rows and preserves EBOM relationship traceability.
 
 ## 4. Runtime Verification
 
@@ -59,6 +63,7 @@ suite_validation.json
 01-dry-run-preflight/validation.json
 02-audit-retention-activation/validation.json
 03-eco-escalation-activation/validation.json
+04-bom-to-mbom-activation/validation.json
 ```
 
 ## 5. Focused Tests
@@ -67,6 +72,7 @@ suite_validation.json
 .venv/bin/python -m pytest -q \
   src/yuantus/meta_engine/tests/test_scheduler_local_activation_suite_report_contracts.py \
   src/yuantus/meta_engine/tests/test_scheduler_local_activation_suite_contracts.py \
+  src/yuantus/meta_engine/tests/test_scheduler_bom_to_mbom_activation_smoke_contracts.py \
   src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
   src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
   src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py \
@@ -80,4 +86,3 @@ suite_validation.json
 - No shared-dev 142 scheduler activation.
 - No production scheduler activation.
 - This is a local-dev evidence renderer only.
-

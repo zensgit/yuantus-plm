@@ -21,6 +21,7 @@ Behavior:
   - runs run_scheduler_dry_run_preflight.sh
   - runs run_scheduler_audit_retention_activation_smoke.sh
   - runs run_scheduler_eco_escalation_activation_smoke.sh
+  - runs run_scheduler_bom_to_mbom_activation_smoke.sh
   - writes suite_validation.json plus per-step evidence directories
   - writes SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md and JSON report
 
@@ -119,9 +120,10 @@ fi
 preflight_script="${repo_root}/scripts/run_scheduler_dry_run_preflight.sh"
 audit_script="${repo_root}/scripts/run_scheduler_audit_retention_activation_smoke.sh"
 eco_script="${repo_root}/scripts/run_scheduler_eco_escalation_activation_smoke.sh"
+bom_script="${repo_root}/scripts/run_scheduler_bom_to_mbom_activation_smoke.sh"
 renderer_script="${repo_root}/scripts/render_scheduler_local_activation_suite.py"
 
-for script in "${preflight_script}" "${audit_script}" "${eco_script}" "${renderer_script}"; do
+for script in "${preflight_script}" "${audit_script}" "${eco_script}" "${bom_script}" "${renderer_script}"; do
   if [[ ! -x "${script}" ]]; then
     echo "Missing executable helper: ${script}" >&2
     exit 2
@@ -133,6 +135,7 @@ mkdir -p "${output_dir}"
 preflight_dir="${output_dir}/01-dry-run-preflight"
 audit_dir="${output_dir}/02-audit-retention-activation"
 eco_dir="${output_dir}/03-eco-escalation-activation"
+bom_dir="${output_dir}/04-bom-to-mbom-activation"
 
 echo "== Scheduler local activation suite =="
 echo "REPO_ROOT=${repo_root}"
@@ -160,6 +163,12 @@ bash "${eco_script}" \
   --tenant "${tenant_id}" \
   --org "${org_id}"
 
+bash "${bom_script}" \
+  --db-url "sqlite:///${abs_db_path}" \
+  --output-dir "${bom_dir}" \
+  --tenant "${tenant_id}" \
+  --org "${org_id}"
+
 "${py}" - <<'PY' "${output_dir}" > "${output_dir}/suite_validation.json"
 import json
 import sys
@@ -170,6 +179,7 @@ steps = {
     "dry_run_preflight": output_dir / "01-dry-run-preflight" / "validation.json",
     "audit_retention_activation": output_dir / "02-audit-retention-activation" / "validation.json",
     "eco_escalation_activation": output_dir / "03-eco-escalation-activation" / "validation.json",
+    "bom_to_mbom_activation": output_dir / "04-bom-to-mbom-activation" / "validation.json",
 }
 
 errors = []
@@ -212,6 +222,8 @@ Steps:
    - validates audit_retention_prune enqueue -> worker completion -> audit rows pruned
 3. 03-eco-escalation-activation
    - validates eco_approval_escalation enqueue -> worker completion -> dashboard/anomaly reconciliation
+4. 04-bom-to-mbom-activation
+   - validates bom_to_mbom_sync enqueue -> worker completion -> ManufacturingBOM/MBOMLine creation
 
 Suite validation:
 - suite_validation.json
@@ -229,5 +241,6 @@ echo "Done:"
 echo "  ${output_dir}/01-dry-run-preflight/validation.json"
 echo "  ${output_dir}/02-audit-retention-activation/validation.json"
 echo "  ${output_dir}/03-eco-escalation-activation/validation.json"
+echo "  ${output_dir}/04-bom-to-mbom-activation/validation.json"
 echo "  ${output_dir}/suite_validation.json"
 echo "  ${output_dir}/SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md"

@@ -2,11 +2,12 @@
 
 ## 1. Goal
 
-Provide a single local-dev command that chains the three scheduler activation confidence checks already delivered separately:
+Provide a single local-dev command that chains the four scheduler activation confidence checks already delivered separately:
 
 1. dry-run preflight,
 2. audit-retention activation,
-3. ECO escalation activation.
+3. ECO escalation activation,
+4. BOM to MBOM activation.
 
 This is an evidence-pack wrapper, not a new scheduler runtime feature.
 
@@ -26,6 +27,7 @@ The helper is local-dev only and writes one parent evidence directory:
 - `01-dry-run-preflight`
 - `02-audit-retention-activation`
 - `03-eco-escalation-activation`
+- `04-bom-to-mbom-activation`
 - `suite_validation.json`
 - `SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md`
 - `scheduler_local_activation_suite_report.json`
@@ -36,6 +38,7 @@ It delegates to:
 - `scripts/run_scheduler_dry_run_preflight.sh`
 - `scripts/run_scheduler_audit_retention_activation_smoke.sh`
 - `scripts/run_scheduler_eco_escalation_activation_smoke.sh`
+- `scripts/run_scheduler_bom_to_mbom_activation_smoke.sh`
 
 ## 4. Safety Boundary
 
@@ -43,15 +46,16 @@ It delegates to:
 - Refuses SQLite DBs outside `local-dev-env/data`.
 - Local-dev only.
 - Not for shared-dev or production.
-- The two activation steps are intentionally destructive inside local-dev SQLite.
+- The three activation steps are intentionally destructive inside local-dev SQLite.
 
 ## 5. Suite Validation
 
-`suite_validation.json` requires all three child `validation.json` files to report `ok: true`:
+`suite_validation.json` requires all four child `validation.json` files to report `ok: true`:
 
 - `dry_run_preflight`,
 - `audit_retention_activation`,
-- `eco_escalation_activation`.
+- `eco_escalation_activation`,
+- `bom_to_mbom_activation`.
 
 ## 6. Verification
 
@@ -61,6 +65,7 @@ Focused contract command:
 .venv/bin/python -m pytest -q \
   src/yuantus/meta_engine/tests/test_scheduler_local_activation_suite_contracts.py \
   src/yuantus/meta_engine/tests/test_scheduler_local_activation_suite_report_contracts.py \
+  src/yuantus/meta_engine/tests/test_scheduler_bom_to_mbom_activation_smoke_contracts.py \
   src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \
   src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
   src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \

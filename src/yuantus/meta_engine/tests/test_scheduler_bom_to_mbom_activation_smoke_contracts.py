@@ -56,6 +56,8 @@ def test_scheduler_bom_to_mbom_activation_smoke_script_contract() -> None:
         "YUANTUS_SCHEDULER_BOM_TO_MBOM_ENABLED=true",
         "YUANTUS_SCHEDULER_BOM_TO_MBOM_SOURCE_ITEM_IDS=${root_item_id}",
         "scheduler:bom_to_mbom_sync:",
+        "Delete generated MBOM lines before ManufacturingBOM rows",
+        "existing_mbom_ids",
         "Delete the relationship item separately first",
         "for item_id in (relationship_id,):",
         "for item_id in (child_item_id, root_item_id):",

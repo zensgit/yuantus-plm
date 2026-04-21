@@ -143,7 +143,7 @@
 - `run_scheduler_dry_run_preflight.sh` runs a scheduler dry-run preflight, captures `would_enqueue` decisions, validates `meta_conversion_jobs` count is unchanged, and requires `--allow-non-local-db` for shared-dev/prod DB targets.
 - `run_scheduler_eco_escalation_activation_smoke.sh` runs a local-dev-only scheduler activation smoke for `eco_approval_escalation`, refusing non-SQLite or non-`local-dev-env/data` DB targets and verifying dashboard/anomaly before-after reconciliation.
 - `run_scheduler_jobs_api_readback_smoke.sh` runs a local-dev-only scheduler jobs API readback smoke, completing an audit-retention scheduler job and verifying it through `GET /api/v1/jobs/{job_id}`.
-- `run_scheduler_local_activation_suite.sh` runs the local-dev-only scheduler activation suite, chaining dry-run preflight, audit-retention activation, and ECO escalation activation into one evidence directory with `suite_validation.json`.
+- `run_scheduler_local_activation_suite.sh` runs the local-dev-only scheduler activation suite, chaining dry-run preflight, audit-retention activation, ECO escalation activation, and BOM to MBOM activation into one evidence directory with `suite_validation.json`.
 - `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.
 - `verify_cad_backend_profile_scope.sh` verifies `GET/PUT/DELETE /api/v1/cad/backend-profile` plus `GET /api/v1/cad/capabilities`, restores the original org scope, and skips tenant-default verification when an org override masks that read surface.
 - Enable audit tests by starting the server with `YUANTUS_AUDIT_ENABLED=1`.
