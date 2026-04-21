@@ -583,12 +583,21 @@ class ProductDetailService:
             parent = entry.get("parent") or {}
             props = parent.get("properties") or {}
             item_number = get_item_number(parent) or get_item_number(props)
+            line = entry.get("line") or {}
+            line_normalized = entry.get("line_normalized") or {}
+            uom = line_normalized.get("uom")
+            if uom is None:
+                uom = line.get("uom")
             sample.append(
                 {
                     "id": parent.get("id"),
                     "item_number": item_number,
                     "name": parent.get("name") or props.get("name"),
+                    "relationship_id": (entry.get("relationship") or {}).get("id"),
                     "level": entry.get("level"),
+                    "quantity": line.get("quantity"),
+                    "uom": uom,
+                    "line": line,
                 }
             )
 

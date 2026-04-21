@@ -1,12 +1,26 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.services.impact_analysis_service import ImpactAnalysisService
+
+
+@pytest.fixture(autouse=True)
+def _optional_auth_mode_for_router_tests():
+    settings = get_settings()
+    previous = settings.AUTH_MODE
+    settings.AUTH_MODE = "optional"
+    try:
+        yield
+    finally:
+        settings.AUTH_MODE = previous
 
 
 def _client_with_user(user):
@@ -25,6 +39,36 @@ def _client_with_user(user):
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = override_get_current_user
     return TestClient(app), mock_db_session
+
+
+def test_where_used_summary_promotes_quantity_and_normalized_uom():
+    service = ImpactAnalysisService(MagicMock())
+    with patch(
+        "yuantus.meta_engine.services.impact_analysis_service.BOMService"
+    ) as bom_cls:
+        bom_cls.return_value.get_where_used.return_value = [
+            {
+                "relationship": {"id": "rel-1"},
+                "parent": {"id": "parent-1"},
+                "parent_number": "P-1",
+                "parent_name": "Parent 1",
+                "level": 1,
+                "line": {"quantity": 2, "uom": "mm"},
+                "line_normalized": {"quantity": 2.0, "uom": "MM"},
+            }
+        ]
+
+        result = service.where_used_summary(
+            item_id="child-1",
+            recursive=False,
+            max_levels=10,
+            limit=20,
+        )
+
+    assert result["total"] == 1
+    assert result["hits"][0]["quantity"] == 2
+    assert result["hits"][0]["uom"] == "MM"
+    assert result["hits"][0]["line"] == {"quantity": 2, "uom": "mm"}
 
 
 def test_impact_summary_404_when_item_missing():
@@ -65,7 +109,16 @@ def test_impact_summary_returns_domain_summaries():
     impact.where_used_summary.return_value = {
         "total": 2,
         "hits": [
-            {"parent_id": "p1", "parent_number": "P-1", "parent_name": "Parent1", "relationship_id": "rel-1", "level": 1, "line": {"quantity": 1}},
+            {
+                "parent_id": "p1",
+                "parent_number": "P-1",
+                "parent_name": "Parent1",
+                "relationship_id": "rel-1",
+                "level": 1,
+                "quantity": 1,
+                "uom": "EA",
+                "line": {"quantity": 1, "uom": "EA"},
+            },
         ],
         "recursive": False,
         "max_levels": 10,
@@ -96,6 +149,7 @@ def test_impact_summary_returns_domain_summaries():
     data = resp.json()
     assert data["item_id"] == "item-1"
     assert data["where_used"]["total"] == 2
+    assert data["where_used"]["hits"][0]["quantity"] == 1
+    assert data["where_used"]["hits"][0]["uom"] == "EA"
     assert data["baselines"]["total"] == 1
     assert data["esign"]["total"] == 3
-

@@ -4,12 +4,25 @@ import zipfile
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.models.item import Item
+
+
+@pytest.fixture(autouse=True)
+def _optional_auth_mode_for_router_tests():
+    settings = get_settings()
+    previous = settings.AUTH_MODE
+    settings.AUTH_MODE = "optional"
+    try:
+        yield
+    finally:
+        settings.AUTH_MODE = previous
 
 
 def _client_with_user(user):
@@ -48,7 +61,9 @@ def test_impact_summary_export_zip_happy_path():
                 "parent_name": "Parent1",
                 "relationship_id": "rel-1",
                 "level": 1,
-                "line": {"quantity": 1},
+                "quantity": 1,
+                "uom": "EA",
+                "line": {"quantity": 1, "uom": "EA"},
             }
         ],
         "recursive": False,
@@ -101,7 +116,10 @@ def test_impact_summary_export_zip_happy_path():
     assert summary["item_id"] == "item-1"
 
     csv_text = zf.read("where_used.csv").decode("utf-8-sig")
-    assert csv_text.splitlines()[0].startswith("parent_id,")
+    assert csv_text.splitlines()[0] == (
+        "parent_id,parent_number,parent_name,relationship_id,level,quantity,uom,line"
+    )
+    assert "rel-1,1,1,EA," in csv_text
 
 
 def test_impact_summary_export_json_happy_path():
@@ -134,4 +152,3 @@ def test_impact_summary_export_json_happy_path():
     assert resp.headers.get("content-disposition", "").endswith("impact-summary-item-1.json\"")
     payload = resp.json()
     assert payload["item_id"] == "item-1"
-

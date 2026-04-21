@@ -56,6 +56,10 @@ class ImpactAnalysisService:
             rel = entry.get("relationship") or {}
             parent = entry.get("parent") or {}
             line = entry.get("line") or {}
+            line_normalized = entry.get("line_normalized") or {}
+            uom = line_normalized.get("uom")
+            if uom is None:
+                uom = line.get("uom")
             hits.append(
                 {
                     "parent_id": parent.get("id"),
@@ -63,6 +67,8 @@ class ImpactAnalysisService:
                     "parent_name": entry.get("parent_name"),
                     "relationship_id": rel.get("id"),
                     "level": entry.get("level") or 1,
+                    "quantity": line.get("quantity"),
+                    "uom": uom,
                     "line": line,
                 }
             )

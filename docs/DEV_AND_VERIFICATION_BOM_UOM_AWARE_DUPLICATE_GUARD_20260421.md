@@ -157,4 +157,6 @@ The only intentional behavior change is for ambiguous deletes after multiple UOM
 
 The comparison-side follow-up for UOM-aware summarized / by-item line keys is closed by `DEV_AND_VERIFICATION_BOM_COMPARE_UOM_AWARE_LINE_KEYS_20260421.md`.
 
+The where-used impact / cockpit export read-surface follow-up is closed by `DEV_AND_VERIFICATION_WHERE_USED_UOM_EXPORT_COLUMNS_20260421.md`.
+
 If product wants richer UOM governance later, that should be a separate tenant-level UOM dictionary/configuration feature, not hardcoded synonyms in BOMService.
