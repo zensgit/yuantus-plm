@@ -12,6 +12,11 @@ from yuantus.meta_engine.services.suspended_guard import assert_not_suspended
 from .effectivity_service import EffectivityService, EffectivityContext
 
 
+def _normalize_bom_uom(value: Optional[Any], *, default: str = "EA") -> str:
+    text = str(value).strip() if value is not None else ""
+    return (text or default).upper()
+
+
 class BOMService:
     """
     Manages Product Structure (BOM).
@@ -525,11 +530,11 @@ class BOMService:
             relationship_types=relationship_types,
         )
 
-    def get_bom_line_by_parent_child(
+    def get_bom_lines_by_parent_child(
         self, parent_item_id: str, child_item_id: str
-    ) -> Optional[Item]:
+    ) -> List[Item]:
         """
-        Get the BOM line (relationship item) between a parent and a child.
+        Get current BOM lines between a parent and a child.
         """
         return (
             self.session.query(Item)
@@ -538,8 +543,33 @@ class BOMService:
                 Item.related_id == child_item_id,
                 Item.is_current.is_(True),
             )
-            .first()
+            .all()
         )
+
+    def get_bom_line_by_parent_child(
+        self,
+        parent_item_id: str,
+        child_item_id: str,
+        *,
+        uom: Optional[str] = None,
+    ) -> Optional[Item]:
+        """
+        Get the BOM line (relationship item) between a parent and a child.
+
+        When ``uom`` is supplied, lookup is UOM-aware and compares normalized
+        UOM text. Without ``uom`` this preserves the legacy first-match
+        behavior for callers that still identify lines only by parent/child.
+        """
+        lines = self.get_bom_lines_by_parent_child(parent_item_id, child_item_id)
+        if uom is None:
+            return lines[0] if lines else None
+
+        normalized_uom = _normalize_bom_uom(uom)
+        for line in lines:
+            props = line.properties or {}
+            if _normalize_bom_uom(props.get("uom")) == normalized_uom:
+                return line
+        return None
 
     def merge_bom(
         self, target_item_id: str, source_version_id: str, user_id: int
@@ -703,14 +733,22 @@ class BOMService:
             )
 
         # Check if relationship already exists
-        existing = self.get_bom_line_by_parent_child(parent_id, child_id)
+        normalized_uom = _normalize_bom_uom(uom)
+        existing = self.get_bom_line_by_parent_child(
+            parent_id,
+            child_id,
+            uom=normalized_uom,
+        )
         if existing:
-            raise ValueError(f"BOM relationship already exists: {parent_id} -> {child_id}")
+            raise ValueError(
+                f"BOM relationship already exists: {parent_id} -> {child_id} "
+                f"(uom={normalized_uom})"
+            )
 
         # Build properties
         properties = {
             "quantity": quantity,
-            "uom": uom,
+            "uom": normalized_uom,
         }
         if find_num:
             properties["find_num"] = find_num
@@ -768,6 +806,7 @@ class BOMService:
         self,
         parent_id: str,
         child_id: str,
+        uom: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Remove a child from a parent BOM.
@@ -775,6 +814,7 @@ class BOMService:
         Args:
             parent_id: Parent item ID
             child_id: Child item ID to remove
+            uom: Optional UOM discriminator when multiple lines exist
 
         Returns:
             {"ok": True, "relationship_id": str}
@@ -782,9 +822,28 @@ class BOMService:
         Raises:
             ValueError: If relationship not found
         """
-        rel = self.get_bom_line_by_parent_child(parent_id, child_id)
+        if uom is not None:
+            rel = self.get_bom_line_by_parent_child(parent_id, child_id, uom=uom)
+        else:
+            lines = self.get_bom_lines_by_parent_child(parent_id, child_id)
+            if len(lines) > 1:
+                uoms = sorted(
+                    {
+                        _normalize_bom_uom((line.properties or {}).get("uom"))
+                        for line in lines
+                    }
+                )
+                raise ValueError(
+                    "Multiple BOM relationships found: "
+                    f"{parent_id} -> {child_id}; specify uom "
+                    f"({', '.join(uoms)})"
+                )
+            rel = lines[0] if lines else None
         if not rel:
-            raise ValueError(f"BOM relationship not found: {parent_id} -> {child_id}")
+            detail = f"BOM relationship not found: {parent_id} -> {child_id}"
+            if uom is not None:
+                detail = f"{detail} (uom={_normalize_bom_uom(uom)})"
+            raise ValueError(detail)
 
         rel_id = rel.id
         self.session.delete(rel)

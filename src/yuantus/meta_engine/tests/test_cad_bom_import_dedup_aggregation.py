@@ -358,22 +358,15 @@ def test_import_bom_empty_payload_still_returns_consistent_schema() -> None:
 # --- Real-session integration test (SQLite in-memory via tmp_path) ---
 
 
-def test_import_bom_real_session_different_uom_second_row_is_skipped_by_bom_guard(
+def test_import_bom_real_session_different_uom_creates_two_bom_lines(
     tmp_path: Path,
 ) -> None:
     """
     Real BOMService integration: two edges share (parent, child) but differ in uom.
 
     Phase 1 aggregation correctly keeps two separate keys (dedup_aggregated=0).
-    Phase 2 commit: first add_child succeeds; second collides with
-    BOMService.get_bom_line_by_parent_child guard (which matches source_id+related_id
-    without considering uom) and raises "BOM relationship already exists" → the second
-    row is classified as skipped, not aggregated.
-
-    This test pins the current scope boundary:
-    Supporting two BOM lines with same parent/child but different uom would require
-    widening BOMService's duplicate guard to include uom. That change is OUT OF SCOPE
-    for this PR; keep the assertion here to surface the limitation explicitly.
+    Phase 2 commit now uses BOMService's UOM-aware duplicate guard, so both
+    rows can be written as distinct BOM relationship lines.
     """
     db_path = tmp_path / "cad_bom_import_dedup.db"
     engine = create_engine(
@@ -440,12 +433,17 @@ def test_import_bom_real_session_different_uom_second_row_is_skipped_by_bom_guar
         assert result["ok"] is True
         # Phase 1 preserves the uom distinction: no cross-uom aggregation.
         assert result["dedup_aggregated"] == 0
-        # Phase 2 hits the BOMService duplicate guard on the second row.
-        assert result["created_lines"] == 1, result
-        assert result["skipped_lines"] == 1, result
-        assert any(
-            "already exists" in str(e).lower() for e in result["errors"]
-        ), result["errors"]
+        # Phase 2 persists both UOM-specific BOM lines.
+        assert result["created_lines"] == 2, result
+        assert result["skipped_lines"] == 0, result
+        assert result["errors"] == []
+
+        lines = (
+            session.query(Item)
+            .filter(Item.source_id == "root-item-id", Item.item_type_id == "Part BOM")
+            .all()
+        )
+        assert sorted((line.properties or {}).get("uom") for line in lines) == ["EA", "MM"]
     finally:
         session.close()
         engine.dispose()
