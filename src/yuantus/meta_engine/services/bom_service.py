@@ -72,18 +72,18 @@ class BOMService:
             "description": "Compare by parent/child config only.",
         },
         "summarized": {
-            "line_key": "child_config",
+            "line_key": "child_config_uom",
             "include_relationship_props": ["quantity", "uom"],
             "aggregate_quantities": True,
-            "aliases": ["summary"],
-            "description": "Aggregate quantities for identical children.",
+            "aliases": ["summary", "summary_uom", "summarized_uom"],
+            "description": "Aggregate quantities for identical children within the same UOM.",
         },
         "by_item": {
-            "line_key": "child_id",
+            "line_key": "child_id_uom",
             "include_relationship_props": ["quantity", "uom"],
             "aggregate_quantities": True,
-            "aliases": ["item", "by_child", "child_id"],
-            "description": "Aggregate quantities by child item ID.",
+            "aliases": ["item", "by_child", "child_id", "item_uom", "by_child_uom"],
+            "description": "Aggregate quantities by child item ID within the same UOM.",
         },
         "num_qty": {
             "line_key": "child_config_find_num_qty",
@@ -121,7 +121,9 @@ class BOMService:
     }
     LINE_KEY_OPTIONS = (
         "child_config",
+        "child_config_uom",
         "child_id",
+        "child_id_uom",
         "relationship_id",
         "child_config_find_num",
         "child_config_refdes",
@@ -1452,6 +1454,7 @@ class BOMService:
         child_fallback = child_config_id or child_id or ""
         find_num = normalized_properties.get("find_num")
         refdes = self._format_key_list(normalized_properties.get("refdes"))
+        uom_key = _normalize_bom_uom(normalized_properties.get("uom"))
         eff_key = normalized_properties.get("effectivities")
         qty_key = self._format_key_number(normalized_properties.get("quantity"))
         if eff_key:
@@ -1463,42 +1466,52 @@ class BOMService:
 
         if key in {"child_id", "item_id"}:
             return f"{parent_id or parent_fallback}::{child_id or child_fallback}"
+        if key in {"child_id_uom", "item_id_uom", "item_uom", "child_uom"}:
+            return f"{parent_id or parent_fallback}::{child_id or child_fallback}::{uom_key}"
         if key in {"child_config", "config"}:
             return f"{parent_fallback}::{child_fallback}"
+        if key in {"child_config_uom", "config_uom"}:
+            return f"{parent_fallback}::{child_fallback}::{uom_key}"
         if key in {"relationship_id", "line_id", "rel_id"}:
             return relationship_id or f"{parent_id or parent_fallback}::{child_id or child_fallback}"
         if key in {"child_id_find_num", "child_id_find"}:
-            return f"{parent_id or parent_fallback}::{child_id or child_fallback}::{find_num or ''}"
+            return (
+                f"{parent_id or parent_fallback}::{child_id or child_fallback}"
+                f"::{uom_key}::{find_num or ''}"
+            )
         if key in {"child_config_find_num", "child_config_find"}:
-            return f"{parent_fallback}::{child_fallback}::{find_num or ''}"
+            return f"{parent_fallback}::{child_fallback}::{uom_key}::{find_num or ''}"
         if key in {"child_id_refdes", "child_id_ref"}:
-            return f"{parent_id or parent_fallback}::{child_id or child_fallback}::{refdes}"
+            return (
+                f"{parent_id or parent_fallback}::{child_id or child_fallback}"
+                f"::{uom_key}::{refdes}"
+            )
         if key in {"child_config_refdes", "child_config_ref"}:
-            return f"{parent_fallback}::{child_fallback}::{refdes}"
+            return f"{parent_fallback}::{child_fallback}::{uom_key}::{refdes}"
         if key in {"child_id_find_refdes", "child_id_find_ref"}:
             return (
                 f"{parent_id or parent_fallback}::{child_id or child_fallback}"
-                f"::{find_num or ''}::{refdes}"
+                f"::{uom_key}::{find_num or ''}::{refdes}"
             )
         if key in {"child_config_find_refdes", "child_config_find_ref"}:
             return (
                 f"{parent_fallback}::{child_fallback}"
-                f"::{find_num or ''}::{refdes}"
+                f"::{uom_key}::{find_num or ''}::{refdes}"
             )
         if key in {"child_id_find_num_qty", "child_id_find_qty"}:
             return (
                 f"{parent_id or parent_fallback}::{child_id or child_fallback}"
-                f"::{find_num or ''}::{qty_key}"
+                f"::{uom_key}::{find_num or ''}::{qty_key}"
             )
         if key in {"child_config_find_num_qty", "child_config_find_qty"}:
             return (
                 f"{parent_fallback}::{child_fallback}"
-                f"::{find_num or ''}::{qty_key}"
+                f"::{uom_key}::{find_num or ''}::{qty_key}"
             )
         if key in {"line_full", "full"}:
             return (
                 f"{parent_id or parent_fallback}::{child_id or child_fallback}"
-                f"::{find_num or ''}::{refdes}::{eff_value}"
+                f"::{find_num or ''}::{refdes}::{uom_key}::{eff_value}"
             )
         return f"{parent_fallback}::{child_fallback}"
 

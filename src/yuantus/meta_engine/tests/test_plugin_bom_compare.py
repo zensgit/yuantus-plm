@@ -26,10 +26,13 @@ def _child(
     child_id: str,
     qty: float,
     *,
+    uom: str | None = None,
     find_num: str | None = None,
     refdes: str | None = None,
 ) -> dict:
     props = {"quantity": qty}
+    if uom is not None:
+        props["uom"] = uom
     if find_num is not None:
         props["find_num"] = find_num
     if refdes is not None:
@@ -83,7 +86,7 @@ def test_compare_num_qty_treats_quantity_as_key():
 def test_compare_by_item_rolls_up_child_id_across_positions():
     module = _load_plugin_module()
     line_key, props, aggregate = BOMService.resolve_compare_mode("by_item")
-    assert line_key == "child_id"
+    assert line_key == "child_id_uom"
     assert props == ["quantity", "uom"]
     assert aggregate is True
     assert BOMService.resolve_compare_mode("child_id") == (line_key, props, aggregate)
@@ -111,6 +114,216 @@ def test_compare_by_item_rolls_up_child_id_across_positions():
     assert result.differences[0].status == "unchanged"
     assert result.differences[0].qty_a == 2.0
     assert result.differences[0].qty_b == 2.0
+
+
+def test_core_summarized_compare_keeps_different_uom_quantities_separate():
+    line_key, props, aggregate = BOMService.resolve_compare_mode("summarized")
+    assert line_key == "child_config_uom"
+    assert props == ["quantity", "uom"]
+    assert aggregate is True
+
+    service = BOMService(MagicMock())
+    tree_a = {
+        "id": "root",
+        "config_id": "root",
+        "children": [
+            _child("rel1", "c1", 1, uom="EA"),
+            _child("rel2", "c1", 2, uom="MM"),
+        ],
+    }
+    tree_b = {
+        "id": "root",
+        "config_id": "root",
+        "children": [
+            _child("rel3", "c1", 1, uom="EA"),
+            _child("rel4", "c1", 3, uom="MM"),
+        ],
+    }
+
+    result = service.compare_bom_trees(
+        tree_a,
+        tree_b,
+        include_relationship_props=props,
+        line_key=line_key,
+        aggregate_quantities=aggregate,
+    )
+
+    assert result["summary"] == {
+        "added": 0,
+        "removed": 0,
+        "changed": 1,
+        "changed_major": 1,
+        "changed_minor": 0,
+        "changed_info": 0,
+    }
+    assert result["changed"][0]["line_key"] == "root::c1::MM"
+    assert result["changed"][0]["before"] == {"quantity": 2}
+    assert result["changed"][0]["after"] == {"quantity": 3}
+
+
+def test_core_summarized_compare_reports_uom_bucket_add_remove():
+    line_key, props, aggregate = BOMService.resolve_compare_mode("summarized")
+    service = BOMService(MagicMock())
+    tree_a = {
+        "id": "root",
+        "config_id": "root",
+        "children": [
+            _child("rel1", "c1", 1, uom="EA"),
+            _child("rel2", "c1", 2, uom="MM"),
+        ],
+    }
+    tree_b = {
+        "id": "root",
+        "config_id": "root",
+        "children": [
+            _child("rel3", "c1", 1, uom="EA"),
+            _child("rel4", "c1", 2, uom="KG"),
+        ],
+    }
+
+    result = service.compare_bom_trees(
+        tree_a,
+        tree_b,
+        include_relationship_props=props,
+        line_key=line_key,
+        aggregate_quantities=aggregate,
+    )
+
+    assert result["summary"] == {
+        "added": 1,
+        "removed": 1,
+        "changed": 0,
+        "changed_major": 0,
+        "changed_minor": 0,
+        "changed_info": 0,
+    }
+    assert result["removed"][0]["line_key"] == "root::c1::MM"
+    assert result["added"][0]["line_key"] == "root::c1::KG"
+
+
+@pytest.mark.parametrize(
+    ("line_key", "expected_key"),
+    [
+        ("child_config_find_num", "root::c1::MM::10"),
+        ("child_config_refdes", "root::c1::MM::R1"),
+        ("child_config_find_refdes", "root::c1::MM::10::R1"),
+        ("child_config_find_num_qty", "root::c1::MM::10::1"),
+    ],
+)
+def test_core_line_keys_include_uom_for_line_level_modes(line_key, expected_key):
+    service = BOMService(MagicMock())
+    result = service.compare_bom_trees(
+        {"id": "root", "config_id": "root", "children": []},
+        {
+            "id": "root",
+            "config_id": "root",
+            "children": [_child("rel1", "c1", 1, uom="MM", find_num="10", refdes="R1")],
+        },
+        include_relationship_props=["quantity", "uom", "find_num", "refdes"],
+        line_key=line_key,
+    )
+
+    assert result["added"][0]["line_key"] == expected_key
+
+
+def test_plugin_summarized_compare_keeps_different_uom_quantities_separate():
+    module = _load_plugin_module()
+    tree_a = {
+        "id": "root",
+        "children": [
+            _child("rel1", "c1", 1, uom="EA"),
+            _child("rel2", "c1", 2, uom="MM"),
+        ],
+    }
+    tree_b = {
+        "id": "root",
+        "children": [
+            _child("rel3", "c1", 1, uom="EA"),
+            _child("rel4", "c1", 3, uom="MM"),
+        ],
+    }
+
+    result = module.compare_bom_trees(
+        tree_a,
+        tree_b,
+        mode="summarized",
+        quantity_key="quantity",
+        uom_key="uom",
+        position_key="find_num",
+        refdes_key="refdes",
+        include_unchanged=True,
+    )
+
+    assert result.summary == {"added": 0, "removed": 0, "modified": 1, "unchanged": 1}
+    by_key = {diff.key: diff for diff in result.differences}
+    assert by_key["c1:EA"].status == "unchanged"
+    assert by_key["c1:MM"].status == "modified"
+    assert by_key["c1:MM"].qty_a == 2.0
+    assert by_key["c1:MM"].qty_b == 3.0
+    assert by_key["c1:MM"].uom_a == "MM"
+    assert by_key["c1:MM"].uom_b == "MM"
+
+
+def test_plugin_summarized_compare_reports_uom_bucket_add_remove():
+    module = _load_plugin_module()
+    tree_a = {
+        "id": "root",
+        "children": [
+            _child("rel1", "c1", 1, uom="EA"),
+            _child("rel2", "c1", 2, uom="MM"),
+        ],
+    }
+    tree_b = {
+        "id": "root",
+        "children": [
+            _child("rel3", "c1", 1, uom="EA"),
+            _child("rel4", "c1", 2, uom="KG"),
+        ],
+    }
+
+    result = module.compare_bom_trees(
+        tree_a,
+        tree_b,
+        mode="summarized",
+        quantity_key="quantity",
+        uom_key="uom",
+        position_key="find_num",
+        refdes_key="refdes",
+        include_unchanged=True,
+    )
+
+    assert result.summary == {"added": 1, "removed": 1, "modified": 0, "unchanged": 1}
+    by_key = {diff.key: diff for diff in result.differences}
+    assert by_key["c1:EA"].status == "unchanged"
+    assert by_key["c1:MM"].status == "removed"
+    assert by_key["c1:KG"].status == "added"
+
+
+@pytest.mark.parametrize(
+    ("mode", "expected_key"),
+    [
+        ("num_qty", "c1:MM:1.0"),
+        ("by_position", "c1:MM:10"),
+        ("by_reference", "c1:MM:R1"),
+    ],
+)
+def test_plugin_line_keys_include_uom_for_line_level_modes(mode, expected_key):
+    module = _load_plugin_module()
+    result = module.compare_bom_trees(
+        {"id": "root", "children": []},
+        {
+            "id": "root",
+            "children": [_child("rel1", "c1", 1, uom="MM", find_num="10", refdes="R1")],
+        },
+        mode=mode,
+        quantity_key="quantity",
+        uom_key="uom",
+        position_key="find_num",
+        refdes_key="refdes",
+        include_unchanged=True,
+    )
+
+    assert result.differences[0].key == expected_key
 
 
 def test_compare_by_find_refdes_mode_and_alias_behaves_as_expected():
@@ -153,7 +366,7 @@ def test_compare_by_find_refdes_mode_and_alias_behaves_as_expected():
         "changed_info": 0,
     }
     assert len(result["changed"]) == 1
-    assert result["changed"][0]["line_key"] == "root::c1::10::R1,R2"
+    assert result["changed"][0]["line_key"] == "root::c1::EA::10::R1,R2"
     assert result["changed"][0]["before"] == {"quantity": 1}
     assert result["changed"][0]["after"] == {"quantity": 2}
 
