@@ -8,6 +8,8 @@ Usage:
   scripts/run_p2_shared_dev_142_entrypoint.sh --mode <mode> [--dry-run] [-- <mode-specific args>]
 
 Modes:
+  print-daily-commands
+      Print the minimal daily-ops command sequence for maintaining the official shared-dev 142 readonly baseline.
   readonly-rerun
       Direct local readonly rerun against the current official shared-dev 142 baseline.
   refreeze-readiness
@@ -45,6 +47,7 @@ Options:
 
 Examples:
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
+  bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-daily-commands
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-readiness
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-candidate
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-proposal
@@ -112,6 +115,10 @@ target_script=""
 mode_summary=""
 
 case "${mode}" in
+  print-daily-commands)
+    target_script="scripts/print_p2_shared_dev_142_daily_ops_commands.sh"
+    mode_summary="minimal daily-ops command printout"
+    ;;
   readonly-rerun)
     target_script="scripts/run_p2_shared_dev_142_readonly_rerun.sh"
     mode_summary="direct local readonly rerun"

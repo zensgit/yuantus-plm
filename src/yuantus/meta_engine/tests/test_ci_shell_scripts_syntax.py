@@ -92,6 +92,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_dirty_tree_split_matrix.sh",
         scripts_dir / "print_docs_parallel_split_helper.sh",
         scripts_dir / "print_mainline_baseline_switch_commands.sh",
+        scripts_dir / "print_p2_shared_dev_142_daily_ops_commands.sh",
         scripts_dir / "print_p2_shared_dev_142_drift_audit_commands.sh",
         scripts_dir / "print_p2_shared_dev_142_drift_investigation_commands.sh",
         scripts_dir / "print_p2_shared_dev_142_refreeze_candidate_commands.sh",
@@ -201,6 +202,7 @@ def test_p2_shared_dev_142_entrypoint_script_has_help() -> None:
     for token in (
         "Usage:",
         "--mode <mode>",
+        "print-daily-commands",
         "readonly-rerun",
         "refreeze-readiness",
         "refreeze-candidate",

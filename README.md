@@ -86,6 +86,7 @@ For post-bootstrap reruns with existing shared-dev credentials, use:
 For the current official readonly baseline on shared-dev host `142.171.239.56`, start with:
 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-daily-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-candidate-commands`
@@ -175,6 +176,7 @@ Read-only Claude reviewer sidecar:
 - `docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md` (P2 observation workflow dispatch)
 - `docs/P2_ONE_PAGE_DEV_GUIDE.md` (P2 observation single-page execution guide)
 - `docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md` (P2 remote/shared-dev observation rerun)
+- `docs/P2_SHARED_DEV_142_DAILY_OPS_CHECKLIST.md` (142 shared-dev 维护态日常操作清单)
 - `docs/P2_SHARED_DEV_142_DRIFT_AUDIT_CHECKLIST.md` (142 shared-dev drift audit checklist)
 - `docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md` (142 shared-dev drift investigation evidence pack checklist)
 - `docs/P2_SHARED_DEV_142_READONLY_REFREEZE_CANDIDATE_CHECKLIST.md` (142 shared-dev stable readonly candidate preview checklist)

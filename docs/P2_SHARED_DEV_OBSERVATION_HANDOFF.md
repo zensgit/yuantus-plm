@@ -21,6 +21,8 @@
 如果当前目标环境就是 **shared-dev 142 的 official readonly baseline**，优先直接用：
 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
+- `docs/P2_SHARED_DEV_142_DAILY_OPS_CHECKLIST.md`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-daily-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-readiness`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-candidate`
@@ -34,6 +36,7 @@
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-drift-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-investigation-commands`
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
+- `bash scripts/print_p2_shared_dev_142_daily_ops_commands.sh`
 - `bash scripts/run_p2_shared_dev_142_refreeze_readiness.sh`
 - `bash scripts/run_p2_shared_dev_142_refreeze_candidate.sh`
 - `bash scripts/run_p2_shared_dev_142_refreeze_proposal.sh`
