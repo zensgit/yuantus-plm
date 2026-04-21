@@ -20,7 +20,9 @@ class LifecycleSeeder(BaseSeeder):
         s_draft = self._ensure_state(lc_map, "draft", "Draft", is_start=True, seq=10)
         s_review = self._ensure_state(lc_map, "review", "In Review", lock=True, seq=20)
         s_released = self._ensure_state(lc_map, "released", "Released", is_released=True, lock=True, seq=30)
-        s_suspended = self._ensure_state(lc_map, "suspended", "Suspended", lock=True, seq=35)
+        s_suspended = self._ensure_state(
+            lc_map, "suspended", "Suspended", lock=True, seq=35, is_suspended=True
+        )
         s_obsolete = self._ensure_state(lc_map, "obsolete", "Obsolete", is_end=True, lock=True, seq=40)
 
         # 3. Transitions
@@ -39,7 +41,18 @@ class LifecycleSeeder(BaseSeeder):
             self.log(f"Created LifecycleMap: {name}")
         return lc
 
-    def _ensure_state(self, lc_map, id_suffix, name, is_start=False, is_end=False, is_released=False, lock=False, seq=0):
+    def _ensure_state(
+        self,
+        lc_map,
+        id_suffix,
+        name,
+        is_start=False,
+        is_end=False,
+        is_released=False,
+        lock=False,
+        seq=0,
+        is_suspended=False,
+    ):
         full_id = f"{lc_map.id}_{id_suffix}"
         state = self.session.query(LifecycleState).filter_by(id=full_id).first()
         if not state:
@@ -52,10 +65,13 @@ class LifecycleSeeder(BaseSeeder):
                 is_start_state=is_start,
                 is_end_state=is_end,
                 is_released=is_released,
+                is_suspended=is_suspended,
                 version_lock=lock
             )
             self.session.add(state)
             self.log(f"Created State: {name}")
+        else:
+            state.is_suspended = is_suspended
         return state
 
     def _ensure_transition(self, lc_map, from_state, to_state, action):

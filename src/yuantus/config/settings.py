@@ -261,6 +261,10 @@ class Settings(BaseSettings):
         default=False,
         description="Disable latest-released write guard globally (tenant/org plugin config can override).",
     )
+    SUSPENDED_GUARD_DISABLED: bool = Field(
+        default=False,
+        description="Disable suspended-state write guard globally (tenant/org plugin config can override).",
+    )
 
     # Search engine (optional)
     SEARCH_ENGINE_INDEX_PREFIX: str = Field(default="yuantus")

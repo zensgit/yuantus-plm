@@ -435,6 +435,7 @@ def seed_meta(
             is_start: bool = False,
             is_end: bool = False,
             is_released: bool = False,
+            is_suspended: bool = False,
             version_lock: bool = False,
         ) -> LifecycleState:
             if is_start:
@@ -459,6 +460,7 @@ def seed_meta(
             state.is_start_state = is_start
             state.is_end_state = is_end
             state.is_released = is_released
+            state.is_suspended = is_suspended
             state.version_lock = version_lock
             session.flush()
             return state
@@ -621,6 +623,7 @@ def seed_meta(
             part_lifecycle,
             "Suspended",
             35,
+            is_suspended=True,
             version_lock=True,
         )
         part_obsolete_state = ensure_state(

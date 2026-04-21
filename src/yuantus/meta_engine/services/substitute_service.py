@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.services.latest_released_guard import assert_latest_released
+from yuantus.meta_engine.services.suspended_guard import assert_not_suspended
 from yuantus.meta_engine.services.engine import AMLEngine
 from yuantus.security.rbac.permissions import (
     PermissionManager as MetaPermissionService,
@@ -75,6 +76,9 @@ class SubstituteService:
         if not sub_item:
             raise ValueError(f"Substitute Item ID not found: {substitute_item_id}")
         assert_latest_released(
+            self.session, substitute_item_id, context="substitute"
+        )
+        assert_not_suspended(
             self.session, substitute_item_id, context="substitute"
         )
 

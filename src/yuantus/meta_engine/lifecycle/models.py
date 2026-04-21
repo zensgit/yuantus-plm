@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, ForeignKey, Integer
+from sqlalchemy import Column, String, Boolean, ForeignKey, Integer, false
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from typing import Optional, List
 
@@ -45,6 +45,9 @@ class LifecycleState(Base):
     # State flags
     is_end_state = Column(Boolean, default=False)  # Final state (e.g. Obsolete)
     is_released = Column(Boolean, default=False)  # Does this state signify "Released"?
+    is_suspended = Column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )  # Does this state block downstream consumption?
 
     # Behavior
     version_lock = Column(

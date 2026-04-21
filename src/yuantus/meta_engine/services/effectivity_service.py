@@ -12,6 +12,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from ..models.effectivity import Effectivity
 from .latest_released_guard import assert_latest_released
+from .suspended_guard import assert_not_suspended
 
 
 @dataclass
@@ -69,6 +70,7 @@ class EffectivityService:
         for target_id in (item_id, version_id):
             if target_id:
                 assert_latest_released(self.session, target_id, context="effectivity")
+                assert_not_suspended(self.session, target_id, context="effectivity")
 
         start_date = self._normalize_utc_naive(start_date) if start_date else None
         end_date = self._normalize_utc_naive(end_date) if end_date else None

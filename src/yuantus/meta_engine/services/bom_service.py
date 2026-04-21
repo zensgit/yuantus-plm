@@ -8,6 +8,7 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy.orm import Session
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.latest_released_guard import assert_latest_released
+from yuantus.meta_engine.services.suspended_guard import assert_not_suspended
 from .effectivity_service import EffectivityService, EffectivityContext
 
 
@@ -690,6 +691,7 @@ class BOMService:
         if not child:
             raise ValueError(f"Child item {child_id} not found")
         assert_latest_released(self.session, child_id, context="bom_child")
+        assert_not_suspended(self.session, child_id, context="bom_child")
 
         # Check for cycle
         cycle_result = self.detect_cycle_with_path(parent_id, child_id)
