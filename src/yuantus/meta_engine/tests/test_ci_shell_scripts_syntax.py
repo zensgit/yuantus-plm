@@ -92,6 +92,11 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_dirty_tree_split_matrix.sh",
         scripts_dir / "print_docs_parallel_split_helper.sh",
         scripts_dir / "print_mainline_baseline_switch_commands.sh",
+        scripts_dir / "print_p2_shared_dev_142_drift_audit_commands.sh",
+        scripts_dir / "print_p2_shared_dev_142_drift_investigation_commands.sh",
+        scripts_dir / "print_p2_shared_dev_142_refreeze_candidate_commands.sh",
+        scripts_dir / "print_p2_shared_dev_142_refreeze_proposal_commands.sh",
+        scripts_dir / "print_p2_shared_dev_142_refreeze_readiness_commands.sh",
         scripts_dir / "print_p2_shared_dev_142_rerun_commands.sh",
         scripts_dir / "print_p2_shared_dev_bootstrap_commands.sh",
         scripts_dir / "print_p2_shared_dev_142_readonly_rerun_commands.sh",
@@ -102,6 +107,11 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_subcontracting_first_cut_anchors.sh",
         scripts_dir / "run_claude_code_parallel_reviewer.sh",
         scripts_dir / "run_p2_shared_dev_142_entrypoint.sh",
+        scripts_dir / "run_p2_shared_dev_142_drift_audit.sh",
+        scripts_dir / "run_p2_shared_dev_142_drift_investigation.sh",
+        scripts_dir / "run_p2_shared_dev_142_refreeze_candidate.sh",
+        scripts_dir / "run_p2_shared_dev_142_refreeze_proposal.sh",
+        scripts_dir / "run_p2_shared_dev_142_refreeze_readiness.sh",
         scripts_dir / "run_p2_shared_dev_142_readonly_rerun.sh",
         scripts_dir / "run_p2_shared_dev_142_workflow_probe.sh",
         scripts_dir / "run_p2_shared_dev_142_workflow_readonly_check.sh",
@@ -192,13 +202,137 @@ def test_p2_shared_dev_142_entrypoint_script_has_help() -> None:
         "Usage:",
         "--mode <mode>",
         "readonly-rerun",
+        "refreeze-readiness",
+        "refreeze-candidate",
+        "refreeze-proposal",
+        "drift-audit",
+        "drift-investigation",
         "workflow-probe",
         "workflow-readonly-check",
         "print-readonly-commands",
+        "print-refreeze-readiness-commands",
+        "print-refreeze-candidate-commands",
+        "print-refreeze-proposal-commands",
+        "print-drift-commands",
+        "print-investigation-commands",
         "--dry-run",
         "`142.171.239.56`",
     ):
         assert token in out, f"run_p2_shared_dev_142_entrypoint.sh help missing token: {token}"
+
+
+def test_p2_shared_dev_142_drift_audit_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_drift_audit.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    for token in (
+        "Usage:",
+        "./tmp/p2-shared-dev-observation-20260419-193242",
+        "shared-dev-142-readonly-20260419",
+        "current-drift-audit",
+        "DRIFT_AUDIT.md",
+        "drift_audit.json",
+        "run_p2_shared_dev_142_readonly_rerun.sh",
+    ):
+        assert token in out, f"run_p2_shared_dev_142_drift_audit.sh help missing token: {token}"
+
+
+def test_p2_shared_dev_142_drift_investigation_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_drift_investigation.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    for token in (
+        "Usage:",
+        "./tmp/p2-shared-dev-observation-20260419-193242",
+        "shared-dev-142-readonly-20260419",
+        "current-drift-audit",
+        "DRIFT_INVESTIGATION.md",
+        "drift_investigation.json",
+        "run_p2_shared_dev_142_drift_audit.sh",
+    ):
+        assert token in out, f"run_p2_shared_dev_142_drift_investigation.sh help missing token: {token}"
+
+
+def test_p2_shared_dev_142_refreeze_readiness_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_refreeze_readiness.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    for token in (
+        "Usage:",
+        "REFREEZE_READINESS.md",
+        "refreeze_readiness.json",
+        "future-deadline pending approvals",
+        "run_p2_shared_dev_142_readonly_rerun.sh",
+    ):
+        assert token in out, f"run_p2_shared_dev_142_refreeze_readiness.sh help missing token: {token}"
+
+
+def test_p2_shared_dev_142_refreeze_candidate_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_refreeze_candidate.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    for token in (
+        "Usage:",
+        "STABLE_READONLY_CANDIDATE.md",
+        "stable_readonly_candidate.json",
+        "excluding future-deadline pending approvals",
+        "run_p2_shared_dev_142_readonly_rerun.sh",
+    ):
+        assert token in out, f"run_p2_shared_dev_142_refreeze_candidate.sh help missing token: {token}"
+
+
+def test_p2_shared_dev_142_refreeze_proposal_script_has_help() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "run_p2_shared_dev_142_refreeze_proposal.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout or ""
+    for token in (
+        "Usage:",
+        "REFREEZE_PROPOSAL.md",
+        "refreeze_proposal.json",
+        "shared-dev-142-readonly-",
+        "run_p2_shared_dev_142_refreeze_candidate.sh",
+    ):
+        assert token in out, f"run_p2_shared_dev_142_refreeze_proposal.sh help missing token: {token}"
 
 
 def test_p2_shared_dev_142_workflow_readonly_check_script_has_help() -> None:

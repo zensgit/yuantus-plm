@@ -78,6 +78,9 @@ For post-bootstrap reruns with existing shared-dev credentials, use:
 
 - `docs/P2_ONE_PAGE_DEV_GUIDE.md`
 - `docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md`
+- `docs/P2_SHARED_DEV_142_READONLY_REFREEZE_CANDIDATE_CHECKLIST.md`
+- `docs/P2_SHARED_DEV_142_READONLY_REFREEZE_PROPOSAL_CHECKLIST.md`
+- `docs/P2_SHARED_DEV_142_READONLY_REFREEZE_READINESS_CHECKLIST.md`
 - `bash scripts/print_p2_shared_dev_observation_commands.sh`
 
 For the current official readonly baseline on shared-dev host `142.171.239.56`, start with:
@@ -85,6 +88,14 @@ For the current official readonly baseline on shared-dev host `142.171.239.56`, 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-candidate-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-proposal-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-readiness-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-candidate`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-proposal`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-readiness`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check`
 
@@ -164,6 +175,10 @@ Read-only Claude reviewer sidecar:
 - `docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md` (P2 observation workflow dispatch)
 - `docs/P2_ONE_PAGE_DEV_GUIDE.md` (P2 observation single-page execution guide)
 - `docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md` (P2 remote/shared-dev observation rerun)
+- `docs/P2_SHARED_DEV_142_DRIFT_AUDIT_CHECKLIST.md` (142 shared-dev drift audit checklist)
+- `docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md` (142 shared-dev drift investigation evidence pack checklist)
+- `docs/P2_SHARED_DEV_142_READONLY_REFREEZE_CANDIDATE_CHECKLIST.md` (142 shared-dev stable readonly candidate preview checklist)
+- `docs/P2_SHARED_DEV_142_READONLY_REFREEZE_PROPOSAL_CHECKLIST.md` (142 shared-dev formal readonly refreeze proposal checklist)
 - `docs/P2_SHARED_DEV_142_RERUN_CHECKLIST.md` (142 shared-dev 常规 rerun checklist)
 - `docs/P2_SHARED_DEV_FIRST_RUN_CHECKLIST.md` (P2 shared-dev first-run checklist)
 - `docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md` (P2 shared-dev observation handoff)

@@ -13,6 +13,8 @@ If you are not sure whether the environment may be reset, default to this rerun 
 For the current official readonly baseline on shared-dev host `142.171.239.56`, prefer:
 - bash scripts/run_p2_shared_dev_142_entrypoint.sh --help
 - bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
+- bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit
+- bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation
 - bash scripts/run_p2_shared_dev_142_readonly_rerun.sh
 - bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh
 For a GitHub Actions current-only probe against shared-dev host `142.171.239.56`, use:
@@ -29,6 +31,11 @@ For fresh shared-dev bootstrap, use:
 For the already-initialized `142` shared-dev, prefer the dedicated rerun entrypoint:
 - docs/P2_SHARED_DEV_142_RERUN_CHECKLIST.md
 - bash scripts/print_p2_shared_dev_142_rerun_commands.sh
+
+If readonly guard / readonly rerun already showed drift and you need a fixed evidence pack before deciding on refreeze:
+- docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md
+- bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-investigation-commands
+- bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation
 
 1. Preferred: put shared-dev defaults in a local env file
 

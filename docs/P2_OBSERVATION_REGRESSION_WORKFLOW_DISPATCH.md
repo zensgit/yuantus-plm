@@ -57,6 +57,12 @@ bash scripts/run_p2_shared_dev_142_entrypoint.sh --help
    - `WORKFLOW_READONLY_EVAL.md`
    - `WORKFLOW_READONLY_CHECK.md`
 
+如果这一步已经确认 `142` 相对 frozen readonly baseline 漂移，而你还不准备直接 refreeze，下一步不要停在 workflow doc 上，改走：
+
+- `docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-investigation-commands`
+
 推荐本地 wrapper：
 
 ```bash

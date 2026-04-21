@@ -22,6 +22,8 @@
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check`
 
@@ -39,6 +41,8 @@
   - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
   - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
   - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+  - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
+  - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
   - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe`
   - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check`
   - `docs/P2_ONE_PAGE_DEV_GUIDE.md`

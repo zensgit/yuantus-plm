@@ -45,8 +45,23 @@
 
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --help`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-readiness`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-candidate`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-proposal`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation`
 - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-readiness-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-candidate-commands`
+- `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-proposal-commands`
 - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
+- `bash scripts/run_p2_shared_dev_142_refreeze_readiness.sh`
+- `bash scripts/run_p2_shared_dev_142_refreeze_candidate.sh`
+- `bash scripts/run_p2_shared_dev_142_refreeze_proposal.sh`
+- `bash scripts/run_p2_shared_dev_142_drift_audit.sh`
+- `bash scripts/print_p2_shared_dev_142_refreeze_readiness_commands.sh`
+- `bash scripts/print_p2_shared_dev_142_refreeze_candidate_commands.sh`
+- `bash scripts/print_p2_shared_dev_142_refreeze_proposal_commands.sh`
 - `bash scripts/print_p2_shared_dev_142_readonly_rerun_commands.sh`
 
 ### 2.1 首选：env file + 本地 precheck
@@ -147,6 +162,8 @@ bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-readonly-check
 
 - `workflow-probe` 不会做 frozen baseline 的 readonly compare/eval
 - `workflow-readonly-check` 会做 frozen baseline 的 readonly compare/eval
+- `drift-audit` 会先跑 fixed readonly rerun，再输出 `DRIFT_AUDIT.md` / `drift_audit.json`
+- `drift-investigation` 会先跑 fixed drift-audit，再输出 `DRIFT_INVESTIGATION.md` / `drift_investigation.json`
 - 如果你要的是 `142` 的正式 readonly rerun，仍然用：
   - `bash scripts/run_p2_shared_dev_142_readonly_rerun.sh`
 
