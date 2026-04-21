@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 import csv
 import io
 import json
@@ -18,7 +18,7 @@ from yuantus.meta_engine.models.baseline import (
 )
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.schemas.aml import AMLAction
-from yuantus.meta_engine.services.bom_service import BOMService
+from yuantus.meta_engine.services.bom_service import BOMService, _normalize_bom_uom
 from yuantus.meta_engine.services.effectivity_service import EffectivityService
 from yuantus.meta_engine.services.meta_permission_service import MetaPermissionService
 from yuantus.meta_engine.services.release_validation import (
@@ -111,6 +111,7 @@ class BaselineService:
         path: str,
         quantity: Optional[str] = None,
         member_type: str = "item",
+        relationship_id: Optional[str] = None,
     ) -> BaselineMember:
         member = BaselineMember(
             id=str(uuid.uuid4()),
@@ -123,6 +124,7 @@ class BaselineService:
             level=level,
             path=path,
             quantity=quantity,
+            relationship_id=relationship_id,
             member_type=member_type,
             item_state=item.state,
         )
@@ -182,6 +184,7 @@ class BaselineService:
                 level=level,
                 path=child_path,
                 quantity=quantity,
+                relationship_id=rel.get("id"),
             )
 
             if baseline.include_relationships and rel.get("id"):
@@ -222,6 +225,117 @@ class BaselineService:
                 member_type="document",
             )
             self.session.add(member)
+
+    def _snapshot_uom_lookup(
+        self, baseline: Baseline
+    ) -> Dict[str, Dict[Any, str]]:
+        snapshot = baseline.snapshot if isinstance(baseline.snapshot, dict) else {}
+        lookup: Dict[str, Dict[Any, str]] = {
+            "item_path": {},
+            "item": {},
+            "relationship": {},
+        }
+        ambiguous_item_ids: Set[str] = set()
+
+        def _node_label(node: Dict[str, Any], fallback: str = "") -> str:
+            return (
+                node.get("config_id")
+                or node.get("item_number")
+                or node.get("number")
+                or node.get("id")
+                or fallback
+                or "root"
+            )
+
+        def _remember_item_uom(item_id: str, uom: str) -> None:
+            existing = lookup["item"].get(item_id)
+            if existing is None:
+                lookup["item"][item_id] = uom
+                return
+            if existing != uom:
+                ambiguous_item_ids.add(item_id)
+
+        def _walk(node: Dict[str, Any], parent_path: str) -> None:
+            for entry in node.get("children") or []:
+                if not isinstance(entry, dict):
+                    continue
+                relationship = entry.get("relationship") or {}
+                if not isinstance(relationship, dict):
+                    relationship = {}
+                child = entry.get("child") or {}
+                if not isinstance(child, dict):
+                    continue
+
+                properties = relationship.get("properties") or {}
+                uom = _normalize_bom_uom(
+                    properties.get("uom") if isinstance(properties, dict) else None
+                )
+                relationship_id = relationship.get("id")
+                if relationship_id:
+                    lookup["relationship"][relationship_id] = uom
+
+                child_id = child.get("id")
+                child_path = (
+                    f"{parent_path}/{_node_label(child)}"
+                    if parent_path
+                    else _node_label(child)
+                )
+                if child_id:
+                    lookup["item_path"][(child_id, child_path)] = uom
+                    _remember_item_uom(child_id, uom)
+
+                _walk(child, child_path)
+
+        if snapshot:
+            _walk(snapshot, _node_label(snapshot))
+
+        for item_id in ambiguous_item_ids:
+            lookup["item"].pop(item_id, None)
+        return lookup
+
+    def _member_uom(
+        self,
+        member: BaselineMember,
+        lookup: Dict[str, Dict[Any, str]],
+    ) -> Optional[str]:
+        if member.relationship_id:
+            return lookup["relationship"].get(member.relationship_id)
+        if member.member_type != "item" or not member.item_id:
+            return None
+        return lookup["item_path"].get((member.item_id, member.path)) or lookup["item"].get(
+            member.item_id
+        )
+
+    def _member_reference_id(self, member: BaselineMember) -> Optional[str]:
+        return member.item_id or member.document_id or member.relationship_id
+
+    def _member_bucket_key(
+        self, member: BaselineMember, uom: Optional[str]
+    ) -> Optional[str]:
+        reference_id = self._member_reference_id(member)
+        if not reference_id:
+            return None
+        if member.member_type == "item" and uom:
+            return f"{reference_id}::{uom}"
+        return None
+
+    def _member_detail(
+        self,
+        member: BaselineMember,
+        uom: Optional[str],
+    ) -> Dict[str, Any]:
+        detail: Dict[str, Any] = {
+            "member_type": member.member_type,
+            "reference_id": self._member_reference_id(member),
+            "item_number": member.item_number,
+            "revision": member.item_revision,
+        }
+        bucket_key = self._member_bucket_key(member, uom)
+        if bucket_key is not None:
+            detail["bucket_key"] = bucket_key
+        if uom is not None:
+            detail["uom"] = uom
+        return detail
 
     def _populate_members(self, baseline: Baseline, snapshot: Dict[str, Any]) -> None:
         if not baseline.root_item_id:
@@ -611,15 +725,24 @@ class BaselineService:
             .all()
         )
 
-        def _key(member: BaselineMember) -> Tuple[str, Optional[str]]:
+        lookup_a = self._snapshot_uom_lookup(baseline_a)
+        lookup_b = self._snapshot_uom_lookup(baseline_b)
+
+        def _key(
+            member: BaselineMember,
+            lookup: Dict[str, Dict[Any, str]],
+        ) -> Tuple[Optional[str], ...]:
             if member.member_type == "document":
                 return ("document", member.document_id or member.item_id)
             if member.member_type == "relationship":
                 return ("relationship", member.relationship_id)
+            uom = self._member_uom(member, lookup)
+            if uom:
+                return ("item", member.item_id, uom)
             return ("item", member.item_id)
 
-        map_a = {_key(m): m for m in members_a}
-        map_b = { _key(m): m for m in members_b }
+        map_a = {_key(m, lookup_a): m for m in members_a}
+        map_b = {_key(m, lookup_b): m for m in members_b}
 
         keys_a = set(map_a.keys())
         keys_b = set(map_b.keys())
@@ -631,53 +754,48 @@ class BaselineService:
 
         for key in keys_b - keys_a:
             m = map_b[key]
-            added.append(
-                {
-                    "member_type": m.member_type,
-                    "reference_id": m.item_id or m.document_id or m.relationship_id,
-                    "item_number": m.item_number,
-                    "revision": m.item_revision,
-                }
-            )
+            added.append(self._member_detail(m, self._member_uom(m, lookup_b)))
 
         for key in keys_a - keys_b:
             m = map_a[key]
-            removed.append(
-                {
-                    "member_type": m.member_type,
-                    "reference_id": m.item_id or m.document_id or m.relationship_id,
-                    "item_number": m.item_number,
-                    "revision": m.item_revision,
-                }
-            )
+            removed.append(self._member_detail(m, self._member_uom(m, lookup_a)))
 
         for key in keys_a & keys_b:
             ma = map_a[key]
             mb = map_b[key]
+            uom = self._member_uom(ma, lookup_a) or self._member_uom(mb, lookup_b)
             if ma.item_generation != mb.item_generation or ma.item_revision != mb.item_revision:
-                changed.append(
-                    {
-                        "member_type": ma.member_type,
-                        "reference_id": ma.item_id or ma.document_id or ma.relationship_id,
-                        "item_number": ma.item_number,
-                        "baseline_a": {
-                            "revision": ma.item_revision,
-                            "generation": ma.item_generation,
-                        },
-                        "baseline_b": {
-                            "revision": mb.item_revision,
-                            "generation": mb.item_generation,
-                        },
-                    }
-                )
+                detail = {
+                    "member_type": ma.member_type,
+                    "reference_id": self._member_reference_id(ma),
+                    "item_number": ma.item_number,
+                    "baseline_a": {
+                        "revision": ma.item_revision,
+                        "generation": ma.item_generation,
+                    },
+                    "baseline_b": {
+                        "revision": mb.item_revision,
+                        "generation": mb.item_generation,
+                    },
+                }
+                bucket_key = self._member_bucket_key(ma, uom)
+                if bucket_key is not None:
+                    detail["bucket_key"] = bucket_key
+                if uom is not None:
+                    detail["uom"] = uom
+                changed.append(detail)
             else:
-                unchanged.append(
-                    {
-                        "member_type": ma.member_type,
-                        "reference_id": ma.item_id or ma.document_id or ma.relationship_id,
-                        "item_number": ma.item_number,
-                    }
-                )
+                detail = {
+                    "member_type": ma.member_type,
+                    "reference_id": self._member_reference_id(ma),
+                    "item_number": ma.item_number,
+                }
+                bucket_key = self._member_bucket_key(ma, uom)
+                if bucket_key is not None:
+                    detail["bucket_key"] = bucket_key
+                if uom is not None:
+                    detail["uom"] = uom
+                unchanged.append(detail)
 
         comparison = BaselineComparison(
             id=str(uuid.uuid4()),

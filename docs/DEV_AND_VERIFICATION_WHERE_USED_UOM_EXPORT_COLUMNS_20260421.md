@@ -161,12 +161,8 @@ Existing JSON clients that read the nested `line` object continue to work. CSV c
 
 ## 8. Follow-Up
 
-Not closed by this increment:
-
-- `BaselineService.compare_baselines()` snapshots do not carry UOM buckets
-
 The BOM rollup child-row UOM visibility follow-up is closed by `DEV_AND_VERIFICATION_BOM_ROLLUP_UOM_CHILD_VISIBILITY_20260421.md`.
 
 The legacy report flattened BOM follow-up is closed by `DEV_AND_VERIFICATION_REPORT_BOM_FLATTEN_UOM_BUCKETS_20260421.md`.
 
-Baseline snapshots remain a separate read/reporting increment because they have different downstream compatibility risk.
+The baseline comparison UOM follow-up is closed by `DEV_AND_VERIFICATION_BASELINE_COMPARE_UOM_BUCKETS_20260421.md`.
