@@ -22,6 +22,7 @@ Behavior:
   - runs run_scheduler_audit_retention_activation_smoke.sh
   - runs run_scheduler_eco_escalation_activation_smoke.sh
   - writes suite_validation.json plus per-step evidence directories
+  - writes SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md and JSON report
 
 Safety:
   Do not use this script against shared-dev, production, or any DB with data you need.
@@ -118,8 +119,9 @@ fi
 preflight_script="${repo_root}/scripts/run_scheduler_dry_run_preflight.sh"
 audit_script="${repo_root}/scripts/run_scheduler_audit_retention_activation_smoke.sh"
 eco_script="${repo_root}/scripts/run_scheduler_eco_escalation_activation_smoke.sh"
+renderer_script="${repo_root}/scripts/render_scheduler_local_activation_suite.py"
 
-for script in "${preflight_script}" "${audit_script}" "${eco_script}"; do
+for script in "${preflight_script}" "${audit_script}" "${eco_script}" "${renderer_script}"; do
   if [[ ! -x "${script}" ]]; then
     echo "Missing executable helper: ${script}" >&2
     exit 2
@@ -192,6 +194,10 @@ if errors:
     raise SystemExit(1)
 PY
 
+"${py}" "${renderer_script}" "${output_dir}" \
+  --output-md "${output_dir}/SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md" \
+  --output-json "${output_dir}/scheduler_local_activation_suite_report.json"
+
 cat > "${output_dir}/README.txt" <<EOF
 Scheduler local activation suite
 
@@ -209,6 +215,8 @@ Steps:
 
 Suite validation:
 - suite_validation.json
+- SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md
+- scheduler_local_activation_suite_report.json
 
 Safety:
 - local-dev only
@@ -222,3 +230,4 @@ echo "  ${output_dir}/01-dry-run-preflight/validation.json"
 echo "  ${output_dir}/02-audit-retention-activation/validation.json"
 echo "  ${output_dir}/03-eco-escalation-activation/validation.json"
 echo "  ${output_dir}/suite_validation.json"
+echo "  ${output_dir}/SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md"
