@@ -260,6 +260,48 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  scheduler:
+    profiles: ["scheduler"]
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
+    environment:
+      YUANTUS_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus
+      YUANTUS_SCHEMA_MODE: migrations
+      YUANTUS_TENANCY_MODE: ${YUANTUS_TENANCY_MODE:-single}
+      YUANTUS_DATABASE_URL_TEMPLATE: ${YUANTUS_DATABASE_URL_TEMPLATE:-}
+      YUANTUS_IDENTITY_DATABASE_URL: ${YUANTUS_IDENTITY_DATABASE_URL:-postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus_identity}
+      YUANTUS_PLATFORM_ADMIN_ENABLED: ${YUANTUS_PLATFORM_ADMIN_ENABLED:-false}
+      YUANTUS_PLATFORM_TENANT_ID: ${YUANTUS_PLATFORM_TENANT_ID:-platform}
+      YUANTUS_SCHEDULER_ENABLED: ${YUANTUS_SCHEDULER_ENABLED:-false}
+      YUANTUS_SCHEDULER_POLL_INTERVAL_SECONDS: ${YUANTUS_SCHEDULER_POLL_INTERVAL_SECONDS:-60}
+      YUANTUS_SCHEDULER_SYSTEM_USER_ID: ${YUANTUS_SCHEDULER_SYSTEM_USER_ID:-1}
+      YUANTUS_SCHEDULER_ECO_ESCALATION_ENABLED: ${YUANTUS_SCHEDULER_ECO_ESCALATION_ENABLED:-true}
+      YUANTUS_SCHEDULER_ECO_ESCALATION_INTERVAL_SECONDS: ${YUANTUS_SCHEDULER_ECO_ESCALATION_INTERVAL_SECONDS:-300}
+      YUANTUS_SCHEDULER_ECO_ESCALATION_PRIORITY: ${YUANTUS_SCHEDULER_ECO_ESCALATION_PRIORITY:-80}
+      YUANTUS_SCHEDULER_ECO_ESCALATION_MAX_ATTEMPTS: ${YUANTUS_SCHEDULER_ECO_ESCALATION_MAX_ATTEMPTS:-1}
+      YUANTUS_SCHEDULER_AUDIT_RETENTION_ENABLED: ${YUANTUS_SCHEDULER_AUDIT_RETENTION_ENABLED:-true}
+      YUANTUS_SCHEDULER_AUDIT_RETENTION_INTERVAL_SECONDS: ${YUANTUS_SCHEDULER_AUDIT_RETENTION_INTERVAL_SECONDS:-3600}
+      YUANTUS_SCHEDULER_AUDIT_RETENTION_PRIORITY: ${YUANTUS_SCHEDULER_AUDIT_RETENTION_PRIORITY:-95}
+      YUANTUS_SCHEDULER_AUDIT_RETENTION_MAX_ATTEMPTS: ${YUANTUS_SCHEDULER_AUDIT_RETENTION_MAX_ATTEMPTS:-1}
+    command:
+      [
+        "yuantus",
+        "scheduler",
+        "--poll-interval",
+        "${YUANTUS_SCHEDULER_POLL_INTERVAL_SECONDS:-60}",
+        "--tenant",
+        "${YUANTUS_SCHEDULER_TENANT_ID:-tenant-1}",
+        "--org",
+        "${YUANTUS_SCHEDULER_ORG_ID:-org-1}",
+      ]
+    depends_on:
+      api:
+        condition: service_healthy
+
   # =============================================================================
   # DedupCAD Vision (2D similarity search)
   # =============================================================================
