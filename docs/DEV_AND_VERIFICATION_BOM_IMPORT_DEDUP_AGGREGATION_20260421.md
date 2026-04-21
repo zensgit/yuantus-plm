@@ -123,7 +123,7 @@ PLM 约定 UOM 用大写（`EA` / `KG` / `MM`）。现状 `_normalize_text` 只 
   - 调 `import_all_models()` 保证 FK 解析完整
   - 真实 `BOMService.add_child` 承接两条相同 (parent, child) 不同 uom 的聚合后行
   - 断言：`dedup_aggregated=0`（Phase 1 正确保留 uom 独立）+ `created_lines=1` + `skipped_lines=1` + `errors` 含 `"already exists"`
-  - 明确记录当前 scope 边界：`BOMService.get_bom_line_by_parent_child` 只按 `source_id + related_id` 查唯一，**没有**把 uom 纳入 key。要支持「同 (parent, child) 不同 uom 同时存为两条 BOM line」必须扩大 scope 改 `BOMService` duplicate guard——**本 PR 不做**
+  - 原始交付明确记录过当时的 scope 边界：`BOMService.get_bom_line_by_parent_child` 只按 `source_id + related_id` 查唯一。该边界已由 `DEV_AND_VERIFICATION_BOM_UOM_AWARE_DUPLICATE_GUARD_20260421.md` 收敛，现在同 `(parent, child)` 不同 `uom` 可作为两条 BOM line 共存
 
 ### 4.2 命令与结果
 
@@ -174,18 +174,18 @@ PLM 约定 UOM 用大写（`EA` / `KG` / `MM`）。现状 `_normalize_text` 只 
 - 在 CAD BOM 导入中，「看似重复」的 edge 不再造成 `skipped_lines` 虚高
 - `errors` 里不再出现 "BOM relationship already exists" 的条目（前提是 edges 内部重复；跨 import 批次的重复仍然会 raise，因为那时第一次 import 已经入库）
 
-### 5.2a 不同 uom 但同 (parent, child) 的行为（scope 边界）
+### 5.2a 不同 uom 但同 (parent, child) 的行为（已收敛）
 
-Real-session 测试明确了：同一 `(parent, child)` 对，两条 edge 分别 `uom="EA"` / `uom="MM"`，**Phase 1 不会聚合**（uom 是 key 的一部分），但 **Phase 2 的第二次 `add_child` 会被 `BOMService.get_bom_line_by_parent_child` 守卫拦截**，因为该守卫只按 `source_id + related_id` 判唯一、**不**考虑 uom。
+原始 real-session 测试明确了：同一 `(parent, child)` 对，两条 edge 分别 `uom="EA"` / `uom="MM"`，**Phase 1 不会聚合**（uom 是 key 的一部分），但当时 **Phase 2 的第二次 `add_child` 会被 `BOMService.get_bom_line_by_parent_child` 守卫拦截**，因为该守卫只按 `source_id + related_id` 判唯一、**不**考虑 uom。
 
-结果：
+该 scope 边界已由 `DEV_AND_VERIFICATION_BOM_UOM_AWARE_DUPLICATE_GUARD_20260421.md` 收敛。当前结果：
 
 - `dedup_aggregated = 0`（不是 aggregation 问题）
-- `created_lines = 1`
-- `skipped_lines = 1`
-- `errors` 里会有一条 `"BOM relationship already exists: ..."`
+- `created_lines = 2`
+- `skipped_lines = 0`
+- `errors = []`
 
-**这不是 bug**，是当前数据模型约束下的正确行为。要支持「同一子件在同一父件下以多种 uom 同时成为独立 BOM line」，必须扩大 scope 到 `BOMService.get_bom_line_by_parent_child` + 相关写路径，把 uom 纳入唯一键——**本 PR 不做**，走独立增量。
+删除路径也相应加了可选 `uom` discriminator：当同 `(parent, child)` 有多条 UOM-specific line 且未指定 `uom` 时，service 会明确报 ambiguous，避免误删第一条。
 
 ### 5.3 uom 存储归一
 
@@ -227,7 +227,7 @@ Real-session 测试明确了：同一 `(parent, child)` 对，两条 edge 分别
 
 ## 8. 已知边界与 follow-up
 
-- **同 (parent, child) 不同 uom 不能同时存在**：受 `BOMService.get_bom_line_by_parent_child` 的唯一键约束（只看 `source_id + related_id`，不看 uom）。Phase 2 第二行会被拦截 → `skipped_lines += 1`。扩大 scope 到把 uom 纳入唯一键是必然的后续增量，走独立 PR
+- **同 (parent, child) 不同 uom 不能同时存在** 的旧边界已由 `DEV_AND_VERIFICATION_BOM_UOM_AWARE_DUPLICATE_GUARD_20260421.md` 收敛：现在 duplicate guard 纳入 normalized UOM，同父子不同 UOM 可共存
 - `find_num` 保留首个非空已是足够策略；若未来需要跨 edge merge（如带 `find_num="10/20/30"` 语义），再独立升级
 - `_refdes_tokens` 的 natural sort follow-up 已由 `DEV_AND_VERIFICATION_REFDES_NATURAL_SORT_20260421.md` 收敛：形如 `R10` / `R2` 的混合现在输出 `R1,R2,R10`
 - uom 归一只做到 upper + strip，未做同义映射（e.g. `"EACH"` ↔ `"EA"`、`"MMS"` ↔ `"MM"`）——PLM 里 UOM 字典应该由租户级配置而非硬编码

@@ -502,6 +502,10 @@ async def add_bom_child(
 async def remove_bom_child(
     parent_id: str,
     child_id: str,
+    uom: Optional[str] = Query(
+        None,
+        description="Optional UOM discriminator when multiple parent/child BOM lines exist",
+    ),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -537,12 +541,13 @@ async def remove_bom_child(
         )
 
     try:
-        result = service.remove_child(parent_id=parent_id, child_id=child_id)
+        result = service.remove_child(parent_id=parent_id, child_id=child_id, uom=uom)
         db.commit()
         return result
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=404, detail=str(e))
+        status_code = 400 if "multiple bom relationships" in str(e).lower() else 404
+        raise HTTPException(status_code=status_code, detail=str(e))
 
 
 # ============================================================================

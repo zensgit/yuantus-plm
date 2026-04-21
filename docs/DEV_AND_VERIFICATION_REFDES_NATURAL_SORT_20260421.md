@@ -123,4 +123,4 @@ Potential visible behavior: callers that previously observed lexicographic refde
 
 ## 8. Follow-Up
 
-The separate medium-scope follow-up remains open: supporting two BOM lines with the same `(parent, child)` but different `uom` requires changing `BOMService.get_bom_line_by_parent_child` and related where-used / report assumptions. This increment deliberately does not touch that scope.
+The separate medium-scope follow-up for supporting two BOM lines with the same `(parent, child)` but different `uom` is now closed by `DEV_AND_VERIFICATION_BOM_UOM_AWARE_DUPLICATE_GUARD_20260421.md`.
