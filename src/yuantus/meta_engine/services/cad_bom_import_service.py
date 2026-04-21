@@ -30,8 +30,22 @@ def _json_text(expr):
 def _normalize_text(value: Optional[Any]) -> Optional[str]:
     if value is None:
         return None
+    if isinstance(value, dict):
+        return None
     text = str(value).strip()
     return text or None
+
+
+def _normalize_localized_text_map(value: Any) -> Optional[Dict[str, str]]:
+    if not isinstance(value, dict):
+        return None
+    result: Dict[str, str] = {}
+    for raw_lang, raw_text in value.items():
+        lang = str(raw_lang).strip()
+        text = _normalize_text(raw_text)
+        if lang and text:
+            result[lang] = text
+    return result or None
 
 
 def _extract_node_value(node: Dict[str, Any], *keys: str) -> Optional[Any]:
@@ -43,6 +57,51 @@ def _extract_node_value(node: Dict[str, Any], *keys: str) -> Optional[Any]:
             if str(k).lower() == lower and v is not None:
                 return v
     return None
+
+
+def _extract_localized_text_map(
+    node: Dict[str, Any],
+    field_name: str,
+    *,
+    direct_keys: Tuple[str, ...] = (),
+) -> Optional[Dict[str, str]]:
+    keys = direct_keys or (field_name,)
+    for key in keys:
+        localized = _normalize_localized_text_map(_extract_node_value(node, key))
+        if localized:
+            return localized
+
+    for suffix in ("i18n", "translations"):
+        localized = _normalize_localized_text_map(
+            _extract_node_value(node, f"{field_name}_{suffix}")
+        )
+        if localized:
+            return localized
+
+    for bucket_name in ("i18n", "translations"):
+        bucket = _extract_node_value(node, bucket_name)
+        if isinstance(bucket, dict):
+            localized = _normalize_localized_text_map(
+                _extract_node_value(bucket, field_name)
+            )
+            if localized:
+                return localized
+
+    return None
+
+
+def _localized_scalar_fallback(
+    localized: Optional[Dict[str, str]],
+    *,
+    preferred_langs: Tuple[str, ...] = ("en_US", "en", "zh_CN", "zh"),
+) -> Optional[str]:
+    if not localized:
+        return None
+    for lang in preferred_langs:
+        value = localized.get(lang)
+        if value:
+            return value
+    return next(iter(localized.values()), None)
 
 
 def _parse_quantity(value: Any, default: float = 1.0) -> float:
@@ -246,17 +305,41 @@ class CadBomImportService:
             description = _normalize_text(
                 _extract_node_value(attrs, "description", "name", "title")
             )
+            description_i18n = _extract_localized_text_map(
+                attrs,
+                "description",
+                direct_keys=("description",),
+            )
+            if not description_i18n:
+                description_i18n = _extract_localized_text_map(
+                    attrs,
+                    "title",
+                    direct_keys=("title",),
+                )
+            name_i18n = _extract_localized_text_map(
+                attrs,
+                "name",
+                direct_keys=("name", "title"),
+            )
             revision = _normalize_text(_extract_node_value(attrs, "revision", "rev"))
             material = _normalize_text(_extract_node_value(attrs, "material"))
             weight = attrs.get("weight")
 
             if item_number and "item_number" in prop_names:
                 props["item_number"] = item_number
+            if name_i18n and "name" in prop_names:
+                props["name_i18n"] = name_i18n
+            if description_i18n and "description" in prop_names:
+                props["description_i18n"] = description_i18n
             if description:
                 if "description" in prop_names:
                     props["description"] = description
                 if "name" in prop_names:
                     props.setdefault("name", description)
+            elif description_i18n and "description" in prop_names:
+                props["description"] = _localized_scalar_fallback(description_i18n)
+            if name_i18n and "name" in prop_names:
+                props.setdefault("name", _localized_scalar_fallback(name_i18n))
             if not props.get("name") and "name" in prop_names:
                 props["name"] = item_number or description or "CAD Part"
             if revision and "revision" in prop_names:
