@@ -165,4 +165,4 @@ Intentional behavior change:
 
 ## 8. Follow-Up
 
-The remaining known UOM read/reporting gap is `BaselineService.compare_baselines()`: baseline snapshots do not carry UOM buckets. That has broader snapshot compatibility implications and should remain a separate bounded increment.
+The remaining known UOM read/reporting gap for `BaselineService.compare_baselines()` is closed by `DEV_AND_VERIFICATION_BASELINE_COMPARE_UOM_BUCKETS_20260421.md`.

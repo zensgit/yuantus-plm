@@ -6,6 +6,108 @@ from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.baseline_service import BaselineService
 
 
+_MISSING = object()
+
+
+def _snapshot_with_child_uom(uom=_MISSING):
+    properties = {"quantity": 1}
+    if uom is not _MISSING:
+        properties["uom"] = uom
+    return {
+        "id": "root",
+        "config_id": "ROOT",
+        "children": [
+            {
+                "relationship": {
+                    "id": (
+                        f"rel-{str(uom).strip().lower()}"
+                        if uom is not _MISSING
+                        else "rel-missing"
+                    ),
+                    "properties": properties,
+                },
+                "child": {
+                    "id": "item-1",
+                    "config_id": "ITEM-1",
+                    "generation": 1,
+                    "children": [],
+                },
+            }
+        ],
+    }
+
+
+def _snapshot_with_child_uom_lines(lines):
+    return {
+        "id": "root",
+        "config_id": "ROOT",
+        "children": [
+            {
+                "relationship": {
+                    "id": relationship_id,
+                    "properties": {"quantity": 1, "uom": uom},
+                },
+                "child": {
+                    "id": "item-1",
+                    "config_id": "ITEM-1",
+                    "generation": 1,
+                    "children": [],
+                },
+            }
+            for relationship_id, uom in lines
+        ],
+    }
+
+
+def _compare_baseline_pair(
+    *,
+    baseline_a,
+    baseline_b,
+    members_a,
+    members_b,
+):
+    session = MagicMock()
+    service = BaselineService(session)
+
+    def _get(model, key):
+        if key == baseline_a.id:
+            return baseline_a
+        if key == baseline_b.id:
+            return baseline_b
+        return None
+
+    query_a = MagicMock()
+    query_a.filter.return_value = query_a
+    query_a.all.return_value = members_a
+
+    query_b = MagicMock()
+    query_b.filter.return_value = query_b
+    query_b.all.return_value = members_b
+
+    session.get.side_effect = _get
+    session.query.side_effect = [query_a, query_b]
+
+    return service.compare_baselines(
+        baseline_a_id=baseline_a.id,
+        baseline_b_id=baseline_b.id,
+        user_id=1,
+    )
+
+
+def _child_member(*, baseline_id, generation=1, relationship_id=None, member_id=None):
+    return BaselineMember(
+        id=member_id or f"member-{baseline_id}",
+        baseline_id=baseline_id,
+        item_id="item-1",
+        item_number="ITEM-1",
+        item_revision="A",
+        item_generation=generation,
+        member_type="item",
+        path="ROOT/ITEM-1",
+        relationship_id=relationship_id,
+    )
+
+
 def test_populate_members_creates_items_and_relationships():
     session = MagicMock()
     service = BaselineService(session)
@@ -71,6 +173,8 @@ def test_populate_members_creates_items_and_relationships():
 
     quantities = [m.quantity for m in members if m.item_id == "child"]
     assert quantities == ["2"]
+    relationship_ids = [m.relationship_id for m in members if m.item_id == "child"]
+    assert relationship_ids == ["rel-1"]
 
 
 def test_compare_baselines_detects_changes():
@@ -145,6 +249,148 @@ def test_compare_baselines_detects_changes():
     assert result["summary"]["added"] == 1
     assert result["summary"]["removed"] == 1
     assert result["summary"]["changed"] == 1
+
+
+def test_compare_baselines_keeps_same_item_different_uom_separate():
+    result = _compare_baseline_pair(
+        baseline_a=Baseline(
+            id="bl-a",
+            name="Baseline A",
+            snapshot=_snapshot_with_child_uom("EA"),
+        ),
+        baseline_b=Baseline(
+            id="bl-b",
+            name="Baseline B",
+            snapshot=_snapshot_with_child_uom("MM"),
+        ),
+        members_a=[_child_member(baseline_id="bl-a")],
+        members_b=[_child_member(baseline_id="bl-b")],
+    )
+
+    assert result["summary"]["added"] == 1
+    assert result["summary"]["removed"] == 1
+    assert result["summary"]["changed"] == 0
+    assert result["details"]["removed"][0]["uom"] == "EA"
+    assert result["details"]["removed"][0]["bucket_key"] == "item-1::EA"
+    assert result["details"]["added"][0]["uom"] == "MM"
+    assert result["details"]["added"][0]["bucket_key"] == "item-1::MM"
+
+
+def test_compare_baselines_uses_relationship_id_when_same_path_has_multiple_uoms():
+    result = _compare_baseline_pair(
+        baseline_a=Baseline(
+            id="bl-a",
+            name="Baseline A",
+            snapshot=_snapshot_with_child_uom_lines(
+                [("rel-a-ea", "EA"), ("rel-a-mm", "MM")]
+            ),
+        ),
+        baseline_b=Baseline(
+            id="bl-b",
+            name="Baseline B",
+            snapshot=_snapshot_with_child_uom_lines(
+                [("rel-b-ea", "EA"), ("rel-b-kg", "KG")]
+            ),
+        ),
+        members_a=[
+            _child_member(
+                baseline_id="bl-a",
+                relationship_id="rel-a-ea",
+                member_id="m-a-ea",
+            ),
+            _child_member(
+                baseline_id="bl-a",
+                relationship_id="rel-a-mm",
+                member_id="m-a-mm",
+            ),
+        ],
+        members_b=[
+            _child_member(
+                baseline_id="bl-b",
+                relationship_id="rel-b-ea",
+                member_id="m-b-ea",
+            ),
+            _child_member(
+                baseline_id="bl-b",
+                relationship_id="rel-b-kg",
+                member_id="m-b-kg",
+            ),
+        ],
+    )
+
+    assert result["summary"]["added"] == 1
+    assert result["summary"]["removed"] == 1
+    assert result["summary"]["unchanged"] == 1
+    assert result["details"]["removed"][0]["uom"] == "MM"
+    assert result["details"]["added"][0]["uom"] == "KG"
+
+
+def test_compare_baselines_normalizes_same_uom_bucket():
+    result = _compare_baseline_pair(
+        baseline_a=Baseline(
+            id="bl-a",
+            name="Baseline A",
+            snapshot=_snapshot_with_child_uom(" ea "),
+        ),
+        baseline_b=Baseline(
+            id="bl-b",
+            name="Baseline B",
+            snapshot=_snapshot_with_child_uom("EA"),
+        ),
+        members_a=[_child_member(baseline_id="bl-a")],
+        members_b=[_child_member(baseline_id="bl-b")],
+    )
+
+    assert result["summary"] == {
+        "added": 0,
+        "removed": 0,
+        "changed": 0,
+        "unchanged": 1,
+    }
+
+
+def test_compare_baselines_defaults_missing_snapshot_uom_to_ea():
+    result = _compare_baseline_pair(
+        baseline_a=Baseline(
+            id="bl-a",
+            name="Baseline A",
+            snapshot=_snapshot_with_child_uom(),
+        ),
+        baseline_b=Baseline(
+            id="bl-b",
+            name="Baseline B",
+            snapshot=_snapshot_with_child_uom("EA"),
+        ),
+        members_a=[_child_member(baseline_id="bl-a")],
+        members_b=[_child_member(baseline_id="bl-b")],
+    )
+
+    assert result["summary"]["added"] == 0
+    assert result["summary"]["removed"] == 0
+    assert result["summary"]["unchanged"] == 1
+
+
+def test_compare_baselines_changed_row_exposes_uom_bucket():
+    result = _compare_baseline_pair(
+        baseline_a=Baseline(
+            id="bl-a",
+            name="Baseline A",
+            snapshot=_snapshot_with_child_uom("mm"),
+        ),
+        baseline_b=Baseline(
+            id="bl-b",
+            name="Baseline B",
+            snapshot=_snapshot_with_child_uom(" MM "),
+        ),
+        members_a=[_child_member(baseline_id="bl-a", generation=1)],
+        members_b=[_child_member(baseline_id="bl-b", generation=2)],
+    )
+
+    assert result["summary"]["changed"] == 1
+    changed = result["details"]["changed"][0]
+    assert changed["uom"] == "MM"
+    assert changed["bucket_key"] == "item-1::MM"
+    assert changed["reference_id"] == "item-1"
 
 
 def test_get_comparison_details_paginates():
@@ -236,7 +482,7 @@ def test_export_comparison_details_supports_json_and_csv():
     comparison.baseline_a_id = "a"
     comparison.baseline_b_id = "b"
     comparison.differences = {
-        "added": [{"id": 1}],
+        "added": [{"id": 1, "uom": "EA", "bucket_key": "item-1::EA"}],
         "removed": [{"id": 2}],
         "changed": [{"id": 3}],
     }
@@ -264,6 +510,8 @@ def test_export_comparison_details_supports_json_and_csv():
     assert csv_result["media_type"] == "text/csv"
     text = csv_result["content"].decode("utf-8-sig")
     assert "id" in text
+    assert "uom" in text
+    assert "bucket_key" in text
     assert "1" in text
 
 
