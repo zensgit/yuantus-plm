@@ -7,20 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.api.dependencies.auth import (
+    CurrentUser,
+    require_admin_user,
+)
 from yuantus.database import get_db
 from ..models.meta_schema import ItemType, Property
 from ..services.meta_schema_service import MetaSchemaService
 
 schema_router = APIRouter(prefix="/meta", tags=["Metadata Schema"])
-
-
-def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
-    """Require admin or superuser role for meta schema management."""
-    roles = set(user.roles or [])
-    if "admin" not in roles and "superuser" not in roles:
-        raise HTTPException(status_code=403, detail="Admin role required")
-    return user
 
 
 # ============================================================================
@@ -189,7 +184,7 @@ async def get_item_type(
 @schema_router.post("/item-types", response_model=ItemTypeResponse)
 async def create_item_type(
     req: ItemTypeCreateRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> ItemTypeResponse:
     """Create a new ItemType (admin only)."""
@@ -234,7 +229,7 @@ async def create_item_type(
 async def update_item_type(
     item_type_id: str,
     req: ItemTypeUpdateRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> ItemTypeResponse:
     """Update an ItemType (admin only)."""
@@ -285,7 +280,7 @@ async def update_item_type(
 async def create_property(
     item_type_id: str,
     req: PropertyCreateRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> PropertyResponse:
     """Create a new Property for an ItemType (admin only)."""
@@ -346,7 +341,7 @@ async def update_property(
     item_type_id: str,
     property_id: str,
     req: PropertyUpdateRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> PropertyResponse:
     """Update a Property (admin only)."""
@@ -406,7 +401,7 @@ async def update_property(
 async def delete_property(
     item_type_id: str,
     property_id: str,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """Delete a Property (admin only)."""
@@ -434,7 +429,7 @@ async def delete_property(
 @schema_router.post("/item-types/{item_type_id}/refresh-schema", response_model=Dict[str, Any])
 async def refresh_item_type_schema(
     item_type_id: str,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """

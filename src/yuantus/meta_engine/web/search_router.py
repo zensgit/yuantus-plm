@@ -1,21 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 from yuantus.database import get_db
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.api.dependencies.auth import (
+    CurrentUser,
+    require_admin_user,
+    get_current_user,
+)
 from yuantus.meta_engine.services.file_search_service import FileSearchService
 from yuantus.meta_engine.services.search_service import SearchService
 
 search_router = APIRouter(prefix="/search", tags=["Search"])
-
-
-def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
-    roles = set(user.roles or [])
-    if "admin" not in roles and "superuser" not in roles:
-        raise HTTPException(status_code=403, detail="Admin role required")
-    return user
 
 
 class SearchStatusResponse(BaseModel):
@@ -96,7 +93,7 @@ def search_ecos(
     q: str = Query("", description="Search text for ECO id/name/description"),
     state: Optional[str] = Query(None, description="Filter by ECO state"),
     limit: int = Query(20, ge=1, le=200),
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     service = SearchService(db)
@@ -117,7 +114,7 @@ def search_files(
 
 @search_router.get("/ecos/status", response_model=SearchStatusResponse)
 def search_ecos_status(
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> SearchStatusResponse:
     service = SearchService(db)
@@ -127,7 +124,7 @@ def search_ecos_status(
 @search_router.post("/ecos/reindex", response_model=EcoReindexResponse)
 def search_ecos_reindex(
     req: EcoReindexRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> EcoReindexResponse:
     service = SearchService(db)
@@ -142,7 +139,7 @@ def search_ecos_reindex(
 
 @search_router.get("/status", response_model=SearchStatusResponse)
 def search_status(
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> SearchStatusResponse:
     service = SearchService(db)
@@ -152,7 +149,7 @@ def search_status(
 @search_router.post("/reindex", response_model=SearchReindexResponse)
 def search_reindex(
     req: SearchReindexRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> SearchReindexResponse:
     service = SearchService(db)

@@ -6,19 +6,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.api.dependencies.auth import (
+    CurrentUser,
+    require_admin_user,
+)
 from yuantus.database import get_db
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.permission.models import Access, Permission
 
 permission_router = APIRouter(prefix="/meta", tags=["Permissions"])
-
-
-def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
-    roles = set(user.roles or [])
-    if "admin" not in roles and "superuser" not in roles:
-        raise HTTPException(status_code=403, detail="Admin role required")
-    return user
 
 
 class PermissionCreateRequest(BaseModel):
@@ -74,7 +70,7 @@ def _access_id(permission_id: str, identity_id: str) -> str:
 
 @permission_router.get("/permissions", response_model=Dict[str, Any])
 def list_permissions(
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     perms = db.query(Permission).order_by(Permission.id.asc()).all()
@@ -87,7 +83,7 @@ def list_permissions(
 @permission_router.post("/permissions", response_model=PermissionResponse)
 def create_permission(
     req: PermissionCreateRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> PermissionResponse:
     existing = db.get(Permission, req.id)
@@ -103,7 +99,7 @@ def create_permission(
 @permission_router.get("/permissions/{permission_id}", response_model=PermissionResponse)
 def get_permission(
     permission_id: str,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> PermissionResponse:
     perm = db.get(Permission, permission_id)
@@ -138,7 +134,7 @@ def get_permission(
 def update_permission(
     permission_id: str,
     req: PermissionUpdateRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> PermissionResponse:
     perm = db.get(Permission, permission_id)
@@ -155,7 +151,7 @@ def update_permission(
 @permission_router.delete("/permissions/{permission_id}", response_model=Dict[str, Any])
 def delete_permission(
     permission_id: str,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     perm = db.get(Permission, permission_id)
@@ -170,7 +166,7 @@ def delete_permission(
 def upsert_access(
     permission_id: str,
     req: AccessUpsertRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> AccessResponse:
     perm = db.get(Permission, permission_id)
@@ -218,7 +214,7 @@ def update_access(
     permission_id: str,
     access_id: str,
     req: AccessUpdateRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> AccessResponse:
     access = db.get(Access, access_id)
@@ -253,7 +249,7 @@ def update_access(
 def delete_access(
     permission_id: str,
     access_id: str,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     access = db.get(Access, access_id)
@@ -268,7 +264,7 @@ def delete_access(
 def assign_item_type_permission(
     item_type_id: str,
     req: AssignPermissionRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     item_type = db.query(ItemType).filter(ItemType.id == item_type_id).first()
@@ -282,4 +278,3 @@ def assign_item_type_permission(
     db.add(item_type)
     db.commit()
     return {"ok": True, "item_type_id": item_type_id, "permission_id": perm.id}
-
