@@ -147,6 +147,10 @@ def scheduler(
         False,
         help="Run even when SCHEDULER_ENABLED=false",
     ),
+    dry_run: bool = typer.Option(
+        False,
+        help="Evaluate due scheduler jobs without enqueueing them",
+    ),
     tenant: Optional[str] = typer.Option(
         None,
         "--tenant",
@@ -178,11 +182,12 @@ def scheduler(
 
     def _tick() -> int:
         with get_db_session() as session:
-            result = SchedulerService(session).run_once(force=force)
+            result = SchedulerService(session).run_once(force=force, dry_run=dry_run)
         typer.echo(
             json.dumps(
                 {
                     "enqueued": [d.__dict__ for d in result.enqueued],
+                    "would_enqueue": [d.__dict__ for d in result.would_enqueue],
                     "skipped": [d.__dict__ for d in result.skipped],
                     "disabled": [d.__dict__ for d in result.disabled],
                 },
@@ -199,7 +204,12 @@ def scheduler(
         typer.echo("Scheduler disabled (set YUANTUS_SCHEDULER_ENABLED=true).", err=True)
         return
 
-    typer.echo("Scheduler started. Press Ctrl+C to stop.", err=True)
+    typer.echo(
+        "Scheduler dry-run started. Press Ctrl+C to stop."
+        if dry_run
+        else "Scheduler started. Press Ctrl+C to stop.",
+        err=True,
+    )
     try:
         while True:
             _tick()
