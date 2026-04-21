@@ -62,6 +62,7 @@
 - run_p2_observation_regression.sh
 - run_p2_observation_regression_workflow.sh
 - run_scheduler_audit_retention_activation_smoke.sh
+- run_scheduler_dry_run_preflight.sh
 - run_scheduler_eco_escalation_activation_smoke.sh
 - sync_metasheet2_pact.sh
 - compare_p2_observation_results.py
@@ -133,6 +134,7 @@
 - `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, supports either `TOKEN` or `USERNAME/PASSWORD`, can load defaults from `--env-file`, and can auto-write `<OUTPUT_DIR>.tar.gz`.
 - `run_p2_observation_regression_workflow.sh` is the canonical local wrapper for `gh workflow run/list/watch/download` against `p2-observation-regression`.
 - `run_scheduler_audit_retention_activation_smoke.sh` runs a local-dev-only scheduler activation smoke for `audit_retention_prune`, refusing non-SQLite or non-`local-dev-env/data` DB targets and keeping shared-dev scheduler activation out of scope.
+- `run_scheduler_dry_run_preflight.sh` runs a scheduler dry-run preflight, captures `would_enqueue` decisions, validates `meta_conversion_jobs` count is unchanged, and requires `--allow-non-local-db` for shared-dev/prod DB targets.
 - `run_scheduler_eco_escalation_activation_smoke.sh` runs a local-dev-only scheduler activation smoke for `eco_approval_escalation`, refusing non-SQLite or non-`local-dev-env/data` DB targets and verifying dashboard/anomaly before-after reconciliation.
 - `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.
 - `verify_cad_backend_profile_scope.sh` verifies `GET/PUT/DELETE /api/v1/cad/backend-profile` plus `GET /api/v1/cad/capabilities`, restores the original org scope, and skips tenant-default verification when an org override masks that read surface.
