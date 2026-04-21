@@ -24,6 +24,9 @@ class AdvancedSearchRequest(BaseModel):
     full_text: Optional[str] = None
     sort: Optional[List[Dict[str, str]]] = None
     columns: Optional[List[str]] = None
+    lang: Optional[str] = None
+    fallback_langs: Optional[List[str]] = None
+    localized_fields: Optional[List[str]] = None
     page: int = 1
     page_size: int = 25
     include_count: bool = True
@@ -232,6 +235,9 @@ def advanced_search(
         full_text=req.full_text,
         sort=req.sort,
         columns=req.columns,
+        lang=req.lang,
+        fallback_langs=req.fallback_langs,
+        localized_fields=req.localized_fields,
         page=req.page,
         page_size=req.page_size,
         include_count=req.include_count,

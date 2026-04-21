@@ -161,8 +161,8 @@ pass
 This is not auto-translation and not report localization. It is the product/Item field helper needed before any UI or import pipeline can safely expose multilingual product descriptions.
 
 The CAD BOM import follow-up is closed by `DEV_AND_VERIFICATION_CAD_BOM_IMPORT_I18N_DESCRIPTION_PRESERVATION_20260421.md`.
+The report-level language selection follow-up is closed by `DEV_AND_VERIFICATION_REPORT_LANGUAGE_SELECTION_20260421.md`.
 
 Remaining separate future work:
 
-- report-level language selection;
 - translation provider / auto-translation integration.
