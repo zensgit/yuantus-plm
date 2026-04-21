@@ -220,10 +220,23 @@ with get_db_session() as session:
         session.delete(mbom)
     session.flush()
 
+    session.query(MBOMLine).filter(MBOMLine.ebom_relationship_id == relationship_id).delete(
+        synchronize_session=False
+    )
     session.query(MBOMLine).filter(MBOMLine.item_id.in_([root_item_id, child_item_id])).delete(
         synchronize_session=False
     )
-    for item_id in (relationship_id, child_item_id, root_item_id):
+    session.flush()
+
+    # Delete the relationship item separately first. SQLAlchemy may reorder a
+    # batched Item delete by primary key, which violates source/related FKs.
+    for item_id in (relationship_id,):
+        item = session.get(Item, item_id)
+        if item is not None:
+            session.delete(item)
+    session.flush()
+
+    for item_id in (child_item_id, root_item_id):
         item = session.get(Item, item_id)
         if item is not None:
             session.delete(item)
