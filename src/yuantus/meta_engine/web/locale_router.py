@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from yuantus.database import get_db
 from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.meta_engine.locale.service import LocaleService
+from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.report_locale.service import ReportLocaleService
 
 locale_router = APIRouter(prefix="/locale", tags=["Locale"])
@@ -112,6 +113,18 @@ def _profile_dict(p) -> dict:
         "is_default": p.is_default,
         "created_at": p.created_at.isoformat() if p.created_at else None,
     }
+
+
+def _normalize_query_list(values: Optional[List[str]]) -> Optional[List[str]]:
+    if not values:
+        return None
+    result: List[str] = []
+    for raw in values:
+        for part in str(raw).split(","):
+            value = part.strip()
+            if value and value not in result:
+                result.append(value)
+    return result or None
 
 
 # ============================================================================
@@ -313,19 +326,35 @@ async def fallback_preview(
     db: Session = Depends(get_db),
 ):
     svc = LocaleService(db)
-    normalized_fallbacks: Optional[List[str]] = None
-    if fallback_langs:
-        normalized_fallbacks = []
-        for raw in fallback_langs:
-            for part in str(raw).split(","):
-                part = part.strip()
-                if part:
-                    normalized_fallbacks.append(part)
+    normalized_fallbacks = _normalize_query_list(fallback_langs)
 
     return svc.fallback_preview(
         record_type=record_type,
         record_id=record_id,
         field_name=field_name,
+        lang=lang,
+        fallback_langs=normalized_fallbacks,
+    )
+
+
+@locale_router.get("/items/{item_id}/localized-fields")
+async def resolve_item_localized_fields(
+    item_id: str,
+    lang: str = Query(...),
+    fields: Optional[List[str]] = Query(None),
+    fallback_langs: Optional[List[str]] = Query(None),
+    db: Session = Depends(get_db),
+):
+    item = db.get(Item, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    normalized_fields = _normalize_query_list(fields) or ["name", "description"]
+    normalized_fallbacks = _normalize_query_list(fallback_langs)
+    svc = LocaleService(db)
+    return svc.resolve_item_localized_fields(
+        item,
+        fields=normalized_fields,
         lang=lang,
         fallback_langs=normalized_fallbacks,
     )

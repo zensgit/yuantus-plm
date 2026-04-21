@@ -1,10 +1,11 @@
 """Tests for C6 – Locale translation storage service."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 import pytest
 
 from yuantus.meta_engine.locale.models import Translation, TranslationState
-from yuantus.meta_engine.locale.service import LocaleService
+from yuantus.meta_engine.locale.service import LocaleService, resolve_localized_property
 
 
 def _mock_session():
@@ -322,3 +323,100 @@ class TestLocaleService:
         assert preview["resolved_value"] == "Bolt"
         assert preview["resolved_from_lang"] == "en_US"
         assert len(preview["resolution_chain"]) == 2
+
+    def test_resolve_localized_property_uses_inline_i18n_map_and_fallback(self):
+        result = resolve_localized_property(
+            {
+                "description": "Hex bolt default",
+                "description_i18n": {
+                    "en_US": "Hex bolt",
+                    "zh_CN": "六角螺栓",
+                },
+            },
+            "description",
+            lang="de_DE",
+            fallback_langs=["zh_CN", "en_US"],
+        )
+
+        assert result["resolved"] is True
+        assert result["value"] == "六角螺栓"
+        assert result["resolved_from_lang"] == "zh_CN"
+        assert result["source"] == "properties_i18n"
+
+    def test_resolve_localized_property_supports_direct_language_map(self):
+        result = resolve_localized_property(
+            {"description": {"ja_JP": "六角ボルト", "en_US": "Hex bolt"}},
+            "description",
+            lang="ja_JP",
+            fallback_langs=["en_US"],
+        )
+
+        assert result["resolved"] is True
+        assert result["value"] == "六角ボルト"
+        assert result["source"] == "properties_map"
+
+    def test_resolve_localized_property_falls_back_to_scalar(self):
+        result = resolve_localized_property(
+            {"description": "Hex bolt scalar"},
+            "description",
+            lang="zh_CN",
+            fallback_langs=["en_US"],
+        )
+
+        assert result["resolved"] is True
+        assert result["value"] == "Hex bolt scalar"
+        assert result["resolved_from_lang"] is None
+        assert result["source"] == "properties_scalar"
+
+    def test_resolve_item_localized_fields_prefers_translation_over_inline_property(self):
+        session = _mock_session()
+        svc = LocaleService(session)
+        svc.upsert_translation(
+            record_type="item",
+            record_id="item-1",
+            field_name="description",
+            lang="zh_CN",
+            translated_value="表翻译描述",
+        )
+        item = SimpleNamespace(
+            id="item-1",
+            properties={"description_i18n": {"zh_CN": "内联描述"}},
+        )
+
+        result = svc.resolve_item_localized_fields(
+            item,
+            fields=["description"],
+            lang="zh_CN",
+            fallback_langs=["en_US"],
+        )
+
+        assert result["record_type"] == "item"
+        assert result["record_id"] == "item-1"
+        assert result["missing"] == []
+        assert result["resolved"][0]["value"] == "表翻译描述"
+        assert result["resolved"][0]["source"] == "translation"
+
+    def test_resolve_item_localized_fields_uses_inline_and_reports_missing(self):
+        session = _mock_session()
+        svc = LocaleService(session)
+        item = SimpleNamespace(
+            id="item-2",
+            properties={
+                "name": "Default Bolt",
+                "description_i18n": {"en_US": "Hex bolt"},
+            },
+        )
+
+        result = svc.resolve_item_localized_fields(
+            item,
+            fields=["name", "description", "spec"],
+            lang="zh_CN",
+            fallback_langs=["en_US"],
+        )
+
+        by_field = {entry["field"]: entry for entry in result["resolved"]}
+        assert by_field["name"]["source"] == "properties_scalar"
+        assert by_field["description"]["value"] == "Hex bolt"
+        assert by_field["description"]["source"] == "properties_i18n"
+        assert result["fallbacks_used"] == ["en_US"]
+        assert result["missing"] == ["spec"]

@@ -9,6 +9,97 @@ from sqlalchemy.orm import Session
 from yuantus.meta_engine.locale.models import Translation, TranslationState
 
 
+def _normalize_lang_chain(
+    lang: Optional[str],
+    fallback_langs: Optional[List[str]] = None,
+) -> List[str]:
+    result: List[str] = []
+    raw_values: List[Any] = []
+    if lang is not None:
+        raw_values.append(lang)
+    raw_values.extend(fallback_langs or [])
+
+    for raw in raw_values:
+        for part in str(raw or "").split(","):
+            value = part.strip()
+            if value and value not in result:
+                result.append(value)
+    return result
+
+
+def _localized_maps(
+    properties: Dict[str, Any],
+    field_name: str,
+) -> List[tuple[str, Dict[str, Any]]]:
+    candidates: List[tuple[str, Any]] = [
+        ("properties_map", properties.get(field_name)),
+        ("properties_i18n", properties.get(f"{field_name}_i18n")),
+        ("properties_translations", properties.get(f"{field_name}_translations")),
+    ]
+
+    for bucket_name in ("i18n", "translations"):
+        bucket = properties.get(bucket_name)
+        if isinstance(bucket, dict):
+            candidates.append((f"properties_{bucket_name}", bucket.get(field_name)))
+
+    result: List[tuple[str, Dict[str, Any]]] = []
+    for source, value in candidates:
+        if isinstance(value, dict):
+            result.append((source, value))
+    return result
+
+
+def resolve_localized_property(
+    properties: Optional[Dict[str, Any]],
+    field_name: str,
+    *,
+    lang: str,
+    fallback_langs: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    props = properties or {}
+    chain: List[Dict[str, Any]] = []
+    lang_chain = _normalize_lang_chain(lang, fallback_langs)
+
+    for source, translations in _localized_maps(props, field_name):
+        for try_lang in lang_chain:
+            value = translations.get(try_lang)
+            exists = value is not None and str(value).strip() != ""
+            chain.append(
+                {
+                    "lang": try_lang,
+                    "source": source,
+                    "exists": exists,
+                    "value": value if exists else None,
+                }
+            )
+            if exists:
+                return {
+                    "resolved": True,
+                    "value": value,
+                    "resolved_from_lang": try_lang,
+                    "source": source,
+                    "chain": chain,
+                }
+
+    scalar = props.get(field_name)
+    if scalar is not None and not isinstance(scalar, dict) and str(scalar).strip() != "":
+        return {
+            "resolved": True,
+            "value": scalar,
+            "resolved_from_lang": None,
+            "source": "properties_scalar",
+            "chain": chain,
+        }
+
+    return {
+        "resolved": False,
+        "value": None,
+        "resolved_from_lang": None,
+        "source": None,
+        "chain": chain,
+    }
+
+
 class LocaleService:
     """CRUD for translation payloads."""
 
@@ -255,6 +346,75 @@ class LocaleService:
                 missing.append(field_name)
 
         return {
+            "resolved": resolved,
+            "missing": missing,
+            "fallbacks_used": fallbacks_used,
+        }
+
+    def resolve_item_localized_fields(
+        self,
+        item: Any,
+        *,
+        fields: List[str],
+        lang: str,
+        fallback_langs: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        record_id = str(getattr(item, "id"))
+        properties = getattr(item, "properties", None) or {}
+        resolved: List[Dict[str, Any]] = []
+        missing: List[str] = []
+        fallbacks_used: List[str] = []
+
+        for field_name in fields:
+            translation = self.resolve_translation(
+                record_type="item",
+                record_id=record_id,
+                field_name=field_name,
+                lang=lang,
+                fallback_langs=fallback_langs,
+            )
+            if translation["resolved"]:
+                resolved_lang = translation["resolved_from_lang"]
+                resolved.append(
+                    {
+                        "field": field_name,
+                        "lang": resolved_lang,
+                        "value": translation["value"],
+                        "source": "translation",
+                        "chain": translation["chain"],
+                    }
+                )
+                if resolved_lang != lang and resolved_lang not in fallbacks_used:
+                    fallbacks_used.append(resolved_lang)
+                continue
+
+            prop_result = resolve_localized_property(
+                properties,
+                field_name,
+                lang=lang,
+                fallback_langs=fallback_langs,
+            )
+            if prop_result["resolved"]:
+                resolved_lang = prop_result["resolved_from_lang"]
+                resolved.append(
+                    {
+                        "field": field_name,
+                        "lang": resolved_lang,
+                        "value": prop_result["value"],
+                        "source": prop_result["source"],
+                        "chain": prop_result["chain"],
+                    }
+                )
+                if resolved_lang and resolved_lang != lang and resolved_lang not in fallbacks_used:
+                    fallbacks_used.append(resolved_lang)
+            else:
+                missing.append(field_name)
+
+        return {
+            "record_type": "item",
+            "record_id": record_id,
+            "lang": lang,
+            "fallback_langs": fallback_langs or [],
             "resolved": resolved,
             "missing": missing,
             "fallbacks_used": fallbacks_used,

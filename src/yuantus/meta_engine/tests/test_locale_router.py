@@ -205,6 +205,60 @@ def test_locale_resolve_endpoints_return_fallback_payloads():
     )
 
 
+def test_locale_item_localized_fields_endpoint_resolves_defaults_and_query_lists():
+    client, db = _client_with_db()
+    item = SimpleNamespace(id="item-1", properties={"description": "Hex bolt"})
+    db.get.return_value = item
+
+    with patch("yuantus.meta_engine.web.locale_router.LocaleService") as service_cls:
+        service = service_cls.return_value
+        service.resolve_item_localized_fields.return_value = {
+            "record_type": "item",
+            "record_id": "item-1",
+            "lang": "zh_CN",
+            "fallback_langs": ["en_US", "de_DE"],
+            "resolved": [
+                {
+                    "field": "description",
+                    "lang": "en_US",
+                    "value": "Hex bolt",
+                    "source": "properties_i18n",
+                    "chain": [],
+                }
+            ],
+            "missing": [],
+            "fallbacks_used": ["en_US"],
+        }
+
+        response = client.get(
+            "/api/v1/locale/items/item-1/localized-fields"
+            "?lang=zh_CN"
+            "&fields=name,description"
+            "&fallback_langs=en_US,de_DE"
+        )
+
+    assert response.status_code == 200
+    assert response.json()["resolved"][0]["source"] == "properties_i18n"
+    service.resolve_item_localized_fields.assert_called_once_with(
+        item,
+        fields=["name", "description"],
+        lang="zh_CN",
+        fallback_langs=["en_US", "de_DE"],
+    )
+
+
+def test_locale_item_localized_fields_endpoint_returns_404_for_missing_item():
+    client, db = _client_with_db()
+    db.get.return_value = None
+
+    response = client.get(
+        "/api/v1/locale/items/missing/localized-fields?lang=zh_CN"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Item not found"
+
+
 def test_report_locale_export_context_endpoint_returns_context():
     client, _db = _client_with_db()
 
