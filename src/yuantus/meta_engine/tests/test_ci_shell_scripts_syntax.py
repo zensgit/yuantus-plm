@@ -119,6 +119,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "run_p2_observation_regression.sh",
         scripts_dir / "run_p2_observation_regression_workflow.sh",
         scripts_dir / "run_scheduler_audit_retention_activation_smoke.sh",
+        scripts_dir / "run_scheduler_eco_escalation_activation_smoke.sh",
         scripts_dir / "verify_run_h_e2e.sh",
         scripts_dir / "verify_run_h.sh",
     ]
