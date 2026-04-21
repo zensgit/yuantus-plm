@@ -14,6 +14,8 @@ Modes:
       Direct local readonly rerun plus a readonly refreeze readiness decision pack.
   refreeze-candidate
       Direct local readonly rerun plus a stable readonly candidate preview that excludes future pending approvals.
+  refreeze-proposal
+      Direct local readonly rerun plus stable candidate preview plus a formal baseline-switch proposal pack.
   drift-audit
       Direct local readonly rerun plus drift summary against the current official shared-dev 142 baseline.
   drift-investigation
@@ -28,6 +30,8 @@ Modes:
       Print the expanded readonly refreeze-readiness commands for manual inspection/debugging.
   print-refreeze-candidate-commands
       Print the expanded readonly refreeze-candidate preview commands for manual inspection/debugging.
+  print-refreeze-proposal-commands
+      Print the expanded readonly refreeze-proposal commands for manual inspection/debugging.
   print-drift-commands
       Print the expanded shared-dev 142 drift audit commands for manual inspection/debugging.
   print-investigation-commands
@@ -43,6 +47,7 @@ Examples:
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode readonly-rerun
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-readiness
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-candidate
+  bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-proposal
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-audit
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode drift-investigation
   bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode workflow-probe -- --eco-state open
@@ -119,6 +124,10 @@ case "${mode}" in
     target_script="scripts/run_p2_shared_dev_142_refreeze_candidate.sh"
     mode_summary="direct local readonly rerun plus stable readonly candidate preview"
     ;;
+  refreeze-proposal)
+    target_script="scripts/run_p2_shared_dev_142_refreeze_proposal.sh"
+    mode_summary="direct local readonly rerun plus formal readonly refreeze proposal pack"
+    ;;
   drift-audit)
     target_script="scripts/run_p2_shared_dev_142_drift_audit.sh"
     mode_summary="direct local readonly rerun plus drift audit summary"
@@ -146,6 +155,10 @@ case "${mode}" in
   print-refreeze-candidate-commands)
     target_script="scripts/print_p2_shared_dev_142_refreeze_candidate_commands.sh"
     mode_summary="expanded readonly refreeze-candidate command printout"
+    ;;
+  print-refreeze-proposal-commands)
+    target_script="scripts/print_p2_shared_dev_142_refreeze_proposal_commands.sh"
+    mode_summary="expanded readonly refreeze-proposal command printout"
     ;;
   print-drift-commands)
     target_script="scripts/print_p2_shared_dev_142_drift_audit_commands.sh"
