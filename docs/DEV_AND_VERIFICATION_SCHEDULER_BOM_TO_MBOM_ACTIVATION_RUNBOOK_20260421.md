@@ -155,7 +155,7 @@ Observed result:
 Post-merge rerun remediation:
 
 - Issue: a second run failed during seed cleanup on SQLite FK checks because the script deleted relationship/source/child `Item` rows as one ORM batch. SQLAlchemy may order that batch by primary key, which can attempt to delete source/child before the relationship row.
-- Fix: delete `MBOMLine` trace rows first, then delete the fixed relationship item in a separate flush, then delete child/root items.
+- Fix: delete generated `MBOMLine` rows first with bulk deletes, then delete generated `ManufacturingBOM` rows, then delete the fixed relationship item in a separate flush, then delete child/root items.
 - Validation target: run the smoke twice against the same local DB; both runs must end with `validation.ok=true`.
 
 ## 6. Verification Commands

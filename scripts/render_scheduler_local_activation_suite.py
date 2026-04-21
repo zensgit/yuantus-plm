@@ -51,6 +51,11 @@ def build_payload(result_dir: Path) -> dict[str, Any]:
         "eco_before_anomalies": result_dir / "03-eco-escalation-activation" / "before_anomalies.json",
         "eco_after_anomalies": result_dir / "03-eco-escalation-activation" / "after_anomalies.json",
         "eco_summary": result_dir / "03-eco-escalation-activation" / "post_worker_summary.json",
+        "bom_validation": result_dir / "04-bom-to-mbom-activation" / "validation.json",
+        "bom_tick": result_dir / "04-bom-to-mbom-activation" / "scheduler_tick.json",
+        "bom_before_summary": result_dir / "04-bom-to-mbom-activation" / "before_summary.json",
+        "bom_after_summary": result_dir / "04-bom-to-mbom-activation" / "after_summary.json",
+        "bom_summary": result_dir / "04-bom-to-mbom-activation" / "post_worker_summary.json",
     }
     for path in paths.values():
         expect_file(path)
@@ -68,11 +73,23 @@ def build_payload(result_dir: Path) -> dict[str, Any]:
     eco_before_anomalies = load_json(paths["eco_before_anomalies"])
     eco_after_anomalies = load_json(paths["eco_after_anomalies"])
     eco_summary = load_json(paths["eco_summary"])
+    bom_validation = load_json(paths["bom_validation"])
+    bom_tick = load_json(paths["bom_tick"])
+    bom_before_summary = load_json(paths["bom_before_summary"])
+    bom_after_summary = load_json(paths["bom_after_summary"])
+    bom_summary = load_json(paths["bom_summary"])
 
     audit_job = extract_enqueued_task(audit_tick)
     eco_job = extract_enqueued_task(eco_tick)
+    bom_job = extract_enqueued_task(bom_tick)
     audit_worker_job = (audit_summary.get("jobs") or [{}])[0]
     eco_worker_job = (eco_summary.get("jobs") or [{}])[0]
+    bom_worker_job = (bom_summary.get("jobs") or [{}])[0]
+    bom_worker_result = bom_worker_job.get("payload_result") or {}
+    bom_lines = bom_summary.get("mbom_lines") or []
+    bom_traceability_ok = any(
+        line.get("ebom_relationship_id") == "scheduler-smoke-ebom-rel" for line in bom_lines
+    )
 
     before_overdue_not = len(eco_before_anomalies.get("overdue_not_escalated") or [])
     after_overdue_not = len(eco_after_anomalies.get("overdue_not_escalated") or [])
@@ -109,6 +126,17 @@ def build_payload(result_dir: Path) -> dict[str, Any]:
         "eco_escalated_unresolved_delta": before_unresolved == 0 and after_unresolved == 1,
         "eco_admin_escalation_approval_count": eco_summary.get("admin_escalation_approval_count") == 1,
         "eco_approval_request_count": eco_summary.get("approval_request_count") == 2,
+        "bom_ok": step_ok(bom_validation),
+        "bom_task_type": bom_job.get("task_type") == "bom_to_mbom_sync",
+        "bom_job_completed": bom_worker_job.get("status") == "completed",
+        "bom_created_one": bom_worker_result.get("created") == 1,
+        "bom_transition_created_mbom": (
+            bom_before_summary.get("mbom_count") == 0
+            and bom_after_summary.get("mbom_count") == 1
+        ),
+        "bom_single_mbom": bom_summary.get("mbom_count") == 1,
+        "bom_min_two_lines": (bom_summary.get("mbom_line_count") or 0) >= 2,
+        "bom_traceability": bom_traceability_ok,
     }
 
     return {
@@ -154,6 +182,19 @@ def build_payload(result_dir: Path) -> dict[str, Any]:
             "admin_escalation_approval_count": eco_summary.get("admin_escalation_approval_count"),
             "approval_request_count": eco_summary.get("approval_request_count"),
         },
+        "bom_to_mbom": {
+            "job_id": bom_job.get("job_id"),
+            "task_type": bom_job.get("task_type"),
+            "job_status": bom_worker_job.get("status"),
+            "worker_id": bom_worker_job.get("worker_id"),
+            "created": bom_worker_result.get("created"),
+            "skipped_count": bom_worker_result.get("skipped_count"),
+            "mbom_count_before": bom_before_summary.get("mbom_count"),
+            "mbom_count_after": bom_after_summary.get("mbom_count"),
+            "mbom_count": bom_summary.get("mbom_count"),
+            "mbom_line_count": bom_summary.get("mbom_line_count"),
+            "traceability_ok": bom_traceability_ok,
+        },
     }
 
 
@@ -167,6 +208,7 @@ def render_markdown(payload: dict[str, Any]) -> str:
     dry_run = payload["dry_run"]
     audit = payload["audit_retention"]
     eco = payload["eco_escalation"]
+    bom = payload["bom_to_mbom"]
 
     return f"""# Scheduler Local Activation Suite Report
 
@@ -217,9 +259,22 @@ It does not enable scheduler on shared-dev 142 or production.
 - admin_escalation_approval_count: `{eco['admin_escalation_approval_count']}`
 - approval_request_count: `{eco['approval_request_count']}`
 
+## BOM To MBOM Activation
+
+- job_id: `{bom['job_id']}`
+- task_type: `{bom['task_type']}`
+- job_status: `{bom['job_status']}`
+- worker_id: `{bom['worker_id']}`
+- created: `{bom['created']}`
+- skipped_count: `{bom['skipped_count']}`
+- mbom_count: `{bom['mbom_count']}`
+- mbom_line_count: `{bom['mbom_line_count']}`
+- mbom_count transition: `{bom['mbom_count_before']} -> {bom['mbom_count_after']}`
+- traceability_ok: `{bom['traceability_ok']}`
+
 ## Decision
 
-- PASS means the local scheduler dry-run, audit-retention activation, and ECO escalation activation evidence is internally consistent.
+- PASS means the local scheduler dry-run, audit-retention activation, ECO escalation activation, and BOM to MBOM activation evidence is internally consistent.
 - FAIL means inspect the child `validation.json` files before using this suite as merge evidence.
 
 ## Artifacts
@@ -228,6 +283,7 @@ It does not enable scheduler on shared-dev 142 or production.
 - `01-dry-run-preflight/validation.json`
 - `02-audit-retention-activation/validation.json`
 - `03-eco-escalation-activation/validation.json`
+- `04-bom-to-mbom-activation/validation.json`
 """
 
 

@@ -212,20 +212,30 @@ def ensure_admin(session):
 with get_db_session() as session:
     session.query(ConversionJob).delete()
 
-    for mbom in (
-        session.query(ManufacturingBOM)
-        .filter(ManufacturingBOM.source_item_id == root_item_id)
-        .all()
-    ):
-        session.delete(mbom)
-    session.flush()
-
+    existing_mbom_ids = [
+        row[0]
+        for row in (
+            session.query(ManufacturingBOM.id)
+            .filter(ManufacturingBOM.source_item_id == root_item_id)
+            .all()
+        )
+    ]
+    # Delete generated MBOM lines before ManufacturingBOM rows. Using bulk
+    # deletes avoids ORM cascade row-count warnings during repeated smokes.
+    if existing_mbom_ids:
+        session.query(MBOMLine).filter(MBOMLine.mbom_id.in_(existing_mbom_ids)).delete(
+            synchronize_session=False
+        )
     session.query(MBOMLine).filter(MBOMLine.ebom_relationship_id == relationship_id).delete(
         synchronize_session=False
     )
     session.query(MBOMLine).filter(MBOMLine.item_id.in_([root_item_id, child_item_id])).delete(
         synchronize_session=False
     )
+    if existing_mbom_ids:
+        session.query(ManufacturingBOM).filter(ManufacturingBOM.id.in_(existing_mbom_ids)).delete(
+            synchronize_session=False
+        )
     session.flush()
 
     # Delete the relationship item separately first. SQLAlchemy may reorder a

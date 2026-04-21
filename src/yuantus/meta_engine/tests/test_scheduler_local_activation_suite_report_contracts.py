@@ -99,6 +99,48 @@ def _write_suite_fixture(root: Path) -> None:
             ]
         },
     )
+    _write_json(root / "04-bom-to-mbom-activation" / "validation.json", {"ok": True, "errors": []})
+    _write_json(
+        root / "04-bom-to-mbom-activation" / "scheduler_tick.json",
+        {"enqueued": [{"job_id": "job-bom", "task_type": "bom_to_mbom_sync"}]},
+    )
+    _write_json(
+        root / "04-bom-to-mbom-activation" / "before_summary.json",
+        {"mbom_count": 0, "mbom_line_count": 0},
+    )
+    _write_json(
+        root / "04-bom-to-mbom-activation" / "after_summary.json",
+        {"mbom_count": 1, "mbom_line_count": 2},
+    )
+    _write_json(
+        root / "04-bom-to-mbom-activation" / "post_worker_summary.json",
+        {
+            "mbom_count": 1,
+            "mbom_line_count": 2,
+            "jobs": [
+                {
+                    "status": "completed",
+                    "worker_id": "scheduler-bom-to-mbom-smoke",
+                    "payload_result": {
+                        "task": "bom_to_mbom_sync",
+                        "created": 1,
+                        "skipped_count": 0,
+                        "errors": [],
+                    },
+                }
+            ],
+            "mbom_lines": [
+                {
+                    "item_id": "scheduler-smoke-ebom-root",
+                    "ebom_relationship_id": None,
+                },
+                {
+                    "item_id": "scheduler-smoke-ebom-child",
+                    "ebom_relationship_id": "scheduler-smoke-ebom-rel",
+                },
+            ],
+        },
+    )
 
 
 def test_scheduler_local_activation_suite_renderer_contract(tmp_path: Path) -> None:
@@ -137,6 +179,10 @@ def test_scheduler_local_activation_suite_renderer_contract(tmp_path: Path) -> N
     assert payload["eco_escalation"]["approval_request_count"] == 2
     assert payload["eco_escalation"]["before_overdue_not_escalated"] == 2
     assert payload["eco_escalation"]["after_overdue_not_escalated"] == 1
+    assert payload["bom_to_mbom"]["created"] == 1
+    assert payload["bom_to_mbom"]["mbom_count"] == 1
+    assert payload["bom_to_mbom"]["mbom_line_count"] == 2
+    assert payload["bom_to_mbom"]["traceability_ok"] is True
 
     md = report_md.read_text(encoding="utf-8")
     for token in (
@@ -144,7 +190,10 @@ def test_scheduler_local_activation_suite_renderer_contract(tmp_path: Path) -> N
         "Dry-run Preflight",
         "Audit Retention Activation",
         "ECO Escalation Activation",
+        "BOM To MBOM Activation",
         "overdue_not_escalated: `2 -> 1`",
+        "created: `1`",
+        "mbom_count: `1`",
         "It does not enable scheduler on shared-dev 142 or production.",
     ):
         assert token in md
