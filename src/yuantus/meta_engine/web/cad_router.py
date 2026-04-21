@@ -28,7 +28,10 @@ from sqlalchemy.orm import Session
 
 from yuantus.database import get_db
 from yuantus.config import (
+    available_cad_step_iges_backends,
     cad_connector_base_url_configured,
+    configured_cad_step_iges_backend_name,
+    effective_cad_step_iges_backend,
     get_settings,
     normalize_cad_connector_mode,
 )
@@ -1111,6 +1114,16 @@ def get_cad_capabilities(db: Session = Depends(get_db)) -> CadCapabilitiesRespon
         "source": resolution.source,
         "options": list(resolution.options),
     }
+    cad_step_iges_backend = {
+        "configured": configured_cad_step_iges_backend_name(settings),
+        "effective": effective_cad_step_iges_backend(
+            settings,
+            effective_profile=resolution.effective,
+        ),
+        "options": available_cad_step_iges_backends(),
+        "formats": ["STEP", "IGES"],
+        "extensions": ["step", "stp", "iges", "igs"],
+    }
     cad_connector_disabled_reason = "CAD connector service not configured"
     if cad_connector_base_url_configured(settings) and not cad_connector_enabled:
         cad_connector_disabled_reason = (
@@ -1233,6 +1246,7 @@ def get_cad_capabilities(db: Session = Depends(get_db)) -> CadCapabilitiesRespon
                 "enabled": cad_connector_enabled,
                 "mode": cad_connector_mode,
                 "profile": cad_backend_profile,
+                "step_iges_backend": cad_step_iges_backend,
                 "base_url": settings.CAD_CONNECTOR_BASE_URL or None,
                 **_integration_status(
                     configured=cad_connector_base_url_configured(settings),

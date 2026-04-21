@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from yuantus.config import (
     cad_connector_base_url_configured,
     cad_connector_enabled_for_profile,
+    effective_cad_step_iges_backend,
     get_settings,
     normalize_cad_connector_mode,
 )
@@ -41,6 +42,9 @@ from yuantus.meta_engine.services.job_errors import JobFatalError
 from yuantus.context import get_request_context
 
 logger = logging.getLogger(__name__)
+
+_STEP_IGES_EXTENSIONS = {"step", "stp", "iges", "igs"}
+_STEP_IGES_FORMATS = {"step", "iges"}
 
 
 def _vault_base_path() -> str:
@@ -208,10 +212,43 @@ def _cad_connector_required(session: Optional[Session] = None) -> bool:
     return _cad_backend_profile_resolution(session)["effective"] == "external-enterprise"
 
 
+def _is_step_iges_file(file_container: FileContainer) -> bool:
+    ext = ""
+    try:
+        ext = (file_container.get_extension() or "").strip().lower()
+    except Exception:
+        filename = str(getattr(file_container, "filename", "") or "")
+        ext = Path(filename).suffix.lower().lstrip(".")
+    cad_format = str(getattr(file_container, "cad_format", "") or "").strip().lower()
+    return ext in _STEP_IGES_EXTENSIONS or cad_format in _STEP_IGES_FORMATS
+
+
+def _cad_step_iges_backend(
+    file_container: FileContainer, *, session: Optional[Session] = None
+) -> Optional[str]:
+    if not _is_step_iges_file(file_container):
+        return None
+    resolution = _cad_backend_profile_resolution(session)
+    return effective_cad_step_iges_backend(
+        get_settings(), effective_profile=resolution["effective"]
+    )
+
+
+def _cad_connector_enabled_for_file(
+    file_container: FileContainer, *, session: Optional[Session] = None
+) -> bool:
+    step_iges_backend = _cad_step_iges_backend(file_container, session=session)
+    if step_iges_backend == "local":
+        return False
+    return _cad_connector_enabled(session)
+
+
 def _require_connector_for_remote_3d(
     file_container: FileContainer, *, operation: str, session: Optional[Session] = None
 ) -> None:
     if file_container.document_type != "3d":
+        return
+    if _cad_step_iges_backend(file_container, session=session) == "local":
         return
     if not _cad_connector_required(session):
         return
@@ -621,7 +658,10 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
     vault_base_path = _vault_base_path()
     _require_connector_for_remote_3d(file_container, operation="preview", session=session)
 
-    if _cad_connector_enabled(session) and file_container.document_type == "3d":
+    if (
+        _cad_connector_enabled_for_file(file_container, session=session)
+        and file_container.document_type == "3d"
+    ):
         try:
             resp = _call_cad_connector_convert(
                 payload=payload,
@@ -787,7 +827,11 @@ def cad_geometry(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
 
     _require_connector_for_remote_3d(file_container, operation="geometry", session=session)
 
-    if _cad_connector_enabled(session) and file_container.document_type == "3d" and ext not in {"dwg", "dxf"}:
+    if (
+        _cad_connector_enabled_for_file(file_container, session=session)
+        and file_container.document_type == "3d"
+        and ext not in {"dwg", "dxf"}
+    ):
         try:
             resp = _call_cad_connector_convert(
                 payload=payload,

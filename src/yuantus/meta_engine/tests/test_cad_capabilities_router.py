@@ -45,6 +45,16 @@ def _file_client() -> TestClient:
     return TestClient(app)
 
 
+def _expected_step_iges_backend(*, configured: str, effective: str) -> dict:
+    return {
+        "configured": configured,
+        "effective": effective,
+        "options": ["auto", "local", "connector"],
+        "formats": ["STEP", "IGES"],
+        "extensions": ["step", "stp", "iges", "igs"],
+    }
+
+
 def test_cad_capabilities_endpoint_returns_consolidated_contract_shape():
     client = _cad_client()
     connectors = [
@@ -73,6 +83,7 @@ def test_cad_capabilities_endpoint_returns_consolidated_contract_shape():
         CAD_CONNECTOR_BASE_URL="http://cad-connector.local",
         CAD_CONNECTOR_MODE="required",
         CAD_CONVERSION_BACKEND_PROFILE="auto",
+        CAD_STEP_IGES_BACKEND="auto",
         CAD_EXTRACTOR_BASE_URL="http://cad-extractor.local",
         CAD_EXTRACTOR_MODE="required",
         CAD_ML_BASE_URL="http://cad-ml.local",
@@ -133,6 +144,10 @@ def test_cad_capabilities_endpoint_returns_consolidated_contract_shape():
                     "external-enterprise",
                 ],
             },
+            "step_iges_backend": _expected_step_iges_backend(
+                configured="auto",
+                effective="connector",
+            ),
             "base_url": "http://cad-connector.local",
             "status": "ok",
             "degraded_reason": None,
@@ -177,6 +192,7 @@ def test_cad_capabilities_endpoint_disables_connector_backed_modes_when_unconfig
         CAD_CONNECTOR_BASE_URL="",
         CAD_CONNECTOR_MODE="optional",
         CAD_CONVERSION_BACKEND_PROFILE="auto",
+        CAD_STEP_IGES_BACKEND="auto",
         CAD_EXTRACTOR_BASE_URL="",
         CAD_EXTRACTOR_MODE="optional",
         CAD_ML_BASE_URL="",
@@ -226,6 +242,10 @@ def test_cad_capabilities_endpoint_disables_connector_backed_modes_when_unconfig
                     "external-enterprise",
                 ],
             },
+            "step_iges_backend": _expected_step_iges_backend(
+                configured="auto",
+                effective="local",
+            ),
             "base_url": None,
             "status": "degraded",
             "degraded_reason": "local fallback only",
@@ -258,6 +278,7 @@ def test_cad_capabilities_endpoint_reports_explicit_backend_profile_override():
         CAD_CONNECTOR_BASE_URL="http://cad-connector.local",
         CAD_CONNECTOR_MODE="disabled",
         CAD_CONVERSION_BACKEND_PROFILE="hybrid-auto",
+        CAD_STEP_IGES_BACKEND="auto",
         CAD_EXTRACTOR_BASE_URL="",
         CAD_EXTRACTOR_MODE="optional",
         CAD_ML_BASE_URL="",
@@ -285,6 +306,10 @@ def test_cad_capabilities_endpoint_reports_explicit_backend_profile_override():
                 "external-enterprise",
             ],
         },
+        "step_iges_backend": _expected_step_iges_backend(
+            configured="auto",
+            effective="connector",
+        ),
         "base_url": "http://cad-connector.local",
         "status": "ok",
         "degraded_reason": None,
@@ -297,6 +322,7 @@ def test_cad_capabilities_endpoint_honors_scoped_local_override():
         CAD_CONNECTOR_BASE_URL="http://cad-connector.local",
         CAD_CONNECTOR_MODE="required",
         CAD_CONVERSION_BACKEND_PROFILE="external-enterprise",
+        CAD_STEP_IGES_BACKEND="auto",
         CAD_EXTRACTOR_BASE_URL="",
         CAD_EXTRACTOR_MODE="optional",
         CAD_ML_BASE_URL="",
@@ -332,6 +358,9 @@ def test_cad_capabilities_endpoint_honors_scoped_local_override():
     assert body["features"]["bom"]["available"] is False
     assert body["integrations"]["cad_connector"]["enabled"] is False
     assert body["integrations"]["cad_connector"]["profile"]["source"] == "plugin-config:tenant-org"
+    assert body["integrations"]["cad_connector"][
+        "step_iges_backend"
+    ] == _expected_step_iges_backend(configured="auto", effective="local")
 
 
 def test_cad_capabilities_endpoint_honors_scoped_upgrade_override_when_env_is_local():
@@ -340,6 +369,7 @@ def test_cad_capabilities_endpoint_honors_scoped_upgrade_override_when_env_is_lo
         CAD_CONNECTOR_BASE_URL="http://cad-connector.local",
         CAD_CONNECTOR_MODE="disabled",
         CAD_CONVERSION_BACKEND_PROFILE="local-baseline",
+        CAD_STEP_IGES_BACKEND="auto",
         CAD_EXTRACTOR_BASE_URL="",
         CAD_EXTRACTOR_MODE="optional",
         CAD_ML_BASE_URL="",
@@ -376,6 +406,33 @@ def test_cad_capabilities_endpoint_honors_scoped_upgrade_override_when_env_is_lo
     assert body["integrations"]["cad_connector"]["configured"] is True
     assert body["integrations"]["cad_connector"]["enabled"] is True
     assert body["integrations"]["cad_connector"]["profile"]["source"] == "plugin-config:tenant-org"
+    assert body["integrations"]["cad_connector"][
+        "step_iges_backend"
+    ] == _expected_step_iges_backend(configured="auto", effective="connector")
+
+
+def test_cad_capabilities_endpoint_reports_explicit_step_iges_local_backend():
+    client = _cad_client()
+    settings = SimpleNamespace(
+        CAD_CONNECTOR_BASE_URL="http://cad-connector.local",
+        CAD_CONNECTOR_MODE="disabled",
+        CAD_CONVERSION_BACKEND_PROFILE="hybrid-auto",
+        CAD_STEP_IGES_BACKEND="local",
+        CAD_EXTRACTOR_BASE_URL="",
+        CAD_EXTRACTOR_MODE="optional",
+        CAD_ML_BASE_URL="",
+        CADGF_ROUTER_BASE_URL="",
+    )
+
+    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=[]):
+            response = client.get("/api/v1/cad/capabilities")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["integrations"]["cad_connector"][
+        "step_iges_backend"
+    ] == _expected_step_iges_backend(configured="local", effective="local")
 
 
 def test_supported_formats_endpoint_remains_legacy_but_payload_is_unchanged():
