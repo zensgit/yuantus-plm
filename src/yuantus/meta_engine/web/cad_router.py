@@ -39,7 +39,7 @@ from yuantus.integrations.cad_connectors import (
     resolve_cad_sync_key,
 )
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.api.dependencies.auth import CurrentUser, get_current_user, require_admin_user
 from yuantus.exceptions.handlers import PLMException, QuotaExceededError
 from yuantus.meta_engine.models.cad_audit import CadChangeLog
 from yuantus.meta_engine.models.file import FileContainer, FileRole, ItemFile
@@ -72,13 +72,6 @@ Handles Document Locking and Versioning.
 
 _FILENAME_REV_RE = re.compile(r"(?i)(?:rev|revision)[\\s_-]*([A-Za-z0-9]+)$")
 _FILENAME_VER_RE = re.compile(r"(?i)v(\\d+(?:\\.\\d+)*)$")
-
-
-def require_admin(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
-    roles = set(user.roles or [])
-    if "admin" not in roles and "superuser" not in roles:
-        raise HTTPException(status_code=403, detail="Admin role required")
-    return user
 
 
 def get_checkin_manager(
@@ -1033,7 +1026,7 @@ def get_cad_backend_profile(
 def update_cad_backend_profile(
     payload: CadBackendProfileUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: CurrentUser = Depends(require_admin),
+    current_user: CurrentUser = Depends(require_admin_user),
 ) -> CadBackendProfileResponse:
     ctx = get_request_context()
     try:
@@ -1059,7 +1052,7 @@ def update_cad_backend_profile(
 def delete_cad_backend_profile(
     scope: str = Query("org", description="org|tenant"),
     db: Session = Depends(get_db),
-    _current_user: CurrentUser = Depends(require_admin),
+    _current_user: CurrentUser = Depends(require_admin_user),
 ) -> CadBackendProfileResponse:
     ctx = get_request_context()
     try:
@@ -1292,7 +1285,7 @@ def get_cad_capabilities(db: Session = Depends(get_db)) -> CadCapabilitiesRespon
 @router.post("/connectors/reload", response_model=CadConnectorReloadResponse)
 def reload_cad_connectors(
     req: CadConnectorReloadRequest,
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
 ) -> CadConnectorReloadResponse:
     settings = get_settings()
     config_path = req.config_path
@@ -1327,7 +1320,7 @@ def _csv_bool(value: Optional[str]) -> Optional[bool]:
 def get_cad_sync_template(
     item_type_id: str,
     output_format: str = "csv",
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ):
     item_type = db.query(ItemType).filter(ItemType.id == item_type_id).first()
@@ -1375,7 +1368,7 @@ def get_cad_sync_template(
 async def apply_cad_sync_template(
     item_type_id: str,
     file: UploadFile = File(...),
-    _: CurrentUser = Depends(require_admin),
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> CadSyncTemplateApplyResponse:
     item_type = db.query(ItemType).filter(ItemType.id == item_type_id).first()
@@ -1754,7 +1747,7 @@ def get_cad_review(
 def update_cad_review(
     file_id: str,
     payload: CadReviewRequest,
-    user: CurrentUser = Depends(require_admin),
+    user: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ) -> CadReviewResponse:
     file_container = db.get(FileContainer, file_id)

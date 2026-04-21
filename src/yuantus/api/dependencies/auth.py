@@ -307,6 +307,17 @@ def get_current_user(
     return user
 
 
+def user_has_admin_role(user: CurrentUser) -> bool:
+    roles = {str(role).strip().lower() for role in (user.roles or []) if str(role).strip()}
+    return bool(getattr(user, "is_superuser", False)) or "admin" in roles or "superuser" in roles
+
+
+def require_admin_user(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    if not user_has_admin_role(user):
+        raise HTTPException(status_code=403, detail="Admin role required")
+    return user
+
+
 def get_current_user_id(user: CurrentUser = Depends(get_current_user)) -> int:
     return user.id
 
