@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { postWithSqliteRetry } = require('./helpers/sqliteRetry');
 
 async function login(request) {
   const loginResp = await request.post('/api/v1/auth/login', {
@@ -41,6 +42,28 @@ async function createPart(request, headers, number, name) {
   return data.id;
 }
 
+async function promoteReleased(request, headers, id) {
+  const promoteTo = async (targetState) =>
+    postWithSqliteRetry(request, '/api/v1/aml/apply', {
+      headers,
+      data: {
+        type: 'Part',
+        action: 'promote',
+        id,
+        properties: { target_state: targetState },
+      },
+    });
+
+  let review = await promoteTo('Review');
+  if (!review.resp.ok()) {
+    review = await promoteTo('In Review');
+  }
+  expect(review.resp.ok(), review.body).toBeTruthy();
+
+  const release = await promoteTo('Released');
+  expect(release.resp.ok(), release.body).toBeTruthy();
+}
+
 async function createBaseline(request, headers, rootItemId, name) {
   const resp = await request.post('/api/v1/baselines', {
     headers,
@@ -58,12 +81,12 @@ async function createBaseline(request, headers, rootItemId, name) {
 }
 
 async function addBomChild(request, headers, parentId, childId) {
-  const resp = await request.post(`/api/v1/bom/${parentId}/children`, {
+  const resp = await postWithSqliteRetry(request, `/api/v1/bom/${parentId}/children`, {
     headers,
     data: { child_id: childId, quantity: 1, uom: 'EA' },
   });
-  expect(resp.ok()).toBeTruthy();
-  return await resp.json();
+  expect(resp.resp.ok(), resp.body).toBeTruthy();
+  return await resp.resp.json();
 }
 
 async function createMbomFromEbom(request, headers, sourceItemId, name) {
@@ -283,6 +306,7 @@ test('Release orchestration rolls back routing+mbom when baseline is blocked by 
 
   const parentId = await createPart(request, headers, `ORCH-RB-P-${ts}`, 'Orchestration Rollback Parent');
   const childId = await createPart(request, headers, `ORCH-RB-C-${ts}`, 'Orchestration Rollback Child');
+  await promoteReleased(request, headers, childId);
   await addBomChild(request, headers, parentId, childId);
 
   const baselineId = await createBaseline(request, headers, parentId, `BL-RB-${ts}`);
@@ -349,6 +373,7 @@ test('Release orchestration rolls back routings on injected failure during routi
 
   const parentId = await createPart(request, headers, `ORCH-FP-P-${ts}`, 'Orchestration Failpoint Parent');
   const childId = await createPart(request, headers, `ORCH-FP-C-${ts}`, 'Orchestration Failpoint Child');
+  await promoteReleased(request, headers, childId);
   await addBomChild(request, headers, parentId, childId);
 
   const mbom = await createMbomFromEbom(request, headers, parentId, `MBOM-FP-${ts}`);

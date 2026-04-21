@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { postWithSqliteRetry } = require('./helpers/sqliteRetry');
 
 async function login(request) {
   const loginResp = await request.post('/api/v1/auth/login', {
@@ -40,6 +41,28 @@ async function createPart(request, headers, number, name) {
   return data.id;
 }
 
+async function promoteReleased(request, headers, id) {
+  const promoteTo = async (targetState) =>
+    postWithSqliteRetry(request, '/api/v1/aml/apply', {
+      headers,
+      data: {
+        type: 'Part',
+        action: 'promote',
+        id,
+        properties: { target_state: targetState },
+      },
+    });
+
+  let review = await promoteTo('Review');
+  if (!review.resp.ok()) {
+    review = await promoteTo('In Review');
+  }
+  expect(review.resp.ok(), review.body).toBeTruthy();
+
+  const release = await promoteTo('Released');
+  expect(release.resp.ok(), release.body).toBeTruthy();
+}
+
 test('Config compare: selection differences + BOM differences', async ({ request }) => {
   const { headers } = await login(request);
   const ts = Date.now();
@@ -47,12 +70,13 @@ test('Config compare: selection differences + BOM differences', async ({ request
   // Create a simple BOM where a variant rule can modify quantity.
   const parent = await createPart(request, headers, `CFG-P-${ts}`, 'Config Parent');
   const child = await createPart(request, headers, `CFG-C-${ts}`, 'Config Child');
+  await promoteReleased(request, headers, child);
 
-  const addChildResp = await request.post(`/api/v1/bom/${parent}/children`, {
+  const addChildResp = await postWithSqliteRetry(request, `/api/v1/bom/${parent}/children`, {
     headers,
     data: { child_id: child, quantity: 1, uom: 'EA' },
   });
-  expect(addChildResp.ok()).toBeTruthy();
+  expect(addChildResp.resp.ok(), addChildResp.body).toBeTruthy();
 
   // Create a unique option set and options, so reusing an existing server/DB won't collide.
   const colorKey = `Color_${ts}`;
@@ -171,4 +195,3 @@ test('Config compare: selection differences + BOM differences', async ({ request
   expect(Number(bomDiff.changed[0].before_line.quantity)).toBe(2);
   expect(Number(bomDiff.changed[0].after_line.quantity)).toBe(1);
 });
-

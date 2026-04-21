@@ -8,11 +8,33 @@ from yuantus.meta_engine.schemas.aml import AMLAction, GenericItem
 from yuantus.exceptions.handlers import PermissionError, ValidationError
 from yuantus.meta_engine.events.domain_events import ItemCreatedEvent
 from yuantus.meta_engine.events.transactional import enqueue_event
+from yuantus.meta_engine.services.latest_released_guard import assert_latest_released
+from yuantus.meta_engine.services.numbering_service import apply_auto_numbering
 
 class AddOperation(BaseOperation):
     """
     Handles AML 'add' action.
     """
+    RELATIONSHIP_GUARD_CONTEXTS = {
+        "Part BOM": "bom_child",
+        "Manufacturing BOM": "bom_child",
+        "Part BOM Substitute": "substitute",
+    }
+
+    def _assert_relationship_target_latest_released(
+        self,
+        item_type: ItemType,
+        new_item: Item,
+    ) -> None:
+        guard_context = self.RELATIONSHIP_GUARD_CONTEXTS.get(item_type.id)
+        if not guard_context or not getattr(new_item, "related_id", None):
+            return
+        assert_latest_released(
+            self.session,
+            str(new_item.related_id),
+            context=guard_context,
+        )
+
     def execute(self, item_type: ItemType, aml: GenericItem, parent_item: Optional[Item] = None) -> Dict[str, Any]:
         # 0. Permission Check
         if not self.permission_service.check_permission(
@@ -53,7 +75,14 @@ class AddOperation(BaseOperation):
                 item_type.on_before_add_method_id, new_item, aml
             )
 
-        # 6. Validate & Normalize
+        # 6. Relationship write-time guard for stale targets
+        self._assert_relationship_target_latest_released(item_type, new_item)
+
+        # 7. Auto numbering + validate/normalize
+        new_item.properties = apply_auto_numbering(
+            self.session, item_type, dict(new_item.properties or {})
+        )
+
         # We access the engine's validator
         validated_props = self.engine.validator.validate_and_normalize(
             item_type, dict(new_item.properties or {})
@@ -62,17 +91,17 @@ class AddOperation(BaseOperation):
 
         self.session.add(new_item)
 
-        # 7. Attach Lifecycle
+        # 8. Attach Lifecycle
         self.engine.lifecycle.attach_lifecycle(item_type, new_item)
 
-        # 8. Recursive Relationships (Deep Insert)
+        # 9. Recursive Relationships (Deep Insert)
         if aml.relationships:
             for rel_aml in aml.relationships:
                 self.engine.apply_relationship(rel_aml, source_item=new_item)
 
         self.session.flush()
-        
-        # 9. Publish Event
+
+        # 10. Publish Event
         enqueue_event(
             self.session,
             ItemCreatedEvent(

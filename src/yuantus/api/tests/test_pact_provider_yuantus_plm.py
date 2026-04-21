@@ -239,6 +239,11 @@ PACT_ITEM_ID_SECONDARY = "01H000000000000000000000P2"
 PACT_ITEM_ID_SUBSTITUTE = "01H000000000000000000000P3"
 PACT_ITEM_ID_POST_CHILD = "01H000000000000000000000P4"
 PACT_ITEM_ID_DELETE_CHILD = "01H000000000000000000000P5"
+PACT_VERSION_ID_PRIMARY = "01H000000000000000000000V1"
+PACT_VERSION_ID_SECONDARY = "01H000000000000000000000V2"
+PACT_VERSION_ID_SUBSTITUTE = "01H000000000000000000000V3"
+PACT_VERSION_ID_POST_CHILD = "01H000000000000000000000V4"
+PACT_VERSION_ID_DELETE_CHILD = "01H000000000000000000000V5"
 PACT_BOM_RELATIONSHIP_TYPE = "Part BOM"
 PACT_DOCUMENT_RELATIONSHIP_TYPE = "Document Part"
 PACT_BOM_LINE_ID_PRIMARY = "01H000000000000000000000R1"
@@ -313,6 +318,7 @@ def _seed_meta_engine_data() -> None:
     from yuantus.meta_engine.models.file import FileContainer, ItemFile
     from yuantus.meta_engine.models.item import Item
     from yuantus.meta_engine.models.meta_schema import ItemType, Property
+    from yuantus.meta_engine.version.models import ItemVersion
     from yuantus.security.rbac.models import RBACUser
 
     sys.stderr.write(
@@ -670,6 +676,64 @@ def _seed_meta_engine_data() -> None:
             )
         session.commit()
         sys.stderr.write("[seed] Items + relationships + substitutes committed\n")
+
+    # Phase B.5: attach released current versions for Part targets consumed by
+    # BOM/substitute write paths. latest-released guard now checks both
+    # Item.current_version_id and ItemVersion.is_released, so seed must match
+    # production semantics rather than relying on state="Released" alone.
+    with db_mod.SessionLocal() as session:
+        released_parts = (
+            (PACT_ITEM_ID_PRIMARY, PACT_VERSION_ID_PRIMARY),
+            (PACT_ITEM_ID_SECONDARY, PACT_VERSION_ID_SECONDARY),
+            (PACT_ITEM_ID_SUBSTITUTE, PACT_VERSION_ID_SUBSTITUTE),
+            (PACT_ITEM_ID_POST_CHILD, PACT_VERSION_ID_POST_CHILD),
+            (PACT_ITEM_ID_DELETE_CHILD, PACT_VERSION_ID_DELETE_CHILD),
+        )
+        items_to_update: list[tuple[Item, str]] = []
+        item_ids_to_reset: list[str] = []
+
+        for item_id, version_id in released_parts:
+            item = session.get(Item, item_id)
+            if item is None:
+                continue
+
+            version = session.get(ItemVersion, version_id)
+            if version is None:
+                session.add(
+                    ItemVersion(
+                        id=version_id,
+                        item_id=item_id,
+                        generation=1,
+                        revision="A",
+                        version_label="1.A",
+                        state="Released",
+                        is_current=True,
+                        is_released=True,
+                        released_at=datetime.utcnow(),
+                        created_at=datetime.utcnow(),
+                        properties=dict(item.properties or {}),
+                    )
+                )
+
+            items_to_update.append((item, version_id))
+            item_ids_to_reset.append(item_id)
+
+        session.flush()
+
+        for item, version_id in items_to_update:
+            item.current_version_id = version_id
+            item.state = "Released"
+            item.is_current = True
+            item.updated_at = None
+
+        session.commit()
+        (
+            session.query(Item)
+            .filter(Item.id.in_(item_ids_to_reset))
+            .update({Item.updated_at: None}, synchronize_session=False)
+        )
+        session.commit()
+        sys.stderr.write("[seed] Released item versions committed\n")
 
     # Phase C: create attached file + item file link
     with db_mod.SessionLocal() as session:

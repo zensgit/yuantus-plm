@@ -1,4 +1,5 @@
 const { expect } = require('@playwright/test');
+const { postWithSqliteRetry } = require('./sqliteRetry');
 
 async function login(request) {
   const loginResp = await request.post('/api/v1/auth/login', {
@@ -55,8 +56,32 @@ async function createPart(request, headers, number, name) {
   return data.id;
 }
 
+async function promoteReleased(request, headers, type, itemId) {
+  const promoteTo = async (targetState) =>
+    postWithSqliteRetry(request, '/api/v1/aml/apply', {
+      headers,
+      data: {
+        type,
+        action: 'promote',
+        id: itemId,
+        properties: {
+          target_state: targetState,
+        },
+      },
+    });
+
+  let review = await promoteTo('Review');
+  if (!review.resp.ok()) {
+    review = await promoteTo('In Review');
+  }
+  expect(review.resp.ok(), review.body).toBeTruthy();
+
+  const release = await promoteTo('Released');
+  expect(release.resp.ok(), release.body).toBeTruthy();
+}
+
 async function addBomChild(request, headers, parentId, childId, quantity = 1, uom = 'EA') {
-  const resp = await request.post(`/api/v1/bom/${parentId}/children`, {
+  const resp = await postWithSqliteRetry(request, `/api/v1/bom/${parentId}/children`, {
     headers,
     data: {
       child_id: childId,
@@ -64,7 +89,7 @@ async function addBomChild(request, headers, parentId, childId, quantity = 1, uo
       uom,
     },
   });
-  expect(resp.ok()).toBeTruthy();
+  expect(resp.resp.ok(), resp.body).toBeTruthy();
 }
 
 async function createBaseline(request, headers, rootItemId, name) {
@@ -306,6 +331,8 @@ async function createConfigParentDemoFixture(request) {
   const parentId = await createPart(request, headers, partNumber, 'Config Parent');
   const childAId = await createPart(request, headers, childANumber, 'Config Child A');
   const childBId = await createPart(request, headers, childBNumber, 'Config Child B');
+  await promoteReleased(request, headers, 'Part', childAId);
+  await promoteReleased(request, headers, 'Part', childBId);
 
   await addBomChild(request, headers, parentId, childAId, 2, 'EA');
   await addBomChild(request, headers, parentId, childBId, 4, 'EA');

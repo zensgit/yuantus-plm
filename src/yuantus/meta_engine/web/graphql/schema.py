@@ -11,6 +11,10 @@ from strawberry.fastapi import GraphQLRouter
 from sqlalchemy.orm import Session
 from sqlalchemy import select, and_, or_, func
 
+from yuantus.meta_engine.services.item_number_keys import (
+    ITEM_NUMBER_READ_KEYS,
+    get_item_number,
+)
 from .types import (
     Part,
     PartConnection,
@@ -44,6 +48,15 @@ from .loaders import (
 # ============================================================
 # Query Type
 # ============================================================
+
+
+def _item_number_filter_clause(item_model, number: str):
+    return or_(
+        *[
+            item_model.properties[key].as_string() == number
+            for key in ITEM_NUMBER_READ_KEYS
+        ]
+    )
 
 
 @strawberry.type
@@ -119,8 +132,7 @@ class Query:
             if filter.state:
                 query = query.where(Item.state == filter.state)
             if filter.number:
-                # Search in properties JSONB
-                query = query.where(Item.properties["number"].as_string() == filter.number)
+                query = query.where(_item_number_filter_clause(Item, filter.number))
             if filter.name_contains:
                 query = query.where(
                     Item.properties["name"].as_string().ilike(f"%{filter.name_contains}%")
@@ -219,7 +231,7 @@ class Query:
             if filter.state:
                 query = query.where(Item.state == filter.state)
             if filter.number:
-                query = query.where(Item.properties["number"].as_string() == filter.number)
+                query = query.where(_item_number_filter_clause(Item, filter.number))
             if filter.name_contains:
                 query = query.where(
                     Item.properties["name"].as_string().ilike(f"%{filter.name_contains}%")
@@ -338,7 +350,7 @@ class Query:
                         level=level,
                         path="/".join(current_path),
                         component_id=item.related_id,
-                        component_number=child_props.get("number"),
+                        component_number=get_item_number(child_props),
                         component_name=child_props.get("name"),
                         quantity=float(bom_props.get("quantity", 1)),
                         unit=bom_props.get("unit") or bom_props.get("uom"),
@@ -557,7 +569,7 @@ class Query:
         if filter.state:
             query = query.where(Item.state == filter.state)
         if filter.number:
-            query = query.where(Item.properties["number"].as_string() == filter.number)
+            query = query.where(_item_number_filter_clause(Item, filter.number))
         if filter.name_contains:
             query = query.where(
                 Item.properties["name"]

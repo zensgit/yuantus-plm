@@ -1,4 +1,5 @@
 const { test, expect } = require('@playwright/test');
+const { postWithSqliteRetry } = require('./helpers/sqliteRetry');
 
 async function login(request) {
   const loginResp = await request.post('/api/v1/auth/login', {
@@ -41,6 +42,28 @@ async function createPart(request, headers, number, name, extra = {}) {
   return data.id;
 }
 
+async function promoteReleased(request, headers, id) {
+  const promoteTo = async (targetState) =>
+    postWithSqliteRetry(request, '/api/v1/aml/apply', {
+      headers,
+      data: {
+        type: 'Part',
+        action: 'promote',
+        id,
+        properties: { target_state: targetState },
+      },
+    });
+
+  let review = await promoteTo('Review');
+  if (!review.resp.ok()) {
+    review = await promoteTo('In Review');
+  }
+  expect(review.resp.ok(), review.body).toBeTruthy();
+
+  const release = await promoteTo('Released');
+  expect(release.resp.ok(), release.body).toBeTruthy();
+}
+
 test('Product UI summaries include obsolete + weight rollup', async ({ request }) => {
   const { headers } = await login(request);
   const ts = Date.now();
@@ -56,18 +79,20 @@ test('Product UI summaries include obsolete + weight rollup', async ({ request }
     'Product UI Obsolete',
     { weight: 1.5, obsolete: true }
   );
+  await promoteReleased(request, headers, child);
+  await promoteReleased(request, headers, obsChild);
 
-  const addResp = await request.post(`/api/v1/bom/${parent}/children`, {
+  const addResp = await postWithSqliteRetry(request, `/api/v1/bom/${parent}/children`, {
     headers,
     data: { child_id: child, quantity: 1, uom: 'EA' },
   });
-  expect(addResp.ok()).toBeTruthy();
+  expect(addResp.resp.ok(), addResp.body).toBeTruthy();
 
-  const addObsResp = await request.post(`/api/v1/bom/${parent}/children`, {
+  const addObsResp = await postWithSqliteRetry(request, `/api/v1/bom/${parent}/children`, {
     headers,
     data: { child_id: obsChild, quantity: 2, uom: 'EA' },
   });
-  expect(addObsResp.ok()).toBeTruthy();
+  expect(addObsResp.resp.ok(), addObsResp.body).toBeTruthy();
 
   const detailResp = await request.get(
     `/api/v1/products/${parent}` +

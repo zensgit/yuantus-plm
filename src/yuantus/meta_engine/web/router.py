@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from yuantus.database import get_db
 from yuantus.exceptions.handlers import PLMException
+from ..services.latest_released_guard import NotLatestReleasedError
 from ..models.meta_schema import ItemType
 from ..schemas.aml import GenericItem
 from ..services.engine import AMLEngine
@@ -44,6 +45,9 @@ async def apply_item(
     except PLMException as exc:
         db.rollback()
         raise HTTPException(status_code=exc.status_code, detail=exc.to_dict())
+    except NotLatestReleasedError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.to_detail())
     except Exception as exc:  # pragma: no cover - defensive
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc))
