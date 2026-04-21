@@ -20,7 +20,10 @@ def test_compute_node_handles_missing_weights():
         "weight": None,
         "children": [
             {
-                "relationship": {"id": "REL-1", "properties": {"quantity": 2}},
+                "relationship": {
+                    "id": "REL-1",
+                    "properties": {"quantity": 2, "uom": "kg"},
+                },
                 "child": {"id": "B", "item_number": "B", "weight": "1.5"},
             },
             {
@@ -36,7 +39,61 @@ def test_compute_node_handles_missing_weights():
 
     child_b = next(c for c in result["children"] if c.get("item_id") == "B")
     assert child_b["quantity"] == 2.0
+    assert child_b["uom"] == "KG"
     assert child_b["line_weight"] == 3.0
+
+
+def test_compute_node_exposes_uom_per_relationship_without_collapsing_child_rows():
+    service = BOMRollupService(MagicMock())
+    node = {
+        "id": "A",
+        "item_number": "A",
+        "name": "Root",
+        "weight": None,
+        "children": [
+            {
+                "relationship": {
+                    "id": "REL-EA",
+                    "properties": {"quantity": 2, "uom": "ea"},
+                },
+                "child": {"id": "B", "item_number": "B", "weight": "1"},
+            },
+            {
+                "relationship": {
+                    "id": "REL-MM",
+                    "properties": {"quantity": 3, "uom": "mm"},
+                },
+                "child": {"id": "B", "item_number": "B", "weight": "1"},
+            },
+        ],
+    }
+
+    result = service._compute_node(node, weight_key="weight", visited=set())
+
+    children = result["children"]
+    assert [child["relationship_id"] for child in children] == ["REL-EA", "REL-MM"]
+    assert [child["quantity"] for child in children] == [2.0, 3.0]
+    assert [child["uom"] for child in children] == ["EA", "MM"]
+    assert [child["line_weight"] for child in children] == [2.0, 3.0]
+    assert result["total_weight"] == 5.0
+
+
+def test_compute_node_defaults_missing_uom_to_ea():
+    service = BOMRollupService(MagicMock())
+    node = {
+        "id": "A",
+        "weight": None,
+        "children": [
+            {
+                "relationship": {"id": "REL-1", "properties": {"quantity": 2}},
+                "child": {"id": "B", "item_number": "B", "weight": "1"},
+            },
+        ],
+    }
+
+    result = service._compute_node(node, weight_key="weight", visited=set())
+
+    assert result["children"][0]["uom"] == "EA"
 
 
 def test_apply_write_back_overwrite_updates_properties():

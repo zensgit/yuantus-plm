@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from yuantus.meta_engine.models.item import Item
-from yuantus.meta_engine.services.bom_service import BOMService
+from yuantus.meta_engine.services.bom_service import BOMService, _normalize_bom_uom
 from yuantus.meta_engine.services.cad_service import _parse_weight
 from yuantus.meta_engine.lifecycle.guard import get_lifecycle_state
 from yuantus.meta_engine.models.meta_schema import ItemType
@@ -105,6 +105,7 @@ class BOMRollupService:
             rel_props = rel.get("properties") or {}
             qty_raw = rel_props.get("quantity")
             qty = self._parse_quantity(qty_raw)
+            uom = _normalize_bom_uom(rel_props.get("uom"))
             child_node = child_entry.get("child") or {}
             child_result = self._compute_node(
                 child_node, weight_key=weight_key, visited=visited
@@ -120,6 +121,7 @@ class BOMRollupService:
 
             child_result["relationship_id"] = rel.get("id")
             child_result["quantity"] = qty
+            child_result["uom"] = uom
             child_result["line_weight"] = line_weight
             children_results.append(child_result)
 
