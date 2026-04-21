@@ -62,6 +62,7 @@
 - run_p2_observation_regression.sh
 - run_p2_observation_regression_workflow.sh
 - run_scheduler_audit_retention_activation_smoke.sh
+- run_scheduler_bom_to_mbom_activation_smoke.sh
 - run_scheduler_dry_run_preflight.sh
 - run_scheduler_eco_escalation_activation_smoke.sh
 - run_scheduler_jobs_api_readback_smoke.sh
@@ -138,6 +139,7 @@
 - `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, supports either `TOKEN` or `USERNAME/PASSWORD`, can load defaults from `--env-file`, and can auto-write `<OUTPUT_DIR>.tar.gz`.
 - `run_p2_observation_regression_workflow.sh` is the canonical local wrapper for `gh workflow run/list/watch/download` against `p2-observation-regression`.
 - `run_scheduler_audit_retention_activation_smoke.sh` runs a local-dev-only scheduler activation smoke for `audit_retention_prune`, refusing non-SQLite or non-`local-dev-env/data` DB targets and keeping shared-dev scheduler activation out of scope.
+- `run_scheduler_bom_to_mbom_activation_smoke.sh` runs a local-dev-only scheduler activation smoke for `bom_to_mbom_sync`, refusing non-SQLite or non-`local-dev-env/data` DB targets and verifying scheduler -> `meta_conversion_jobs` -> worker -> `ManufacturingBOM`/`MBOMLine` creation.
 - `run_scheduler_dry_run_preflight.sh` runs a scheduler dry-run preflight, captures `would_enqueue` decisions, validates `meta_conversion_jobs` count is unchanged, and requires `--allow-non-local-db` for shared-dev/prod DB targets.
 - `run_scheduler_eco_escalation_activation_smoke.sh` runs a local-dev-only scheduler activation smoke for `eco_approval_escalation`, refusing non-SQLite or non-`local-dev-env/data` DB targets and verifying dashboard/anomaly before-after reconciliation.
 - `run_scheduler_jobs_api_readback_smoke.sh` runs a local-dev-only scheduler jobs API readback smoke, completing an audit-retention scheduler job and verifying it through `GET /api/v1/jobs/{job_id}`.

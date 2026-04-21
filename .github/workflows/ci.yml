@@ -334,6 +334,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py \
             src/yuantus/meta_engine/tests/test_runbook_index_completeness.py \
             src/yuantus/meta_engine/tests/test_scheduler_audit_retention_activation_smoke_contracts.py \
+            src/yuantus/meta_engine/tests/test_scheduler_bom_to_mbom_activation_smoke_contracts.py \
             src/yuantus/meta_engine/tests/test_scheduler_compose_service_contracts.py \
             src/yuantus/meta_engine/tests/test_scheduler_dry_run_preflight_contracts.py \
             src/yuantus/meta_engine/tests/test_scheduler_eco_escalation_activation_smoke_contracts.py \
