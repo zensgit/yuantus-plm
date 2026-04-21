@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from typing import Any, Optional
 import uuid
 
-from sqlalchemy import func, update
+from sqlalchemy import Integer, String, and_, case, cast, func, not_, update
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -15,6 +15,7 @@ from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.models.numbering import NumberingSequence
 from yuantus.meta_engine.services.item_number_keys import (
+    ITEM_NUMBER_READ_KEYS,
     ensure_item_number_aliases,
     get_item_number,
 )
@@ -232,6 +233,21 @@ class NumberingService:
         raise RuntimeError("Failed to allocate numbering sequence after retries")
 
     def _floor_allocated_value(self, *, item_type_id: str, rule: NumberingRule) -> int:
+        bind = self.session.get_bind()
+        dialect_name = getattr(getattr(bind, "dialect", None), "name", "")
+        if dialect_name in {"postgresql", "sqlite"}:
+            try:
+                existing_max = self._max_allocated_value_from_db(
+                    item_type_id=item_type_id,
+                    rule=rule,
+                    dialect_name=dialect_name,
+                )
+                return max(existing_max or (rule.start - 1), rule.start - 1) + 1
+            except OperationalError:
+                return rule.start
+        return self._floor_allocated_value_python(item_type_id=item_type_id, rule=rule)
+
+    def _floor_allocated_value_python(self, *, item_type_id: str, rule: NumberingRule) -> int:
         existing_max = rule.start - 1
         try:
             rows = (
@@ -249,6 +265,64 @@ class NumberingService:
             if candidate is not None and candidate > existing_max:
                 existing_max = candidate
         return existing_max + 1
+
+    def _max_allocated_value_from_db(
+        self,
+        *,
+        item_type_id: str,
+        rule: NumberingRule,
+        dialect_name: str,
+    ) -> Optional[int]:
+        candidates: list[int] = []
+        for key in ITEM_NUMBER_READ_KEYS:
+            numeric_expr = self._numeric_item_number_expr(
+                key=key,
+                prefix=rule.prefix,
+                dialect_name=dialect_name,
+            )
+            max_value = (
+                self.session.query(func.max(numeric_expr))
+                .filter(Item.item_type_id == item_type_id)
+                .scalar()
+            )
+            if max_value is not None:
+                candidates.append(int(max_value))
+        if not candidates:
+            return None
+        return max(candidates)
+
+    def _numeric_item_number_expr(
+        self,
+        *,
+        key: str,
+        prefix: str,
+        dialect_name: str,
+    ):
+        trimmed_expr = func.trim(self._json_text(Item.properties[key]))
+        suffix_expr = func.substr(trimmed_expr, len(prefix) + 1)
+        prefix_match = trimmed_expr.like(f"{prefix}%")
+        if dialect_name == "postgresql":
+            numeric_suffix = suffix_expr.op("~")(r"^[0-9]+$")
+        else:
+            numeric_suffix = and_(
+                suffix_expr != "",
+                not_(suffix_expr.op("GLOB")("*[^0-9]*")),
+            )
+        return case(
+            (
+                and_(prefix_match, numeric_suffix),
+                cast(suffix_expr, Integer),
+            ),
+            else_=None,
+        )
+
+    @staticmethod
+    def _json_text(expr):
+        if hasattr(expr, "as_string"):
+            return expr.as_string()
+        if hasattr(expr, "astext"):
+            return expr.astext
+        return cast(expr, String)
 
     @staticmethod
     def _parse_allocated_value(value: Optional[str], *, prefix: str) -> Optional[int]:
