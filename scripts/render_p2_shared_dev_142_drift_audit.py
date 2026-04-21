@@ -191,7 +191,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("current_dir", help="Current observation result directory")
     parser.add_argument(
         "--baseline-label",
-        default="shared-dev-142-readonly-20260419",
+        default="shared-dev-142-readonly-20260421",
         help="Label used for the baseline column",
     )
     parser.add_argument(

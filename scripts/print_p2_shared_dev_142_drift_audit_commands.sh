@@ -20,11 +20,11 @@ Preferred one-command runner
 Baseline and labels
 
 - baseline dir:
-  - `./tmp/p2-shared-dev-observation-20260419-193242`
+  - `./tmp/p2-shared-dev-observation-20260421-stable`
 - baseline archive:
-  - `./tmp/p2-shared-dev-observation-20260419-193242.tar.gz`
+  - `./tmp/p2-shared-dev-observation-20260421-stable.tar.gz`
 - baseline label:
-  - `shared-dev-142-readonly-20260419`
+  - `shared-dev-142-readonly-20260421`
 - current label:
   - `current-drift-audit`
 
@@ -32,20 +32,20 @@ Expanded commands
 
 ENV_FILE="$HOME/.config/yuantus/p2-shared-dev.env"
 OUTPUT_DIR="./tmp/p2-shared-dev-142-drift-audit-$(date +%Y%m%d-%H%M%S)"
-BASELINE_DIR="./tmp/p2-shared-dev-observation-20260419-193242"
+BASELINE_DIR="./tmp/p2-shared-dev-observation-20260421-stable"
 
 bash scripts/run_p2_shared_dev_142_readonly_rerun.sh \
   --env-file "$ENV_FILE" \
   --output-dir "$OUTPUT_DIR/current" \
   --baseline-dir "$BASELINE_DIR" \
-  --baseline-archive "./tmp/p2-shared-dev-observation-20260419-193242.tar.gz" \
-  --baseline-label "shared-dev-142-readonly-20260419" \
+  --baseline-archive "./tmp/p2-shared-dev-observation-20260421-stable.tar.gz" \
+  --baseline-label "shared-dev-142-readonly-20260421" \
   --no-archive
 
 python3 scripts/render_p2_shared_dev_142_drift_audit.py \
   "$BASELINE_DIR" \
   "$OUTPUT_DIR/current" \
-  --baseline-label "shared-dev-142-readonly-20260419" \
+  --baseline-label "shared-dev-142-readonly-20260421" \
   --current-label "current-drift-audit" \
   --output-md "$OUTPUT_DIR/DRIFT_AUDIT.md" \
   --output-json "$OUTPUT_DIR/drift_audit.json"

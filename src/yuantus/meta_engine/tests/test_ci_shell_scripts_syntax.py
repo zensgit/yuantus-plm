@@ -235,8 +235,8 @@ def test_p2_shared_dev_142_drift_audit_script_has_help() -> None:
     out = cp.stdout or ""
     for token in (
         "Usage:",
-        "./tmp/p2-shared-dev-observation-20260419-193242",
-        "shared-dev-142-readonly-20260419",
+        "./tmp/p2-shared-dev-observation-20260421-stable",
+        "shared-dev-142-readonly-20260421",
         "current-drift-audit",
         "DRIFT_AUDIT.md",
         "drift_audit.json",
@@ -259,8 +259,8 @@ def test_p2_shared_dev_142_drift_investigation_script_has_help() -> None:
     out = cp.stdout or ""
     for token in (
         "Usage:",
-        "./tmp/p2-shared-dev-observation-20260419-193242",
-        "shared-dev-142-readonly-20260419",
+        "./tmp/p2-shared-dev-observation-20260421-stable",
+        "shared-dev-142-readonly-20260421",
         "current-drift-audit",
         "DRIFT_INVESTIGATION.md",
         "drift_investigation.json",
@@ -349,8 +349,8 @@ def test_p2_shared_dev_142_workflow_readonly_check_script_has_help() -> None:
     out = cp.stdout or ""
     for token in (
         "Usage:",
-        "./tmp/p2-shared-dev-observation-20260419-193242",
-        "shared-dev-142-readonly-20260419",
+        "./tmp/p2-shared-dev-observation-20260421-stable",
+        "shared-dev-142-readonly-20260421",
         "workflow-probe-current",
         "WORKFLOW_READONLY_DIFF.md",
         "WORKFLOW_READONLY_EVAL.md",

@@ -11,12 +11,12 @@ Options:
   --output-dir <path>       Output root
                             default: ./tmp/p2-shared-dev-142-workflow-readonly-check-<timestamp>
   --baseline-dir <path>     Baseline directory for readonly compare/eval
-                            default: ./tmp/p2-shared-dev-observation-20260419-193242
-                            tracked fallback dir: ./artifacts/p2-observation/shared-dev-142-readonly-20260419
+                            default: ./tmp/p2-shared-dev-observation-20260421-stable
+                            tracked fallback dir: ./artifacts/p2-observation/shared-dev-142-readonly-20260421
   --baseline-archive <path> Baseline archive used only when the canonical baseline dir is missing
-                            default: ./tmp/p2-shared-dev-observation-20260419-193242.tar.gz
+                            default: ./tmp/p2-shared-dev-observation-20260421-stable.tar.gz
   --baseline-label <label>  Baseline label for readonly diff
-                            default: shared-dev-142-readonly-20260419
+                            default: shared-dev-142-readonly-20260421
   --current-label <label>   Current label for readonly diff
                             default: workflow-probe-current
   --repo <owner/name>       Optional repository override for gh (-R)
@@ -39,7 +39,9 @@ Options:
 
 Behavior:
   - runs the fixed shared-dev 142 GitHub workflow probe wrapper
-  - compares the downloaded workflow artifact against the current official readonly baseline
+  - if baseline_policy.json says overdue-only-stable, transforms the downloaded workflow artifact into
+    an effective stable current before readonly compare/eval
+  - compares the effective current against the current official readonly baseline
   - writes:
     - <OUTPUT_DIR>/workflow-probe/WORKFLOW_DISPATCH_RESULT.md
     - <OUTPUT_DIR>/WORKFLOW_READONLY_DIFF.md
@@ -52,10 +54,10 @@ Boundary:
 EOF
 }
 
-default_baseline_dir="./tmp/p2-shared-dev-observation-20260419-193242"
-default_baseline_archive="./tmp/p2-shared-dev-observation-20260419-193242.tar.gz"
-default_tracked_baseline_dir="./artifacts/p2-observation/shared-dev-142-readonly-20260419"
-default_baseline_label="shared-dev-142-readonly-20260419"
+default_baseline_dir="./tmp/p2-shared-dev-observation-20260421-stable"
+default_baseline_archive="./tmp/p2-shared-dev-observation-20260421-stable.tar.gz"
+default_tracked_baseline_dir="./artifacts/p2-observation/shared-dev-142-readonly-20260421"
+default_baseline_label="shared-dev-142-readonly-20260421"
 default_current_label="workflow-probe-current"
 timestamp="$(date +%Y%m%d-%H%M%S)"
 
@@ -76,6 +78,26 @@ poll_interval_sec="5"
 max_discovery_sec="120"
 allow_restore="1"
 archive_result="1"
+
+read_baseline_policy_kind() {
+  local policy_file="${baseline_dir}/baseline_policy.json"
+  if [[ ! -f "${policy_file}" ]]; then
+    echo "exact"
+    return 0
+  fi
+
+  python3 - <<'PY' "${policy_file}"
+import json
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+kind = payload.get("kind")
+if not isinstance(kind, str) or not kind:
+    raise SystemExit("baseline_policy.json must contain a non-empty string kind")
+print(kind)
+PY
+}
 
 require_value() {
   local flag="$1"
@@ -311,6 +333,7 @@ done
 output_dir="${output_dir%/}"
 probe_output_dir="${output_dir}/workflow-probe"
 current_dir="${probe_output_dir}/artifact"
+effective_current_dir="${current_dir}"
 diff_output="${output_dir}/WORKFLOW_READONLY_DIFF.md"
 eval_output="${output_dir}/WORKFLOW_READONLY_EVAL.md"
 summary_output="${output_dir}/WORKFLOW_READONLY_CHECK.md"
@@ -329,6 +352,7 @@ echo "ARCHIVE_RESULT=${archive_result}"
 echo
 
 restore_canonical_baseline_if_missing
+baseline_policy_kind="$(read_baseline_policy_kind)"
 
 cmd=(
   bash
@@ -371,9 +395,20 @@ if [[ ! -d "${current_dir}" ]]; then
   exit 1
 fi
 
+if [[ "${baseline_policy_kind}" == "overdue-only-stable" ]]; then
+  effective_current_dir="${output_dir}/workflow-probe-stable-current"
+  python3 scripts/render_p2_shared_dev_142_stable_current.py \
+    "${current_dir}" \
+    --output-dir "${effective_current_dir}" \
+    --output-md "${output_dir}/WORKFLOW_STABLE_CURRENT_TRANSFORM.md" \
+    --output-json "${output_dir}/workflow_stable_current_transform.json" \
+    --environment "shared-dev-142-workflow-readonly-stable-current" \
+    --operator "workflow"
+fi
+
 if ! python3 scripts/compare_p2_observation_results.py \
   "${baseline_dir}" \
-  "${current_dir}" \
+  "${effective_current_dir}" \
   --baseline-label "${baseline_label}" \
   --current-label "${current_label}" \
   --output "${diff_output}" \
@@ -384,7 +419,7 @@ fi
 rm -f "${diff_log_output}"
 
 if ! python3 scripts/evaluate_p2_observation_results.py \
-  "${current_dir}" \
+  "${effective_current_dir}" \
   --mode readonly \
   --baseline-dir "${baseline_dir}" \
   --output "${eval_output}" \
@@ -405,7 +440,8 @@ cat > "${summary_output}" <<EOF
 
 - workflow_probe_dir: \`${probe_output_dir}\`
 - workflow_dispatch_result: \`${probe_output_dir}/WORKFLOW_DISPATCH_RESULT.md\`
-- current_artifact_dir: \`${current_dir}\`
+- raw_current_artifact_dir: \`${current_dir}\`
+- effective_current_dir: \`${effective_current_dir}\`
 - baseline_dir: \`${baseline_dir}\`
 - diff: \`${diff_output}\`
 - eval: \`${eval_output}\`
@@ -427,6 +463,10 @@ fi
 echo
 echo "Done:"
 echo "  ${probe_output_dir}/WORKFLOW_DISPATCH_RESULT.md"
+if [[ "${baseline_policy_kind}" == "overdue-only-stable" ]]; then
+  echo "  ${output_dir}/WORKFLOW_STABLE_CURRENT_TRANSFORM.md"
+  echo "  ${output_dir}/workflow_stable_current_transform.json"
+fi
 echo "  ${diff_output}"
 echo "  ${eval_output}"
 echo "  ${summary_output}"

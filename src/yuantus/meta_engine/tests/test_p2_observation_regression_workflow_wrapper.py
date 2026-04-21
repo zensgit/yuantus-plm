@@ -829,7 +829,7 @@ def test_render_p2_shared_dev_142_drift_audit_summarizes_metric_and_item_drift(t
             str(baseline_dir),
             str(current_dir),
             "--baseline-label",
-            "shared-dev-142-readonly-20260419",
+            "shared-dev-142-readonly-20260421",
             "--current-label",
             "current-drift-audit",
             "--output-md",
@@ -1221,6 +1221,317 @@ def test_render_p2_shared_dev_142_refreeze_proposal_materializes_tracked_candida
     assert "`a-pending`" in md_text
 
 
+def test_render_p2_shared_dev_142_stable_current_excludes_pending_items(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "render_p2_shared_dev_142_stable_current.py"
+    assert script.is_file(), f"Missing script: {script}"
+
+    raw_dir = tmp_path / "raw-current"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    (raw_dir / "summary.json").write_text(
+        json.dumps({"pending_count": 1, "overdue_count": 4, "escalated_count": 1}) + "\n",
+        encoding="utf-8",
+    )
+    (raw_dir / "items.json").write_text(
+        json.dumps(
+            [
+                {
+                    "approval_id": "a-pending",
+                    "eco_id": "eco-pending",
+                    "eco_name": "eco-specialist",
+                    "stage_id": "stage-pending",
+                    "stage_name": "SpecialistReview",
+                    "assignee_id": 1,
+                    "assignee_username": "admin",
+                    "approval_deadline": "2026-04-21T09:34:33.658929",
+                    "is_overdue": False,
+                    "is_escalated": False,
+                },
+                {
+                    "approval_id": "a-1",
+                    "eco_id": "eco-1",
+                    "eco_name": "eco-1",
+                    "stage_id": "stage-review",
+                    "stage_name": "Review",
+                    "assignee_id": 1,
+                    "assignee_username": "admin",
+                    "approval_deadline": "2026-04-19T04:34:33.658929",
+                    "is_overdue": True,
+                    "is_escalated": False,
+                },
+                {
+                    "approval_id": "a-2",
+                    "eco_id": "eco-2",
+                    "eco_name": "eco-2",
+                    "stage_id": "stage-review",
+                    "stage_name": "Review",
+                    "assignee_id": 1,
+                    "assignee_username": "admin",
+                    "approval_deadline": "2026-04-19T04:34:33.658929",
+                    "is_overdue": True,
+                    "is_escalated": False,
+                },
+                {
+                    "approval_id": "a-3",
+                    "eco_id": "eco-3",
+                    "eco_name": "eco-3",
+                    "stage_id": "stage-review",
+                    "stage_name": "Review",
+                    "assignee_id": 1,
+                    "assignee_username": "admin",
+                    "approval_deadline": "2026-04-19T04:34:33.658929",
+                    "is_overdue": True,
+                    "is_escalated": True,
+                },
+                {
+                    "approval_id": "a-4",
+                    "eco_id": "eco-4",
+                    "eco_name": "eco-4",
+                    "stage_id": "stage-review",
+                    "stage_name": "Review",
+                    "assignee_id": 2,
+                    "assignee_username": "ops-viewer",
+                    "approval_deadline": "2026-04-19T04:34:33.658929",
+                    "is_overdue": True,
+                    "is_escalated": False,
+                },
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (raw_dir / "anomalies.json").write_text(
+        json.dumps(
+            {
+                "total_anomalies": 3,
+                "no_candidates": [],
+                "escalated_unresolved": [{"approval_id": "a-3"}],
+                "overdue_not_escalated": [{"approval_id": "a-1"}, {"approval_id": "a-2"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (raw_dir / "export.json").write_text(
+        json.dumps(
+            [
+                {"approval_id": "a-pending", "eco_id": "eco-pending"},
+                {"approval_id": "a-1", "eco_id": "eco-1"},
+                {"approval_id": "a-2", "eco_id": "eco-2"},
+                {"approval_id": "a-3", "eco_id": "eco-3"},
+                {"approval_id": "a-4", "eco_id": "eco-4"},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (raw_dir / "export.csv").write_text(
+        "approval_id,eco_id\n"
+        "a-pending,eco-pending\n"
+        "a-1,eco-1\n"
+        "a-2,eco-2\n"
+        "a-3,eco-3\n"
+        "a-4,eco-4\n",
+        encoding="utf-8",
+    )
+
+    stable_dir = tmp_path / "stable-current"
+    md_path = tmp_path / "STABLE_CURRENT_TRANSFORM.md"
+    json_path = tmp_path / "stable_current_transform.json"
+    cp = subprocess.run(  # noqa: S603
+        [
+            "python3",
+            str(script),
+            str(raw_dir),
+            "--output-dir",
+            str(stable_dir),
+            "--output-md",
+            str(md_path),
+            "--output-json",
+            str(json_path),
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert (stable_dir / "OBSERVATION_RESULT.md").is_file()
+    assert (stable_dir / "OBSERVATION_EVAL.md").is_file()
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["verdict"] == "PASS"
+    assert payload["stable_current_ready"] is True
+    assert payload["policy"]["kind"] == "overdue-only-stable"
+    assert payload["decision"]["kind"] == "overdue-only-stable-current"
+    assert payload["excluded_approval_ids"] == ["a-pending"]
+    assert payload["stable_counts"]["pending_count"] == 0
+    assert payload["stable_counts"]["items_count"] == 4
+
+    md_text = md_path.read_text(encoding="utf-8")
+    assert "stable_current_ready：true" in md_text
+    assert "overdue-only-stable-current" in md_text
+    assert "`a-pending`" in md_text
+
+
+def test_run_p2_shared_dev_142_readonly_rerun_uses_stable_current_for_overdue_only_policy(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    temp_repo = tmp_path / "repo"
+    scripts_dir = temp_repo / "scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+
+    for script_name in (
+        "run_p2_shared_dev_142_readonly_rerun.sh",
+        "render_p2_shared_dev_142_stable_current.py",
+        "compare_p2_observation_results.py",
+        "evaluate_p2_observation_results.py",
+        "render_p2_observation_result.py",
+    ):
+        source = repo_root / "scripts" / script_name
+        target = scripts_dir / script_name
+        target.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+        target.chmod(0o755)
+
+    (scripts_dir / "validate_p2_shared_dev_env.sh").write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n",
+        encoding="utf-8",
+    )
+    (scripts_dir / "validate_p2_shared_dev_env.sh").chmod(0o755)
+    (scripts_dir / "run_p2_observation_regression.sh").write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+output_dir="${OUTPUT_DIR:?OUTPUT_DIR is required}"
+mkdir -p "${output_dir}"
+printf '%s\\n' '{"pending_count":1,"overdue_count":4,"escalated_count":1}' > "${output_dir}/summary.json"
+printf '%s\\n' '[
+  {"approval_id":"a-pending","eco_id":"eco-pending","eco_name":"eco-specialist","stage_id":"stage-pending","stage_name":"SpecialistReview","assignee_id":1,"assignee_username":"admin","approval_deadline":"2026-04-21T09:34:33.658929","is_overdue":false,"is_escalated":false},
+  {"approval_id":"a-1","eco_id":"eco-1","eco_name":"eco-1","stage_id":"stage-review","stage_name":"Review","assignee_id":1,"assignee_username":"admin","approval_deadline":"2026-04-19T04:34:33.658929","is_overdue":true,"is_escalated":false},
+  {"approval_id":"a-2","eco_id":"eco-2","eco_name":"eco-2","stage_id":"stage-review","stage_name":"Review","assignee_id":1,"assignee_username":"admin","approval_deadline":"2026-04-19T04:34:33.658929","is_overdue":true,"is_escalated":false},
+  {"approval_id":"a-3","eco_id":"eco-3","eco_name":"eco-3","stage_id":"stage-review","stage_name":"Review","assignee_id":1,"assignee_username":"admin","approval_deadline":"2026-04-19T04:34:33.658929","is_overdue":true,"is_escalated":true},
+  {"approval_id":"a-4","eco_id":"eco-4","eco_name":"eco-4","stage_id":"stage-review","stage_name":"Review","assignee_id":2,"assignee_username":"ops-viewer","approval_deadline":"2026-04-19T04:34:33.658929","is_overdue":true,"is_escalated":false}
+]' > "${output_dir}/items.json"
+printf '%s\\n' '{"total_anomalies":3,"no_candidates":[],"escalated_unresolved":[{"approval_id":"a-3"}],"overdue_not_escalated":[{"approval_id":"a-1"},{"approval_id":"a-2"}]}' > "${output_dir}/anomalies.json"
+printf '%s\\n' '[
+  {"approval_id":"a-pending","eco_id":"eco-pending"},
+  {"approval_id":"a-1","eco_id":"eco-1"},
+  {"approval_id":"a-2","eco_id":"eco-2"},
+  {"approval_id":"a-3","eco_id":"eco-3"},
+  {"approval_id":"a-4","eco_id":"eco-4"}
+]' > "${output_dir}/export.json"
+cat <<'EOF' > "${output_dir}/export.csv"
+approval_id,eco_id
+a-pending,eco-pending
+a-1,eco-1
+a-2,eco-2
+a-3,eco-3
+a-4,eco-4
+EOF
+printf '%s\\n' '# raw result' > "${output_dir}/OBSERVATION_RESULT.md"
+printf '%s\\n' '# raw eval' > "${output_dir}/OBSERVATION_EVAL.md"
+""",
+        encoding="utf-8",
+    )
+    (scripts_dir / "run_p2_observation_regression.sh").chmod(0o755)
+
+    baseline_dir = temp_repo / "tmp" / "p2-shared-dev-observation-20260421-stable"
+    baseline_dir.mkdir(parents=True, exist_ok=True)
+    (baseline_dir / "summary.json").write_text(
+        json.dumps({"pending_count": 0, "overdue_count": 4, "escalated_count": 1}) + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "items.json").write_text(
+        json.dumps(
+            [
+                {"approval_id": "a-1", "is_overdue": True, "is_escalated": False},
+                {"approval_id": "a-2", "is_overdue": True, "is_escalated": False},
+                {"approval_id": "a-3", "is_overdue": True, "is_escalated": True},
+                {"approval_id": "a-4", "is_overdue": True, "is_escalated": False},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "anomalies.json").write_text(
+        json.dumps(
+            {
+                "total_anomalies": 3,
+                "no_candidates": [],
+                "escalated_unresolved": [{"approval_id": "a-3"}],
+                "overdue_not_escalated": [{"approval_id": "a-1"}, {"approval_id": "a-2"}],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "export.json").write_text(
+        json.dumps(
+            [
+                {"approval_id": "a-1", "eco_id": "eco-1"},
+                {"approval_id": "a-2", "eco_id": "eco-2"},
+                {"approval_id": "a-3", "eco_id": "eco-3"},
+                {"approval_id": "a-4", "eco_id": "eco-4"},
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "export.csv").write_text(
+        "approval_id,eco_id\na-1,eco-1\na-2,eco-2\na-3,eco-3\na-4,eco-4\n",
+        encoding="utf-8",
+    )
+    (baseline_dir / "baseline_policy.json").write_text(
+        json.dumps(
+            {
+                "kind": "overdue-only-stable",
+                "summary": "Official readonly baseline excludes pending approvals from live current before compare/eval.",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    fake_env = temp_repo / "fake.env"
+    fake_env.write_text("BASE_URL=http://shared-dev.invalid\nTOKEN=fake\n", encoding="utf-8")
+
+    output_dir = temp_repo / "tmp" / "readonly-rerun"
+    cp = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(scripts_dir / "run_p2_shared_dev_142_readonly_rerun.sh"),
+            "--env-file",
+            str(fake_env),
+            "--output-dir",
+            str(output_dir),
+            "--baseline-dir",
+            str(baseline_dir),
+            "--skip-precheck",
+            "--no-archive",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(temp_repo),
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert "BASELINE_POLICY_KIND=overdue-only-stable" in cp.stdout
+    assert (output_dir / "raw-current" / "OBSERVATION_RESULT.md").is_file()
+    assert (output_dir / "OBSERVATION_RESULT.md").is_file()
+    assert (output_dir / "OBSERVATION_DIFF.md").is_file()
+    assert (output_dir / "OBSERVATION_EVAL.md").is_file()
+    assert (output_dir / "STABLE_CURRENT_TRANSFORM.md").is_file()
+    assert (output_dir / "stable_current_transform.json").is_file()
+
+    payload = json.loads((output_dir / "stable_current_transform.json").read_text(encoding="utf-8"))
+    assert payload["stable_counts"]["pending_count"] == 0
+    assert payload["stable_counts"]["items_count"] == 4
+    assert payload["excluded_approval_ids"] == ["a-pending"]
+
+    eval_text = (output_dir / "OBSERVATION_EVAL.md").read_text(encoding="utf-8")
+    assert "- verdict: PASS" in eval_text
+    diff_text = (output_dir / "OBSERVATION_DIFF.md").read_text(encoding="utf-8")
+    assert "shared-dev-142-readonly-20260421" in diff_text
+
+
 def test_render_p2_shared_dev_142_drift_investigation_detects_time_drift_from_deadline_rollover(tmp_path: Path) -> None:
     repo_root = _find_repo_root(Path(__file__))
     script = repo_root / "scripts" / "render_p2_shared_dev_142_drift_investigation.py"
@@ -1396,7 +1707,7 @@ exit 1
     )
     stub_readonly.chmod(0o755)
 
-    baseline_dir = temp_repo / "tmp" / "p2-shared-dev-observation-20260419-193242"
+    baseline_dir = temp_repo / "tmp" / "p2-shared-dev-observation-20260421-stable"
     baseline_dir.mkdir(parents=True, exist_ok=True)
     (baseline_dir / "summary.json").write_text(
         json.dumps({"pending_count": 2, "overdue_count": 3, "escalated_count": 1}) + "\n",
