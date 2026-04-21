@@ -164,7 +164,7 @@ def _natural_refdes_sort_key(token: str) -> Tuple[Tuple[Any, ...], ...]:
         if not part:
             continue
         if part.isdigit():
-            parts.append((1, int(part)))
+            parts.append((1, int(part), len(part), part))
         else:
             parts.append((0, part.casefold(), part))
     return tuple(parts)
