@@ -172,9 +172,9 @@ Intentional new behavior:
 ## 8. Follow-Up
 
 The `Product Description I18N Helper` import-side follow-up is closed for CAD BOM import.
+The report-level language selection follow-up is closed by `DEV_AND_VERIFICATION_REPORT_LANGUAGE_SELECTION_20260421.md`.
 
 Separate future work, if needed:
 
 - add connector-level examples for STEP/IGES metadata that emits `description_i18n`;
-- report-level language selection;
 - translation provider / auto-translation integration.

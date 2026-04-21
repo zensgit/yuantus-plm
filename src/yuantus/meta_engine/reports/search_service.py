@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import String, or_, cast, Float
 from sqlalchemy.orm import Session
 
+from yuantus.meta_engine.locale.service import resolve_localized_property
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.reports.models import SavedSearch
 
@@ -38,6 +39,9 @@ class AdvancedSearchService:
         full_text: Optional[str] = None,
         sort: Optional[List[Dict[str, str]]] = None,
         columns: Optional[List[str]] = None,
+        lang: Optional[str] = None,
+        fallback_langs: Optional[List[str]] = None,
+        localized_fields: Optional[List[str]] = None,
         page: int = 1,
         page_size: int = 25,
         include_count: bool = True,
@@ -48,6 +52,9 @@ class AdvancedSearchService:
             full_text=full_text,
             sort=sort,
             columns=columns,
+            lang=lang,
+            fallback_langs=fallback_langs,
+            localized_fields=localized_fields,
             page=page,
             page_size=page_size,
             include_count=include_count,
@@ -61,6 +68,9 @@ class AdvancedSearchService:
         full_text: Optional[str] = None,
         sort: Optional[List[Dict[str, str]]] = None,
         columns: Optional[List[str]] = None,
+        lang: Optional[str] = None,
+        fallback_langs: Optional[List[str]] = None,
+        localized_fields: Optional[List[str]] = None,
         page: int = 1,
         page_size: int = 25,
         include_count: bool = True,
@@ -107,6 +117,14 @@ class AdvancedSearchService:
         items = query.offset(offset).limit(page_size).all()
 
         results: List[Dict[str, Any]] = []
+        requested_lang = (str(lang).strip() if lang is not None else "")
+        fallback_chain = self._split_list(fallback_langs)
+        selected_columns = self._split_list(columns) if columns else None
+        fields_to_localize = (
+            self._split_list(localized_fields)
+            if localized_fields is not None
+            else ["name", "description"]
+        )
         for item in items:
             row = {
                 "id": item.id,
@@ -125,6 +143,16 @@ class AdvancedSearchService:
                             row[col] = item.properties[col]
                 else:
                     row.update(item.properties)
+
+                if requested_lang:
+                    self._apply_localized_properties(
+                        row,
+                        item.properties,
+                        fields=fields_to_localize,
+                        lang=requested_lang,
+                        fallback_langs=fallback_chain,
+                        selected_columns=selected_columns,
+                    )
 
             results.append(row)
 
@@ -201,6 +229,30 @@ class AdvancedSearchService:
         if isinstance(value, str):
             return [v.strip() for v in value.split(",") if v.strip()]
         return list(value)
+
+    @staticmethod
+    def _apply_localized_properties(
+        row: Dict[str, Any],
+        properties: Dict[str, Any],
+        *,
+        fields: List[str],
+        lang: str,
+        fallback_langs: Optional[List[str]] = None,
+        selected_columns: Optional[List[str]] = None,
+    ) -> None:
+        for field in fields:
+            if not field:
+                continue
+            if selected_columns is not None and field not in selected_columns:
+                continue
+            resolved = resolve_localized_property(
+                properties,
+                field,
+                lang=lang,
+                fallback_langs=fallback_langs,
+            )
+            if resolved.get("resolved"):
+                row[field] = resolved.get("value")
 
 
 class SavedSearchService:
@@ -312,6 +364,9 @@ class SavedSearchService:
             full_text=criteria.get("full_text"),
             sort=criteria.get("sort"),
             columns=criteria.get("columns") or saved.display_columns,
+            lang=criteria.get("lang"),
+            fallback_langs=criteria.get("fallback_langs"),
+            localized_fields=criteria.get("localized_fields"),
             page=page,
             page_size=page_size or saved.page_size or 25,
             include_count=True,

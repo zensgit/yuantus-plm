@@ -45,6 +45,39 @@ def test_export_definition_denies_when_role_not_allowed():
     assert resp.json()["detail"] == "Permission denied"
 
 
+def test_advanced_search_passes_report_language_selection():
+    user = SimpleNamespace(id=2, roles=["viewer"], is_superuser=False)
+    client = _client_with_user(user)
+
+    with patch("yuantus.meta_engine.web.report_router.AdvancedSearchService") as svc_cls:
+        svc = svc_cls.return_value
+        svc.search.return_value = {"items": [], "total": 0}
+        resp = client.post(
+            "/api/v1/reports/search",
+            json={
+                "columns": ["name", "description"],
+                "lang": "zh_CN",
+                "fallback_langs": ["en_US"],
+                "localized_fields": ["description"],
+            },
+        )
+
+    assert resp.status_code == 200
+    svc.search.assert_called_once_with(
+        item_type_id=None,
+        filters=None,
+        full_text=None,
+        sort=None,
+        columns=["name", "description"],
+        lang="zh_CN",
+        fallback_langs=["en_US"],
+        localized_fields=["description"],
+        page=1,
+        page_size=25,
+        include_count=True,
+    )
+
+
 def test_export_definition_allows_superuser_without_admin_role():
     user = SimpleNamespace(id=2, roles=["viewer"], is_superuser=True)
     client = _client_with_user(user)
