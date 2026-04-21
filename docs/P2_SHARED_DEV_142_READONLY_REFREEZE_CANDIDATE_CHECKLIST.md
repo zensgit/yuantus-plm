@@ -66,7 +66,8 @@ bash scripts/print_p2_shared_dev_142_refreeze_candidate_commands.sh
 
 - 审查 `excluded_pending_items`
 - 确认你们是否接受 “tracked readonly baseline 不再包含 future-deadline pending 项” 这条设计
-- 接受后，再单独走新的 readonly refreeze / baseline switch 决策
+- 接受后，再单独走新的 readonly refreeze proposal：
+  - `bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode refreeze-proposal`
 
 如果候选包不可用：
 

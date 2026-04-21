@@ -597,6 +597,12 @@ def test_p2_shared_dev_142_entrypoint_wrapper_dry_run_routes_modes(tmp_path: Pat
     assert "TARGET=scripts/run_p2_shared_dev_142_refreeze_candidate.sh" in refreeze_candidate.stdout
     assert "DRY_RUN=1" in refreeze_candidate.stdout
 
+    refreeze_proposal = _run("refreeze-proposal", "--skip-precheck")
+    assert refreeze_proposal.returncode == 0, refreeze_proposal.stdout + "\n" + refreeze_proposal.stderr
+    assert "MODE=refreeze-proposal" in refreeze_proposal.stdout
+    assert "TARGET=scripts/run_p2_shared_dev_142_refreeze_proposal.sh" in refreeze_proposal.stdout
+    assert "DRY_RUN=1" in refreeze_proposal.stdout
+
     drift_audit = _run("drift-audit", "--skip-precheck")
     assert drift_audit.returncode == 0, drift_audit.stdout + "\n" + drift_audit.stderr
     assert "MODE=drift-audit" in drift_audit.stdout
@@ -669,6 +675,24 @@ def test_p2_shared_dev_142_entrypoint_wrapper_dry_run_routes_modes(tmp_path: Pat
     assert "TARGET=scripts/print_p2_shared_dev_142_refreeze_candidate_commands.sh" in print_candidate_mode.stdout
     assert "FORWARDED_ARGS=<none>" in print_candidate_mode.stdout
     assert "DRY_RUN=1" in print_candidate_mode.stdout
+
+    print_proposal_mode = subprocess.run(  # noqa: S603
+        [
+            "bash",
+            str(script),
+            "--mode",
+            "print-refreeze-proposal-commands",
+            "--dry-run",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+    assert print_proposal_mode.returncode == 0, print_proposal_mode.stdout + "\n" + print_proposal_mode.stderr
+    assert "MODE=print-refreeze-proposal-commands" in print_proposal_mode.stdout
+    assert "TARGET=scripts/print_p2_shared_dev_142_refreeze_proposal_commands.sh" in print_proposal_mode.stdout
+    assert "FORWARDED_ARGS=<none>" in print_proposal_mode.stdout
+    assert "DRY_RUN=1" in print_proposal_mode.stdout
 
     print_drift_mode = subprocess.run(  # noqa: S603
         [
@@ -1102,6 +1126,98 @@ def test_render_p2_shared_dev_142_refreeze_candidate_excludes_future_deadline_pe
     md_text = md_path.read_text(encoding="utf-8")
     assert "candidate_ready：true" in md_text
     assert "overdue-only-stable-candidate" in md_text
+
+
+def test_render_p2_shared_dev_142_refreeze_proposal_materializes_tracked_candidate_pack(tmp_path: Path) -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "render_p2_shared_dev_142_refreeze_proposal.py"
+    assert script.is_file(), f"Missing script: {script}"
+
+    preview_dir = tmp_path / "candidate-preview"
+    candidate_dir = preview_dir / "candidate"
+    candidate_dir.mkdir(parents=True, exist_ok=True)
+
+    (preview_dir / "stable_readonly_candidate.json").write_text(
+        json.dumps(
+            {
+                "candidate_ready": True,
+                "decision": {"kind": "overdue-only-stable-candidate"},
+                "excluded_pending_items": [
+                    {
+                        "approval_id": "a-pending",
+                        "eco_name": "eco-specialist",
+                        "stage_name": "SpecialistReview",
+                        "approval_deadline": "2026-04-21T09:34:33.658929",
+                    }
+                ],
+                "current_counts": {
+                    "items_count": 5,
+                    "pending_count": 1,
+                    "overdue_count": 4,
+                    "escalated_count": 1,
+                    "total_anomalies": 3,
+                },
+                "candidate_counts": {
+                    "items_count": 4,
+                    "pending_count": 0,
+                    "overdue_count": 4,
+                    "escalated_count": 1,
+                    "total_anomalies": 3,
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    for name, payload in (
+        ("summary.json", {"pending_count": 0, "overdue_count": 4, "escalated_count": 1}),
+        ("items.json", [{"approval_id": "a-overdue"}]),
+        ("anomalies.json", {"total_anomalies": 3}),
+        ("export.json", [{"approval_id": "a-overdue"}]),
+    ):
+        (candidate_dir / name).write_text(json.dumps(payload) + "\n", encoding="utf-8")
+    (candidate_dir / "export.csv").write_text("approval_id\na-overdue\n", encoding="utf-8")
+    (candidate_dir / "OBSERVATION_RESULT.md").write_text("# result\n", encoding="utf-8")
+    (candidate_dir / "OBSERVATION_EVAL.md").write_text("# eval\n", encoding="utf-8")
+
+    proposal_dir = tmp_path / "proposal"
+    md_path = tmp_path / "REFREEZE_PROPOSAL.md"
+    json_path = tmp_path / "refreeze_proposal.json"
+    cp = subprocess.run(  # noqa: S603
+        [
+            "python3",
+            str(script),
+            str(preview_dir),
+            "--output-dir",
+            str(proposal_dir),
+            "--output-md",
+            str(md_path),
+            "--output-json",
+            str(json_path),
+            "--proposed-label",
+            "shared-dev-142-readonly-20260421",
+        ],
+        text=True,
+        capture_output=True,
+        cwd=str(repo_root),
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert md_path.is_file()
+    assert json_path.is_file()
+    assert (proposal_dir / "shared-dev-142-readonly-20260421" / "OBSERVATION_RESULT.md").is_file()
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["proposal_ready"] is True
+    assert payload["verdict"] == "PASS"
+    assert payload["decision"]["kind"] == "proposal-ready"
+    assert payload["proposed_label"] == "shared-dev-142-readonly-20260421"
+    assert payload["proposed_tracked_dir"] == "./artifacts/p2-observation/shared-dev-142-readonly-20260421"
+
+    md_text = md_path.read_text(encoding="utf-8")
+    assert "proposal_ready：true" in md_text
+    assert "proposal-ready" in md_text
+    assert "shared-dev-142-readonly-20260421" in md_text
     assert "`a-pending`" in md_text
 
 
