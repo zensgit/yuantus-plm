@@ -204,7 +204,30 @@ YUANTUS_DATABASE_URL="sqlite:////tmp/yuantus-suspended-XXXXXX.db" \
 
 结果：`3 passed in 0.02s`
 
-### 5.6 Full pytest attempt
+### 5.6 CI contracts wiring remediation
+
+PR #310 首轮 GitHub `contracts` job 失败：
+
+```text
+Contract checks missing from .github/workflows/ci.yml contracts step:
+- src/yuantus/meta_engine/tests/test_suspended_guard_seed_migration_contracts.py
+```
+
+修复：
+
+- `.github/workflows/ci.yml` contracts step 显式登记 `test_suspended_guard_seed_migration_contracts.py`
+
+本地验证：
+
+```bash
+/Users/chouhua/Downloads/Github/Yuantus/.venv/bin/python -m pytest -q \
+  src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
+  src/yuantus/meta_engine/tests/test_suspended_guard_seed_migration_contracts.py
+```
+
+结果：`4 passed in 0.01s`
+
+### 5.7 Full pytest attempt
 
 第一次直接执行：
 
