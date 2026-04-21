@@ -117,6 +117,9 @@ def create_effectivity(
     except NotLatestReleasedError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail=exc.to_detail()) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     db.commit()
     return _serialize_effectivity(eff)
 

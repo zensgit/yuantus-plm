@@ -106,6 +106,29 @@ def test_effectivity_create_maps_not_latest_released_to_409() -> None:
     assert resp.json()["detail"]["target_id"] == "item-1"
 
 
+def test_effectivity_create_maps_missing_target_value_error_to_404() -> None:
+    db = MagicMock()
+    client = _client_with_db(db)
+
+    with patch(
+        "yuantus.meta_engine.web.effectivity_router.EffectivityService.create_effectivity",
+        side_effect=ValueError("Effectivity target item-404 not found"),
+    ):
+        resp = client.post(
+            "/api/v1/effectivities",
+            json={
+                "item_id": "item-404",
+                "effectivity_type": "Date",
+                "start_date": "2026-04-21T00:00:00",
+            },
+        )
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Effectivity target item-404 not found"
+    db.rollback.assert_called_once()
+    db.commit.assert_not_called()
+
+
 def test_aml_apply_maps_not_latest_released_to_409() -> None:
     client = _client_with_db(MagicMock())
 
