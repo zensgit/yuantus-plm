@@ -110,10 +110,7 @@ def worker(
         "breakage_incidents_export_cleanup",
         breakage_incidents_export_cleanup,
     )
-    w.register_handler(
-        "parallel_ops_breakage_helpdesk_failures_export",
-        parallel_ops_breakage_helpdesk_failures_export,
-    )
+    w.register_handler("parallel_ops_breakage_helpdesk_failures_export", parallel_ops_breakage_helpdesk_failures_export)
     try:
         from yuantus.plugin_manager.worker import register_plugin_job_handlers
 
