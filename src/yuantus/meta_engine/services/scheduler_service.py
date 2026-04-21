@@ -50,6 +50,17 @@ class SchedulerRunResult:
 
 
 def default_scheduler_tasks(settings: Any) -> List[SchedulerTask]:
+    bom_to_mbom_payload: Dict[str, Any] = {
+        "source_item_ids": _csv_values(
+            getattr(settings, "SCHEDULER_BOM_TO_MBOM_SOURCE_ITEM_IDS", "")
+        ),
+    }
+    bom_to_mbom_plant_code = str(
+        getattr(settings, "SCHEDULER_BOM_TO_MBOM_PLANT_CODE", "") or ""
+    ).strip()
+    if bom_to_mbom_plant_code:
+        bom_to_mbom_payload["plant_code"] = bom_to_mbom_plant_code
+
     return [
         SchedulerTask(
             name="eco_approval_escalation",
@@ -79,7 +90,38 @@ def default_scheduler_tasks(settings: Any) -> List[SchedulerTask]:
                 getattr(settings, "SCHEDULER_AUDIT_RETENTION_MAX_ATTEMPTS", 1) or 1
             ),
         ),
+        SchedulerTask(
+            name="bom_to_mbom_sync",
+            task_type="bom_to_mbom_sync",
+            interval_seconds=int(
+                getattr(settings, "SCHEDULER_BOM_TO_MBOM_INTERVAL_SECONDS", 3600)
+                or 0
+            ),
+            priority=int(getattr(settings, "SCHEDULER_BOM_TO_MBOM_PRIORITY", 85) or 85),
+            enabled=bool(getattr(settings, "SCHEDULER_BOM_TO_MBOM_ENABLED", False)),
+            max_attempts=int(
+                getattr(settings, "SCHEDULER_BOM_TO_MBOM_MAX_ATTEMPTS", 1) or 1
+            ),
+            payload=bom_to_mbom_payload,
+        ),
     ]
+
+
+def _csv_values(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        raw_values = value
+    else:
+        raw_values = str(value).split(",")
+    result: List[str] = []
+    seen: set[str] = set()
+    for raw in raw_values:
+        item = str(raw or "").strip()
+        if item and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
 
 
 class SchedulerService:

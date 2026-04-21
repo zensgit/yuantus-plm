@@ -237,11 +237,28 @@ def test_default_task_registry_keeps_scheduler_tasks_bounded(session):
         SCHEDULER_AUDIT_RETENTION_INTERVAL_SECONDS=3600,
         SCHEDULER_AUDIT_RETENTION_PRIORITY=95,
         SCHEDULER_AUDIT_RETENTION_MAX_ATTEMPTS=1,
+        SCHEDULER_BOM_TO_MBOM_ENABLED=False,
+        SCHEDULER_BOM_TO_MBOM_INTERVAL_SECONDS=3600,
+        SCHEDULER_BOM_TO_MBOM_PRIORITY=85,
+        SCHEDULER_BOM_TO_MBOM_MAX_ATTEMPTS=1,
+        SCHEDULER_BOM_TO_MBOM_SOURCE_ITEM_IDS="part-1, part-2,part-1",
+        SCHEDULER_BOM_TO_MBOM_PLANT_CODE="PLANT-1",
     )
 
-    names = [task.name for task in SchedulerService(session, settings=settings).tasks]
+    tasks = SchedulerService(session, settings=settings).tasks
+    names = [task.name for task in tasks]
 
-    assert names == ["eco_approval_escalation", "audit_retention_prune"]
+    assert names == [
+        "eco_approval_escalation",
+        "audit_retention_prune",
+        "bom_to_mbom_sync",
+    ]
+    bom_to_mbom = tasks[2]
+    assert bom_to_mbom.enabled is False
+    assert bom_to_mbom.payload == {
+        "source_item_ids": ["part-1", "part-2"],
+        "plant_code": "PLANT-1",
+    }
 
 
 def test_eco_scheduler_task_delegates_to_existing_service():
@@ -304,6 +321,126 @@ def test_audit_retention_scheduler_task_skips_when_retention_disabled():
     assert result["reason"] == "retention_disabled"
 
 
+def test_bom_to_mbom_scheduler_task_skips_without_source_ids():
+    from yuantus.meta_engine.tasks.scheduler_tasks import bom_to_mbom_sync
+
+    result = bom_to_mbom_sync({}, MagicMock())
+
+    assert result == {
+        "ok": True,
+        "task": "bom_to_mbom_sync",
+        "skipped": True,
+        "reason": "no_source_item_ids",
+        "created": 0,
+        "skipped_count": 0,
+        "errors": [],
+        "items": [],
+    }
+
+
+def test_bom_to_mbom_scheduler_task_creates_for_released_part():
+    from yuantus.meta_engine.tasks.scheduler_tasks import bom_to_mbom_sync
+
+    item = SimpleNamespace(
+        id="part-1",
+        item_type_id="Part",
+        is_current=True,
+        state="Released",
+        properties={"item_number": "P-001"},
+    )
+    mbom = SimpleNamespace(id="mbom-1", name="MBOM P-001")
+    session = MagicMock()
+    session.get.return_value = item
+
+    with patch(
+        "yuantus.meta_engine.tasks.scheduler_tasks._latest_mbom_for_source",
+        return_value=None,
+    ) as latest:
+        with patch("yuantus.meta_engine.tasks.scheduler_tasks.MBOMService") as svc_cls:
+            svc_cls.return_value.create_mbom_from_ebom.return_value = mbom
+
+            result = bom_to_mbom_sync(
+                {
+                    "source_item_ids": ["part-1"],
+                    "user_id": 7,
+                    "plant_code": "PLANT-1",
+                    "effective_from": "2026-04-21T00:00:00",
+                    "transformation_rules": {"collapse_phantom": True},
+                },
+                session,
+            )
+
+    latest.assert_called_once_with(session, "part-1")
+    svc_cls.assert_called_once_with(session)
+    call = svc_cls.return_value.create_mbom_from_ebom.call_args
+    assert call.args[0] == "part-1"
+    assert call.args[1].startswith("MBOM P-001-")
+    assert call.kwargs["version"] == "1.0"
+    assert call.kwargs["plant_code"] == "PLANT-1"
+    assert call.kwargs["user_id"] == 7
+    assert call.kwargs["transformation_rules"] == {"collapse_phantom": True}
+    assert result["ok"] is True
+    assert result["created"] == 1
+    assert result["items"] == [
+        {"source_item_id": "part-1", "mbom_id": "mbom-1", "name": "MBOM P-001"}
+    ]
+
+
+def test_bom_to_mbom_scheduler_task_skips_non_released_by_default():
+    from yuantus.meta_engine.tasks.scheduler_tasks import bom_to_mbom_sync
+
+    item = SimpleNamespace(
+        id="part-1",
+        item_type_id="Part",
+        is_current=True,
+        state="Draft",
+        properties={},
+    )
+    session = MagicMock()
+    session.get.return_value = item
+
+    with patch("yuantus.meta_engine.tasks.scheduler_tasks.MBOMService") as svc_cls:
+        result = bom_to_mbom_sync({"source_item_ids": "part-1"}, session)
+
+    svc_cls.return_value.create_mbom_from_ebom.assert_not_called()
+    assert result["created"] == 0
+    assert result["skipped_items"] == [
+        {"source_item_id": "part-1", "reason": "not_released", "state": "Draft"}
+    ]
+
+
+def test_bom_to_mbom_scheduler_task_skips_existing_mbom():
+    from yuantus.meta_engine.tasks.scheduler_tasks import bom_to_mbom_sync
+
+    item = SimpleNamespace(
+        id="part-1",
+        item_type_id="Part",
+        is_current=True,
+        state="Released",
+        properties={},
+    )
+    existing = SimpleNamespace(id="mbom-existing")
+    session = MagicMock()
+    session.get.return_value = item
+
+    with patch(
+        "yuantus.meta_engine.tasks.scheduler_tasks._latest_mbom_for_source",
+        return_value=existing,
+    ):
+        with patch("yuantus.meta_engine.tasks.scheduler_tasks.MBOMService") as svc_cls:
+            result = bom_to_mbom_sync({"source_item_id": "part-1"}, session)
+
+    svc_cls.return_value.create_mbom_from_ebom.assert_not_called()
+    assert result["created"] == 0
+    assert result["skipped_items"] == [
+        {
+            "source_item_id": "part-1",
+            "reason": "mbom_exists",
+            "mbom_id": "mbom-existing",
+        }
+    ]
+
+
 def test_cli_registers_scheduler_command_and_worker_handlers():
     import yuantus.cli as cli
 
@@ -316,3 +453,4 @@ def test_cli_registers_scheduler_command_and_worker_handlers():
     assert '"would_enqueue": [d.__dict__ for d in result.would_enqueue]' in scheduler_src
     assert "eco_approval_escalation" in worker_src
     assert "audit_retention_prune" in worker_src
+    assert "bom_to_mbom_sync" in worker_src

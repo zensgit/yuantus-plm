@@ -369,6 +369,30 @@ class Settings(BaseSettings):
         default=1,
         description="Max attempts for audit retention scheduler jobs",
     )
+    SCHEDULER_BOM_TO_MBOM_ENABLED: bool = Field(
+        default=False,
+        description="Enable periodic BOM to MBOM sync job enqueue",
+    )
+    SCHEDULER_BOM_TO_MBOM_INTERVAL_SECONDS: int = Field(
+        default=3600,
+        description="Minimum seconds between BOM to MBOM scheduler jobs",
+    )
+    SCHEDULER_BOM_TO_MBOM_PRIORITY: int = Field(
+        default=85,
+        description="Queue priority for BOM to MBOM scheduler jobs",
+    )
+    SCHEDULER_BOM_TO_MBOM_MAX_ATTEMPTS: int = Field(
+        default=1,
+        description="Max attempts for BOM to MBOM scheduler jobs",
+    )
+    SCHEDULER_BOM_TO_MBOM_SOURCE_ITEM_IDS: str = Field(
+        default="",
+        description="Comma-separated source Part item ids eligible for scheduled MBOM sync",
+    )
+    SCHEDULER_BOM_TO_MBOM_PLANT_CODE: str = Field(
+        default="",
+        description="Optional plant code stamped on scheduled MBOMs",
+    )
 
 
 @lru_cache(maxsize=1)
