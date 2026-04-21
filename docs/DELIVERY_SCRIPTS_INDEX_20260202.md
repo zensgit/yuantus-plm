@@ -35,6 +35,7 @@
 - print_dirty_tree_split_matrix.sh
 - print_docs_parallel_split_helper.sh
 - print_mainline_baseline_switch_commands.sh
+- print_p2_shared_dev_142_daily_ops_commands.sh
 - print_p2_shared_dev_142_drift_audit_commands.sh
 - print_p2_shared_dev_142_drift_investigation_commands.sh
 - print_p2_shared_dev_142_refreeze_candidate_commands.sh
@@ -98,6 +99,7 @@
 - `print_dirty_tree_split_matrix.sh` prints the single-entry overview for the full dirty-tree split sequence.
 - `print_docs_parallel_split_helper.sh` prints the fast-path staging commands for the docs-parallel split.
 - `print_mainline_baseline_switch_commands.sh` prints safe command templates for preserving a dirty feature worktree, moving into a clean `baseline/mainline-*` worktree, cutting a real `feature/*` branch, and publishing that branch to `origin`.
+- `print_p2_shared_dev_142_daily_ops_commands.sh` prints the minimal maintenance-state command sequence for the official shared-dev 142 readonly baseline: readonly-rerun first, then drift-audit, then drift-investigation only if needed.
 - `print_p2_shared_dev_142_drift_audit_commands.sh` prints the fixed drift-audit command sequence for investigating shared-dev 142 readonly baseline deltas before any refreeze.
 - `print_p2_shared_dev_142_drift_investigation_commands.sh` prints the fixed drift-investigation command sequence for turning a shared-dev 142 drift-audit result into an evidence pack before any refreeze decision.
 - `print_p2_shared_dev_142_refreeze_candidate_commands.sh` prints the fixed stable-candidate preview commands for reviewing an overdue-only shared-dev 142 baseline candidate before any tracked refreeze.
@@ -112,7 +114,7 @@
 - `precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe for auth plus the dashboard summary read surface, and writes `OBSERVATION_PRECHECK.md`.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
-- `run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to readonly-rerun, refreeze-readiness, refreeze-candidate, refreeze-proposal, drift-audit, drift-investigation, workflow-probe, workflow-readonly-check, and the expanded readonly/refreeze/drift/investigation command printouts.
+- `run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to print-daily-commands, readonly-rerun, refreeze-readiness, refreeze-candidate, refreeze-proposal, drift-audit, drift-investigation, workflow-probe, workflow-readonly-check, and the expanded readonly/refreeze/drift/investigation command printouts.
 - `run_p2_shared_dev_142_drift_audit.sh` runs the fixed readonly rerun into a dedicated current result dir and renders a top-level `DRIFT_AUDIT.md` plus `drift_audit.json`.
 - `run_p2_shared_dev_142_drift_investigation.sh` runs the fixed drift-audit flow into a nested result dir and renders a top-level `DRIFT_INVESTIGATION.md` plus `drift_investigation.json`.
 - `run_p2_shared_dev_142_refreeze_candidate.sh` runs the fixed readonly rerun into a nested current result dir, renders a stable candidate preview, and writes a top-level `STABLE_READONLY_CANDIDATE.md` plus `stable_readonly_candidate.json`.

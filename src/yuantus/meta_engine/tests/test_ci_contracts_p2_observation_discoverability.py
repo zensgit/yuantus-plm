@@ -29,6 +29,7 @@ def test_p2_observation_docs_are_discoverable_from_readme_runbooks() -> None:
         "docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md",
         "docs/P2_ONE_PAGE_DEV_GUIDE.md",
         "docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md",
+        "docs/P2_SHARED_DEV_142_DAILY_OPS_CHECKLIST.md",
         "docs/P2_SHARED_DEV_142_DRIFT_AUDIT_CHECKLIST.md",
         "docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md",
         "docs/P2_SHARED_DEV_142_READONLY_REFREEZE_CANDIDATE_CHECKLIST.md",
@@ -51,6 +52,7 @@ def test_p2_shared_dev_142_entrypoint_is_discoverable_from_readme_top_level_shar
         "docs/P2_ONE_PAGE_DEV_GUIDE.md",
         "docs/P2_SHARED_DEV_OBSERVATION_HANDOFF.md",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --help",
+        "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-daily-commands",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-readonly-commands",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-candidate-commands",
         "bash scripts/run_p2_shared_dev_142_entrypoint.sh --mode print-refreeze-proposal-commands",
@@ -74,6 +76,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
 
     text = _read(index_path)
     for token in (
+        "print_p2_shared_dev_142_daily_ops_commands.sh",
         "print_p2_shared_dev_142_drift_audit_commands.sh",
         "print_p2_shared_dev_142_drift_investigation_commands.sh",
         "print_p2_shared_dev_142_refreeze_candidate_commands.sh",
@@ -102,6 +105,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "render_p2_shared_dev_142_refreeze_proposal.py",
         "compare_p2_observation_results.py",
         "evaluate_p2_observation_results.py",
+        "`print_p2_shared_dev_142_daily_ops_commands.sh` prints the minimal maintenance-state command sequence for the official shared-dev 142 readonly baseline: readonly-rerun first, then drift-audit, then drift-investigation only if needed.",
         "`print_p2_shared_dev_142_drift_audit_commands.sh` prints the fixed drift-audit command sequence for investigating shared-dev 142 readonly baseline deltas before any refreeze.",
         "`print_p2_shared_dev_142_drift_investigation_commands.sh` prints the fixed drift-investigation command sequence for turning a shared-dev 142 drift-audit result into an evidence pack before any refreeze decision.",
         "`print_p2_shared_dev_142_refreeze_candidate_commands.sh` prints the fixed stable-candidate preview commands for reviewing an overdue-only shared-dev 142 baseline candidate before any tracked refreeze.",
@@ -112,7 +116,7 @@ def test_p2_observation_scripts_are_discoverable_from_delivery_scripts_index() -
         "`print_p2_shared_dev_142_readonly_rerun_commands.sh` prints the fixed readonly rerun commands for the current official shared-dev 142 baseline, including the canonical `BASELINE_DIR`.",
         "`print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.",
         "`print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.",
-        "`run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to readonly-rerun, refreeze-readiness, refreeze-candidate, refreeze-proposal, drift-audit, drift-investigation, workflow-probe, workflow-readonly-check, and the expanded readonly/refreeze/drift/investigation command printouts.",
+        "`run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to print-daily-commands, readonly-rerun, refreeze-readiness, refreeze-candidate, refreeze-proposal, drift-audit, drift-investigation, workflow-probe, workflow-readonly-check, and the expanded readonly/refreeze/drift/investigation command printouts.",
         "`run_p2_shared_dev_142_drift_audit.sh` runs the fixed readonly rerun into a dedicated current result dir and renders a top-level `DRIFT_AUDIT.md` plus `drift_audit.json`.",
         "`run_p2_shared_dev_142_drift_investigation.sh` runs the fixed drift-audit flow into a nested result dir and renders a top-level `DRIFT_INVESTIGATION.md` plus `drift_investigation.json`.",
         "`run_p2_shared_dev_142_refreeze_candidate.sh` runs the fixed readonly rerun into a nested current result dir, renders a stable candidate preview, and writes a top-level `STABLE_READONLY_CANDIDATE.md` plus `stable_readonly_candidate.json`.",
@@ -142,6 +146,7 @@ def test_p2_observation_handoff_and_runbooks_are_indexed_in_delivery_doc_index()
         "docs/P2_OBSERVATION_REGRESSION_WORKFLOW_DISPATCH.md",
         "docs/P2_ONE_PAGE_DEV_GUIDE.md",
         "docs/P2_REMOTE_OBSERVATION_REGRESSION_RUNBOOK.md",
+        "docs/P2_SHARED_DEV_142_DAILY_OPS_CHECKLIST.md",
         "docs/P2_SHARED_DEV_142_DRIFT_AUDIT_CHECKLIST.md",
         "docs/P2_SHARED_DEV_142_DRIFT_INVESTIGATION_CHECKLIST.md",
         "docs/P2_SHARED_DEV_142_READONLY_REFREEZE_CANDIDATE_CHECKLIST.md",
