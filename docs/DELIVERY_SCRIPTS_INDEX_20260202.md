@@ -74,6 +74,7 @@
 - render_p2_shared_dev_142_refreeze_candidate.py
 - render_p2_shared_dev_142_refreeze_proposal.py
 - render_p2_shared_dev_142_refreeze_readiness.py
+- render_scheduler_local_activation_suite.py
 - render_p2_observation_result.py
 - verify_p2_dev_observation_startup.sh
 - verify_run_h.sh
@@ -133,6 +134,7 @@
 - `render_p2_shared_dev_142_refreeze_candidate.py` renders an overdue-only stable candidate pack from a current observation result dir, excluding future-deadline pending approvals and producing a candidate artifact bundle for review.
 - `render_p2_shared_dev_142_refreeze_proposal.py` renders a formal tracked-baseline switch proposal from a green stable candidate preview, materializing a proposed tracked artifact dir without mutating the official baseline.
 - `render_p2_shared_dev_142_refreeze_readiness.py` renders a readonly refreeze-readiness decision pack from a current observation result dir, including any future-deadline pending approvals that would make a fresh frozen baseline age out again.
+- `render_scheduler_local_activation_suite.py` renders `SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md` and JSON summary from scheduler local activation suite artifacts.
 - `run_p2_observation_regression.sh` is the canonical local/shared-dev wrapper for verify + render + optional diff/eval, supports either `TOKEN` or `USERNAME/PASSWORD`, can load defaults from `--env-file`, and can auto-write `<OUTPUT_DIR>.tar.gz`.
 - `run_p2_observation_regression_workflow.sh` is the canonical local wrapper for `gh workflow run/list/watch/download` against `p2-observation-regression`.
 - `run_scheduler_audit_retention_activation_smoke.sh` runs a local-dev-only scheduler activation smoke for `audit_retention_prune`, refusing non-SQLite or non-`local-dev-env/data` DB targets and keeping shared-dev scheduler activation out of scope.

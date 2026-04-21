@@ -41,6 +41,7 @@ def test_scheduler_local_activation_suite_script_contract() -> None:
         "run_scheduler_dry_run_preflight.sh",
         "run_scheduler_audit_retention_activation_smoke.sh",
         "run_scheduler_eco_escalation_activation_smoke.sh",
+        "SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md",
         "suite_validation.json",
         "shared-dev",
         "production",
@@ -55,6 +56,8 @@ def test_scheduler_local_activation_suite_script_contract() -> None:
         "01-dry-run-preflight",
         "02-audit-retention-activation",
         "03-eco-escalation-activation",
+        "render_scheduler_local_activation_suite.py",
+        "scheduler_local_activation_suite_report.json",
         "dry_run_preflight",
         "audit_retention_activation",
         "eco_escalation_activation",
@@ -86,6 +89,7 @@ def test_scheduler_local_activation_suite_doc_and_script_indexes() -> None:
         "02-audit-retention-activation",
         "03-eco-escalation-activation",
         "suite_validation.json",
+        "SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md",
         "local-dev only",
     ):
         assert token in doc_text

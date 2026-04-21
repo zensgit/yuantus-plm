@@ -27,6 +27,8 @@ The helper is local-dev only and writes one parent evidence directory:
 - `02-audit-retention-activation`
 - `03-eco-escalation-activation`
 - `suite_validation.json`
+- `SCHEDULER_LOCAL_ACTIVATION_SUITE_REPORT.md`
+- `scheduler_local_activation_suite_report.json`
 - `README.txt`
 
 It delegates to:
@@ -58,6 +60,7 @@ Focused contract command:
 ```bash
 .venv/bin/python -m pytest -q \
   src/yuantus/meta_engine/tests/test_scheduler_local_activation_suite_contracts.py \
+  src/yuantus/meta_engine/tests/test_scheduler_local_activation_suite_report_contracts.py \
   src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \
   src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
   src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
@@ -80,4 +83,3 @@ Prerequisite: `local-dev-env/start.sh` must have created `local-dev-env/data/yua
 - No shared-dev 142 scheduler activation.
 - No production scheduler enablement.
 - No additional scheduler task type.
-
