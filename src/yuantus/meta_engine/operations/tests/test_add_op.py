@@ -92,10 +92,11 @@ class TestAddOperation(unittest.TestCase):
         self.assertEqual(mock_new_item.properties["item_number"], "PART-000001")
         self.assertEqual(mock_new_item.properties["number"], "PART-000001")
 
+    @patch("yuantus.meta_engine.operations.add_op.assert_not_suspended")
     @patch("yuantus.meta_engine.operations.add_op.assert_latest_released")
     @patch("yuantus.meta_engine.operations.add_op.apply_auto_numbering")
     @patch("yuantus.meta_engine.operations.add_op.Item")
-    def test_execute_guards_part_bom_relationship_target(self, MockItemClass, numbering_fn, guard_fn):
+    def test_execute_guards_part_bom_relationship_target(self, MockItemClass, numbering_fn, guard_fn, suspended_fn):
         mock_item_type = MagicMock()
         mock_item_type.id = "Part BOM"
         mock_item_type.is_relationship = True
@@ -122,11 +123,13 @@ class TestAddOperation(unittest.TestCase):
         self.op.execute(mock_item_type, aml, parent_item=parent_item)
 
         guard_fn.assert_called_once_with(self.mock_session, "child-1", context="bom_child")
+        suspended_fn.assert_called_once_with(self.mock_session, "child-1", context="bom_child")
 
+    @patch("yuantus.meta_engine.operations.add_op.assert_not_suspended")
     @patch("yuantus.meta_engine.operations.add_op.assert_latest_released")
     @patch("yuantus.meta_engine.operations.add_op.apply_auto_numbering")
     @patch("yuantus.meta_engine.operations.add_op.Item")
-    def test_execute_guards_substitute_relationship_target(self, MockItemClass, numbering_fn, guard_fn):
+    def test_execute_guards_substitute_relationship_target(self, MockItemClass, numbering_fn, guard_fn, suspended_fn):
         mock_item_type = MagicMock()
         mock_item_type.id = "Part BOM Substitute"
         mock_item_type.is_relationship = True
@@ -153,6 +156,45 @@ class TestAddOperation(unittest.TestCase):
         self.op.execute(mock_item_type, aml, parent_item=parent_item)
 
         guard_fn.assert_called_once_with(self.mock_session, "sub-1", context="substitute")
+        suspended_fn.assert_called_once_with(self.mock_session, "sub-1", context="substitute")
+
+    @patch("yuantus.meta_engine.operations.add_op.assert_not_suspended")
+    @patch("yuantus.meta_engine.operations.add_op.assert_latest_released")
+    @patch("yuantus.meta_engine.operations.add_op.apply_auto_numbering")
+    @patch("yuantus.meta_engine.operations.add_op.Item")
+    def test_execute_suspended_guard_runs_before_auto_numbering(self, MockItemClass, numbering_fn, guard_fn, suspended_fn):
+        from yuantus.meta_engine.services.suspended_guard import SuspendedStateError
+
+        mock_item_type = MagicMock()
+        mock_item_type.id = "Part BOM"
+        mock_item_type.is_relationship = True
+        mock_item_type.permission_id = "perm1"
+        mock_item_type.on_before_add_method_id = None
+
+        parent_item = MagicMock(id="parent-1")
+        aml = GenericItem(
+            type="Part BOM",
+            action=AMLAction.add,
+            properties={"related_id": "child-1", "quantity": 1},
+        )
+
+        self.mock_perm.check_permission.return_value = True
+        suspended_fn.side_effect = SuspendedStateError(
+            reason="target_suspended", target_id="child-1"
+        )
+
+        mock_new_item = MagicMock()
+        mock_new_item.id = "rel-1"
+        mock_new_item.properties = dict(aml.properties)
+        mock_new_item.related_id = "child-1"
+        MockItemClass.return_value = mock_new_item
+
+        with self.assertRaises(SuspendedStateError):
+            self.op.execute(mock_item_type, aml, parent_item=parent_item)
+
+        guard_fn.assert_called_once_with(self.mock_session, "child-1", context="bom_child")
+        suspended_fn.assert_called_once_with(self.mock_session, "child-1", context="bom_child")
+        numbering_fn.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()

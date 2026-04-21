@@ -9,6 +9,7 @@ from yuantus.exceptions.handlers import PermissionError, ValidationError
 from yuantus.meta_engine.events.domain_events import ItemCreatedEvent
 from yuantus.meta_engine.events.transactional import enqueue_event
 from yuantus.meta_engine.services.latest_released_guard import assert_latest_released
+from yuantus.meta_engine.services.suspended_guard import assert_not_suspended
 from yuantus.meta_engine.services.numbering_service import apply_auto_numbering
 
 class AddOperation(BaseOperation):
@@ -30,6 +31,20 @@ class AddOperation(BaseOperation):
         if not guard_context or not getattr(new_item, "related_id", None):
             return
         assert_latest_released(
+            self.session,
+            str(new_item.related_id),
+            context=guard_context,
+        )
+
+    def _assert_relationship_target_not_suspended(
+        self,
+        item_type: ItemType,
+        new_item: Item,
+    ) -> None:
+        guard_context = self.RELATIONSHIP_GUARD_CONTEXTS.get(item_type.id)
+        if not guard_context or not getattr(new_item, "related_id", None):
+            return
+        assert_not_suspended(
             self.session,
             str(new_item.related_id),
             context=guard_context,
@@ -77,6 +92,7 @@ class AddOperation(BaseOperation):
 
         # 6. Relationship write-time guard for stale targets
         self._assert_relationship_target_latest_released(item_type, new_item)
+        self._assert_relationship_target_not_suspended(item_type, new_item)
 
         # 7. Auto numbering + validate/normalize
         new_item.properties = apply_auto_numbering(

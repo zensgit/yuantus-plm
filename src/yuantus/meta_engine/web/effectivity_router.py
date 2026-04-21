@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from yuantus.api.dependencies.auth import CurrentUser, get_current_user
 from yuantus.database import get_db
 from yuantus.meta_engine.services.latest_released_guard import NotLatestReleasedError
+from yuantus.meta_engine.services.suspended_guard import SuspendedStateError
 from yuantus.meta_engine.services.effectivity_service import EffectivityService
 
 
@@ -115,6 +116,9 @@ def create_effectivity(
             created_by_id=user.id,
         )
     except NotLatestReleasedError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.to_detail()) from exc
+    except SuspendedStateError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail=exc.to_detail()) from exc
     db.commit()
