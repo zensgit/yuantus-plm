@@ -138,12 +138,47 @@ def test_explicit_external_profile_requires_configured_connector(monkeypatch) ->
         )
 
 
-def test_profile_resolution_requires_tenant_context(monkeypatch) -> None:
+@pytest.mark.parametrize("tenant_id", [None, "", "   "])
+def test_profile_resolution_requires_tenant_context(monkeypatch, tenant_id) -> None:
     monkeypatch.setattr(
         cad_pipeline_tasks,
         "get_request_context",
-        lambda: SimpleNamespace(tenant_id=None, org_id="org-1"),
+        lambda: SimpleNamespace(tenant_id=tenant_id, org_id="org-1"),
     )
 
     with pytest.raises(JobFatalError, match="requires tenant context"):
         cad_pipeline_tasks._cad_backend_profile_resolution()
+
+
+def test_profile_resolution_strips_tenant_context_before_resolution(monkeypatch) -> None:
+    recorded: dict[str, str | None] = {}
+
+    class _ProfileService:
+        def __init__(self, session, settings) -> None:
+            pass
+
+        def resolve(self, *, tenant_id: str, org_id: str | None):
+            recorded["tenant_id"] = tenant_id
+            recorded["org_id"] = org_id
+            return SimpleNamespace(
+                configured="hybrid-auto",
+                effective="hybrid-auto",
+                source="plugin-config:tenant-org",
+                scope={"tenant_id": tenant_id, "org_id": org_id, "level": "tenant-org"},
+            )
+
+    monkeypatch.setattr(
+        cad_pipeline_tasks,
+        "get_request_context",
+        lambda: SimpleNamespace(tenant_id=" tenant-1 ", org_id="org-1"),
+    )
+    monkeypatch.setattr(
+        cad_pipeline_tasks,
+        "CadBackendProfileService",
+        _ProfileService,
+    )
+
+    resolution = cad_pipeline_tasks._cad_backend_profile_resolution()
+
+    assert recorded == {"tenant_id": "tenant-1", "org_id": "org-1"}
+    assert resolution["scope"]["tenant_id"] == "tenant-1"

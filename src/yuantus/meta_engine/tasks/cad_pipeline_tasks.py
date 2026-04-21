@@ -181,13 +181,14 @@ def _cad_backend_profile_resolution(
     session: Optional[Session] = None,
 ) -> Dict[str, Any]:
     ctx = get_request_context()
-    if ctx.tenant_id is None:
+    tenant_id = (ctx.tenant_id or "").strip()
+    if not tenant_id:
         raise JobFatalError(
             "CAD backend profile resolution requires tenant context; "
             "check job payload includes tenant_id/org_id"
         )
     resolution = CadBackendProfileService(session, get_settings()).resolve(
-        tenant_id=ctx.tenant_id,
+        tenant_id=tenant_id,
         org_id=ctx.org_id,
     )
     return {
