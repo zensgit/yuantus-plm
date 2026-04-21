@@ -69,6 +69,7 @@ class BomCompareRequest(BaseModel):
         description="Relationship ItemType ids to traverse (default: all)",
     )
     quantity_key: str = Field(default="quantity")
+    uom_key: str = Field(default="uom")
     position_key: str = Field(default="find_num")
     refdes_key: str = Field(default="refdes")
     levels: int = Field(default=-1, description="Depth for BOM expansion")
@@ -104,6 +105,8 @@ class BomCompareDiff(BaseModel):
     qty_a: Optional[float] = None
     qty_b: Optional[float] = None
     delta: Optional[float] = None
+    uom_a: Optional[str] = None
+    uom_b: Optional[str] = None
     position_a: Optional[str] = None
     position_b: Optional[str] = None
     refdes_a: Optional[str] = None
@@ -124,7 +127,8 @@ class BomCompareExportRequest(BomCompareRequest):
         default=None,
         description=(
             "Optional column list. Defaults to key,status,child_id,name,qty_a,qty_b,"
-            "delta,position_a,position_b,refdes_a,refdes_b,relationship_ids_a,relationship_ids_b"
+            "delta,uom_a,uom_b,position_a,position_b,refdes_a,refdes_b,"
+            "relationship_ids_a,relationship_ids_b"
         ),
     )
     exclude_columns: Optional[List[str]] = Field(
@@ -176,6 +180,8 @@ _EXPORT_COLUMNS = [
     "qty_a",
     "qty_b",
     "delta",
+    "uom_a",
+    "uom_b",
     "position_a",
     "position_b",
     "refdes_a",
@@ -216,6 +222,11 @@ def _parse_quantity(value: Any) -> float:
         return 1.0
 
 
+def _normalize_uom(value: Any) -> str:
+    text = str(value).strip() if value is not None else ""
+    return (text or "EA").upper()
+
+
 def _float_equal(a: Optional[float], b: Optional[float], tolerance: float = 1e-9) -> bool:
     if a is None or b is None:
         return a is b
@@ -233,19 +244,22 @@ def _iter_bom_relations(node: Dict[str, Any]) -> Iterable[Tuple[Dict[str, Any], 
 def _build_key(
     mode: str,
     child_id: str,
+    uom: str,
     qty: float,
     position: Optional[str],
     refdes: Optional[str],
 ) -> Tuple[str, ...]:
-    if mode in {"only_product", "summarized"}:
+    if mode == "only_product":
         return (child_id,)
+    if mode == "summarized":
+        return (child_id, uom)
     if mode == "num_qty":
-        return (child_id, str(qty))
+        return (child_id, uom, str(qty))
     if mode == "by_position":
-        return (child_id, position or "")
+        return (child_id, uom, position or "")
     if mode == "by_reference":
-        return (child_id, refdes or "")
-    return (child_id,)
+        return (child_id, uom, refdes or "")
+    return (child_id, uom)
 
 
 def _build_key_label(key: Tuple[str, ...]) -> str:
@@ -329,6 +343,7 @@ def _extract_entries(
     *,
     mode: str,
     quantity_key: str,
+    uom_key: str,
     position_key: str,
     refdes_key: str,
 ) -> Dict[Tuple[str, ...], Dict[str, Any]]:
@@ -340,6 +355,7 @@ def _extract_entries(
         if qty_value is None:
             qty_value = props.get("qty")
         qty = _parse_quantity(qty_value)
+        uom = _normalize_uom(props.get(uom_key))
         position = props.get(position_key)
         refdes = props.get(refdes_key)
         child_id = child.get("id") or rel.get("related_id")
@@ -347,13 +363,14 @@ def _extract_entries(
             continue
         child_name = child.get("name") or child.get("item_number")
 
-        key = _build_key(mode, child_id, qty, position, refdes)
+        key = _build_key(mode, child_id, uom, qty, position, refdes)
         entry = entries.get(key)
         if not entry:
             entry = {
                 "child_id": child_id,
                 "name": child_name,
                 "qty": 0.0,
+                "uoms": set(),
                 "positions": set(),
                 "refdes": set(),
                 "relationship_ids": [],
@@ -361,6 +378,7 @@ def _extract_entries(
             entries[key] = entry
 
         entry["relationship_ids"].append(rel.get("id"))
+        entry["uoms"].add(uom)
         if position:
             entry["positions"].add(str(position))
         if refdes:
@@ -512,6 +530,7 @@ def compare_bom_trees(
     position_key: str,
     refdes_key: str,
     include_unchanged: bool,
+    uom_key: str = "uom",
     quantity_tolerance: Optional[float] = None,
     filters: Optional[BomCompareFilters] = None,
 ) -> BomCompareResponse:
@@ -519,6 +538,7 @@ def compare_bom_trees(
         bom_a,
         mode=mode,
         quantity_key=quantity_key,
+        uom_key=uom_key,
         position_key=position_key,
         refdes_key=refdes_key,
     )
@@ -526,6 +546,7 @@ def compare_bom_trees(
         bom_b,
         mode=mode,
         quantity_key=quantity_key,
+        uom_key=uom_key,
         position_key=position_key,
         refdes_key=refdes_key,
     )
@@ -572,6 +593,8 @@ def compare_bom_trees(
                 qty_a=qty_a,
                 qty_b=qty_b,
                 delta=delta,
+                uom_a=", ".join(sorted(entry_a["uoms"])) if entry_a and entry_a["uoms"] else None,
+                uom_b=", ".join(sorted(entry_b["uoms"])) if entry_b and entry_b["uoms"] else None,
                 position_a=", ".join(sorted(entry_a["positions"])) if entry_a and entry_a["positions"] else None,
                 position_b=", ".join(sorted(entry_b["positions"])) if entry_b and entry_b["positions"] else None,
                 refdes_a=", ".join(sorted(entry_a["refdes"])) if entry_a and entry_a["refdes"] else None,
@@ -636,6 +659,7 @@ def compare_bom(
             bom_b,
             mode=mode,
             quantity_key=req.quantity_key,
+            uom_key=req.uom_key,
             position_key=req.position_key,
             refdes_key=req.refdes_key,
             include_unchanged=req.include_unchanged,
@@ -689,6 +713,7 @@ def export_bom(
             bom_b,
             mode=mode,
             quantity_key=req.quantity_key,
+            uom_key=req.uom_key,
             position_key=req.position_key,
             refdes_key=req.refdes_key,
             include_unchanged=req.include_unchanged,

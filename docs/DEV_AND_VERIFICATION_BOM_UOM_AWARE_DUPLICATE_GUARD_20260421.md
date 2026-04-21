@@ -155,6 +155,6 @@ The only intentional behavior change is for ambiguous deletes after multiple UOM
 
 ## 8. Follow-Up
 
-No immediate follow-up is required for this bounded increment.
+The comparison-side follow-up for UOM-aware summarized / by-item line keys is closed by `DEV_AND_VERIFICATION_BOM_COMPARE_UOM_AWARE_LINE_KEYS_20260421.md`.
 
 If product wants richer UOM governance later, that should be a separate tenant-level UOM dictionary/configuration feature, not hardcoded synonyms in BOMService.

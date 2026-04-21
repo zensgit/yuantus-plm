@@ -118,11 +118,11 @@ PLM 约定 UOM 用大写（`EA` / `KG` / `MM`）。现状 `_normalize_text` 只 
 
 **Real-session integration test（1）**：
 
-- `test_import_bom_real_session_different_uom_second_row_is_skipped_by_bom_guard` — **关键补强**：
+- `test_import_bom_real_session_different_uom_creates_two_bom_lines` — **关键补强**：
   - 使用 `tmp_path` + `create_engine(sqlite:///...)` + `Base.metadata.create_all()` 搭建真实 in-memory session
   - 调 `import_all_models()` 保证 FK 解析完整
   - 真实 `BOMService.add_child` 承接两条相同 (parent, child) 不同 uom 的聚合后行
-  - 断言：`dedup_aggregated=0`（Phase 1 正确保留 uom 独立）+ `created_lines=1` + `skipped_lines=1` + `errors` 含 `"already exists"`
+  - 当前断言：`dedup_aggregated=0`（Phase 1 正确保留 uom 独立）+ `created_lines=2` + `skipped_lines=0` + `errors=[]`
   - 原始交付明确记录过当时的 scope 边界：`BOMService.get_bom_line_by_parent_child` 只按 `source_id + related_id` 查唯一。该边界已由 `DEV_AND_VERIFICATION_BOM_UOM_AWARE_DUPLICATE_GUARD_20260421.md` 收敛，现在同 `(parent, child)` 不同 `uom` 可作为两条 BOM line 共存
 
 ### 4.2 命令与结果
@@ -220,10 +220,10 @@ PLM 约定 UOM 用大写（`EA` / `KG` / `MM`）。现状 `_normalize_text` 只 
 | 9 | 跨 parent 的同子件 edges 是否真的**不**被聚合（test_import_bom_multi_parent_... 覆盖） |
 | 10 | `empty_bom` 短路分支是否保持原行为（不误增 `dedup_aggregated`，不影响既有 caller） |
 | 11 | **Real-session test 是否真的用 `create_engine(sqlite:///...)` + `Base.metadata.create_all` + `import_all_models()`**，不是 MagicMock 伪装成 real |
-| 12 | 同 (parent, child) 不同 uom 的 real-session test 断言顺序正确（`dedup_aggregated=0` + `created_lines=1` + `skipped_lines=1` + errors 含 `"already exists"`） |
+| 12 | 同 (parent, child) 不同 uom 的 real-session test 断言顺序正确（`dedup_aggregated=0` + `created_lines=2` + `skipped_lines=0` + `errors=[]`） |
 | 13 | `.venv/bin/python -m py_compile` 通过 |
 | 14 | 没有 touch scheduler / CAD profile / 142 / UI 相关文件 |
-| 15 | 没有 touch `BOMService.add_child` / `get_bom_line_by_parent_child` 签名 |
+| 15 | `BOMService.add_child` / `get_bom_line_by_parent_child` 签名变化已由后续 UOM-aware duplicate guard 单独交付 |
 
 ## 8. 已知边界与 follow-up
 
@@ -258,9 +258,9 @@ PLM 约定 UOM 用大写（`EA` / `KG` / `MM`）。现状 `_normalize_text` 只 
    - 删掉单一「首个非空」的组合测试
 2. **替换 mock-only 的 different-uom 测试为 real-session**：
    - 删 `test_import_bom_different_uom_stays_separate`（MagicMock 掩盖了 BOMService duplicate guard 的真实行为）
-   - 新增 `test_import_bom_real_session_different_uom_second_row_is_skipped_by_bom_guard` 用 `tmp_path` + `create_engine("sqlite:///...")` + `Base.metadata.create_all(engine)` + `import_all_models()` 跑真实 in-memory session
-   - 测试 pin 住「同 (parent, child) 不同 uom 的第二行会被 `BOMService.get_bom_line_by_parent_child` 拦截」这一 scope 边界，明确 **要打破这个约束需要独立扩大 scope 改 `BOMService` 唯一键**，本 PR 不做
+   - 当时新增 `test_import_bom_real_session_different_uom_second_row_is_skipped_by_bom_guard` 用 `tmp_path` + `create_engine("sqlite:///...")` + `Base.metadata.create_all(engine)` + `import_all_models()` 跑真实 in-memory session
+   - 该历史测试 pin 住「同 (parent, child) 不同 uom 的第二行会被 `BOMService.get_bom_line_by_parent_child` 拦截」这一 scope 边界；该边界后续已由 UOM-aware duplicate guard 收敛，测试现名为 `test_import_bom_real_session_different_uom_creates_two_bom_lines`
 
 最终 focused 19 passed + 回归 49 passed + py_compile 通过。
 
-Scope 严守用户边界：只改 `CadBomImportService`、测试、本 MD、索引；不碰 scheduler / CAD profile / 142 / UI / `BOMService` 签名。
+原始 PR scope 严守用户边界：只改 `CadBomImportService`、测试、本 MD、索引；不碰 scheduler / CAD profile / 142 / UI / `BOMService` 签名。后续 `BOMService` 签名变化已在 UOM-aware duplicate guard 增量中单独交付和验证。
