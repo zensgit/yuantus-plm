@@ -11,7 +11,7 @@ from yuantus.database import get_db
 from yuantus.meta_engine.services.cad_backend_profile_service import (
     CadBackendProfileResolution,
 )
-from yuantus.meta_engine.web.cad_router import router as cad_router
+from yuantus.meta_engine.web.cad_backend_profile_router import cad_backend_profile_router
 
 
 def _client(user: SimpleNamespace) -> tuple[TestClient, MagicMock]:
@@ -24,7 +24,7 @@ def _client(user: SimpleNamespace) -> tuple[TestClient, MagicMock]:
             pass
 
     app = FastAPI()
-    app.include_router(cad_router, prefix="/api/v1")
+    app.include_router(cad_backend_profile_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = lambda: user
     return TestClient(app), mock_db
@@ -51,10 +51,12 @@ def test_get_backend_profile_returns_current_resolution() -> None:
     client, _ = _client(SimpleNamespace(id=1, roles=["engineer"]))
 
     with patch(
-        "yuantus.meta_engine.web.cad_router.get_request_context",
+        "yuantus.meta_engine.web.cad_backend_profile_router.get_request_context",
         return_value=SimpleNamespace(tenant_id="tenant-1", org_id="org-1"),
     ):
-        with patch("yuantus.meta_engine.web.cad_router.CadBackendProfileService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.cad_backend_profile_router.CadBackendProfileService"
+        ) as svc_cls:
             svc_cls.return_value.resolve.return_value = _resolution()
             response = client.get("/api/v1/cad/backend-profile")
 
@@ -72,10 +74,12 @@ def test_put_backend_profile_updates_tenant_scope() -> None:
     client, _ = _client(SimpleNamespace(id=1, roles=["admin"]))
 
     with patch(
-        "yuantus.meta_engine.web.cad_router.get_request_context",
+        "yuantus.meta_engine.web.cad_backend_profile_router.get_request_context",
         return_value=SimpleNamespace(tenant_id="tenant-1", org_id="org-1"),
     ):
-        with patch("yuantus.meta_engine.web.cad_router.CadBackendProfileService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.cad_backend_profile_router.CadBackendProfileService"
+        ) as svc_cls:
             svc_cls.return_value.update_override.return_value = _resolution(
                 source="plugin-config:tenant-default",
                 scope={"tenant_id": "tenant-1", "org_id": None, "level": "tenant-default"},
