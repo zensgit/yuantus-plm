@@ -182,27 +182,6 @@ def _load_cad_document_payload(file_container: FileContainer) -> Optional[Dict[s
     return payload if isinstance(payload, dict) else None
 
 
-def _load_cad_metadata_payload(file_container: FileContainer) -> Optional[Dict[str, Any]]:
-    if not file_container.cad_metadata_path:
-        return None
-    file_service = FileService()
-    output_stream = io.BytesIO()
-    try:
-        file_service.download_file(file_container.cad_metadata_path, output_stream)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500, detail=f"CAD metadata download failed: {exc}"
-        ) from exc
-    output_stream.seek(0)
-    try:
-        payload = json.load(output_stream)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=500, detail="CAD metadata invalid JSON"
-        ) from exc
-    return payload if isinstance(payload, dict) else None
-
-
 def _extract_entity_ids(document_payload: Dict[str, Any]) -> List[int]:
     entities = document_payload.get("entities")
     if not isinstance(entities, list):
@@ -215,25 +194,6 @@ def _extract_entity_ids(document_payload: Dict[str, Any]) -> List[int]:
         if isinstance(entity_id, int):
             entity_ids.append(entity_id)
     return entity_ids
-
-
-def _extract_mesh_stats(payload: Dict[str, Any]) -> Dict[str, Any]:
-    stats: Dict[str, Any] = {"raw_keys": sorted(payload.keys())}
-    entities = payload.get("entities")
-    if isinstance(entities, list):
-        stats["entity_count"] = len(entities)
-    for key in ("triangle_count", "triangles", "face_count", "faces"):
-        value = payload.get(key)
-        if isinstance(value, int):
-            stats["triangle_count"] = value
-            break
-        if isinstance(value, list):
-            stats["triangle_count"] = len(value)
-            break
-    bounds = payload.get("bounds") or payload.get("bbox")
-    if bounds is not None:
-        stats["bounds"] = bounds
-    return stats
 
 
 def _validate_entity_ids(
@@ -494,11 +454,6 @@ class CadChangeLogEntry(BaseModel):
 class CadChangeLogResponse(BaseModel):
     file_id: str
     entries: List[CadChangeLogEntry]
-
-
-class CadMeshStatsResponse(BaseModel):
-    file_id: str
-    stats: Dict[str, Any]
 
 
 def _calculate_checksum(content: bytes) -> str:
@@ -1111,50 +1066,6 @@ def get_cad_history(
         for log in logs
     ]
     return CadChangeLogResponse(file_id=file_container.id, entries=entries)
-
-
-@router.get("/files/{file_id}/mesh-stats", response_model=CadMeshStatsResponse)
-def get_cad_mesh_stats(
-    file_id: str,
-    user: CurrentUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> CadMeshStatsResponse:
-    file_container = db.get(FileContainer, file_id)
-    if not file_container:
-        raise HTTPException(status_code=404, detail="File not found")
-    if not file_container.cad_metadata_path:
-        return CadMeshStatsResponse(
-            file_id=file_container.id,
-            stats={
-                "available": False,
-                "reason": "CAD metadata not available",
-            },
-        )
-
-    payload = _load_cad_metadata_payload(file_container)
-    if not payload or payload.get("kind") == "cad_attributes":
-        return CadMeshStatsResponse(
-            file_id=file_container.id,
-            stats={
-                "available": False,
-                "reason": "CAD mesh metadata not available",
-            },
-        )
-    if not any(
-        key in payload
-        for key in ("entities", "triangle_count", "triangles", "face_count", "faces", "bounds", "bbox")
-    ):
-        return CadMeshStatsResponse(
-            file_id=file_container.id,
-            stats={
-                "available": False,
-                "reason": "CAD mesh metadata not available",
-                "raw_keys": sorted(payload.keys()),
-            },
-        )
-    stats = _extract_mesh_stats(payload or {})
-    stats.setdefault("available", True)
-    return CadMeshStatsResponse(file_id=file_container.id, stats=stats)
 
 
 @router.post("/import", response_model=CadImportResponse)
