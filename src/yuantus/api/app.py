@@ -28,6 +28,7 @@ from yuantus.meta_engine.web.config_router import config_router
 from yuantus.meta_engine.web.cutted_parts_router import cutted_parts_router
 from yuantus.meta_engine.web.cad_backend_profile_router import cad_backend_profile_router
 from yuantus.meta_engine.web.cad_connectors_router import cad_connectors_router
+from yuantus.meta_engine.web.cad_file_data_router import cad_file_data_router
 from yuantus.meta_engine.web.cad_sync_template_router import cad_sync_template_router
 from yuantus.meta_engine.web.cad_router import router as cad_router
 from yuantus.meta_engine.web.dedup_router import dedup_router
@@ -172,6 +173,7 @@ def create_app() -> FastAPI:
     app.include_router(dedup_router, prefix="/api/v1")
     app.include_router(cad_backend_profile_router, prefix="/api/v1")
     app.include_router(cad_connectors_router, prefix="/api/v1")
+    app.include_router(cad_file_data_router, prefix="/api/v1")
     app.include_router(cad_sync_template_router, prefix="/api/v1")
     app.include_router(cad_router, prefix="/api/v1")
     app.include_router(document_sync_router, prefix="/api/v1")
