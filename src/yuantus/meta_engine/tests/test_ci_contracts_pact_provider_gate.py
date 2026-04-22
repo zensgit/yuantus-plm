@@ -50,6 +50,7 @@ def test_ci_change_scope_covers_pact_provider_and_cad_diff_surface() -> None:
         "src/yuantus/meta_engine/web/cad_review_router.py",
         "src/yuantus/meta_engine/web/cad_router.py",
         "src/yuantus/meta_engine/web/cad_sync_template_router.py",
+        "src/yuantus/meta_engine/web/cad_view_state_router.py",
         "src/yuantus/web/cad_review.html",
     ):
         assert token in text, f"Expected detect_changes contract trigger token: {token}"
