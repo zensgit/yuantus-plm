@@ -4,11 +4,23 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
-import yuantus.meta_engine.web.bom_router as bom_router_module
+import yuantus.meta_engine.web.bom_compare_router as bom_router_module
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user
 from yuantus.database import get_db
+
+import pytest
+
+from yuantus.config import get_settings
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    """These tests override router dependencies; middleware auth is out of scope."""
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
+
+
 
 
 def _client_with_user(user):
@@ -130,7 +142,7 @@ def test_create_bom_summarized_snapshot_saves_record():
     client, _db = _client_with_user(user)
     compare_mock = AsyncMock(return_value=_sample_compare_result())
 
-    with patch("yuantus.meta_engine.web.bom_router.compare_bom", new=compare_mock):
+    with patch("yuantus.meta_engine.web.bom_compare_router.compare_bom", new=compare_mock):
         response = client.post(
             "/api/v1/bom/compare/summarized/snapshots",
             json={
