@@ -25,6 +25,10 @@ Docs changed:
 - `docs/DEV_AND_VERIFICATION_ROUTER_DECOMPOSITION_R1_DOC_SYNC_20260422.md`
 - `docs/DELIVERY_DOC_INDEX.md`
 
+CI wiring changed:
+
+- `.github/workflows/ci.yml`
+
 ## 3. Moved Route Set
 
 The following routes moved from `parallel_tasks_router.py` to `parallel_tasks_doc_sync_router.py`:
@@ -88,6 +92,14 @@ git diff --check
 
 .venv/bin/python -m pytest -q \
   src/yuantus/meta_engine/tests/test_parallel_ops_router_e2e.py
+
+.venv/bin/python -m pytest -q \
+  src/yuantus/meta_engine/tests/test_ci_contracts_job_wiring.py \
+  src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py \
+  src/yuantus/meta_engine/tests/test_parallel_tasks_doc_sync_router_contracts.py \
+  src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
+  src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py \
+  src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
 ```
 
 Actual result:
@@ -99,6 +111,7 @@ Actual result:
 - document index contracts remain green,
 - `193 passed, 7 deselected`,
 - `8 passed` for the full `test_parallel_ops_router_e2e.py`,
+- `8 passed` for CI contract wiring and doc-index contracts,
 - `git diff --check` and `py_compile` passed.
 
 ## 6. Acceptance
