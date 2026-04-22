@@ -72,6 +72,7 @@ from yuantus.meta_engine.web.parallel_tasks_breakage_router import (
 from yuantus.meta_engine.web.parallel_tasks_doc_sync_router import (
     parallel_tasks_doc_sync_router,
 )
+from yuantus.meta_engine.web.parallel_tasks_ops_router import parallel_tasks_ops_router
 from yuantus.plugin_manager.runtime import load_plugins
 from yuantus.security.auth.database import init_identity_db
 
@@ -173,6 +174,7 @@ def create_app() -> FastAPI:
     app.include_router(eco_router, prefix="/api/v1")
     app.include_router(parallel_tasks_breakage_router, prefix="/api/v1")
     app.include_router(parallel_tasks_doc_sync_router, prefix="/api/v1")
+    app.include_router(parallel_tasks_ops_router, prefix="/api/v1")
     app.include_router(parallel_tasks_router, prefix="/api/v1")
     app.include_router(maintenance_router, prefix="/api/v1")
     app.include_router(quality_router, prefix="/api/v1")

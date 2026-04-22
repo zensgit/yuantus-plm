@@ -2489,7 +2489,7 @@ def test_parallel_ops_summary_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.summary.return_value = {
             "generated_at": "2026-02-28T00:00:00",
@@ -2519,7 +2519,7 @@ def test_parallel_ops_summary_invalid_request_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.summary.side_effect = ValueError(
             "window_days must be one of: 1, 7, 14, 30, 90"
@@ -2537,7 +2537,7 @@ def test_parallel_ops_trends_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.trends.return_value = {
             "generated_at": "2026-02-28T00:00:00",
@@ -2594,7 +2594,7 @@ def test_parallel_ops_trends_invalid_request_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.trends.side_effect = ValueError(
             "bucket_days must be <= window_days"
@@ -2612,7 +2612,7 @@ def test_parallel_ops_trends_export_returns_download_response():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_trends.return_value = {
             "content": b"bucket_start,bucket_end,doc_sync_total\n2026-02-27,2026-02-28,2\n",
@@ -2637,7 +2637,7 @@ def test_parallel_ops_trends_export_passes_locale_query_contract():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_trends.return_value = {
             "content": b'{"bucket_days": 1, "locale": {"id": "rp-ops-trends-zh"}}',
@@ -2667,7 +2667,7 @@ def test_parallel_ops_trends_export_invalid_request_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_trends.side_effect = ValueError(
             "export_format must be json, csv or md"
@@ -2687,7 +2687,7 @@ def test_parallel_ops_alerts_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.alerts.return_value = {
             "generated_at": "2026-02-28T00:00:00",
@@ -2727,7 +2727,7 @@ def test_parallel_ops_alerts_invalid_request_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.alerts.side_effect = ValueError(
             "level must be one of: warn, critical, info"
@@ -2745,7 +2745,7 @@ def test_parallel_ops_summary_export_returns_download_response():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_summary.return_value = {
             "content": b'{"window_days": 7}',
@@ -2770,7 +2770,7 @@ def test_parallel_ops_summary_export_passes_locale_query_contract():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_summary.return_value = {
             "content": b'{"window_days": 7, "locale": {"id": "rp-ops-zh"}}',
@@ -2799,7 +2799,7 @@ def test_parallel_ops_summary_export_invalid_request_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_summary.side_effect = ValueError(
             "export_format must be json, csv or md"
@@ -2819,7 +2819,7 @@ def test_parallel_ops_summary_accepts_threshold_overrides():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.summary.return_value = {
             "generated_at": "2026-02-28T00:00:00",
@@ -2886,7 +2886,7 @@ def test_parallel_ops_summary_invalid_threshold_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.summary.side_effect = ValueError(
             "doc_sync_dead_letter_rate_warn must be between 0 and 1"
@@ -2906,7 +2906,7 @@ def test_parallel_ops_summary_invalid_checkout_gate_threshold_maps_contract_erro
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.summary.side_effect = ValueError(
             "doc_sync_checkout_gate_max_failed_warn must be >= 0"
@@ -2926,7 +2926,7 @@ def test_parallel_ops_doc_sync_failures_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.doc_sync_failures.return_value = {
             "window_days": 7,
@@ -2961,7 +2961,7 @@ def test_parallel_ops_workflow_failures_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.workflow_failures.return_value = {
             "window_days": 7,
@@ -2989,7 +2989,7 @@ def test_parallel_ops_breakage_helpdesk_failures_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.breakage_helpdesk_failures.return_value = {
             "window_days": 7,
@@ -3031,7 +3031,7 @@ def test_parallel_ops_breakage_helpdesk_failure_trends_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.breakage_helpdesk_failure_trends.return_value = {
             "generated_at": "2026-03-06T10:00:00",
@@ -3073,7 +3073,7 @@ def test_parallel_ops_breakage_helpdesk_failures_triage_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.breakage_helpdesk_failure_triage.return_value = {
             "generated_at": "2026-03-06T10:00:00",
@@ -3111,7 +3111,7 @@ def test_parallel_ops_breakage_helpdesk_failures_triage_apply_returns_payload():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.apply_breakage_helpdesk_failure_triage.return_value = {
             "updated_total": 1,
@@ -3144,7 +3144,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_enqueue_returns_payload(
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.enqueue_breakage_helpdesk_failure_replay_jobs.return_value = {
             "source": "job_ids",
@@ -3179,7 +3179,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_batch_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.get_breakage_helpdesk_failure_replay_batch.return_value = {
             "generated_at": "2026-03-06T10:00:00",
@@ -3212,7 +3212,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_batches_list_returns_pay
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.list_breakage_helpdesk_failure_replay_batches.return_value = {
             "generated_at": "2026-03-06T10:00:00",
@@ -3249,7 +3249,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_trends_returns_payload()
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.breakage_helpdesk_replay_trends.return_value = {
             "generated_at": "2026-03-06T10:00:00",
@@ -3301,7 +3301,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_trends_invalid_maps_cont
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.breakage_helpdesk_replay_trends.side_effect = ValueError(
             "bucket_days must be <= window_days"
@@ -3322,7 +3322,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_trends_export_returns_do
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_breakage_helpdesk_replay_trends.return_value = {
             "content": b"bucket_start,bucket_end,total_jobs,failed_jobs,failed_rate,batches_total\n",
@@ -3348,7 +3348,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_trends_export_invalid_ma
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_breakage_helpdesk_replay_trends.side_effect = (
             ValueError("export_format must be json, csv or md")
@@ -3369,7 +3369,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_batch_export_returns_dow
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_breakage_helpdesk_failure_replay_batch.return_value = {
             "content": b'batch_id,job_id\\nbh-replay-1,job-replay-1\\n',
@@ -3395,7 +3395,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_batch_not_found_maps_con
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.get_breakage_helpdesk_failure_replay_batch.side_effect = (
             ValueError("Replay batch not found: bh-replay-missing")
@@ -3415,7 +3415,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_batch_export_not_found_m
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_breakage_helpdesk_failure_replay_batch.side_effect = (
             ValueError("Replay batch not found: bh-replay-missing")
@@ -3436,7 +3436,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_batches_cleanup_returns_
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.cleanup_breakage_helpdesk_failure_replay_batches.return_value = {
             "generated_at": "2026-03-06T12:00:00",
@@ -3473,7 +3473,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_batches_cleanup_invalid_
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.cleanup_breakage_helpdesk_failure_replay_batches.side_effect = (
             ValueError("limit must be between 1 and 1000")
@@ -3496,7 +3496,7 @@ def test_parallel_ops_breakage_helpdesk_failures_export_returns_download_respons
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_breakage_helpdesk_failures.return_value = {
             "content": b"id,provider,error_code\\njob-1,jira,provider_timeout\\n",
@@ -3522,7 +3522,7 @@ def test_parallel_ops_breakage_helpdesk_failures_export_zip_returns_download_res
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_breakage_helpdesk_failures.return_value = {
             "content": b"PK\x03\x04",
@@ -3545,7 +3545,7 @@ def test_parallel_ops_breakage_helpdesk_failures_export_job_create_run_status_do
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.enqueue_breakage_helpdesk_failures_export_job.return_value = {
             "job_id": "job-bh-exp-1",
@@ -3624,7 +3624,7 @@ def test_parallel_ops_breakage_helpdesk_failures_export_jobs_overview_returns_pa
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.breakage_helpdesk_failures_export_jobs_overview.return_value = {
             "generated_at": "2026-03-06T10:00:00",
@@ -3680,7 +3680,7 @@ def test_parallel_ops_breakage_helpdesk_failures_export_job_not_found_maps_contr
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.get_breakage_helpdesk_failures_export_job.side_effect = (
             ValueError("Parallel ops breakage-helpdesk export job not found: job-missing")
@@ -3700,7 +3700,7 @@ def test_parallel_ops_metrics_returns_prometheus_text():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.prometheus_metrics.return_value = (
             "# HELP yuantus_parallel_doc_sync_jobs_total ...\n"
@@ -3720,7 +3720,7 @@ def test_parallel_ops_doc_sync_failures_invalid_request_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.doc_sync_failures.side_effect = ValueError(
             "page_size must be between 1 and 200"
@@ -3737,7 +3737,7 @@ def test_parallel_ops_breakage_helpdesk_failures_invalid_request_maps_contract_e
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.breakage_helpdesk_failures.side_effect = ValueError(
             "page_size must be between 1 and 200"
@@ -3754,7 +3754,7 @@ def test_parallel_ops_breakage_helpdesk_failure_trends_invalid_request_maps_cont
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.breakage_helpdesk_failure_trends.side_effect = ValueError(
             "bucket_days must be <= window_days"
@@ -3773,7 +3773,7 @@ def test_parallel_ops_breakage_helpdesk_failures_triage_invalid_request_maps_con
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.breakage_helpdesk_failure_triage.side_effect = ValueError(
             "top_n must be between 1 and 50"
@@ -3793,7 +3793,7 @@ def test_parallel_ops_breakage_helpdesk_failures_triage_apply_invalid_request_ma
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.apply_breakage_helpdesk_failure_triage.side_effect = (
             ValueError("triage_status must be one of: ignored, in_progress, open, resolved")
@@ -3814,7 +3814,7 @@ def test_parallel_ops_breakage_helpdesk_failures_replay_enqueue_invalid_request_
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.enqueue_breakage_helpdesk_failure_replay_jobs.side_effect = (
             ValueError("window_days must be one of: 1, 7, 14, 30, 90")
@@ -3835,7 +3835,7 @@ def test_parallel_ops_breakage_helpdesk_failures_export_jobs_overview_invalid_re
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.breakage_helpdesk_failures_export_jobs_overview.side_effect = (
             ValueError("export_format must be json, csv, md or zip")
@@ -3856,7 +3856,7 @@ def test_parallel_ops_breakage_helpdesk_failures_export_invalid_request_maps_con
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ParallelOpsOverviewService"
+        "yuantus.meta_engine.web.parallel_tasks_ops_router.ParallelOpsOverviewService"
     ) as service_cls:
         service_cls.return_value.export_breakage_helpdesk_failures.side_effect = ValueError(
             "export_format must be json, csv or md"

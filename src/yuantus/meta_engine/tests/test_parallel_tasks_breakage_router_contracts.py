@@ -58,8 +58,8 @@ def test_parallel_tasks_router_no_longer_owns_breakage_routes():
     }
 
 
-def test_parallel_ops_breakage_helpdesk_routes_remain_in_parallel_tasks_router():
-    assert {
+def test_parallel_tasks_router_no_longer_owns_parallel_ops_breakage_helpdesk_routes():
+    assert not {
         path
         for _method, path in _route_keys(parallel_tasks_router)
         if path.startswith("/parallel-ops/breakage-helpdesk")
