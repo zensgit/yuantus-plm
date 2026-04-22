@@ -326,6 +326,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_p2_observation_regression_workflow_contracts.py \
             src/yuantus/meta_engine/tests/test_p2_observation_regression_workflow_wrapper.py \
             src/yuantus/meta_engine/tests/test_p2_observation_regression_wrapper_login.py \
+            src/yuantus/meta_engine/tests/test_parallel_tasks_breakage_router_contracts.py \
             src/yuantus/meta_engine/tests/test_parallel_tasks_doc_sync_router_contracts.py \
             src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
             src/yuantus/meta_engine/tests/test_perf_gate_config_file.py \

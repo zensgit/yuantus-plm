@@ -181,7 +181,7 @@ def test_breakage_helpdesk_sync_endpoint_returns_job():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.enqueue_helpdesk_stub_sync.return_value = SimpleNamespace(
             id="job-1",
@@ -232,7 +232,7 @@ def test_breakage_helpdesk_sync_status_endpoint_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.get_helpdesk_sync_status.return_value = {
             "incident_id": "inc-1",
@@ -255,7 +255,7 @@ def test_breakage_helpdesk_sync_execute_endpoint_returns_payload():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.execute_helpdesk_sync.return_value = {
             "incident_id": "inc-1",
@@ -293,7 +293,7 @@ def test_breakage_helpdesk_sync_execute_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.execute_helpdesk_sync.side_effect = ValueError(
             "simulate_status must be one of: completed, failed"
@@ -315,7 +315,7 @@ def test_breakage_helpdesk_sync_result_endpoint_returns_payload():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.record_helpdesk_sync_result.return_value = {
             "incident_id": "inc-1",
@@ -357,7 +357,7 @@ def test_breakage_helpdesk_sync_result_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.record_helpdesk_sync_result.side_effect = ValueError(
             "sync_status must be one of: completed, failed"
@@ -379,7 +379,7 @@ def test_breakage_helpdesk_ticket_update_endpoint_returns_payload():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.apply_helpdesk_ticket_update.return_value = {
             "incident_id": "inc-1",
@@ -434,7 +434,7 @@ def test_breakage_helpdesk_ticket_update_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.apply_helpdesk_ticket_update.side_effect = ValueError(
             "provider_ticket_status must not be empty"
@@ -474,7 +474,7 @@ def test_breakage_cockpit_endpoint_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.cockpit.return_value = {
             "total": 1,
@@ -530,7 +530,7 @@ def test_breakage_cockpit_export_returns_download_response():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.export_cockpit.return_value = {
             "content": b"id,status\ninc-1,open\n",
@@ -567,7 +567,7 @@ def test_breakage_export_job_create_status_and_download_endpoints():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.enqueue_incidents_export_job.return_value = {
             "job_id": "job-exp-1",
@@ -618,7 +618,7 @@ def test_breakage_export_job_not_found_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.get_incidents_export_job.side_effect = ValueError(
             "Breakage incidents export job not found: job-missing"
@@ -636,7 +636,7 @@ def test_breakage_export_job_cleanup_endpoint_returns_payload():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.cleanup_expired_incidents_export_results.return_value = {
             "ttl_hours": 24,
@@ -667,7 +667,7 @@ def test_breakage_export_job_cleanup_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.cleanup_expired_incidents_export_results.side_effect = (
             ValueError("ttl_hours must be between 1 and 720")
@@ -688,7 +688,7 @@ def test_breakage_metrics_invalid_window_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.metrics.side_effect = ValueError(
             "trend_window_days must be one of: 7, 14, 30"
@@ -709,7 +709,7 @@ def test_breakage_metrics_returns_dimension_aggregates():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.metrics.return_value = {
             "total": 2,
@@ -770,7 +770,7 @@ def test_breakage_metrics_groups_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.metrics_groups.return_value = {
             "group_by": "product_item_id",
@@ -812,7 +812,7 @@ def test_breakage_metrics_groups_supports_bom_line_item_dimension():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.metrics_groups.return_value = {
             "group_by": "bom_line_item_id",
@@ -840,7 +840,7 @@ def test_breakage_metrics_groups_supports_mbom_and_routing_dimensions():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.metrics_groups.side_effect = [
             {
@@ -909,7 +909,7 @@ def test_breakage_metrics_groups_invalid_request_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.metrics_groups.side_effect = ValueError(
             "group_by must be one of: batch_code, bom_id, bom_line_item_id, mbom_id, product_item_id, responsibility, routing_id"
@@ -932,7 +932,7 @@ def test_breakage_metrics_groups_export_returns_download_response():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.export_metrics_groups.return_value = {
             "content": b"group_by,group_value,count\nproduct_item_id,p-1,2\n",
@@ -973,7 +973,7 @@ def test_breakage_metrics_groups_export_passes_locale_query_contract():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.export_metrics_groups.return_value = {
             "content": b'{"group_by": "product_item_id", "locale": {"id": "rp-breakage-groups-zh"}}',
@@ -1003,7 +1003,7 @@ def test_breakage_metrics_groups_export_invalid_request_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.export_metrics_groups.side_effect = ValueError(
             "export_format must be json, csv or md"
@@ -1024,7 +1024,7 @@ def test_breakage_list_supports_bom_line_filter():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.list_incidents.return_value = [
             SimpleNamespace(
@@ -1088,7 +1088,7 @@ def test_breakage_create_supports_identity_and_dimension_fields():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.create_incident.return_value = SimpleNamespace(
             id="inc-1",
@@ -1150,7 +1150,7 @@ def test_breakage_export_returns_download_response():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.export_incidents.return_value = {
             "content": b"id,description,bom_line_item_id_filter\ninc-1,bearing crack,bom-1\n",
@@ -1189,7 +1189,7 @@ def test_breakage_export_passes_locale_query_contract():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.export_incidents.return_value = {
             "content": b'{"total": 1, "locale": {"id": "rp-breakage-incidents-zh"}}',
@@ -1218,7 +1218,7 @@ def test_breakage_export_invalid_request_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.export_incidents.side_effect = ValueError(
             "export_format must be json, csv or md"
@@ -1239,7 +1239,7 @@ def test_breakage_metrics_export_returns_download_response():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.export_metrics.return_value = {
             "content": b"date,count,total\n2026-02-28,1,1\n",
@@ -1279,7 +1279,7 @@ def test_breakage_metrics_export_passes_locale_query_contract():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.export_metrics.return_value = {
             "content": b'{"total": 1, "locale": {"id": "rp-breakage-zh"}}',
@@ -1308,7 +1308,7 @@ def test_breakage_metrics_export_invalid_request_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.export_metrics.side_effect = ValueError(
             "export_format must be json, csv or md"
@@ -2385,7 +2385,7 @@ def test_breakage_status_not_found_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.BreakageIncidentService"
+        "yuantus.meta_engine.web.parallel_tasks_breakage_router.BreakageIncidentService"
     ) as service_cls:
         service_cls.return_value.update_status.side_effect = ValueError(
             "Breakage incident not found: inc-404"
