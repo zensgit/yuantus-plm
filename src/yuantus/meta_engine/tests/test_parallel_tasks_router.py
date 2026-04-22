@@ -2203,7 +2203,7 @@ def test_3d_overlay_component_permission_denied_maps_403():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ThreeDOverlayService"
+        "yuantus.meta_engine.web.parallel_tasks_cad_3d_router.ThreeDOverlayService"
     ) as service_cls:
         service_cls.return_value.resolve_component.side_effect = PermissionError(
             "Overlay is not visible for current roles"
@@ -2224,7 +2224,7 @@ def test_3d_overlay_get_not_found_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ThreeDOverlayService"
+        "yuantus.meta_engine.web.parallel_tasks_cad_3d_router.ThreeDOverlayService"
     ) as service_cls:
         service_cls.return_value.get_overlay.return_value = None
         resp = client.get("/api/v1/cad-3d/overlays/doc-404")
@@ -2429,7 +2429,7 @@ def test_3d_overlay_batch_resolve_endpoint_returns_rows():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ThreeDOverlayService"
+        "yuantus.meta_engine.web.parallel_tasks_cad_3d_router.ThreeDOverlayService"
     ) as service_cls:
         service_cls.return_value.resolve_components.return_value = {
             "document_item_id": "doc-1",
@@ -2465,7 +2465,7 @@ def test_3d_overlay_cache_stats_endpoint_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ThreeDOverlayService"
+        "yuantus.meta_engine.web.parallel_tasks_cad_3d_router.ThreeDOverlayService"
     ) as service_cls:
         service_cls.return_value.cache_stats.return_value = {
             "entries": 2,
