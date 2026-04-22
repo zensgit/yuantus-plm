@@ -4,11 +4,24 @@ from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user
+from yuantus.config import get_settings
 from yuantus.database import get_db
+
+
+@pytest.fixture(autouse=True)
+def _optional_auth_mode_for_router_tests():
+    settings = get_settings()
+    previous = settings.AUTH_MODE
+    settings.AUTH_MODE = "optional"
+    try:
+        yield
+    finally:
+        settings.AUTH_MODE = previous
 
 
 def _client_with_user(user):
@@ -1315,7 +1328,7 @@ def test_doc_sync_create_job_maps_missing_site_to_404():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+        "yuantus.meta_engine.web.parallel_tasks_doc_sync_router.DocumentMultiSiteService"
     ) as service_cls:
         service_cls.return_value.enqueue_sync.side_effect = ValueError(
             "Remote site not found: s-404"
@@ -1352,7 +1365,7 @@ def test_doc_sync_list_jobs_includes_reliability_view_fields():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+        "yuantus.meta_engine.web.parallel_tasks_doc_sync_router.DocumentMultiSiteService"
     ) as service_cls:
         service_cls.return_value.list_sync_jobs.return_value = [SimpleNamespace(id="job-1")]
         service_cls.return_value.build_sync_job_view.return_value = {
@@ -1380,7 +1393,7 @@ def test_doc_sync_summary_returns_operator_id_and_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+        "yuantus.meta_engine.web.parallel_tasks_doc_sync_router.DocumentMultiSiteService"
     ) as service_cls:
         service_cls.return_value.sync_summary.return_value = {
             "window_days": 7,
@@ -1422,7 +1435,7 @@ def test_doc_sync_dead_letter_list_returns_operator_id_and_jobs():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+        "yuantus.meta_engine.web.parallel_tasks_doc_sync_router.DocumentMultiSiteService"
     ) as service_cls:
         service_cls.return_value.list_dead_letter_sync_jobs.return_value = [
             SimpleNamespace(id="job-dead-1")
@@ -1451,7 +1464,7 @@ def test_doc_sync_dead_letter_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+        "yuantus.meta_engine.web.parallel_tasks_doc_sync_router.DocumentMultiSiteService"
     ) as service_cls:
         service_cls.return_value.list_dead_letter_sync_jobs.side_effect = ValueError(
             "window_days must be between 1 and 90"
@@ -1469,7 +1482,7 @@ def test_doc_sync_replay_batch_returns_operator_id_and_result():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+        "yuantus.meta_engine.web.parallel_tasks_doc_sync_router.DocumentMultiSiteService"
     ) as service_cls:
         service_cls.return_value.replay_sync_jobs_batch.return_value = {
             "source": "dead_letter",
@@ -1511,7 +1524,7 @@ def test_doc_sync_replay_batch_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+        "yuantus.meta_engine.web.parallel_tasks_doc_sync_router.DocumentMultiSiteService"
     ) as service_cls:
         service_cls.return_value.replay_sync_jobs_batch.side_effect = ValueError(
             "limit must be between 1 and 500"
@@ -1529,7 +1542,7 @@ def test_doc_sync_summary_export_streams_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+        "yuantus.meta_engine.web.parallel_tasks_doc_sync_router.DocumentMultiSiteService"
     ) as service_cls:
         service_cls.return_value.export_sync_summary.return_value = {
             "content": b"scope,site_id,total\noverall,*,2\n",
@@ -1555,7 +1568,7 @@ def test_doc_sync_summary_export_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+        "yuantus.meta_engine.web.parallel_tasks_doc_sync_router.DocumentMultiSiteService"
     ) as service_cls:
         service_cls.return_value.export_sync_summary.side_effect = ValueError(
             "export_format must be json, csv or md"
@@ -1573,7 +1586,7 @@ def test_doc_sync_summary_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.DocumentMultiSiteService"
+        "yuantus.meta_engine.web.parallel_tasks_doc_sync_router.DocumentMultiSiteService"
     ) as service_cls:
         service_cls.return_value.sync_summary.side_effect = ValueError(
             "window_days must be between 1 and 90"

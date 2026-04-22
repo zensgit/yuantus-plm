@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -10,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.models.job import ConversionJob
 from yuantus.meta_engine.models.parallel_tasks import (
@@ -31,6 +33,17 @@ from yuantus.meta_engine.services.parallel_tasks_service import (
 )
 from yuantus.models.base import Base
 from yuantus.security.rbac.models import RBACUser
+
+
+@pytest.fixture(autouse=True)
+def _optional_auth_mode_for_router_tests():
+    settings = get_settings()
+    previous = settings.AUTH_MODE
+    settings.AUTH_MODE = "optional"
+    try:
+        yield
+    finally:
+        settings.AUTH_MODE = previous
 
 
 def _client_with_real_db(user):
