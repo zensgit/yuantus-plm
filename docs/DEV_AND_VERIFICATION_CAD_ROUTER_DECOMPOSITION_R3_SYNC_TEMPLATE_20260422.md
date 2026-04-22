@@ -24,6 +24,7 @@ No public API path, method, response shape, CSV column contract, admin permissio
 
 - Added `src/yuantus/meta_engine/tests/test_cad_sync_template_router.py`.
 - Added `src/yuantus/meta_engine/tests/test_cad_sync_template_router_contracts.py`.
+- Added `src/yuantus/meta_engine/tests/test_cad_router_payload_helpers.py` after CI caught the remaining CAD metadata/document payload helpers still depend on `io.BytesIO()`.
 - Added `cad_sync_template_router.py` to the CI pact/provider CAD surface change trigger.
 - Added the new sync-template route contract test to the CI contracts job list.
 
@@ -38,6 +39,7 @@ Commands:
   src/yuantus/api/app.py
 
 .venv/bin/python -m pytest -q \
+  src/yuantus/meta_engine/tests/test_cad_router_payload_helpers.py \
   src/yuantus/meta_engine/tests/test_cad_sync_template_router.py \
   src/yuantus/meta_engine/tests/test_cad_sync_template_router_contracts.py \
   src/yuantus/meta_engine/tests/test_cad_connectors_router.py \
@@ -56,7 +58,7 @@ Commands:
 Result:
 
 - `py_compile`: passed
-- Focused R1/R2/R3 regression and contracts: `41 passed in 4.06s`
+- Focused R1/R2/R3 regression and contracts: `43 passed in 4.01s`
 - `git diff --check`: passed
 
 ## 5. Review Checklist
