@@ -115,7 +115,7 @@ jobs:
                 run_contracts="true"
                 reason_contracts="${reason_contracts:-matched workflow/perf config: ${f}}"
                 ;;
-              contracts/pacts/*.json|src/yuantus/api/tests/test_pact_provider_yuantus_plm.py|src/yuantus/meta_engine/tests/test_ci_contracts_pact_provider_gate.py|src/yuantus/meta_engine/web/cad_backend_profile_router.py|src/yuantus/meta_engine/web/cad_connectors_router.py|src/yuantus/meta_engine/web/cad_diff_router.py|src/yuantus/meta_engine/web/cad_file_data_router.py|src/yuantus/meta_engine/web/cad_mesh_stats_router.py|src/yuantus/meta_engine/web/cad_properties_router.py|src/yuantus/meta_engine/web/cad_review_router.py|src/yuantus/meta_engine/web/cad_router.py|src/yuantus/meta_engine/web/cad_sync_template_router.py|src/yuantus/web/cad_review.html)
+              contracts/pacts/*.json|src/yuantus/api/tests/test_pact_provider_yuantus_plm.py|src/yuantus/meta_engine/tests/test_ci_contracts_pact_provider_gate.py|src/yuantus/meta_engine/web/cad_backend_profile_router.py|src/yuantus/meta_engine/web/cad_connectors_router.py|src/yuantus/meta_engine/web/cad_diff_router.py|src/yuantus/meta_engine/web/cad_file_data_router.py|src/yuantus/meta_engine/web/cad_history_router.py|src/yuantus/meta_engine/web/cad_mesh_stats_router.py|src/yuantus/meta_engine/web/cad_properties_router.py|src/yuantus/meta_engine/web/cad_review_router.py|src/yuantus/meta_engine/web/cad_router.py|src/yuantus/meta_engine/web/cad_sync_template_router.py|src/yuantus/web/cad_review.html)
                 run_contracts="true"
                 reason_contracts="${reason_contracts:-matched pact/provider surface: ${f}}"
                 ;;
@@ -242,6 +242,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_cad_connectors_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_diff_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_file_data_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_cad_history_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_mesh_stats_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_properties_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_review_router_contracts.py \
