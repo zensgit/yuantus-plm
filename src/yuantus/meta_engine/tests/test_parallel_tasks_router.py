@@ -2240,7 +2240,7 @@ def test_consumption_template_create_version_success():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+        "yuantus.meta_engine.web.parallel_tasks_consumption_router.ConsumptionPlanService"
     ) as service_cls:
         service_cls.return_value.create_template_version.return_value = SimpleNamespace(
             id="plan-v1",
@@ -2281,7 +2281,7 @@ def test_consumption_template_create_version_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+        "yuantus.meta_engine.web.parallel_tasks_consumption_router.ConsumptionPlanService"
     ) as service_cls:
         service_cls.return_value.create_template_version.side_effect = ValueError(
             "template_key must not be empty"
@@ -2301,7 +2301,7 @@ def test_consumption_template_state_not_found_maps_404_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+        "yuantus.meta_engine.web.parallel_tasks_consumption_router.ConsumptionPlanService"
     ) as service_cls:
         service_cls.return_value.set_template_version_state.side_effect = ValueError(
             "Consumption plan not found: p-404"
@@ -2322,7 +2322,7 @@ def test_consumption_template_impact_preview_returns_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+        "yuantus.meta_engine.web.parallel_tasks_consumption_router.ConsumptionPlanService"
     ) as service_cls:
         service_cls.return_value.preview_template_impact.return_value = {
             "template_key": "tpl-1",
@@ -2346,7 +2346,7 @@ def test_consumption_actual_plan_not_found_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+        "yuantus.meta_engine.web.parallel_tasks_consumption_router.ConsumptionPlanService"
     ) as service_cls:
         service_cls.return_value.add_actual.side_effect = ValueError(
             "Consumption plan not found: p-404"
@@ -2367,7 +2367,7 @@ def test_consumption_variance_plan_not_found_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ConsumptionPlanService"
+        "yuantus.meta_engine.web.parallel_tasks_consumption_router.ConsumptionPlanService"
     ) as service_cls:
         service_cls.return_value.variance.side_effect = ValueError(
             "Consumption plan not found: p-404"
