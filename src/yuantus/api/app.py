@@ -32,6 +32,7 @@ from yuantus.meta_engine.web.cad_connectors_router import cad_connectors_router
 from yuantus.meta_engine.web.cad_diff_router import cad_diff_router
 from yuantus.meta_engine.web.cad_file_data_router import cad_file_data_router
 from yuantus.meta_engine.web.cad_history_router import cad_history_router
+from yuantus.meta_engine.web.cad_import_router import cad_import_router
 from yuantus.meta_engine.web.cad_mesh_stats_router import cad_mesh_stats_router
 from yuantus.meta_engine.web.cad_properties_router import cad_properties_router
 from yuantus.meta_engine.web.cad_review_router import cad_review_router
@@ -184,6 +185,7 @@ def create_app() -> FastAPI:
     app.include_router(cad_diff_router, prefix="/api/v1")
     app.include_router(cad_file_data_router, prefix="/api/v1")
     app.include_router(cad_history_router, prefix="/api/v1")
+    app.include_router(cad_import_router, prefix="/api/v1")
     app.include_router(cad_mesh_stats_router, prefix="/api/v1")
     app.include_router(cad_properties_router, prefix="/api/v1")
     app.include_router(cad_review_router, prefix="/api/v1")
