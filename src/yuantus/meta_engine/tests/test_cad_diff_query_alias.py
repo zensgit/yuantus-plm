@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from yuantus.api.dependencies.auth import get_current_user
 from yuantus.database import get_db
 from yuantus.meta_engine.models.file import FileContainer
-from yuantus.meta_engine.web.cad_router import router as cad_router
+from yuantus.meta_engine.web.cad_diff_router import cad_diff_router
 
 
 def _make_file(
@@ -30,7 +30,7 @@ def _client(file_map: dict[str, FileContainer]) -> TestClient:
     mock_db.get.side_effect = lambda _model, file_id: file_map.get(file_id)
 
     app = FastAPI()
-    app.include_router(cad_router, prefix="/api/v1")
+    app.include_router(cad_diff_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = lambda: mock_db
     app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(
         id=1,
@@ -120,3 +120,15 @@ def test_cad_diff_requires_a_compare_target() -> None:
 
     assert response.status_code == 422
     assert response.json()["detail"] == "other_file_id is required"
+
+
+def test_cad_diff_returns_404_when_either_file_is_missing() -> None:
+    client = _client({"file-a": _make_file("file-a", properties={"revision": "A"})})
+
+    response = client.get(
+        "/api/v1/cad/files/file-a/diff",
+        params={"other_file_id": "missing-file"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "File not found"
