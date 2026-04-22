@@ -21,7 +21,7 @@ def _read(path: Path) -> str:
 
 def test_cad_import_supports_dedup_index_flag_and_enqueues_payload() -> None:
     repo_root = _find_repo_root(Path(__file__))
-    cad_router = repo_root / "src" / "yuantus" / "meta_engine" / "web" / "cad_router.py"
+    cad_router = repo_root / "src" / "yuantus" / "meta_engine" / "web" / "cad_import_router.py"
     assert cad_router.is_file()
 
     text = _read(cad_router)
@@ -34,4 +34,3 @@ def test_cad_import_supports_dedup_index_flag_and_enqueues_payload() -> None:
         "cad/import should pass index flag into cad_dedup_vision job payload "
         "(expected exact snippet: '\"index\": bool(dedup_index)')."
     )
-

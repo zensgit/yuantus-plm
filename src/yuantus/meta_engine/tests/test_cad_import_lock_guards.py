@@ -1,14 +1,14 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user
 from yuantus.database import get_db
 from yuantus.meta_engine.models.file import FileContainer, ItemFile
 from yuantus.meta_engine.models.item import Item
+from yuantus.meta_engine.web.cad_import_router import cad_import_router
 from yuantus.meta_engine.version.file_service import VersionFileError
 from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.security.auth.database import get_identity_db
@@ -93,7 +93,8 @@ def _client_with_state(
     mock_db.get.side_effect = db_get
     mock_db.query.side_effect = query_side_effect
 
-    app = create_app()
+    app = FastAPI()
+    app.include_router(cad_import_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_identity_db] = override_get_identity_db
     app.dependency_overrides[get_current_user] = lambda: user
@@ -132,8 +133,8 @@ def test_cad_import_existing_link_role_update_rejects_foreign_file_lock():
         existing_item_file=existing_link,
     )
 
-    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls, patch(
-        "yuantus.meta_engine.web.cad_router.VersionFileService"
+    with patch("yuantus.meta_engine.web.cad_import_router.FileService") as file_service_cls, patch(
+        "yuantus.meta_engine.web.cad_import_router.VersionFileService"
     ) as vf_service_cls:
         file_service_cls.return_value.file_exists.return_value = True
         vf_service_cls.return_value.ensure_file_editable.side_effect = VersionFileError(
@@ -161,8 +162,8 @@ def test_cad_import_new_link_rejects_foreign_file_lock():
         existing_item_file=None,
     )
 
-    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls, patch(
-        "yuantus.meta_engine.web.cad_router.VersionFileService"
+    with patch("yuantus.meta_engine.web.cad_import_router.FileService") as file_service_cls, patch(
+        "yuantus.meta_engine.web.cad_import_router.VersionFileService"
     ) as vf_service_cls:
         file_service_cls.return_value.file_exists.return_value = True
         vf_service_cls.return_value.ensure_file_editable.side_effect = VersionFileError(
@@ -190,8 +191,8 @@ def test_cad_import_new_link_allows_missing_current_version_assoc():
         existing_item_file=None,
     )
 
-    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls, patch(
-        "yuantus.meta_engine.web.cad_router.VersionFileService"
+    with patch("yuantus.meta_engine.web.cad_import_router.FileService") as file_service_cls, patch(
+        "yuantus.meta_engine.web.cad_import_router.VersionFileService"
     ) as vf_service_cls:
         file_service_cls.return_value.file_exists.return_value = True
         vf_service_cls.return_value.ensure_file_editable.side_effect = VersionFileError(
@@ -223,8 +224,8 @@ def test_cad_import_duplicate_repair_rejects_foreign_current_version_lock():
         existing_item_file=None,
     )
 
-    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls, patch(
-        "yuantus.meta_engine.web.cad_router._ensure_duplicate_file_repair_editable"
+    with patch("yuantus.meta_engine.web.cad_import_router.FileService") as file_service_cls, patch(
+        "yuantus.meta_engine.web.cad_import_router._ensure_duplicate_file_repair_editable"
     ) as repair_guard:
         file_service_cls.return_value.file_exists.return_value = False
         repair_guard.side_effect = HTTPException(
