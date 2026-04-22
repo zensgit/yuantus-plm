@@ -48,6 +48,7 @@ from yuantus.meta_engine.services.file_service import FileService
 from yuantus.meta_engine.services.job_errors import JobFatalError
 from yuantus.meta_engine.services.job_service import JobService
 from yuantus.meta_engine.services.checkin_service import CheckinManager
+from yuantus.meta_engine.web.cad_change_log import log_cad_change as _log_cad_change
 from yuantus.meta_engine.version.file_service import VersionFileError, VersionFileService
 from yuantus.security.auth.database import get_identity_db
 from yuantus.security.auth.quota_service import QuotaService
@@ -223,24 +224,6 @@ def _normalize_view_notes(notes: Optional[List[Any]]) -> List[Dict[str, Any]]:
     return normalized
 
 
-def _log_cad_change(
-    db: Session,
-    file_container: FileContainer,
-    action: str,
-    payload: Dict[str, Any],
-    user: CurrentUser,
-) -> None:
-    entry = CadChangeLog(
-        file_id=file_container.id,
-        action=action,
-        payload=payload,
-        tenant_id=user.tenant_id,
-        org_id=user.org_id,
-        user_id=user.id,
-    )
-    db.add(entry)
-
-
 def _diff_dicts(
     before: Dict[str, Any], after: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -351,14 +334,6 @@ class CadImportResponse(BaseModel):
     document_version: Optional[str] = None
 
 
-class CadPropertiesResponse(BaseModel):
-    file_id: str
-    properties: Dict[str, Any] = Field(default_factory=dict)
-    updated_at: Optional[str] = None
-    source: Optional[str] = None
-    cad_document_schema_version: Optional[int] = None
-
-
 class CadCheckinResponse(BaseModel):
     status: str
     item_id: str
@@ -394,11 +369,6 @@ class CadCheckinStatusResponse(BaseModel):
     conversion_jobs_summary: CadCheckinJobsSummary
     viewer_readiness: Dict[str, Any] = Field(default_factory=dict)
     file_status_url: Optional[str] = None
-
-
-class CadPropertiesUpdateRequest(BaseModel):
-    properties: Dict[str, Any] = Field(default_factory=dict)
-    source: Optional[str] = None
 
 
 class CadEntityNote(BaseModel):
@@ -775,61 +745,6 @@ def _resolve_cad_metadata(
         "document_type": document_type,
         "connector_id": resolved.connector_id,
     }
-
-
-@router.get("/files/{file_id}/properties", response_model=CadPropertiesResponse)
-def get_cad_properties(
-    file_id: str,
-    user: CurrentUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> CadPropertiesResponse:
-    file_container = db.get(FileContainer, file_id)
-    if not file_container:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    updated_at = file_container.cad_properties_updated_at
-    return CadPropertiesResponse(
-        file_id=file_container.id,
-        properties=file_container.cad_properties or {},
-        updated_at=updated_at.isoformat() if updated_at else None,
-        source=file_container.cad_properties_source,
-        cad_document_schema_version=file_container.cad_document_schema_version,
-    )
-
-
-@router.patch("/files/{file_id}/properties", response_model=CadPropertiesResponse)
-def update_cad_properties(
-    file_id: str,
-    payload: CadPropertiesUpdateRequest,
-    user: CurrentUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> CadPropertiesResponse:
-    file_container = db.get(FileContainer, file_id)
-    if not file_container:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    source = (payload.source or "manual").strip() or "manual"
-    file_container.cad_properties = dict(payload.properties or {})
-    file_container.cad_properties_source = source
-    file_container.cad_properties_updated_at = datetime.utcnow()
-    _log_cad_change(
-        db,
-        file_container,
-        "cad_properties_update",
-        {"properties": file_container.cad_properties, "source": source},
-        user,
-    )
-    db.add(file_container)
-    db.commit()
-
-    updated_at = file_container.cad_properties_updated_at
-    return CadPropertiesResponse(
-        file_id=file_container.id,
-        properties=file_container.cad_properties or {},
-        updated_at=updated_at.isoformat() if updated_at else None,
-        source=file_container.cad_properties_source,
-        cad_document_schema_version=file_container.cad_document_schema_version,
-    )
 
 
 @router.get("/files/{file_id}/view-state", response_model=CadViewStateResponse)

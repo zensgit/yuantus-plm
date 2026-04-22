@@ -44,6 +44,7 @@ def test_ci_change_scope_covers_pact_provider_and_cad_diff_surface() -> None:
         "src/yuantus/meta_engine/web/cad_connectors_router.py",
         "src/yuantus/meta_engine/web/cad_file_data_router.py",
         "src/yuantus/meta_engine/web/cad_mesh_stats_router.py",
+        "src/yuantus/meta_engine/web/cad_properties_router.py",
         "src/yuantus/meta_engine/web/cad_router.py",
         "src/yuantus/meta_engine/web/cad_sync_template_router.py",
         "src/yuantus/web/cad_review.html",
