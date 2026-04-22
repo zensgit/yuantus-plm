@@ -331,6 +331,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_parallel_tasks_consumption_router_contracts.py \
             src/yuantus/meta_engine/tests/test_parallel_tasks_doc_sync_router_contracts.py \
             src/yuantus/meta_engine/tests/test_parallel_tasks_ops_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_parallel_tasks_workflow_actions_router_contracts.py \
             src/yuantus/meta_engine/tests/test_parallel_tasks_workorder_docs_router_contracts.py \
             src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
             src/yuantus/meta_engine/tests/test_perf_gate_config_file.py \
