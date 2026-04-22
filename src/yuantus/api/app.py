@@ -79,6 +79,9 @@ from yuantus.meta_engine.web.parallel_tasks_doc_sync_router import (
     parallel_tasks_doc_sync_router,
 )
 from yuantus.meta_engine.web.parallel_tasks_ops_router import parallel_tasks_ops_router
+from yuantus.meta_engine.web.parallel_tasks_workflow_actions_router import (
+    parallel_tasks_workflow_actions_router,
+)
 from yuantus.meta_engine.web.parallel_tasks_workorder_docs_router import (
     parallel_tasks_workorder_docs_router,
 )
@@ -186,6 +189,7 @@ def create_app() -> FastAPI:
     app.include_router(parallel_tasks_consumption_router, prefix="/api/v1")
     app.include_router(parallel_tasks_doc_sync_router, prefix="/api/v1")
     app.include_router(parallel_tasks_ops_router, prefix="/api/v1")
+    app.include_router(parallel_tasks_workflow_actions_router, prefix="/api/v1")
     app.include_router(parallel_tasks_workorder_docs_router, prefix="/api/v1")
     app.include_router(parallel_tasks_router, prefix="/api/v1")
     app.include_router(maintenance_router, prefix="/api/v1")

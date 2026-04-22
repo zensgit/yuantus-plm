@@ -2031,7 +2031,7 @@ def test_workflow_rule_invalid_payload_returns_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.WorkflowCustomActionService"
+        "yuantus.meta_engine.web.parallel_tasks_workflow_actions_router.WorkflowCustomActionService"
     ) as service_cls:
         service_cls.return_value.create_rule.side_effect = ValueError(
             "max_retries must be between 1 and 5 for retry strategy"
@@ -2059,7 +2059,7 @@ def test_workflow_rule_upsert_accepts_match_predicates():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.WorkflowCustomActionService"
+        "yuantus.meta_engine.web.parallel_tasks_workflow_actions_router.WorkflowCustomActionService"
     ) as service_cls:
         service_cls.return_value.create_rule.return_value = SimpleNamespace(
             id="rule-1",
@@ -2144,7 +2144,7 @@ def test_workflow_execute_injects_actor_roles_into_context():
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.WorkflowCustomActionService"
+        "yuantus.meta_engine.web.parallel_tasks_workflow_actions_router.WorkflowCustomActionService"
     ) as service_cls:
         service_cls.return_value.evaluate_transition.return_value = []
         resp = client.post(
@@ -2176,7 +2176,7 @@ def test_workflow_execute_failure_returns_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.WorkflowCustomActionService"
+        "yuantus.meta_engine.web.parallel_tasks_workflow_actions_router.WorkflowCustomActionService"
     ) as service_cls:
         service_cls.return_value.evaluate_transition.side_effect = ValueError(
             "[BLOCK] workflow custom action failed"
