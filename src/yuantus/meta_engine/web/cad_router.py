@@ -32,7 +32,7 @@ from yuantus.integrations.cad_connectors import (
     resolve_cad_sync_key,
 )
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user, require_admin_user
+from yuantus.api.dependencies.auth import CurrentUser, get_current_user
 from yuantus.exceptions.handlers import PLMException, QuotaExceededError
 from yuantus.meta_engine.models.cad_audit import CadChangeLog
 from yuantus.meta_engine.models.file import FileContainer, FileRole, ItemFile
@@ -391,19 +391,6 @@ class CadViewStateUpdateRequest(BaseModel):
     notes: Optional[List[CadEntityNote]] = None
     source: Optional[str] = None
     refresh_preview: bool = False
-
-
-class CadReviewResponse(BaseModel):
-    file_id: str
-    state: Optional[str] = None
-    note: Optional[str] = None
-    reviewed_at: Optional[str] = None
-    reviewed_by_id: Optional[int] = None
-
-
-class CadReviewRequest(BaseModel):
-    state: str
-    note: Optional[str] = None
 
 
 class CadDiffResponse(BaseModel):
@@ -852,66 +839,6 @@ def update_cad_view_state(
         updated_at=updated_at.isoformat() if updated_at else None,
         source=file_container.cad_view_state_source,
         cad_document_schema_version=file_container.cad_document_schema_version,
-    )
-
-
-@router.get("/files/{file_id}/review", response_model=CadReviewResponse)
-def get_cad_review(
-    file_id: str,
-    user: CurrentUser = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> CadReviewResponse:
-    file_container = db.get(FileContainer, file_id)
-    if not file_container:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    reviewed_at = file_container.cad_reviewed_at
-    return CadReviewResponse(
-        file_id=file_container.id,
-        state=file_container.cad_review_state,
-        note=file_container.cad_review_note,
-        reviewed_at=reviewed_at.isoformat() if reviewed_at else None,
-        reviewed_by_id=file_container.cad_review_by_id,
-    )
-
-
-@router.post("/files/{file_id}/review", response_model=CadReviewResponse)
-def update_cad_review(
-    file_id: str,
-    payload: CadReviewRequest,
-    user: CurrentUser = Depends(require_admin_user),
-    db: Session = Depends(get_db),
-) -> CadReviewResponse:
-    file_container = db.get(FileContainer, file_id)
-    if not file_container:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    state = (payload.state or "").strip().lower()
-    allowed_states = {"pending", "approved", "rejected"}
-    if state not in allowed_states:
-        raise HTTPException(status_code=400, detail=f"Invalid review state: {state}")
-
-    file_container.cad_review_state = state
-    file_container.cad_review_note = payload.note
-    file_container.cad_review_by_id = user.id
-    file_container.cad_reviewed_at = datetime.utcnow()
-    _log_cad_change(
-        db,
-        file_container,
-        "cad_review_update",
-        {"state": state, "note": payload.note},
-        user,
-    )
-    db.add(file_container)
-    db.commit()
-
-    reviewed_at = file_container.cad_reviewed_at
-    return CadReviewResponse(
-        file_id=file_container.id,
-        state=file_container.cad_review_state,
-        note=file_container.cad_review_note,
-        reviewed_at=reviewed_at.isoformat() if reviewed_at else None,
-        reviewed_by_id=file_container.cad_review_by_id,
     )
 
 
