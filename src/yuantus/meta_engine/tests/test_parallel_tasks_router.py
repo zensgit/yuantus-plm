@@ -47,7 +47,7 @@ def test_workorder_doc_export_pdf_returns_pdf_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.WorkorderDocumentPackService"
+        "yuantus.meta_engine.web.parallel_tasks_workorder_docs_router.WorkorderDocumentPackService"
     ) as service_cls:
         service_cls.return_value.export_pack.return_value = {
             "manifest": {
@@ -91,7 +91,7 @@ def test_workorder_doc_export_rejects_unknown_format():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.WorkorderDocumentPackService"
+        "yuantus.meta_engine.web.parallel_tasks_workorder_docs_router.WorkorderDocumentPackService"
     ) as service_cls:
         service_cls.return_value.export_pack.return_value = {
             "manifest": {"routing_id": "r-1", "documents": [], "count": 0},
@@ -112,7 +112,7 @@ def test_workorder_doc_export_json_includes_export_meta():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.WorkorderDocumentPackService"
+        "yuantus.meta_engine.web.parallel_tasks_workorder_docs_router.WorkorderDocumentPackService"
     ) as service_cls:
         service_cls.return_value.export_pack.return_value = {
             "manifest": {
@@ -146,7 +146,7 @@ def test_workorder_doc_export_passes_locale_query_contract():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.WorkorderDocumentPackService"
+        "yuantus.meta_engine.web.parallel_tasks_workorder_docs_router.WorkorderDocumentPackService"
     ) as service_cls:
         service_cls.return_value.export_pack.return_value = {
             "manifest": {
@@ -2406,7 +2406,7 @@ def test_workorder_doc_link_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.WorkorderDocumentPackService"
+        "yuantus.meta_engine.web.parallel_tasks_workorder_docs_router.WorkorderDocumentPackService"
     ) as service_cls:
         service_cls.return_value.upsert_link.side_effect = ValueError("document invalid")
         resp = client.post(
