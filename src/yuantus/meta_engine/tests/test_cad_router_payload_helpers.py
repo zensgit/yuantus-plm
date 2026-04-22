@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from yuantus.meta_engine.web.cad_mesh_stats_router import _load_cad_metadata_payload
-from yuantus.meta_engine.web.cad_router import _load_cad_document_payload
+from yuantus.meta_engine.web.cad_view_state_router import _load_cad_document_payload
 
 
 def test_load_cad_metadata_payload_downloads_json_via_bytesio() -> None:
@@ -29,7 +29,9 @@ def test_load_cad_document_payload_downloads_json_via_bytesio() -> None:
     def write_payload(_path, output_stream):
         output_stream.write(b'{"entities": [{"id": 1}]}')
 
-    with patch("yuantus.meta_engine.web.cad_router.FileService") as file_service_cls:
+    with patch(
+        "yuantus.meta_engine.web.cad_view_state_router.FileService"
+    ) as file_service_cls:
         file_service_cls.return_value.download_file.side_effect = write_payload
 
         payload = _load_cad_document_payload(file_container)
