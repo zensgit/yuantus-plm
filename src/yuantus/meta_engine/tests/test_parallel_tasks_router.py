@@ -1605,7 +1605,7 @@ def test_eco_activity_create_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.create_activity.side_effect = ValueError("eco not found")
         resp = client.post(
@@ -1629,7 +1629,7 @@ def test_eco_activity_transition_blocked_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.transition_activity.side_effect = ValueError(
             "Blocking dependencies not satisfied"
@@ -1650,7 +1650,7 @@ def test_eco_activity_transition_check_returns_decision_with_operator_id():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.evaluate_transition.return_value = {
             "activity_id": "act-1",
@@ -1685,7 +1685,7 @@ def test_eco_activity_transition_check_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.evaluate_transition.side_effect = ValueError(
             "to_status must be one of: active, canceled, cancel, completed"
@@ -1706,7 +1706,7 @@ def test_eco_activity_bulk_transition_check_returns_decisions_with_operator_id()
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.evaluate_transitions_bulk.return_value = {
             "eco_id": "eco-1",
@@ -1763,7 +1763,7 @@ def test_eco_activity_bulk_transition_check_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.evaluate_transitions_bulk.side_effect = ValueError(
             "to_status must be one of: active, canceled, cancel, completed"
@@ -1785,7 +1785,7 @@ def test_eco_activity_bulk_transition_endpoint_returns_decisions_with_operator_i
     client, db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.transition_activities_bulk.return_value = {
             "eco_id": "eco-1",
@@ -1842,7 +1842,7 @@ def test_eco_activity_bulk_transition_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.transition_activities_bulk.side_effect = ValueError(
             "bulk execution truncated by limit; increase limit and retry"
@@ -1865,7 +1865,7 @@ def test_eco_activity_sla_returns_overview_with_operator_id():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.activity_sla.return_value = {
             "eco_id": "eco-1",
@@ -1906,7 +1906,7 @@ def test_eco_activity_sla_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.activity_sla.side_effect = ValueError(
             "due_soon_hours must be between 1 and 720"
@@ -1925,7 +1925,7 @@ def test_eco_activity_sla_alerts_returns_overview_with_operator_id():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.activity_sla_alerts.return_value = {
             "eco_id": "eco-1",
@@ -1968,7 +1968,7 @@ def test_eco_activity_sla_alerts_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.activity_sla_alerts.side_effect = ValueError(
             "overdue_rate_warn must be between 0 and 1"
@@ -1986,7 +1986,7 @@ def test_eco_activity_sla_alerts_export_streams_payload():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.export_activity_sla_alerts.return_value = {
             "content": b"eco_id,status,alert_code\neco-1,warning,eco_activity_sla_overdue_rate_high\n",
@@ -2011,7 +2011,7 @@ def test_eco_activity_sla_alerts_export_invalid_maps_contract_error():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.parallel_tasks_router.ECOActivityValidationService"
+        "yuantus.meta_engine.web.parallel_tasks_eco_activities_router.ECOActivityValidationService"
     ) as service_cls:
         service_cls.return_value.export_activity_sla_alerts.side_effect = ValueError(
             "export_format must be json, csv or md"
