@@ -11,7 +11,7 @@ from yuantus.database import get_db
 from yuantus.meta_engine.services.cad_backend_profile_service import (
     CadBackendProfileResolution,
 )
-from yuantus.meta_engine.web.cad_router import router as cad_router
+from yuantus.meta_engine.web.cad_backend_profile_router import cad_backend_profile_router
 from yuantus.meta_engine.web.file_router import file_router
 
 
@@ -25,7 +25,7 @@ def _cad_client() -> TestClient:
             pass
 
     app = FastAPI()
-    app.include_router(cad_router, prefix="/api/v1")
+    app.include_router(cad_backend_profile_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     return TestClient(app)
 
@@ -90,8 +90,8 @@ def test_cad_capabilities_endpoint_returns_consolidated_contract_shape():
         CADGF_ROUTER_BASE_URL="http://cadgf.local",
     )
 
-    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
-        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=connectors):
+    with patch("yuantus.meta_engine.web.cad_backend_profile_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_backend_profile_router.cad_registry.list", return_value=connectors):
             response = client.get("/api/v1/cad/capabilities")
 
     assert response.status_code == 200
@@ -199,8 +199,8 @@ def test_cad_capabilities_endpoint_disables_connector_backed_modes_when_unconfig
         CADGF_ROUTER_BASE_URL="",
     )
 
-    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
-        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=connectors):
+    with patch("yuantus.meta_engine.web.cad_backend_profile_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_backend_profile_router.cad_registry.list", return_value=connectors):
             response = client.get("/api/v1/cad/capabilities")
 
     assert response.status_code == 200
@@ -285,8 +285,8 @@ def test_cad_capabilities_endpoint_reports_explicit_backend_profile_override():
         CADGF_ROUTER_BASE_URL="",
     )
 
-    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
-        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=[]):
+    with patch("yuantus.meta_engine.web.cad_backend_profile_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_backend_profile_router.cad_registry.list", return_value=[]):
             response = client.get("/api/v1/cad/capabilities")
 
     assert response.status_code == 200
@@ -329,10 +329,10 @@ def test_cad_capabilities_endpoint_honors_scoped_local_override():
         CADGF_ROUTER_BASE_URL="",
     )
 
-    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
-        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=[]):
+    with patch("yuantus.meta_engine.web.cad_backend_profile_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_backend_profile_router.cad_registry.list", return_value=[]):
             with patch(
-                "yuantus.meta_engine.web.cad_router._resolve_cad_backend_profile_response",
+                "yuantus.meta_engine.web.cad_backend_profile_router._resolve_cad_backend_profile_response",
                 return_value=CadBackendProfileResolution(
                     configured="local-baseline",
                     effective="local-baseline",
@@ -376,10 +376,10 @@ def test_cad_capabilities_endpoint_honors_scoped_upgrade_override_when_env_is_lo
         CADGF_ROUTER_BASE_URL="",
     )
 
-    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
-        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=[]):
+    with patch("yuantus.meta_engine.web.cad_backend_profile_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_backend_profile_router.cad_registry.list", return_value=[]):
             with patch(
-                "yuantus.meta_engine.web.cad_router._resolve_cad_backend_profile_response",
+                "yuantus.meta_engine.web.cad_backend_profile_router._resolve_cad_backend_profile_response",
                 return_value=CadBackendProfileResolution(
                     configured="hybrid-auto",
                     effective="hybrid-auto",
@@ -424,8 +424,8 @@ def test_cad_capabilities_endpoint_reports_explicit_step_iges_local_backend():
         CADGF_ROUTER_BASE_URL="",
     )
 
-    with patch("yuantus.meta_engine.web.cad_router.get_settings", return_value=settings):
-        with patch("yuantus.meta_engine.web.cad_router.cad_registry.list", return_value=[]):
+    with patch("yuantus.meta_engine.web.cad_backend_profile_router.get_settings", return_value=settings):
+        with patch("yuantus.meta_engine.web.cad_backend_profile_router.cad_registry.list", return_value=[]):
             response = client.get("/api/v1/cad/capabilities")
 
     assert response.status_code == 200
