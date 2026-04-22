@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
@@ -12,7 +13,10 @@ from yuantus.database import get_db
 from yuantus.meta_engine.models.file import FileContainer
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.version.models import ItemVersion
-from yuantus.meta_engine.web.cad_router import get_checkin_manager
+from yuantus.meta_engine.web.cad_checkin_router import (
+    cad_checkin_router,
+    get_checkin_manager,
+)
 from yuantus.security.auth.database import get_identity_db
 
 
@@ -58,7 +62,13 @@ def _client_with_status_data(item=None, version=None, native_file=None, jobs=Non
     mock_db.get.side_effect = db_get
     mock_db.query.return_value = query_result
 
-    app = create_app()
+    app = FastAPI()
+    app.include_router(cad_checkin_router, prefix="/api/v1")
+
+    @app.get("/api/v1/file/{file_id}/conversion_summary", name="get_file_conversion_summary")
+    def _conversion_summary(file_id: str):
+        return {"file_id": file_id}
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user] = _current_user
     return TestClient(app), mock_db
@@ -138,7 +148,7 @@ def test_cad_checkin_status_happy_path_exposes_identity_and_aggregation():
     )
 
     with patch(
-        "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+        "yuantus.meta_engine.web.cad_checkin_router.CADConverterService.assess_viewer_readiness",
         return_value={"viewer_mode": "processing", "is_viewer_ready": False},
     ):
         resp = client.get("/api/v1/cad/item-1/checkin-status")
@@ -183,7 +193,7 @@ def test_cad_checkin_status_prefers_anchored_job_ids_over_unrelated_jobs():
     )
 
     with patch(
-        "yuantus.meta_engine.web.cad_router.CADConverterService.assess_viewer_readiness",
+        "yuantus.meta_engine.web.cad_checkin_router.CADConverterService.assess_viewer_readiness",
         return_value={"viewer_mode": "geometry_only", "is_viewer_ready": True},
     ):
         resp = client.get("/api/v1/cad/item-1/checkin-status")
@@ -253,13 +263,19 @@ def test_checkin_route_returns_status_url_and_job_ids():
         finally:
             pass
 
-    app = create_app()
+    app = FastAPI()
+    app.include_router(cad_checkin_router, prefix="/api/v1")
+
+    @app.get("/api/v1/file/{file_id}/conversion_summary", name="get_file_conversion_summary")
+    def _conversion_summary(file_id: str):
+        return {"file_id": file_id}
+
     app.dependency_overrides[get_checkin_manager] = override_mgr
     app.dependency_overrides[get_current_user] = _current_user
     app.dependency_overrides[get_identity_db] = override_identity_db
 
     with patch(
-        "yuantus.meta_engine.web.cad_router.QuotaService.evaluate",
+        "yuantus.meta_engine.web.cad_checkin_router.QuotaService.evaluate",
         return_value=[],
     ):
         client = TestClient(app)
