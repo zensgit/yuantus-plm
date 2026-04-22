@@ -21,6 +21,7 @@ from yuantus.api.routers.plm_workspace import router as plm_workspace_router
 from yuantus.api.routers.workbench import router as workbench_router
 from yuantus.config import get_settings
 from yuantus.database import init_db
+from yuantus.meta_engine.web.bom_compare_router import bom_compare_router
 from yuantus.meta_engine.web.bom_router import bom_router
 from yuantus.meta_engine.web.baseline_router import baseline_router
 from yuantus.meta_engine.web.box_router import box_router
@@ -168,6 +169,7 @@ def create_app() -> FastAPI:
     app.include_router(search_router, prefix="/api/v1")
     app.include_router(app_router, prefix="/api/v1")
     app.include_router(store_router, prefix="/api/v1")
+    app.include_router(bom_compare_router, prefix="/api/v1")
     app.include_router(bom_router, prefix="/api/v1")
     app.include_router(box_router, prefix="/api/v1")
     app.include_router(approvals_router, prefix="/api/v1")

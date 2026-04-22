@@ -10,6 +10,18 @@ from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user
 from yuantus.database import get_db
 
+import pytest
+
+from yuantus.config import get_settings
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    """These tests override router dependencies; middleware auth is out of scope."""
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
+
+
+
 
 def _client_with_user(user):
     mock_db_session = MagicMock()
@@ -77,7 +89,7 @@ def test_compare_bom_summarized_transforms_rows_and_defaults_to_summarized_mode(
     client, _db = _client_with_user(user)
     compare_mock = AsyncMock(return_value=_sample_compare_result())
 
-    with patch("yuantus.meta_engine.web.bom_router.compare_bom", new=compare_mock):
+    with patch("yuantus.meta_engine.web.bom_compare_router.compare_bom", new=compare_mock):
         response = client.get(
             "/api/v1/bom/compare/summarized"
             "?left_type=item&left_id=i-left"
@@ -117,7 +129,7 @@ def test_compare_bom_summarized_export_csv():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.bom_router.compare_bom",
+        "yuantus.meta_engine.web.bom_compare_router.compare_bom",
         new=AsyncMock(return_value=_sample_compare_result()),
     ):
         response = client.get(
@@ -147,7 +159,7 @@ def test_compare_bom_summarized_export_markdown():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.bom_router.compare_bom",
+        "yuantus.meta_engine.web.bom_compare_router.compare_bom",
         new=AsyncMock(return_value=_sample_compare_result()),
     ):
         response = client.get(
@@ -175,7 +187,7 @@ def test_compare_bom_summarized_export_rejects_invalid_format():
     client, _db = _client_with_user(user)
 
     with patch(
-        "yuantus.meta_engine.web.bom_router.compare_bom",
+        "yuantus.meta_engine.web.bom_compare_router.compare_bom",
         new=AsyncMock(return_value=_sample_compare_result()),
     ):
         response = client.get(
