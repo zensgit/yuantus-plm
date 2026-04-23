@@ -1,12 +1,19 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user_id_optional, get_current_user_optional
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.exceptions.handlers import PermissionError
+
+
+@pytest.fixture(autouse=True)
+def _auth_optional(monkeypatch):
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _client_with_user_id(user_id: int):
@@ -48,7 +55,9 @@ def _client_without_user():
 def test_apply_diagnostics_200_when_eco_missing():
     client, _db = _client_with_user_id(1)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch(
+        "yuantus.meta_engine.web.eco_impact_apply_router.ECOService"
+    ) as service_cls:
         service = service_cls.return_value
         service.get_eco.return_value = None
         service.get_apply_diagnostics.return_value = {
@@ -79,7 +88,9 @@ def test_apply_diagnostics_reports_activity_blockers_as_structured_error():
 
     eco = SimpleNamespace(id="eco-1")
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch(
+        "yuantus.meta_engine.web.eco_impact_apply_router.ECOService"
+    ) as service_cls:
         service = service_cls.return_value
         service.get_eco.return_value = eco
         service.get_apply_diagnostics.return_value = {
@@ -109,7 +120,9 @@ def test_apply_diagnostics_denies_when_permission_check_fails():
 
     eco = SimpleNamespace(id="eco-1")
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch(
+        "yuantus.meta_engine.web.eco_impact_apply_router.ECOService"
+    ) as service_cls:
         service = service_cls.return_value
         service.get_eco.return_value = eco
         service.permission_service.check_permission.side_effect = PermissionError(
@@ -127,7 +140,9 @@ def test_apply_endpoint_blocks_when_diagnostics_errors_present():
 
     eco = SimpleNamespace(id="eco-1")
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch(
+        "yuantus.meta_engine.web.eco_impact_apply_router.ECOService"
+    ) as service_cls:
         service = service_cls.return_value
         service.get_eco.return_value = eco
         service.get_apply_diagnostics.return_value = {
@@ -154,7 +169,9 @@ def test_apply_endpoint_blocks_when_diagnostics_errors_present():
 def test_apply_endpoint_force_bypasses_diagnostics():
     client, _db = _client_with_user_id(1)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch(
+        "yuantus.meta_engine.web.eco_impact_apply_router.ECOService"
+    ) as service_cls:
         service = service_cls.return_value
         service.action_apply = MagicMock(return_value=True)
 
