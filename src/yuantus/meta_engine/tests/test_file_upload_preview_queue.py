@@ -56,10 +56,10 @@ def test_cad_upload_queues_preview_job_and_returns_status_surface():
     client, _ = _client()
     queued = SimpleNamespace(id="job-prev-1")
 
-    with patch("yuantus.meta_engine.web.file_router.FileService") as mock_fs, patch(
+    with patch("yuantus.meta_engine.web.file_storage_router.FileService") as mock_fs, patch(
         "yuantus.meta_engine.web.file_conversion_router.JobService"
     ) as mock_jobs, patch(
-        "yuantus.meta_engine.web.file_router.uuid.uuid4",
+        "yuantus.meta_engine.web.file_storage_router.uuid.uuid4",
         return_value="11111111-1111-1111-1111-111111111111",
     ):
         mock_fs.return_value.upload_file.return_value = None
@@ -85,10 +85,10 @@ def test_cad_upload_queues_preview_job_and_returns_status_surface():
 def test_non_cad_upload_does_not_queue_preview_job():
     client, _ = _client()
 
-    with patch("yuantus.meta_engine.web.file_router.FileService") as mock_fs, patch(
+    with patch("yuantus.meta_engine.web.file_storage_router.FileService") as mock_fs, patch(
         "yuantus.meta_engine.web.file_conversion_router.JobService"
     ) as mock_jobs, patch(
-        "yuantus.meta_engine.web.file_router.uuid.uuid4",
+        "yuantus.meta_engine.web.file_storage_router.uuid.uuid4",
         return_value="22222222-2222-2222-2222-222222222222",
     ):
         mock_fs.return_value.upload_file.return_value = None
@@ -125,7 +125,7 @@ def test_duplicate_cad_upload_returns_file_status_url_without_new_job():
     )
     client, _ = _client(duplicate=existing)
 
-    with patch("yuantus.meta_engine.web.file_router.FileService") as mock_fs, patch(
+    with patch("yuantus.meta_engine.web.file_storage_router.FileService") as mock_fs, patch(
         "yuantus.meta_engine.web.file_conversion_router.JobService"
     ) as mock_jobs:
         mock_fs.return_value.file_exists.return_value = True
@@ -162,8 +162,8 @@ def test_duplicate_upload_repair_rejects_foreign_current_version_lock():
     )
     client, db = _client(duplicate=existing)
 
-    with patch("yuantus.meta_engine.web.file_router.FileService") as mock_fs, patch(
-        "yuantus.meta_engine.web.file_router._ensure_duplicate_file_repair_editable"
+    with patch("yuantus.meta_engine.web.file_storage_router.FileService") as mock_fs, patch(
+        "yuantus.meta_engine.web.file_storage_router._ensure_duplicate_file_repair_editable"
     ) as repair_guard:
         mock_fs.return_value.file_exists.return_value = False
         repair_guard.side_effect = HTTPException(
