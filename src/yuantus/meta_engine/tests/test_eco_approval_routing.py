@@ -8,10 +8,19 @@ from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.models.eco import ApprovalStatus
 from yuantus.meta_engine.services.eco_service import ECOApprovalService
 from yuantus.security.rbac.models import RBACUser, RBACRole
+
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 class _MockQuery:

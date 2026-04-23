@@ -49,6 +49,7 @@ from yuantus.meta_engine.web.cad_view_state_router import cad_view_state_router
 from yuantus.meta_engine.web.cad_router import router as cad_router
 from yuantus.meta_engine.web.dedup_router import dedup_router
 from yuantus.meta_engine.web.document_sync_router import document_sync_router
+from yuantus.meta_engine.web.eco_approval_ops_router import eco_approval_ops_router
 from yuantus.meta_engine.web.eco_router import eco_router
 from yuantus.meta_engine.web.approvals_router import approvals_router
 from yuantus.meta_engine.web.app_router import app_router
@@ -231,6 +232,7 @@ def create_app() -> FastAPI:
     app.include_router(routing_router, prefix="/api/v1")
     app.include_router(workcenter_router, prefix="/api/v1")
     app.include_router(report_router, prefix="/api/v1")
+    app.include_router(eco_approval_ops_router, prefix="/api/v1")
     app.include_router(eco_router, prefix="/api/v1")
     app.include_router(parallel_tasks_breakage_router, prefix="/api/v1")
     app.include_router(parallel_tasks_cad_3d_router, prefix="/api/v1")

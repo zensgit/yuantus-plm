@@ -9,8 +9,14 @@ R3 fixes:
 """
 import pytest
 from unittest.mock import MagicMock, patch
+from yuantus.config import get_settings
 from yuantus.meta_engine.services.eco_service import ECOApprovalService
 from yuantus.exceptions.handlers import PermissionError
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _mock_stage(*, approval_type="mandatory", approval_roles=None, name="Review"):

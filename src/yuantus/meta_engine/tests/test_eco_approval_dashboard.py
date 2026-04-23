@@ -9,7 +9,13 @@ Covers:
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
+from yuantus.config import get_settings
 from yuantus.meta_engine.services.eco_service import ECOApprovalService
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _mock_eco(eco_id, stage_id, deadline=None, state="progress"):
@@ -218,7 +224,7 @@ class TestDashboardHTTP:
 
     def test_summary_200(self):
         client, db = self._client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_dashboard_summary.return_value = {
                 "pending_count": 3, "overdue_count": 1, "escalated_count": 0,
                 "by_stage": [], "by_role": [], "by_assignee": [],
@@ -229,7 +235,7 @@ class TestDashboardHTTP:
 
     def test_items_200_with_filter(self):
         client, db = self._client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_dashboard_items.return_value = []
             resp = client.get("/api/v1/eco/approvals/dashboard/items?status=overdue&limit=10")
         assert resp.status_code == 200
@@ -399,7 +405,7 @@ class TestDashboardFilters:
     def test_router_summary_accepts_filter_params(self):
         """HTTP GET /summary must accept company_id, eco_type, eco_state, deadline_from/to."""
         client, db = TestDashboardHTTP()._client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_dashboard_summary.return_value = {
                 "pending_count": 0, "overdue_count": 0, "escalated_count": 0,
                 "by_stage": [], "by_role": [], "by_assignee": [],
@@ -417,7 +423,7 @@ class TestDashboardFilters:
     def test_router_items_accepts_filter_params(self):
         """HTTP GET /items must accept new filter params alongside existing ones."""
         client, db = TestDashboardHTTP()._client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_dashboard_items.return_value = []
             resp = client.get(
                 "/api/v1/eco/approvals/dashboard/items"
