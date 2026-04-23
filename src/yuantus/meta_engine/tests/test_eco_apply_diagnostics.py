@@ -185,7 +185,9 @@ def test_apply_endpoint_force_bypasses_diagnostics():
 def test_compute_changes_passes_compare_mode_to_service():
     client, db = _client_with_user_id(1)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch(
+        "yuantus.meta_engine.web.eco_change_analysis_router.ECOService"
+    ) as service_cls:
         service = service_cls.return_value
         service.compute_bom_changes.return_value = [
             SimpleNamespace(
@@ -212,7 +214,9 @@ def test_compute_changes_passes_compare_mode_to_service():
 def test_compute_changes_invalid_compare_mode_maps_to_400():
     client, _db = _client_with_user_id(1)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch(
+        "yuantus.meta_engine.web.eco_change_analysis_router.ECOService"
+    ) as service_cls:
         service_cls.return_value.compute_bom_changes.side_effect = ValueError(
             "compare_mode must be one of: only_product, summarized, by_item"
         )

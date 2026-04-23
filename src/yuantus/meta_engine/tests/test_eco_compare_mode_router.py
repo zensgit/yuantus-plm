@@ -181,7 +181,9 @@ def test_bom_diff_invalid_compare_mode_returns_400():
 def test_compute_changes_passes_compare_mode_to_service():
     client, db = _client_with_user()
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
+    with patch(
+        "yuantus.meta_engine.web.eco_change_analysis_router.ECOService"
+    ) as svc_cls:
         change = SimpleNamespace(to_dict=lambda: {"id": "ch-1", "change_type": "add"})
         svc_cls.return_value.compute_bom_changes.return_value = [change]
         resp = client.post(
@@ -198,7 +200,9 @@ def test_compute_changes_passes_compare_mode_to_service():
 def test_compute_changes_invalid_compare_mode_returns_400():
     client, db = _client_with_user()
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
+    with patch(
+        "yuantus.meta_engine.web.eco_change_analysis_router.ECOService"
+    ) as svc_cls:
         svc_cls.return_value.compute_bom_changes.side_effect = ValueError(
             "Invalid compare_mode: wrong"
         )
@@ -214,7 +218,9 @@ def test_compute_changes_invalid_compare_mode_returns_400():
 def test_compute_changes_none_compare_mode_uses_default():
     client, db = _client_with_user()
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
+    with patch(
+        "yuantus.meta_engine.web.eco_change_analysis_router.ECOService"
+    ) as svc_cls:
         change = SimpleNamespace(to_dict=lambda: {"id": "ch-1", "change_type": "add"})
         svc_cls.return_value.compute_bom_changes.return_value = [change]
         resp = client.post("/api/v1/eco/eco-1/compute-changes")
