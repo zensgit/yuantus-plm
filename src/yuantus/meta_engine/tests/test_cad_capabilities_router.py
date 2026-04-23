@@ -12,6 +12,7 @@ from yuantus.meta_engine.services.cad_backend_profile_service import (
     CadBackendProfileResolution,
 )
 from yuantus.meta_engine.web.cad_backend_profile_router import cad_backend_profile_router
+from yuantus.meta_engine.web.file_conversion_router import file_conversion_router
 from yuantus.meta_engine.web.file_router import file_router
 
 
@@ -40,6 +41,7 @@ def _file_client() -> TestClient:
             pass
 
     app = FastAPI()
+    app.include_router(file_conversion_router, prefix="/api/v1")
     app.include_router(file_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     return TestClient(app)
@@ -438,7 +440,7 @@ def test_cad_capabilities_endpoint_reports_explicit_step_iges_local_backend():
 def test_supported_formats_endpoint_remains_legacy_but_payload_is_unchanged():
     client = _file_client()
 
-    with patch("yuantus.meta_engine.web.file_router.CADConverterService") as service_cls:
+    with patch("yuantus.meta_engine.web.file_conversion_router.CADConverterService") as service_cls:
         service_cls.return_value.get_supported_conversions.return_value = {
             "input_formats": ["pdf", "step"],
             "output_formats": ["gltf", "obj"],

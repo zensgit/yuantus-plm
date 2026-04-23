@@ -3,12 +3,20 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.models.file import FileContainer
 from yuantus.meta_engine.models.job import ConversionJob as MetaConversionJob
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    """These tests override router dependencies; middleware auth is out of scope."""
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _make_file(file_id: str = "fc-1"):
@@ -103,7 +111,7 @@ def test_file_conversion_summary_aggregates_meta_jobs():
     from unittest.mock import patch
 
     with patch(
-        "yuantus.meta_engine.web.file_router.CADConverterService.assess_viewer_readiness",
+        "yuantus.meta_engine.web.file_conversion_router.CADConverterService.assess_viewer_readiness",
         return_value={"viewer_mode": "processing", "is_viewer_ready": False},
     ):
         resp = client.get("/api/v1/file/fc-1/conversion_summary")

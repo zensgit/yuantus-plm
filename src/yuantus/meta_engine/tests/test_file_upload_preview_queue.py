@@ -4,13 +4,21 @@ import io
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 from fastapi import HTTPException
 
 from yuantus.api.app import create_app
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.models.file import FileContainer
 from yuantus.security.auth.database import get_identity_db
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    """These tests override router dependencies; middleware auth is out of scope."""
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _client(*, duplicate=None):
@@ -49,7 +57,7 @@ def test_cad_upload_queues_preview_job_and_returns_status_surface():
     queued = SimpleNamespace(id="job-prev-1")
 
     with patch("yuantus.meta_engine.web.file_router.FileService") as mock_fs, patch(
-        "yuantus.meta_engine.web.file_router.JobService"
+        "yuantus.meta_engine.web.file_conversion_router.JobService"
     ) as mock_jobs, patch(
         "yuantus.meta_engine.web.file_router.uuid.uuid4",
         return_value="11111111-1111-1111-1111-111111111111",
@@ -78,7 +86,7 @@ def test_non_cad_upload_does_not_queue_preview_job():
     client, _ = _client()
 
     with patch("yuantus.meta_engine.web.file_router.FileService") as mock_fs, patch(
-        "yuantus.meta_engine.web.file_router.JobService"
+        "yuantus.meta_engine.web.file_conversion_router.JobService"
     ) as mock_jobs, patch(
         "yuantus.meta_engine.web.file_router.uuid.uuid4",
         return_value="22222222-2222-2222-2222-222222222222",
@@ -118,7 +126,7 @@ def test_duplicate_cad_upload_returns_file_status_url_without_new_job():
     client, _ = _client(duplicate=existing)
 
     with patch("yuantus.meta_engine.web.file_router.FileService") as mock_fs, patch(
-        "yuantus.meta_engine.web.file_router.JobService"
+        "yuantus.meta_engine.web.file_conversion_router.JobService"
     ) as mock_jobs:
         mock_fs.return_value.file_exists.return_value = True
         resp = client.post(
