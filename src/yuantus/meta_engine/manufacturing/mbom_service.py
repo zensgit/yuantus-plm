@@ -15,6 +15,48 @@ from yuantus.meta_engine.services.bom_service import BOMService, _normalize_bom_
 from yuantus.meta_engine.services.release_validation import ValidationIssue, get_release_ruleset
 
 
+def _item_uom_bucket_key(item_id: Optional[Any], uom: Optional[Any]) -> Optional[str]:
+    """Return the canonical transformation-rule bucket key for item + UOM."""
+    if item_id is None:
+        return None
+    item_text = str(item_id).strip()
+    if not item_text:
+        return None
+    return f"{item_text}::{_normalize_bom_uom(uom)}"
+
+
+def _normalize_item_uom_bucket(value: Optional[Any]) -> Optional[str]:
+    """Normalize a configured item/UOM bucket key."""
+    if value is None:
+        return None
+    item_text, sep, uom_text = str(value).partition("::")
+    if not sep:
+        return _item_uom_bucket_key(item_text, None)
+    return _item_uom_bucket_key(item_text, uom_text)
+
+
+def _normalize_item_uom_bucket_set(values: Optional[Any]) -> set[str]:
+    if not values:
+        return set()
+    buckets: set[str] = set()
+    for value in values:
+        bucket = _normalize_item_uom_bucket(value)
+        if bucket:
+            buckets.add(bucket)
+    return buckets
+
+
+def _normalize_item_uom_bucket_map(mapping: Optional[Any]) -> Dict[str, Any]:
+    if not isinstance(mapping, dict):
+        return {}
+    buckets: Dict[str, Any] = {}
+    for key, target_id in mapping.items():
+        bucket = _normalize_item_uom_bucket(key)
+        if bucket:
+            buckets[bucket] = target_id
+    return buckets
+
+
 class MBOMService:
     def __init__(self, session: Session):
         self.session = session
@@ -87,7 +129,13 @@ class MBOMService:
             result["ebom_relationship_id"] = rel.get("id")
 
         exclude_items = set(rules.get("exclude_items", []))
+        exclude_item_uom_buckets = _normalize_item_uom_bucket_set(
+            rules.get("exclude_item_uom_buckets")
+        )
         substitute_map = rules.get("substitute_items", {})
+        substitute_item_uom_buckets = _normalize_item_uom_bucket_map(
+            rules.get("substitute_item_uom_buckets")
+        )
         collapse_phantom = rules.get("collapse_phantom", True)
 
         children = node.get("children") or []
@@ -96,12 +144,23 @@ class MBOMService:
             child_node = child_entry.get("child") or {}
             child_item = child_node.get("item") or child_node
             child_id = child_item.get("id")
+            rel_props = rel_entry.get("properties") or {}
+            child_uom_bucket = _item_uom_bucket_key(
+                child_id,
+                rel_props.get("unit", rel_props.get("uom")),
+            )
 
-            if child_id in exclude_items:
+            if child_id in exclude_items or child_uom_bucket in exclude_item_uom_buckets:
                 continue
 
-            if child_id in substitute_map:
+            sub_id = (
+                substitute_item_uom_buckets.get(child_uom_bucket)
+                if child_uom_bucket
+                else None
+            )
+            if sub_id is None and child_id in substitute_map:
                 sub_id = substitute_map[child_id]
+            if sub_id is not None:
                 sub_item = self.session.get(Item, sub_id)
                 if sub_item:
                     child_item = sub_item.to_dict()
@@ -112,7 +171,6 @@ class MBOMService:
             child_props = child_item.get("properties") or child_item
             make_buy = child_props.get("make_buy", "make")
 
-            rel_props = rel_entry.get("properties") or {}
             raw_qty = rel_props.get("quantity", rel_props.get("qty", 1))
             try:
                 parent_qty = float(raw_qty)

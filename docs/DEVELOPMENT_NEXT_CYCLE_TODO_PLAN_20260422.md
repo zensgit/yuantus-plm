@@ -76,19 +76,18 @@ No further BOM router slices are planned unless a new route family is added late
 
 ### P2: UOM Transformation Rules Granularity
 
-Goal: close the remaining low-priority UOM-aware semantic edge.
+Status: complete.
 
-Current state:
+Completed output:
 
-- BOM duplicate guard, compare, where-used, rollup, report flatten, and MBOM compare are UOM-aware.
-- EBOM-to-MBOM transformation rules still apply `exclude_items` and `substitute_items` at item-id granularity.
+- `exclude_items` and `substitute_items` remain item-id wide for backward compatibility.
+- Optional `exclude_item_uom_buckets` and `substitute_item_uom_buckets` rules support `ITEM::UOM` granularity.
+- UOM bucket keys normalize UOM text through the same BOM UOM normalization helper.
+- Focused transformation tests cover legacy behavior, UOM-only exclude, UOM-only substitute, and UOM-specific override of legacy substitutes.
 
-TODO:
+Closeout:
 
-- Keep legacy item-id rules compatible.
-- Add optional `(item_id, uom)` bucket rules.
-- Ensure old rule behavior remains unchanged.
-- Add real-session tests.
+- `docs/DEV_AND_VERIFICATION_UOM_TRANSFORMATION_RULES_GRANULARITY_20260423.md`
 
 ### P3: CadImportService Extraction
 
@@ -159,9 +158,8 @@ Suggested output:
 2. Backlog triage decision table (P0.5).
 3. External signal collection summary (parallel to step 2).
 4. BOM router decomposition closeout validation (P1 closeout).
-5. UOM transformation rules taskbook (P2).
-6. CadImportService extraction taskbook (P3).
-7. Scheduler production decision gate (P4; its outcome is conditional on steps 2 and 3).
+5. CadImportService extraction taskbook (P3).
+6. Scheduler production decision gate (P4; its outcome is conditional on steps 2 and 3).
 
 ## 5. Fixed PR Requirements
 
