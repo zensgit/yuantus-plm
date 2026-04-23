@@ -6,7 +6,7 @@ Status update: 2026-04-23
 
 ## 1. Current State
 
-Current `main` is synced through PR #379.
+Current `main` is synced through PR #380.
 
 - CAD router decomposition R1-R12 is complete.
 - `cad_router.py` is now a zero-route compatibility shell.
@@ -17,25 +17,30 @@ Current `main` is synced through PR #379.
 - The Odoo18 gap cycle §一.1-§一.6 backend scope is closed by the existing closeout documents.
 - `CadImportService` extraction is complete; `cad_import_router.py` is now HTTP-facing glue over the service.
 - Scheduler production decision gate is complete; scheduler is in `default-off maintenance` until a real pilot owner, pilot environment, and operations commitment appear.
+- This next-cycle plan is now closed; the remaining plan-defined implementation work is zero.
 - Local-only `.claude/` and `local-dev-env/` remain untracked and must not be committed.
 
 ## 2. Next Priorities
 
 ### P0: Closeout Validation
 
+Status: complete.
+
 Goal: confirm the recent CAD router decomposition remains stable on `main`.
 
-TODO:
+Completed:
 
 - Run all CAD split router ownership contracts.
 - Run pact provider verification.
 - Run doc index contracts.
-- If shared-dev 142 credentials are available, run readonly smoke only; do not run bootstrap.
-- Produce:
+- Shared-dev 142 first-run bootstrap was not run.
+- Produced:
 
 `docs/DEV_AND_VERIFICATION_POST_CAD_ROUTER_DECOMPOSITION_CLOSEOUT_20260422.md`
 
 ### P0.5: Backlog Triage
+
+Status: complete.
 
 Goal: categorize items carried forward from recent cycles into `do / dormant / delete / wait-for-external-signal`, so each item has an explicit disposition instead of being carried as open load.
 
@@ -53,7 +58,7 @@ Output:
 - A single decision table: one row per item, columns `item / current state / action / reason`.
 - No new features, no new tests, no new ops tooling in this step.
 
-Suggested output:
+Completed output:
 
 `docs/DEV_AND_VERIFICATION_BACKLOG_TRIAGE_20260422.md`
 
@@ -151,6 +156,8 @@ Decision:
 
 ## 3. External Signal Collection
 
+Status: complete for this cycle.
+
 This section is not a feature expansion into MES / sales / procurement. It is a parallel activity to gather real deployment / customer / internal user feedback that calibrates the priorities above, so the internal work does not drift away from the actual pull signal.
 
 Key questions to collect signal on:
@@ -171,17 +178,27 @@ Output:
 
 - A brief external signal summary. No PR, no feature, no new service.
 
-Suggested output:
+Completed output:
 
 `docs/DEV_AND_VERIFICATION_EXTERNAL_SIGNAL_COLLECTION_20260422.md`
 
 ## 4. Recommended Execution Order
 
+All items are complete:
+
 1. `POST_CAD_ROUTER_DECOMPOSITION_CLOSEOUT` documentation and validation (P0).
 2. Backlog triage decision table (P0.5).
 3. External signal collection summary (parallel to step 2).
 4. BOM router decomposition closeout validation (P1 closeout).
-5. Scheduler production decision gate (P4; complete).
+5. UOM transformation rules granularity (P2).
+6. CadImportService extraction (P3).
+7. Scheduler production decision gate (P4).
+
+Closeout:
+
+- `docs/DEV_AND_VERIFICATION_NEXT_CYCLE_CLOSEOUT_AND_REMAINING_WORK_20260423.md`
+
+Remaining plan-defined implementation work: `0`.
 
 ## 5. Fixed PR Requirements
 
