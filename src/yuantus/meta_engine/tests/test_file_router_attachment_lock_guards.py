@@ -87,8 +87,8 @@ def test_attach_existing_role_update_rejects_foreign_current_version_file_lock()
         existing_item_file=existing,
     )
 
-    with patch("yuantus.meta_engine.web.file_router.is_item_locked", return_value=(False, None)), patch(
-        "yuantus.meta_engine.web.file_router.VersionFileService"
+    with patch("yuantus.meta_engine.web.file_attachment_router.is_item_locked", return_value=(False, None)), patch(
+        "yuantus.meta_engine.web.file_attachment_router.VersionFileService"
     ) as vf_service_cls:
         vf_service_cls.return_value.ensure_file_editable.side_effect = VersionFileError(
             "File file-1 is checked out by another user"
@@ -119,8 +119,8 @@ def test_attach_new_item_file_rejects_foreign_current_version_file_lock():
         existing_item_file=None,
     )
 
-    with patch("yuantus.meta_engine.web.file_router.is_item_locked", return_value=(False, None)), patch(
-        "yuantus.meta_engine.web.file_router.VersionFileService"
+    with patch("yuantus.meta_engine.web.file_attachment_router.is_item_locked", return_value=(False, None)), patch(
+        "yuantus.meta_engine.web.file_attachment_router.VersionFileService"
     ) as vf_service_cls:
         vf_service_cls.return_value.ensure_file_editable.side_effect = VersionFileError(
             "File file-1 is checked out by another user"
@@ -150,8 +150,8 @@ def test_attach_new_item_file_allows_missing_current_version_assoc():
         existing_item_file=None,
     )
 
-    with patch("yuantus.meta_engine.web.file_router.is_item_locked", return_value=(False, None)), patch(
-        "yuantus.meta_engine.web.file_router.VersionFileService"
+    with patch("yuantus.meta_engine.web.file_attachment_router.is_item_locked", return_value=(False, None)), patch(
+        "yuantus.meta_engine.web.file_attachment_router.VersionFileService"
     ) as vf_service_cls:
         vf_service_cls.return_value.ensure_file_editable.side_effect = VersionFileError(
             "File file-1 with role attachment is not attached to version ver-1"
@@ -186,8 +186,8 @@ def test_detach_attachment_rejects_foreign_current_version_file_lock():
         attachment=attachment,
     )
 
-    with patch("yuantus.meta_engine.web.file_router.is_item_locked", return_value=(False, None)), patch(
-        "yuantus.meta_engine.web.file_router.VersionFileService"
+    with patch("yuantus.meta_engine.web.file_attachment_router.is_item_locked", return_value=(False, None)), patch(
+        "yuantus.meta_engine.web.file_attachment_router.VersionFileService"
     ) as vf_service_cls:
         vf_service_cls.return_value.ensure_file_editable.side_effect = VersionFileError(
             "File file-1 is checked out by another user"
