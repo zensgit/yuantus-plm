@@ -230,7 +230,7 @@ def test_compute_changes_invalid_compare_mode_maps_to_400():
 def test_suspend_endpoint_commits_and_returns_eco():
     client, db = _client_with_user_id(1)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         service.action_suspend.return_value = SimpleNamespace(
             to_dict=lambda: {
@@ -258,7 +258,7 @@ def test_suspend_endpoint_commits_and_returns_eco():
 def test_unsuspend_endpoint_passes_resume_state_to_service():
     client, db = _client_with_user_id(1)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         service.action_unsuspend.return_value = SimpleNamespace(
             to_dict=lambda: {
@@ -286,7 +286,7 @@ def test_unsuspend_endpoint_passes_resume_state_to_service():
 def test_unsuspend_diagnostics_200_when_eco_missing():
     client, _db = _client_with_user_id(1)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         service.get_eco.return_value = None
         service.get_unsuspend_diagnostics.return_value = {
@@ -314,7 +314,7 @@ def test_unsuspend_diagnostics_200_when_eco_missing():
 def test_unsuspend_diagnostics_uses_anonymous_user_zero_when_eco_missing():
     client, _db = _client_without_user()
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         service.get_eco.return_value = None
         service.get_unsuspend_diagnostics.return_value = {
@@ -346,7 +346,7 @@ def test_unsuspend_diagnostics_requires_authentication_when_eco_exists():
 
     eco = SimpleNamespace(id="eco-1")
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         service.get_eco.return_value = eco
 
@@ -361,7 +361,7 @@ def test_unsuspend_diagnostics_denies_when_permission_check_fails():
 
     eco = SimpleNamespace(id="eco-1")
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         service.get_eco.return_value = eco
         service.permission_service.check_permission.side_effect = PermissionError(
@@ -379,7 +379,7 @@ def test_unsuspend_endpoint_blocks_when_diagnostics_errors_present():
 
     eco = SimpleNamespace(id="eco-1")
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         service.get_eco.return_value = eco
         service.get_unsuspend_diagnostics.return_value = {
@@ -413,7 +413,7 @@ def test_unsuspend_endpoint_blocks_when_diagnostics_errors_present():
 def test_suspend_endpoint_requires_authentication():
     client, _db = _client_without_user()
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         resp = client.post("/api/v1/eco/eco-1/suspend", json={})
 
@@ -424,7 +424,7 @@ def test_suspend_endpoint_requires_authentication():
 def test_suspend_endpoint_maps_permission_error_to_403():
     client, _db = _client_with_user_id(7)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         service.action_suspend.side_effect = PermissionError(
             action="execute", resource="ECO"
@@ -439,7 +439,7 @@ def test_suspend_endpoint_maps_permission_error_to_403():
 def test_unsuspend_endpoint_requires_authentication():
     client, _db = _client_without_user()
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         resp = client.post("/api/v1/eco/eco-1/unsuspend", json={})
 
@@ -451,7 +451,7 @@ def test_unsuspend_endpoint_requires_authentication():
 def test_unsuspend_endpoint_maps_permission_error_to_403():
     client, _db = _client_with_user_id(7)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         service.action_unsuspend.side_effect = PermissionError(
             action="execute", resource="ECO"
@@ -472,7 +472,7 @@ def test_unsuspend_endpoint_maps_permission_error_to_403():
 def test_unsuspend_endpoint_force_bypasses_diagnostics():
     client, db = _client_with_user_id(1)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_lifecycle_router.ECOService") as service_cls:
         service = service_cls.return_value
         service.action_unsuspend.return_value = SimpleNamespace(
             to_dict=lambda: {
