@@ -5,10 +5,18 @@ Checklist items 7-11: verify all 6 P2 endpoints are reachable
 and return correct shapes via TestClient (no real DB/server needed).
 """
 from unittest.mock import MagicMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
+from yuantus.config import get_settings
 from yuantus.database import get_db
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _client():
@@ -42,7 +50,7 @@ class TestEndpointReachability:
 
     def test_dashboard_items_reachable(self):
         client, _ = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_dashboard_items.return_value = []
             resp = client.get("/api/v1/eco/approvals/dashboard/items")
         assert resp.status_code == 200
@@ -50,14 +58,14 @@ class TestEndpointReachability:
 
     def test_dashboard_export_json_reachable(self):
         client, _ = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.export_dashboard_items.return_value = "[]"
             resp = client.get("/api/v1/eco/approvals/dashboard/export?fmt=json")
         assert resp.status_code == 200
 
     def test_dashboard_export_csv_reachable(self):
         client, _ = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.export_dashboard_items.return_value = "eco_id\n"
             resp = client.get("/api/v1/eco/approvals/dashboard/export?fmt=csv")
         assert resp.status_code == 200
@@ -91,7 +99,7 @@ class TestEndpointReachability:
         from yuantus.api.dependencies.auth import get_current_user_id
         app = client.app
         app.dependency_overrides[get_current_user_id] = lambda: 1
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.escalate_overdue_approvals.return_value = {
                 "escalated": 0, "items": [],
             }
@@ -109,7 +117,7 @@ class TestEmptyStateBaseline:
 
     def test_summary_all_zeros(self):
         client, _ = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_dashboard_summary.return_value = {
                 "pending_count": 0, "overdue_count": 0, "escalated_count": 0,
                 "by_stage": [], "by_role": [], "by_assignee": [],
@@ -124,7 +132,7 @@ class TestEmptyStateBaseline:
 
     def test_anomalies_all_empty(self):
         client, _ = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_anomalies.return_value = {
                 "no_candidates": [], "escalated_unresolved": [],
                 "overdue_not_escalated": [], "total_anomalies": 0,
@@ -135,7 +143,7 @@ class TestEmptyStateBaseline:
 
     def test_export_csv_empty_has_header_only(self):
         client, _ = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             # CSV with header only
             M.return_value.export_dashboard_items.return_value = (
                 "eco_id,eco_name,eco_state,stage_id,stage_name,"
@@ -156,7 +164,7 @@ class TestEmptyStateBaseline:
 class TestFilterParams:
     def test_summary_accepts_all_filters(self):
         client, _ = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_dashboard_summary.return_value = {
                 "pending_count": 0, "overdue_count": 0, "escalated_count": 0,
                 "by_stage": [], "by_role": [], "by_assignee": [],
@@ -170,7 +178,7 @@ class TestFilterParams:
 
     def test_items_accepts_status_filter(self):
         client, _ = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_dashboard_items.return_value = []
             resp = client.get(
                 "/api/v1/eco/approvals/dashboard/items?status=overdue&limit=5"

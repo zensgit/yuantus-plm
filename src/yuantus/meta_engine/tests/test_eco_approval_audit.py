@@ -11,7 +11,13 @@ Covers:
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
+from yuantus.config import get_settings
 from yuantus.meta_engine.services.eco_service import ECOApprovalService
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _mock_eco(eco_id, stage_id, state="progress", deadline=None):
@@ -218,7 +224,7 @@ class TestAuditHTTP:
 
     def test_returns_200_with_shape(self):
         client, db = self._client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_anomalies.return_value = {
                 "no_candidates": [], "escalated_unresolved": [],
                 "overdue_not_escalated": [], "total_anomalies": 0,

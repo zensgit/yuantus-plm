@@ -13,7 +13,13 @@ import json
 import csv
 import io
 from unittest.mock import MagicMock, patch
+from yuantus.config import get_settings
 from yuantus.meta_engine.services.eco_service import ECOApprovalService
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _svc(session):
@@ -121,7 +127,7 @@ class TestExportHTTP:
 
     def test_json_export_200(self):
         client, db = self._client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.export_dashboard_items.return_value = json.dumps(_SAMPLE_ITEMS)
             resp = client.get("/api/v1/eco/approvals/dashboard/export?fmt=json")
         assert resp.status_code == 200
@@ -130,7 +136,7 @@ class TestExportHTTP:
 
     def test_csv_export_200(self):
         client, db = self._client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.export_dashboard_items.return_value = "eco_id,eco_name\ne1,ECO-1\n"
             resp = client.get("/api/v1/eco/approvals/dashboard/export?fmt=csv")
         assert resp.status_code == 200
@@ -145,7 +151,7 @@ class TestExportHTTP:
 
     def test_filters_forwarded(self):
         client, db = self._client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.export_dashboard_items.return_value = "[]"
             client.get(
                 "/api/v1/eco/approvals/dashboard/export"
