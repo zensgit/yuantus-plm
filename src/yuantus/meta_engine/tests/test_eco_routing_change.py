@@ -16,11 +16,17 @@ from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.models.eco import ECORoutingChange
 
 
 # ---- helpers ----
+
+
+@pytest.fixture(autouse=True)
+def _auth_optional(monkeypatch):
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _make_operation(
@@ -576,7 +582,9 @@ class TestRoutingRebaseConflicts:
 class TestECORoutingChangeRouter:
     def test_get_routing_changes_404_when_eco_missing(self):
         client, _db = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.eco_change_analysis_router.ECOService"
+        ) as svc_cls:
             svc_cls.return_value.get_eco.return_value = None
             resp = client.get("/api/v1/eco/eco-404/routing-changes")
         assert resp.status_code == 404
@@ -596,7 +604,9 @@ class TestECORoutingChangeRouter:
             "conflict_reason": None,
             "created_at": None,
         }
-        with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.eco_change_analysis_router.ECOService"
+        ) as svc_cls:
             svc = svc_cls.return_value
             svc.get_eco.return_value = SimpleNamespace(id="eco-1")
             svc.get_routing_changes.return_value = [mock_change]
@@ -609,7 +619,9 @@ class TestECORoutingChangeRouter:
 
     def test_compute_routing_changes_returns_list(self):
         client, _db = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.eco_change_analysis_router.ECOService"
+        ) as svc_cls:
             svc = svc_cls.return_value
             svc.compute_routing_changes.return_value = [
                 {
@@ -633,7 +645,9 @@ class TestECORoutingChangeRouter:
 
     def test_compute_routing_changes_400_on_value_error(self):
         client, _db = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.eco_change_analysis_router.ECOService"
+        ) as svc_cls:
             svc = svc_cls.return_value
             svc.compute_routing_changes.side_effect = ValueError("ECO missing product")
             resp = client.post("/api/v1/eco/eco-1/compute-routing-changes")
