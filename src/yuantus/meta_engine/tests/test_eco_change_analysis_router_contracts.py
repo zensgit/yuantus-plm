@@ -91,11 +91,11 @@ def test_change_analysis_router_registered_after_impact_before_legacy_router() -
     text = app_py.read_text(encoding="utf-8")
     impact_pos = text.find("app.include_router(eco_impact_apply_router")
     change_pos = text.find("app.include_router(eco_change_analysis_router")
-    legacy_pos = text.find("app.include_router(eco_router")
+    core_pos = text.find("app.include_router(eco_core_router")
     assert impact_pos != -1
     assert change_pos != -1
-    assert legacy_pos != -1
-    assert impact_pos < change_pos < legacy_pos
+    assert core_pos != -1
+    assert impact_pos < change_pos < core_pos
 
 
 def test_change_analysis_routes_preserve_eco_tag() -> None:

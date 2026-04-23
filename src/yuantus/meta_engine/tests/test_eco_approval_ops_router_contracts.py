@@ -86,10 +86,10 @@ def test_eco_approval_ops_router_registered_before_legacy_eco_router() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
     ops_pos = text.find("app.include_router(eco_approval_ops_router")
-    legacy_pos = text.find("app.include_router(eco_router")
+    core_pos = text.find("app.include_router(eco_core_router")
     assert ops_pos != -1
-    assert legacy_pos != -1
-    assert ops_pos < legacy_pos
+    assert core_pos != -1
+    assert ops_pos < core_pos
 
 
 def test_eco_approval_ops_routes_preserve_eco_tag() -> None:

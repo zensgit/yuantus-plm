@@ -58,7 +58,7 @@ from yuantus.meta_engine.web.eco_change_analysis_router import (
 )
 from yuantus.meta_engine.web.eco_impact_apply_router import eco_impact_apply_router
 from yuantus.meta_engine.web.eco_lifecycle_router import eco_lifecycle_router
-from yuantus.meta_engine.web.eco_router import eco_router
+from yuantus.meta_engine.web.eco_core_router import eco_core_router
 from yuantus.meta_engine.web.eco_stage_router import eco_stage_router
 from yuantus.meta_engine.web.approvals_router import approvals_router
 from yuantus.meta_engine.web.app_router import app_router
@@ -247,7 +247,7 @@ def create_app() -> FastAPI:
     app.include_router(eco_impact_apply_router, prefix="/api/v1")
     app.include_router(eco_change_analysis_router, prefix="/api/v1")
     app.include_router(eco_lifecycle_router, prefix="/api/v1")
-    app.include_router(eco_router, prefix="/api/v1")
+    app.include_router(eco_core_router, prefix="/api/v1")
     app.include_router(parallel_tasks_breakage_router, prefix="/api/v1")
     app.include_router(parallel_tasks_cad_3d_router, prefix="/api/v1")
     app.include_router(parallel_tasks_consumption_router, prefix="/api/v1")

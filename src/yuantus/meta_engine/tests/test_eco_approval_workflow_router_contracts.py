@@ -101,11 +101,11 @@ def test_eco_approval_workflow_router_registered_after_stage_before_legacy_route
     text = app_py.read_text(encoding="utf-8")
     stage_pos = text.find("app.include_router(eco_stage_router")
     workflow_pos = text.find("app.include_router(eco_approval_workflow_router")
-    legacy_pos = text.find("app.include_router(eco_router")
+    core_pos = text.find("app.include_router(eco_core_router")
     assert stage_pos != -1
     assert workflow_pos != -1
-    assert legacy_pos != -1
-    assert stage_pos < workflow_pos < legacy_pos
+    assert core_pos != -1
+    assert stage_pos < workflow_pos < core_pos
 
 
 def test_approval_workflow_routes_preserve_eco_tag() -> None:
