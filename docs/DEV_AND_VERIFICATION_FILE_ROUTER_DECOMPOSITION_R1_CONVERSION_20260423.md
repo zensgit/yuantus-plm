@@ -70,6 +70,8 @@ Commands:
   src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py
 
 git diff --check
+
+node --check playwright/tests/bom_obsolete_weight.spec.js
 ```
 
 Results:
@@ -77,7 +79,13 @@ Results:
 - py_compile: pass
 - R1 file-router focused tests: 73 passed
 - pact provider + doc-index + CI list contracts: 5 passed
+- Playwright BOM obsolete/rollup smoke syntax check: pass
 - `git diff --check`: pass
+
+CI note:
+
+- PR #383 first `playwright-esign` run failed twice on `bom_obsolete_weight.spec.js` with SQLite `database is locked`.
+- The failure was outside the file conversion route split; remediation was limited to reusing the existing `postWithSqliteRetry` helper for the remaining mutating BOM obsolete/rollup smoke calls.
 
 ## 6. Non-Goals
 

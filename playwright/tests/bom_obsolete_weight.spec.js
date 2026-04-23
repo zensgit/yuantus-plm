@@ -25,7 +25,7 @@ async function login(request) {
 }
 
 async function createPart(request, headers, number, name, extra = {}) {
-  const resp = await request.post('/api/v1/aml/apply', {
+  const { resp, body } = await postWithSqliteRetry(request, '/api/v1/aml/apply', {
     headers,
     data: {
       type: 'Part',
@@ -37,7 +37,7 @@ async function createPart(request, headers, number, name, extra = {}) {
       },
     },
   });
-  expect(resp.ok()).toBeTruthy();
+  expect(resp.ok(), body).toBeTruthy();
   const data = await resp.json();
   return data.id;
 }
@@ -65,7 +65,7 @@ async function promoteReleased(request, headers, id) {
 }
 
 async function markObsolete(request, headers, id) {
-  const resp = await request.post('/api/v1/aml/apply', {
+  const { resp, body } = await postWithSqliteRetry(request, '/api/v1/aml/apply', {
     headers,
     data: {
       type: 'Part',
@@ -74,7 +74,7 @@ async function markObsolete(request, headers, id) {
       properties: { engineering_state: 'obsoleted', obsolete: true },
     },
   });
-  expect(resp.ok()).toBeTruthy();
+  expect(resp.ok(), body).toBeTruthy();
 }
 
 test('BOM obsolete scan + resolve', async ({ request }) => {
@@ -87,7 +87,7 @@ test('BOM obsolete scan + resolve', async ({ request }) => {
 
   await markObsolete(request, headers, childOld);
 
-  const updateResp = await request.post('/api/v1/aml/apply', {
+  const update = await postWithSqliteRetry(request, '/api/v1/aml/apply', {
     headers,
     data: {
       type: 'Part',
@@ -96,7 +96,7 @@ test('BOM obsolete scan + resolve', async ({ request }) => {
       properties: { replacement_id: childNew },
     },
   });
-  expect(updateResp.ok()).toBeTruthy();
+  expect(update.resp.ok(), update.body).toBeTruthy();
   await promoteReleased(request, headers, childOld);
   await promoteReleased(request, headers, childNew);
 
@@ -112,11 +112,16 @@ test('BOM obsolete scan + resolve', async ({ request }) => {
   expect(scan.count).toBe(1);
   expect(scan.entries[0].replacement_id).toBe(childNew);
 
-  const resolveResp = await request.post(`/api/v1/bom/${parent}/obsolete/resolve`, {
-    headers,
-    data: { mode: 'update' },
-  });
-  expect(resolveResp.ok()).toBeTruthy();
+  const resolveAttempt = await postWithSqliteRetry(
+    request,
+    `/api/v1/bom/${parent}/obsolete/resolve`,
+    {
+      headers,
+      data: { mode: 'update' },
+    },
+  );
+  const resolveResp = resolveAttempt.resp;
+  expect(resolveResp.ok(), resolveAttempt.body).toBeTruthy();
   const resolve = await resolveResp.json();
   expect(resolve.summary.updated_lines).toBe(1);
 
@@ -157,20 +162,25 @@ test('BOM weight rollup + write_back', async ({ request }) => {
   });
   expect(addResp2.resp.ok(), addResp2.body).toBeTruthy();
 
-  const rollupResp = await request.post(`/api/v1/bom/${parent}/rollup/weight`, {
-    headers,
-    data: {
-      write_back: true,
-      write_back_field: 'weight_rollup',
-      write_back_mode: 'missing',
-      rounding: 3,
+  const rollupAttempt = await postWithSqliteRetry(
+    request,
+    `/api/v1/bom/${parent}/rollup/weight`,
+    {
+      headers,
+      data: {
+        write_back: true,
+        write_back_field: 'weight_rollup',
+        write_back_mode: 'missing',
+        rounding: 3,
+      },
     },
-  });
-  expect(rollupResp.ok()).toBeTruthy();
+  );
+  const rollupResp = rollupAttempt.resp;
+  expect(rollupResp.ok(), rollupAttempt.body).toBeTruthy();
   const rollup = await rollupResp.json();
   expect(rollup.summary.total_weight).toBeCloseTo(8.0, 6);
 
-  const getResp = await request.post('/api/v1/aml/apply', {
+  const getAttempt = await postWithSqliteRetry(request, '/api/v1/aml/apply', {
     headers,
     data: {
       type: 'Part',
@@ -178,7 +188,8 @@ test('BOM weight rollup + write_back', async ({ request }) => {
       id: parent,
     },
   });
-  expect(getResp.ok()).toBeTruthy();
+  const getResp = getAttempt.resp;
+  expect(getResp.ok(), getAttempt.body).toBeTruthy();
   const item = await getResp.json();
   expect(item.items[0].properties.weight_rollup).toBeCloseTo(8.0, 6);
 });
