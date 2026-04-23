@@ -28,6 +28,7 @@ from yuantus.meta_engine.web.bom_obsolete_rollup_router import (
     bom_obsolete_rollup_router,
 )
 from yuantus.meta_engine.web.bom_where_used_router import bom_where_used_router
+from yuantus.meta_engine.web.bom_substitutes_router import bom_substitutes_router
 from yuantus.meta_engine.web.bom_router import bom_router
 from yuantus.meta_engine.web.baseline_router import baseline_router
 from yuantus.meta_engine.web.box_router import box_router
@@ -180,6 +181,7 @@ def create_app() -> FastAPI:
     app.include_router(bom_children_router, prefix="/api/v1")
     app.include_router(bom_obsolete_rollup_router, prefix="/api/v1")
     app.include_router(bom_where_used_router, prefix="/api/v1")
+    app.include_router(bom_substitutes_router, prefix="/api/v1")
     app.include_router(bom_router, prefix="/api/v1")
     app.include_router(box_router, prefix="/api/v1")
     app.include_router(approvals_router, prefix="/api/v1")
