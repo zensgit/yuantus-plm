@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from collections import Counter
+from pathlib import Path
 
 from fastapi.routing import APIRoute
 
+import yuantus.meta_engine.web.cad_import_router as cad_import_router_module
 from yuantus.api.app import create_app
 from yuantus.meta_engine.web.cad_import_router import cad_import_router
 from yuantus.meta_engine.web.cad_router import router as cad_router
@@ -59,3 +61,18 @@ def test_create_app_registers_cad_import_route_once() -> None:
     }
     assert set(counts) == expected
     assert all(count == 1 for count in counts.values())
+
+
+def test_cad_import_router_does_not_own_business_service_imports() -> None:
+    text = Path(cad_import_router_module.__file__).read_text(encoding="utf-8")
+
+    forbidden_symbols = {
+        "AMLEngine",
+        "CadService",
+        "FileService",
+        "JobService",
+        "QuotaService",
+        "VersionFileService",
+    }
+    for symbol in forbidden_symbols:
+        assert symbol not in text

@@ -91,7 +91,7 @@ Closeout:
 
 ### P3: CadImportService Extraction
 
-Status: taskbook complete; implementation pending.
+Status: complete.
 
 Goal: reduce `cad_import_router.py` complexity after route ownership is complete.
 
@@ -100,11 +100,11 @@ Current state:
 - CAD import has been split out of the aggregate router.
 - `cad_import_router.py` is still about 924 LOC and contains substantial business logic.
 
-TODO:
+Completed output:
 
-- Extract `CadImportService`.
-- Keep the router focused on Form parsing, dependencies, and HTTP mapping.
-- Preserve import lock guards, dedup index payload, quota behavior, auto Part creation, and job enqueueing.
+- Extracted `CadImportService`.
+- Router now focuses on Form parsing, dependencies, exception mapping, quota warning headers, and HTTP response assembly.
+- Import lock guards, dedup index payload, quota behavior, auto Part creation, and job enqueueing are covered by focused service/router tests.
 
 Taskbook:
 
@@ -113,6 +113,10 @@ Taskbook:
 Taskbook verification:
 
 - `docs/DEV_AND_VERIFICATION_CAD_IMPORT_SERVICE_EXTRACTION_TASKBOOK_20260423.md`
+
+Implementation closeout:
+
+- `docs/DEV_AND_VERIFICATION_CAD_IMPORT_SERVICE_EXTRACTION_20260423.md`
 
 ### P4: Scheduler Production Decision Gate
 
@@ -167,8 +171,7 @@ Suggested output:
 2. Backlog triage decision table (P0.5).
 3. External signal collection summary (parallel to step 2).
 4. BOM router decomposition closeout validation (P1 closeout).
-5. CadImportService extraction implementation (P3).
-6. Scheduler production decision gate (P4; its outcome is conditional on steps 2 and 3).
+5. Scheduler production decision gate (P4; its outcome is conditional on steps 2 and 3).
 
 ## 5. Fixed PR Requirements
 
