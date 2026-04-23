@@ -104,7 +104,16 @@ Executed:
 
 ```bash
 .venv/bin/python -m pytest -q \
+  src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py \
   src/yuantus/meta_engine/tests/test_ci_contracts_pact_provider_gate.py
+```
+
+Result: `9 passed` (`7` CI list/order + R3 contract checks, `2` pact provider gate).
+
+Executed:
+
+```bash
+npx playwright test playwright/tests/bom_obsolete_weight.spec.js --workers=1
 ```
 
 Result: `2 passed`.
@@ -151,3 +160,10 @@ legacy_definitions_checked=22
 ## 8. Status
 
 R3 implementation is complete locally and ready for PR review.
+
+## 9. CI Follow-Up
+
+Initial PR CI surfaced two issues:
+
+- `contracts`: deterministic ordering failure because `test_bom_children_router_contracts.py` was inserted after compare/tree in `.github/workflows/ci.yml`. Fixed by restoring path-sorted order.
+- `playwright-esign`: non-deterministic failure in `playwright/tests/bom_obsolete_weight.spec.js` on obsolete resolve. The same spec passes locally against this branch (`2 passed`), so the first CI failure is treated as e2e noise pending rerun.
