@@ -2,11 +2,18 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user, get_current_user_id_optional
+from yuantus.config import get_settings
 from yuantus.database import get_db
+
+
+@pytest.fixture(autouse=True)
+def _auth_optional(monkeypatch):
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _client_with_user():
@@ -48,8 +55,10 @@ def test_impact_passes_compare_mode_to_service():
     product = _mock_product()
     db.get.return_value = product
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
-        with patch("yuantus.meta_engine.web.eco_router.MetaPermissionService") as perm_cls:
+    with patch("yuantus.meta_engine.web.eco_impact_apply_router.ECOService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.eco_impact_apply_router.MetaPermissionService"
+        ) as perm_cls:
             perm_cls.return_value.check_permission.return_value = True
             svc_cls.return_value.get_eco.return_value = eco
             svc_cls.return_value.analyze_impact.return_value = {"changes": []}
@@ -70,8 +79,10 @@ def test_impact_invalid_compare_mode_returns_400():
     product = _mock_product()
     db.get.return_value = product
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
-        with patch("yuantus.meta_engine.web.eco_router.MetaPermissionService") as perm_cls:
+    with patch("yuantus.meta_engine.web.eco_impact_apply_router.ECOService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.eco_impact_apply_router.MetaPermissionService"
+        ) as perm_cls:
             perm_cls.return_value.check_permission.return_value = True
             svc_cls.return_value.get_eco.return_value = eco
             svc_cls.return_value.analyze_impact.side_effect = ValueError(
@@ -95,8 +106,10 @@ def test_impact_export_passes_compare_mode_to_service():
     product = _mock_product()
     db.get.return_value = product
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
-        with patch("yuantus.meta_engine.web.eco_router.MetaPermissionService") as perm_cls:
+    with patch("yuantus.meta_engine.web.eco_impact_apply_router.ECOService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.eco_impact_apply_router.MetaPermissionService"
+        ) as perm_cls:
             perm_cls.return_value.check_permission.return_value = True
             svc_cls.return_value.get_eco.return_value = eco
             svc_cls.return_value.analyze_impact.return_value = {"changes": []}
@@ -120,8 +133,10 @@ def test_bom_diff_passes_compare_mode_to_service():
     product = _mock_product()
     db.get.return_value = product
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
-        with patch("yuantus.meta_engine.web.eco_router.MetaPermissionService") as perm_cls:
+    with patch("yuantus.meta_engine.web.eco_impact_apply_router.ECOService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.eco_impact_apply_router.MetaPermissionService"
+        ) as perm_cls:
             perm_cls.return_value.check_permission.return_value = True
             svc_cls.return_value.get_eco.return_value = eco
             svc_cls.return_value.get_bom_diff.return_value = {"diff": []}
@@ -142,8 +157,10 @@ def test_bom_diff_invalid_compare_mode_returns_400():
     product = _mock_product()
     db.get.return_value = product
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOService") as svc_cls:
-        with patch("yuantus.meta_engine.web.eco_router.MetaPermissionService") as perm_cls:
+    with patch("yuantus.meta_engine.web.eco_impact_apply_router.ECOService") as svc_cls:
+        with patch(
+            "yuantus.meta_engine.web.eco_impact_apply_router.MetaPermissionService"
+        ) as perm_cls:
             perm_cls.return_value.check_permission.return_value = True
             svc_cls.return_value.get_eco.return_value = eco
             svc_cls.return_value.get_bom_diff.side_effect = ValueError(
