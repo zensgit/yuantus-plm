@@ -22,15 +22,25 @@ def _read(path: Path) -> str:
 def test_cad_import_supports_dedup_index_flag_and_enqueues_payload() -> None:
     repo_root = _find_repo_root(Path(__file__))
     cad_router = repo_root / "src" / "yuantus" / "meta_engine" / "web" / "cad_import_router.py"
+    cad_import_service = (
+        repo_root
+        / "src"
+        / "yuantus"
+        / "meta_engine"
+        / "services"
+        / "cad_import_service.py"
+    )
     assert cad_router.is_file()
+    assert cad_import_service.is_file()
 
-    text = _read(cad_router)
+    router_text = _read(cad_router)
+    service_text = _read(cad_import_service)
 
-    assert re.search(r"\bdedup_index\s*:\s*bool\s*=\s*Form\(", text), (
+    assert re.search(r"\bdedup_index\s*:\s*bool\s*=\s*Form\(", router_text), (
         "cad/import should expose dedup_index: bool = Form(...) for triggering Dedup Vision indexing."
     )
 
-    assert '"index": bool(dedup_index)' in text, (
+    assert '"index": bool(request.dedup_index)' in service_text, (
         "cad/import should pass index flag into cad_dedup_vision job payload "
-        "(expected exact snippet: '\"index\": bool(dedup_index)')."
+        "(expected exact snippet in CadImportService: '\"index\": bool(request.dedup_index)')."
     )
