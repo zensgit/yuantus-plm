@@ -98,7 +98,7 @@ class TestHTTPAuth:
 
     def test_403_no_permission(self, monkeypatch):
         c, db = self._client_with_user(7, monkeypatch)
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_workflow_router.ECOApprovalService") as M:
             M.return_value.escalate_overdue_approvals.side_effect = PermissionError(
                 action="escalate_overdue", resource="ECO", details={})
             resp = c.post("/api/v1/eco/approvals/escalate-overdue")
@@ -106,7 +106,7 @@ class TestHTTPAuth:
 
     def test_200_authorized(self, monkeypatch):
         c, db = self._client_with_user(1, monkeypatch)
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_workflow_router.ECOApprovalService") as M:
             M.return_value.escalate_overdue_approvals.return_value = {"escalated": 0, "items": []}
             resp = c.post("/api/v1/eco/approvals/escalate-overdue")
         assert resp.status_code == 200

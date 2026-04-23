@@ -193,7 +193,7 @@ def test_get_approval_routing_reports_open_gap_when_roles_missing():
 def test_approval_routing_endpoint_returns_service_payload():
     client, _db = _client_with_user_id(7)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_approval_workflow_router.ECOApprovalService") as service_cls:
         service = service_cls.return_value
         service.get_approval_routing.return_value = {
             "eco_id": "eco-1",
@@ -226,7 +226,7 @@ def test_approval_routing_endpoint_returns_service_payload():
 def test_approval_routing_endpoint_maps_missing_eco_to_404():
     client, _db = _client_with_user_id(7)
 
-    with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as service_cls:
+    with patch("yuantus.meta_engine.web.eco_approval_workflow_router.ECOApprovalService") as service_cls:
         service = service_cls.return_value
         service.get_approval_routing.side_effect = ValueError("ECO not found")
 

@@ -36,7 +36,7 @@ def _client():
 class TestEndpointReachability:
     def test_dashboard_summary_reachable(self):
         client, _ = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_dashboard_summary.return_value = {
                 "pending_count": 0, "overdue_count": 0, "escalated_count": 0,
                 "by_stage": [], "by_role": [], "by_assignee": [],
@@ -73,7 +73,7 @@ class TestEndpointReachability:
 
     def test_audit_anomalies_reachable(self):
         client, _ = _client()
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
             M.return_value.get_approval_anomalies.return_value = {
                 "no_candidates": [], "escalated_unresolved": [],
                 "overdue_not_escalated": [], "total_anomalies": 0,
@@ -89,7 +89,7 @@ class TestEndpointReachability:
         from yuantus.api.dependencies.auth import get_current_user_id
         app = client.app
         app.dependency_overrides[get_current_user_id] = lambda: 1
-        with patch("yuantus.meta_engine.web.eco_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_workflow_router.ECOApprovalService") as M:
             M.return_value.auto_assign_stage_approvers.side_effect = ValueError("ECO not found")
             resp = client.post("/api/v1/eco/eco-test/auto-assign-approvers")
         assert resp.status_code == 400
@@ -99,7 +99,7 @@ class TestEndpointReachability:
         from yuantus.api.dependencies.auth import get_current_user_id
         app = client.app
         app.dependency_overrides[get_current_user_id] = lambda: 1
-        with patch("yuantus.meta_engine.web.eco_approval_ops_router.ECOApprovalService") as M:
+        with patch("yuantus.meta_engine.web.eco_approval_workflow_router.ECOApprovalService") as M:
             M.return_value.escalate_overdue_approvals.return_value = {
                 "escalated": 0, "items": [],
             }

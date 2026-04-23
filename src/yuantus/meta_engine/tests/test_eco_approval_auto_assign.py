@@ -72,7 +72,7 @@ class TestAuthHTTP:
     def test_router_uses_get_current_user_id_not_optional(self):
         """Route must use get_current_user_id (401 on no token)."""
         import inspect
-        from yuantus.meta_engine.web import eco_router as mod
+        from yuantus.meta_engine.web import eco_approval_workflow_router as mod
         src = inspect.getsource(mod.auto_assign_approvers)
         assert "get_current_user_id)" in src or "get_current_user_id," in src
         assert "get_current_user_id_optional" not in src
@@ -144,7 +144,7 @@ class TestAuthHTTP:
     def test_router_catches_permission_error_as_403(self):
         """Router must map PermissionError → 403, not 500."""
         import inspect
-        from yuantus.meta_engine.web import eco_router as mod
+        from yuantus.meta_engine.web import eco_approval_workflow_router as mod
         src = inspect.getsource(mod.auto_assign_approvers)
         assert "PermissionError" in src
         assert "403" in src
@@ -555,7 +555,7 @@ class TestHTTPAuthIntegration:
         client, db = self._client_with_user(7)
 
         with patch(
-            "yuantus.meta_engine.web.eco_router.ECOApprovalService"
+            "yuantus.meta_engine.web.eco_approval_workflow_router.ECOApprovalService"
         ) as MockSvc:
             MockSvc.return_value.auto_assign_stage_approvers.side_effect = (
                 PermissionError(
@@ -573,7 +573,7 @@ class TestHTTPAuthIntegration:
         client, db = self._client_with_user(1)
 
         with patch(
-            "yuantus.meta_engine.web.eco_router.ECOApprovalService"
+            "yuantus.meta_engine.web.eco_approval_workflow_router.ECOApprovalService"
         ) as MockSvc:
             MockSvc.return_value.auto_assign_stage_approvers.return_value = {
                 "assigned": [{"user_id": 10, "username": "alice",
