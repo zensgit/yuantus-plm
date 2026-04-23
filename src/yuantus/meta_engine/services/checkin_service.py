@@ -51,7 +51,7 @@ class _CheckinFileService:
     """
     Minimal file helper for CAD check-in.
 
-    This is intentionally small; the main REST upload flow lives in `file_router`.
+    This is intentionally small; the main REST upload flow lives in `file_storage_router`.
     """
 
     def __init__(self, session: Session):

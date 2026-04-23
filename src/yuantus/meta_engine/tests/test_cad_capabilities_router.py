@@ -13,7 +13,6 @@ from yuantus.meta_engine.services.cad_backend_profile_service import (
 )
 from yuantus.meta_engine.web.cad_backend_profile_router import cad_backend_profile_router
 from yuantus.meta_engine.web.file_conversion_router import file_conversion_router
-from yuantus.meta_engine.web.file_router import file_router
 
 
 def _cad_client() -> TestClient:
@@ -42,7 +41,6 @@ def _file_client() -> TestClient:
 
     app = FastAPI()
     app.include_router(file_conversion_router, prefix="/api/v1")
-    app.include_router(file_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     return TestClient(app)
 

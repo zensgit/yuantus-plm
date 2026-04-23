@@ -80,18 +80,16 @@ def test_legacy_file_router_no_longer_declares_attachment_routes() -> None:
     assert leaked == []
 
 
-def test_file_attachment_router_registered_after_storage_before_metadata_and_legacy() -> None:
+def test_file_attachment_router_registered_after_storage_before_metadata() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
     storage_pos = text.find("app.include_router(file_storage_router")
     attachment_pos = text.find("app.include_router(file_attachment_router")
     metadata_pos = text.find("app.include_router(file_metadata_router")
-    legacy_pos = text.find("app.include_router(file_router")
     assert storage_pos != -1
     assert attachment_pos != -1
     assert metadata_pos != -1
-    assert legacy_pos != -1
-    assert storage_pos < attachment_pos < metadata_pos < legacy_pos
+    assert storage_pos < attachment_pos < metadata_pos
 
 
 def test_file_attachment_routes_preserve_file_management_tag() -> None:
