@@ -344,6 +344,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_eco_core_router_contracts.py \
             src/yuantus/meta_engine/tests/test_eco_impact_apply_router_contracts.py \
             src/yuantus/meta_engine/tests/test_eco_lifecycle_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_eco_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_eco_stage_router_contracts.py \
             src/yuantus/meta_engine/tests/test_file_attachment_router_contracts.py \
             src/yuantus/meta_engine/tests/test_file_conversion_router_contracts.py \
