@@ -58,7 +58,6 @@ from yuantus.meta_engine.web.effectivity_router import effectivity_router
 from yuantus.meta_engine.web.file_attachment_router import file_attachment_router
 from yuantus.meta_engine.web.file_conversion_router import file_conversion_router
 from yuantus.meta_engine.web.file_metadata_router import file_metadata_router
-from yuantus.meta_engine.web.file_router import file_router
 from yuantus.meta_engine.web.file_storage_router import file_storage_router
 from yuantus.meta_engine.web.file_viewer_router import file_viewer_router
 from yuantus.meta_engine.web.esign_router import esign_router
@@ -226,7 +225,6 @@ def create_app() -> FastAPI:
     app.include_router(file_storage_router, prefix="/api/v1")
     app.include_router(file_attachment_router, prefix="/api/v1")
     app.include_router(file_metadata_router, prefix="/api/v1")
-    app.include_router(file_router, prefix="/api/v1")
     app.include_router(esign_router, prefix="/api/v1")
     app.include_router(version_router, prefix="/api/v1")
     app.include_router(mbom_router, prefix="/api/v1")

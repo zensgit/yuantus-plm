@@ -80,18 +80,18 @@ def test_legacy_file_router_no_longer_declares_storage_routes() -> None:
     assert leaked == []
 
 
-def test_file_storage_router_registered_between_viewer_and_legacy_file_router() -> None:
+def test_file_storage_router_registered_between_viewer_and_attachment_router() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
     conversion_pos = text.find("app.include_router(file_conversion_router")
     viewer_pos = text.find("app.include_router(file_viewer_router")
     storage_pos = text.find("app.include_router(file_storage_router")
-    legacy_pos = text.find("app.include_router(file_router")
+    attachment_pos = text.find("app.include_router(file_attachment_router")
     assert conversion_pos != -1
     assert viewer_pos != -1
     assert storage_pos != -1
-    assert legacy_pos != -1
-    assert conversion_pos < viewer_pos < storage_pos < legacy_pos
+    assert attachment_pos != -1
+    assert conversion_pos < viewer_pos < storage_pos < attachment_pos
 
 
 def test_file_storage_routes_preserve_file_management_tag() -> None:
