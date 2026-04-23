@@ -89,11 +89,11 @@ def test_impact_apply_router_registered_after_workflow_before_legacy_router() ->
     text = app_py.read_text(encoding="utf-8")
     workflow_pos = text.find("app.include_router(eco_approval_workflow_router")
     impact_pos = text.find("app.include_router(eco_impact_apply_router")
-    legacy_pos = text.find("app.include_router(eco_router")
+    core_pos = text.find("app.include_router(eco_core_router")
     assert workflow_pos != -1
     assert impact_pos != -1
-    assert legacy_pos != -1
-    assert workflow_pos < impact_pos < legacy_pos
+    assert core_pos != -1
+    assert workflow_pos < impact_pos < core_pos
 
 
 def test_impact_apply_routes_preserve_eco_tag() -> None:

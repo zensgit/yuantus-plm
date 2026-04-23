@@ -82,11 +82,11 @@ def test_eco_stage_router_registered_after_approval_ops_before_legacy_eco_router
     text = app_py.read_text(encoding="utf-8")
     ops_pos = text.find("app.include_router(eco_approval_ops_router")
     stage_pos = text.find("app.include_router(eco_stage_router")
-    legacy_pos = text.find("app.include_router(eco_router")
+    core_pos = text.find("app.include_router(eco_core_router")
     assert ops_pos != -1
     assert stage_pos != -1
-    assert legacy_pos != -1
-    assert ops_pos < stage_pos < legacy_pos
+    assert core_pos != -1
+    assert ops_pos < stage_pos < core_pos
 
 
 def test_eco_stage_routes_preserve_eco_tag() -> None:
