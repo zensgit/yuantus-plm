@@ -6,7 +6,7 @@ Status update: 2026-04-23
 
 ## 1. Current State
 
-Current `main` is synced through PR #375.
+Current `main` is synced through PR #379.
 
 - CAD router decomposition R1-R12 is complete.
 - `cad_router.py` is now a zero-route compatibility shell.
@@ -15,6 +15,8 @@ Current `main` is synced through PR #375.
 - `bom_router.py` is now a zero-route compatibility shell.
 - BOM route families are split across compare, tree, children, obsolete/rollup, where-used, and substitutes routers.
 - The Odoo18 gap cycle §一.1-§一.6 backend scope is closed by the existing closeout documents.
+- `CadImportService` extraction is complete; `cad_import_router.py` is now HTTP-facing glue over the service.
+- Scheduler production decision gate is complete; scheduler is in `default-off maintenance` until a real pilot owner, pilot environment, and operations commitment appear.
 - Local-only `.claude/` and `local-dev-env/` remain untracked and must not be committed.
 
 ## 2. Next Priorities
@@ -120,6 +122,8 @@ Implementation closeout:
 
 ### P4: Scheduler Production Decision Gate
 
+Status: complete.
+
 Goal: make an explicit go / no-go decision on scheduler production enablement, instead of continuing to write enablement plans.
 
 This replaces the previous "enablement plan" framing. The prior framing risked "planning about planning" — producing more documentation without ever converging to a production trigger.
@@ -135,9 +139,15 @@ Constraints during the decision period:
 - Treat shared-dev 142 as readonly / no-op unless explicitly authorized.
 - Do not enable production scheduler in the decision gate PR.
 
-Suggested output:
+Completed output:
 
-`docs/DEV_AND_VERIFICATION_SCHEDULER_PRODUCTION_DECISION_GATE_20260422.md`
+- `docs/DEV_AND_VERIFICATION_SCHEDULER_PRODUCTION_DECISION_GATE_20260423.md`
+
+Decision:
+
+- `NO-GO` for production scheduler rehearsal now.
+- Scheduler remains `default-off maintenance`.
+- Reopen only when a named pilot owner, approved pilot environment, and operations monitoring / rollback commitment are all present.
 
 ## 3. External Signal Collection
 
@@ -171,7 +181,7 @@ Suggested output:
 2. Backlog triage decision table (P0.5).
 3. External signal collection summary (parallel to step 2).
 4. BOM router decomposition closeout validation (P1 closeout).
-5. Scheduler production decision gate (P4; its outcome is conditional on steps 2 and 3).
+5. Scheduler production decision gate (P4; complete).
 
 ## 5. Fixed PR Requirements
 
