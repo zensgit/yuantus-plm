@@ -12,6 +12,7 @@ from yuantus.meta_engine.services.latest_released_guard import NotLatestReleased
 from yuantus.meta_engine.services.suspended_guard import SuspendedStateError
 from yuantus.meta_engine.web.bom_children_router import bom_children_router
 from yuantus.meta_engine.web.bom_router import bom_router
+from yuantus.meta_engine.web.bom_substitutes_router import bom_substitutes_router
 from yuantus.meta_engine.web.effectivity_router import effectivity_router
 from yuantus.meta_engine.web import router as meta_router_module
 
@@ -31,6 +32,7 @@ def _current_user() -> CurrentUser:
 def _client_with_db(db) -> TestClient:
     app = FastAPI()
     app.include_router(bom_children_router, prefix="/api/v1")
+    app.include_router(bom_substitutes_router, prefix="/api/v1")
     app.include_router(bom_router, prefix="/api/v1")
     app.include_router(effectivity_router, prefix="/api/v1")
     app.include_router(meta_router_module.meta_router, prefix="/api/v1")
@@ -72,11 +74,11 @@ def test_bom_add_substitute_maps_not_latest_released_to_409() -> None:
     }.get(item_id)
     client = _client_with_db(db)
 
-    with patch("yuantus.meta_engine.web.bom_router.MetaPermissionService") as perm_cls, patch(
-        "yuantus.meta_engine.web.bom_router.is_item_locked",
+    with patch("yuantus.meta_engine.web.bom_substitutes_router.MetaPermissionService") as perm_cls, patch(
+        "yuantus.meta_engine.web.bom_substitutes_router.is_item_locked",
         return_value=(False, None),
     ), patch(
-        "yuantus.meta_engine.web.bom_router.SubstituteService.add_substitute",
+        "yuantus.meta_engine.web.bom_substitutes_router.SubstituteService.add_substitute",
         side_effect=NotLatestReleasedError(reason="not_latest_released", target_id="sub-1"),
     ):
         perm_cls.return_value.check_permission.return_value = True
@@ -172,11 +174,11 @@ def test_bom_add_substitute_maps_suspended_state_to_409() -> None:
     }.get(item_id)
     client = _client_with_db(db)
 
-    with patch("yuantus.meta_engine.web.bom_router.MetaPermissionService") as perm_cls, patch(
-        "yuantus.meta_engine.web.bom_router.is_item_locked",
+    with patch("yuantus.meta_engine.web.bom_substitutes_router.MetaPermissionService") as perm_cls, patch(
+        "yuantus.meta_engine.web.bom_substitutes_router.is_item_locked",
         return_value=(False, None),
     ), patch(
-        "yuantus.meta_engine.web.bom_router.SubstituteService.add_substitute",
+        "yuantus.meta_engine.web.bom_substitutes_router.SubstituteService.add_substitute",
         side_effect=SuspendedStateError(reason="target_suspended", target_id="sub-1"),
     ):
         perm_cls.return_value.check_permission.return_value = True
