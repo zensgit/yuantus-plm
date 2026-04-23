@@ -3,7 +3,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from yuantus.meta_engine.manufacturing.mbom_service import MBOMService
+from yuantus.meta_engine.manufacturing.mbom_service import (
+    MBOMService,
+    _item_uom_bucket_key,
+    _normalize_item_uom_bucket,
+)
 from yuantus.meta_engine.manufacturing.models import Operation
 from yuantus.meta_engine.manufacturing.routing_service import RoutingService
 
@@ -101,6 +105,164 @@ def test_transform_ebom_to_mbom_rules():
     sub = next(child for child in children if child["item"]["id"] == "SUB")
     assert sub["quantity"] == pytest.approx(4)
     assert sub["make_buy"] == "buy"
+
+
+def test_item_uom_bucket_key_normalizes_uom():
+    assert _item_uom_bucket_key("CHILD", " mm ") == "CHILD::MM"
+    assert _item_uom_bucket_key(" CHILD ", None) == "CHILD::EA"
+    assert _item_uom_bucket_key("", "EA") is None
+    assert _item_uom_bucket_key(None, "EA") is None
+
+
+def test_normalize_item_uom_bucket_normalizes_config_text():
+    assert _normalize_item_uom_bucket(" CHILD :: mm ") == "CHILD::MM"
+    assert _normalize_item_uom_bucket("CHILD") == "CHILD::EA"
+    assert _normalize_item_uom_bucket("") is None
+    assert _normalize_item_uom_bucket(None) is None
+
+
+def test_transform_rules_exclude_item_uom_bucket_only():
+    service = MBOMService(MagicMock())
+    ebom = {
+        "item": {"id": "PARENT", "properties": {}},
+        "children": [
+            {
+                "relationship": {"id": "rel-ea", "properties": {"quantity": 2, "uom": "EA"}},
+                "child": {"item": {"id": "CHILD", "properties": {}}},
+            },
+            {
+                "relationship": {"id": "rel-mm", "properties": {"quantity": 3, "uom": " mm "}},
+                "child": {"item": {"id": "CHILD", "properties": {}}},
+            },
+        ],
+    }
+
+    result = service._transform_ebom_to_mbom(
+        ebom,
+        {"exclude_item_uom_buckets": ["CHILD::MM"]},
+    )
+
+    children = result.get("children") or []
+    assert len(children) == 1
+    assert children[0]["item"]["id"] == "CHILD"
+    assert children[0]["unit"] == "EA"
+    assert children[0]["quantity"] == pytest.approx(2)
+
+
+def test_transform_rules_substitute_item_uom_bucket_only():
+    session = MagicMock()
+    substitute_item = MagicMock()
+    substitute_item.to_dict.return_value = {
+        "id": "SUB-MM",
+        "properties": {"make_buy": "buy"},
+    }
+    session.get.side_effect = lambda _model, item_id: (
+        substitute_item if item_id == "SUB-MM" else None
+    )
+    service = MBOMService(session)
+    ebom = {
+        "item": {"id": "PARENT", "properties": {}},
+        "children": [
+            {
+                "relationship": {"id": "rel-ea", "properties": {"quantity": 2, "uom": "EA"}},
+                "child": {"item": {"id": "CHILD", "properties": {"make_buy": "make"}}},
+            },
+            {
+                "relationship": {"id": "rel-mm", "properties": {"quantity": 3, "uom": "MM"}},
+                "child": {"item": {"id": "CHILD", "properties": {"make_buy": "make"}}},
+            },
+        ],
+    }
+
+    result = service._transform_ebom_to_mbom(
+        ebom,
+        {"substitute_item_uom_buckets": {"CHILD::MM": "SUB-MM"}},
+    )
+
+    children = result.get("children") or []
+    by_unit = {child["unit"]: child for child in children}
+    assert by_unit["EA"]["make_buy"] == "make"
+    assert by_unit["MM"]["make_buy"] == "buy"
+    session.get.assert_called_once()
+
+
+def test_transform_rules_normalize_configured_item_uom_bucket_text():
+    service = MBOMService(MagicMock())
+    ebom = {
+        "item": {"id": "PARENT", "properties": {}},
+        "children": [
+            {
+                "relationship": {"id": "rel-ea", "properties": {"quantity": 2, "uom": "EA"}},
+                "child": {"item": {"id": "CHILD", "properties": {}}},
+            },
+            {
+                "relationship": {"id": "rel-mm", "properties": {"quantity": 3, "uom": "MM"}},
+                "child": {"item": {"id": "CHILD", "properties": {}}},
+            },
+        ],
+    }
+
+    result = service._transform_ebom_to_mbom(
+        ebom,
+        {"exclude_item_uom_buckets": [" CHILD :: mm "]},
+    )
+
+    children = result.get("children") or []
+    assert len(children) == 1
+    assert children[0]["unit"] == "EA"
+
+
+def test_transform_rules_uom_bucket_substitute_overrides_legacy_substitute():
+    session = MagicMock()
+    sub_legacy = MagicMock()
+    sub_legacy.to_dict.return_value = {
+        "id": "SUB-LEGACY",
+        "properties": {"make_buy": "buy"},
+    }
+    sub_mm = MagicMock()
+    sub_mm.to_dict.return_value = {
+        "id": "SUB-MM",
+        "properties": {"make_buy": "buy-mm"},
+    }
+
+    def _get(_model, item_id):
+        return {
+            "SUB-LEGACY": sub_legacy,
+            "SUB-MM": sub_mm,
+        }.get(item_id)
+
+    session.get.side_effect = _get
+    service = MBOMService(session)
+    ebom = {
+        "item": {"id": "PARENT", "properties": {}},
+        "children": [
+            {
+                "relationship": {"id": "rel-ea", "properties": {"quantity": 2, "uom": "EA"}},
+                "child": {"item": {"id": "CHILD", "properties": {"make_buy": "make"}}},
+            },
+            {
+                "relationship": {"id": "rel-mm", "properties": {"quantity": 3, "uom": "MM"}},
+                "child": {"item": {"id": "CHILD", "properties": {"make_buy": "make"}}},
+            },
+        ],
+    }
+
+    result = service._transform_ebom_to_mbom(
+        ebom,
+        {
+            "substitute_items": {"CHILD": "SUB-LEGACY"},
+            "substitute_item_uom_buckets": {"CHILD::MM": "SUB-MM"},
+        },
+    )
+
+    children = result.get("children") or []
+    by_unit = {child["unit"]: child for child in children}
+    assert by_unit["EA"]["make_buy"] == "buy"
+    assert by_unit["MM"]["make_buy"] == "buy-mm"
+    assert [call.args[1] for call in session.get.call_args_list] == [
+        "SUB-LEGACY",
+        "SUB-MM",
+    ]
 
 
 def test_compare_ebom_mbom_keeps_same_item_different_uom_separate():
