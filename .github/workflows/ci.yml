@@ -115,7 +115,7 @@ jobs:
                 run_contracts="true"
                 reason_contracts="${reason_contracts:-matched workflow/perf config: ${f}}"
                 ;;
-              contracts/pacts/*.json|src/yuantus/api/tests/test_pact_provider_yuantus_plm.py|src/yuantus/meta_engine/tests/test_ci_contracts_pact_provider_gate.py|src/yuantus/meta_engine/web/cad_backend_profile_router.py|src/yuantus/meta_engine/web/cad_checkin_router.py|src/yuantus/meta_engine/web/cad_connectors_router.py|src/yuantus/meta_engine/web/cad_diff_router.py|src/yuantus/meta_engine/web/cad_file_data_router.py|src/yuantus/meta_engine/web/cad_history_router.py|src/yuantus/meta_engine/web/cad_import_router.py|src/yuantus/meta_engine/web/cad_mesh_stats_router.py|src/yuantus/meta_engine/web/cad_properties_router.py|src/yuantus/meta_engine/web/cad_review_router.py|src/yuantus/meta_engine/web/cad_router.py|src/yuantus/meta_engine/web/cad_sync_template_router.py|src/yuantus/meta_engine/web/cad_view_state_router.py|src/yuantus/meta_engine/web/file_conversion_router.py|src/yuantus/meta_engine/web/file_storage_router.py|src/yuantus/meta_engine/web/file_viewer_router.py|src/yuantus/web/cad_review.html)
+              contracts/pacts/*.json|src/yuantus/api/tests/test_pact_provider_yuantus_plm.py|src/yuantus/meta_engine/tests/test_ci_contracts_pact_provider_gate.py|src/yuantus/meta_engine/web/cad_backend_profile_router.py|src/yuantus/meta_engine/web/cad_checkin_router.py|src/yuantus/meta_engine/web/cad_connectors_router.py|src/yuantus/meta_engine/web/cad_diff_router.py|src/yuantus/meta_engine/web/cad_file_data_router.py|src/yuantus/meta_engine/web/cad_history_router.py|src/yuantus/meta_engine/web/cad_import_router.py|src/yuantus/meta_engine/web/cad_mesh_stats_router.py|src/yuantus/meta_engine/web/cad_properties_router.py|src/yuantus/meta_engine/web/cad_review_router.py|src/yuantus/meta_engine/web/cad_router.py|src/yuantus/meta_engine/web/cad_sync_template_router.py|src/yuantus/meta_engine/web/cad_view_state_router.py|src/yuantus/meta_engine/web/file_attachment_router.py|src/yuantus/meta_engine/web/file_conversion_router.py|src/yuantus/meta_engine/web/file_metadata_router.py|src/yuantus/meta_engine/web/file_storage_router.py|src/yuantus/meta_engine/web/file_viewer_router.py|src/yuantus/web/cad_review.html)
                 run_contracts="true"
                 reason_contracts="${reason_contracts:-matched pact/provider surface: ${f}}"
                 ;;
@@ -338,7 +338,9 @@ jobs:
             src/yuantus/meta_engine/tests/test_delivery_scripts_index_native_workspace_playwright_contracts.py \
             src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
             src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py \
+            src/yuantus/meta_engine/tests/test_file_attachment_router_contracts.py \
             src/yuantus/meta_engine/tests/test_file_conversion_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_file_metadata_router_contracts.py \
             src/yuantus/meta_engine/tests/test_file_storage_router_contracts.py \
             src/yuantus/meta_engine/tests/test_file_viewer_router_contracts.py \
             src/yuantus/meta_engine/tests/test_graphql_item_number_alias_contracts.py \
