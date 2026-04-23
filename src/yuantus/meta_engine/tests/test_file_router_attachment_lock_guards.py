@@ -1,16 +1,23 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.models.file import FileContainer, ItemFile
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.meta_schema import ItemType
 from yuantus.meta_engine.version.file_service import VersionFileError
 from yuantus.meta_engine.version.models import ItemVersion
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _client_with_state(

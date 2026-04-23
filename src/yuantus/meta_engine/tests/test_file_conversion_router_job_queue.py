@@ -3,16 +3,24 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
+from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.models.file import FileContainer
 from yuantus.meta_engine.models.job import ConversionJob as MetaConversionJob
-from yuantus.meta_engine.web.file_router import (
+from yuantus.meta_engine.web.file_conversion_router import (
     _PREVIEW_FORMATS,
     _meta_job_to_response,
 )
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    """These tests override router dependencies; middleware auth is out of scope."""
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _make_file(file_id: str = "fc-1", *, is_cad: bool = True):
@@ -107,7 +115,7 @@ def test_request_conversion_queues_geometry_job_via_job_service():
     client, _ = _client(file_container=_make_file())
     queued = _meta_job("meta-1", task_type="cad_geometry", target_format="gltf")
 
-    with patch("yuantus.meta_engine.web.file_router.JobService") as mock_service:
+    with patch("yuantus.meta_engine.web.file_conversion_router.JobService") as mock_service:
         mock_service.return_value.create_job.return_value = queued
         resp = client.post("/api/v1/file/fc-1/convert?target_format=gltf")
 
@@ -125,7 +133,7 @@ def test_request_conversion_queues_preview_job_for_png():
     client, _ = _client(file_container=_make_file())
     queued = _meta_job("meta-prev", task_type="cad_preview", target_format="png")
 
-    with patch("yuantus.meta_engine.web.file_router.JobService") as mock_service:
+    with patch("yuantus.meta_engine.web.file_conversion_router.JobService") as mock_service:
         mock_service.return_value.create_job.return_value = queued
         resp = client.post("/api/v1/file/fc-1/convert?target_format=png")
 
@@ -184,8 +192,8 @@ def test_process_pending_conversions_delegates_to_filtered_worker():
     fake_worker.worker_id = "file-router-conversions"
     fake_worker._execute_job.side_effect = execute_side_effect
 
-    with patch("yuantus.meta_engine.web.file_router.JobService") as mock_service, patch(
-        "yuantus.meta_engine.web.file_router._build_conversion_job_worker",
+    with patch("yuantus.meta_engine.web.file_conversion_router.JobService") as mock_service, patch(
+        "yuantus.meta_engine.web.file_conversion_router._build_conversion_job_worker",
         return_value=fake_worker,
     ):
         svc = mock_service.return_value
@@ -209,7 +217,7 @@ def test_process_cad_legacy_sets_deprecation_headers_and_queues_job():
     client, _ = _client(file_container=_make_file())
     queued = _meta_job("legacy-meta", task_type="cad_geometry", target_format="gltf")
 
-    with patch("yuantus.meta_engine.web.file_router.JobService") as mock_service:
+    with patch("yuantus.meta_engine.web.file_conversion_router.JobService") as mock_service:
         mock_service.return_value.create_job.return_value = queued
         resp = client.post(
             "/api/v1/file/process_cad",

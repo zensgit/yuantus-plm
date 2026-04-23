@@ -55,6 +55,7 @@ from yuantus.meta_engine.web.app_router import app_router
 from yuantus.meta_engine.web.change_router import change_router
 from yuantus.meta_engine.web.equivalent_router import equivalent_router
 from yuantus.meta_engine.web.effectivity_router import effectivity_router
+from yuantus.meta_engine.web.file_conversion_router import file_conversion_router
 from yuantus.meta_engine.web.file_router import file_router
 from yuantus.meta_engine.web.esign_router import esign_router
 from yuantus.meta_engine.web.permission_router import permission_router
@@ -216,6 +217,7 @@ def create_app() -> FastAPI:
     app.include_router(release_readiness_router, prefix="/api/v1")
     app.include_router(release_orchestration_router, prefix="/api/v1")
     app.include_router(ui_router, prefix="/api/v1")
+    app.include_router(file_conversion_router, prefix="/api/v1")
     app.include_router(file_router, prefix="/api/v1")
     app.include_router(esign_router, prefix="/api/v1")
     app.include_router(version_router, prefix="/api/v1")
