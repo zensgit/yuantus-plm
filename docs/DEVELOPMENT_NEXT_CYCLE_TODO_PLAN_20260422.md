@@ -2,13 +2,18 @@
 
 Date: 2026-04-22
 
+Status update: 2026-04-23
+
 ## 1. Current State
 
-Current `main` is synced through PR #364.
+Current `main` is synced through PR #375.
 
 - CAD router decomposition R1-R12 is complete.
 - `cad_router.py` is now a zero-route compatibility shell.
 - `cad_import_router.py` owns `POST /api/v1/cad/import`.
+- BOM router decomposition R1-R6 is complete.
+- `bom_router.py` is now a zero-route compatibility shell.
+- BOM route families are split across compare, tree, children, obsolete/rollup, where-used, and substitutes routers.
 - The Odoo18 gap cycle §一.1-§一.6 backend scope is closed by the existing closeout documents.
 - Local-only `.claude/` and `local-dev-env/` remain untracked and must not be committed.
 
@@ -52,23 +57,22 @@ Suggested output:
 
 ### P1: BOM Router Decomposition Taskbook
 
-Goal: start §二 architecture reduction with the next high-value router hotspot.
+Status: complete.
 
-Current hotspot:
+Completed output:
 
-- `bom_router.py` is about 2146 LOC.
-- Responsibilities are mixed across tree/explode, compare, where-used, import, and effectivity.
+- R1 compare split: PR #369.
+- R2 tree/effective/version/convert split: PR #371.
+- R3 children add/remove split: PR #372.
+- R4 obsolete/rollup split: PR #373.
+- R5 where-used split: PR #374.
+- R6 substitutes split: PR #375.
 
-Recommended first slice:
+Closeout:
 
-- Write a taskbook before moving code.
-- Split BOM compare first.
-- Add route ownership contracts.
-- Preserve public API paths.
+- `docs/DEV_AND_VERIFICATION_BOM_ROUTER_DECOMPOSITION_CLOSEOUT_20260423.md`
 
-Suggested taskbook:
-
-`docs/DEVELOPMENT_CLAUDE_TASK_BOM_ROUTER_DECOMPOSITION_20260422.md`
+No further BOM router slices are planned unless a new route family is added later.
 
 ### P2: UOM Transformation Rules Granularity
 
@@ -154,11 +158,10 @@ Suggested output:
 1. `POST_CAD_ROUTER_DECOMPOSITION_CLOSEOUT` documentation and validation (P0).
 2. Backlog triage decision table (P0.5).
 3. External signal collection summary (parallel to step 2).
-4. `BOM_ROUTER_DECOMPOSITION_TASKBOOK` (P1).
-5. BOM compare split as the first BOM router implementation slice (P1 first slice).
-6. UOM transformation rules taskbook (P2).
-7. CadImportService extraction taskbook (P3).
-8. Scheduler production decision gate (P4; its outcome is conditional on steps 2 and 3).
+4. BOM router decomposition closeout validation (P1 closeout).
+5. UOM transformation rules taskbook (P2).
+6. CadImportService extraction taskbook (P3).
+7. Scheduler production decision gate (P4; its outcome is conditional on steps 2 and 3).
 
 ## 5. Fixed PR Requirements
 
