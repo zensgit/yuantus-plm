@@ -38,7 +38,7 @@ def site_audit(
     try:
         return service.site_audit(site_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_replay_audit_router.get("/jobs/{job_id}/audit")
@@ -51,7 +51,7 @@ def job_audit(
     try:
         return service.job_audit(job_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_replay_audit_router.get("/export/audit")

@@ -10,10 +10,26 @@ from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.database import get_db
-from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.api.dependencies.auth import (
+    CurrentUser,
+    get_current_user_id_optional,
+    require_admin_user,
+)
 from yuantus.meta_engine.web.approval_category_router import approval_category_router
 from yuantus.meta_engine.web.approval_request_router import approval_request_router
 from yuantus.meta_engine.web.approval_ops_router import approval_ops_router
+
+
+def _admin_user() -> CurrentUser:
+    return CurrentUser(
+        id=1,
+        tenant_id="tenant-1",
+        org_id="org-1",
+        username="admin",
+        email="admin@example.com",
+        roles=["admin"],
+        is_superuser=True,
+    )
 
 
 def _client_with_db():
@@ -31,6 +47,7 @@ def _client_with_db():
     app.include_router(approval_ops_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = lambda: None
+    app.dependency_overrides[require_admin_user] = _admin_user
     return TestClient(app), mock_db_session
 
 

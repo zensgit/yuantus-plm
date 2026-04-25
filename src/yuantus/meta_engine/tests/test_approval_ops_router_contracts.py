@@ -67,7 +67,6 @@ def test_approval_ops_router_registered() -> None:
     text = app_py.read_text(encoding="utf-8")
     split_pos = text.find("app.include_router(approval_ops_router")
     assert split_pos != -1
-    assert split_pos != -1
 
 
 def test_each_moved_path_is_registered_exactly_once() -> None:

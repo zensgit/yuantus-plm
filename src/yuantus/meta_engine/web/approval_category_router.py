@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from yuantus.api.dependencies.auth import CurrentUser, require_admin_user
 from yuantus.database import get_db
 from yuantus.meta_engine.approvals.service import ApprovalService
 
@@ -30,8 +31,9 @@ def _category_dict(c) -> dict:
 
 
 @approval_category_router.post("/categories")
-async def create_approval_category(
+def create_approval_category(
     req: ApprovalCategoryCreateRequest,
+    _: CurrentUser = Depends(require_admin_user),
     db: Session = Depends(get_db),
 ):
     svc = ApprovalService(db)
@@ -43,7 +45,7 @@ async def create_approval_category(
 
 
 @approval_category_router.get("/categories")
-async def list_approval_categories(db: Session = Depends(get_db)):
+def list_approval_categories(db: Session = Depends(get_db)):
     svc = ApprovalService(db)
     cats = svc.list_categories()
     return {"total": len(cats), "categories": [_category_dict(c) for c in cats]}

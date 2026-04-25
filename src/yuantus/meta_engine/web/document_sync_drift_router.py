@@ -42,7 +42,7 @@ def site_snapshots(
 
 
 @document_sync_drift_router.get("/jobs/{job_id}/drift")
-def job_drift_endpoint(
+def job_drift(
     job_id: str,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
