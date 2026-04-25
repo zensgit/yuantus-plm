@@ -16,7 +16,6 @@ from yuantus.meta_engine.web.box_custody_router import box_custody_router
 from yuantus.meta_engine.web.box_ops_router import box_ops_router
 from yuantus.meta_engine.web.box_policy_router import box_policy_router
 from yuantus.meta_engine.web.box_reconciliation_router import box_reconciliation_router
-from yuantus.meta_engine.web.box_router import box_router
 from yuantus.meta_engine.web.box_traceability_router import box_traceability_router
 from yuantus.meta_engine.web.box_turnover_router import box_turnover_router
 
@@ -39,7 +38,6 @@ def _make_app():
     app.include_router(box_custody_router, prefix="/api/v1")
     app.include_router(box_turnover_router, prefix="/api/v1")
     app.include_router(box_aging_router, prefix="/api/v1")
-    app.include_router(box_router, prefix="/api/v1")
     return app
 
 
