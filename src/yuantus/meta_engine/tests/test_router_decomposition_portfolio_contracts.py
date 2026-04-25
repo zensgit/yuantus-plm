@@ -83,7 +83,7 @@ LEGACY_ROUTER_STATES = {
     },
     "report_router.py": {
         "legacy_module": "yuantus.meta_engine.web.report_router",
-        "registered": True,
+        "registered": False,
         "include_token": "app.include_router(report_router",
         "import_token": "from yuantus.meta_engine.web.report_router import report_router",
     },

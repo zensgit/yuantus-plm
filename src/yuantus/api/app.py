@@ -154,7 +154,6 @@ from yuantus.meta_engine.web.report_definition_router import (
 from yuantus.meta_engine.web.report_dashboard_router import (
     report_dashboard_router,
 )
-from yuantus.meta_engine.web.report_router import report_router
 from yuantus.meta_engine.web.query_router import query_router
 from yuantus.meta_engine.web.rpc_router import rpc_router
 from yuantus.meta_engine.web.router import meta_router
@@ -384,7 +383,6 @@ def create_app() -> FastAPI:
     app.include_router(report_summary_search_router, prefix="/api/v1")
     app.include_router(report_definition_router, prefix="/api/v1")
     app.include_router(report_dashboard_router, prefix="/api/v1")
-    app.include_router(report_router, prefix="/api/v1")
     app.include_router(eco_approval_ops_router, prefix="/api/v1")
     app.include_router(eco_stage_router, prefix="/api/v1")
     app.include_router(eco_approval_workflow_router, prefix="/api/v1")
