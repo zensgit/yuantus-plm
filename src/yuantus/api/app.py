@@ -191,7 +191,6 @@ from yuantus.meta_engine.web.subcontracting_analytics_router import (
 from yuantus.meta_engine.web.subcontracting_approval_mapping_router import (
     subcontracting_approval_mapping_router,
 )
-from yuantus.meta_engine.web.subcontracting_router import subcontracting_router
 from yuantus.meta_engine.web.ui_router import ui_router
 from yuantus.meta_engine.web.version_effectivity_router import version_effectivity_router
 from yuantus.meta_engine.web.version_file_router import version_file_router
@@ -413,7 +412,6 @@ def create_app() -> FastAPI:
     app.include_router(subcontracting_orders_router, prefix="/api/v1")
     app.include_router(subcontracting_analytics_router, prefix="/api/v1")
     app.include_router(subcontracting_approval_mapping_router, prefix="/api/v1")
-    app.include_router(subcontracting_router, prefix="/api/v1")
 
     return app
 

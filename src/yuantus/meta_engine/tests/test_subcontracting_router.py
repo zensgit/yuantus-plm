@@ -19,7 +19,6 @@ from yuantus.meta_engine.web.subcontracting_approval_mapping_router import (
 from yuantus.meta_engine.web.subcontracting_orders_router import (
     subcontracting_orders_router,
 )
-from yuantus.meta_engine.web.subcontracting_router import subcontracting_router
 
 
 def _client_with_db():
@@ -35,7 +34,6 @@ def _client_with_db():
     app.include_router(subcontracting_orders_router, prefix="/api/v1")
     app.include_router(subcontracting_analytics_router, prefix="/api/v1")
     app.include_router(subcontracting_approval_mapping_router, prefix="/api/v1")
-    app.include_router(subcontracting_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = lambda: None
     return TestClient(app), mock_db_session
