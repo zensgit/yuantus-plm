@@ -59,7 +59,7 @@ LEGACY_ROUTER_STATES = {
     },
     "maintenance_router.py": {
         "legacy_module": "yuantus.meta_engine.web.maintenance_router",
-        "registered": True,
+        "registered": False,
         "include_token": "app.include_router(maintenance_router",
         "import_token": "from yuantus.meta_engine.web.maintenance_router import maintenance_router",
     },

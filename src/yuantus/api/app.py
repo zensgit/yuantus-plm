@@ -176,7 +176,6 @@ from yuantus.meta_engine.web.maintenance_request_router import (
 from yuantus.meta_engine.web.maintenance_schedule_router import (
     maintenance_schedule_router,
 )
-from yuantus.meta_engine.web.maintenance_router import maintenance_router
 from yuantus.meta_engine.web.quality_alerts_router import quality_alerts_router
 from yuantus.meta_engine.web.quality_checks_router import quality_checks_router
 from yuantus.meta_engine.web.quality_points_router import quality_points_router
@@ -404,7 +403,6 @@ def create_app() -> FastAPI:
     app.include_router(maintenance_equipment_router, prefix="/api/v1")
     app.include_router(maintenance_request_router, prefix="/api/v1")
     app.include_router(maintenance_schedule_router, prefix="/api/v1")
-    app.include_router(maintenance_router, prefix="/api/v1")
     app.include_router(quality_points_router, prefix="/api/v1")
     app.include_router(quality_checks_router, prefix="/api/v1")
     app.include_router(quality_alerts_router, prefix="/api/v1")

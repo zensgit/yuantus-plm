@@ -13,7 +13,6 @@ from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.meta_engine.web.maintenance_category_router import maintenance_category_router
 from yuantus.meta_engine.web.maintenance_equipment_router import maintenance_equipment_router
 from yuantus.meta_engine.web.maintenance_request_router import maintenance_request_router
-from yuantus.meta_engine.web.maintenance_router import maintenance_router
 from yuantus.meta_engine.web.maintenance_schedule_router import maintenance_schedule_router
 
 
@@ -31,7 +30,6 @@ def _client_with_db():
     app.include_router(maintenance_equipment_router, prefix="/api/v1")
     app.include_router(maintenance_request_router, prefix="/api/v1")
     app.include_router(maintenance_schedule_router, prefix="/api/v1")
-    app.include_router(maintenance_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = lambda: None
     return TestClient(app), mock_db_session
