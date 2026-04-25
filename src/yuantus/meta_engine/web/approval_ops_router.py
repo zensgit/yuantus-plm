@@ -25,12 +25,22 @@ def _export_response(
             headers={"content-disposition": f'attachment; filename="{stem}.json"'},
         )
     if fmt == "csv":
+        if not isinstance(payload, str):
+            raise HTTPException(
+                status_code=500,
+                detail="Export response for csv requires string payload",
+            )
         return PlainTextResponse(
             content=str(payload),
             media_type="text/csv; charset=utf-8",
             headers={"content-disposition": f'attachment; filename="{stem}.csv"'},
         )
     if fmt == "markdown":
+        if not isinstance(payload, str):
+            raise HTTPException(
+                status_code=500,
+                detail="Export response for markdown requires string payload",
+            )
         return PlainTextResponse(
             content=str(payload),
             media_type="text/markdown; charset=utf-8",
