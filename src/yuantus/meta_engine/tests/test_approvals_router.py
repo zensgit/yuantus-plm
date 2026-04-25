@@ -472,6 +472,98 @@ def test_transition_validation_error():
 
     assert resp.status_code == 400
     assert "Cannot transition" in resp.json()["detail"]
+    assert db.commit.call_count == 0
+    assert db.rollback.call_count == 1
+
+
+def test_request_create_validation_error_rolls_back():
+    client, db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
+        service = svc_cls.return_value
+        service.create_request.side_effect = ValueError("Cannot create request")
+
+        resp = client.post(
+            "/api/v1/approvals/requests",
+            json={"title": "Approve ECO", "entity_type": "eco"},
+        )
+
+    assert resp.status_code == 400
+    assert "Cannot create request" in resp.json()["detail"]
+    assert db.commit.call_count == 0
+    assert db.rollback.call_count == 1
+
+
+def test_category_create_validation_error_rolls_back():
+    client, db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.approval_category_router.ApprovalService") as svc_cls:
+        service = svc_cls.return_value
+        service.create_category.side_effect = ValueError("Cannot create category")
+
+        resp = client.post(
+            "/api/v1/approvals/categories",
+            json={"name": "Category"},
+        )
+
+    assert resp.status_code == 400
+    assert "Cannot create category" in resp.json()["detail"]
+    assert db.commit.call_count == 0
+    assert db.rollback.call_count == 1
+
+
+def test_requests_export_csv_type_violation_returns_500():
+    client, _db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
+        svc_cls.return_value.export_requests.return_value = {"requests": []}
+
+        resp = client.get(
+            "/api/v1/approvals/requests/export",
+            params={"format": "csv", "entity_type": "eco"},
+        )
+
+    assert resp.status_code == 500
+    assert "string payload" in resp.json()["detail"]
+
+
+def test_summary_export_markdown_type_violation_returns_500():
+    client, _db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.approval_ops_router.ApprovalService") as svc_cls:
+        svc_cls.return_value.export_summary.return_value = {"metric": "value"}
+
+        resp = client.get("/api/v1/approvals/summary/export", params={"format": "markdown"})
+
+    assert resp.status_code == 500
+    assert "string payload" in resp.json()["detail"]
+
+
+def test_ops_report_export_csv_type_violation_returns_500():
+    client, _db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.approval_ops_router.ApprovalService") as svc_cls:
+        svc_cls.return_value.export_ops_report.return_value = {"category_coverage": 0.1}
+
+        resp = client.get("/api/v1/approvals/ops-report/export", params={"format": "csv"})
+
+    assert resp.status_code == 500
+    assert "string payload" in resp.json()["detail"]
+
+
+def test_queue_health_export_markdown_type_violation_returns_500():
+    client, _db = _client_with_db()
+
+    with patch("yuantus.meta_engine.web.approval_ops_router.ApprovalService") as svc_cls:
+        svc_cls.return_value.export_queue_health.return_value = {"metric": "value"}
+
+        resp = client.get(
+            "/api/v1/approvals/queue-health/export",
+            params={"format": "markdown"},
+        )
+
+    assert resp.status_code == 500
+    assert "string payload" in resp.json()["detail"]
 
 
 def test_approvals_routes_registered_in_create_app():

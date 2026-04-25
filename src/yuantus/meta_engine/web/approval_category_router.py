@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from yuantus.api.dependencies.auth import CurrentUser, require_admin_user
 from yuantus.database import get_db
 from yuantus.meta_engine.approvals.service import ApprovalService
+from yuantus.meta_engine.web._approval_write_transaction import transactional_write
 
 approval_category_router = APIRouter(prefix="/approvals", tags=["Approvals"])
 
@@ -37,10 +38,10 @@ def create_approval_category(
     db: Session = Depends(get_db),
 ):
     svc = ApprovalService(db)
-    cat = svc.create_category(
-        name=req.name, parent_id=req.parent_id, description=req.description
-    )
-    db.commit()
+    with transactional_write(db):
+        cat = svc.create_category(
+            name=req.name, parent_id=req.parent_id, description=req.description
+        )
     return _category_dict(cat)
 
 

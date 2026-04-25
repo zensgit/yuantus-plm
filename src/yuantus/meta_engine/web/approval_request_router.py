@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.database import get_db
 from yuantus.meta_engine.approvals.service import ApprovalService
+from yuantus.meta_engine.web._approval_write_transaction import transactional_write
 
 approval_request_router = APIRouter(prefix="/approvals", tags=["Approvals"])
 
@@ -73,12 +74,22 @@ def _export_response(
             headers={"content-disposition": f'attachment; filename="{stem}.json"'},
         )
     if fmt == "csv":
+        if not isinstance(payload, str):
+            raise HTTPException(
+                status_code=500,
+                detail="Export response for csv requires string payload",
+            )
         return PlainTextResponse(
             content=str(payload),
             media_type="text/csv; charset=utf-8",
             headers={"content-disposition": f'attachment; filename="{stem}.csv"'},
         )
     if fmt == "markdown":
+        if not isinstance(payload, str):
+            raise HTTPException(
+                status_code=500,
+                detail="Export response for markdown requires string payload",
+            )
         return PlainTextResponse(
             content=str(payload),
             media_type="text/markdown; charset=utf-8",
@@ -120,7 +131,7 @@ async def create_approval_request(
     db: Session = Depends(get_db),
 ):
     svc = ApprovalService(db)
-    try:
+    with transactional_write(db):
         areq = svc.create_request(
             title=req.title,
             category_id=req.category_id,
@@ -132,10 +143,6 @@ async def create_approval_request(
             user_id=user_id,
             properties=req.properties,
         )
-        db.commit()
-    except ValueError as exc:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
     return _request_dict(areq)
 
 
@@ -147,17 +154,13 @@ async def transition_approval_request(
     db: Session = Depends(get_db),
 ):
     svc = ApprovalService(db)
-    try:
+    with transactional_write(db):
         areq = svc.transition_request(
             request_id,
             target_state=req.target_state,
             rejection_reason=req.rejection_reason,
             decided_by_id=user_id,
         )
-        db.commit()
-    except ValueError as exc:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
     return _request_dict(areq)
 
 
