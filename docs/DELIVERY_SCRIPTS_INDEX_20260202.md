@@ -17,6 +17,7 @@
 - verify_compose_sku_profiles.sh
 - verify_compose_sku_profiles_smoke.sh
 - verify_all.sh
+- verify_odoo18_plm_stack.sh
 - verify_package.sh
 - verify_permissions.sh
 - verify_product_detail.sh
@@ -28,6 +29,7 @@
 - verify_playwright_plm_workspace_document_handoff.sh
 - verify_playwright_plm_workspace_eco_actions.sh
 - print_claude_code_parallel_commands.sh
+- print_current_worktree_closeout_commands.sh
 - print_cross_domain_services_split_helper.sh
 - print_delivery_pack_split_helper.sh
 - print_dirty_tree_domain_commands.sh
@@ -93,12 +95,14 @@
 ## Notes
 
 - `verify_all.sh` supports `RUN_CONFIG_VARIANTS=1`, `RUN_DEDUP=1`, `START_DEDUP_STACK=1`, `RUN_OPS_S8=1`, `RUN_UI_PLAYWRIGHT=1`, and `MIGRATE_TENANT_DB=1`.
+- `verify_odoo18_plm_stack.sh` runs the Odoo18 PLM focused smoke suite in `smoke` or `full` mode, supports `--help`, and dynamically compiles top-level `src/yuantus/meta_engine/web/*_router.py` modules.
 - CAD verification scripts support `USE_DOCKER_WORKER=1` to wait for jobs to be processed by a running docker-compose `worker` service (instead of running `yuantus worker --once` locally).
 - `verify_playwright_product_ui_summaries.sh` requires Playwright installed in `node_modules`.
 - Native workspace Playwright wrappers require Playwright installed in `node_modules` and a running API at `http://127.0.0.1:7910`.
 - `verify_compose_sku_profiles.sh` renders the `base`, `collab`, and `combined` overlays and requires a sibling `metasheet2` checkout (or `METASHEET2_ROOT`) for the combined profile.
 - `verify_compose_sku_profiles_smoke.sh` boots one SKU profile, waits for health, and tears the stack down unless `KEEP_UP=1`.
 - `print_claude_code_parallel_commands.sh` prints safe Claude Code CLI templates for read-only, worktree, and reviewer flows.
+- `print_current_worktree_closeout_commands.sh` prints the current worktree closeout split plan and ready-to-copy review/staging command templates, supports `--group`, and excludes local-only artifacts.
 - `print_cross_domain_services_split_helper.sh` prints the fast-path staging commands for the cross-domain-services split.
 - `print_delivery_pack_split_helper.sh` prints the fast-path staging commands for the delivery-pack split.
 - `print_dirty_tree_domain_commands.sh` prints domain-scoped dirty-tree status, staging commands, and split commit plans.
