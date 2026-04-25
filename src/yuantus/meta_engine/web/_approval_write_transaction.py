@@ -14,7 +14,7 @@ def transactional_write(db: Session) -> Iterator[None]:
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception:
         db.rollback()
         raise
