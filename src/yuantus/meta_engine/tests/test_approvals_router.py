@@ -14,7 +14,6 @@ from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.meta_engine.web.approval_category_router import approval_category_router
 from yuantus.meta_engine.web.approval_request_router import approval_request_router
 from yuantus.meta_engine.web.approval_ops_router import approval_ops_router
-from yuantus.meta_engine.web.approvals_router import approvals_router
 
 
 def _client_with_db():
@@ -30,7 +29,6 @@ def _client_with_db():
     app.include_router(approval_category_router, prefix="/api/v1")
     app.include_router(approval_request_router, prefix="/api/v1")
     app.include_router(approval_ops_router, prefix="/api/v1")
-    app.include_router(approvals_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = lambda: None
     return TestClient(app), mock_db_session

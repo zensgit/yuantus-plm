@@ -118,7 +118,6 @@ from yuantus.meta_engine.web.eco_impact_apply_router import eco_impact_apply_rou
 from yuantus.meta_engine.web.eco_lifecycle_router import eco_lifecycle_router
 from yuantus.meta_engine.web.eco_core_router import eco_core_router
 from yuantus.meta_engine.web.eco_stage_router import eco_stage_router
-from yuantus.meta_engine.web.approvals_router import approvals_router
 from yuantus.meta_engine.web.approval_category_router import (
     approval_category_router,
 )
@@ -317,7 +316,6 @@ def create_app() -> FastAPI:
     app.include_router(approval_category_router, prefix="/api/v1")
     app.include_router(approval_request_router, prefix="/api/v1")
     app.include_router(approval_ops_router, prefix="/api/v1")
-    app.include_router(approvals_router, prefix="/api/v1")
     app.include_router(equivalent_router, prefix="/api/v1")
     app.include_router(effectivity_router, prefix="/api/v1")
     app.include_router(baseline_router, prefix="/api/v1")

@@ -8,7 +8,8 @@ This closeout decomposes the generic approvals HTTP surface into 3 specialized r
 - requests
 - ops / reporting / queue-health
 
-Legacy `approvals_router.py` remains imported and registered as an empty compatibility shell.
+`approvals_router.py` is retained as a compatibility shell module, but it is no longer imported or
+registered in production `create_app()` wiring.
 
 ## Runtime Changes
 
@@ -18,11 +19,9 @@ Legacy `approvals_router.py` remains imported and registered as an empty compati
   - Owns all `/api/v1/approvals/requests*` routes
 - `src/yuantus/meta_engine/web/approval_ops_router.py`
   - Owns `/summary*`, `/ops-report*`, `/queue-health*`
-- `src/yuantus/meta_engine/web/approvals_router.py`
-  - Reduced to an empty `APIRouter` shell
 - `src/yuantus/api/app.py`
   - Registers routers in decomposition order:
-    `approval_category_router -> approval_request_router -> approval_ops_router -> approvals_router`
+    `approval_category_router -> approval_request_router -> approval_ops_router`
 
 ## Test Changes
 
@@ -34,9 +33,9 @@ Legacy `approvals_router.py` remains imported and registered as an empty compati
 - Updated `src/yuantus/meta_engine/tests/test_approvals_router.py`
   - behavior coverage kept in one file
   - patch targets moved from `approvals_router` to specialized routers
-  - helper app now includes specialized routers plus the legacy shell
+  - helper app now includes only specialized routers
 - Updated `src/yuantus/meta_engine/tests/test_router_decomposition_portfolio_contracts.py`
-  - adds `approvals_router.py` to the registered-shell inventory
+  - updates `approvals_router.py` to unregistered shell intent in portfolio inventory
   - adds approvals decomposition contracts to portfolio CI surface
 - Updated `.github/workflows/ci.yml`
   - approvals contract tests are part of the contracts job
@@ -73,26 +72,29 @@ git diff --check
 
 - `py_compile` passed for all 4 approvals router modules
 - Approvals-focused regression:
-  - `75 passed in 6.23s`
+  - `75 passed in 6.23s` (historical baseline at closeout generation time)
 - Combined report + approvals regression on the current working tree:
-  - `132 passed in 18.40s`
-- Broad router-contract sweep:
-  - `244 passed in 34.49s`
+  - `132 passed in 18.40s` (historical baseline at closeout generation time)
+- Additional focused regression on 2026-04-25:
+  - `78 passed in 6.01s` (closeout contracts + approvals/router/deployment-index guard slice)
+- Broad router-contract sweep on 2026-04-25:
+  - `402 passed in 61.12s` across `*router*contracts*.py`
 - `git diff --check` passed
 
 ## Final State
 
-- `/api/v1/approvals/*` now resolves through 3 specialized routers plus 1 registered empty shell
+- `/api/v1/approvals/*` now resolves through 3 specialized routers; `approvals_router.py`
+  remains an unregistered compatibility shell
 - Specialized ownership split:
   - `approval_category_router`: 2 routes
   - `approval_request_router`: 9 routes
   - `approval_ops_router`: 6 routes
-  - `approvals_router`: 0 runtime routes
+  - `approvals_router`: 0 runtime routes, unregistered
 
 ## Expected Outcome
 
 - All `/api/v1/approvals/*` runtime routes are owned by specialized routers
-- `approvals_router.py` stays registered intentionally as a zero-handler shell
+- `approvals_router.py` stays as a zero-handler compatibility shell but is intentionally unregistered
 - No public API path or method changes
 - CI and portfolio contracts explicitly pin the new ownership map
 

@@ -17,7 +17,7 @@ TESTS_DIR = REPO_ROOT / "src" / "yuantus" / "meta_engine" / "tests"
 LEGACY_ROUTER_STATES = {
     "approvals_router.py": {
         "legacy_module": "yuantus.meta_engine.web.approvals_router",
-        "registered": True,
+        "registered": False,
         "include_token": "app.include_router(approvals_router",
         "import_token": "from yuantus.meta_engine.web.approvals_router import approvals_router",
     },

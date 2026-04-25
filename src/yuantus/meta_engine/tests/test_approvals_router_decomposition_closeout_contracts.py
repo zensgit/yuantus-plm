@@ -34,7 +34,6 @@ _ROUTER_REGISTRATION_ORDER = [
     "approval_category_router",
     "approval_request_router",
     "approval_ops_router",
-    "approvals_router",
 ]
 
 
@@ -85,6 +84,14 @@ def test_app_registers_approval_routers_in_decomposition_order_before_legacy_she
     ]
     assert all(position != -1 for position in positions)
     assert positions == sorted(positions)
+
+
+def test_app_does_not_register_legacy_approvals_router_shell() -> None:
+    app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
+    text = app_py.read_text(encoding="utf-8")
+
+    assert "from yuantus.meta_engine.web.approvals_router import approvals_router" not in text
+    assert "app.include_router(approvals_router" not in text
 
 
 def test_legacy_approvals_router_owns_no_runtime_paths() -> None:
