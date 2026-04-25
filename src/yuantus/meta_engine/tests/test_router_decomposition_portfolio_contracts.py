@@ -77,7 +77,7 @@ LEGACY_ROUTER_STATES = {
     },
     "quality_router.py": {
         "legacy_module": "yuantus.meta_engine.web.quality_router",
-        "registered": True,
+        "registered": False,
         "include_token": "app.include_router(quality_router",
         "import_token": "from yuantus.meta_engine.web.quality_router import quality_router",
     },
