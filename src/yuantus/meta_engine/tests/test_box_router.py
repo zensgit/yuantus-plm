@@ -8,7 +8,17 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
+from yuantus.meta_engine.web.box_aging_router import box_aging_router
+from yuantus.meta_engine.web.box_analytics_router import box_analytics_router
+from yuantus.meta_engine.web.box_capacity_router import box_capacity_router
+from yuantus.meta_engine.web.box_core_router import box_core_router
+from yuantus.meta_engine.web.box_custody_router import box_custody_router
+from yuantus.meta_engine.web.box_ops_router import box_ops_router
+from yuantus.meta_engine.web.box_policy_router import box_policy_router
+from yuantus.meta_engine.web.box_reconciliation_router import box_reconciliation_router
 from yuantus.meta_engine.web.box_router import box_router
+from yuantus.meta_engine.web.box_traceability_router import box_traceability_router
+from yuantus.meta_engine.web.box_turnover_router import box_turnover_router
 
 
 # ---------------------------------------------------------------------------
@@ -19,6 +29,16 @@ from yuantus.meta_engine.web.box_router import box_router
 def _make_app():
     """Standalone FastAPI app with box_router mounted."""
     app = FastAPI()
+    app.include_router(box_core_router, prefix="/api/v1")
+    app.include_router(box_analytics_router, prefix="/api/v1")
+    app.include_router(box_ops_router, prefix="/api/v1")
+    app.include_router(box_reconciliation_router, prefix="/api/v1")
+    app.include_router(box_capacity_router, prefix="/api/v1")
+    app.include_router(box_policy_router, prefix="/api/v1")
+    app.include_router(box_traceability_router, prefix="/api/v1")
+    app.include_router(box_custody_router, prefix="/api/v1")
+    app.include_router(box_turnover_router, prefix="/api/v1")
+    app.include_router(box_aging_router, prefix="/api/v1")
     app.include_router(box_router, prefix="/api/v1")
     return app
 
@@ -52,7 +72,7 @@ def _client_with_mocks():
 def test_create_item():
     client, db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_core_router.BoxService") as svc_cls:
         fake_box = SimpleNamespace(
             id="box-1", name="Small Box", description=None, box_type="box",
             state="draft", width=100.0, height=80.0, depth=50.0,
@@ -73,7 +93,7 @@ def test_create_item():
 def test_list_items():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_core_router.BoxService") as svc_cls:
         fake_box = SimpleNamespace(
             id="box-1", name="A", description=None, box_type="box",
             state="draft", width=None, height=None, depth=None,
@@ -92,7 +112,7 @@ def test_list_items():
 def test_get_item():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_core_router.BoxService") as svc_cls:
         fake_box = SimpleNamespace(
             id="box-1", name="A", description=None, box_type="box",
             state="draft", width=None, height=None, depth=None,
@@ -111,7 +131,7 @@ def test_get_item():
 def test_get_contents():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_core_router.BoxService") as svc_cls:
         svc_cls.return_value.get_box.return_value = SimpleNamespace(id="box-1")
         fake_content = SimpleNamespace(
             id="c-1", box_id="box-1", item_id="item-1",
@@ -129,7 +149,7 @@ def test_get_contents():
 def test_export_meta():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_core_router.BoxService") as svc_cls:
         svc_cls.return_value.export_meta.return_value = {
             "id": "box-1",
             "name": "Box",
@@ -157,7 +177,7 @@ def test_export_meta():
 def test_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_core_router.BoxService") as svc_cls:
         svc_cls.return_value.get_box.return_value = None
 
         resp = client.get("/api/v1/box/items/nonexistent")
@@ -168,7 +188,7 @@ def test_not_found_404():
 def test_create_invalid_400():
     client, db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_core_router.BoxService") as svc_cls:
         svc_cls.return_value.create_box.side_effect = ValueError("Invalid box_type")
 
         resp = client.post(
@@ -189,7 +209,7 @@ def test_create_invalid_400():
 def test_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_analytics_router.BoxService") as svc_cls:
         svc_cls.return_value.overview.return_value = {
             "total": 5, "active": 3,
             "by_state": {"draft": 2, "active": 3},
@@ -216,7 +236,7 @@ def test_box_routes_registered_in_create_app():
 def test_material_analytics():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_analytics_router.BoxService") as svc_cls:
         svc_cls.return_value.material_analytics.return_value = {
             "total": 3,
             "by_material": {"cardboard": 2, "wood": 1},
@@ -231,7 +251,7 @@ def test_material_analytics():
 def test_contents_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_analytics_router.BoxService") as svc_cls:
         svc_cls.return_value.contents_summary.return_value = {
             "box_id": "box-1", "box_name": "Test",
             "total_lines": 3, "distinct_items": 2,
@@ -247,7 +267,7 @@ def test_contents_summary():
 def test_contents_summary_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_analytics_router.BoxService") as svc_cls:
         svc_cls.return_value.contents_summary.side_effect = ValueError("not found")
         resp = client.get("/api/v1/box/items/x/contents-summary")
 
@@ -257,7 +277,7 @@ def test_contents_summary_not_found_404():
 def test_export_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_analytics_router.BoxService") as svc_cls:
         svc_cls.return_value.export_overview.return_value = {
             "overview": {"total": 2, "active": 1, "by_state": {}, "by_type": {}, "total_cost": 0},
             "material_analytics": {"total": 2, "by_material": {}, "no_material": 2},
@@ -272,7 +292,7 @@ def test_export_overview():
 def test_export_contents():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_analytics_router.BoxService") as svc_cls:
         svc_cls.return_value.export_contents.return_value = {
             "box_id": "box-1", "box_name": "Test",
             "total_lines": 1, "distinct_items": 1,
@@ -289,7 +309,7 @@ def test_export_contents():
 def test_export_contents_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_analytics_router.BoxService") as svc_cls:
         svc_cls.return_value.export_contents.side_effect = ValueError("not found")
         resp = client.get("/api/v1/box/items/x/export-contents")
 
@@ -304,7 +324,7 @@ def test_export_contents_not_found_404():
 def test_transition_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_ops_router.BoxService") as svc_cls:
         svc_cls.return_value.transition_summary.return_value = {
             "total": 4,
             "by_state": {"draft": 2, "active": 1, "archived": 1},
@@ -322,7 +342,7 @@ def test_transition_summary():
 def test_active_archive_breakdown():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_ops_router.BoxService") as svc_cls:
         svc_cls.return_value.active_archive_breakdown.return_value = {
             "active": {"count": 3, "total_cost": 15.0, "by_type": {"box": 2, "carton": 1}},
             "archived": {"count": 1, "total_cost": 5.0, "by_type": {"box": 1}},
@@ -338,7 +358,7 @@ def test_active_archive_breakdown():
 def test_ops_report():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_ops_router.BoxService") as svc_cls:
         svc_cls.return_value.ops_report.return_value = {
             "box_id": "box-1",
             "name": "Test Box",
@@ -364,7 +384,7 @@ def test_ops_report():
 def test_ops_report_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_ops_router.BoxService") as svc_cls:
         svc_cls.return_value.ops_report.side_effect = ValueError("not found")
         resp = client.get("/api/v1/box/items/nonexistent/ops-report")
 
@@ -374,7 +394,7 @@ def test_ops_report_not_found_404():
 def test_export_ops_report():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_ops_router.BoxService") as svc_cls:
         svc_cls.return_value.export_ops_report.return_value = {
             "transition_summary": {
                 "total": 3,
@@ -404,7 +424,7 @@ def test_export_ops_report():
 def test_reconciliation_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_reconciliation_router.BoxService") as svc_cls:
         svc_cls.return_value.reconciliation_overview.return_value = {
             "total": 5,
             "with_contents": 3,
@@ -426,7 +446,7 @@ def test_reconciliation_overview():
 def test_audit_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_reconciliation_router.BoxService") as svc_cls:
         svc_cls.return_value.audit_summary.return_value = {
             "total": 3,
             "no_material": 1,
@@ -449,7 +469,7 @@ def test_audit_summary():
 def test_box_item_reconciliation():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_reconciliation_router.BoxService") as svc_cls:
         svc_cls.return_value.box_reconciliation.return_value = {
             "box_id": "box-1",
             "name": "Test Box",
@@ -475,7 +495,7 @@ def test_box_item_reconciliation():
 def test_box_item_reconciliation_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_reconciliation_router.BoxService") as svc_cls:
         svc_cls.return_value.box_reconciliation.side_effect = ValueError("not found")
         resp = client.get("/api/v1/box/items/nonexistent/reconciliation")
 
@@ -485,7 +505,7 @@ def test_box_item_reconciliation_not_found_404():
 def test_export_reconciliation():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_reconciliation_router.BoxService") as svc_cls:
         svc_cls.return_value.export_box_reconciliation.return_value = {
             "reconciliation_overview": {
                 "total": 2, "with_contents": 1, "without_contents": 1,
@@ -515,7 +535,7 @@ def test_export_reconciliation():
 def test_capacity_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_capacity_router.BoxService") as svc_cls:
         svc_cls.return_value.capacity_overview.return_value = {
             "total": 3,
             "with_max_quantity": 2,
@@ -535,7 +555,7 @@ def test_capacity_overview():
 def test_compliance_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_capacity_router.BoxService") as svc_cls:
         svc_cls.return_value.compliance_summary.return_value = {
             "total": 4,
             "missing_dimensions": 1,
@@ -557,7 +577,7 @@ def test_compliance_summary():
 def test_box_capacity():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_capacity_router.BoxService") as svc_cls:
         svc_cls.return_value.box_capacity.return_value = {
             "box_id": "box-1",
             "max_quantity": 10,
@@ -585,7 +605,7 @@ def test_box_capacity():
 def test_box_capacity_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_capacity_router.BoxService") as svc_cls:
         svc_cls.return_value.box_capacity.side_effect = ValueError("not found")
         resp = client.get("/api/v1/box/items/nonexistent/capacity")
 
@@ -595,7 +615,7 @@ def test_box_capacity_not_found_404():
 def test_export_capacity():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_capacity_router.BoxService") as svc_cls:
         svc_cls.return_value.export_capacity.return_value = {
             "capacity_overview": {
                 "total": 2, "with_max_quantity": 1, "with_weight_limit": 1,
@@ -624,7 +644,7 @@ def test_export_capacity():
 def test_policy_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_policy_router.BoxService") as svc_cls:
         svc_cls.return_value.policy_overview.return_value = {
             "total": 3,
             "with_barcode": 2,
@@ -646,7 +666,7 @@ def test_policy_overview():
 def test_exceptions_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_policy_router.BoxService") as svc_cls:
         svc_cls.return_value.exceptions_summary.return_value = {
             "missing_barcode": ["b2"],
             "missing_material": ["b2"],
@@ -666,7 +686,7 @@ def test_exceptions_summary():
 def test_box_policy_check():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_policy_router.BoxService") as svc_cls:
         svc_cls.return_value.box_policy_check.return_value = {
             "box_id": "box-1",
             "has_barcode": True,
@@ -688,7 +708,7 @@ def test_box_policy_check():
 def test_box_policy_check_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_policy_router.BoxService") as svc_cls:
         svc_cls.return_value.box_policy_check.side_effect = ValueError("not found")
         resp = client.get("/api/v1/box/items/nonexistent/policy-check")
 
@@ -698,7 +718,7 @@ def test_box_policy_check_not_found_404():
 def test_export_exceptions():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_policy_router.BoxService") as svc_cls:
         svc_cls.return_value.export_exceptions.return_value = {
             "policy_overview": {
                 "total": 2, "with_barcode": 1, "with_material": 2,
@@ -731,7 +751,7 @@ def test_export_exceptions():
 def test_reservations_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_traceability_router.BoxService") as svc_cls:
         svc_cls.return_value.reservations_overview.return_value = {
             "total": 3,
             "by_state": {"active": 2, "draft": 1},
@@ -752,7 +772,7 @@ def test_reservations_overview():
 def test_traceability_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_traceability_router.BoxService") as svc_cls:
         svc_cls.return_value.traceability_summary.return_value = {
             "total_contents": 10,
             "with_lot_serial": 6,
@@ -773,7 +793,7 @@ def test_traceability_summary():
 def test_box_reservations():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_traceability_router.BoxService") as svc_cls:
         svc_cls.return_value.box_reservations.return_value = {
             "box_id": "box-1",
             "box_name": "Test Box",
@@ -802,7 +822,7 @@ def test_box_reservations():
 def test_box_reservations_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_traceability_router.BoxService") as svc_cls:
         svc_cls.return_value.box_reservations.side_effect = ValueError("not found")
         resp = client.get("/api/v1/box/items/nonexistent/reservations")
 
@@ -812,7 +832,7 @@ def test_box_reservations_not_found_404():
 def test_export_traceability():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_traceability_router.BoxService") as svc_cls:
         svc_cls.return_value.export_traceability.return_value = {
             "reservations_overview": {
                 "total": 2, "by_state": {"active": 1, "draft": 1},
@@ -849,7 +869,7 @@ def test_export_traceability():
 def test_allocations_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_custody_router.BoxService") as svc_cls:
         svc_cls.return_value.allocations_overview.return_value = {
             "total": 3,
             "allocated": 1,
@@ -870,7 +890,7 @@ def test_allocations_overview():
 def test_custody_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_custody_router.BoxService") as svc_cls:
         svc_cls.return_value.custody_summary.return_value = {
             "total": 3,
             "boxes_with_contents": 2,
@@ -889,7 +909,7 @@ def test_custody_summary():
 def test_box_custody():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_custody_router.BoxService") as svc_cls:
         svc_cls.return_value.box_custody.return_value = {
             "box_id": "box-1",
             "box_name": "Test Box",
@@ -913,7 +933,7 @@ def test_box_custody():
 def test_box_custody_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_custody_router.BoxService") as svc_cls:
         svc_cls.return_value.box_custody.side_effect = ValueError("not found")
         resp = client.get("/api/v1/box/items/nonexistent/custody")
 
@@ -923,7 +943,7 @@ def test_box_custody_not_found_404():
 def test_export_custody():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_custody_router.BoxService") as svc_cls:
         svc_cls.return_value.export_custody.return_value = {
             "allocations_overview": {
                 "total": 2, "allocated": 1, "unallocated": 1,
@@ -959,7 +979,7 @@ def test_export_custody():
 def test_occupancy_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_turnover_router.BoxService") as svc_cls:
         svc_cls.return_value.occupancy_overview.return_value = {
             "total": 3,
             "occupied": 2,
@@ -980,7 +1000,7 @@ def test_occupancy_overview():
 def test_turnover_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_turnover_router.BoxService") as svc_cls:
         svc_cls.return_value.turnover_summary.return_value = {
             "total": 4,
             "active_boxes": 3,
@@ -1001,7 +1021,7 @@ def test_turnover_summary():
 def test_box_turnover():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_turnover_router.BoxService") as svc_cls:
         svc_cls.return_value.box_turnover.return_value = {
             "box_id": "box-1",
             "box_name": "Test Box",
@@ -1023,7 +1043,7 @@ def test_box_turnover():
 def test_box_turnover_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_turnover_router.BoxService") as svc_cls:
         svc_cls.return_value.box_turnover.side_effect = ValueError("not found")
         resp = client.get("/api/v1/box/items/nonexistent/turnover")
 
@@ -1033,7 +1053,7 @@ def test_box_turnover_not_found_404():
 def test_export_turnover():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_turnover_router.BoxService") as svc_cls:
         svc_cls.return_value.export_turnover.return_value = {
             "occupancy_overview": {
                 "total": 2, "occupied": 1, "empty": 1,
@@ -1070,7 +1090,7 @@ def test_export_turnover():
 def test_dwell_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_aging_router.BoxService") as svc_cls:
         svc_cls.return_value.dwell_overview.return_value = {
             "total": 5,
             "avg_items_per_box": 3.4,
@@ -1091,7 +1111,7 @@ def test_dwell_overview():
 def test_aging_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_aging_router.BoxService") as svc_cls:
         svc_cls.return_value.aging_summary.return_value = {
             "total": 6,
             "mature": 1,
@@ -1113,7 +1133,7 @@ def test_aging_summary():
 def test_box_aging():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_aging_router.BoxService") as svc_cls:
         svc_cls.return_value.box_aging.return_value = {
             "box_id": "box-1",
             "box_name": "Test Box",
@@ -1135,7 +1155,7 @@ def test_box_aging():
 def test_box_aging_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_aging_router.BoxService") as svc_cls:
         svc_cls.return_value.box_aging.side_effect = ValueError("not found")
         resp = client.get("/api/v1/box/items/nonexistent/aging")
 
@@ -1145,7 +1165,7 @@ def test_box_aging_not_found_404():
 def test_export_aging():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.box_router.BoxService") as svc_cls:
+    with patch("yuantus.meta_engine.web.box_aging_router.BoxService") as svc_cls:
         svc_cls.return_value.export_aging.return_value = {
             "dwell_overview": {
                 "total": 2, "avg_items_per_box": 4.0,

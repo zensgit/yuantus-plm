@@ -10,6 +10,15 @@ from fastapi.testclient import TestClient
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.database import get_db
+from yuantus.meta_engine.web.subcontracting_analytics_router import (
+    subcontracting_analytics_router,
+)
+from yuantus.meta_engine.web.subcontracting_approval_mapping_router import (
+    subcontracting_approval_mapping_router,
+)
+from yuantus.meta_engine.web.subcontracting_orders_router import (
+    subcontracting_orders_router,
+)
 from yuantus.meta_engine.web.subcontracting_router import subcontracting_router
 
 
@@ -23,6 +32,9 @@ def _client_with_db():
             pass
 
     app = FastAPI()
+    app.include_router(subcontracting_orders_router, prefix="/api/v1")
+    app.include_router(subcontracting_analytics_router, prefix="/api/v1")
+    app.include_router(subcontracting_approval_mapping_router, prefix="/api/v1")
     app.include_router(subcontracting_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = lambda: None
@@ -49,7 +61,7 @@ def test_order_create_list_and_detail_endpoints_use_service_payloads():
         "operation": {"operation_id": "op-1", "routing_id": "routing-1", "operation_number": "20", "name": "Outside coating", "is_subcontracted": True, "subcontractor_id": "vendor-1"},
     }
 
-    with patch("yuantus.meta_engine.web.subcontracting_router.SubcontractingService") as svc_cls:
+    with patch("yuantus.meta_engine.web.subcontracting_orders_router.SubcontractingService") as svc_cls:
         svc = svc_cls.return_value
         svc.create_order.return_value = SimpleNamespace(id="so-1")
         svc.get_order_read_model.return_value = payload
@@ -71,7 +83,7 @@ def test_order_create_list_and_detail_endpoints_use_service_payloads():
 def test_assign_vendor_issue_receipt_and_timeline_endpoints():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.subcontracting_router.SubcontractingService") as svc_cls:
+    with patch("yuantus.meta_engine.web.subcontracting_orders_router.SubcontractingService") as svc_cls:
         svc = svc_cls.return_value
         svc.assign_vendor.return_value = SimpleNamespace(id="so-1")
         svc.get_order_read_model.return_value = {
@@ -122,7 +134,7 @@ def test_subcontracting_routes_registered_in_create_app():
 def test_subcontracting_analytics_endpoints():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.subcontracting_router.SubcontractingService") as svc_cls:
+    with patch("yuantus.meta_engine.web.subcontracting_analytics_router.SubcontractingService") as svc_cls:
         svc = svc_cls.return_value
         svc.get_overview.return_value = {"orders_total": 2, "vendors_total": 1}
         svc.get_vendor_analytics.return_value = {"vendors": [{"vendor_id": "v-1"}]}
@@ -143,7 +155,7 @@ def test_subcontracting_analytics_endpoints():
 def test_subcontracting_export_endpoints():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.subcontracting_router.SubcontractingService") as svc_cls:
+    with patch("yuantus.meta_engine.web.subcontracting_analytics_router.SubcontractingService") as svc_cls:
         svc = svc_cls.return_value
         svc.export_overview.return_value = {"orders_total": 2}
         svc.export_vendor_analytics.return_value = "vendor_id,orders_total\nv-1,1\n"
@@ -196,7 +208,7 @@ def test_approval_role_mapping_registry_endpoints():
         ],
     }
 
-    with patch("yuantus.meta_engine.web.subcontracting_router.SubcontractingService") as svc_cls:
+    with patch("yuantus.meta_engine.web.subcontracting_approval_mapping_router.SubcontractingService") as svc_cls:
         svc = svc_cls.return_value
         svc.get_approval_role_mapping_registry.return_value = payload
         svc.export_approval_role_mapping_registry.return_value = "role_code,scope_type\nqa_manager,vendor_policy\n"

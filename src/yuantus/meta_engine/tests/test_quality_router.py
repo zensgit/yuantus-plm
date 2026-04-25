@@ -10,6 +10,9 @@ from fastapi.testclient import TestClient
 from yuantus.api.app import create_app
 from yuantus.database import get_db
 from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.meta_engine.web.quality_alerts_router import quality_alerts_router
+from yuantus.meta_engine.web.quality_checks_router import quality_checks_router
+from yuantus.meta_engine.web.quality_points_router import quality_points_router
 from yuantus.meta_engine.web.quality_router import quality_router
 
 
@@ -23,6 +26,9 @@ def _client_with_db():
             pass
 
     app = FastAPI()
+    app.include_router(quality_points_router, prefix="/api/v1")
+    app.include_router(quality_checks_router, prefix="/api/v1")
+    app.include_router(quality_alerts_router, prefix="/api/v1")
     app.include_router(quality_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = lambda: None
@@ -37,7 +43,7 @@ def _client_with_db():
 def test_quality_point_endpoints_commit_and_return_service_payloads():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.quality_router.QualityService") as service_cls:
+    with patch("yuantus.meta_engine.web.quality_points_router.QualityService") as service_cls:
         service = service_cls.return_value
         service.create_point.return_value = SimpleNamespace(
             id="qp-1",
@@ -83,9 +89,13 @@ def test_quality_point_endpoints_commit_and_return_service_payloads():
 def test_quality_check_and_alert_endpoints_use_router_contracts():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.quality_router.QualityService") as service_cls:
-        service = service_cls.return_value
-        service.create_check.return_value = SimpleNamespace(
+    with (
+        patch("yuantus.meta_engine.web.quality_checks_router.QualityService") as check_service_cls,
+        patch("yuantus.meta_engine.web.quality_alerts_router.QualityService") as alert_service_cls,
+    ):
+        check_service = check_service_cls.return_value
+        alert_service = alert_service_cls.return_value
+        check_service.create_check.return_value = SimpleNamespace(
             id="qc-1",
             point_id="qp-1",
             product_id="item-1",
@@ -101,12 +111,12 @@ def test_quality_check_and_alert_endpoints_use_router_contracts():
             checked_by_id=None,
             created_at=None,
         )
-        recorded_check_payload = dict(service.create_check.return_value.__dict__)
+        recorded_check_payload = dict(check_service.create_check.return_value.__dict__)
         recorded_check_payload.update(
             {"result": "pass", "measure_value": 10.0, "note": "within range"}
         )
-        service.record_check_result.return_value = SimpleNamespace(**recorded_check_payload)
-        service.create_alert.return_value = SimpleNamespace(
+        check_service.record_check_result.return_value = SimpleNamespace(**recorded_check_payload)
+        alert_service.create_alert.return_value = SimpleNamespace(
             id="qa-1",
             name="Out of tolerance",
             check_id="qc-1",
@@ -123,9 +133,9 @@ def test_quality_check_and_alert_endpoints_use_router_contracts():
             resolved_at=None,
             closed_at=None,
         )
-        transitioned_alert_payload = dict(service.create_alert.return_value.__dict__)
+        transitioned_alert_payload = dict(alert_service.create_alert.return_value.__dict__)
         transitioned_alert_payload["state"] = "confirmed"
-        service.transition_alert.return_value = SimpleNamespace(**transitioned_alert_payload)
+        alert_service.transition_alert.return_value = SimpleNamespace(**transitioned_alert_payload)
 
         check_response = client.post(
             "/api/v1/quality/checks",
@@ -164,7 +174,7 @@ def test_quality_check_and_alert_endpoints_use_router_contracts():
 def test_list_points_passes_routing_and_operation_filters():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.quality_router.QualityService") as service_cls:
+    with patch("yuantus.meta_engine.web.quality_points_router.QualityService") as service_cls:
         service = service_cls.return_value
         service.list_points.return_value = []
 
@@ -187,7 +197,7 @@ def test_list_points_passes_routing_and_operation_filters():
 def test_list_checks_passes_routing_and_operation_filters():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.quality_router.QualityService") as service_cls:
+    with patch("yuantus.meta_engine.web.quality_checks_router.QualityService") as service_cls:
         service = service_cls.return_value
         service.list_checks.return_value = []
 
@@ -209,7 +219,7 @@ def test_list_checks_passes_routing_and_operation_filters():
 def test_create_point_with_routing_id():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.quality_router.QualityService") as service_cls:
+    with patch("yuantus.meta_engine.web.quality_points_router.QualityService") as service_cls:
         service = service_cls.return_value
         service.create_point.return_value = SimpleNamespace(
             id="qp-2",
@@ -252,7 +262,7 @@ def test_create_point_with_routing_id():
 def test_alert_manufacturing_context_endpoint():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.quality_router.QualityService") as service_cls:
+    with patch("yuantus.meta_engine.web.quality_alerts_router.QualityService") as service_cls:
         service = service_cls.return_value
         service.get_alert_manufacturing_context.return_value = {
             "alert_id": "qa-1",
@@ -300,7 +310,7 @@ def test_alert_manufacturing_context_endpoint():
 def test_alert_manufacturing_context_404_when_not_found():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.quality_router.QualityService") as service_cls:
+    with patch("yuantus.meta_engine.web.quality_alerts_router.QualityService") as service_cls:
         service = service_cls.return_value
         service.get_alert_manufacturing_context.return_value = None
 

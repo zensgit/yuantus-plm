@@ -31,9 +31,47 @@ from yuantus.meta_engine.web.bom_where_used_router import bom_where_used_router
 from yuantus.meta_engine.web.bom_substitutes_router import bom_substitutes_router
 from yuantus.meta_engine.web.bom_router import bom_router
 from yuantus.meta_engine.web.baseline_router import baseline_router
+from yuantus.meta_engine.web.box_aging_router import box_aging_router
+from yuantus.meta_engine.web.box_analytics_router import box_analytics_router
+from yuantus.meta_engine.web.box_capacity_router import box_capacity_router
+from yuantus.meta_engine.web.box_core_router import box_core_router
+from yuantus.meta_engine.web.box_custody_router import box_custody_router
+from yuantus.meta_engine.web.box_ops_router import box_ops_router
+from yuantus.meta_engine.web.box_policy_router import box_policy_router
+from yuantus.meta_engine.web.box_reconciliation_router import (
+    box_reconciliation_router,
+)
 from yuantus.meta_engine.web.box_router import box_router
+from yuantus.meta_engine.web.box_traceability_router import box_traceability_router
+from yuantus.meta_engine.web.box_turnover_router import box_turnover_router
 from yuantus.meta_engine.web.config_router import config_router
+from yuantus.meta_engine.web.cutted_parts_alerts_router import cutted_parts_alerts_router
+from yuantus.meta_engine.web.cutted_parts_analytics_router import (
+    cutted_parts_analytics_router,
+)
+from yuantus.meta_engine.web.cutted_parts_benchmark_router import (
+    cutted_parts_benchmark_router,
+)
+from yuantus.meta_engine.web.cutted_parts_bottlenecks_router import (
+    cutted_parts_bottlenecks_router,
+)
+from yuantus.meta_engine.web.cutted_parts_core_router import cutted_parts_core_router
 from yuantus.meta_engine.web.cutted_parts_router import cutted_parts_router
+from yuantus.meta_engine.web.cutted_parts_scenarios_router import (
+    cutted_parts_scenarios_router,
+)
+from yuantus.meta_engine.web.cutted_parts_thresholds_router import (
+    cutted_parts_thresholds_router,
+)
+from yuantus.meta_engine.web.cutted_parts_throughput_router import (
+    cutted_parts_throughput_router,
+)
+from yuantus.meta_engine.web.cutted_parts_utilization_router import (
+    cutted_parts_utilization_router,
+)
+from yuantus.meta_engine.web.cutted_parts_variance_router import (
+    cutted_parts_variance_router,
+)
 from yuantus.meta_engine.web.cad_backend_profile_router import cad_backend_profile_router
 from yuantus.meta_engine.web.cad_checkin_router import cad_checkin_router
 from yuantus.meta_engine.web.cad_connectors_router import cad_connectors_router
@@ -48,6 +86,26 @@ from yuantus.meta_engine.web.cad_sync_template_router import cad_sync_template_r
 from yuantus.meta_engine.web.cad_view_state_router import cad_view_state_router
 from yuantus.meta_engine.web.cad_router import router as cad_router
 from yuantus.meta_engine.web.dedup_router import dedup_router
+from yuantus.meta_engine.web.document_sync_analytics_router import (
+    document_sync_analytics_router,
+)
+from yuantus.meta_engine.web.document_sync_core_router import document_sync_core_router
+from yuantus.meta_engine.web.document_sync_drift_router import document_sync_drift_router
+from yuantus.meta_engine.web.document_sync_freshness_router import (
+    document_sync_freshness_router,
+)
+from yuantus.meta_engine.web.document_sync_lineage_router import (
+    document_sync_lineage_router,
+)
+from yuantus.meta_engine.web.document_sync_reconciliation_router import (
+    document_sync_reconciliation_router,
+)
+from yuantus.meta_engine.web.document_sync_replay_audit_router import (
+    document_sync_replay_audit_router,
+)
+from yuantus.meta_engine.web.document_sync_retention_router import (
+    document_sync_retention_router,
+)
 from yuantus.meta_engine.web.document_sync_router import document_sync_router
 from yuantus.meta_engine.web.eco_approval_ops_router import eco_approval_ops_router
 from yuantus.meta_engine.web.eco_approval_workflow_router import (
@@ -61,6 +119,13 @@ from yuantus.meta_engine.web.eco_lifecycle_router import eco_lifecycle_router
 from yuantus.meta_engine.web.eco_core_router import eco_core_router
 from yuantus.meta_engine.web.eco_stage_router import eco_stage_router
 from yuantus.meta_engine.web.approvals_router import approvals_router
+from yuantus.meta_engine.web.approval_category_router import (
+    approval_category_router,
+)
+from yuantus.meta_engine.web.approval_request_router import (
+    approval_request_router,
+)
+from yuantus.meta_engine.web.approval_ops_router import approval_ops_router
 from yuantus.meta_engine.web.app_router import app_router
 from yuantus.meta_engine.web.change_router import change_router
 from yuantus.meta_engine.web.equivalent_router import equivalent_router
@@ -78,6 +143,18 @@ from yuantus.meta_engine.web.release_validation_router import release_validation
 from yuantus.meta_engine.web.release_orchestration_router import (
     release_orchestration_router,
 )
+from yuantus.meta_engine.web.report_saved_search_router import (
+    report_saved_search_router,
+)
+from yuantus.meta_engine.web.report_summary_search_router import (
+    report_summary_search_router,
+)
+from yuantus.meta_engine.web.report_definition_router import (
+    report_definition_router,
+)
+from yuantus.meta_engine.web.report_dashboard_router import (
+    report_dashboard_router,
+)
 from yuantus.meta_engine.web.report_router import report_router
 from yuantus.meta_engine.web.query_router import query_router
 from yuantus.meta_engine.web.rpc_router import rpc_router
@@ -88,11 +165,40 @@ from yuantus.meta_engine.web.store_router import store_router
 from yuantus.meta_engine.web.impact_router import impact_router
 from yuantus.meta_engine.web.item_cockpit_router import item_cockpit_router
 from yuantus.meta_engine.web.locale_router import locale_router
+from yuantus.meta_engine.web.maintenance_category_router import (
+    maintenance_category_router,
+)
+from yuantus.meta_engine.web.maintenance_equipment_router import (
+    maintenance_equipment_router,
+)
+from yuantus.meta_engine.web.maintenance_request_router import (
+    maintenance_request_router,
+)
+from yuantus.meta_engine.web.maintenance_schedule_router import (
+    maintenance_schedule_router,
+)
 from yuantus.meta_engine.web.maintenance_router import maintenance_router
+from yuantus.meta_engine.web.quality_alerts_router import quality_alerts_router
+from yuantus.meta_engine.web.quality_checks_router import quality_checks_router
+from yuantus.meta_engine.web.quality_points_router import quality_points_router
 from yuantus.meta_engine.web.quality_router import quality_router
 from yuantus.meta_engine.web.quality_analytics_router import quality_analytics_router
+from yuantus.meta_engine.web.subcontracting_orders_router import (
+    subcontracting_orders_router,
+)
+from yuantus.meta_engine.web.subcontracting_analytics_router import (
+    subcontracting_analytics_router,
+)
+from yuantus.meta_engine.web.subcontracting_approval_mapping_router import (
+    subcontracting_approval_mapping_router,
+)
 from yuantus.meta_engine.web.subcontracting_router import subcontracting_router
 from yuantus.meta_engine.web.ui_router import ui_router
+from yuantus.meta_engine.web.version_effectivity_router import version_effectivity_router
+from yuantus.meta_engine.web.version_file_router import version_file_router
+from yuantus.meta_engine.web.version_iteration_router import version_iteration_router
+from yuantus.meta_engine.web.version_lifecycle_router import version_lifecycle_router
+from yuantus.meta_engine.web.version_revision_router import version_revision_router
 from yuantus.meta_engine.web.version_router import version_router
 from yuantus.meta_engine.web.manufacturing_router import (
     mbom_router,
@@ -197,13 +303,36 @@ def create_app() -> FastAPI:
     app.include_router(bom_where_used_router, prefix="/api/v1")
     app.include_router(bom_substitutes_router, prefix="/api/v1")
     app.include_router(bom_router, prefix="/api/v1")
+    app.include_router(box_core_router, prefix="/api/v1")
+    app.include_router(box_analytics_router, prefix="/api/v1")
+    app.include_router(box_ops_router, prefix="/api/v1")
+    app.include_router(box_reconciliation_router, prefix="/api/v1")
+    app.include_router(box_capacity_router, prefix="/api/v1")
+    app.include_router(box_policy_router, prefix="/api/v1")
+    app.include_router(box_traceability_router, prefix="/api/v1")
+    app.include_router(box_custody_router, prefix="/api/v1")
+    app.include_router(box_turnover_router, prefix="/api/v1")
+    app.include_router(box_aging_router, prefix="/api/v1")
     app.include_router(box_router, prefix="/api/v1")
+    app.include_router(approval_category_router, prefix="/api/v1")
+    app.include_router(approval_request_router, prefix="/api/v1")
+    app.include_router(approval_ops_router, prefix="/api/v1")
     app.include_router(approvals_router, prefix="/api/v1")
     app.include_router(equivalent_router, prefix="/api/v1")
     app.include_router(effectivity_router, prefix="/api/v1")
     app.include_router(baseline_router, prefix="/api/v1")
     app.include_router(config_router, prefix="/api/v1")
     app.include_router(change_router, prefix="/api/v1")  # LEGACY compat shim — sunset 2026-07-01
+    app.include_router(cutted_parts_analytics_router, prefix="/api/v1")
+    app.include_router(cutted_parts_utilization_router, prefix="/api/v1")
+    app.include_router(cutted_parts_scenarios_router, prefix="/api/v1")
+    app.include_router(cutted_parts_benchmark_router, prefix="/api/v1")
+    app.include_router(cutted_parts_variance_router, prefix="/api/v1")
+    app.include_router(cutted_parts_thresholds_router, prefix="/api/v1")
+    app.include_router(cutted_parts_alerts_router, prefix="/api/v1")
+    app.include_router(cutted_parts_throughput_router, prefix="/api/v1")
+    app.include_router(cutted_parts_bottlenecks_router, prefix="/api/v1")
+    app.include_router(cutted_parts_core_router, prefix="/api/v1")
     app.include_router(cutted_parts_router, prefix="/api/v1")
     app.include_router(release_validation_router, prefix="/api/v1")
     app.include_router(dedup_router, prefix="/api/v1")
@@ -220,6 +349,14 @@ def create_app() -> FastAPI:
     app.include_router(cad_sync_template_router, prefix="/api/v1")
     app.include_router(cad_view_state_router, prefix="/api/v1")
     app.include_router(cad_router, prefix="/api/v1")
+    app.include_router(document_sync_analytics_router, prefix="/api/v1")
+    app.include_router(document_sync_reconciliation_router, prefix="/api/v1")
+    app.include_router(document_sync_replay_audit_router, prefix="/api/v1")
+    app.include_router(document_sync_drift_router, prefix="/api/v1")
+    app.include_router(document_sync_lineage_router, prefix="/api/v1")
+    app.include_router(document_sync_retention_router, prefix="/api/v1")
+    app.include_router(document_sync_freshness_router, prefix="/api/v1")
+    app.include_router(document_sync_core_router, prefix="/api/v1")
     app.include_router(document_sync_router, prefix="/api/v1")
     app.include_router(product_router, prefix="/api/v1")
     app.include_router(permission_router, prefix="/api/v1")
@@ -236,10 +373,19 @@ def create_app() -> FastAPI:
     app.include_router(file_attachment_router, prefix="/api/v1")
     app.include_router(file_metadata_router, prefix="/api/v1")
     app.include_router(esign_router, prefix="/api/v1")
+    app.include_router(version_revision_router, prefix="/api/v1")
+    app.include_router(version_iteration_router, prefix="/api/v1")
+    app.include_router(version_file_router, prefix="/api/v1")
+    app.include_router(version_lifecycle_router, prefix="/api/v1")
+    app.include_router(version_effectivity_router, prefix="/api/v1")
     app.include_router(version_router, prefix="/api/v1")
     app.include_router(mbom_router, prefix="/api/v1")
     app.include_router(routing_router, prefix="/api/v1")
     app.include_router(workcenter_router, prefix="/api/v1")
+    app.include_router(report_saved_search_router, prefix="/api/v1")
+    app.include_router(report_summary_search_router, prefix="/api/v1")
+    app.include_router(report_definition_router, prefix="/api/v1")
+    app.include_router(report_dashboard_router, prefix="/api/v1")
     app.include_router(report_router, prefix="/api/v1")
     app.include_router(eco_approval_ops_router, prefix="/api/v1")
     app.include_router(eco_stage_router, prefix="/api/v1")
@@ -256,9 +402,19 @@ def create_app() -> FastAPI:
     app.include_router(parallel_tasks_ops_router, prefix="/api/v1")
     app.include_router(parallel_tasks_workflow_actions_router, prefix="/api/v1")
     app.include_router(parallel_tasks_workorder_docs_router, prefix="/api/v1")
+    app.include_router(maintenance_category_router, prefix="/api/v1")
+    app.include_router(maintenance_equipment_router, prefix="/api/v1")
+    app.include_router(maintenance_request_router, prefix="/api/v1")
+    app.include_router(maintenance_schedule_router, prefix="/api/v1")
     app.include_router(maintenance_router, prefix="/api/v1")
+    app.include_router(quality_points_router, prefix="/api/v1")
+    app.include_router(quality_checks_router, prefix="/api/v1")
+    app.include_router(quality_alerts_router, prefix="/api/v1")
     app.include_router(quality_router, prefix="/api/v1")
     app.include_router(quality_analytics_router, prefix="/api/v1")
+    app.include_router(subcontracting_orders_router, prefix="/api/v1")
+    app.include_router(subcontracting_analytics_router, prefix="/api/v1")
+    app.include_router(subcontracting_approval_mapping_router, prefix="/api/v1")
     app.include_router(subcontracting_router, prefix="/api/v1")
 
     return app

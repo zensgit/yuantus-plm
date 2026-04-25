@@ -8,6 +8,26 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
+from yuantus.meta_engine.web.document_sync_analytics_router import (
+    document_sync_analytics_router,
+)
+from yuantus.meta_engine.web.document_sync_core_router import document_sync_core_router
+from yuantus.meta_engine.web.document_sync_drift_router import document_sync_drift_router
+from yuantus.meta_engine.web.document_sync_freshness_router import (
+    document_sync_freshness_router,
+)
+from yuantus.meta_engine.web.document_sync_lineage_router import (
+    document_sync_lineage_router,
+)
+from yuantus.meta_engine.web.document_sync_reconciliation_router import (
+    document_sync_reconciliation_router,
+)
+from yuantus.meta_engine.web.document_sync_replay_audit_router import (
+    document_sync_replay_audit_router,
+)
+from yuantus.meta_engine.web.document_sync_retention_router import (
+    document_sync_retention_router,
+)
 from yuantus.meta_engine.web.document_sync_router import document_sync_router
 
 
@@ -18,6 +38,14 @@ from yuantus.meta_engine.web.document_sync_router import document_sync_router
 
 def _make_app():
     app = FastAPI()
+    app.include_router(document_sync_analytics_router, prefix="/api/v1")
+    app.include_router(document_sync_reconciliation_router, prefix="/api/v1")
+    app.include_router(document_sync_replay_audit_router, prefix="/api/v1")
+    app.include_router(document_sync_drift_router, prefix="/api/v1")
+    app.include_router(document_sync_lineage_router, prefix="/api/v1")
+    app.include_router(document_sync_retention_router, prefix="/api/v1")
+    app.include_router(document_sync_freshness_router, prefix="/api/v1")
+    app.include_router(document_sync_core_router, prefix="/api/v1")
     app.include_router(document_sync_router, prefix="/api/v1")
     return app
 
@@ -64,7 +92,7 @@ _FAKE_JOB = SimpleNamespace(
 def test_create_site():
     client, db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.create_site.return_value = _FAKE_SITE
 
         resp = client.post(
@@ -93,7 +121,7 @@ def test_create_site_masks_basic_auth_password():
         is_primary=True,
     )
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.create_site.return_value = basic_site
 
         resp = client.post(
@@ -119,7 +147,7 @@ def test_create_site_masks_basic_auth_password():
 def test_list_sites():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.list_sites.return_value = [_FAKE_SITE]
 
         resp = client.get("/api/v1/document-sync/sites")
@@ -143,7 +171,7 @@ def test_list_sites_masks_basic_auth_password():
         is_primary=True,
     )
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.list_sites.return_value = [basic_site]
 
         resp = client.get("/api/v1/document-sync/sites")
@@ -159,7 +187,7 @@ def test_list_sites_masks_basic_auth_password():
 def test_get_site():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.get_site.return_value = _FAKE_SITE
 
         resp = client.get("/api/v1/document-sync/sites/site-1")
@@ -183,7 +211,7 @@ def test_get_site_masks_basic_auth_password():
         is_primary=True,
     )
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.get_site.return_value = basic_site
 
         resp = client.get("/api/v1/document-sync/sites/site-1")
@@ -200,7 +228,7 @@ def test_get_site_masks_basic_auth_password():
 def test_get_site_not_found():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.get_site.return_value = None
 
         resp = client.get("/api/v1/document-sync/sites/nonexistent")
@@ -233,7 +261,7 @@ def test_mirror_probe_site_success():
         "remote_overview": {"total_sites": 3, "total_jobs": 7},
     }
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.mirror_probe.return_value = probe_payload
 
         resp = client.post("/api/v1/document-sync/sites/site-1/mirror-probe")
@@ -250,7 +278,7 @@ def test_mirror_probe_site_success():
 def test_mirror_probe_site_value_error_maps_to_http_400():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.mirror_probe.side_effect = ValueError(
             "Site 'site-1' has no base_url configured for mirror probe"
         )
@@ -286,7 +314,7 @@ def test_mirror_execute_site_success():
         },
     }
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.mirror_execute.return_value = execute_payload
 
         resp = client.post("/api/v1/document-sync/sites/site-1/mirror-execute")
@@ -308,7 +336,7 @@ def test_mirror_execute_site_success():
 def test_mirror_execute_site_value_error_maps_to_http_400():
     client, db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.mirror_execute.side_effect = ValueError(
             "Site 'site-1' has no base_url configured for mirror execute"
         )
@@ -328,7 +356,7 @@ def test_mirror_execute_site_value_error_maps_to_http_400():
 def test_create_job():
     client, db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.create_job.return_value = _FAKE_JOB
 
         resp = client.post(
@@ -345,7 +373,7 @@ def test_create_job():
 def test_create_job_invalid_site_400():
     client, db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.create_job.side_effect = ValueError("Site not found")
 
         resp = client.post(
@@ -360,7 +388,7 @@ def test_create_job_invalid_site_400():
 def test_list_jobs():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.list_jobs.return_value = [_FAKE_JOB]
 
         resp = client.get("/api/v1/document-sync/jobs")
@@ -372,7 +400,7 @@ def test_list_jobs():
 def test_get_job():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.get_job.return_value = _FAKE_JOB
 
         resp = client.get("/api/v1/document-sync/jobs/job-1")
@@ -384,7 +412,7 @@ def test_get_job():
 def test_get_job_not_found():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.get_job.return_value = None
 
         resp = client.get("/api/v1/document-sync/jobs/nonexistent")
@@ -395,7 +423,7 @@ def test_get_job_not_found():
 def test_get_job_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.job_summary.return_value = {
             "job_id": "job-1",
             "site_id": "site-1",
@@ -419,7 +447,7 @@ def test_get_job_summary():
 def test_get_job_summary_not_found():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_core_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.job_summary.side_effect = ValueError("Job not found")
 
         resp = client.get("/api/v1/document-sync/jobs/bad/summary")
@@ -435,7 +463,7 @@ def test_get_job_summary_not_found():
 def test_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_analytics_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.overview.return_value = {
             "total_sites": 3, "sites_by_state": {"active": 2, "disabled": 1},
             "sites_by_direction": {"push": 2, "pull": 1},
@@ -453,7 +481,7 @@ def test_overview():
 def test_site_analytics():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_analytics_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_analytics.return_value = {
             "site_id": "site-1", "site_name": "HQ", "state": "active",
             "total_jobs": 2, "jobs_by_state": {"completed": 1, "pending": 1},
@@ -470,7 +498,7 @@ def test_site_analytics():
 def test_site_analytics_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_analytics_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_analytics.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/sites/x/analytics")
 
@@ -480,7 +508,7 @@ def test_site_analytics_not_found_404():
 def test_job_conflicts():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_analytics_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.job_conflicts.return_value = {
             "job_id": "job-1", "site_id": "site-1",
             "total_records": 5, "conflict_count": 2,
@@ -499,7 +527,7 @@ def test_job_conflicts():
 def test_job_conflicts_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_analytics_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.job_conflicts.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/jobs/x/conflicts")
 
@@ -509,7 +537,7 @@ def test_job_conflicts_not_found_404():
 def test_export_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_analytics_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.export_overview.return_value = {
             "overview": {"total_sites": 1, "total_jobs": 2,
                          "sites_by_state": {}, "sites_by_direction": {},
@@ -524,7 +552,7 @@ def test_export_overview():
 def test_export_conflicts():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_analytics_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.export_conflicts.return_value = {
             "total_conflicts": 1,
             "conflicts": [{"job_id": "j1", "site_id": "s1", "document_id": "d1",
@@ -545,7 +573,7 @@ def test_export_conflicts():
 def test_reconciliation_queue():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_reconciliation_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.reconciliation_queue.return_value = {
             "total_jobs_with_conflicts": 2,
             "jobs": [
@@ -565,7 +593,7 @@ def test_reconciliation_queue():
 def test_conflict_resolution_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_reconciliation_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.conflict_resolution_summary.return_value = {
             "job_id": "j1", "site_id": "s1", "state": "completed",
             "total_records": 4, "synced": 1, "conflicts": 1,
@@ -591,7 +619,7 @@ def test_conflict_resolution_summary():
 def test_conflict_resolution_summary_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_reconciliation_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.conflict_resolution_summary.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/reconciliation/jobs/bad/summary")
 
@@ -601,7 +629,7 @@ def test_conflict_resolution_summary_not_found_404():
 def test_site_reconciliation_status():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_reconciliation_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_reconciliation_status.return_value = {
             "site_id": "s1", "site_name": "HQ", "state": "active",
             "total_jobs": 3, "jobs_with_conflicts": 1,
@@ -619,7 +647,7 @@ def test_site_reconciliation_status():
 def test_site_reconciliation_status_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_reconciliation_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_reconciliation_status.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/reconciliation/sites/bad/status")
 
@@ -629,7 +657,7 @@ def test_site_reconciliation_status_not_found_404():
 def test_export_reconciliation():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_reconciliation_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.export_reconciliation.return_value = {
             "reconciliation_queue": {
                 "total_jobs_with_conflicts": 1,
@@ -662,7 +690,7 @@ def test_export_reconciliation():
 def test_replay_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_replay_audit_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.replay_overview.return_value = {
             "total_jobs": 4,
             "by_state": {"completed": 2, "failed": 1, "pending": 1},
@@ -682,7 +710,7 @@ def test_replay_overview():
 def test_site_audit():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_replay_audit_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_audit.return_value = {
             "site_id": "s1", "site_name": "HQ", "state": "active",
             "total_jobs": 3, "completed": 1, "failed": 1, "cancelled": 1,
@@ -701,7 +729,7 @@ def test_site_audit():
 def test_site_audit_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_replay_audit_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_audit.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/sites/bad/audit")
 
@@ -711,7 +739,7 @@ def test_site_audit_not_found_404():
 def test_job_audit():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_replay_audit_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.job_audit.return_value = {
             "job_id": "j1", "site_id": "s1", "state": "completed",
             "direction": "push", "total_records": 3,
@@ -731,7 +759,7 @@ def test_job_audit():
 def test_job_audit_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_replay_audit_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.job_audit.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/jobs/bad/audit")
 
@@ -741,7 +769,7 @@ def test_job_audit_not_found_404():
 def test_export_audit():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_replay_audit_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.export_audit.return_value = {
             "replay_overview": {
                 "total_jobs": 2,
@@ -774,7 +802,7 @@ def test_export_audit():
 def test_drift_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_drift_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.drift_overview.return_value = {
             "total_sites": 2,
             "total_jobs": 3,
@@ -796,7 +824,7 @@ def test_drift_overview():
 def test_site_snapshots():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_drift_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_snapshots.return_value = {
             "site_id": "s1", "site_name": "HQ", "state": "active",
             "direction": "push", "total_jobs": 3,
@@ -816,7 +844,7 @@ def test_site_snapshots():
 def test_site_snapshots_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_drift_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_snapshots.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/sites/bad/snapshots")
 
@@ -826,7 +854,7 @@ def test_site_snapshots_not_found_404():
 def test_job_drift():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_drift_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.job_drift.return_value = {
             "job_id": "j1", "state": "completed", "direction": "push",
             "total_documents": 10, "synced_count": 7,
@@ -846,7 +874,7 @@ def test_job_drift():
 def test_job_drift_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_drift_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.job_drift.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/jobs/bad/drift")
 
@@ -856,7 +884,7 @@ def test_job_drift_not_found_404():
 def test_export_drift():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_drift_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.export_drift.return_value = {
             "drift_overview": {
                 "total_sites": 1, "total_jobs": 1,
@@ -890,7 +918,7 @@ def test_export_drift():
 def test_baseline_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_lineage_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.baseline_overview.return_value = {
             "total_sites": 2,
             "total_jobs": 4,
@@ -913,7 +941,7 @@ def test_baseline_overview():
 def test_site_lineage():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_lineage_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_lineage.return_value = {
             "site_id": "s1", "site_name": "HQ", "state": "active",
             "direction": "push", "total_jobs": 3,
@@ -933,7 +961,7 @@ def test_site_lineage():
 def test_site_lineage_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_lineage_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_lineage.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/sites/bad/lineage")
 
@@ -943,7 +971,7 @@ def test_site_lineage_not_found_404():
 def test_job_snapshot_lineage():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_lineage_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.job_snapshot_lineage.return_value = {
             "job_id": "j1", "state": "completed", "direction": "push",
             "total_documents": 10, "synced_count": 8,
@@ -963,7 +991,7 @@ def test_job_snapshot_lineage():
 def test_job_snapshot_lineage_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_lineage_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.job_snapshot_lineage.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/jobs/bad/snapshot-lineage")
 
@@ -973,7 +1001,7 @@ def test_job_snapshot_lineage_not_found_404():
 def test_export_lineage():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_lineage_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.export_lineage.return_value = {
             "baseline_overview": {
                 "total_sites": 1, "total_jobs": 1,
@@ -1006,7 +1034,7 @@ def test_export_lineage():
 def test_checkpoints_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_retention_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.checkpoints_overview.return_value = {
             "total_sites": 2,
             "sites_by_state": {"active": 1, "disabled": 1},
@@ -1031,7 +1059,7 @@ def test_checkpoints_overview():
 def test_retention_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_retention_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.retention_summary.return_value = {
             "total_records": 20,
             "synced_records": 13,
@@ -1054,7 +1082,7 @@ def test_retention_summary():
 def test_site_checkpoints():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_retention_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_checkpoints.return_value = {
             "site_id": "s1", "site_name": "HQ", "state": "active",
             "total_checkpoints": 3, "completed_checkpoints": 2,
@@ -1082,7 +1110,7 @@ def test_site_checkpoints():
 def test_site_checkpoints_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_retention_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_checkpoints.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/sites/bad/checkpoints")
 
@@ -1092,7 +1120,7 @@ def test_site_checkpoints_not_found_404():
 def test_export_retention():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_retention_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.export_retention.return_value = {
             "checkpoints_overview": {
                 "total_sites": 1, "sites_by_state": {"active": 1},
@@ -1133,7 +1161,7 @@ def test_export_retention():
 def test_export_retention_empty():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_retention_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.export_retention.return_value = {
             "checkpoints_overview": {
                 "total_sites": 0, "sites_by_state": {},
@@ -1166,7 +1194,7 @@ def test_export_retention_empty():
 def test_freshness_overview():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_freshness_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.freshness_overview.return_value = {
             "total_sites": 2,
             "stale_site_count": 1,
@@ -1187,7 +1215,7 @@ def test_freshness_overview():
 def test_watermarks_summary():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_freshness_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.watermarks_summary.return_value = {
             "total_sites": 2,
             "exceeded_count": 1,
@@ -1211,7 +1239,7 @@ def test_watermarks_summary():
 def test_site_freshness():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_freshness_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_freshness.return_value = {
             "site_id": "s1", "site_name": "HQ", "state": "active",
             "direction": "push", "total_records": 10,
@@ -1230,7 +1258,7 @@ def test_site_freshness():
 def test_site_freshness_not_found_404():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_freshness_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.site_freshness.side_effect = ValueError("not found")
         resp = client.get("/api/v1/document-sync/sites/bad/freshness")
 
@@ -1240,7 +1268,7 @@ def test_site_freshness_not_found_404():
 def test_export_watermarks():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_freshness_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.export_watermarks.return_value = {
             "freshness_overview": {
                 "total_sites": 1, "stale_site_count": 0,
@@ -1278,7 +1306,7 @@ def test_export_watermarks():
 def test_export_watermarks_empty():
     client, _db = _client_with_mocks()
 
-    with patch("yuantus.meta_engine.web.document_sync_router.DocumentSyncService") as svc_cls:
+    with patch("yuantus.meta_engine.web.document_sync_freshness_router.DocumentSyncService") as svc_cls:
         svc_cls.return_value.export_watermarks.return_value = {
             "freshness_overview": {
                 "total_sites": 0, "stale_site_count": 0,

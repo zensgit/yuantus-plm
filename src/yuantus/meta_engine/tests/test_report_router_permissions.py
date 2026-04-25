@@ -45,7 +45,7 @@ def test_export_definition_denies_when_role_not_allowed():
         allowed_roles=["admin"],
     )
 
-    with patch("yuantus.meta_engine.web.report_router.ReportDefinitionService") as svc_cls:
+    with patch("yuantus.meta_engine.web.report_definition_router.ReportDefinitionService") as svc_cls:
         svc_cls.return_value.get_definition.return_value = report
         resp = client.post("/api/v1/reports/definitions/rep-1/export", json={})
 
@@ -57,7 +57,7 @@ def test_advanced_search_passes_report_language_selection():
     user = SimpleNamespace(id=2, roles=["viewer"], is_superuser=False)
     client = _client_with_user(user)
 
-    with patch("yuantus.meta_engine.web.report_router.AdvancedSearchService") as svc_cls:
+    with patch("yuantus.meta_engine.web.report_summary_search_router.AdvancedSearchService") as svc_cls:
         svc = svc_cls.return_value
         svc.search.return_value = {"items": [], "total": 0}
         resp = client.post(
@@ -97,7 +97,7 @@ def test_export_definition_allows_superuser_without_admin_role():
         allowed_roles=None,
     )
 
-    with patch("yuantus.meta_engine.web.report_router.ReportDefinitionService") as svc_cls:
+    with patch("yuantus.meta_engine.web.report_definition_router.ReportDefinitionService") as svc_cls:
         svc = svc_cls.return_value
         svc.get_definition.return_value = report
         svc.export_definition.return_value = {
@@ -123,7 +123,7 @@ def test_export_definition_allows_case_insensitive_allowed_roles():
         allowed_roles=[" viewer "],
     )
 
-    with patch("yuantus.meta_engine.web.report_router.ReportDefinitionService") as svc_cls:
+    with patch("yuantus.meta_engine.web.report_definition_router.ReportDefinitionService") as svc_cls:
         svc = svc_cls.return_value
         svc.get_definition.return_value = report
         svc.export_definition.return_value = {

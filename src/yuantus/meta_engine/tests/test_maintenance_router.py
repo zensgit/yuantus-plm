@@ -10,7 +10,11 @@ from fastapi.testclient import TestClient
 from yuantus.api.app import create_app
 from yuantus.database import get_db
 from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.meta_engine.web.maintenance_category_router import maintenance_category_router
+from yuantus.meta_engine.web.maintenance_equipment_router import maintenance_equipment_router
+from yuantus.meta_engine.web.maintenance_request_router import maintenance_request_router
 from yuantus.meta_engine.web.maintenance_router import maintenance_router
+from yuantus.meta_engine.web.maintenance_schedule_router import maintenance_schedule_router
 
 
 def _client_with_db():
@@ -23,6 +27,10 @@ def _client_with_db():
             pass
 
     app = FastAPI()
+    app.include_router(maintenance_category_router, prefix="/api/v1")
+    app.include_router(maintenance_equipment_router, prefix="/api/v1")
+    app.include_router(maintenance_request_router, prefix="/api/v1")
+    app.include_router(maintenance_schedule_router, prefix="/api/v1")
     app.include_router(maintenance_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = lambda: None
@@ -37,8 +45,13 @@ def _client_with_db():
 def test_maintenance_category_and_equipment_endpoints_commit():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.maintenance_router.MaintenanceService") as service_cls:
-        service = service_cls.return_value
+    with (
+        patch("yuantus.meta_engine.web.maintenance_category_router.MaintenanceService") as category_service_cls,
+        patch("yuantus.meta_engine.web.maintenance_equipment_router.MaintenanceService") as equipment_service_cls,
+    ):
+        service = MagicMock()
+        category_service_cls.return_value = service
+        equipment_service_cls.return_value = service
         service.create_category.return_value = SimpleNamespace(
             id="cat-1",
             name="CNC Machines",
@@ -84,7 +97,7 @@ def test_maintenance_category_and_equipment_endpoints_commit():
 def test_maintenance_request_transition_endpoints_return_service_payloads():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.maintenance_router.MaintenanceService") as service_cls:
+    with patch("yuantus.meta_engine.web.maintenance_request_router.MaintenanceService") as service_cls:
         service = service_cls.return_value
         service.create_request.return_value = SimpleNamespace(
             id="mr-1",
@@ -140,7 +153,7 @@ def test_maintenance_request_transition_endpoints_return_service_payloads():
 def test_equipment_readiness_summary_endpoint():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.maintenance_router.MaintenanceService") as svc_cls:
+    with patch("yuantus.meta_engine.web.maintenance_equipment_router.MaintenanceService") as svc_cls:
         service = svc_cls.return_value
         service.get_equipment_readiness_summary.return_value = {
             "total_equipment": 5,
@@ -173,7 +186,7 @@ def test_readiness_summary_route_not_shadowed_by_equipment_id():
     """Verify /equipment/readiness-summary is matched before /equipment/{id}."""
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.maintenance_router.MaintenanceService") as svc_cls:
+    with patch("yuantus.meta_engine.web.maintenance_equipment_router.MaintenanceService") as svc_cls:
         service = svc_cls.return_value
         service.get_equipment_readiness_summary.return_value = {
             "total_equipment": 0, "operational": 0, "readiness_pct": 0.0,
@@ -191,7 +204,7 @@ def test_readiness_summary_route_not_shadowed_by_equipment_id():
 def test_preventive_schedule_endpoint():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.maintenance_router.MaintenanceService") as svc_cls:
+    with patch("yuantus.meta_engine.web.maintenance_schedule_router.MaintenanceService") as svc_cls:
         service = svc_cls.return_value
         service.get_preventive_schedule.return_value = {
             "reference_date": "2026-03-18T00:00:00",
@@ -223,7 +236,7 @@ def test_preventive_schedule_endpoint():
 def test_queue_summary_endpoint():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.maintenance_router.MaintenanceService") as svc_cls:
+    with patch("yuantus.meta_engine.web.maintenance_schedule_router.MaintenanceService") as svc_cls:
         service = svc_cls.return_value
         service.get_maintenance_queue_summary.return_value = {
             "total_active": 3,
@@ -257,7 +270,7 @@ def test_equipment_404_still_works():
     """Ensure the path param route still returns 404 for missing equipment."""
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.maintenance_router.MaintenanceService") as svc_cls:
+    with patch("yuantus.meta_engine.web.maintenance_equipment_router.MaintenanceService") as svc_cls:
         service = svc_cls.return_value
         service.get_equipment.return_value = None
 
