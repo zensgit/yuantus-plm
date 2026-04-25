@@ -56,7 +56,6 @@ from yuantus.meta_engine.web.cutted_parts_bottlenecks_router import (
     cutted_parts_bottlenecks_router,
 )
 from yuantus.meta_engine.web.cutted_parts_core_router import cutted_parts_core_router
-from yuantus.meta_engine.web.cutted_parts_router import cutted_parts_router
 from yuantus.meta_engine.web.cutted_parts_scenarios_router import (
     cutted_parts_scenarios_router,
 )
@@ -331,7 +330,6 @@ def create_app() -> FastAPI:
     app.include_router(cutted_parts_throughput_router, prefix="/api/v1")
     app.include_router(cutted_parts_bottlenecks_router, prefix="/api/v1")
     app.include_router(cutted_parts_core_router, prefix="/api/v1")
-    app.include_router(cutted_parts_router, prefix="/api/v1")
     app.include_router(release_validation_router, prefix="/api/v1")
     app.include_router(dedup_router, prefix="/api/v1")
     app.include_router(cad_backend_profile_router, prefix="/api/v1")

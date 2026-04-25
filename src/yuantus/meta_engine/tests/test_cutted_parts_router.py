@@ -21,7 +21,6 @@ from yuantus.meta_engine.web.cutted_parts_bottlenecks_router import (
     cutted_parts_bottlenecks_router,
 )
 from yuantus.meta_engine.web.cutted_parts_core_router import cutted_parts_core_router
-from yuantus.meta_engine.web.cutted_parts_router import cutted_parts_router
 from yuantus.meta_engine.web.cutted_parts_scenarios_router import (
     cutted_parts_scenarios_router,
 )
@@ -60,7 +59,6 @@ def _client_with_user():
     app.include_router(cutted_parts_throughput_router, prefix="/api/v1")
     app.include_router(cutted_parts_bottlenecks_router, prefix="/api/v1")
     app.include_router(cutted_parts_core_router, prefix="/api/v1")
-    app.include_router(cutted_parts_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = lambda: mock_user
     return TestClient(app), mock_db

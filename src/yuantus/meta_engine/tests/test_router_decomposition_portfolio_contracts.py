@@ -41,7 +41,7 @@ LEGACY_ROUTER_STATES = {
     },
     "cutted_parts_router.py": {
         "legacy_module": "yuantus.meta_engine.web.cutted_parts_router",
-        "registered": True,
+        "registered": False,
         "include_token": "app.include_router(cutted_parts_router",
         "import_token": "from yuantus.meta_engine.web.cutted_parts_router import cutted_parts_router",
     },
