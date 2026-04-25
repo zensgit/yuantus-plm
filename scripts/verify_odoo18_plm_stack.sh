@@ -15,14 +15,40 @@ if [[ -z "$PY_BIN" ]]; then
   fi
 fi
 
-PYTEST_BIN="${PYTEST_BIN:-}"
-if [[ -z "$PYTEST_BIN" ]]; then
-  if [[ -x "${REPO_ROOT}/.venv/bin/pytest" ]]; then
-    PYTEST_BIN="${REPO_ROOT}/.venv/bin/pytest"
-  else
-    PYTEST_BIN="pytest"
-  fi
+PYTEST_CMD=()
+if [[ -n "${PYTEST_BIN:-}" ]]; then
+  PYTEST_CMD=("${PYTEST_BIN}")
+else
+  PYTEST_CMD=("${PY_BIN}" -m pytest)
 fi
+
+usage() {
+  cat <<'EOF'
+Usage: scripts/verify_odoo18_plm_stack.sh [smoke|full]
+
+Modes:
+  smoke  Run the focused Odoo18 PLM smoke set.
+  full   Run the broader Odoo18 PLM regression set. This is the default.
+
+Environment:
+  PY_BIN          Python executable. Defaults to .venv/bin/python when present.
+  PYTEST_BIN      Optional pytest executable override.
+  PYTHONPYCACHEPREFIX
+                  Optional pycache output directory. Defaults to /tmp/yuantus-pyc.
+EOF
+}
+
+if [[ "$#" -gt 1 ]]; then
+  usage >&2
+  exit 2
+fi
+
+case "$MODE" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+esac
 
 export PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/yuantus-pyc}"
 
@@ -52,15 +78,43 @@ compile_files=(
   "src/yuantus/meta_engine/box/__init__.py"
   "src/yuantus/meta_engine/box/models.py"
   "src/yuantus/meta_engine/box/service.py"
+  "src/yuantus/meta_engine/web/box_aging_router.py"
+  "src/yuantus/meta_engine/web/box_analytics_router.py"
+  "src/yuantus/meta_engine/web/box_capacity_router.py"
+  "src/yuantus/meta_engine/web/box_core_router.py"
+  "src/yuantus/meta_engine/web/box_custody_router.py"
+  "src/yuantus/meta_engine/web/box_ops_router.py"
+  "src/yuantus/meta_engine/web/box_policy_router.py"
+  "src/yuantus/meta_engine/web/box_reconciliation_router.py"
   "src/yuantus/meta_engine/web/box_router.py"
+  "src/yuantus/meta_engine/web/box_traceability_router.py"
+  "src/yuantus/meta_engine/web/box_turnover_router.py"
   "src/yuantus/meta_engine/document_sync/__init__.py"
   "src/yuantus/meta_engine/document_sync/models.py"
   "src/yuantus/meta_engine/document_sync/service.py"
+  "src/yuantus/meta_engine/web/document_sync_analytics_router.py"
+  "src/yuantus/meta_engine/web/document_sync_core_router.py"
+  "src/yuantus/meta_engine/web/document_sync_drift_router.py"
+  "src/yuantus/meta_engine/web/document_sync_freshness_router.py"
+  "src/yuantus/meta_engine/web/document_sync_lineage_router.py"
+  "src/yuantus/meta_engine/web/document_sync_reconciliation_router.py"
+  "src/yuantus/meta_engine/web/document_sync_replay_audit_router.py"
+  "src/yuantus/meta_engine/web/document_sync_retention_router.py"
   "src/yuantus/meta_engine/web/document_sync_router.py"
   "src/yuantus/meta_engine/cutted_parts/__init__.py"
   "src/yuantus/meta_engine/cutted_parts/models.py"
   "src/yuantus/meta_engine/cutted_parts/service.py"
+  "src/yuantus/meta_engine/web/cutted_parts_alerts_router.py"
+  "src/yuantus/meta_engine/web/cutted_parts_analytics_router.py"
+  "src/yuantus/meta_engine/web/cutted_parts_benchmark_router.py"
+  "src/yuantus/meta_engine/web/cutted_parts_bottlenecks_router.py"
+  "src/yuantus/meta_engine/web/cutted_parts_core_router.py"
   "src/yuantus/meta_engine/web/cutted_parts_router.py"
+  "src/yuantus/meta_engine/web/cutted_parts_scenarios_router.py"
+  "src/yuantus/meta_engine/web/cutted_parts_thresholds_router.py"
+  "src/yuantus/meta_engine/web/cutted_parts_throughput_router.py"
+  "src/yuantus/meta_engine/web/cutted_parts_utilization_router.py"
+  "src/yuantus/meta_engine/web/cutted_parts_variance_router.py"
   "src/yuantus/meta_engine/web/bom_router.py"
 )
 
@@ -114,18 +168,34 @@ case "$MODE" in
     selected_tests=("${full_tests[@]}")
     ;;
   *)
-    echo "Usage: $0 [smoke|full]" >&2
+    usage >&2
     exit 2
     ;;
 esac
 
 cd "$REPO_ROOT"
 
+# Router decomposition is still active across Odoo18 PLM domains. Keep the
+# syntax gate complete without hand-maintaining every split router file.
+while IFS= read -r router_file; do
+  compile_files+=("$router_file")
+done < <(find "src/yuantus/meta_engine/web" -maxdepth 1 -type f -name "*_router.py" | sort)
+
+deduped_compile_files=()
+seen_compile_files=$'\n'
+for compile_file in "${compile_files[@]}"; do
+  if [[ "$seen_compile_files" != *$'\n'"$compile_file"$'\n'* ]]; then
+    deduped_compile_files+=("$compile_file")
+    seen_compile_files+="$compile_file"$'\n'
+  fi
+done
+compile_files=("${deduped_compile_files[@]}")
+
 echo "[verify_odoo18_plm_stack] mode=${MODE}"
 echo "[verify_odoo18_plm_stack] py_compile"
 "$PY_BIN" -m py_compile "${compile_files[@]}"
 
 echo "[verify_odoo18_plm_stack] pytest"
-"$PYTEST_BIN" -q "${selected_tests[@]}"
+"${PYTEST_CMD[@]}" -q "${selected_tests[@]}"
 
 echo "[verify_odoo18_plm_stack] PASS"

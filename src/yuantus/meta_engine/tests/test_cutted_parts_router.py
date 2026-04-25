@@ -10,7 +10,33 @@ from fastapi.testclient import TestClient
 from yuantus.api.app import create_app
 from yuantus.database import get_db
 from yuantus.api.dependencies.auth import get_current_user
+from yuantus.meta_engine.web.cutted_parts_alerts_router import cutted_parts_alerts_router
+from yuantus.meta_engine.web.cutted_parts_analytics_router import (
+    cutted_parts_analytics_router,
+)
+from yuantus.meta_engine.web.cutted_parts_benchmark_router import (
+    cutted_parts_benchmark_router,
+)
+from yuantus.meta_engine.web.cutted_parts_bottlenecks_router import (
+    cutted_parts_bottlenecks_router,
+)
+from yuantus.meta_engine.web.cutted_parts_core_router import cutted_parts_core_router
 from yuantus.meta_engine.web.cutted_parts_router import cutted_parts_router
+from yuantus.meta_engine.web.cutted_parts_scenarios_router import (
+    cutted_parts_scenarios_router,
+)
+from yuantus.meta_engine.web.cutted_parts_thresholds_router import (
+    cutted_parts_thresholds_router,
+)
+from yuantus.meta_engine.web.cutted_parts_throughput_router import (
+    cutted_parts_throughput_router,
+)
+from yuantus.meta_engine.web.cutted_parts_utilization_router import (
+    cutted_parts_utilization_router,
+)
+from yuantus.meta_engine.web.cutted_parts_variance_router import (
+    cutted_parts_variance_router,
+)
 
 
 def _client_with_user():
@@ -24,6 +50,16 @@ def _client_with_user():
             pass
 
     app = FastAPI()
+    app.include_router(cutted_parts_analytics_router, prefix="/api/v1")
+    app.include_router(cutted_parts_utilization_router, prefix="/api/v1")
+    app.include_router(cutted_parts_scenarios_router, prefix="/api/v1")
+    app.include_router(cutted_parts_benchmark_router, prefix="/api/v1")
+    app.include_router(cutted_parts_variance_router, prefix="/api/v1")
+    app.include_router(cutted_parts_thresholds_router, prefix="/api/v1")
+    app.include_router(cutted_parts_alerts_router, prefix="/api/v1")
+    app.include_router(cutted_parts_throughput_router, prefix="/api/v1")
+    app.include_router(cutted_parts_bottlenecks_router, prefix="/api/v1")
+    app.include_router(cutted_parts_core_router, prefix="/api/v1")
     app.include_router(cutted_parts_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_db
     app.dependency_overrides[get_current_user] = lambda: mock_user
@@ -69,7 +105,7 @@ def _fake_material(**overrides):
 
 def test_create_plan():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_core_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.create_plan.return_value = _fake_plan()
         resp = client.post(
@@ -84,7 +120,7 @@ def test_create_plan():
 
 def test_create_plan_invalid_400():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_core_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.create_plan.side_effect = ValueError("material not found")
         resp = client.post(
@@ -97,7 +133,7 @@ def test_create_plan_invalid_400():
 
 def test_list_plans():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_core_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.list_plans.return_value = [_fake_plan(), _fake_plan(id="plan-2", name="Plan 2")]
         resp = client.get("/api/v1/cutted-parts/plans")
@@ -107,7 +143,7 @@ def test_list_plans():
 
 def test_get_plan():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_core_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.get_plan.return_value = _fake_plan()
         resp = client.get("/api/v1/cutted-parts/plans/plan-1")
@@ -117,7 +153,7 @@ def test_get_plan():
 
 def test_get_plan_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_core_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.get_plan.return_value = None
         resp = client.get("/api/v1/cutted-parts/plans/nonexistent")
@@ -133,7 +169,7 @@ def test_get_plan_summary():
         "by_status": {"ok": 2, "scrap": 1},
         "total_scrap_weight": 0.5, "waste_pct": 3.2,
     }
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_core_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_summary.return_value = summary
         resp = client.get("/api/v1/cutted-parts/plans/plan-1/summary")
@@ -143,7 +179,7 @@ def test_get_plan_summary():
 
 def test_get_plan_summary_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_core_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_summary.side_effect = ValueError("Plan 'x' not found")
         resp = client.get("/api/v1/cutted-parts/plans/x/summary")
@@ -152,7 +188,7 @@ def test_get_plan_summary_not_found_404():
 
 def test_list_cuts():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_core_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.get_plan.return_value = _fake_plan()
         service.list_cuts.return_value = [_fake_cut(), _fake_cut(id="cut-2")]
@@ -163,7 +199,7 @@ def test_list_cuts():
 
 def test_list_cuts_plan_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_core_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.get_plan.return_value = None
         resp = client.get("/api/v1/cutted-parts/plans/nonexistent/cuts")
@@ -177,7 +213,7 @@ def test_list_cuts_plan_not_found_404():
 
 def test_list_materials():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_core_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.list_materials.return_value = [_fake_material()]
         resp = client.get("/api/v1/cutted-parts/materials")
@@ -193,7 +229,7 @@ def test_list_materials():
 
 def test_overview():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_analytics_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.overview.return_value = {
             "total_plans": 3, "plans_by_state": {"draft": 2, "completed": 1},
@@ -216,7 +252,7 @@ def test_cutted_parts_routes_registered_in_create_app():
 
 def test_material_analytics():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_analytics_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.material_analytics.return_value = {
             "total_materials": 2, "active_count": 2,
@@ -230,7 +266,7 @@ def test_material_analytics():
 
 def test_waste_summary():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_analytics_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.waste_summary.return_value = {
             "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
@@ -246,7 +282,7 @@ def test_waste_summary():
 
 def test_waste_summary_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_analytics_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.waste_summary.side_effect = ValueError("Plan 'x' not found")
         resp = client.get("/api/v1/cutted-parts/plans/x/waste-summary")
@@ -255,7 +291,7 @@ def test_waste_summary_not_found_404():
 
 def test_export_overview():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_analytics_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_overview.return_value = {
             "overview": {"total_plans": 1},
@@ -269,7 +305,7 @@ def test_export_overview():
 
 def test_export_waste():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_analytics_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_waste.return_value = {
             "total_plans": 1,
@@ -290,7 +326,7 @@ def test_export_waste():
 
 def test_utilization_overview():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_utilization_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.utilization_overview.return_value = {
             "total_plans": 3, "plans_with_data": 2,
@@ -305,7 +341,7 @@ def test_utilization_overview():
 
 def test_material_utilization():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_utilization_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.material_utilization.return_value = {
             "total_materials": 2, "total_stock": 200.0, "total_consumed": 80.0,
@@ -324,7 +360,7 @@ def test_material_utilization():
 
 def test_plan_cost_summary():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_utilization_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_cost_summary.return_value = {
             "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
@@ -341,7 +377,7 @@ def test_plan_cost_summary():
 
 def test_plan_cost_summary_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_utilization_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_cost_summary.side_effect = ValueError("Plan 'x' not found")
         resp = client.get("/api/v1/cutted-parts/plans/x/cost-summary")
@@ -350,7 +386,7 @@ def test_plan_cost_summary_not_found_404():
 
 def test_export_utilization():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_utilization_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_utilization.return_value = {
             "utilization_overview": {"total_plans": 1},
@@ -364,7 +400,7 @@ def test_export_utilization():
 
 def test_export_costs():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_utilization_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_costs.return_value = {
             "total_plans": 1, "total_material_cost": 30.0,
@@ -383,7 +419,7 @@ def test_export_costs():
 
 def test_template_overview():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_scenarios_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.template_overview.return_value = {
             "template_count": 3, "active_scenarios": 2,
@@ -400,7 +436,7 @@ def test_template_overview():
 
 def test_scenario_summary():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_scenarios_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.scenario_summary.return_value = {
             "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
@@ -417,7 +453,7 @@ def test_scenario_summary():
 
 def test_scenario_summary_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_scenarios_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.scenario_summary.side_effect = ValueError("Plan 'x' not found")
         resp = client.get("/api/v1/cutted-parts/plans/x/scenarios")
@@ -426,7 +462,7 @@ def test_scenario_summary_not_found_404():
 
 def test_material_templates():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_scenarios_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.material_templates.return_value = {
             "total_materials": 2,
@@ -445,7 +481,7 @@ def test_material_templates():
 
 def test_export_scenarios():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_scenarios_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_scenarios.return_value = {
             "template_overview": {"template_count": 1},
@@ -466,7 +502,7 @@ def test_export_scenarios():
 
 def test_benchmark_overview():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_benchmark_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.benchmark_overview.return_value = {
             "total_plans": 3, "completed_plans": 1,
@@ -484,7 +520,7 @@ def test_benchmark_overview():
 
 def test_quote_summary():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_benchmark_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.quote_summary.return_value = {
             "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
@@ -502,7 +538,7 @@ def test_quote_summary():
 
 def test_quote_summary_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_benchmark_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.quote_summary.side_effect = ValueError("Plan 'x' not found")
         resp = client.get("/api/v1/cutted-parts/plans/x/quote-summary")
@@ -511,7 +547,7 @@ def test_quote_summary_not_found_404():
 
 def test_material_benchmarks():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_benchmark_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.material_benchmarks.return_value = {
             "total_materials": 2,
@@ -530,7 +566,7 @@ def test_material_benchmarks():
 
 def test_export_quotes():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_benchmark_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_quotes.return_value = {
             "benchmark_overview": {"total_plans": 1},
@@ -551,7 +587,7 @@ def test_export_quotes():
 
 def test_variance_overview():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_variance_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.variance_overview.return_value = {
             "total_plans": 3, "plans_with_waste_data": 2,
@@ -568,7 +604,7 @@ def test_variance_overview():
 
 def test_plan_recommendations():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_variance_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_recommendations.return_value = {
             "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
@@ -586,7 +622,7 @@ def test_plan_recommendations():
 
 def test_plan_recommendations_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_variance_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_recommendations.side_effect = ValueError("Plan 'x' not found")
         resp = client.get("/api/v1/cutted-parts/plans/x/recommendations")
@@ -595,7 +631,7 @@ def test_plan_recommendations_not_found_404():
 
 def test_material_variance():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_variance_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.material_variance.return_value = {
             "total_materials": 2,
@@ -614,7 +650,7 @@ def test_material_variance():
 
 def test_export_recommendations():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_variance_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_recommendations.return_value = {
             "variance_overview": {"total_plans": 1},
@@ -635,7 +671,7 @@ def test_export_recommendations():
 
 def test_thresholds_overview():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_thresholds_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.thresholds_overview.return_value = {
             "total_plans": 3,
@@ -653,7 +689,7 @@ def test_thresholds_overview():
 
 def test_envelopes_summary():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_thresholds_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.envelopes_summary.return_value = {
             "total_materials": 2, "envelope_limit": 15.0,
@@ -673,7 +709,7 @@ def test_envelopes_summary():
 
 def test_plan_threshold_check():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_thresholds_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_threshold_check.return_value = {
             "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
@@ -692,7 +728,7 @@ def test_plan_threshold_check():
 
 def test_plan_threshold_check_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_thresholds_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_threshold_check.side_effect = ValueError("Plan 'x' not found")
         resp = client.get("/api/v1/cutted-parts/plans/x/threshold-check")
@@ -701,7 +737,7 @@ def test_plan_threshold_check_not_found_404():
 
 def test_export_envelopes():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_thresholds_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_envelopes.return_value = {
             "thresholds_overview": {"total_plans": 1},
@@ -722,7 +758,7 @@ def test_export_envelopes():
 
 def test_alerts_overview():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_alerts_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.alerts_overview.return_value = {
             "total_plans": 3,
@@ -739,7 +775,7 @@ def test_alerts_overview():
 
 def test_outliers_summary():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_alerts_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.outliers_summary.return_value = {
             "total_plans": 4, "plans_with_waste_data": 4,
@@ -755,7 +791,7 @@ def test_outliers_summary():
 
 def test_plan_alerts():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_alerts_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_alerts.return_value = {
             "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
@@ -774,7 +810,7 @@ def test_plan_alerts():
 
 def test_plan_alerts_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_alerts_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_alerts.side_effect = ValueError("Plan 'x' not found")
         resp = client.get("/api/v1/cutted-parts/plans/x/alerts")
@@ -783,7 +819,7 @@ def test_plan_alerts_not_found_404():
 
 def test_export_outliers():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_alerts_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_outliers.return_value = {
             "alerts_overview": {"total_plans": 1},
@@ -804,7 +840,7 @@ def test_export_outliers():
 
 def test_throughput_overview():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_throughput_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.throughput_overview.return_value = {
             "total_plans": 3, "total_cuts": 10,
@@ -822,7 +858,7 @@ def test_throughput_overview():
 
 def test_cadence_summary():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_throughput_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.cadence_summary.return_value = {
             "total_plans": 3,
@@ -838,7 +874,7 @@ def test_cadence_summary():
 
 def test_plan_cadence():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_throughput_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_cadence.return_value = {
             "plan_id": "plan-1", "plan_name": "Test Plan", "state": "draft",
@@ -853,7 +889,7 @@ def test_plan_cadence():
 
 def test_plan_cadence_not_found_404():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_throughput_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_cadence.side_effect = ValueError("Plan 'x' not found")
         resp = client.get("/api/v1/cutted-parts/plans/x/cadence")
@@ -862,7 +898,7 @@ def test_plan_cadence_not_found_404():
 
 def test_export_cadence():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_throughput_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_cadence.return_value = {
             "throughput_overview": {"total_plans": 1},
@@ -883,7 +919,7 @@ def test_export_cadence():
 
 def test_saturation_overview_c46():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_bottlenecks_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.saturation_overview.return_value = {
             "total_plans": 3,
@@ -901,7 +937,7 @@ def test_saturation_overview_c46():
 
 def test_bottlenecks_summary_c46():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_bottlenecks_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.bottlenecks_summary.return_value = {
             "total_plans": 3,
@@ -921,7 +957,7 @@ def test_bottlenecks_summary_c46():
 
 def test_plan_bottlenecks_c46():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_bottlenecks_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_bottlenecks.return_value = {
             "plan_id": "plan-1",
@@ -949,7 +985,7 @@ def test_plan_bottlenecks_c46():
 
 def test_plan_bottlenecks_not_found_404_c46():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_bottlenecks_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.plan_bottlenecks.side_effect = ValueError("Plan 'x' not found")
         resp = client.get("/api/v1/cutted-parts/plans/x/bottlenecks")
@@ -958,7 +994,7 @@ def test_plan_bottlenecks_not_found_404_c46():
 
 def test_export_bottlenecks_c46():
     client, db = _client_with_user()
-    with patch("yuantus.meta_engine.web.cutted_parts_router.CuttedPartsService") as svc_cls:
+    with patch("yuantus.meta_engine.web.cutted_parts_bottlenecks_router.CuttedPartsService") as svc_cls:
         service = svc_cls.return_value
         service.export_bottlenecks.return_value = {
             "saturation_overview": {"total_plans": 1},

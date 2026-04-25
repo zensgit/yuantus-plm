@@ -238,12 +238,17 @@ jobs:
       - name: Contract checks (perf workflows + delivery doc index)
         run: |
           pytest -q \
+            src/yuantus/meta_engine/tests/test_approval_category_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_approval_ops_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_approval_request_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_approvals_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_children_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_compare_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_obsolete_rollup_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_substitutes_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_tree_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_where_used_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_box_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_backend_profile_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_checkin_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_connectors_router_contracts.py \
@@ -267,6 +272,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_compose_sku_profiles.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_compose_worker_dedup_vision_url.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_cross_domain_services_split_helper.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_current_worktree_closeout_commands.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_auto_trigger_workflow.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_batch_run_index.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_dedup_job_promotion.py \
@@ -293,6 +299,9 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_native_workspace_playwright_entrypoints.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_native_workspace_scope_script.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_no_inline_echo_000_in_scripts.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_odoo18_plm_stack_change_scope.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_odoo18_plm_stack_workflow_input.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_odoo18_plm_stack_workflow_runtime.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_p2_observation_discoverability.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_p2_observation_regression_evaluator.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_pact_provider_gate.py \
@@ -323,8 +332,12 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_verify_all_stack_reuse_on_start_conflict.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_verify_all_ui_playwright_workspace_smokes.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_verify_mbom_convert_db_url_fallback.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_verify_odoo18_plm_stack_discoverability.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_verify_odoo18_plm_stack_router_compile.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_version_file_binding_viewer_uniqueness.py \
             src/yuantus/meta_engine/tests/test_ci_shell_scripts_syntax.py \
+            src/yuantus/meta_engine/tests/test_cutted_parts_router_decomposition_closeout_contracts.py \
+            src/yuantus/meta_engine/tests/test_cutted_parts_router_decomposition_r1_contracts.py \
             src/yuantus/meta_engine/tests/test_db_cli_identity_contracts.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_all_sections_sorting_contracts.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_core_ops_sorting_contracts.py \
@@ -335,9 +348,19 @@ jobs:
             src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_section_headings_contracts.py \
             src/yuantus/meta_engine/tests/test_delivery_doc_index_verification_reports_sorting_contracts.py \
+            src/yuantus/meta_engine/tests/test_delivery_scripts_index_entries_contracts.py \
             src/yuantus/meta_engine/tests/test_delivery_scripts_index_native_workspace_playwright_contracts.py \
             src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
             src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_analytics_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_core_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_drift_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_freshness_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_lineage_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_reconciliation_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_replay_audit_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_retention_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_eco_approval_ops_router_contracts.py \
             src/yuantus/meta_engine/tests/test_eco_approval_workflow_router_contracts.py \
             src/yuantus/meta_engine/tests/test_eco_change_analysis_router_contracts.py \
@@ -355,6 +378,11 @@ jobs:
             src/yuantus/meta_engine/tests/test_file_viewer_router_contracts.py \
             src/yuantus/meta_engine/tests/test_graphql_item_number_alias_contracts.py \
             src/yuantus/meta_engine/tests/test_job_queue_tx_boundary_contracts.py \
+            src/yuantus/meta_engine/tests/test_maintenance_category_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_maintenance_equipment_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_maintenance_request_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_maintenance_router_decomposition_closeout_contracts.py \
+            src/yuantus/meta_engine/tests/test_maintenance_schedule_router_contracts.py \
             src/yuantus/meta_engine/tests/test_migration_table_coverage_contracts.py \
             src/yuantus/meta_engine/tests/test_p2_observation_regression_workflow_contracts.py \
             src/yuantus/meta_engine/tests/test_p2_observation_regression_workflow_wrapper.py \
@@ -371,9 +399,15 @@ jobs:
             src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
             src/yuantus/meta_engine/tests/test_perf_gate_config_file.py \
             src/yuantus/meta_engine/tests/test_perf_workflow_contracts.py \
+            src/yuantus/meta_engine/tests/test_quality_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_readme_runbook_references.py \
             src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py \
             src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py \
+            src/yuantus/meta_engine/tests/test_report_dashboard_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_report_definition_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_report_router_decomposition_closeout_contracts.py \
+            src/yuantus/meta_engine/tests/test_report_saved_search_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_report_summary_search_router_contracts.py \
             src/yuantus/meta_engine/tests/test_router_decomposition_portfolio_contracts.py \
             src/yuantus/meta_engine/tests/test_runbook_index_completeness.py \
             src/yuantus/meta_engine/tests/test_scheduler_audit_retention_activation_smoke_contracts.py \
@@ -391,7 +425,17 @@ jobs:
             src/yuantus/meta_engine/tests/test_strict_gate_report_runtime_notes_contracts.py \
             src/yuantus/meta_engine/tests/test_strict_gate_workflow_contracts.py \
             src/yuantus/meta_engine/tests/test_strict_gate_workflow_dispatch_input_type_contracts.py \
+            src/yuantus/meta_engine/tests/test_subcontracting_analytics_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_subcontracting_approval_mapping_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_subcontracting_orders_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_subcontracting_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_suspended_guard_seed_migration_contracts.py \
+            src/yuantus/meta_engine/tests/test_version_effectivity_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_version_file_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_version_iteration_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_version_lifecycle_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_version_revision_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_version_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_action_uses_refs_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_checkout_external_path_contracts.py \
             src/yuantus/meta_engine/tests/test_workflow_checkout_external_ref_allowlist_contracts.py \

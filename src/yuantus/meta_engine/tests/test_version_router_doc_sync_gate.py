@@ -1,11 +1,19 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import get_current_user_id_optional
+from yuantus.config import get_settings
 from yuantus.database import get_db
+
+
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    """These tests override route auth dependency; middleware auth is out of scope."""
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
 
 
 def _client_with_user_id(user_id: int):
@@ -29,8 +37,8 @@ def _client_with_user_id(user_id: int):
 def test_version_checkout_blocked_by_doc_sync_gate():
     client, db = _client_with_user_id(7)
 
-    with patch("yuantus.meta_engine.web.version_router.DocumentMultiSiteService") as doc_sync_cls:
-        with patch("yuantus.meta_engine.web.version_router.VersionService") as version_cls:
+    with patch("yuantus.meta_engine.web.version_lifecycle_router.DocumentMultiSiteService") as doc_sync_cls:
+        with patch("yuantus.meta_engine.web.version_lifecycle_router.VersionService") as version_cls:
             doc_sync_cls.return_value.evaluate_checkout_sync_gate.return_value = {
                 "item_id": "item-1",
                 "site_id": "site-a",
@@ -77,8 +85,8 @@ def test_version_checkout_blocked_by_doc_sync_gate():
 def test_version_checkout_doc_sync_gate_invalid_maps_400():
     client, _db = _client_with_user_id(7)
 
-    with patch("yuantus.meta_engine.web.version_router.DocumentMultiSiteService") as doc_sync_cls:
-        with patch("yuantus.meta_engine.web.version_router.VersionService") as version_cls:
+    with patch("yuantus.meta_engine.web.version_lifecycle_router.DocumentMultiSiteService") as doc_sync_cls:
+        with patch("yuantus.meta_engine.web.version_lifecycle_router.VersionService") as version_cls:
             doc_sync_cls.return_value.evaluate_checkout_sync_gate.side_effect = ValueError(
                 "window_days must be between 1 and 90"
             )
@@ -121,8 +129,8 @@ def test_version_checkout_passes_when_doc_sync_gate_clear():
     client, db = _client_with_user_id(7)
     db.get.return_value = None
 
-    with patch("yuantus.meta_engine.web.version_router.DocumentMultiSiteService") as doc_sync_cls:
-        with patch("yuantus.meta_engine.web.version_router.VersionService") as version_cls:
+    with patch("yuantus.meta_engine.web.version_lifecycle_router.DocumentMultiSiteService") as doc_sync_cls:
+        with patch("yuantus.meta_engine.web.version_lifecycle_router.VersionService") as version_cls:
             doc_sync_cls.return_value.evaluate_checkout_sync_gate.return_value = {
                 "item_id": "item-1",
                 "site_id": "site-a",
@@ -190,8 +198,8 @@ def test_version_checkout_gate_includes_version_files_and_extra_document_ids():
         ],
     )
 
-    with patch("yuantus.meta_engine.web.version_router.DocumentMultiSiteService") as doc_sync_cls:
-        with patch("yuantus.meta_engine.web.version_router.VersionService") as version_cls:
+    with patch("yuantus.meta_engine.web.version_lifecycle_router.DocumentMultiSiteService") as doc_sync_cls:
+        with patch("yuantus.meta_engine.web.version_lifecycle_router.VersionService") as version_cls:
             doc_sync_cls.return_value.evaluate_checkout_sync_gate.return_value = {
                 "item_id": "item-1",
                 "site_id": "site-a",
@@ -243,8 +251,8 @@ def test_version_checkout_gate_includes_version_files_and_extra_document_ids():
 def test_version_checkout_doc_sync_gate_supports_dead_letter_policy_thresholds():
     client, _db = _client_with_user_id(7)
 
-    with patch("yuantus.meta_engine.web.version_router.DocumentMultiSiteService") as doc_sync_cls:
-        with patch("yuantus.meta_engine.web.version_router.VersionService") as version_cls:
+    with patch("yuantus.meta_engine.web.version_lifecycle_router.DocumentMultiSiteService") as doc_sync_cls:
+        with patch("yuantus.meta_engine.web.version_lifecycle_router.VersionService") as version_cls:
             doc_sync_cls.return_value.evaluate_checkout_sync_gate.return_value = {
                 "item_id": "item-1",
                 "site_id": "site-a",
@@ -307,8 +315,8 @@ def test_version_checkout_warn_mode_returns_200_with_warning_headers():
     client, db = _client_with_user_id(7)
     db.get.return_value = None
 
-    with patch("yuantus.meta_engine.web.version_router.DocumentMultiSiteService") as doc_sync_cls:
-        with patch("yuantus.meta_engine.web.version_router.VersionService") as version_cls:
+    with patch("yuantus.meta_engine.web.version_lifecycle_router.DocumentMultiSiteService") as doc_sync_cls:
+        with patch("yuantus.meta_engine.web.version_lifecycle_router.VersionService") as version_cls:
             doc_sync_cls.return_value.evaluate_checkout_sync_gate.return_value = {
                 "item_id": "item-1",
                 "site_id": "site-a",
@@ -371,8 +379,8 @@ def test_version_checkout_passes_direction_thresholds_to_gate():
     client, db = _client_with_user_id(7)
     db.get.return_value = None
 
-    with patch("yuantus.meta_engine.web.version_router.DocumentMultiSiteService") as doc_sync_cls:
-        with patch("yuantus.meta_engine.web.version_router.VersionService") as version_cls:
+    with patch("yuantus.meta_engine.web.version_lifecycle_router.DocumentMultiSiteService") as doc_sync_cls:
+        with patch("yuantus.meta_engine.web.version_lifecycle_router.VersionService") as version_cls:
             doc_sync_cls.return_value.evaluate_checkout_sync_gate.return_value = {
                 "item_id": "item-1",
                 "site_id": "site-a",

@@ -10,8 +10,26 @@ from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.database import get_db
-from yuantus.api.dependencies.auth import get_current_user_id_optional
-from yuantus.meta_engine.web.approvals_router import approvals_router
+from yuantus.api.dependencies.auth import (
+    CurrentUser,
+    get_current_user_id_optional,
+    require_admin_user,
+)
+from yuantus.meta_engine.web.approval_category_router import approval_category_router
+from yuantus.meta_engine.web.approval_request_router import approval_request_router
+from yuantus.meta_engine.web.approval_ops_router import approval_ops_router
+
+
+def _admin_user() -> CurrentUser:
+    return CurrentUser(
+        id=1,
+        tenant_id="tenant-1",
+        org_id="org-1",
+        username="admin",
+        email="admin@example.com",
+        roles=["admin"],
+        is_superuser=True,
+    )
 
 
 def _client_with_db():
@@ -24,16 +42,19 @@ def _client_with_db():
             pass
 
     app = FastAPI()
-    app.include_router(approvals_router, prefix="/api/v1")
+    app.include_router(approval_category_router, prefix="/api/v1")
+    app.include_router(approval_request_router, prefix="/api/v1")
+    app.include_router(approval_ops_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = lambda: None
+    app.dependency_overrides[require_admin_user] = _admin_user
     return TestClient(app), mock_db_session
 
 
 def test_category_crud():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_category_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.create_category.return_value = SimpleNamespace(
             id="cat-1", name="ECO", parent_id=None, description=None, created_at=None,
@@ -52,7 +73,7 @@ def test_category_crud():
 def test_request_create_and_list():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.create_request.return_value = SimpleNamespace(
             id="ar-1", title="Approve ECO", category_id="cat-1",
@@ -78,7 +99,7 @@ def test_request_create_and_list():
 def test_request_transition():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.transition_request.return_value = SimpleNamespace(
             id="ar-1", title="Approve ECO", category_id=None,
@@ -100,7 +121,7 @@ def test_request_transition():
 def test_request_get():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         svc_cls._age_hours.return_value = 5.0
         service.get_request.return_value = SimpleNamespace(
@@ -122,7 +143,7 @@ def test_request_get():
 def test_request_get_404():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.get_request.return_value = None
 
@@ -134,7 +155,7 @@ def test_request_get_404():
 def test_request_lifecycle_endpoint():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.get_request_lifecycle.return_value = {
             "request_id": "ar-1",
@@ -155,7 +176,7 @@ def test_request_lifecycle_endpoint():
 def test_request_consumer_summary_endpoint():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.get_request_consumer_summary.return_value = {
             "request": {"id": "ar-1", "state": "pending"},
@@ -185,7 +206,7 @@ def test_request_consumer_summary_endpoint():
 def test_request_history_endpoint():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.get_request_history.return_value = {
             "request_id": "ar-1",
@@ -206,7 +227,7 @@ def test_request_history_endpoint():
 def test_request_pack_summary_endpoint():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.get_request_pack_row.side_effect = [
             {
@@ -254,7 +275,7 @@ def test_request_pack_summary_endpoint():
 def test_summary_endpoint():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_ops_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.get_summary.return_value = {
             "total": 5,
@@ -281,7 +302,7 @@ def test_summary_endpoint():
 def test_requests_export_endpoint():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.export_requests.return_value = {
             "requests": [{"id": "ar-1", "title": "Approve ECO"}],
@@ -311,7 +332,7 @@ def test_requests_export_endpoint():
 def test_summary_export_endpoint():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_ops_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.export_summary.return_value = "metric,value\ntotal,2\n"
 
@@ -333,7 +354,7 @@ def test_summary_export_endpoint():
 def test_ops_report_endpoint():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_ops_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.get_ops_report.return_value = {
             "category_coverage": 0.5,
@@ -353,7 +374,7 @@ def test_ops_report_endpoint():
 def test_ops_report_export_endpoint():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_ops_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.export_ops_report.return_value = "# Approvals Ops Report\n"
 
@@ -371,7 +392,7 @@ def test_ops_report_export_endpoint():
 def test_queue_health_endpoint():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_ops_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.get_queue_health.return_value = {
             "generated_at": "2026-03-23T00:00:00Z",
@@ -416,7 +437,7 @@ def test_queue_health_endpoint():
 def test_queue_health_export_endpoint():
     client, _db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_ops_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.export_queue_health.return_value = "metric,value\npending,1\n"
 
@@ -440,7 +461,7 @@ def test_queue_health_export_endpoint():
 def test_transition_validation_error():
     client, db = _client_with_db()
 
-    with patch("yuantus.meta_engine.web.approvals_router.ApprovalService") as svc_cls:
+    with patch("yuantus.meta_engine.web.approval_request_router.ApprovalService") as svc_cls:
         service = svc_cls.return_value
         service.transition_request.side_effect = ValueError("Cannot transition")
 
