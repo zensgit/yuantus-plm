@@ -122,42 +122,77 @@ Phases are ordered by:
 
 **Total effort**: ~3–5 engineering days across 10 sub-PRs.
 
+**Current shell state in `src/yuantus/api/app.py` (verified at HEAD `e4ec310`):**
+
+9 of the 10 shells are still **both** imported AND registered in app.py. `eco_router` is the lone exception — it is NOT imported by app.py at all (it is a re-export shim of `eco_core_router`, used only by test files). Each Phase 1 sub-PR for a "standard" shell must remove **both** lines, not just the import.
+
+> **Recipe-correctness note**: an earlier draft of this section incorrectly claimed the `app.include_router(<shell>_router, …)` lines were already removed by a prior unregistration cycle. That was true only for `file_router` (PR #387) and `approvals_router` (commit `55ffae4`). The 9 standard shells listed below still have both lines present and must remove both.
+
 **Sub-PRs (in increasing-difficulty order):**
 
-| Sub-PR | Shell | LOC | Test refs | Branch | Effort |
-| --- | --- | ---: | ---: | --- | ---: |
-| P1.1 | `report_router` | 5 | 2 | `closeout/report-router-shell-removal-20260426` | 0.3 day |
-| P1.2 | `quality_router` | 6 | 3 | `closeout/quality-router-shell-removal-2026MMDD` | 0.3 day |
-| P1.3 | `maintenance_router` | 6 | 3 | `closeout/maintenance-router-shell-removal-2026MMDD` | 0.3 day |
-| P1.4 | `subcontracting_router` | 6 | 3 | `closeout/subcontracting-router-shell-removal-2026MMDD` | 0.3 day |
-| P1.5 | `version_router` | 6 | 4 | `closeout/version-router-shell-removal-2026MMDD` | 0.4 day |
-| P1.6 | `box_router` | 7 | 3 | `closeout/box-router-shell-removal-2026MMDD` | 0.3 day |
-| P1.7 | `cutted_parts_router` | 7 | 3 | `closeout/cutted-parts-router-shell-removal-2026MMDD` | 0.3 day |
-| P1.8 | `bom_router` | 3 | 3 | `closeout/bom-router-shell-removal-2026MMDD` | 0.3 day |
-| P1.9 | `eco_router` (re-export shim) | 10 | 1 | `closeout/eco-router-shell-removal-2026MMDD` | 0.4 day |
-| P1.10 | `document_sync_router` | 23 | 3 | `closeout/document-sync-router-shell-removal-2026MMDD` | 0.5 day |
-| P1.11 | Phase 1 closeout MD + portfolio contract update | — | — | `closeout/phase-1-shell-cleanup-closeout-2026MMDD` | 0.3 day |
+| Sub-PR | Shell | Shell-module LOC | app.py import line | app.py `include_router` line | Test refs | Branch | Effort |
+| --- | --- | ---: | ---: | ---: | ---: | --- | ---: |
+| P1.1 | `report_router` | 5 | 157 | 387 | 2 | `closeout/report-router-shell-removal-20260426` | 0.3 day |
+| P1.2 | `quality_router` | 6 | 183 | 411 | 3 | `closeout/quality-router-shell-removal-2026MMDD` | 0.3 day |
+| P1.3 | `maintenance_router` | 6 | 179 | 407 | 3 | `closeout/maintenance-router-shell-removal-2026MMDD` | 0.3 day |
+| P1.4 | `subcontracting_router` | 6 | 194 | 416 | 3 | `closeout/subcontracting-router-shell-removal-2026MMDD` | 0.3 day |
+| P1.5 | `version_router` | 6 | 201 | 379 | 4 | `closeout/version-router-shell-removal-2026MMDD` | 0.4 day |
+| P1.6 | `box_router` | 7 | 44 | 315 | 3 | `closeout/box-router-shell-removal-2026MMDD` | 0.3 day |
+| P1.7 | `cutted_parts_router` | 7 | 59 | 334 | 3 | `closeout/cutted-parts-router-shell-removal-2026MMDD` | 0.3 day |
+| P1.8 | `bom_router` | 3 | 32 | 304 | 3 | `closeout/bom-router-shell-removal-2026MMDD` | 0.3 day |
+| P1.9 | `eco_router` (re-export shim) | 10 | — (not imported by app.py) | — | 1 | `closeout/eco-router-shell-removal-2026MMDD` | 0.4 day |
+| P1.10 | `document_sync_router` | 23 | 109 | 358 | 3 | `closeout/document-sync-router-shell-removal-2026MMDD` | 0.5 day |
+| P1.11 | Phase 1 closeout MD + portfolio contract update | — | — | — | — | `closeout/phase-1-shell-cleanup-closeout-2026MMDD` | 0.3 day |
 
-**Per-PR mechanical recipe:**
+> Line numbers are baseline indicators on `e4ec310`; they may drift as earlier sub-PRs in this phase land. Each sub-PR must re-verify both line types via `grep -nE "from yuantus\.meta_engine\.web\.<shell> import <shell>\b" src/yuantus/api/app.py` and `grep -nE "app\.include_router\(<shell>," src/yuantus/api/app.py` before editing.
+
+**Per-PR mechanical recipe (standard shells P1.1 – P1.8, P1.10):**
 
 1. `git checkout -b <branch> origin/main`.
-2. Drop the `from yuantus.meta_engine.web.<shell>_router import <shell>_router` line from `src/yuantus/api/app.py`. (No `app.include_router(<shell>_router, …)` line should remain since the previous unregistration cycle.)
-3. Update each test file referencing the shell. Prefer migrating the test to the actual owner router (e.g., `test_report_router_permissions.py` references → use `report_dashboard_router` / `report_definition_router` / `report_saved_search_router` / `report_summary_search_router` per the route's actual owner).
-4. Update `src/yuantus/meta_engine/tests/test_router_decomposition_portfolio_contracts.py` to set the shell's entry to `imported_in_app: False` (or remove the entry entirely if the shell module is deleted).
-5. (Optional, only if grep across all of `src/` confirms no other importers): delete `src/yuantus/meta_engine/web/<shell>_router.py`.
-6. Run focused regression: family-specific contract tests + portfolio + doc-index trio.
-7. PR + DEV_AND_VERIFICATION MD recording the change.
+2. Confirm both target lines exist in `src/yuantus/api/app.py`:
+   ```bash
+   grep -nE "from yuantus\.meta_engine\.web\.<shell> import <shell>\b" src/yuantus/api/app.py
+   grep -nE "app\.include_router\(<shell>," src/yuantus/api/app.py
+   ```
+   Both must print exactly one match before this PR proceeds.
+3. **Remove BOTH lines from `src/yuantus/api/app.py`:**
+   - the `from yuantus.meta_engine.web.<shell>_router import <shell>_router` import line, AND
+   - the `app.include_router(<shell>_router, prefix="/api/v1")` registration line.
+4. Run `python -c "from yuantus.api.app import create_app; create_app()"` to confirm the app boots without `ModuleNotFoundError` or registration loss.
+5. Update each test file referencing the shell. Prefer migrating the test to the actual owner router (e.g., `test_report_router_permissions.py` references → use `report_dashboard_router` / `report_definition_router` / `report_saved_search_router` / `report_summary_search_router` per the route's actual owner).
+6. Update `src/yuantus/meta_engine/tests/test_router_decomposition_portfolio_contracts.py` to set the shell's entry to `imported_in_app: False` and `registered_in_app: False` (or remove the entry entirely if the shell module is deleted).
+7. (Optional, only if `grep -rn "from yuantus\.meta_engine\.web\.<shell>" src/ docs/ scripts/ playwright/` confirms no other importers): delete `src/yuantus/meta_engine/web/<shell>_router.py`.
+8. Run focused regression: family-specific contract tests + portfolio + doc-index trio.
+9. PR + DEV_AND_VERIFICATION MD recording the change.
+
+**Per-PR mechanical recipe (P1.9 — `eco_router` re-export shim, special case):**
+
+`eco_router.py` is a re-export of `eco_core_router as eco_router` and is NOT imported by `app.py`. It is referenced only by tests. The recipe is therefore narrower:
+
+1. `git checkout -b closeout/eco-router-shell-removal-2026MMDD origin/main`.
+2. Confirm `app.py` does not contain `from yuantus.meta_engine.web.eco_router` or `app.include_router(eco_router,` (i.e., this is a re-export shim only — no app.py edits).
+3. Update each test file that imports `yuantus.meta_engine.web.eco_router` or aliases `eco_router_module` to point at `eco_core_router` directly.
+4. Update `test_router_decomposition_portfolio_contracts.py` to mark `eco_router` as a "shim, not registered in app".
+5. (Optional) delete `src/yuantus/meta_engine/web/eco_router.py` after grepping all of `src/`, `docs/`, `scripts/`, `playwright/` for residual imports.
+6. Run focused regression + boot check (step 4 of the standard recipe still applies as a safety net).
+7. PR + DEV_AND_VERIFICATION MD.
 
 **Acceptance criteria (Phase 1 as a whole):**
 
-- `app.py` has no `bom_router` / `eco_router` / `version_router` / `quality_router` / `box_router` / `cutted_parts_router` / `maintenance_router` / `subcontracting_router` / `document_sync_router` / `report_router` import lines.
-- All decomposition closeout contracts updated and green.
-- All previously-passing tests still pass.
-- Phase 1 closeout MD merged.
+- `src/yuantus/api/app.py` has zero `from yuantus.meta_engine.web.<X>_router import <X>_router` import lines for any of: `bom_router`, `eco_router`, `version_router`, `quality_router`, `box_router`, `cutted_parts_router`, `maintenance_router`, `subcontracting_router`, `document_sync_router`, `report_router`.
+- `src/yuantus/api/app.py` has zero `app.include_router(<X>_router, prefix="/api/v1")` registration lines for any of those shells.
+- `python -c "from yuantus.api.app import create_app; create_app()"` boots cleanly.
+- All decomposition closeout contracts updated and green (in particular: `test_router_decomposition_portfolio_contracts.py`).
+- Previously-passing tests still pass; family-specific tests now resolve their `patch(...)` targets to the actual owner routers, not the shells.
+- Phase 1 closeout MD merged with focused regression record.
 
-**Risk**: Low — purely mechanical, well covered by existing contract tests. Worst case: a plugin imports a shell directly, surfaced as a `ModuleNotFoundError` during `create_app()` → reverted by adding the shell back.
+**Risk**: Low–Medium — mechanical, but the prior recipe-bug (claiming the registrations were already gone) demonstrates that careless removal can break `create_app()`. Worst case: a plugin imports a shell directly, surfaced as a `ModuleNotFoundError` during `create_app()` → reverted by adding the shell back.
 
-**Mitigation**: each sub-PR is independently revertible. Shell module file can stay (just unimport from app.py) if any external plugin reference is uncertain.
+**Mitigation**:
+- Each sub-PR is independently revertible.
+- The boot-check command in step 4 of the recipe is a hard gate.
+- Shell module file can stay (just unimport + unregister from app.py) if any external plugin reference is uncertain — preserves the import path even if `app.py` no longer wires it.
+- The portfolio contract test (`test_router_decomposition_portfolio_contracts.py`) runs in CI on every PR and asserts the import + registration map; a missed-removal would surface there.
 
 ## 6. Phase 2 — Observability Foundation (Roadmap §11)
 
