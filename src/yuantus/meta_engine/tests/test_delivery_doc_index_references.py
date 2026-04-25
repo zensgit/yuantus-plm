@@ -51,3 +51,13 @@ def test_delivery_doc_index_backticked_paths_exist() -> None:
 
     assert not missing, "Missing referenced paths:\n" + "\n".join(f"- {m}" for m in missing)
 
+
+def test_delivery_doc_index_does_not_reference_local_only_artifacts() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    index_path = repo_root / "docs" / "DELIVERY_DOC_INDEX.md"
+    text = index_path.read_text(encoding="utf-8", errors="replace")
+
+    forbidden_tokens = (".claude/", "local-dev-env/")
+    leaked = [token for token in forbidden_tokens if token in text]
+
+    assert leaked == []
