@@ -106,20 +106,15 @@ def test_moved_routes_are_absent_from_legacy_bom_router() -> None:
     )
 
 
-def test_bom_compare_router_is_registered_before_legacy_bom_router() -> None:
-    """app.py must register bom_compare_router before bom_router so the
-    static /snapshots/compare route is resolved before any dynamic
-    /{snapshot_id} pattern and owner resolution is stable."""
+def test_bom_compare_router_is_registered_in_app() -> None:
+    """app.py must register bom_compare_router; legacy bom_router shell must be absent."""
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
 
     compare_pos = text.find("app.include_router(bom_compare_router")
-    legacy_pos = text.find("app.include_router(bom_router")
     assert compare_pos != -1, "bom_compare_router is not registered in app.py"
-    assert legacy_pos != -1, "bom_router is not registered in app.py"
-    assert compare_pos < legacy_pos, (
-        "bom_compare_router must be registered BEFORE bom_router to preserve "
-        "deterministic route resolution order after R1."
+    assert "app.include_router(bom_router," not in text, (
+        "Legacy bom_router shell must not be registered after Phase 1 P1.8"
     )
 
 

@@ -84,8 +84,9 @@ def test_moved_routes_are_absent_from_legacy_bom_router() -> None:
     )
 
 
-def test_bom_substitutes_router_is_registered_before_empty_legacy() -> None:
-    """app.py must register BOM routers in canonical decomposition order."""
+def test_bom_substitutes_router_is_registered_after_where_used_router() -> None:
+    """app.py must register BOM routers in canonical decomposition order;
+    legacy bom_router shell must be absent."""
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
 
@@ -95,14 +96,12 @@ def test_bom_substitutes_router_is_registered_before_empty_legacy() -> None:
     obsolete_rollup_pos = text.find("app.include_router(bom_obsolete_rollup_router")
     where_used_pos = text.find("app.include_router(bom_where_used_router")
     substitutes_pos = text.find("app.include_router(bom_substitutes_router")
-    legacy_pos = text.find("app.include_router(bom_router")
     assert compare_pos != -1, "bom_compare_router is not registered in app.py"
     assert tree_pos != -1, "bom_tree_router is not registered in app.py"
     assert children_pos != -1, "bom_children_router is not registered in app.py"
     assert obsolete_rollup_pos != -1, "bom_obsolete_rollup_router is not registered in app.py"
     assert where_used_pos != -1, "bom_where_used_router is not registered in app.py"
     assert substitutes_pos != -1, "bom_substitutes_router is not registered in app.py"
-    assert legacy_pos != -1, "bom_router is not registered in app.py"
     assert (
         compare_pos
         < tree_pos
@@ -110,13 +109,15 @@ def test_bom_substitutes_router_is_registered_before_empty_legacy() -> None:
         < obsolete_rollup_pos
         < where_used_pos
         < substitutes_pos
-        < legacy_pos
     ), (
         "Registration order must be bom_compare_router -> bom_tree_router -> "
         "bom_children_router -> bom_obsolete_rollup_router -> bom_where_used_router "
-        f"-> bom_substitutes_router -> bom_router; got compare={compare_pos}, "
-        f"tree={tree_pos}, children={children_pos}, obsolete_rollup={obsolete_rollup_pos}, "
-        f"where_used={where_used_pos}, substitutes={substitutes_pos}, legacy={legacy_pos}."
+        f"-> bom_substitutes_router; got compare={compare_pos}, tree={tree_pos}, "
+        f"children={children_pos}, obsolete_rollup={obsolete_rollup_pos}, "
+        f"where_used={where_used_pos}, substitutes={substitutes_pos}."
+    )
+    assert "app.include_router(bom_router," not in text, (
+        "Legacy bom_router shell must not be registered after Phase 1 P1.8"
     )
 
 

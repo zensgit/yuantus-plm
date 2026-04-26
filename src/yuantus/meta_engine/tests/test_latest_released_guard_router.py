@@ -11,7 +11,6 @@ from yuantus.database import get_db
 from yuantus.meta_engine.services.latest_released_guard import NotLatestReleasedError
 from yuantus.meta_engine.services.suspended_guard import SuspendedStateError
 from yuantus.meta_engine.web.bom_children_router import bom_children_router
-from yuantus.meta_engine.web.bom_router import bom_router
 from yuantus.meta_engine.web.bom_substitutes_router import bom_substitutes_router
 from yuantus.meta_engine.web.effectivity_router import effectivity_router
 from yuantus.meta_engine.web import router as meta_router_module
@@ -33,7 +32,6 @@ def _client_with_db(db) -> TestClient:
     app = FastAPI()
     app.include_router(bom_children_router, prefix="/api/v1")
     app.include_router(bom_substitutes_router, prefix="/api/v1")
-    app.include_router(bom_router, prefix="/api/v1")
     app.include_router(effectivity_router, prefix="/api/v1")
     app.include_router(meta_router_module.meta_router, prefix="/api/v1")
     app.dependency_overrides[get_current_user] = _current_user
