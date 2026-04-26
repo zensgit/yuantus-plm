@@ -84,17 +84,20 @@ def test_cutted_parts_r1_routes_are_absent_from_legacy_router() -> None:
     assert leaked == []
 
 
-def test_cutted_parts_split_routers_registered_before_legacy_router() -> None:
+def test_cutted_parts_r1_split_routers_registered_in_app() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
     throughput_pos = text.find("app.include_router(cutted_parts_throughput_router")
     bottlenecks_pos = text.find("app.include_router(cutted_parts_bottlenecks_router")
-    legacy_pos = text.find("app.include_router(cutted_parts_router")
 
-    assert throughput_pos != -1
-    assert bottlenecks_pos != -1
-    assert legacy_pos != -1
-    assert throughput_pos < bottlenecks_pos < legacy_pos
+    assert throughput_pos != -1, "cutted_parts_throughput_router must be registered in app.py"
+    assert bottlenecks_pos != -1, "cutted_parts_bottlenecks_router must be registered in app.py"
+    assert throughput_pos < bottlenecks_pos, (
+        "cutted_parts R1 source declaration order: throughput before bottlenecks"
+    )
+    assert "app.include_router(cutted_parts_router," not in text, (
+        "Legacy cutted_parts_router shell must not be registered after Phase 1 P1.7"
+    )
 
 
 def test_each_cutted_parts_r1_route_is_registered_exactly_once() -> None:
