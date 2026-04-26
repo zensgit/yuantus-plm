@@ -11,12 +11,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from yuantus.config import get_settings
-from yuantus.context import (
-    org_id_var,
-    request_id_var,
-    tenant_id_var,
-    user_id_var,
-)
+from yuantus.context import request_id_var
 
 
 _logger = logging.getLogger("yuantus.request")
@@ -28,6 +23,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         header_name = settings.REQUEST_ID_HEADER
         incoming = request.headers.get(header_name)
         request_id = incoming or uuid.uuid4().hex
+        request.state.request_id = request_id
         token = request_id_var.set(request_id)
 
         start = time.perf_counter()
@@ -46,9 +42,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 latency_ms = int((time.perf_counter() - start) * 1000)
                 fields = {
                     "request_id": request_id,
-                    "tenant_id": tenant_id_var.get(),
-                    "org_id": org_id_var.get(),
-                    "user_id": user_id_var.get(),
+                    "tenant_id": getattr(request.state, "tenant_id", None),
+                    "org_id": getattr(request.state, "org_id", None),
+                    "user_id": getattr(request.state, "user_id", None),
                     "method": request.method,
                     "path": request.url.path,
                     "status_code": status_code,
@@ -67,5 +63,5 @@ def _emit(log_format: str, fields: dict) -> None:
     if log_format == "json":
         _logger.info(json.dumps(fields, default=str))
         return
-    pairs = " ".join(f"{k}={fields[k]}" for k in fields if fields[k] is not None)
+    pairs = " ".join(f"{k}={fields[k]}" for k in fields)
     _logger.info(pairs)

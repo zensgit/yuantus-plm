@@ -21,8 +21,10 @@ class TenantOrgContextMiddleware(BaseHTTPMiddleware):
         # established request-scoped tenant/org context.
         if tenant_id_var.get() is None:
             tenant_token = tenant_id_var.set(tenant_id)
+            request.state.tenant_id = tenant_id
         if org_id_var.get() is None:
             org_token = org_id_var.set(org_id)
+            request.state.org_id = org_id
         try:
             return await call_next(request)
         finally:

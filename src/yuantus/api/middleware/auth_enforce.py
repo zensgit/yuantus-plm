@@ -135,6 +135,9 @@ class AuthEnforcementMiddleware(BaseHTTPMiddleware):
         tenant_token = tenant_id_var.set(tenant_id)
         org_token = org_id_var.set(org_id)
         user_token = user_id_var.set(str(user_id))
+        request.state.tenant_id = tenant_id
+        request.state.org_id = org_id
+        request.state.user_id = str(user_id)
         try:
             SessionLocal = get_identity_sessionmaker()
             db = SessionLocal()
