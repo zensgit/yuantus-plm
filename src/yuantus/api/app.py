@@ -17,6 +17,7 @@ from yuantus.api.routers.favicon import router as favicon_router
 from yuantus.api.routers.health import router as health_router
 from yuantus.api.routers.integrations import router as integrations_router
 from yuantus.api.routers.jobs import router as jobs_router
+from yuantus.api.routers.metrics import router as metrics_router
 from yuantus.api.routers.plugins import router as plugins_router
 from yuantus.api.routers.plm_workspace import router as plm_workspace_router
 from yuantus.api.routers.workbench import router as workbench_router
@@ -274,6 +275,7 @@ def create_app() -> FastAPI:
     app.add_middleware(RequestLoggingMiddleware)
     app.include_router(favicon_router)
     app.include_router(health_router, prefix="/api/v1")
+    app.include_router(metrics_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
     app.include_router(admin_router, prefix="/api/v1")
     app.include_router(cad_preview_router, prefix="/api/v1")

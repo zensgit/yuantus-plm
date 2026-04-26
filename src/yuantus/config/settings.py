@@ -334,6 +334,14 @@ class Settings(BaseSettings):
     JOB_STALE_TIMEOUT_SECONDS: int = Field(
         default=900, description="Requeue processing jobs after this timeout (seconds)"
     )
+    METRICS_ENABLED: bool = Field(
+        default=True,
+        description="Serve `/api/v1/metrics` (Prometheus text format). When False the endpoint returns 404; instrumentation always records in-memory.",
+    )
+    METRICS_BACKEND: str = Field(
+        default="prometheus",
+        description="Metric exposition backend. Currently only 'prometheus' is supported (in-process registry, scraped via /metrics).",
+    )
     SCHEDULER_ENABLED: bool = Field(
         default=False,
         description="Enable the lightweight application scheduler loop",

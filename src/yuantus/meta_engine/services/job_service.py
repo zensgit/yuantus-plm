@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import asc
 from yuantus.meta_engine.models.job import ConversionJob, JobStatus
 from yuantus.config import get_settings
+from yuantus.observability.metrics import record_job_lifecycle
 
 
 class JobService:
@@ -134,6 +135,14 @@ class JobService:
                 job.payload = payload
             self.session.add(job)
             self.session.commit()
+            duration_ms: Optional[float] = None
+            if job.started_at is not None:
+                duration_ms = (job.completed_at - job.started_at).total_seconds() * 1000.0
+            record_job_lifecycle(
+                task_type=job.task_type or "unknown",
+                status="success",
+                duration_ms=duration_ms,
+            )
 
     def update_job_progress(
         self,
@@ -188,6 +197,8 @@ class JobService:
         if job:
             settings = get_settings()
             now = datetime.utcnow()
+            metric_started_at = job.started_at
+            metric_task_type = job.task_type or "unknown"
             job.last_error = str(error_message)
             payload = dict(job.payload or {})
             error_record = {
@@ -282,6 +293,17 @@ class JobService:
 
             self.session.add(job)
             self.session.commit()
+            metric_status = (
+                "failure" if job.status == JobStatus.FAILED.value else "retry"
+            )
+            metric_duration_ms: Optional[float] = None
+            if metric_started_at is not None:
+                metric_duration_ms = (now - metric_started_at).total_seconds() * 1000.0
+            record_job_lifecycle(
+                task_type=metric_task_type,
+                status=metric_status,
+                duration_ms=metric_duration_ms,
+            )
 
     def requeue_stale_jobs(self) -> int:
         """Requeue jobs stuck in PROCESSING beyond the stale timeout."""
