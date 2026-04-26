@@ -193,16 +193,23 @@ When `doc_sync_strictness_mode=warn`, the checkout proceeds and the API returns
 ## Observability — request logging and job metrics (Phase 2)
 
 Phase 2 (PRs #414 P2.1, #415 P2.2) adds structured per-request logging and a
-Prometheus-format job-metrics endpoint. The contracts pinned in
-`src/yuantus/api/tests/test_phase2_observability_closeout_contracts.py`
-guard the schemas below — changes to either schema require a deliberate
-update to those contracts.
+Prometheus-format job-metrics endpoint. The schemas below are collectively
+guarded by the P2.1/P2.2/P2.3 test suites: P2.1 tests
+(`test_request_logging_middleware.py`) pin implementation-level log-field and
+ContextVar-chain behaviour; P2.2 tests (`test_observability_metrics_registry.py`,
+`test_metrics_endpoint.py`, `test_job_service_emits_metrics.py`,
+`test_metrics_router_route_count_delta.py`) cover the registry, endpoint, and
+JobService integration; P2.3 (`test_phase2_observability_closeout_contracts.py`)
+pins the downstream-consumer surface (metric names, label cardinality, bucket
+boundaries, middleware order). Changes to these schemas require deliberate
+updates to the relevant tests.
 
 ### Per-request log line schema
 
 `RequestLoggingMiddleware` emits one line per HTTP request via the
-`yuantus.request` logger. Field set is fixed (every key present, even
-when the value is `None`):
+`yuantus.request` logger. The 8 base fields (`request_id` through `latency_ms`)
+are always present, even when the value is `null`. The `error` field is
+conditional — present only on exception paths:
 
 | Field | Source | Notes |
 | --- | --- | --- |

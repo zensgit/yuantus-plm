@@ -81,7 +81,7 @@ which uses `create_app()` (full middleware stack, real
 `TenantOrgContextMiddleware`) + a request with `x-tenant-id` /
 `x-org-id` headers in `AUTH_MODE=optional`. The test asserts the
 emitted JSON log line carries the header values. A drop of the
-`request.state.tenant_id = tenant_id` line in `context.py` fails this
+`request.state.tenant_id = tenant_id` line in `src/yuantus/api/middleware/context.py` fails this
 test.
 
 This is the test that turns "the middleware writes to request.state"
