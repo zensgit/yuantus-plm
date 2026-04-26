@@ -23,7 +23,7 @@ LEGACY_ROUTER_STATES = {
     },
     "bom_router.py": {
         "legacy_module": "yuantus.meta_engine.web.bom_router",
-        "registered": True,
+        "registered": False,
         "include_token": "app.include_router(bom_router",
         "import_token": "from yuantus.meta_engine.web.bom_router import bom_router",
     },

@@ -92,27 +92,22 @@ def test_moved_routes_are_absent_from_legacy_bom_router() -> None:
     )
 
 
-def test_bom_tree_router_is_registered_between_compare_and_legacy() -> None:
-    """app.py must register the three BOM routers in order:
-    bom_compare_router -> bom_tree_router -> bom_router.
-
-    This preserves deterministic route resolution order after R2. Even though
-    the 5 R2 paths do not currently collide with compare or legacy paths,
-    keeping a canonical ordering makes future slice-by-slice splits safe to
-    review mechanically.
-    """
+def test_bom_tree_router_is_registered_after_compare_router() -> None:
+    """app.py must register bom_compare_router -> bom_tree_router; legacy
+    bom_router shell must be absent."""
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
 
     compare_pos = text.find("app.include_router(bom_compare_router")
     tree_pos = text.find("app.include_router(bom_tree_router")
-    legacy_pos = text.find("app.include_router(bom_router")
     assert compare_pos != -1, "bom_compare_router is not registered in app.py"
     assert tree_pos != -1, "bom_tree_router is not registered in app.py"
-    assert legacy_pos != -1, "bom_router is not registered in app.py"
-    assert compare_pos < tree_pos < legacy_pos, (
-        "Registration order must be bom_compare_router -> bom_tree_router -> "
-        f"bom_router; got compare={compare_pos}, tree={tree_pos}, legacy={legacy_pos}."
+    assert compare_pos < tree_pos, (
+        "Registration order must be bom_compare_router -> bom_tree_router; "
+        f"got compare={compare_pos}, tree={tree_pos}."
+    )
+    assert "app.include_router(bom_router," not in text, (
+        "Legacy bom_router shell must not be registered after Phase 1 P1.8"
     )
 
 
