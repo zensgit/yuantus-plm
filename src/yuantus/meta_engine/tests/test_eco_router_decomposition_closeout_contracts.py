@@ -114,6 +114,10 @@ def test_app_registers_specialized_eco_routers_before_core_router() -> None:
     assert all(position != -1 for position in positions)
     assert positions == sorted(positions)
     assert "app.include_router(eco_router" not in text
+    assert "from yuantus.meta_engine.web.eco_router import" not in text, (
+        "Legacy eco_router re-export shim must not be imported by app.py "
+        "after Phase 1 P1.9 (eco_router is a re-export shim of eco_core_router)."
+    )
 
 
 def test_parallel_eco_activities_are_outside_eco_decomposition_scope() -> None:
