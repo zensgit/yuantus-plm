@@ -242,6 +242,15 @@ class Settings(BaseSettings):
         default=0, description="JWT exp leeway seconds"
     )
 
+    LOG_FORMAT: str = Field(
+        default="text",
+        description="Request log format: 'text' (legacy) or 'json' (structured per-request log line)",
+    )
+    REQUEST_ID_HEADER: str = Field(
+        default="x-request-id",
+        description="Header that supplies an upstream request id; absent → middleware generates uuid4",
+    )
+
     AUDIT_ENABLED: bool = Field(default=False, description="Audit log middleware")
     AUDIT_RETENTION_DAYS: int = Field(
         default=0, description="Prune audit logs older than N days (0=disabled)"
