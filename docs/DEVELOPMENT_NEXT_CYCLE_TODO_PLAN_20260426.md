@@ -46,18 +46,23 @@ auto-triggered; each requires explicit user opt-in.
 | S5 CAD MVP | ✅ Done | (deferred: real CAD parsers) |
 | S6 搜索/索引 | 🟡 Partial | Phase 4 (incremental + reports) |
 | S7 私有化 + 多租户 | 🟡 Partial | Phase 3 (Postgres tenancy), Phase 5 (provisioning + backup) |
-| Roadmap §11 可观测 | ❌ Gap | Phase 2 (structured logging + metrics), Phase 6 (circuit breakers) |
-| 技术债：10 个 router shells | ❌ Tech debt | Phase 1 |
+| Roadmap §11 可观测 | 🟢 Foundation done | Phase 2 closed in PRs #414, #415, #416; Phase 6 circuit breakers remain trigger-gated |
+| 技术债：10 个 router shells | ✅ Done | Phase 1 closed in PRs #402–#413 |
 
-Concrete code-level findings supporting the assessment:
+Concrete code-level findings supporting the assessment as of `main=2eddbf8`:
 
-- 10 router shells still imported by `src/yuantus/api/app.py` despite owning
-  zero `@router.*` decorators: `bom_router` (3 LOC), `eco_router` (10 LOC,
-  re-export shim), `version_router` (6 LOC), `quality_router` (6 LOC),
-  `box_router` (7 LOC), `cutted_parts_router` (7 LOC), `maintenance_router`
-  (6 LOC), `subcontracting_router` (6 LOC), `document_sync_router` (23 LOC),
-  `report_router` (5 LOC). Each is referenced by 1–4 test files (~30 test
-  refs total).
+- Phase 1 shell cleanup is closed. The 10 zero-route compatibility shells
+  (`bom_router`, `eco_router`, `version_router`, `quality_router`,
+  `box_router`, `cutted_parts_router`, `maintenance_router`,
+  `subcontracting_router`, `document_sync_router`, `report_router`) are no
+  longer imported/registered by `src/yuantus/api/app.py`; the router
+  decomposition portfolio contract remains the guardrail.
+- Phase 2 observability foundation is closed. `src/yuantus/api/app.py` registers
+  `RequestLoggingMiddleware` as the outermost middleware and includes
+  `metrics_router` at `/api/v1/metrics`; `src/yuantus/config/settings.py`
+  exposes `LOG_FORMAT`, `REQUEST_ID_HEADER`, `METRICS_ENABLED`, and
+  `METRICS_BACKEND`; `docs/RUNBOOK_RUNTIME.md` documents the field/metric
+  schema.
 - `src/yuantus/meta_engine/services/search_service.py` already supports
   Elasticsearch with DB fallback (`engine="elasticsearch"|"db"`); the
   pluggability is real. Gap is incremental indexing + reports/RPC aggregation.
@@ -66,9 +71,9 @@ Concrete code-level findings supporting the assessment:
   schema-per-tenant is not implemented; design doc §3.2 explicitly calls it out
   as "未来如使用 Postgres，可改为 schema-per-tenant 或独立库".
 - `src/yuantus/security/auth/quota_service.py` exists; quota model groundwork is in place but no provisioning API consumes it yet.
-- `src/yuantus/api/middleware/` has `audit.py`, `auth_enforce.py`, `context.py`.
-  No `structlog`, no `logger.bind`, no Prometheus exporter — observability
-  foundation needs to be added.
+- `src/yuantus/api/middleware/` has `audit.py`, `auth_enforce.py`, `context.py`,
+  and `request_logging.py`. P2.1/P2.2 deliberately used stdlib logging plus a
+  hand-rolled Prometheus text registry, not `structlog` or `prometheus_client`.
 - `src/yuantus/integrations/cad_connectors/` has `base.py`, `builtin.py`,
   `registry.py`, `config_loader.py` — connector architecture exists, but
   real DWG/DXF/SW parsers are out of this plan's scope.
@@ -115,6 +120,12 @@ Phases are ordered by:
 - All router decomposition closeout contracts green.
 
 ## 5. Phase 1 — Compatibility-Shell Cleanup (Tech Debt)
+
+**Status as of `main=2eddbf8`**: complete. Implemented and merged through PRs
+#402–#413; closeout record:
+`docs/DEV_AND_VERIFICATION_PHASE_1_SHELL_CLEANUP_CLOSEOUT_20260426.md`.
+This section is retained as historical plan context and should not be treated as
+pending work.
 
 **Goal**: Finish the router-decomposition cycle by removing the 10 zero-route compatibility shells from `src/yuantus/api/app.py` (and optionally deleting the shell modules entirely once we confirm no plugin code imports them).
 
@@ -195,6 +206,13 @@ Phases are ordered by:
 - The portfolio contract test (`test_router_decomposition_portfolio_contracts.py`) runs in CI on every PR and asserts the import + registration map; a missed-removal would surface there.
 
 ## 6. Phase 2 — Observability Foundation (Roadmap §11)
+
+**Status as of `main=2eddbf8`**: complete. Implemented and merged through PRs
+#414 (structured request logging), #415 (job metrics + `/api/v1/metrics`), and
+#416 (P2.3 closeout contracts + runbook). Closeout record:
+`docs/DEV_AND_VERIFICATION_OBSERVABILITY_PHASE2_CLOSEOUT_20260426.md`.
+This section is retained as historical plan context and should not be treated as
+pending work.
 
 **Goal**: Add structured logging + job metrics so any production deployment is debuggable.
 
