@@ -8,7 +8,6 @@ from fastapi.testclient import TestClient
 
 from yuantus.database import get_db
 from yuantus.meta_engine.web.version_revision_router import version_revision_router
-from yuantus.meta_engine.web.version_router import version_router
 
 
 def _client_with_db():
@@ -22,7 +21,6 @@ def _client_with_db():
 
     app = FastAPI()
     app.include_router(version_revision_router, prefix="/api/v1")
-    app.include_router(version_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     return TestClient(app), mock_db_session
 

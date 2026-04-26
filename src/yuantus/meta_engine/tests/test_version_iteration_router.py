@@ -12,7 +12,6 @@ from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.web.version_iteration_router import version_iteration_router
-from yuantus.meta_engine.web.version_router import version_router
 
 
 @pytest.fixture(autouse=True)
@@ -35,7 +34,6 @@ def _client_with_user_id(user_id: int = 7):
 
     app = FastAPI()
     app.include_router(version_iteration_router, prefix="/api/v1")
-    app.include_router(version_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = override_get_user_id
     return TestClient(app), mock_db_session

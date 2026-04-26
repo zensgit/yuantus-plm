@@ -95,7 +95,7 @@ LEGACY_ROUTER_STATES = {
     },
     "version_router.py": {
         "legacy_module": "yuantus.meta_engine.web.version_router",
-        "registered": True,
+        "registered": False,
         "include_token": "app.include_router(version_router",
         "import_token": "from yuantus.meta_engine.web.version_router import version_router",
     },

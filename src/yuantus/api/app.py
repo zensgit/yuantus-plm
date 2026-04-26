@@ -194,7 +194,6 @@ from yuantus.meta_engine.web.version_file_router import version_file_router
 from yuantus.meta_engine.web.version_iteration_router import version_iteration_router
 from yuantus.meta_engine.web.version_lifecycle_router import version_lifecycle_router
 from yuantus.meta_engine.web.version_revision_router import version_revision_router
-from yuantus.meta_engine.web.version_router import version_router
 from yuantus.meta_engine.web.manufacturing_router import (
     mbom_router,
     routing_router,
@@ -372,7 +371,6 @@ def create_app() -> FastAPI:
     app.include_router(version_file_router, prefix="/api/v1")
     app.include_router(version_lifecycle_router, prefix="/api/v1")
     app.include_router(version_effectivity_router, prefix="/api/v1")
-    app.include_router(version_router, prefix="/api/v1")
     app.include_router(mbom_router, prefix="/api/v1")
     app.include_router(routing_router, prefix="/api/v1")
     app.include_router(workcenter_router, prefix="/api/v1")

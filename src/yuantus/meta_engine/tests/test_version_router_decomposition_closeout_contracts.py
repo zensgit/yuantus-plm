@@ -68,10 +68,9 @@ def test_all_version_routes_are_owned_by_split_routers() -> None:
     assert resolved == EXPECTED_OWNERS
 
 
-def test_version_legacy_shell_registered_last() -> None:
+def test_version_split_routers_registered_in_app() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
-    legacy_pos = text.find("app.include_router(version_router")
     split_positions = [
         text.find("app.include_router(version_revision_router"),
         text.find("app.include_router(version_iteration_router"),
@@ -79,5 +78,9 @@ def test_version_legacy_shell_registered_last() -> None:
         text.find("app.include_router(version_lifecycle_router"),
         text.find("app.include_router(version_effectivity_router"),
     ]
-    assert legacy_pos != -1
-    assert all(pos != -1 and pos < legacy_pos for pos in split_positions)
+    assert all(pos != -1 for pos in split_positions), (
+        "All 5 version split routers (revision/iteration/file/lifecycle/effectivity) must be registered in app.py"
+    )
+    assert "app.include_router(version_router," not in text, (
+        "Legacy version_router shell must not be registered after Phase 1 P1.5"
+    )
