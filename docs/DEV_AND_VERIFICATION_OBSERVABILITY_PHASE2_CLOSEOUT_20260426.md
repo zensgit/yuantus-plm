@@ -141,7 +141,7 @@ review.
 New "Observability" section between "Version checkout doc-sync gate
 policy knobs" and "Stop services". Documents:
 
-- Per-request log line schema (9 fields, JSON / text wire formats).
+- Per-request log line schema (8 fixed base fields + optional `error` on exception paths, JSON / text wire formats).
 - Job lifecycle metrics (counter + histogram, labels, statuses,
   buckets).
 - Settings table (4 entries: `LOG_FORMAT`, `REQUEST_ID_HEADER`,
