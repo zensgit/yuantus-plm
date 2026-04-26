@@ -175,6 +175,54 @@ def test_get_db_session_raises_runtime_error_without_tenant_context(monkeypatch)
 
 
 # ---------------------------------------------------------------------------
+# Postgres-only guard — non-Postgres URLs rejected before session creation
+# ---------------------------------------------------------------------------
+
+
+def test_get_db_raises_400_for_non_postgres_url():
+    """schema-per-tenant with a SQLite DATABASE_URL must raise HTTPException(400)
+    before any session is opened, with a message that names 'postgres'."""
+    from fastapi import HTTPException
+    from yuantus.config import get_settings
+    from yuantus.context import tenant_id_var
+    import yuantus.database as db_module
+
+    settings = get_settings()
+    original_mode = settings.TENANCY_MODE
+    settings.TENANCY_MODE = "schema-per-tenant"
+    token = tenant_id_var.set("tenant1")  # valid — avoids missing-context error
+    try:
+        gen = db_module.get_db()
+        with pytest.raises(HTTPException) as exc_info:
+            next(gen)
+        assert exc_info.value.status_code == 400
+        assert "postgres" in exc_info.value.detail.lower()
+    finally:
+        settings.TENANCY_MODE = original_mode
+        tenant_id_var.reset(token)
+
+
+def test_get_db_session_raises_runtime_error_for_non_postgres_url():
+    """get_db_session() in schema-per-tenant mode with a SQLite URL must raise
+    RuntimeError with a Postgres-specific message before any session is opened."""
+    from yuantus.config import get_settings
+    from yuantus.context import tenant_id_var
+    from yuantus.database import get_db_session
+
+    settings = get_settings()
+    original_mode = settings.TENANCY_MODE
+    settings.TENANCY_MODE = "schema-per-tenant"
+    token = tenant_id_var.set("tenant1")
+    try:
+        with pytest.raises(RuntimeError, match="(?i)postgres"):
+            with get_db_session():
+                pass
+    finally:
+        settings.TENANCY_MODE = original_mode
+        tenant_id_var.reset(token)
+
+
+# ---------------------------------------------------------------------------
 # Existing-mode regression — single mode is unaffected
 # ---------------------------------------------------------------------------
 
@@ -251,5 +299,48 @@ def test_schema_search_path_does_not_leak_between_transactions():
         with engine.connect() as conn:
             conn.execute(sa_text(f'DROP SCHEMA IF EXISTS "{schema_a}"'))
             conn.execute(sa_text(f'DROP SCHEMA IF EXISTS "{schema_b}"'))
+            conn.commit()
+        engine.dispose()
+
+
+@pytest.mark.skipif(not _PG_DSN, reason="YUANTUS_TEST_PG_DSN not set — after_begin re-apply test skipped")
+def test_search_path_reapplied_after_intermediate_commit():
+    """The after_begin event listener must re-apply SET LOCAL on every new
+    transaction so that db.refresh() or queries after db.commit() still see
+    the tenant schema — not just the first query in the session."""
+    from sqlalchemy import create_engine, event as sa_event, text as sa_text
+    from sqlalchemy.orm import sessionmaker as make_sessionmaker
+
+    schema = tenant_id_to_schema("reapply_after_commit_tenant")
+    engine = create_engine(_PG_DSN, pool_size=1, max_overflow=0)
+    Session = make_sessionmaker(bind=engine)
+
+    with engine.connect() as conn:
+        conn.execute(sa_text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
+        conn.commit()
+
+    try:
+        session = Session()
+
+        @sa_event.listens_for(session, "after_begin")
+        def _apply(sess, transaction, connection):
+            connection.execute(sa_text(f'SET LOCAL search_path TO "{schema}", public'))
+
+        # First transaction — after_begin fires, SET LOCAL applied
+        path_before_commit = session.execute(sa_text("SHOW search_path")).scalar()
+        session.commit()  # SET LOCAL expires here
+
+        # Second transaction — after_begin must fire again, re-applying SET LOCAL
+        path_after_commit = session.execute(sa_text("SHOW search_path")).scalar()
+        session.close()
+
+        assert schema in path_before_commit, f"before commit: {path_before_commit}"
+        assert schema in path_after_commit, (
+            f"after commit search_path reverted — after_begin did not re-apply: "
+            f"{path_after_commit}"
+        )
+    finally:
+        with engine.connect() as conn:
+            conn.execute(sa_text(f'DROP SCHEMA IF EXISTS "{schema}"'))
             conn.commit()
         engine.dispose()

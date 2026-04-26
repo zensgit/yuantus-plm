@@ -224,9 +224,19 @@ def get_sessionmaker_for_tenant(tenant_id: Optional[str]) -> sessionmaker:
     return get_sessionmaker_for_scope(tenant_id, None)
 
 
+def _require_postgres_for_schema_mode(settings) -> None:
+    """Raise ValueError if DATABASE_URL is not Postgres (schema-per-tenant is Postgres-only)."""
+    url = settings.DATABASE_URL
+    if not (url.startswith("postgresql") or url.startswith("postgres")):
+        raise ValueError(
+            "TENANCY_MODE=schema-per-tenant requires a PostgreSQL DATABASE_URL "
+            "(postgresql[+driver]://...). "
+            "Use TENANCY_MODE=single for SQLite or other non-Postgres databases."
+        )
+
+
 def get_db() -> Generator[Session, None, None]:
     settings = get_settings()
-    _schema: Optional[str] = None
     if settings.TENANCY_MODE in {"db-per-tenant", "db-per-tenant-org"}:
         tenant_id = tenant_id_var.get()
         org_id = org_id_var.get() if settings.TENANCY_MODE == "db-per-tenant-org" else None
@@ -254,17 +264,20 @@ def get_db() -> Generator[Session, None, None]:
         db = sess_factory()
     elif settings.TENANCY_MODE == "schema-per-tenant":
         try:
+            _require_postgres_for_schema_mode(settings)
             _schema = tenant_id_to_schema(_normalize_context_value(tenant_id_var.get()))
         except (MissingTenantContextError, ValueError) as exc:
             from fastapi import HTTPException
 
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         db = SessionLocal()
+
+        @event.listens_for(db, "after_begin")
+        def _set_search_path(session, transaction, connection):
+            connection.execute(text(f'SET LOCAL search_path TO "{_schema}", public'))
     else:
         db = SessionLocal()
     try:
-        if _schema is not None:
-            db.execute(text(f'SET LOCAL search_path TO "{_schema}", public'))
         yield db
     finally:
         db.close()
@@ -273,7 +286,6 @@ def get_db() -> Generator[Session, None, None]:
 @contextmanager
 def get_db_session() -> Generator[Session, None, None]:
     settings = get_settings()
-    _schema: Optional[str] = None
     if settings.TENANCY_MODE in {"db-per-tenant", "db-per-tenant-org"}:
         tenant_id = tenant_id_var.get()
         org_id = org_id_var.get() if settings.TENANCY_MODE == "db-per-tenant-org" else None
@@ -284,15 +296,18 @@ def get_db_session() -> Generator[Session, None, None]:
         session = sess_factory()
     elif settings.TENANCY_MODE == "schema-per-tenant":
         try:
+            _require_postgres_for_schema_mode(settings)
             _schema = tenant_id_to_schema(_normalize_context_value(tenant_id_var.get()))
         except (MissingTenantContextError, ValueError) as exc:
             raise RuntimeError(str(exc)) from exc
         session = SessionLocal()
+
+        @event.listens_for(session, "after_begin")
+        def _set_search_path(sess, transaction, connection):
+            connection.execute(text(f'SET LOCAL search_path TO "{_schema}", public'))
     else:
         session = SessionLocal()
     try:
-        if _schema is not None:
-            session.execute(text(f'SET LOCAL search_path TO "{_schema}", public'))
         yield session
         session.commit()
     except Exception:
