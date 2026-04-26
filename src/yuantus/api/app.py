@@ -103,7 +103,6 @@ from yuantus.meta_engine.web.document_sync_replay_audit_router import (
 from yuantus.meta_engine.web.document_sync_retention_router import (
     document_sync_retention_router,
 )
-from yuantus.meta_engine.web.document_sync_router import document_sync_router
 from yuantus.meta_engine.web.eco_approval_ops_router import eco_approval_ops_router
 from yuantus.meta_engine.web.eco_approval_workflow_router import (
     eco_approval_workflow_router,
@@ -344,7 +343,6 @@ def create_app() -> FastAPI:
     app.include_router(document_sync_retention_router, prefix="/api/v1")
     app.include_router(document_sync_freshness_router, prefix="/api/v1")
     app.include_router(document_sync_core_router, prefix="/api/v1")
-    app.include_router(document_sync_router, prefix="/api/v1")
     app.include_router(product_router, prefix="/api/v1")
     app.include_router(permission_router, prefix="/api/v1")
     app.include_router(schema_router, prefix="/api/v1")

@@ -71,16 +71,15 @@ def test_moved_routes_are_absent_from_legacy_document_sync_router() -> None:
     assert leaked == []
 
 
-def test_document_sync_reconciliation_router_is_registered_before_legacy_router() -> None:
+def test_document_sync_reconciliation_router_is_registered_in_app() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     source = app_py.read_text(encoding="utf-8")
 
     reconciliation_pos = source.find("app.include_router(document_sync_reconciliation_router")
-    legacy_pos = source.find("app.include_router(document_sync_router")
-
-    assert reconciliation_pos != -1
-    assert legacy_pos != -1
-    assert reconciliation_pos < legacy_pos
+    assert reconciliation_pos != -1, "document_sync_reconciliation_router must be registered in app.py"
+    assert "app.include_router(document_sync_router," not in source, (
+        "Legacy document_sync_router shell must not be registered after Phase 1 P1.10"
+    )
 
 
 def test_each_moved_document_sync_reconciliation_path_is_registered_exactly_once() -> None:

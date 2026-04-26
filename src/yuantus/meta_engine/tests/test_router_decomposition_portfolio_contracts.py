@@ -47,7 +47,7 @@ LEGACY_ROUTER_STATES = {
     },
     "document_sync_router.py": {
         "legacy_module": "yuantus.meta_engine.web.document_sync_router",
-        "registered": True,
+        "registered": False,
         "include_token": "app.include_router(document_sync_router",
         "import_token": "from yuantus.meta_engine.web.document_sync_router import document_sync_router",
     },
