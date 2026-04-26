@@ -41,7 +41,6 @@ from yuantus.meta_engine.web.box_policy_router import box_policy_router
 from yuantus.meta_engine.web.box_reconciliation_router import (
     box_reconciliation_router,
 )
-from yuantus.meta_engine.web.box_router import box_router
 from yuantus.meta_engine.web.box_traceability_router import box_traceability_router
 from yuantus.meta_engine.web.box_turnover_router import box_turnover_router
 from yuantus.meta_engine.web.config_router import config_router
@@ -307,7 +306,6 @@ def create_app() -> FastAPI:
     app.include_router(box_custody_router, prefix="/api/v1")
     app.include_router(box_turnover_router, prefix="/api/v1")
     app.include_router(box_aging_router, prefix="/api/v1")
-    app.include_router(box_router, prefix="/api/v1")
     app.include_router(approval_category_router, prefix="/api/v1")
     app.include_router(approval_request_router, prefix="/api/v1")
     app.include_router(approval_ops_router, prefix="/api/v1")

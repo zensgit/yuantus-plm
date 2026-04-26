@@ -102,10 +102,9 @@ def test_each_box_route_is_registered_exactly_once() -> None:
     assert missing == []
 
 
-def test_box_split_routers_registered_before_legacy_router() -> None:
+def test_box_split_routers_registered_in_app() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
-    legacy_pos = text.find("app.include_router(box_router")
     split_tokens = [
         "app.include_router(box_core_router",
         "app.include_router(box_analytics_router",
@@ -119,9 +118,12 @@ def test_box_split_routers_registered_before_legacy_router() -> None:
         "app.include_router(box_aging_router",
     ]
     split_positions = [text.find(token) for token in split_tokens]
-
-    assert legacy_pos != -1
-    assert all(pos != -1 and pos < legacy_pos for pos in split_positions)
+    assert all(pos != -1 for pos in split_positions), (
+        "All 10 box split routers must be registered in app.py"
+    )
+    assert "app.include_router(box_router," not in text, (
+        "Legacy box_router shell must not be registered after Phase 1 P1.6"
+    )
 
 
 def test_box_routes_preserve_tag() -> None:
