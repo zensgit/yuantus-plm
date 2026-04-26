@@ -179,7 +179,6 @@ from yuantus.meta_engine.web.maintenance_router import maintenance_router
 from yuantus.meta_engine.web.quality_alerts_router import quality_alerts_router
 from yuantus.meta_engine.web.quality_checks_router import quality_checks_router
 from yuantus.meta_engine.web.quality_points_router import quality_points_router
-from yuantus.meta_engine.web.quality_router import quality_router
 from yuantus.meta_engine.web.quality_analytics_router import quality_analytics_router
 from yuantus.meta_engine.web.subcontracting_orders_router import (
     subcontracting_orders_router,
@@ -406,7 +405,6 @@ def create_app() -> FastAPI:
     app.include_router(quality_points_router, prefix="/api/v1")
     app.include_router(quality_checks_router, prefix="/api/v1")
     app.include_router(quality_alerts_router, prefix="/api/v1")
-    app.include_router(quality_router, prefix="/api/v1")
     app.include_router(quality_analytics_router, prefix="/api/v1")
     app.include_router(subcontracting_orders_router, prefix="/api/v1")
     app.include_router(subcontracting_analytics_router, prefix="/api/v1")

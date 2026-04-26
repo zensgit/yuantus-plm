@@ -66,17 +66,20 @@ def test_each_core_quality_route_is_registered_exactly_once() -> None:
     assert missing == []
 
 
-def test_quality_split_routers_registered_before_legacy_quality_router() -> None:
+def test_quality_split_routers_registered_in_app() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
-    legacy_pos = text.find("app.include_router(quality_router")
     split_positions = [
         text.find("app.include_router(quality_points_router"),
         text.find("app.include_router(quality_checks_router"),
         text.find("app.include_router(quality_alerts_router"),
     ]
-    assert legacy_pos != -1
-    assert all(pos != -1 and pos < legacy_pos for pos in split_positions)
+    assert all(pos != -1 for pos in split_positions), (
+        "quality split routers (points/checks/alerts) must all be registered in app.py"
+    )
+    assert "app.include_router(quality_router," not in text, (
+        "Legacy quality_router shell must not be registered after Phase 1 P1.2"
+    )
 
 
 def test_core_quality_routes_preserve_quality_tag() -> None:

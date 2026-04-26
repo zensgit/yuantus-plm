@@ -13,7 +13,6 @@ from yuantus.api.dependencies.auth import get_current_user_id_optional
 from yuantus.meta_engine.web.quality_alerts_router import quality_alerts_router
 from yuantus.meta_engine.web.quality_checks_router import quality_checks_router
 from yuantus.meta_engine.web.quality_points_router import quality_points_router
-from yuantus.meta_engine.web.quality_router import quality_router
 
 
 def _client_with_db():
@@ -29,7 +28,6 @@ def _client_with_db():
     app.include_router(quality_points_router, prefix="/api/v1")
     app.include_router(quality_checks_router, prefix="/api/v1")
     app.include_router(quality_alerts_router, prefix="/api/v1")
-    app.include_router(quality_router, prefix="/api/v1")
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_user_id_optional] = lambda: None
     return TestClient(app), mock_db_session
