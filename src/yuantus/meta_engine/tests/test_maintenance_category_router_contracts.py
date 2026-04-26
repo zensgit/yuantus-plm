@@ -56,14 +56,14 @@ def test_moved_routes_are_absent_from_legacy_maintenance_router() -> None:
     assert leaked == []
 
 
-def test_maintenance_category_router_registered_before_legacy_shell() -> None:
+def test_maintenance_category_router_is_registered_in_app() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
     split_pos = text.find("app.include_router(maintenance_category_router")
-    legacy_pos = text.find("app.include_router(maintenance_router")
-    assert split_pos != -1
-    assert legacy_pos != -1
-    assert split_pos < legacy_pos
+    assert split_pos != -1, "maintenance_category_router must be registered in app.py"
+    assert "app.include_router(maintenance_router," not in text, (
+        "Legacy maintenance_router shell must not be registered after Phase 1 P1.3"
+    )
 
 
 def test_each_moved_path_is_registered_exactly_once() -> None:

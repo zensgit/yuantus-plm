@@ -31,7 +31,6 @@ _ROUTER_REGISTRATION_ORDER = [
     "maintenance_equipment_router",
     "maintenance_request_router",
     "maintenance_schedule_router",
-    "maintenance_router",
 ]
 
 
@@ -74,7 +73,7 @@ def test_legacy_maintenance_router_module_is_registered_shell_only() -> None:
     assert "maintenance_router = APIRouter" in text
 
 
-def test_app_registers_maintenance_routers_in_decomposition_order_before_legacy_shell() -> None:
+def test_app_registers_maintenance_routers_in_decomposition_order() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
     positions = [
@@ -82,6 +81,9 @@ def test_app_registers_maintenance_routers_in_decomposition_order_before_legacy_
     ]
     assert all(position != -1 for position in positions)
     assert positions == sorted(positions)
+    assert "app.include_router(maintenance_router," not in text, (
+        "maintenance_router shell must not be registered in app.py after Phase 1 P1.3"
+    )
 
 
 def test_legacy_maintenance_router_owns_no_runtime_paths() -> None:
