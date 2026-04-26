@@ -40,7 +40,6 @@ _ROUTER_REGISTRATION_ORDER = [
     "report_summary_search_router",
     "report_definition_router",
     "report_dashboard_router",
-    "report_router",
 ]
 
 
@@ -83,7 +82,7 @@ def test_legacy_report_router_module_is_registered_shell_only() -> None:
     assert "report_router = APIRouter" in text
 
 
-def test_app_registers_report_routers_in_decomposition_order_before_legacy_shell() -> None:
+def test_app_registers_report_routers_in_decomposition_order() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
 
@@ -92,6 +91,9 @@ def test_app_registers_report_routers_in_decomposition_order_before_legacy_shell
     ]
     assert all(position != -1 for position in positions)
     assert positions == sorted(positions)
+    assert "app.include_router(report_router," not in text, (
+        "report_router shell must not be registered in app.py after Phase 1 P1.1"
+    )
 
 
 def test_legacy_report_router_owns_no_runtime_paths() -> None:
