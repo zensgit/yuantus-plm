@@ -28,7 +28,6 @@ from yuantus.meta_engine.web.document_sync_replay_audit_router import (
 from yuantus.meta_engine.web.document_sync_retention_router import (
     document_sync_retention_router,
 )
-from yuantus.meta_engine.web.document_sync_router import document_sync_router
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +45,6 @@ def _make_app():
     app.include_router(document_sync_retention_router, prefix="/api/v1")
     app.include_router(document_sync_freshness_router, prefix="/api/v1")
     app.include_router(document_sync_core_router, prefix="/api/v1")
-    app.include_router(document_sync_router, prefix="/api/v1")
     return app
 
 

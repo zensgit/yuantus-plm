@@ -60,7 +60,6 @@ _ROUTER_REGISTRATION_ORDER = [
     "document_sync_retention_router",
     "document_sync_freshness_router",
     "document_sync_core_router",
-    "document_sync_router",
 ]
 
 
@@ -113,3 +112,9 @@ def test_app_registers_document_sync_routers_in_decomposition_order() -> None:
 
     assert all(position != -1 for position in positions)
     assert positions == sorted(positions)
+    assert "app.include_router(document_sync_router," not in text, (
+        "Legacy document_sync_router shell must not be registered after Phase 1 P1.10"
+    )
+    assert "from yuantus.meta_engine.web.document_sync_router import" not in text, (
+        "Legacy document_sync_router shell must not be imported by app.py after Phase 1 P1.10"
+    )
