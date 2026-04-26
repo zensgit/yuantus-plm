@@ -190,6 +190,120 @@ If request values are invalid, API returns `400` with `detail.code=doc_sync_chec
 When `doc_sync_strictness_mode=warn`, the checkout proceeds and the API returns
 `X-Doc-Sync-Checkout-Warning: Checkout allowed despite doc-sync backlog`.
 
+## Observability — request logging and job metrics (Phase 2)
+
+Phase 2 (PRs #414 P2.1, #415 P2.2) adds structured per-request logging and a
+Prometheus-format job-metrics endpoint. The schemas below are collectively
+guarded by the P2.1/P2.2/P2.3 test suites: P2.1 tests
+(`test_request_logging_middleware.py`) pin implementation-level log-field and
+ContextVar-chain behaviour; P2.2 tests (`test_observability_metrics_registry.py`,
+`test_metrics_endpoint.py`, `test_job_service_emits_metrics.py`,
+`test_metrics_router_route_count_delta.py`) cover the registry, endpoint, and
+JobService integration; P2.3 (`test_phase2_observability_closeout_contracts.py`)
+pins the downstream-consumer surface (metric names, label cardinality, bucket
+boundaries, middleware order). Changes to these schemas require deliberate
+updates to the relevant tests.
+
+### Per-request log line schema
+
+`RequestLoggingMiddleware` emits one line per HTTP request via the
+`yuantus.request` logger. The 8 base fields (`request_id` through `latency_ms`)
+are always present, even when the value is `null`. The `error` field is
+conditional — present only on exception paths:
+
+| Field | Source | Notes |
+| --- | --- | --- |
+| `request_id` | `X-Request-ID` header (configurable via `YUANTUS_REQUEST_ID_HEADER`) or generated `uuid4().hex` | Echoed back in response headers for downstream correlation |
+| `tenant_id` | `request.state.tenant_id` (set by `AuthEnforcementMiddleware` on auth-success, or `TenantOrgContextMiddleware` from `x-tenant-id` header) | `null` when no identity context |
+| `org_id` | `request.state.org_id` (same producers as `tenant_id`) | `null` when no identity context |
+| `user_id` | `request.state.user_id` (set only by `AuthEnforcementMiddleware`) | `null` for unauthenticated requests |
+| `method` | HTTP method | — |
+| `path` | URL path | Query string excluded |
+| `status_code` | Final response status code | Includes 401 short-circuits from auth middleware |
+| `latency_ms` | Wall time from middleware entry to response finalisation | Integer milliseconds |
+| `error` | Exception class name when the request raised | Conditional — only present on exception paths |
+
+Wire format selectable via `YUANTUS_LOG_FORMAT`:
+
+- `text` (default) — `key1=value1 key2=value2 …` (preserves the legacy
+  log shape; safe for existing log consumers).
+- `json` — single JSON object per line (recommended for log indexers /
+  structured log pipelines).
+
+The `request_id` is propagated through inner middleware via the
+`request_id_var` ContextVar; identity values are propagated via
+`request.state.*` snapshots set at the moment each upstream middleware
+calls `ContextVar.set()` (so the snapshot survives the middleware's
+own `finally` reset). See P2.1 `DEV_AND_VERIFICATION` MD §4.5 for the
+ContextVar-lifetime remediation history.
+
+### Job lifecycle metrics
+
+`JobService.complete_job` and `JobService.fail_job` record into an
+in-process Prometheus-format registry via
+`yuantus.observability.metrics.record_job_lifecycle`. The registry is
+exposed at `GET /api/v1/metrics` (Prometheus scrapers — no JWT
+required; gate at the network/ingress layer).
+
+| Metric | Type | Labels | Notes |
+| --- | --- | --- | --- |
+| `yuantus_jobs_total` | counter | `task_type, status` | One increment per terminal lifecycle event |
+| `yuantus_job_duration_ms` | histogram | `task_type, status` | Wall-clock duration (`completed_at - started_at`) |
+
+Permitted `status` values:
+
+- `success` — emitted from `complete_job(...)`.
+- `failure` — terminal failure (`fail_job(retry=False)` or max-attempts
+  reached).
+- `retry` — transient failure that re-queued to PENDING (`retry=True`
+  AND `attempt_count < max_attempts`). Duration is captured BEFORE the
+  retry branch resets `started_at` / `completed_at`.
+
+Permitted labels (cardinality contract): only `task_type`, `status`,
+and Prometheus's own `le` (histogram bucket boundary). **Do not add
+`tenant_id` / `org_id` / `user_id` / `job_id` labels** — they blow up
+cardinality and break Prometheus retention. Per-tenant observability
+belongs in the log line, not the metric.
+
+Histogram bucket boundaries (milliseconds — long-tail for CAD
+conversions):
+
+```
+[50, 100, 500, 1000, 5000, 10000, 30000, 60000, 300000]
+```
+
+Boundaries are observed by downstream alerts and dashboards
+(`histogram_quantile()`). **Do not change without explicit discussion**;
+the contract test
+`test_histogram_bucket_boundaries_are_pinned` enforces this.
+
+### Settings
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `YUANTUS_LOG_FORMAT` | `text` | `text` or `json` — wire format for the per-request log line |
+| `YUANTUS_REQUEST_ID_HEADER` | `x-request-id` | Inbound header read for upstream-supplied request id |
+| `YUANTUS_METRICS_ENABLED` | `true` | When `false`, `GET /api/v1/metrics` returns 404; instrumentation always records in-memory regardless |
+| `YUANTUS_METRICS_BACKEND` | `prometheus` | Currently only `prometheus` is supported |
+
+### Middleware chain order (pinned)
+
+The following order is asserted by
+`test_middleware_chain_order_is_pinned`:
+
+```
+RequestLoggingMiddleware  (outermost — sets request_id, captures final status)
+  ↓
+AuthEnforcementMiddleware  (snapshots tenant/org/user to request.state on auth-success)
+  ↓
+TenantOrgContextMiddleware  (header-based fallback; snapshots if upstream did not)
+  ↓
+AuditLogMiddleware  (innermost — sees populated identity context for AuditLog rows)
+```
+
+A reorder via `add_middleware` will surface in PR review via the
+contract test — it is correctness-load-bearing.
+
 ## Stop services
 
 ```bash
