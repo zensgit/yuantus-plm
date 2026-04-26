@@ -9,6 +9,7 @@ from yuantus import __version__
 from yuantus.api.middleware.auth_enforce import AuthEnforcementMiddleware
 from yuantus.api.middleware.audit import AuditLogMiddleware
 from yuantus.api.middleware.context import TenantOrgContextMiddleware
+from yuantus.api.middleware.request_logging import RequestLoggingMiddleware
 from yuantus.api.routers.admin import router as admin_router
 from yuantus.api.routers.auth import router as auth_router
 from yuantus.api.routers.cad_preview import router as cad_preview_router
@@ -270,6 +271,7 @@ def create_app() -> FastAPI:
     app.add_middleware(AuditLogMiddleware)
     app.add_middleware(TenantOrgContextMiddleware)
     app.add_middleware(AuthEnforcementMiddleware)
+    app.add_middleware(RequestLoggingMiddleware)
     app.include_router(favicon_router)
     app.include_router(health_router, prefix="/api/v1")
     app.include_router(auth_router, prefix="/api/v1")
