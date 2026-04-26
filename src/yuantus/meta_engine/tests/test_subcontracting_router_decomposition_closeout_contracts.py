@@ -33,7 +33,6 @@ _ROUTER_REGISTRATION_ORDER = [
     "subcontracting_orders_router",
     "subcontracting_analytics_router",
     "subcontracting_approval_mapping_router",
-    "subcontracting_router",
 ]
 
 
@@ -76,7 +75,7 @@ def test_legacy_subcontracting_router_module_is_registered_shell_only() -> None:
     assert "subcontracting_router = APIRouter" in text
 
 
-def test_app_registers_subcontracting_routers_in_decomposition_order_before_legacy_shell() -> None:
+def test_app_registers_subcontracting_routers_in_decomposition_order() -> None:
     app_py = Path(__file__).resolve().parents[4] / "src" / "yuantus" / "api" / "app.py"
     text = app_py.read_text(encoding="utf-8")
     positions = [
@@ -84,6 +83,9 @@ def test_app_registers_subcontracting_routers_in_decomposition_order_before_lega
     ]
     assert all(position != -1 for position in positions)
     assert positions == sorted(positions)
+    assert "app.include_router(subcontracting_router," not in text, (
+        "subcontracting_router shell must not be registered in app.py after Phase 1 P1.4"
+    )
 
 
 def test_legacy_subcontracting_router_owns_no_runtime_paths() -> None:

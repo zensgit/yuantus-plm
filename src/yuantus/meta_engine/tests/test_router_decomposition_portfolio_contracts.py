@@ -89,7 +89,7 @@ LEGACY_ROUTER_STATES = {
     },
     "subcontracting_router.py": {
         "legacy_module": "yuantus.meta_engine.web.subcontracting_router",
-        "registered": True,
+        "registered": False,
         "include_token": "app.include_router(subcontracting_router",
         "import_token": "from yuantus.meta_engine.web.subcontracting_router import subcontracting_router",
     },
