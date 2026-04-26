@@ -42,6 +42,7 @@ def _is_public_path(path: str, settings=None) -> bool:
         "/favicon.ico",
         "/api/v1/health",
         "/api/v1/health/deps",
+        "/api/v1/metrics",
         "/api/v1/auth/login",
         "/api/v1/plm-workspace",
         "/api/v1/plm-workspace/",
