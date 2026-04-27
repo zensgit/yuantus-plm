@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import re
+import argparse
 from typing import Iterable
 
-from sqlalchemy import MetaData
+from sqlalchemy import MetaData, create_engine, text
+from sqlalchemy.pool import NullPool
 
+from yuantus.config import get_settings
 from yuantus.database import tenant_id_to_schema
 from yuantus.models.base import Base, WorkflowBase
 
@@ -107,3 +110,54 @@ def _require_postgres_url(url: str) -> str:
 def resolve_schema_for_tenant_id(tenant_id: str) -> str:
     """Public helper used by operators to preview the managed schema name."""
     return tenant_id_to_schema(tenant_id)
+
+
+def _quote_schema(schema: str) -> str:
+    return f'"{_validate_target_schema(schema)}"'
+
+
+def provision_tenant_schema(tenant_id: str, *, create: bool = True) -> str:
+    """Resolve tenant_id to a managed schema and optionally create it."""
+    settings = get_settings()
+    schema = resolve_schema_for_tenant_id(tenant_id)
+    if not create:
+        return schema
+
+    url = _require_postgres_url(settings.DATABASE_URL)
+    engine = create_engine(url, poolclass=NullPool)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(f"CREATE SCHEMA IF NOT EXISTS {_quote_schema(schema)}")
+            )
+    finally:
+        engine.dispose()
+    return schema
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        prog="python -m yuantus.scripts.tenant_schema",
+        description="Resolve or provision a managed tenant schema.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    resolve_parser = subparsers.add_parser("resolve")
+    resolve_parser.add_argument("--tenant-id", required=True)
+
+    create_parser = subparsers.add_parser("create")
+    create_parser.add_argument("--tenant-id", required=True)
+
+    args = parser.parse_args(argv)
+    if args.command == "resolve":
+        print(resolve_schema_for_tenant_id(args.tenant_id))
+        return 0
+    if args.command == "create":
+        print(provision_tenant_schema(args.tenant_id))
+        return 0
+    parser.error(f"unsupported command {args.command!r}")
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
