@@ -265,7 +265,10 @@ def get_db() -> Generator[Session, None, None]:
     elif settings.TENANCY_MODE == "schema-per-tenant":
         try:
             _require_postgres_for_schema_mode(settings)
-            _schema = tenant_id_to_schema(_normalize_context_value(tenant_id_var.get()))
+            tenant_id, _ = _require_tenant_context(
+                settings=settings, tenant_id=tenant_id_var.get(), org_id=None
+            )
+            _schema = tenant_id_to_schema(tenant_id)
         except (MissingTenantContextError, ValueError) as exc:
             from fastapi import HTTPException
 
@@ -297,7 +300,10 @@ def get_db_session() -> Generator[Session, None, None]:
     elif settings.TENANCY_MODE == "schema-per-tenant":
         try:
             _require_postgres_for_schema_mode(settings)
-            _schema = tenant_id_to_schema(_normalize_context_value(tenant_id_var.get()))
+            tenant_id, _ = _require_tenant_context(
+                settings=settings, tenant_id=tenant_id_var.get(), org_id=None
+            )
+            _schema = tenant_id_to_schema(tenant_id)
         except (MissingTenantContextError, ValueError) as exc:
             raise RuntimeError(str(exc)) from exc
         session = SessionLocal()
