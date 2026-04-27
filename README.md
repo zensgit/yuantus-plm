@@ -198,6 +198,7 @@ Read-only Claude reviewer sidecar:
 - `docs/RUNBOOK_RUNTIME.md` (Runtime operations)
 - `docs/RUNBOOK_SCHEDULED_BACKUP.md` (Scheduled backups)
 - `docs/RUNBOOK_STRICT_GATE.md` (Strict gate evidence run)
+- `docs/RUNBOOK_TENANT_MIGRATIONS_20260427.md` (Tenant schema provisioning and migration wiring)
 
 ## Development design
 
