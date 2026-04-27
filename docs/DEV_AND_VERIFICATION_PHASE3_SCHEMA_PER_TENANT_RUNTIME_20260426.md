@@ -13,7 +13,7 @@ design strategy (`docs/DEVELOPMENT_PHASE3_SCHEMA_PER_TENANT_STRATEGY_20260426.md
 - Postgres-only guard: `_require_postgres_for_schema_mode()` rejects non-Postgres
   `DATABASE_URL` with a clear configuration error before any session is created.
 - Rejection of missing tenant context before any DB access.
-- 23 unit / dispatch / config-guard tests + 2 Postgres integration tests
+- 24 unit / dispatch / config-guard tests + 2 Postgres integration tests
   (skipped without a test DSN); existing tenancy-mode behaviour unchanged.
 
 ## 2. Strict P3.2 boundary
@@ -24,7 +24,7 @@ Per user opt-in (2026-04-26): "默认关闭 + 小 PR + 强测试 + 不迁移数�
 - `tenant_id_to_schema()` resolver in `src/yuantus/database.py`
 - `schema-per-tenant` dispatch in `get_db()` and `get_db_session()`
 - `TENANCY_MODE` description updated in `src/yuantus/config/settings.py`
-- `src/yuantus/tests/test_database_tenancy.py` — 23 tests + 2 Postgres-skip integration tests
+- `src/yuantus/tests/test_database_tenancy.py` — 24 tests + 2 Postgres-skip integration tests
 
 ❌ explicitly out of scope (deferred to P3.2.x / P3.3):
 - Alembic migration environment for tenant schemas (`migrations_tenant/` or
@@ -41,11 +41,11 @@ Per user opt-in (2026-04-26): "默认关闭 + 小 PR + 强测试 + 不迁移数�
 | `src/yuantus/database.py` | `tenant_id_to_schema()`, `_require_postgres_for_schema_mode()`, `after_begin` schema dispatch in `get_db()` / `get_db_session()` | +70 |
 | `src/yuantus/config/settings.py` | `TENANCY_MODE` description string | +2 |
 | `src/yuantus/tests/__init__.py` | New package | +0 |
-| `src/yuantus/tests/test_database_tenancy.py` | New: 23 tests + 2 Postgres-skip integration tests | +346 |
+| `src/yuantus/tests/test_database_tenancy.py` | New: 24 tests + 2 Postgres-skip integration tests | +350 |
 | `docs/DEV_AND_VERIFICATION_PHASE3_SCHEMA_PER_TENANT_RUNTIME_20260426.md` | This MD | +240 |
 | `docs/DELIVERY_DOC_INDEX.md` | Index entry | +1 |
 
-Total: 6 files, ~660 lines.
+Total: 6 files, ~665 lines.
 
 ## 4. Implementation Details
 
@@ -59,7 +59,7 @@ Total: 6 files, ~660 lines.
 | Normalisation | Lowercase; `re.sub(r"[^a-z0-9]", "_", raw.lower())` |
 | Empty / whitespace / None | `MissingTenantContextError` |
 | All-punctuation / all-non-ASCII | `ValueError` (no valid chars after sanitisation) |
-| Reserved names | Checked on the full candidate; structurally impossible with `yt_t_` prefix, but enforced as belt-and-suspenders |
+| Reserved names | Checked on the unprefixed schema slug before adding `yt_t_`, so `public` / `pg_catalog` style tenant IDs are rejected explicitly |
 | Length cap | ≤ 63 bytes (Postgres NAMEDATALEN-1); truncated with 8-char `sha256(raw)[:8]` hash suffix — stable and collision-resistant |
 
 The existing `_sanitize_tenant_id()` is untouched; `tenant_id_to_schema()` is
@@ -147,6 +147,7 @@ explicitly configured. No migration, no `CREATE SCHEMA`, no data movement.
 | `test_none_raises` | None → MissingTenantContextError |
 | `test_all_punctuation_raises` | All-punctuation → ValueError |
 | `test_all_non_ascii_raises_or_maps_to_underscores_then_raises` | Long Unicode → ValueError |
+| `test_reserved_schema_slug_is_rejected` | Reserved slug such as `public` → ValueError |
 | `test_short_input_within_max` | Output ≤ 63 bytes |
 | `test_long_input_truncated_to_max` | Output exactly 63 bytes when truncated |
 | `test_truncation_is_stable` | Same input → same output |
@@ -168,7 +169,7 @@ explicitly configured. No migration, no `CREATE SCHEMA`, no data movement.
 PYTHONPATH=src python3 -m pytest -q \
   src/yuantus/tests/test_database_tenancy.py
 ```
-→ **23 passed, 2 skipped** (both Postgres integration tests — pool-safety
+→ **24 passed, 2 skipped** (both Postgres integration tests — pool-safety
 and `after_begin` re-apply — skipped without `YUANTUS_TEST_PG_DSN`).
 
 ### 6.2 Regression suite
@@ -182,10 +183,10 @@ PYTHONPATH=src python3 -m pytest -q \
   src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py \
   src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
 ```
-→ **38 passed, 2 skipped, 1 warning** in ~3.7s.
+→ **39 passed, 2 skipped, 1 warning** in ~3.7s.
 
 Breakdown:
-- P3.2 tenancy: 23 passed, 2 skipped
+- P3.2 tenancy: 24 passed, 2 skipped
 - Phase 2 P2.3 closeout contracts: 6 passed
 - Phase 1 portfolio: 5 passed
 - Doc-index trio: 4 passed
@@ -229,9 +230,9 @@ Per "默认关闭 + 小 PR + 强测试 + 不迁移数据":
 
 - [x] Default off: `TENANCY_MODE` defaults to `"single"`; no code runs in
   schema-per-tenant path without explicit config.
-- [x] Small PR: 6 files, ~660 lines, zero Alembic / migration / data-movement
+- [x] Small PR: 6 files, ~665 lines, zero Alembic / migration / data-movement
   changes.
-- [x] Strong tests: 23 cases covering every rejection path, the full
+- [x] Strong tests: 24 cases covering every rejection path, the full
   normalisation table, the Postgres-only guard, and `after_begin` re-apply
   semantics; 2 Postgres integration tests skip cleanly without a DSN.
 - [x] No data migration.
@@ -267,7 +268,7 @@ from `get_db()` / `get_db_session()`; no schema changes, no data affected.
 | --- | --- |
 | Branch base | `origin/main=b522821` |
 | `create_app()` boot | 672 routes, 4 middleware (unchanged) |
-| P3.2 tenancy tests (23 cases, 2 Postgres integration skips) | 23 passed, 2 skipped |
+| P3.2 tenancy tests (24 cases, 2 Postgres integration skips) | 24 passed, 2 skipped |
 | Phase 2 P2.3 closeout contracts (6 cases) | 6 passed |
 | Phase 1 portfolio (5 cases) | 5 passed |
 | Doc-index trio (4 cases) | 4 passed |

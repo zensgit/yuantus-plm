@@ -61,11 +61,11 @@ def tenant_id_to_schema(tenant_id: Optional[str]) -> str:
         raise ValueError(
             f"tenant_id {tenant_id!r} contains no characters valid for a schema name"
         )
-    candidate = _SCHEMA_PREFIX + sanitized
-    if candidate in _SCHEMA_RESERVED:
+    if sanitized in _SCHEMA_RESERVED:
         raise ValueError(
-            f"tenant_id {tenant_id!r} resolves to reserved schema name {candidate!r}"
+            f"tenant_id {tenant_id!r} resolves to reserved schema slug {sanitized!r}"
         )
+    candidate = _SCHEMA_PREFIX + sanitized
     if len(candidate) > _PG_MAX_IDENTIFIER:
         hash_suffix = hashlib.sha256(raw.encode()).hexdigest()[:8]
         max_base = _PG_MAX_IDENTIFIER - len(hash_suffix) - 1

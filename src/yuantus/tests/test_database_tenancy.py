@@ -100,6 +100,11 @@ def test_all_non_ascii_raises_or_maps_to_underscores_then_raises():
         tenant_id_to_schema("客户客户客户")
 
 
+def test_reserved_schema_slug_is_rejected():
+    with pytest.raises(ValueError, match="reserved schema slug"):
+        tenant_id_to_schema("public")
+
+
 # ---------------------------------------------------------------------------
 # Schema resolver — truncation and stability
 # ---------------------------------------------------------------------------
