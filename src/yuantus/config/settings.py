@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     # db-per-tenant: one database/schema per tenant (dev-friendly for SaaS)
     # db-per-tenant-org: one database per (tenant, org) for strong isolation
     TENANCY_MODE: str = Field(
-        default="single", description="single|db-per-tenant|db-per-tenant-org"
+        default="single",
+        description="single|db-per-tenant|db-per-tenant-org|schema-per-tenant (Postgres only, default off)",
     )
     DATABASE_URL_TEMPLATE: str = Field(
         default="",

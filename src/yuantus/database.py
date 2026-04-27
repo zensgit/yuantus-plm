@@ -8,12 +8,14 @@ This module is intentionally small and test-friendly:
 
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 from contextlib import contextmanager
 from threading import RLock
 from typing import Generator, Optional
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -33,6 +35,44 @@ def _sanitize_tenant_id(raw: str) -> str:
     return cleaned or "default"
 
 
+_SCHEMA_PREFIX = "yt_t_"
+_PG_MAX_IDENTIFIER = 63
+_SCHEMA_RESERVED = frozenset({
+    "public", "information_schema", "pg_catalog", "pg_toast",
+    "pg_temp", "pg_toast_temp",
+})
+
+
+def tenant_id_to_schema(tenant_id: Optional[str]) -> str:
+    """Convert a tenant_id to a safe, deterministic Postgres schema name.
+
+    Output properties: prefix ``yt_t_``, only [a-z0-9_] characters, max 63
+    bytes (Postgres NAMEDATALEN-1), stable across calls for the same input.
+    Raises MissingTenantContextError for empty/None; ValueError for inputs
+    that produce no valid characters or collide with a reserved schema name.
+    """
+    if not tenant_id or not tenant_id.strip():
+        raise MissingTenantContextError(
+            "schema-per-tenant: tenant_id is required and must be non-empty"
+        )
+    raw = tenant_id.strip()
+    sanitized = re.sub(r"[^a-z0-9]", "_", raw.lower())
+    if not sanitized.replace("_", ""):
+        raise ValueError(
+            f"tenant_id {tenant_id!r} contains no characters valid for a schema name"
+        )
+    if sanitized in _SCHEMA_RESERVED:
+        raise ValueError(
+            f"tenant_id {tenant_id!r} resolves to reserved schema slug {sanitized!r}"
+        )
+    candidate = _SCHEMA_PREFIX + sanitized
+    if len(candidate) > _PG_MAX_IDENTIFIER:
+        hash_suffix = hashlib.sha256(raw.encode()).hexdigest()[:8]
+        max_base = _PG_MAX_IDENTIFIER - len(hash_suffix) - 1
+        candidate = candidate[:max_base] + "_" + hash_suffix
+    return candidate
+
+
 class MissingTenantContextError(ValueError):
     """Raised when tenant/org context is required but missing."""
 
@@ -47,7 +87,7 @@ def _normalize_context_value(value: Optional[str]) -> Optional[str]:
 def _require_tenant_context(
     *, settings, tenant_id: Optional[str], org_id: Optional[str]
 ) -> tuple[str, Optional[str]]:
-    if settings.TENANCY_MODE not in {"db-per-tenant", "db-per-tenant-org"}:
+    if settings.TENANCY_MODE not in {"db-per-tenant", "db-per-tenant-org", "schema-per-tenant"}:
         return (tenant_id or "", org_id)
 
     tenant_value = _normalize_context_value(tenant_id)
@@ -184,6 +224,17 @@ def get_sessionmaker_for_tenant(tenant_id: Optional[str]) -> sessionmaker:
     return get_sessionmaker_for_scope(tenant_id, None)
 
 
+def _require_postgres_for_schema_mode(settings) -> None:
+    """Raise ValueError if DATABASE_URL is not Postgres (schema-per-tenant is Postgres-only)."""
+    url = settings.DATABASE_URL
+    if not (url.startswith("postgresql") or url.startswith("postgres")):
+        raise ValueError(
+            "TENANCY_MODE=schema-per-tenant requires a PostgreSQL DATABASE_URL "
+            "(postgresql[+driver]://...). "
+            "Use TENANCY_MODE=single for SQLite or other non-Postgres databases."
+        )
+
+
 def get_db() -> Generator[Session, None, None]:
     settings = get_settings()
     if settings.TENANCY_MODE in {"db-per-tenant", "db-per-tenant-org"}:
@@ -211,6 +262,22 @@ def get_db() -> Generator[Session, None, None]:
                 _tenant_init_done.add(url)
 
         db = sess_factory()
+    elif settings.TENANCY_MODE == "schema-per-tenant":
+        try:
+            _require_postgres_for_schema_mode(settings)
+            tenant_id, _ = _require_tenant_context(
+                settings=settings, tenant_id=tenant_id_var.get(), org_id=None
+            )
+            _schema = tenant_id_to_schema(tenant_id)
+        except (MissingTenantContextError, ValueError) as exc:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        db = SessionLocal()
+
+        @event.listens_for(db, "after_begin")
+        def _set_search_path(session, transaction, connection):
+            connection.execute(text(f'SET LOCAL search_path TO "{_schema}", public'))
     else:
         db = SessionLocal()
     try:
@@ -230,6 +297,20 @@ def get_db_session() -> Generator[Session, None, None]:
         except MissingTenantContextError as exc:
             raise RuntimeError(str(exc)) from exc
         session = sess_factory()
+    elif settings.TENANCY_MODE == "schema-per-tenant":
+        try:
+            _require_postgres_for_schema_mode(settings)
+            tenant_id, _ = _require_tenant_context(
+                settings=settings, tenant_id=tenant_id_var.get(), org_id=None
+            )
+            _schema = tenant_id_to_schema(tenant_id)
+        except (MissingTenantContextError, ValueError) as exc:
+            raise RuntimeError(str(exc)) from exc
+        session = SessionLocal()
+
+        @event.listens_for(session, "after_begin")
+        def _set_search_path(sess, transaction, connection):
+            connection.execute(text(f'SET LOCAL search_path TO "{_schema}", public'))
     else:
         session = SessionLocal()
     try:
