@@ -97,7 +97,31 @@ This dry run does not satisfy the external P3.4 stop-gate items by itself; the
 pilot tenant, non-production PostgreSQL DSN, backup/restore owner, rehearsal
 window, and classification sign-off are still required.
 
-## 7. Apply Baseline Upgrade
+## 7. P3.4.2 Import Rehearsal Readiness
+
+Before implementing or running import rehearsal tooling, validate the external
+stop-gate inputs and P3.4.1 dry-run report without opening database
+connections:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_readiness \
+  --dry-run-json output/tenant_<tenant-id>_dry_run.json \
+  --tenant-id <tenant-id> \
+  --target-url <non-prod-postgres-dsn> \
+  --target-schema <schema> \
+  --backup-restore-owner <owner> \
+  --rehearsal-window <window> \
+  --classification-artifact docs/TENANT_TABLE_CLASSIFICATION_20260427.md \
+  --classification-signed-off \
+  --output-json output/tenant_<tenant-id>_import_rehearsal_readiness.json \
+  --output-md output/tenant_<tenant-id>_import_rehearsal_readiness.md \
+  --strict
+```
+
+Do not implement or run import rehearsal while
+`ready_for_rehearsal` is false.
+
+## 8. Apply Baseline Upgrade
 
 ```bash
 PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
@@ -108,7 +132,7 @@ PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
 
 Expected behavior post-P3.3.3: the command applies the baseline revision (`t1_initial_tenant_baseline`) inside `<schema>`, creating tenant application tables and the per-tenant `<schema>.alembic_version` row. Cross-schema FKs to global tables (e.g., `rbac_users`, `users`) are intentionally NOT created — tenant tables retain user-attribution columns (`created_by_id`, `owner_id`, etc.) without a database-level FK constraint, since the referenced rows live in the global identity plane.
 
-## 8. Smoke
+## 9. Smoke
 
 Confirm the schema exists, that the baseline revision is recorded, and that representative tenant tables are present:
 
@@ -129,7 +153,7 @@ where table_schema = '<schema>'
 -- expect: 0
 ```
 
-## 9. Rollback
+## 10. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
 
@@ -146,7 +170,7 @@ Downgrading the baseline (`t1_initial_tenant_baseline`) drops tenant application
 
 Never run downgrade without `-x target_schema=<schema>`.
 
-## 10. Stop Gate
+## 11. Stop Gate
 
 Do not start P3.4 cutover (data migration / runtime enablement) until all are true:
 
