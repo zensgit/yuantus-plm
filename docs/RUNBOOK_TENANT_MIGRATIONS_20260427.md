@@ -61,7 +61,43 @@ Reviewer checklist:
 
 Post-P3.3.3, this SQL contains the actual `CREATE TABLE` baseline DDL for tenant application tables. The reviewer must confirm the absence of any `auth_*`, `audit_logs`, `rbac_*`, and `users` table DDL — those tables remain on the global identity plane and must not appear here.
 
-## 6. Apply Baseline Upgrade
+## 6. P3.4.1 Read-Only Source Dry Run
+
+Before any import rehearsal, inspect the source database without touching a
+target schema:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_migration_dry_run \
+  --source-url <source-db-url> \
+  --tenant-id <tenant-id> \
+  --output-json output/tenant_<tenant-id>_dry_run.json \
+  --output-md output/tenant_<tenant-id>_dry_run.md
+```
+
+Use `--strict` in CI or rehearsal automation when blockers should fail the
+command:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_migration_dry_run \
+  --source-url <source-db-url> \
+  --tenant-id <tenant-id> \
+  --output-json output/tenant_<tenant-id>_dry_run.json \
+  --output-md output/tenant_<tenant-id>_dry_run.md \
+  --strict
+```
+
+The dry-run report includes the FK-safe tenant import order, source table
+inventory, tenant-table row counts, missing tenant tables, excluded global
+tables, and unknown source tables. It never accepts a target DSN, never creates
+schemas, and never exports or imports rows.
+
+Do not proceed to import rehearsal while `ready_for_import` is false.
+
+This dry run does not satisfy the external P3.4 stop-gate items by itself; the
+pilot tenant, non-production PostgreSQL DSN, backup/restore owner, rehearsal
+window, and classification sign-off are still required.
+
+## 7. Apply Baseline Upgrade
 
 ```bash
 PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
@@ -72,7 +108,7 @@ PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
 
 Expected behavior post-P3.3.3: the command applies the baseline revision (`t1_initial_tenant_baseline`) inside `<schema>`, creating tenant application tables and the per-tenant `<schema>.alembic_version` row. Cross-schema FKs to global tables (e.g., `rbac_users`, `users`) are intentionally NOT created — tenant tables retain user-attribution columns (`created_by_id`, `owner_id`, etc.) without a database-level FK constraint, since the referenced rows live in the global identity plane.
 
-## 7. Smoke
+## 8. Smoke
 
 Confirm the schema exists, that the baseline revision is recorded, and that representative tenant tables are present:
 
@@ -93,7 +129,7 @@ where table_schema = '<schema>'
 -- expect: 0
 ```
 
-## 8. Rollback
+## 9. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
 
@@ -110,7 +146,7 @@ Downgrading the baseline (`t1_initial_tenant_baseline`) drops tenant application
 
 Never run downgrade without `-x target_schema=<schema>`.
 
-## 9. Stop Gate
+## 10. Stop Gate
 
 Do not start P3.4 cutover (data migration / runtime enablement) until all are true:
 
