@@ -37,10 +37,32 @@ _PG_MAX_IDENTIFIER = 63
 
 
 def register_tenant_model_metadata() -> None:
-    """Import model modules needed by the tenant Alembic metadata filter."""
+    """Import model modules needed by the tenant Alembic metadata filter.
+
+    `import_all_models()` covers the bulk of the tenant model surface but
+    historically misses a few `meta_engine.*` model packages that only get
+    imported when their routers are loaded by `create_app()`. P3.3.3
+    enumerates them explicitly so the tenant Alembic env's `target_metadata`
+    matches what a fully-booted app sees, which keeps the baseline revision
+    deterministic regardless of whether the test process happened to import
+    `create_app()` first.
+    """
     from yuantus.meta_engine.bootstrap import import_all_models
 
     import_all_models()
+
+    # meta_engine model packages NOT covered by import_all_models() but loaded
+    # by the runtime app via routers. Without these, build_tenant_metadata()
+    # produces a smaller-than-runtime metadata set and the baseline revision
+    # drifts depending on whether create_app() was imported earlier in the
+    # process.
+    from yuantus.meta_engine.box import models as _box  # noqa: F401
+    from yuantus.meta_engine.cutted_parts import models as _cutted_parts  # noqa: F401
+    from yuantus.meta_engine.document_sync import models as _document_sync  # noqa: F401
+    from yuantus.meta_engine.locale import models as _locale  # noqa: F401
+    from yuantus.meta_engine.maintenance import models as _maintenance  # noqa: F401
+    from yuantus.meta_engine.quality import models as _quality  # noqa: F401
+    from yuantus.meta_engine.report_locale import models as _report_locale  # noqa: F401
 
     # Global/control-plane tables are registered so the filter can exclude
     # them and tests can assert an exhaustive partition.

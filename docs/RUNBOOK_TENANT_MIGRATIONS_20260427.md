@@ -1,13 +1,13 @@
-# Runbook — Tenant Schema Provisioning and Migration Wiring (2026-04-27)
+# Runbook — Tenant Schema Provisioning and Migration (2026-04-27)
 
 ## 1. Scope
 
-This runbook covers P3.3.2 operator actions for schema-per-tenant preparation:
+This runbook covers operator actions for schema-per-tenant preparation, post P3.3.3 baseline revision:
 
 - Resolve the managed schema name for a tenant id.
 - Provision the tenant schema out of band.
 - Generate tenant Alembic offline SQL for review.
-- Run a wiring-only tenant Alembic upgrade while `migrations_tenant/versions/` is empty.
+- Apply the tenant Alembic baseline revision so tenant application tables exist inside the target schema.
 
 This runbook does not authorize runtime cutover, data migration, or production enablement.
 
@@ -59,9 +59,9 @@ Reviewer checklist:
 - `alembic_version` is targeted at the tenant schema.
 - No global/control-plane table DDL appears for `auth_*`, `audit_logs`, `rbac_*`, or `users`.
 
-Because P3.3.1 intentionally ships with an empty `migrations_tenant/versions/`, this SQL is a wiring review until a tenant baseline revision lands.
+Post-P3.3.3, this SQL contains the actual `CREATE TABLE` baseline DDL for tenant application tables. The reviewer must confirm the absence of any `auth_*`, `audit_logs`, `rbac_*`, and `users` table DDL — those tables remain on the global identity plane and must not appear here.
 
-## 6. Apply Wiring Upgrade
+## 6. Apply Baseline Upgrade
 
 ```bash
 PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
@@ -70,40 +70,53 @@ PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
   upgrade head
 ```
 
-Expected P3.3.2 behavior: the command validates env wiring and exits cleanly. It does not create tenant application tables while the tenant versions directory is empty.
+Expected behavior post-P3.3.3: the command applies the baseline revision (`t1_initial_tenant_baseline`) inside `<schema>`, creating tenant application tables and the per-tenant `<schema>.alembic_version` row. Cross-schema FKs to global tables (e.g., `rbac_users`, `users`) are intentionally NOT created — tenant tables retain user-attribution columns (`created_by_id`, `owner_id`, etc.) without a database-level FK constraint, since the referenced rows live in the global identity plane.
 
 ## 7. Smoke
 
-Run a read-only check that confirms the schema exists:
+Confirm the schema exists, that the baseline revision is recorded, and that representative tenant tables are present:
 
 ```sql
 select nspname from pg_namespace where nspname = '<schema>';
-```
 
-Do not assert that application tables exist until a tenant baseline revision ships in a later sub-PR.
+select version_num from "<schema>"."alembic_version";
+-- expect: t1_initial_tenant_baseline
+
+select count(*) from information_schema.tables
+where table_schema = '<schema>' and table_name in ('meta_items', 'meta_files', 'meta_conversion_jobs');
+-- expect: 3
+
+-- Negative smoke: no global tables in the tenant schema
+select count(*) from information_schema.tables
+where table_schema = '<schema>'
+  and table_name in ('auth_users', 'rbac_users', 'users', 'audit_logs');
+-- expect: 0
+```
 
 ## 8. Rollback
 
-P3.3.2 has no data rollback because it performs no data migration.
+This runbook performs no data migration; rollback is purely schema-level.
 
-For later tenant revisions, rollback must be explicit and per schema:
+For per-schema rollback, use Alembic downgrade explicitly scoped to the target schema:
 
 ```bash
 PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
   alembic -c alembic_tenant.ini \
   -x target_schema=<schema> \
-  downgrade <revision>
+  downgrade base
 ```
+
+Downgrading the baseline (`t1_initial_tenant_baseline`) drops tenant application tables in reverse dependency order. The schema itself is left in place — schema removal is a separate operator action and is not exposed by this runbook.
 
 Never run downgrade without `-x target_schema=<schema>`.
 
 ## 9. Stop Gate
 
-Do not start P3.4 cutover until all are true:
+Do not start P3.4 cutover (data migration / runtime enablement) until all are true:
 
 - A named pilot tenant exists.
 - Non-production rehearsal DB is available.
 - Backup/restore owner is named.
 - Rehearsal window is scheduled.
-- P3.3.1 and P3.3.2 are merged and smoke green.
+- P3.3.1, P3.3.2, and P3.3.3 are merged and smoke green.
 - Table classification artifact is signed off.
