@@ -7,6 +7,8 @@ cleanly when that env var is absent.
 from __future__ import annotations
 
 import os
+import uuid
+
 import pytest
 
 from yuantus.database import (
@@ -15,6 +17,11 @@ from yuantus.database import (
     _SCHEMA_PREFIX,
     tenant_id_to_schema,
 )
+
+
+# Per-run unique suffix so Postgres integration tests cannot collide if
+# YUANTUS_TEST_PG_DSN points at a non-dedicated database.
+_RUN_ID = uuid.uuid4().hex[:8]
 
 
 # ---------------------------------------------------------------------------
@@ -269,8 +276,8 @@ def test_schema_search_path_does_not_leak_between_transactions():
     engine = create_engine(_PG_DSN, pool_size=1, max_overflow=0)
     Session = make_sessionmaker(bind=engine)
 
-    schema_a = tenant_id_to_schema("pool_safety_tenant_a")
-    schema_b = tenant_id_to_schema("pool_safety_tenant_b")
+    schema_a = tenant_id_to_schema(f"pool_safety_tenant_a_{_RUN_ID}")
+    schema_b = tenant_id_to_schema(f"pool_safety_tenant_b_{_RUN_ID}")
 
     with engine.connect() as conn:
         conn.execute(sa_text(f'CREATE SCHEMA IF NOT EXISTS "{schema_a}"'))
@@ -311,7 +318,7 @@ def test_search_path_reapplied_after_intermediate_commit():
     from sqlalchemy import create_engine, event as sa_event, text as sa_text
     from sqlalchemy.orm import sessionmaker as make_sessionmaker
 
-    schema = tenant_id_to_schema("reapply_after_commit_tenant")
+    schema = tenant_id_to_schema(f"reapply_after_commit_tenant_{_RUN_ID}")
     engine = create_engine(_PG_DSN, pool_size=1, max_overflow=0)
     Session = make_sessionmaker(bind=engine)
 
