@@ -215,6 +215,14 @@ class Settings(BaseSettings):
         default="",
         description="Optional separate identity DB URL; default uses DATABASE_URL",
     )
+    ALEMBIC_TARGET_SCHEMA: str = Field(
+        default="",
+        description="Optional tenant schema target for the tenant Alembic env; empty disables tenant env execution",
+    )
+    ALEMBIC_CREATE_SCHEMA: bool = Field(
+        default=False,
+        description="Allow the tenant Alembic env/provisioning helper to CREATE SCHEMA IF NOT EXISTS",
+    )
     SCHEMA_MODE: str = Field(
         default="create_all",
         description="create_all: auto-create tables (dev), migrations: use Alembic only (prod)",
