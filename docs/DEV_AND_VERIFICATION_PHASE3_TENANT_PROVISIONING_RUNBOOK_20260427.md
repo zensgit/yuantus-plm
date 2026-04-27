@@ -15,6 +15,7 @@ This PR remains default-off and does not enable schema-per-tenant runtime.
 | `docs/RUNBOOK_TENANT_MIGRATIONS_20260427.md` | New operator runbook for resolve → provision → offline SQL review → wiring upgrade → smoke. |
 | `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_PROVISIONING_RUNBOOK_20260427.md` | This verification record. |
 | `docs/DELIVERY_DOC_INDEX.md` | Adds the new DEV/verification MD and runbook entry. |
+| `README.md` | Adds the new runbook to the `## Runbooks` section. |
 
 ## 3. Design Decisions
 
@@ -67,6 +68,22 @@ Result:
 
 ```text
 64 passed, 3 skipped, 1 warning
+```
+
+Runbook/doc-index contracts:
+
+```bash
+.venv/bin/python -m pytest -q \
+  src/yuantus/meta_engine/tests/test_runbook_index_completeness.py \
+  src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py \
+  src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
+  src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_sorting_contracts.py
+```
+
+Result:
+
+```text
+5 passed
 ```
 
 Boot check:
