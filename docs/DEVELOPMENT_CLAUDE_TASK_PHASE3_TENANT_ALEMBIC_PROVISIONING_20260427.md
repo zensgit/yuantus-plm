@@ -41,17 +41,38 @@ Evidence read before writing this taskbook:
 
 After P3.3 ships:
 
-- An operator can run `alembic -c alembic_tenant.ini -x target_schema=yt_t_acme upgrade head` against a non-production Postgres instance and have only tenant application tables created in `yt_t_acme`, with the `alembic_version` row stored in `yt_t_acme.alembic_version`.
 - An operator can call a small provisioning helper to issue `CREATE SCHEMA IF NOT EXISTS "yt_t_acme"` for a known tenant id.
-- The runbook records the full safe sequence (provision → migrate → smoke → enable) and the rollback path.
+- An operator can run `alembic -c alembic_tenant.ini -x target_schema=yt_t_acme upgrade head` against a non-production Postgres instance. Because `migrations_tenant/versions/` ships **empty by design** (see §3.3), `upgrade head` is a wiring exercise: the env validates target schema, applies `SET search_path`, configures `version_table_schema=yt_t_acme`, and exits cleanly with no DDL emitted. No tenant application tables are created.
+- The runbook records the full safe sequence (provision → wiring smoke → review → apply (no-op until baseline revision lands) → smoke → leave runtime mode unchanged) and the rollback path.
 
 ### 3.2 What P3.3 does NOT enable
 
+- **No tenant table baseline migration.** `migrations_tenant/versions/` is empty in the bounded P3.3 scope. The first autogenerate revision (which produces the actual `CREATE TABLE` DDL for tenant application tables) is deferred — see §3.3.
 - **No production schema-per-tenant rollout.** The runbook documents the path; an operator must follow it under explicit P3.4 authorization.
 - **No data migration.** No row export/import, no `db-per-tenant → schema-per-tenant` cutover. That is P3.4 / P3.5.
 - **No automatic schema provisioning at runtime.** The P3.2 runtime intentionally errors loudly if a schema is missing; this remains the contract. Schema creation is an out-of-band operator action.
 - **No P3.2 runtime change.** `database.py` is not edited.
-- **No identity Alembic change.** `migrations/env.py` and `migrations_identity/env.py` are not edited.
+- **No identity Alembic change.** `migrations/env.py` and `migrations_identity/env.py` are not edited. `migrations_identity/`'s 7-table allowlist remains as-is — note the deliberate distinction with `GLOBAL_TABLE_NAMES` in §5.3.
+
+### 3.3 Why no tenant baseline revision in P3.3
+
+P3.3 deliberately ships the migration plane (env + provisioning + runbook)
+without an initial autogenerate revision. Reasons:
+
+- **Reviewability.** A baseline revision captures the entire tenant table set
+  in one large file (likely 500+ lines of `op.create_table(...)` calls). It
+  benefits from its own dedicated review independent of the env wiring.
+- **Plane vs. content.** Env wiring (where do migrations live, how are they
+  configured) is conceptually separate from baseline content (which tables
+  exist on day one). Coupling them in one PR forces reviewers to switch
+  modes mid-diff.
+- **Operator timing.** The operator team may want the baseline revision to
+  land closer to the P3.4 cutover window so the captured table set reflects
+  the cutover-time state, not a snapshot from weeks earlier.
+
+The baseline revision lands as a separate sub-PR (suggested name:
+**P3.3.3 — initial tenant baseline revision**) or is folded into P3.4
+work, at the operator's discretion at the P3.4 stop-gate review (§9).
 
 ## 4. Settings (default off)
 
@@ -112,40 +133,78 @@ chooses Option 2 instead. Reasons specific to the merged code state:
    lines. The tenant env will be similar. The "larger bootstrap"
    concern in P3.1 §5 was overestimated relative to the precedent.
 
-### 5.3 `target_metadata` — the inverse identity filter
+### 5.3 `target_metadata` — explicit `GLOBAL_TABLE_NAMES` exclusion
 
 The tenant env's `target_metadata` is the combined `Base.metadata` +
-`WorkflowBase.metadata` **minus** the seven identity tables already
-allowlisted in `migrations_identity/env.py`:
+`WorkflowBase.metadata` **minus an explicit allowlist of global tables**.
+This list is **broader** than `migrations_identity/env.py`'s
+`IDENTITY_TABLE_NAMES` because the codebase (verified via
+`grep "__tablename__" src/yuantus/security src/yuantus/models`) carries
+control-plane tables in three groups:
+
+| Group | Tables | Source |
+| --- | --- | --- |
+| Identity (7) | `auth_tenants`, `auth_organizations`, `auth_users`, `auth_credentials`, `auth_org_memberships`, `auth_tenant_quotas`, `audit_logs` | `src/yuantus/security/auth/models.py`, `src/yuantus/models/audit.py` |
+| RBAC (4) | `rbac_resources`, `rbac_permissions`, `rbac_roles`, `rbac_users` | `src/yuantus/security/rbac/models.py` |
+| Legacy users (1) | `users` | `src/yuantus/models/user.py` |
+
+All 12 are control-plane / cross-tenant artefacts and **must not** be created
+inside per-tenant schemas. P3.3.1 must therefore introduce, in
+`migrations_tenant/env.py`:
 
 ```python
-IDENTITY_TABLE_NAMES = {
-    "auth_tenants",
-    "auth_organizations",
-    "auth_users",
-    "auth_credentials",
-    "auth_org_memberships",
-    "auth_tenant_quotas",
+GLOBAL_TABLE_NAMES = frozenset({
+    # Identity (also allowlisted by migrations_identity/env.py)
+    "auth_tenants", "auth_organizations", "auth_users",
+    "auth_credentials", "auth_org_memberships", "auth_tenant_quotas",
     "audit_logs",
-}
+    # RBAC
+    "rbac_resources", "rbac_permissions", "rbac_roles", "rbac_users",
+    # Legacy general users
+    "users",
+})
 
 tenant_metadata = MetaData()
-for name, table in Base.metadata.tables.items():
-    if name not in IDENTITY_TABLE_NAMES:
-        table.tometadata(tenant_metadata)
-for name, table in WorkflowBase.metadata.tables.items():
-    if name not in IDENTITY_TABLE_NAMES:
-        table.tometadata(tenant_metadata)
+for source in (Base.metadata, WorkflowBase.metadata):
+    for name, table in source.tables.items():
+        if name not in GLOBAL_TABLE_NAMES:
+            table.tometadata(tenant_metadata)
 target_metadata = tenant_metadata
 ```
 
-P3.3.1 must add a contract test:
+**Naming rationale.** The constant is `GLOBAL_TABLE_NAMES` (not
+`IDENTITY_TABLE_NAMES`) so the broader scope is visible at the call site.
+`migrations_identity/env.py`'s `IDENTITY_TABLE_NAMES` (7 entries) is left
+unchanged in P3.3 — it's an *allowlist for what the identity DB migrates*,
+which is a different question from "what should be excluded from tenant
+schemas". The two sets overlap on the 7 identity tables but diverge on
+RBAC / legacy users (those tables are migrated by the main
+`migrations/env.py` against the global DB, not by `migrations_identity/`).
 
-> `IDENTITY_TABLE_NAMES` is identical between `migrations_identity/env.py` and
-> `migrations_tenant/env.py`.
+### 5.3.1 Mandatory contract: exhaustive partition
 
-A drift between the two would silently put identity tables into tenant schemas
-or vice versa.
+P3.3.1 must add a contract test that asserts:
+
+```python
+combined = set(Base.metadata.tables) | set(WorkflowBase.metadata.tables)
+tenant_set = set(tenant_metadata.tables)
+assert combined == GLOBAL_TABLE_NAMES | tenant_set
+assert GLOBAL_TABLE_NAMES.isdisjoint(tenant_set)
+```
+
+This guards two failure modes:
+1. **A new global table** (e.g., a future `audit_*` or RBAC extension) gets
+   created and the dev forgets to add it to `GLOBAL_TABLE_NAMES`. The
+   exhaustive-partition test catches the orphan and forces an explicit
+   classification decision.
+2. **A new tenant table** that someone mistakenly named with an
+   identity-looking prefix gets pulled into the global set. Same test
+   catches the drift.
+
+The test must run on the same imported metadata that the env produces —
+i.e., after `import_all_models()` so all tables are registered. A leaner
+"identity drift only" check (the original P3.1 §5 idea) is **insufficient**
+because it does not cover RBAC or legacy users.
 
 ### 5.4 `version_table_schema` — load-bearing
 
@@ -239,16 +298,33 @@ is dedicated to this migration run and is closed afterward — no pool reuse.
 
 **Offline (`alembic upgrade --sql`):**
 
-The emitted SQL must be schema-qualified. The env's offline configuration
-prepends `SET search_path TO "<target_schema>", public;` to the output and
-uses `version_table_schema=target_schema`. P3.3.1 must add a test that runs
-`--sql` mode against the env and asserts the output starts with `SET
-search_path` to the configured schema.
+The emitted SQL **must begin with**
+`SET search_path TO "<target_schema>", public;` so every subsequent DDL
+statement is implicitly scoped to the target tenant schema. The env achieves
+this by prepending the `SET search_path` line to the offline output and
+using `version_table_schema=target_schema` so the `alembic_version` reference
+also lands in the tenant schema.
+
+This is the contract the env enforces and the test asserts. The taskbook
+deliberately does **not** require every individual `CREATE` / `ALTER` /
+`CREATE INDEX` statement to be schema-qualified (e.g., `"yt_t_acme"."items"`)
+— that would require custom autogenerate render hooks beyond P3.3 scope. The
+combination of leading `SET search_path` + `version_table_schema` provides
+equivalent isolation for every Alembic-emitted statement that runs after the
+SET line.
+
+P3.3.1 must add a test that:
+1. Runs `--sql` mode against the env with a configured `target_schema`.
+2. Asserts the **first non-comment, non-blank line** of output is
+   `SET search_path TO "<target_schema>", public;` (or equivalent quoting).
+3. Asserts no DDL precedes that line.
 
 **Mandatory operator review of `--sql` output**: the runbook must require
 operators to read the emitted SQL before pasting into production. The env
-**does not auto-execute** offline output. Operators must not generate
-"generic" SQL that depends on ambient `search_path`.
+**does not auto-execute** offline output. Operators must reject any output
+that does not begin with `SET search_path` or that contains DDL above the
+SET line (those would silently rely on the operator's ambient
+`search_path`).
 
 ## 6. Schema Provisioning (P3.3.2)
 
@@ -323,9 +399,17 @@ P3.3.2) documents this as the only authorized sequence:
 5. **Operator reviews `tenant_<schema>.sql`.** Mandatory. The runbook
    includes a checklist.
 6. **Apply migrations.** Run `alembic -c alembic_tenant.ini
-   -x target_schema=<schema> upgrade head`.
-7. **Smoke.** Run a small read-only query inside the schema to confirm
-   tables exist and `alembic_version` shows the expected head.
+   -x target_schema=<schema> upgrade head`. With `migrations_tenant/versions/`
+   empty in the bounded P3.3 scope (§3.3), this is a wiring exercise — the
+   env validates target schema, applies `SET search_path`, and exits with no
+   DDL emitted. After a tenant baseline revision sub-PR ships, this step
+   produces actual `CREATE TABLE` statements; until then, the runbook
+   step is a no-op end-to-end check of env wiring.
+7. **Wiring smoke.** Run a read-only query confirming the target schema
+   exists in `pg_namespace`. **Do not** assert "application tables exist"
+   — that is only true after a tenant baseline revision sub-PR lands.
+   Until then the smoke succeeds when the schema exists and step 6
+   produced no error.
 8. **Leave runtime mode unchanged.** P3.3 does not enable
    `TENANCY_MODE=schema-per-tenant` for this tenant. P3.4 handles cutover.
 
@@ -355,12 +439,22 @@ runbook pins:
 
 - The output filename pattern: `tenant_<schema>_<timestamp>.sql`.
 - A minimum of one named reviewer signing off on the SQL diff.
-- The reviewer checklist: schema-qualified DDL, expected
-  `alembic_version` schema target, no identity-table DDL.
+- The reviewer checklist:
+  - The **first non-comment, non-blank line** is
+    `SET search_path TO "<target_schema>", public;`.
+  - **No DDL** appears above that line.
+  - All `CREATE TABLE` / `ALTER TABLE` / `CREATE INDEX` statements
+    appear **after** the SET line (so they implicitly resolve into
+    `<target_schema>`).
+  - References to `alembic_version` resolve into `<target_schema>` (via
+    the `version_table_schema` configuration), not `public`.
+  - **No identity-table DDL** (`auth_*`, `audit_logs`), no RBAC-table DDL
+    (`rbac_*`), and no legacy-`users`-table DDL appear anywhere.
 - The reviewer signs in the runbook log; the SQL file is archived.
 
-Offline output that depends on ambient `search_path` is rejected by the
-review checklist.
+Offline output that does not begin with `SET search_path`, or that contains
+DDL above the SET line, or that contains any global-table DDL, is rejected
+by the review checklist.
 
 ## 8. P3.3 Sub-PR Breakdown
 
@@ -380,23 +474,37 @@ Files:
 - `src/yuantus/scripts/tenant_schema.py` (new — `_validate_target_schema()`
   helper shared with the provisioning helper of P3.3.2).
 - `src/yuantus/tests/test_tenant_alembic_env.py` (new):
-  - `target_metadata` excludes all 7 identity tables.
-  - `IDENTITY_TABLE_NAMES` matches `migrations_identity/env.py` exactly.
+  - `GLOBAL_TABLE_NAMES` contains exactly the 12 enumerated tables from
+    §5.3 (7 identity + 4 RBAC + 1 legacy users).
+  - `target_metadata` excludes every name in `GLOBAL_TABLE_NAMES`.
+  - **Exhaustive partition** (§5.3.1):
+    `combined == GLOBAL_TABLE_NAMES | tenant_set` and the two are disjoint.
+    No orphans in either direction.
   - Env raises `RuntimeError` for non-Postgres URL.
-  - Env raises clear error when `target_schema` is missing/invalid.
-  - `--sql` output starts with `SET search_path TO "<schema>", public`.
-  - `version_table_schema` is set to `target_schema`.
+  - Env raises clear error when `target_schema` is missing or fails the
+    `^yt_t_[a-z0-9_]+$` regex.
+  - `--sql` output's first non-comment, non-blank line is
+    `SET search_path TO "<target_schema>", public;` and no DDL precedes it.
+  - `version_table_schema` is set to `target_schema` in
+    `context.configure(...)` (asserted via configuration introspection,
+    not a real upgrade).
 - `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_ALEMBIC_ENV_20260427.md` (new).
 - `docs/DELIVERY_DOC_INDEX.md` (+1).
 
 P3.3.1 acceptance:
 
 - All tests pass.
-- `migrations_tenant/versions/` is empty; no application migrations
-  generated yet (those are out of scope for this bounded PR).
+- `migrations_tenant/versions/` is **empty by design** (§3.3); no tenant
+  baseline revision generated. The first revision lands as a separate
+  sub-PR or in P3.4.
 - `migrations/env.py` and `migrations_identity/env.py` are unchanged.
-- `database.py` is unchanged.
-- Default settings keep `schema-per-tenant` migration plane disabled.
+  `IDENTITY_TABLE_NAMES` in the identity env stays at 7 entries (the
+  identity DB's allowlist), independent of the new `GLOBAL_TABLE_NAMES`
+  in the tenant env.
+- `database.py` is unchanged (no P3.2 runtime change).
+- Default settings keep `schema-per-tenant` migration plane disabled
+  (`YUANTUS_ALEMBIC_TARGET_SCHEMA=""`,
+  `YUANTUS_ALEMBIC_CREATE_SCHEMA=false`).
 
 ### 8.2 P3.3.2 — Provisioning helper + runbook
 
