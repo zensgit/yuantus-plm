@@ -324,7 +324,34 @@ not ready, contains blockers, or disagrees with the next-action tenant/schema
 context. Do not hand the Markdown to Claude unless the `Artifact Integrity`
 table shows every ready value as `true`.
 
-## 16. Rollback
+## 16. P3.4.2 Tenant Import Rehearsal Scaffold
+
+After the implementation packet is green, run the fail-closed scaffold before
+any row-copy implementation is attempted:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal \
+  --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
+  --output-json output/tenant_<tenant-id>_import_rehearsal_scaffold.json \
+  --output-md output/tenant_<tenant-id>_import_rehearsal_scaffold.md \
+  --confirm-rehearsal \
+  --strict
+```
+
+The scaffold revalidates the implementation packet and all upstream JSON
+artifacts, writes a JSON/Markdown report, and stops before any source or target
+database connection.
+
+Do not treat this as an import run. The scaffold report must say:
+
+```text
+Scaffold guard passed: `true`
+Import executed: `false`
+DB connection attempted: `false`
+Ready for cutover: `false`
+```
+
+## 17. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
 
@@ -341,7 +368,7 @@ Downgrading the baseline (`t1_initial_tenant_baseline`) drops tenant application
 
 Never run downgrade without `-x target_schema=<schema>`.
 
-## 17. Stop Gate
+## 18. Stop Gate
 
 Do not start P3.4 cutover (data migration / runtime enablement) until all are true:
 
