@@ -22,7 +22,7 @@ Date: 2026-04-28
 - [x] Add `run_target_preflight`.
 - [x] Add `fix_target_preflight_report`.
 - [x] Add `fix_target_preflight_blockers`.
-- [x] Require green target preflight before `claude_required=true`.
+- [x] Require green source and target preflight before `claude_required=true`.
 
 ## Documentation
 
