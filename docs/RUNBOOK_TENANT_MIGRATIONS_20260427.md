@@ -139,7 +139,35 @@ classification artifact. The validator compares this redacted DSN, the pilot
 tenant, backup/restore owner, and rehearsal window with the CLI inputs before
 setting `ready_for_rehearsal=true`.
 
-## 8. Apply Baseline Upgrade
+## 8. P3.4.2 Claude Implementation Handoff
+
+Claude can start implementing the actual rehearsal importer only after the
+readiness report is green and the handoff generator produces a green task
+packet:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_handoff \
+  --readiness-json output/tenant_<tenant-id>_import_rehearsal_readiness.json \
+  --output-json output/tenant_<tenant-id>_claude_import_rehearsal_handoff.json \
+  --output-md output/tenant_<tenant-id>_claude_import_rehearsal_task.md \
+  --strict
+```
+
+The command must exit 0 and the generated Markdown must say:
+
+```text
+Claude can start: `true`
+```
+
+If the command exits 1, do not ask Claude to implement
+`yuantus.scripts.tenant_import_rehearsal`; resolve the blockers in the handoff
+report first.
+
+The handoff generator does not open database connections and does not authorize
+production cutover. It only converts verified readiness evidence into a bounded
+Claude task packet.
+
+## 9. Apply Baseline Upgrade
 
 ```bash
 PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
@@ -150,7 +178,7 @@ PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
 
 Expected behavior post-P3.3.3: the command applies the baseline revision (`t1_initial_tenant_baseline`) inside `<schema>`, creating tenant application tables and the per-tenant `<schema>.alembic_version` row. Cross-schema FKs to global tables (e.g., `rbac_users`, `users`) are intentionally NOT created — tenant tables retain user-attribution columns (`created_by_id`, `owner_id`, etc.) without a database-level FK constraint, since the referenced rows live in the global identity plane.
 
-## 9. Smoke
+## 10. Smoke
 
 Confirm the schema exists, that the baseline revision is recorded, and that representative tenant tables are present:
 
@@ -171,7 +199,7 @@ where table_schema = '<schema>'
 -- expect: 0
 ```
 
-## 10. Rollback
+## 11. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
 
@@ -188,7 +216,7 @@ Downgrading the baseline (`t1_initial_tenant_baseline`) drops tenant application
 
 Never run downgrade without `-x target_schema=<schema>`.
 
-## 11. Stop Gate
+## 12. Stop Gate
 
 Do not start P3.4 cutover (data migration / runtime enablement) until all are true:
 
