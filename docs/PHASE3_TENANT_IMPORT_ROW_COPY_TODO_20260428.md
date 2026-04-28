@@ -39,6 +39,14 @@ Date: 2026-04-28
 - [x] Update tenant migration runbook.
 - [x] Update delivery doc index.
 
+## Follow-Up Evidence Gate
+
+- [x] Add offline rehearsal evidence validator.
+- [x] Validate row-copy JSON without opening database connections.
+- [x] Validate operator evidence sign-off block.
+- [x] Keep evidence report `ready_for_cutover=false`.
+- [ ] Run validator against real non-production rehearsal outputs.
+
 ## Explicitly Not Started
 
 - [ ] Production cutover.
