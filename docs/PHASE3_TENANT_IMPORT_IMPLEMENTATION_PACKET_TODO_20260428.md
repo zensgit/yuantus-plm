@@ -10,6 +10,8 @@ Date: 2026-04-28
 - [x] Require no next-action blockers.
 - [x] Require dry-run/readiness/handoff/plan/source-preflight/target-preflight
   evidence paths.
+- [x] Validate evidence file existence, schema, ready state, blockers, and
+  tenant/schema consistency.
 - [x] Emit JSON packet.
 - [x] Emit Claude task Markdown packet.
 - [x] Keep `ready_for_cutover=false`.

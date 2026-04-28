@@ -318,6 +318,12 @@ The packet generator does not connect to any database and does not authorize
 production cutover. It only converts the full green evidence chain into a
 bounded implementation task for `yuantus.scripts.tenant_import_rehearsal`.
 
+The packet generator also re-opens every upstream JSON artifact referenced by
+next-action and blocks if any file is missing, has the wrong schema version, is
+not ready, contains blockers, or disagrees with the next-action tenant/schema
+context. Do not hand the Markdown to Claude unless the `Artifact Integrity`
+table shows every ready value as `true`.
+
 ## 16. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
