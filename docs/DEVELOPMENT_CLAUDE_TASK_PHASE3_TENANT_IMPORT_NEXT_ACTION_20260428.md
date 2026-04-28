@@ -16,9 +16,9 @@ What should happen next, and do we need Claude to implement the importer now?
 
 - Add `yuantus.scripts.tenant_import_rehearsal_next_action`.
 - Consume optional P3.4.1 dry-run, P3.4.2 readiness, and Claude handoff JSON
-  reports.
+  reports, plus the import rehearsal plan JSON.
 - Emit JSON and Markdown next-action reports.
-- Set `claude_required=true` only when the handoff is green.
+- Set `claude_required=true` only when handoff and plan are both green.
 - Return 1 in `--strict` mode until Claude is required.
 
 ## 3. Non-Goals
@@ -37,6 +37,7 @@ PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_next_action \
   --dry-run-json output/tenant_<tenant-id>_dry_run.json \
   --readiness-json output/tenant_<tenant-id>_import_rehearsal_readiness.json \
   --handoff-json output/tenant_<tenant-id>_claude_import_rehearsal_handoff.json \
+  --plan-json output/tenant_<tenant-id>_import_rehearsal_plan.json \
   --output-json output/tenant_<tenant-id>_import_rehearsal_next_action.json \
   --output-md output/tenant_<tenant-id>_import_rehearsal_next_action.md \
   --strict
@@ -53,6 +54,9 @@ PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_next_action \
 - `run_claude_handoff`
 - `fix_claude_handoff_report`
 - `fix_claude_handoff_blockers`
+- `run_import_plan`
+- `fix_import_plan_report`
+- `fix_import_plan_blockers`
 - `ask_claude_to_implement_importer`
 
 Only the final state sets `claude_required=true`.

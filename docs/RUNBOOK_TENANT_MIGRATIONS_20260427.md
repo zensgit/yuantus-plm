@@ -167,7 +167,28 @@ The handoff generator does not open database connections and does not authorize
 production cutover. It only converts verified readiness evidence into a bounded
 Claude task packet.
 
-## 9. P3.4.2 Next Action / Claude Notification
+## 9. P3.4.2 Import Rehearsal Plan
+
+Before asking Claude to implement the importer, freeze the table-level plan
+derived from the dry-run and handoff artifacts:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_plan \
+  --dry-run-json output/tenant_<tenant-id>_dry_run.json \
+  --handoff-json output/tenant_<tenant-id>_claude_import_rehearsal_handoff.json \
+  --output-json output/tenant_<tenant-id>_import_rehearsal_plan.json \
+  --output-md output/tenant_<tenant-id>_import_rehearsal_plan.md \
+  --strict
+```
+
+The command must exit 0 and set `ready_for_importer=true`. It does not open
+database connections; it pins the import order, source row-count expectations,
+and global/control-plane table skip list. `ready_for_cutover` must stay false.
+
+If the command exits 1, do not ask Claude to implement the importer. Fix the
+plan blockers first.
+
+## 10. P3.4.2 Next Action / Claude Notification
 
 Use this command when you need a single status artifact that says what to do
 next and whether Claude should start implementation:
@@ -177,6 +198,7 @@ PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_next_action \
   --dry-run-json output/tenant_<tenant-id>_dry_run.json \
   --readiness-json output/tenant_<tenant-id>_import_rehearsal_readiness.json \
   --handoff-json output/tenant_<tenant-id>_claude_import_rehearsal_handoff.json \
+  --plan-json output/tenant_<tenant-id>_import_rehearsal_plan.json \
   --output-json output/tenant_<tenant-id>_import_rehearsal_next_action.json \
   --output-md output/tenant_<tenant-id>_import_rehearsal_next_action.md \
   --strict
@@ -193,7 +215,7 @@ claude_required=true
 next_action=ask_claude_to_implement_importer
 ```
 
-## 10. Apply Baseline Upgrade
+## 11. Apply Baseline Upgrade
 
 ```bash
 PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
@@ -204,7 +226,7 @@ PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
 
 Expected behavior post-P3.3.3: the command applies the baseline revision (`t1_initial_tenant_baseline`) inside `<schema>`, creating tenant application tables and the per-tenant `<schema>.alembic_version` row. Cross-schema FKs to global tables (e.g., `rbac_users`, `users`) are intentionally NOT created — tenant tables retain user-attribution columns (`created_by_id`, `owner_id`, etc.) without a database-level FK constraint, since the referenced rows live in the global identity plane.
 
-## 11. Smoke
+## 12. Smoke
 
 Confirm the schema exists, that the baseline revision is recorded, and that representative tenant tables are present:
 
@@ -225,7 +247,7 @@ where table_schema = '<schema>'
 -- expect: 0
 ```
 
-## 12. Rollback
+## 13. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
 
@@ -242,7 +264,7 @@ Downgrading the baseline (`t1_initial_tenant_baseline`) drops tenant application
 
 Never run downgrade without `-x target_schema=<schema>`.
 
-## 13. Stop Gate
+## 14. Stop Gate
 
 Do not start P3.4 cutover (data migration / runtime enablement) until all are true:
 
