@@ -28,11 +28,13 @@ Date: 2026-04-27
 - [x] Add classification Sign-Off guard.
 - [x] Add Claude handoff generator.
 - [x] Require `ready_for_claude=true` before actual importer work starts.
+- [x] Add next-action report to tell when Claude development is required.
 
 ## Future Implementation PR
 
 - [ ] Implement `yuantus.scripts.tenant_import_rehearsal`.
 - [ ] Require a green Claude handoff Markdown before starting.
+- [ ] Require next-action report with `claude_required=true`.
 - [ ] Require `--confirm-rehearsal`.
 - [ ] Validate dry-run JSON before DB connections.
 - [ ] Validate target PostgreSQL schema and alembic version.
