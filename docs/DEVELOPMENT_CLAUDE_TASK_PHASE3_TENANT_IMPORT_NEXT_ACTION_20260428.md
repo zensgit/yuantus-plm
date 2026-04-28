@@ -16,10 +16,11 @@ What should happen next, and do we need Claude to implement the importer now?
 
 - Add `yuantus.scripts.tenant_import_rehearsal_next_action`.
 - Consume optional P3.4.1 dry-run, P3.4.2 readiness, and Claude handoff JSON
-  reports, plus the import rehearsal plan JSON and target preflight JSON.
+  reports, plus the import rehearsal plan JSON, source preflight JSON, and
+  target preflight JSON.
 - Emit JSON and Markdown next-action reports.
-- Set `claude_required=true` only when handoff, plan, and target preflight are
-  all green.
+- Set `claude_required=true` only when handoff, plan, source preflight, and
+  target preflight are all green.
 - Return 1 in `--strict` mode until Claude is required.
 
 ## 3. Non-Goals
@@ -39,6 +40,7 @@ PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_next_action \
   --readiness-json output/tenant_<tenant-id>_import_rehearsal_readiness.json \
   --handoff-json output/tenant_<tenant-id>_claude_import_rehearsal_handoff.json \
   --plan-json output/tenant_<tenant-id>_import_rehearsal_plan.json \
+  --source-preflight-json output/tenant_<tenant-id>_source_preflight.json \
   --target-preflight-json output/tenant_<tenant-id>_target_preflight.json \
   --output-json output/tenant_<tenant-id>_import_rehearsal_next_action.json \
   --output-md output/tenant_<tenant-id>_import_rehearsal_next_action.md \
@@ -59,6 +61,9 @@ PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_next_action \
 - `run_import_plan`
 - `fix_import_plan_report`
 - `fix_import_plan_blockers`
+- `run_source_preflight`
+- `fix_source_preflight_report`
+- `fix_source_preflight_blockers`
 - `run_target_preflight`
 - `fix_target_preflight_report`
 - `fix_target_preflight_blockers`
@@ -73,6 +78,7 @@ Run:
 ```bash
 .venv/bin/python -m pytest -q \
   src/yuantus/tests/test_tenant_import_rehearsal_next_action.py \
+  src/yuantus/tests/test_tenant_import_rehearsal_source_preflight.py \
   src/yuantus/tests/test_tenant_import_rehearsal_target_preflight.py \
   src/yuantus/tests/test_tenant_import_rehearsal_plan.py \
   src/yuantus/tests/test_tenant_import_rehearsal_handoff.py \
@@ -83,8 +89,10 @@ Run:
   src/yuantus/meta_engine/tests/test_delivery_doc_index_references.py
 
 .venv/bin/python -m py_compile \
+  src/yuantus/scripts/tenant_import_rehearsal_source_preflight.py \
   src/yuantus/scripts/tenant_import_rehearsal_target_preflight.py \
   src/yuantus/scripts/tenant_import_rehearsal_next_action.py \
+  src/yuantus/tests/test_tenant_import_rehearsal_source_preflight.py \
   src/yuantus/tests/test_tenant_import_rehearsal_target_preflight.py \
   src/yuantus/tests/test_tenant_import_rehearsal_next_action.py
 

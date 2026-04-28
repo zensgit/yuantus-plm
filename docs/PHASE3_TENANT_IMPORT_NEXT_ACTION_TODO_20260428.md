@@ -14,10 +14,12 @@ Date: 2026-04-28
 - [x] Detect handoff blockers.
 - [x] Detect missing import rehearsal plan report.
 - [x] Detect import plan blockers.
+- [x] Detect missing source preflight report.
+- [x] Detect source preflight blockers.
 - [x] Detect missing target preflight report.
 - [x] Detect target preflight blockers.
-- [x] Set `claude_required=true` only for green handoff, green plan, and green
-  target preflight.
+- [x] Set `claude_required=true` only for green handoff, green plan, green
+  source preflight, and green target preflight.
 - [x] Return 1 in `--strict` mode until Claude is required.
 
 ## Tests
@@ -27,8 +29,11 @@ Date: 2026-04-28
 - [x] Ready dry-run without readiness points to stop-gate collection.
 - [x] Ready readiness without handoff points to `run_claude_handoff`.
 - [x] Green handoff without plan points to `run_import_plan`.
-- [x] Green plan without target preflight points to `run_target_preflight`.
+- [x] Green plan without source preflight points to `run_source_preflight`.
 - [x] Plan blockers prevent Claude notification.
+- [x] Green source preflight without target preflight points to
+  `run_target_preflight`.
+- [x] Source preflight blockers prevent Claude notification.
 - [x] Green target preflight points to `ask_claude_to_implement_importer`.
 - [x] Target preflight blockers prevent Claude notification.
 - [x] CLI writes JSON and Markdown.

@@ -15,6 +15,9 @@ from yuantus.scripts.tenant_import_rehearsal_plan import (
 from yuantus.scripts.tenant_import_rehearsal_readiness import (
     SCHEMA_VERSION as READINESS_SCHEMA_VERSION,
 )
+from yuantus.scripts.tenant_import_rehearsal_source_preflight import (
+    SCHEMA_VERSION as SOURCE_PREFLIGHT_SCHEMA_VERSION,
+)
 from yuantus.scripts.tenant_import_rehearsal_target_preflight import (
     SCHEMA_VERSION as TARGET_PREFLIGHT_SCHEMA_VERSION,
 )
@@ -53,6 +56,7 @@ def _basic_context(*reports: dict[str, Any] | None) -> dict[str, str]:
         "readiness_json": "",
         "handoff_json": "",
         "plan_json": "",
+        "source_preflight_json": "",
         "target_preflight_json": "",
     }
     for report in reports:
@@ -66,6 +70,7 @@ def _basic_context(*reports: dict[str, Any] | None) -> dict[str, str]:
             "readiness_json",
             "handoff_json",
             "plan_json",
+            "source_preflight_json",
             "target_preflight_json",
         ):
             value = report.get(key)
@@ -85,12 +90,16 @@ def build_next_action_report(
     readiness_json: str | Path | None = None,
     handoff_json: str | Path | None = None,
     plan_json: str | Path | None = None,
+    source_preflight_json: str | Path | None = None,
     target_preflight_json: str | Path | None = None,
 ) -> dict[str, Any]:
     dry_run, dry_run_error = _read_optional_json(dry_run_json)
     readiness, readiness_error = _read_optional_json(readiness_json)
     handoff, handoff_error = _read_optional_json(handoff_json)
     import_plan, plan_error = _read_optional_json(plan_json)
+    source_preflight, source_preflight_error = _read_optional_json(
+        source_preflight_json
+    )
     target_preflight, target_preflight_error = _read_optional_json(
         target_preflight_json
     )
@@ -107,6 +116,8 @@ def build_next_action_report(
         blockers.append(handoff_error)
     if plan_error:
         blockers.append(plan_error)
+    if source_preflight_error:
+        blockers.append(source_preflight_error)
     if target_preflight_error:
         blockers.append(target_preflight_error)
 
@@ -154,6 +165,21 @@ def build_next_action_report(
         blockers.extend(_as_list(import_plan.get("blockers")))
         if not import_plan.get("blockers"):
             blockers.append("import plan report must have ready_for_importer=true")
+    elif source_preflight is None:
+        next_action = "run_source_preflight"
+        blockers.append("missing source preflight report")
+    elif source_preflight.get("schema_version") != SOURCE_PREFLIGHT_SCHEMA_VERSION:
+        next_action = "fix_source_preflight_report"
+        blockers.append(
+            f"source preflight schema_version must be {SOURCE_PREFLIGHT_SCHEMA_VERSION}"
+        )
+    elif source_preflight.get("ready_for_importer_source") is not True:
+        next_action = "fix_source_preflight_blockers"
+        blockers.extend(_as_list(source_preflight.get("blockers")))
+        if not source_preflight.get("blockers"):
+            blockers.append(
+                "source preflight report must have ready_for_importer_source=true"
+            )
     elif target_preflight is None:
         next_action = "run_target_preflight"
         blockers.append("missing target preflight report")
@@ -177,13 +203,19 @@ def build_next_action_report(
         "next_action": next_action,
         "claude_required": claude_required,
         "context": _basic_context(
-            dry_run, readiness, handoff, import_plan, target_preflight
+            dry_run,
+            readiness,
+            handoff,
+            import_plan,
+            source_preflight,
+            target_preflight,
         ),
         "inputs": {
             "dry_run_json": str(dry_run_json or ""),
             "readiness_json": str(readiness_json or ""),
             "handoff_json": str(handoff_json or ""),
             "plan_json": str(plan_json or ""),
+            "source_preflight_json": str(source_preflight_json or ""),
             "target_preflight_json": str(target_preflight_json or ""),
         },
         "blockers": blockers,
@@ -206,6 +238,8 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         f"- Readiness JSON: `{context['readiness_json'] or report['inputs']['readiness_json']}`",
         f"- Handoff JSON: `{context['handoff_json'] or report['inputs']['handoff_json']}`",
         f"- Plan JSON: `{context['plan_json'] or report['inputs']['plan_json']}`",
+        "- Source preflight JSON: "
+        f"`{context['source_preflight_json'] or report['inputs']['source_preflight_json']}`",
         "- Target preflight JSON: "
         f"`{context['target_preflight_json'] or report['inputs']['target_preflight_json']}`",
         "",
@@ -247,6 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--readiness-json")
     parser.add_argument("--handoff-json")
     parser.add_argument("--plan-json")
+    parser.add_argument("--source-preflight-json")
     parser.add_argument("--target-preflight-json")
     parser.add_argument("--output-json", required=True)
     parser.add_argument("--output-md", required=True)
@@ -263,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
             readiness_json=args.readiness_json,
             handoff_json=args.handoff_json,
             plan_json=args.plan_json,
+            source_preflight_json=args.source_preflight_json,
             target_preflight_json=args.target_preflight_json,
         )
         _write_json(Path(args.output_json), report)

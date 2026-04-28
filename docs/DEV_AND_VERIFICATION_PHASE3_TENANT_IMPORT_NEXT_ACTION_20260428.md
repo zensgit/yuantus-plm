@@ -27,6 +27,7 @@ The next-action command reads up to five reports:
 - P3.4.2 readiness JSON;
 - Claude handoff JSON;
 - import rehearsal plan JSON;
+- source preflight JSON;
 - target preflight JSON.
 
 It emits:
@@ -36,8 +37,9 @@ It emits:
 - context fields for tenant/schema/report paths;
 - blockers.
 
-`claude_required=true` only when the handoff, plan, and target preflight
-reports are green and the next action is `ask_claude_to_implement_importer`.
+`claude_required=true` only when the handoff, plan, source preflight, and target
+preflight reports are green and the next action is
+`ask_claude_to_implement_importer`.
 
 ## 4. Scope Controls
 
@@ -53,6 +55,7 @@ reports are green and the next action is `ask_claude_to_implement_importer`.
 ```bash
 .venv/bin/python -m pytest -q \
   src/yuantus/tests/test_tenant_import_rehearsal_next_action.py \
+  src/yuantus/tests/test_tenant_import_rehearsal_source_preflight.py \
   src/yuantus/tests/test_tenant_import_rehearsal_target_preflight.py \
   src/yuantus/tests/test_tenant_import_rehearsal_plan.py \
   src/yuantus/tests/test_tenant_import_rehearsal_handoff.py \
@@ -70,8 +73,10 @@ reports are green and the next action is `ask_claude_to_implement_importer`.
   src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py
 
 .venv/bin/python -m py_compile \
+  src/yuantus/scripts/tenant_import_rehearsal_source_preflight.py \
   src/yuantus/scripts/tenant_import_rehearsal_target_preflight.py \
   src/yuantus/scripts/tenant_import_rehearsal_next_action.py \
+  src/yuantus/tests/test_tenant_import_rehearsal_source_preflight.py \
   src/yuantus/tests/test_tenant_import_rehearsal_target_preflight.py \
   src/yuantus/tests/test_tenant_import_rehearsal_next_action.py
 
@@ -81,7 +86,7 @@ git diff --check
 ## 6. Results
 
 ```text
-next-action/handoff/readiness/dry-run/doc-index: 38 passed, 1 warning in 0.77s
+next-action/source-preflight/target-preflight/plan/handoff/readiness/dry-run/doc-index: 69 passed, 1 skipped, 1 warning in 0.79s
 runbook/index contracts: 5 passed in 0.03s
 py_compile: passed
 git diff --check: clean

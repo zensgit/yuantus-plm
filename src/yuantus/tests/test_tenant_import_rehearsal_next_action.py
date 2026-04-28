@@ -7,6 +7,7 @@ from yuantus.scripts import tenant_import_rehearsal_handoff as handoff
 from yuantus.scripts import tenant_import_rehearsal_next_action as next_action
 from yuantus.scripts import tenant_import_rehearsal_plan as import_plan
 from yuantus.scripts import tenant_import_rehearsal_readiness as readiness
+from yuantus.scripts import tenant_import_rehearsal_source_preflight as source_preflight
 from yuantus.scripts import tenant_import_rehearsal_target_preflight as preflight
 from yuantus.scripts import tenant_migration_dry_run as dry_run
 
@@ -83,6 +84,19 @@ def _target_preflight_ready() -> dict:
     }
 
 
+def _source_preflight_ready() -> dict:
+    return {
+        "schema_version": source_preflight.SCHEMA_VERSION,
+        "tenant_id": "Acme Prod",
+        "target_schema": "yt_t_acme_prod",
+        "source_url": "sqlite:////tmp/source.db",
+        "plan_json": "output/tenant_acme_import_rehearsal_plan.json",
+        "ready_for_importer_source": True,
+        "ready_for_cutover": False,
+        "blockers": [],
+    }
+
+
 def test_missing_dry_run_points_to_dry_run(tmp_path):
     report = next_action.build_next_action_report()
 
@@ -140,7 +154,7 @@ def test_ready_handoff_without_plan_points_to_plan(tmp_path):
     assert report["next_action"] == "run_import_plan"
 
 
-def test_ready_plan_without_target_preflight_points_to_target_preflight(tmp_path):
+def test_ready_plan_without_source_preflight_points_to_source_preflight(tmp_path):
     dry_run_json = _write_json(tmp_path / "dry-run.json", _dry_run_ready())
     readiness_json = _write_json(tmp_path / "readiness.json", _readiness_ready())
     handoff_json = _write_json(tmp_path / "handoff.json", _handoff_ready())
@@ -154,6 +168,28 @@ def test_ready_plan_without_target_preflight_points_to_target_preflight(tmp_path
     )
 
     assert report["claude_required"] is False
+    assert report["next_action"] == "run_source_preflight"
+    assert "missing source preflight report" in report["blockers"]
+
+
+def test_ready_source_preflight_without_target_preflight_points_to_target_preflight(tmp_path):
+    dry_run_json = _write_json(tmp_path / "dry-run.json", _dry_run_ready())
+    readiness_json = _write_json(tmp_path / "readiness.json", _readiness_ready())
+    handoff_json = _write_json(tmp_path / "handoff.json", _handoff_ready())
+    plan_json = _write_json(tmp_path / "plan.json", _plan_ready())
+    source_preflight_json = _write_json(
+        tmp_path / "source-preflight.json", _source_preflight_ready()
+    )
+
+    report = next_action.build_next_action_report(
+        dry_run_json=dry_run_json,
+        readiness_json=readiness_json,
+        handoff_json=handoff_json,
+        plan_json=plan_json,
+        source_preflight_json=source_preflight_json,
+    )
+
+    assert report["claude_required"] is False
     assert report["next_action"] == "run_target_preflight"
     assert "missing target preflight report" in report["blockers"]
 
@@ -163,6 +199,9 @@ def test_ready_target_preflight_requires_claude(tmp_path):
     readiness_json = _write_json(tmp_path / "readiness.json", _readiness_ready())
     handoff_json = _write_json(tmp_path / "handoff.json", _handoff_ready())
     plan_json = _write_json(tmp_path / "plan.json", _plan_ready())
+    source_preflight_json = _write_json(
+        tmp_path / "source-preflight.json", _source_preflight_ready()
+    )
     target_preflight_json = _write_json(
         tmp_path / "target-preflight.json", _target_preflight_ready()
     )
@@ -172,6 +211,7 @@ def test_ready_target_preflight_requires_claude(tmp_path):
         readiness_json=readiness_json,
         handoff_json=handoff_json,
         plan_json=plan_json,
+        source_preflight_json=source_preflight_json,
         target_preflight_json=target_preflight_json,
     )
 
@@ -205,11 +245,44 @@ def test_plan_blockers_prevent_claude(tmp_path):
     assert "row_counts missing import tables: meta_items" in report["blockers"]
 
 
+def test_source_preflight_blockers_prevent_claude(tmp_path):
+    dry_run_json = _write_json(tmp_path / "dry-run.json", _dry_run_ready())
+    readiness_json = _write_json(tmp_path / "readiness.json", _readiness_ready())
+    handoff_json = _write_json(tmp_path / "handoff.json", _handoff_ready())
+    plan_json = _write_json(tmp_path / "plan.json", _plan_ready())
+    source_report = _source_preflight_ready()
+    source_report.update(
+        {
+            "ready_for_importer_source": False,
+            "blockers": ["source missing required columns for planned tables: meta_items"],
+        }
+    )
+    source_preflight_json = _write_json(tmp_path / "source-preflight.json", source_report)
+
+    report = next_action.build_next_action_report(
+        dry_run_json=dry_run_json,
+        readiness_json=readiness_json,
+        handoff_json=handoff_json,
+        plan_json=plan_json,
+        source_preflight_json=source_preflight_json,
+    )
+
+    assert report["claude_required"] is False
+    assert report["next_action"] == "fix_source_preflight_blockers"
+    assert (
+        "source missing required columns for planned tables: meta_items"
+        in report["blockers"]
+    )
+
+
 def test_target_preflight_blockers_prevent_claude(tmp_path):
     dry_run_json = _write_json(tmp_path / "dry-run.json", _dry_run_ready())
     readiness_json = _write_json(tmp_path / "readiness.json", _readiness_ready())
     handoff_json = _write_json(tmp_path / "handoff.json", _handoff_ready())
     plan_json = _write_json(tmp_path / "plan.json", _plan_ready())
+    source_preflight_json = _write_json(
+        tmp_path / "source-preflight.json", _source_preflight_ready()
+    )
     target_preflight = _target_preflight_ready()
     target_preflight.update(
         {
@@ -226,6 +299,7 @@ def test_target_preflight_blockers_prevent_claude(tmp_path):
         readiness_json=readiness_json,
         handoff_json=handoff_json,
         plan_json=plan_json,
+        source_preflight_json=source_preflight_json,
         target_preflight_json=target_preflight_json,
     )
 
@@ -280,6 +354,9 @@ def test_cli_strict_exits_zero_when_claude_is_required(tmp_path):
     readiness_json = _write_json(tmp_path / "readiness.json", _readiness_ready())
     handoff_json = _write_json(tmp_path / "handoff.json", _handoff_ready())
     plan_json = _write_json(tmp_path / "plan.json", _plan_ready())
+    source_preflight_json = _write_json(
+        tmp_path / "source-preflight.json", _source_preflight_ready()
+    )
     target_preflight_json = _write_json(
         tmp_path / "target-preflight.json", _target_preflight_ready()
     )
@@ -294,6 +371,8 @@ def test_cli_strict_exits_zero_when_claude_is_required(tmp_path):
             str(handoff_json),
             "--plan-json",
             str(plan_json),
+            "--source-preflight-json",
+            str(source_preflight_json),
             "--target-preflight-json",
             str(target_preflight_json),
             "--output-json",
