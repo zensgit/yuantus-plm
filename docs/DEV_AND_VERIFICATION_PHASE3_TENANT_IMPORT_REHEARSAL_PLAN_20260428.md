@@ -42,14 +42,16 @@ tables, and row-count keys exactly match the import order.
 
 ## 4. Next-Action Integration
 
-`tenant_import_rehearsal_next_action` now requires a green plan before setting
+`tenant_import_rehearsal_next_action` now requires a green plan and, after the
+target-preflight follow-up, a green target preflight before setting
 `claude_required=true`. This keeps the future importer implementation behind
-four gates:
+five gates:
 
 - dry-run;
 - readiness;
 - handoff;
-- plan manifest.
+- plan manifest;
+- target preflight.
 
 ## 5. Scope Controls
 
