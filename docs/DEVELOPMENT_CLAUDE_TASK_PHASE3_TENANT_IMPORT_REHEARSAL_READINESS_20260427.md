@@ -16,6 +16,8 @@ the P3.4.1 dry-run report before any importer implementation is allowed to run.
 - Emit JSON and Markdown readiness reports.
 - Redact the non-production PostgreSQL DSN.
 - Return non-zero in `--strict` mode when blockers exist.
+- Parse the tracked table-classification Sign-Off block and require it to be
+  filled before `ready_for_rehearsal=true`.
 - Add tests and update the tenant migration runbook.
 
 ## 3. Non-Goals
@@ -52,6 +54,12 @@ Readiness is true only when:
 - every external stop-gate argument is present;
 - `--classification-signed-off` is supplied;
 - classification artifact exists;
+- classification artifact Sign-Off has non-placeholder values for Pilot
+  tenant, PostgreSQL rehearsal DSN, Backup/restore owner, Rehearsal window,
+  Reviewer, Decision, and Date;
+- classification Sign-Off Pilot tenant, Backup/restore owner, Rehearsal
+  window, and redacted PostgreSQL rehearsal DSN match the CLI inputs;
+- classification Sign-Off Decision is approved;
 - target URL is PostgreSQL-shaped;
 - dry-run schema version is `p3.4.1-dry-run-v1`;
 - dry-run `ready_for_import=true`;

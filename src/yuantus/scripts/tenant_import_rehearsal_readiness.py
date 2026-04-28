@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,6 +16,18 @@ from yuantus.scripts.tenant_migration_dry_run import (
 
 
 SCHEMA_VERSION = "p3.4.2-import-rehearsal-readiness-v1"
+SIGN_OFF_HEADING = "## 6. Sign-Off"
+SIGN_OFF_FIELDS = (
+    "Pilot tenant",
+    "PostgreSQL rehearsal DSN",
+    "Backup/restore owner",
+    "Rehearsal window",
+    "Reviewer",
+    "Decision",
+    "Date",
+)
+APPROVED_DECISIONS = frozenset({"approved", "approve", "signed off", "sign off"})
+PLACEHOLDER_VALUES = frozenset({"tbd", "todo", "pending", "n/a", "na", "none", "-"})
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -34,12 +47,139 @@ def _redact_url(url: str) -> str:
     return make_url(url).render_as_string(hide_password=True)
 
 
+def _url_identity(
+    url: str,
+) -> tuple[str, str | None, str | None, int | None, str | None]:
+    parsed = make_url(url)
+    driver_family = (
+        "postgres" if parsed.drivername.startswith("postgres") else parsed.drivername
+    )
+    return (
+        driver_family,
+        parsed.username,
+        parsed.host,
+        parsed.port,
+        parsed.database,
+    )
+
+
 def _is_postgres_url(url: str) -> bool:
     try:
         drivername = make_url(url).drivername
     except Exception:
         return False
     return drivername.startswith("postgresql") or drivername.startswith("postgres")
+
+
+def _normalize_text(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
+def _looks_like_placeholder(value: str) -> bool:
+    normalized = _normalize_text(value)
+    return (
+        not normalized
+        or normalized in PLACEHOLDER_VALUES
+        or (normalized.startswith("<") and normalized.endswith(">"))
+        or normalized == "..."
+    )
+
+
+def _find_sign_off_section(text: str) -> str:
+    start = text.find(SIGN_OFF_HEADING)
+    if start == -1:
+        return ""
+    start = text.find("\n", start) + 1
+    end = text.find("\n## ", start)
+    if end == -1:
+        end = len(text)
+    return text[start:end]
+
+
+def parse_classification_sign_off(path: Path) -> dict[str, str]:
+    """Extract the tracked stop-gate sign-off block without exposing secrets."""
+    section = _find_sign_off_section(path.read_text(encoding="utf-8"))
+    match = re.search(r"```(?:text)?\n(?P<body>.*?)\n```", section, flags=re.DOTALL)
+    body = match.group("body") if match else section
+
+    values: dict[str, str] = {}
+    for line in body.splitlines():
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip()
+        if key in SIGN_OFF_FIELDS:
+            values[key] = value.strip()
+    return values
+
+
+def _redact_sign_off_dsn(value: str) -> str:
+    if not value or "://" not in value:
+        return value
+    try:
+        return _redact_url(value)
+    except Exception:
+        return value
+
+
+def _classification_sign_off_summary(values: dict[str, str]) -> dict[str, str]:
+    return {
+        field: (
+            _redact_sign_off_dsn(values.get(field, ""))
+            if field == "PostgreSQL rehearsal DSN"
+            else values.get(field, "")
+        )
+        for field in SIGN_OFF_FIELDS
+    }
+
+
+def _validate_classification_sign_off(
+    *,
+    values: dict[str, str],
+    tenant_id: str,
+    target_url: str,
+    backup_restore_owner: str,
+    rehearsal_window: str,
+) -> list[str]:
+    blockers: list[str] = []
+    for field in SIGN_OFF_FIELDS:
+        if _looks_like_placeholder(values.get(field, "")):
+            blockers.append(f"classification sign-off missing {field}")
+
+    pilot_tenant = values.get("Pilot tenant", "")
+    if pilot_tenant and _normalize_text(pilot_tenant) != _normalize_text(tenant_id):
+        blockers.append("classification sign-off Pilot tenant must match tenant_id")
+
+    owner = values.get("Backup/restore owner", "")
+    if owner and _normalize_text(owner) != _normalize_text(backup_restore_owner):
+        blockers.append(
+            "classification sign-off Backup/restore owner must match input"
+        )
+
+    window = values.get("Rehearsal window", "")
+    if window and _normalize_text(window) != _normalize_text(rehearsal_window):
+        blockers.append("classification sign-off Rehearsal window must match input")
+
+    decision = values.get("Decision", "")
+    if decision and _normalize_text(decision) not in APPROVED_DECISIONS:
+        blockers.append("classification sign-off Decision must be approved")
+
+    signed_dsn = values.get("PostgreSQL rehearsal DSN", "")
+    if signed_dsn and not _looks_like_placeholder(signed_dsn):
+        if "://" not in signed_dsn:
+            blockers.append(
+                "classification sign-off PostgreSQL rehearsal DSN must be a URL"
+            )
+        elif not _is_postgres_url(signed_dsn):
+            blockers.append(
+                "classification sign-off PostgreSQL rehearsal DSN must be PostgreSQL"
+            )
+        elif target_url and _url_identity(signed_dsn) != _url_identity(target_url):
+            blockers.append(
+                "classification sign-off PostgreSQL rehearsal DSN must match target_url"
+            )
+
+    return blockers
 
 
 def build_readiness_report(
@@ -83,6 +223,19 @@ def build_readiness_report(
         blockers.append("classification artifact is missing")
     if not classification_signed_off:
         blockers.append("classification artifact must be signed off")
+    sign_off_values: dict[str, str] = {}
+    if artifact_path.is_file():
+        sign_off_values = parse_classification_sign_off(artifact_path)
+        if classification_signed_off:
+            blockers.extend(
+                _validate_classification_sign_off(
+                    values=sign_off_values,
+                    tenant_id=tenant_id,
+                    target_url=target_url,
+                    backup_restore_owner=backup_restore_owner,
+                    rehearsal_window=rehearsal_window,
+                )
+            )
 
     if dry_run.get("ready_for_import") is not True:
         blockers.append("dry-run report must have ready_for_import=true")
@@ -109,6 +262,9 @@ def build_readiness_report(
             "rehearsal_window": rehearsal_window,
             "classification_artifact": str(artifact_path),
             "classification_signed_off": classification_signed_off,
+            "classification_sign_off": _classification_sign_off_summary(
+                sign_off_values
+            ),
             "dry_run_json": str(dry_run_path),
             "dry_run_blocker_count": len(dry_run.get("blockers") or []),
             "baseline_revision": dry_run.get("baseline_revision"),
@@ -135,9 +291,18 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         f"- Classification artifact: `{checks['classification_artifact']}`",
         f"- Classification signed off: `{str(checks['classification_signed_off']).lower()}`",
         "",
-        "## Blockers",
+        "## Classification Sign-Off",
         "",
     ]
+    for field, value in checks["classification_sign_off"].items():
+        lines.append(f"- {field}: `{value}`")
+    lines.extend(
+        [
+            "",
+            "## Blockers",
+            "",
+        ]
+    )
     lines.extend(f"- {blocker}" for blocker in blockers)
     lines.append("")
     return "\n".join(lines)
