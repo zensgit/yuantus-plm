@@ -52,6 +52,7 @@ Date: 2026-04-27
 - [x] Block all global/control-plane tables.
 - [x] Emit JSON and Markdown scaffold reports.
 - [x] Emit JSON and Markdown row-import rehearsal reports.
+- [x] Add offline operator-run rehearsal evidence validator.
 - [ ] Add operator-run PostgreSQL rehearsal evidence.
 - [x] Update `RUNBOOK_TENANT_MIGRATIONS_20260427.md`.
 - [x] Add DEV/verification MD for the implementation PR.

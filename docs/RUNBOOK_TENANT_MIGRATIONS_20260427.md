@@ -357,7 +357,53 @@ Ready for cutover: `false`
 The command must not import any global/control-plane table, must not create or
 migrate schemas, and must not enable `TENANCY_MODE=schema-per-tenant`.
 
-## 17. Rollback
+## 17. P3.4.2 Rehearsal Evidence Gate
+
+After the row-copy command finishes, capture the operator evidence in a local
+Markdown file. Keep credentials out of the file; use the redacted target URL.
+
+````markdown
+# Tenant Import Rehearsal Operator Evidence
+
+## Rehearsal Evidence Sign-Off
+
+```text
+Pilot tenant: <tenant-id>
+Non-production rehearsal DB: postgresql://<user>:***@<host>/<database>
+Backup/restore owner: <owner>
+Rehearsal window: <window>
+Rehearsal executed by: <operator>
+Rehearsal result: pass
+Evidence reviewer: <reviewer>
+Date: <yyyy-mm-dd>
+```
+````
+
+Validate the rehearsal report, implementation packet, and operator evidence
+without opening any database connection:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence \
+  --rehearsal-json output/tenant_<tenant-id>_import_rehearsal.json \
+  --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
+  --operator-evidence-md output/tenant_<tenant-id>_operator_rehearsal_evidence.md \
+  --output-json output/tenant_<tenant-id>_import_rehearsal_evidence.json \
+  --output-md output/tenant_<tenant-id>_import_rehearsal_evidence.md \
+  --strict
+```
+
+The evidence report must say:
+
+```text
+Rehearsal evidence accepted: `true`
+Operator evidence accepted: `true`
+Ready for cutover: `false`
+```
+
+This gate only proves that non-production rehearsal evidence is internally
+consistent and reviewable. It does not authorize production cutover.
+
+## 18. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
 
@@ -374,7 +420,7 @@ Downgrading the baseline (`t1_initial_tenant_baseline`) drops tenant application
 
 Never run downgrade without `-x target_schema=<schema>`.
 
-## 18. Stop Gate
+## 19. Stop Gate
 
 Do not start P3.4 cutover (data migration / runtime enablement) until all are true:
 
