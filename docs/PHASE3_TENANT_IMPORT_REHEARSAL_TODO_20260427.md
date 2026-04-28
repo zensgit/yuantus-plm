@@ -32,6 +32,7 @@ Date: 2026-04-27
 - [x] Add import rehearsal plan manifest before actual importer work starts.
 - [x] Add source preflight before actual importer work starts.
 - [x] Add target preflight before actual importer work starts.
+- [x] Add final Claude implementation packet before actual importer work starts.
 
 ## Future Implementation PR
 
@@ -41,6 +42,7 @@ Date: 2026-04-27
 - [ ] Require import plan report with `ready_for_importer=true`.
 - [ ] Require source preflight report with `ready_for_importer_source=true`.
 - [ ] Require target preflight report with `ready_for_importer_target=true`.
+- [ ] Require implementation packet with `ready_for_claude_importer=true`.
 - [ ] Require `--confirm-rehearsal`.
 - [ ] Validate dry-run JSON before DB connections.
 - [ ] Validate target PostgreSQL schema and alembic version.

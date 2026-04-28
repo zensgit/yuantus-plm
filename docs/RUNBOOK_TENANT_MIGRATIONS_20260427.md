@@ -296,7 +296,29 @@ claude_required=true
 next_action=ask_claude_to_implement_importer
 ```
 
-## 15. Rollback
+## 15. P3.4.2 Claude Importer Implementation Packet
+
+After next-action is green, generate the final Claude implementation packet:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_implementation_packet \
+  --next-action-json output/tenant_<tenant-id>_import_rehearsal_next_action.json \
+  --output-json output/tenant_<tenant-id>_importer_implementation_packet.json \
+  --output-md output/tenant_<tenant-id>_claude_importer_task.md \
+  --strict
+```
+
+Pass the generated Markdown to Claude only when it says:
+
+```text
+Claude can implement importer: `true`
+```
+
+The packet generator does not connect to any database and does not authorize
+production cutover. It only converts the full green evidence chain into a
+bounded implementation task for `yuantus.scripts.tenant_import_rehearsal`.
+
+## 16. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
 
@@ -313,7 +335,7 @@ Downgrading the baseline (`t1_initial_tenant_baseline`) drops tenant application
 
 Never run downgrade without `-x target_schema=<schema>`.
 
-## 16. Stop Gate
+## 17. Stop Gate
 
 Do not start P3.4 cutover (data migration / runtime enablement) until all are true:
 
