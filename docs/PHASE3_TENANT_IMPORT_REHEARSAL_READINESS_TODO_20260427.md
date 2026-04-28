@@ -10,6 +10,11 @@ Date: 2026-04-27
 - [x] Validate required external inputs.
 - [x] Validate non-production DSN is PostgreSQL-shaped.
 - [x] Redact DSN in JSON and Markdown reports.
+- [x] Parse table-classification Sign-Off block.
+- [x] Require non-placeholder Sign-Off fields before readiness passes.
+- [x] Validate Sign-Off pilot tenant, owner, rehearsal window, and redacted
+      target DSN match operator inputs.
+- [x] Require Sign-Off decision to be approved.
 - [x] Validate P3.4.1 dry-run schema and readiness.
 - [x] Validate pilot tenant and target schema match the dry-run report.
 - [x] Support `--strict` blocker exit.
@@ -23,6 +28,10 @@ Date: 2026-04-27
 - [x] Non-PostgreSQL DSN blocks.
 - [x] Dry-run not-ready blocks.
 - [x] Tenant/schema mismatch blocks.
+- [x] Blank Sign-Off fields block.
+- [x] Sign-Off mismatch blocks.
+- [x] Non-URL Sign-Off DSN blocks.
+- [x] PostgreSQL driver variants do not cause false DSN mismatch.
 - [x] CLI writes JSON and Markdown.
 - [x] `--strict` exits 1 when blocked.
 - [x] Invalid JSON exits 2.

@@ -26,7 +26,22 @@ def _ready_dry_run() -> dict:
 
 def _artifact(tmp_path: Path) -> Path:
     path = tmp_path / "TENANT_TABLE_CLASSIFICATION_20260427.md"
-    path.write_text("# signed off\n")
+    path.write_text(
+        """# Tenant Table Classification
+
+## 6. Sign-Off
+
+```text
+Pilot tenant: Acme Prod
+PostgreSQL rehearsal DSN: postgresql://user:***@example.com/rehearsal
+Backup/restore owner: Ops Owner
+Rehearsal window: 2026-04-30T10:00:00Z/2026-04-30T12:00:00Z
+Reviewer: Platform Reviewer
+Decision: approved
+Date: 2026-04-30
+```
+"""
+    )
     return path
 
 
@@ -50,6 +65,10 @@ def test_ready_inputs_pass_and_redact_target_url(tmp_path):
     assert report["ready_for_rehearsal"] is True
     assert report["blockers"] == []
     assert report["target_url"] == "postgresql://user:***@example.com/rehearsal"
+    assert (
+        report["checks"]["classification_sign_off"]["PostgreSQL rehearsal DSN"]
+        == "postgresql://user:***@example.com/rehearsal"
+    )
     assert "secret" not in json.dumps(report)
 
 
@@ -70,6 +89,122 @@ def test_missing_external_inputs_block(tmp_path):
     assert "classification artifact must be signed off" in report["blockers"]
     assert "classification artifact is missing" in report["blockers"]
     assert "target_url must be a PostgreSQL URL" in report["blockers"]
+
+
+def test_classification_sign_off_fields_are_required_when_signed_off(tmp_path):
+    kwargs = _ready_kwargs(tmp_path)
+    artifact = tmp_path / "TENANT_TABLE_CLASSIFICATION_20260427.md"
+    artifact.write_text(
+        """# Tenant Table Classification
+
+## 6. Sign-Off
+
+```text
+Pilot tenant:
+PostgreSQL rehearsal DSN: TBD
+Backup/restore owner: Ops Owner
+Rehearsal window: 2026-04-30T10:00:00Z/2026-04-30T12:00:00Z
+Reviewer:
+Decision: pending
+Date:
+```
+"""
+    )
+    kwargs["classification_artifact"] = artifact
+
+    report = readiness.build_readiness_report(**kwargs)
+
+    assert report["ready_for_rehearsal"] is False
+    assert "classification sign-off missing Pilot tenant" in report["blockers"]
+    assert (
+        "classification sign-off missing PostgreSQL rehearsal DSN"
+        in report["blockers"]
+    )
+    assert "classification sign-off missing Reviewer" in report["blockers"]
+    assert "classification sign-off missing Date" in report["blockers"]
+    assert "classification sign-off Decision must be approved" in report["blockers"]
+
+
+def test_classification_sign_off_must_match_operator_inputs(tmp_path):
+    kwargs = _ready_kwargs(tmp_path)
+    artifact = tmp_path / "TENANT_TABLE_CLASSIFICATION_20260427.md"
+    artifact.write_text(
+        """# Tenant Table Classification
+
+## 6. Sign-Off
+
+```text
+Pilot tenant: Other Tenant
+PostgreSQL rehearsal DSN: postgresql://user:***@other.example.com/rehearsal
+Backup/restore owner: Other Owner
+Rehearsal window: 2026-05-01T10:00:00Z/2026-05-01T12:00:00Z
+Reviewer: Platform Reviewer
+Decision: approved
+Date: 2026-04-30
+```
+"""
+    )
+    kwargs["classification_artifact"] = artifact
+
+    report = readiness.build_readiness_report(**kwargs)
+
+    assert report["ready_for_rehearsal"] is False
+    assert (
+        "classification sign-off Pilot tenant must match tenant_id"
+        in report["blockers"]
+    )
+    assert (
+        "classification sign-off PostgreSQL rehearsal DSN must match target_url"
+        in report["blockers"]
+    )
+    assert (
+        "classification sign-off Backup/restore owner must match input"
+        in report["blockers"]
+    )
+    assert (
+        "classification sign-off Rehearsal window must match input"
+        in report["blockers"]
+    )
+
+
+def test_classification_sign_off_dsn_must_be_postgres_url(tmp_path):
+    kwargs = _ready_kwargs(tmp_path)
+    artifact = tmp_path / "TENANT_TABLE_CLASSIFICATION_20260427.md"
+    artifact.write_text(
+        """# Tenant Table Classification
+
+## 6. Sign-Off
+
+```text
+Pilot tenant: Acme Prod
+PostgreSQL rehearsal DSN: rehearsal database approved
+Backup/restore owner: Ops Owner
+Rehearsal window: 2026-04-30T10:00:00Z/2026-04-30T12:00:00Z
+Reviewer: Platform Reviewer
+Decision: approved
+Date: 2026-04-30
+```
+"""
+    )
+    kwargs["classification_artifact"] = artifact
+
+    report = readiness.build_readiness_report(**kwargs)
+
+    assert report["ready_for_rehearsal"] is False
+    assert (
+        "classification sign-off PostgreSQL rehearsal DSN must be a URL"
+        in report["blockers"]
+    )
+
+
+def test_classification_sign_off_accepts_postgres_driver_variant(tmp_path):
+    kwargs = _ready_kwargs(tmp_path)
+    kwargs["target_url"] = "postgresql+psycopg://user:secret@example.com/rehearsal"
+
+    report = readiness.build_readiness_report(**kwargs)
+
+    assert report["ready_for_rehearsal"] is True
+    assert report["blockers"] == []
 
 
 def test_dry_run_mismatch_or_not_ready_blocks(tmp_path):
@@ -129,7 +264,9 @@ def test_cli_writes_json_and_markdown(tmp_path):
     assert payload["ready_for_rehearsal"] is True
     markdown = output_md.read_text()
     assert "# Tenant Import Rehearsal Readiness Report" in markdown
+    assert "## Classification Sign-Off" in markdown
     assert "postgresql://user:***@example.com/rehearsal" in markdown
+    assert "secret" not in markdown
 
 
 def test_cli_strict_exits_nonzero_when_blocked(tmp_path):

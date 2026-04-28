@@ -121,6 +121,24 @@ PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_readiness \
 Do not implement or run import rehearsal while
 `ready_for_rehearsal` is false.
 
+The `--classification-signed-off` flag is not sufficient by itself. The
+validator also parses `docs/TENANT_TABLE_CLASSIFICATION_20260427.md` §6 and
+requires the Sign-Off block to contain non-placeholder values for:
+
+- `Pilot tenant`
+- `PostgreSQL rehearsal DSN`
+- `Backup/restore owner`
+- `Rehearsal window`
+- `Reviewer`
+- `Decision`
+- `Date`
+
+The tracked document must use a redacted PostgreSQL DSN, for example
+`postgresql://user:***@host/db`; never put a plaintext password in the
+classification artifact. The validator compares this redacted DSN, the pilot
+tenant, backup/restore owner, and rehearsal window with the CLI inputs before
+setting `ready_for_rehearsal=true`.
+
 ## 8. Apply Baseline Upgrade
 
 ```bash
