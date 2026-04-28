@@ -9,6 +9,9 @@ from typing import Any
 from yuantus.scripts.tenant_import_rehearsal_handoff import (
     SCHEMA_VERSION as HANDOFF_SCHEMA_VERSION,
 )
+from yuantus.scripts.tenant_import_rehearsal_plan import (
+    SCHEMA_VERSION as PLAN_SCHEMA_VERSION,
+)
 from yuantus.scripts.tenant_import_rehearsal_readiness import (
     SCHEMA_VERSION as READINESS_SCHEMA_VERSION,
 )
@@ -46,11 +49,20 @@ def _basic_context(*reports: dict[str, Any] | None) -> dict[str, str]:
         "dry_run_json": "",
         "readiness_json": "",
         "handoff_json": "",
+        "plan_json": "",
     }
     for report in reports:
         if not report:
             continue
-        for key in ("tenant_id", "target_schema", "target_url", "dry_run_json", "readiness_json", "handoff_json"):
+        for key in (
+            "tenant_id",
+            "target_schema",
+            "target_url",
+            "dry_run_json",
+            "readiness_json",
+            "handoff_json",
+            "plan_json",
+        ):
             value = report.get(key)
             if isinstance(value, str) and value and not context[key]:
                 context[key] = value
@@ -67,10 +79,12 @@ def build_next_action_report(
     dry_run_json: str | Path | None = None,
     readiness_json: str | Path | None = None,
     handoff_json: str | Path | None = None,
+    plan_json: str | Path | None = None,
 ) -> dict[str, Any]:
     dry_run, dry_run_error = _read_optional_json(dry_run_json)
     readiness, readiness_error = _read_optional_json(readiness_json)
     handoff, handoff_error = _read_optional_json(handoff_json)
+    import_plan, plan_error = _read_optional_json(plan_json)
 
     blockers: list[str] = []
     next_action = "ask_claude_to_implement_importer"
@@ -82,6 +96,8 @@ def build_next_action_report(
         blockers.append(readiness_error)
     if handoff_error:
         blockers.append(handoff_error)
+    if plan_error:
+        blockers.append(plan_error)
 
     if dry_run is None:
         next_action = "run_p3_4_1_dry_run"
@@ -116,6 +132,17 @@ def build_next_action_report(
         blockers.extend(_as_list(handoff.get("blockers")))
         if not handoff.get("blockers"):
             blockers.append("handoff report must have ready_for_claude=true")
+    elif import_plan is None:
+        next_action = "run_import_plan"
+        blockers.append("missing import rehearsal plan report")
+    elif import_plan.get("schema_version") != PLAN_SCHEMA_VERSION:
+        next_action = "fix_import_plan_report"
+        blockers.append(f"import plan schema_version must be {PLAN_SCHEMA_VERSION}")
+    elif import_plan.get("ready_for_importer") is not True:
+        next_action = "fix_import_plan_blockers"
+        blockers.extend(_as_list(import_plan.get("blockers")))
+        if not import_plan.get("blockers"):
+            blockers.append("import plan report must have ready_for_importer=true")
     else:
         claude_required = True
 
@@ -123,11 +150,12 @@ def build_next_action_report(
         "schema_version": SCHEMA_VERSION,
         "next_action": next_action,
         "claude_required": claude_required,
-        "context": _basic_context(dry_run, readiness, handoff),
+        "context": _basic_context(dry_run, readiness, handoff, import_plan),
         "inputs": {
             "dry_run_json": str(dry_run_json or ""),
             "readiness_json": str(readiness_json or ""),
             "handoff_json": str(handoff_json or ""),
+            "plan_json": str(plan_json or ""),
         },
         "blockers": blockers,
     }
@@ -148,6 +176,7 @@ def render_markdown_report(report: dict[str, Any]) -> str:
         f"- Dry-run JSON: `{context['dry_run_json'] or report['inputs']['dry_run_json']}`",
         f"- Readiness JSON: `{context['readiness_json'] or report['inputs']['readiness_json']}`",
         f"- Handoff JSON: `{context['handoff_json'] or report['inputs']['handoff_json']}`",
+        f"- Plan JSON: `{context['plan_json'] or report['inputs']['plan_json']}`",
         "",
         "## Blockers",
         "",
@@ -159,8 +188,9 @@ def render_markdown_report(report: dict[str, Any]) -> str:
             "## Operator Rule",
             "",
             "Notify the user to ask Claude to implement "
-            "`yuantus.scripts.tenant_import_rehearsal` only when "
-            "`Claude required` is `true`.",
+            "`yuantus.scripts.tenant_import_rehearsal` only when both "
+            "`Claude required` is `true` and `Next action` is "
+            "`ask_claude_to_implement_importer`.",
             "",
         ]
     )
@@ -185,6 +215,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run-json")
     parser.add_argument("--readiness-json")
     parser.add_argument("--handoff-json")
+    parser.add_argument("--plan-json")
     parser.add_argument("--output-json", required=True)
     parser.add_argument("--output-md", required=True)
     parser.add_argument(
@@ -199,6 +230,7 @@ def main(argv: list[str] | None = None) -> int:
             dry_run_json=args.dry_run_json,
             readiness_json=args.readiness_json,
             handoff_json=args.handoff_json,
+            plan_json=args.plan_json,
         )
         _write_json(Path(args.output_json), report)
         _write_markdown(Path(args.output_md), report)

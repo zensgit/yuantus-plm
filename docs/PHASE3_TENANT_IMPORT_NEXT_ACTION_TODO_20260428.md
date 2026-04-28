@@ -12,7 +12,9 @@ Date: 2026-04-28
 - [x] Detect readiness blockers.
 - [x] Detect missing Claude handoff report.
 - [x] Detect handoff blockers.
-- [x] Set `claude_required=true` only for green handoff.
+- [x] Detect missing import rehearsal plan report.
+- [x] Detect import plan blockers.
+- [x] Set `claude_required=true` only for green handoff and green plan.
 - [x] Return 1 in `--strict` mode until Claude is required.
 
 ## Tests
@@ -21,7 +23,9 @@ Date: 2026-04-28
 - [x] Dry-run blockers point to `fix_dry_run_blockers`.
 - [x] Ready dry-run without readiness points to stop-gate collection.
 - [x] Ready readiness without handoff points to `run_claude_handoff`.
-- [x] Green handoff points to `ask_claude_to_implement_importer`.
+- [x] Green handoff without plan points to `run_import_plan`.
+- [x] Green plan points to `ask_claude_to_implement_importer`.
+- [x] Plan blockers prevent Claude notification.
 - [x] CLI writes JSON and Markdown.
 - [x] `--strict` exits 1 until Claude is required.
 - [x] `--strict` exits 0 when Claude is required.
