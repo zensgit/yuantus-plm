@@ -33,6 +33,7 @@ Date: 2026-04-27
 - [x] Add source preflight before actual importer work starts.
 - [x] Add target preflight before actual importer work starts.
 - [x] Add final Claude implementation packet before actual importer work starts.
+- [x] Validate implementation packet upstream artifact existence and green state.
 
 ## Future Implementation PR
 
