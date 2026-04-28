@@ -30,6 +30,7 @@ Date: 2026-04-27
 - [x] Require `ready_for_claude=true` before actual importer work starts.
 - [x] Add next-action report to tell when Claude development is required.
 - [x] Add import rehearsal plan manifest before actual importer work starts.
+- [x] Add target preflight before actual importer work starts.
 
 ## Future Implementation PR
 
@@ -37,6 +38,7 @@ Date: 2026-04-27
 - [ ] Require a green Claude handoff Markdown before starting.
 - [ ] Require next-action report with `claude_required=true`.
 - [ ] Require import plan report with `ready_for_importer=true`.
+- [ ] Require target preflight report with `ready_for_importer_target=true`.
 - [ ] Require `--confirm-rehearsal`.
 - [ ] Validate dry-run JSON before DB connections.
 - [ ] Validate target PostgreSQL schema and alembic version.

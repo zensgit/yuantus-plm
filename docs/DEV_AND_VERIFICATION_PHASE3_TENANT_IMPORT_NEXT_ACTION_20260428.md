@@ -21,11 +21,13 @@ This replaces chat-only judgment with a JSON/Markdown artifact.
 
 ## 3. Design
 
-The next-action command reads up to three reports:
+The next-action command reads up to five reports:
 
 - P3.4.1 dry-run JSON;
 - P3.4.2 readiness JSON;
-- Claude handoff JSON.
+- Claude handoff JSON;
+- import rehearsal plan JSON;
+- target preflight JSON.
 
 It emits:
 
@@ -34,8 +36,8 @@ It emits:
 - context fields for tenant/schema/report paths;
 - blockers.
 
-`claude_required=true` only when the handoff report is green and the next
-action is `ask_claude_to_implement_importer`.
+`claude_required=true` only when the handoff, plan, and target preflight
+reports are green and the next action is `ask_claude_to_implement_importer`.
 
 ## 4. Scope Controls
 
@@ -51,6 +53,8 @@ action is `ask_claude_to_implement_importer`.
 ```bash
 .venv/bin/python -m pytest -q \
   src/yuantus/tests/test_tenant_import_rehearsal_next_action.py \
+  src/yuantus/tests/test_tenant_import_rehearsal_target_preflight.py \
+  src/yuantus/tests/test_tenant_import_rehearsal_plan.py \
   src/yuantus/tests/test_tenant_import_rehearsal_handoff.py \
   src/yuantus/tests/test_tenant_import_rehearsal_readiness.py \
   src/yuantus/tests/test_tenant_migration_dry_run.py \
@@ -66,7 +70,9 @@ action is `ask_claude_to_implement_importer`.
   src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py
 
 .venv/bin/python -m py_compile \
+  src/yuantus/scripts/tenant_import_rehearsal_target_preflight.py \
   src/yuantus/scripts/tenant_import_rehearsal_next_action.py \
+  src/yuantus/tests/test_tenant_import_rehearsal_target_preflight.py \
   src/yuantus/tests/test_tenant_import_rehearsal_next_action.py
 
 git diff --check

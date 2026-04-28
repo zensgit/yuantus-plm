@@ -7,6 +7,7 @@ from yuantus.scripts import tenant_import_rehearsal_handoff as handoff
 from yuantus.scripts import tenant_import_rehearsal_next_action as next_action
 from yuantus.scripts import tenant_import_rehearsal_plan as import_plan
 from yuantus.scripts import tenant_import_rehearsal_readiness as readiness
+from yuantus.scripts import tenant_import_rehearsal_target_preflight as preflight
 from yuantus.scripts import tenant_migration_dry_run as dry_run
 
 
@@ -69,6 +70,19 @@ def _plan_ready() -> dict:
     }
 
 
+def _target_preflight_ready() -> dict:
+    return {
+        "schema_version": preflight.SCHEMA_VERSION,
+        "tenant_id": "Acme Prod",
+        "target_schema": "yt_t_acme_prod",
+        "target_url": "postgresql://user:***@example.com/rehearsal",
+        "plan_json": "output/tenant_acme_import_rehearsal_plan.json",
+        "ready_for_importer_target": True,
+        "ready_for_cutover": False,
+        "blockers": [],
+    }
+
+
 def test_missing_dry_run_points_to_dry_run(tmp_path):
     report = next_action.build_next_action_report()
 
@@ -126,7 +140,7 @@ def test_ready_handoff_without_plan_points_to_plan(tmp_path):
     assert report["next_action"] == "run_import_plan"
 
 
-def test_ready_plan_requires_claude(tmp_path):
+def test_ready_plan_without_target_preflight_points_to_target_preflight(tmp_path):
     dry_run_json = _write_json(tmp_path / "dry-run.json", _dry_run_ready())
     readiness_json = _write_json(tmp_path / "readiness.json", _readiness_ready())
     handoff_json = _write_json(tmp_path / "handoff.json", _handoff_ready())
@@ -137,6 +151,28 @@ def test_ready_plan_requires_claude(tmp_path):
         readiness_json=readiness_json,
         handoff_json=handoff_json,
         plan_json=plan_json,
+    )
+
+    assert report["claude_required"] is False
+    assert report["next_action"] == "run_target_preflight"
+    assert "missing target preflight report" in report["blockers"]
+
+
+def test_ready_target_preflight_requires_claude(tmp_path):
+    dry_run_json = _write_json(tmp_path / "dry-run.json", _dry_run_ready())
+    readiness_json = _write_json(tmp_path / "readiness.json", _readiness_ready())
+    handoff_json = _write_json(tmp_path / "handoff.json", _handoff_ready())
+    plan_json = _write_json(tmp_path / "plan.json", _plan_ready())
+    target_preflight_json = _write_json(
+        tmp_path / "target-preflight.json", _target_preflight_ready()
+    )
+
+    report = next_action.build_next_action_report(
+        dry_run_json=dry_run_json,
+        readiness_json=readiness_json,
+        handoff_json=handoff_json,
+        plan_json=plan_json,
+        target_preflight_json=target_preflight_json,
     )
 
     assert report["claude_required"] is True
@@ -167,6 +203,35 @@ def test_plan_blockers_prevent_claude(tmp_path):
     assert report["claude_required"] is False
     assert report["next_action"] == "fix_import_plan_blockers"
     assert "row_counts missing import tables: meta_items" in report["blockers"]
+
+
+def test_target_preflight_blockers_prevent_claude(tmp_path):
+    dry_run_json = _write_json(tmp_path / "dry-run.json", _dry_run_ready())
+    readiness_json = _write_json(tmp_path / "readiness.json", _readiness_ready())
+    handoff_json = _write_json(tmp_path / "handoff.json", _handoff_ready())
+    plan_json = _write_json(tmp_path / "plan.json", _plan_ready())
+    target_preflight = _target_preflight_ready()
+    target_preflight.update(
+        {
+            "ready_for_importer_target": False,
+            "blockers": ["target schema missing tenant tables: meta_files"],
+        }
+    )
+    target_preflight_json = _write_json(
+        tmp_path / "target-preflight.json", target_preflight
+    )
+
+    report = next_action.build_next_action_report(
+        dry_run_json=dry_run_json,
+        readiness_json=readiness_json,
+        handoff_json=handoff_json,
+        plan_json=plan_json,
+        target_preflight_json=target_preflight_json,
+    )
+
+    assert report["claude_required"] is False
+    assert report["next_action"] == "fix_target_preflight_blockers"
+    assert "target schema missing tenant tables: meta_files" in report["blockers"]
 
 
 def test_cli_writes_next_action_reports(tmp_path):
@@ -215,6 +280,9 @@ def test_cli_strict_exits_zero_when_claude_is_required(tmp_path):
     readiness_json = _write_json(tmp_path / "readiness.json", _readiness_ready())
     handoff_json = _write_json(tmp_path / "handoff.json", _handoff_ready())
     plan_json = _write_json(tmp_path / "plan.json", _plan_ready())
+    target_preflight_json = _write_json(
+        tmp_path / "target-preflight.json", _target_preflight_ready()
+    )
 
     result = next_action.main(
         [
@@ -226,6 +294,8 @@ def test_cli_strict_exits_zero_when_claude_is_required(tmp_path):
             str(handoff_json),
             "--plan-json",
             str(plan_json),
+            "--target-preflight-json",
+            str(target_preflight_json),
             "--output-json",
             str(tmp_path / "next-action.json"),
             "--output-md",

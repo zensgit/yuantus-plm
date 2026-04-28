@@ -1,4 +1,4 @@
-# TODO — Phase 3 Tenant Import Next Action
+# TODO - Phase 3 Tenant Import Next Action
 
 Date: 2026-04-28
 
@@ -14,7 +14,10 @@ Date: 2026-04-28
 - [x] Detect handoff blockers.
 - [x] Detect missing import rehearsal plan report.
 - [x] Detect import plan blockers.
-- [x] Set `claude_required=true` only for green handoff and green plan.
+- [x] Detect missing target preflight report.
+- [x] Detect target preflight blockers.
+- [x] Set `claude_required=true` only for green handoff, green plan, and green
+  target preflight.
 - [x] Return 1 in `--strict` mode until Claude is required.
 
 ## Tests
@@ -24,8 +27,10 @@ Date: 2026-04-28
 - [x] Ready dry-run without readiness points to stop-gate collection.
 - [x] Ready readiness without handoff points to `run_claude_handoff`.
 - [x] Green handoff without plan points to `run_import_plan`.
-- [x] Green plan points to `ask_claude_to_implement_importer`.
+- [x] Green plan without target preflight points to `run_target_preflight`.
 - [x] Plan blockers prevent Claude notification.
+- [x] Green target preflight points to `ask_claude_to_implement_importer`.
+- [x] Target preflight blockers prevent Claude notification.
 - [x] CLI writes JSON and Markdown.
 - [x] `--strict` exits 1 until Claude is required.
 - [x] `--strict` exits 0 when Claude is required.

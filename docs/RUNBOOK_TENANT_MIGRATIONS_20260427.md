@@ -188,34 +188,7 @@ and global/control-plane table skip list. `ready_for_cutover` must stay false.
 If the command exits 1, do not ask Claude to implement the importer. Fix the
 plan blockers first.
 
-## 10. P3.4.2 Next Action / Claude Notification
-
-Use this command when you need a single status artifact that says what to do
-next and whether Claude should start implementation:
-
-```bash
-PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_next_action \
-  --dry-run-json output/tenant_<tenant-id>_dry_run.json \
-  --readiness-json output/tenant_<tenant-id>_import_rehearsal_readiness.json \
-  --handoff-json output/tenant_<tenant-id>_claude_import_rehearsal_handoff.json \
-  --plan-json output/tenant_<tenant-id>_import_rehearsal_plan.json \
-  --output-json output/tenant_<tenant-id>_import_rehearsal_next_action.json \
-  --output-md output/tenant_<tenant-id>_import_rehearsal_next_action.md \
-  --strict
-```
-
-The command returns 0 in `--strict` mode only when the next action is to ask
-Claude to implement the importer. Otherwise it writes blockers and returns 1.
-
-Notify the user that Claude development is needed only when the generated
-report says:
-
-```text
-claude_required=true
-next_action=ask_claude_to_implement_importer
-```
-
-## 11. Apply Baseline Upgrade
+## 10. Apply Baseline Upgrade
 
 ```bash
 PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
@@ -226,7 +199,7 @@ PYTHONPATH=src YUANTUS_DATABASE_URL=<postgres-dsn> \
 
 Expected behavior post-P3.3.3: the command applies the baseline revision (`t1_initial_tenant_baseline`) inside `<schema>`, creating tenant application tables and the per-tenant `<schema>.alembic_version` row. Cross-schema FKs to global tables (e.g., `rbac_users`, `users`) are intentionally NOT created — tenant tables retain user-attribution columns (`created_by_id`, `owner_id`, etc.) without a database-level FK constraint, since the referenced rows live in the global identity plane.
 
-## 12. Smoke
+## 11. Smoke
 
 Confirm the schema exists, that the baseline revision is recorded, and that representative tenant tables are present:
 
@@ -247,7 +220,59 @@ where table_schema = '<schema>'
 -- expect: 0
 ```
 
-## 13. Rollback
+## 12. P3.4.2 Target Preflight
+
+Before asking Claude to implement the importer, run a read-only target schema
+preflight against the non-production PostgreSQL rehearsal database:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_target_preflight \
+  --plan-json output/tenant_<tenant-id>_import_rehearsal_plan.json \
+  --target-url <non-prod-postgres-dsn> \
+  --target-schema <schema> \
+  --output-json output/tenant_<tenant-id>_target_preflight.json \
+  --output-md output/tenant_<tenant-id>_target_preflight.md \
+  --confirm-target-preflight \
+  --strict
+```
+
+The command must exit 0 and set `ready_for_importer_target=true`. It validates
+the target schema, `<schema>.alembic_version`, expected tenant table presence,
+and the absence of global/control-plane tables. It does not create schemas,
+apply migrations, import rows, or authorize cutover.
+
+If the command exits 1, do not ask Claude to implement the importer. Fix the
+target preflight blockers first.
+
+## 13. P3.4.2 Next Action / Claude Notification
+
+Use this command when you need a single status artifact that says what to do
+next and whether Claude should start implementation:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_next_action \
+  --dry-run-json output/tenant_<tenant-id>_dry_run.json \
+  --readiness-json output/tenant_<tenant-id>_import_rehearsal_readiness.json \
+  --handoff-json output/tenant_<tenant-id>_claude_import_rehearsal_handoff.json \
+  --plan-json output/tenant_<tenant-id>_import_rehearsal_plan.json \
+  --target-preflight-json output/tenant_<tenant-id>_target_preflight.json \
+  --output-json output/tenant_<tenant-id>_import_rehearsal_next_action.json \
+  --output-md output/tenant_<tenant-id>_import_rehearsal_next_action.md \
+  --strict
+```
+
+The command returns 0 in `--strict` mode only when the next action is to ask
+Claude to implement the importer. Otherwise it writes blockers and returns 1.
+
+Notify the user that Claude development is needed only when the generated
+report says:
+
+```text
+claude_required=true
+next_action=ask_claude_to_implement_importer
+```
+
+## 14. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
 
@@ -264,7 +289,7 @@ Downgrading the baseline (`t1_initial_tenant_baseline`) drops tenant application
 
 Never run downgrade without `-x target_schema=<schema>`.
 
-## 14. Stop Gate
+## 15. Stop Gate
 
 Do not start P3.4 cutover (data migration / runtime enablement) until all are true:
 
