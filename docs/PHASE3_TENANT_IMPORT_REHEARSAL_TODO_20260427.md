@@ -22,9 +22,17 @@ Date: 2026-04-27
 - [x] Add verification MD.
 - [x] Update delivery doc index.
 
+## Handoff Gate PR
+
+- [x] Add readiness validator.
+- [x] Add classification Sign-Off guard.
+- [x] Add Claude handoff generator.
+- [x] Require `ready_for_claude=true` before actual importer work starts.
+
 ## Future Implementation PR
 
 - [ ] Implement `yuantus.scripts.tenant_import_rehearsal`.
+- [ ] Require a green Claude handoff Markdown before starting.
 - [ ] Require `--confirm-rehearsal`.
 - [ ] Validate dry-run JSON before DB connections.
 - [ ] Validate target PostgreSQL schema and alembic version.
