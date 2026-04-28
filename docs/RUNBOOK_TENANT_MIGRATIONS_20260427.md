@@ -324,32 +324,38 @@ not ready, contains blockers, or disagrees with the next-action tenant/schema
 context. Do not hand the Markdown to Claude unless the `Artifact Integrity`
 table shows every ready value as `true`.
 
-## 16. P3.4.2 Tenant Import Rehearsal Scaffold
+## 16. P3.4.2 Tenant Import Rehearsal Row Copy
 
-After the implementation packet is green, run the fail-closed scaffold before
-any row-copy implementation is attempted:
+After the implementation packet is green, run the guarded row-copy rehearsal:
 
 ```bash
 PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal \
   --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
-  --output-json output/tenant_<tenant-id>_import_rehearsal_scaffold.json \
-  --output-md output/tenant_<tenant-id>_import_rehearsal_scaffold.md \
+  --source-url "$SOURCE_DATABASE_URL" \
+  --target-url "$TARGET_DATABASE_URL" \
+  --output-json output/tenant_<tenant-id>_import_rehearsal.json \
+  --output-md output/tenant_<tenant-id>_import_rehearsal.md \
   --confirm-rehearsal \
   --strict
 ```
 
-The scaffold revalidates the implementation packet and all upstream JSON
-artifacts, writes a JSON/Markdown report, and stops before any source or target
-database connection.
+The command revalidates the implementation packet and all upstream JSON
+artifacts before opening any database connection. It then copies only the
+tenant application tables listed by `tenant_tables_in_import_order` and writes a
+JSON/Markdown report with table-level row counts.
 
-Do not treat this as an import run. The scaffold report must say:
+Do not treat this as production cutover. The report must say:
 
 ```text
 Scaffold guard passed: `true`
-Import executed: `false`
-DB connection attempted: `false`
+Rehearsal import passed: `true`
+Import executed: `true`
+DB connection attempted: `true`
 Ready for cutover: `false`
 ```
+
+The command must not import any global/control-plane table, must not create or
+migrate schemas, and must not enable `TENANCY_MODE=schema-per-tenant`.
 
 ## 17. Rollback
 
