@@ -59,6 +59,7 @@ Date: 2026-04-27
 - [x] Add external operator progress status checker.
 - [x] Reconcile P3.4 toolchain closeout status.
 - [x] Add operator request packet for external action handoff.
+- [x] Add artifact redaction guard before evidence handoff.
 - [ ] Add operator-run PostgreSQL rehearsal evidence.
 - [x] Update `RUNBOOK_TENANT_MIGRATIONS_20260427.md`.
 - [x] Add DEV/verification MD for the implementation PR.

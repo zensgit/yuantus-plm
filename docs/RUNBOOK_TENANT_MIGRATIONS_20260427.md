@@ -525,6 +525,38 @@ Ready for cutover: `false`
 This manifest is an integrity and handoff artifact only. It does not authorize
 production cutover.
 
+### 20.1 P3.4.2 Artifact Redaction Guard
+
+Before handing rehearsal artifacts to reviewers or attaching them to a ticket,
+scan the JSON/Markdown files for plaintext PostgreSQL passwords:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_redaction_guard \
+  --artifact output/tenant_<tenant-id>_import_rehearsal.json \
+  --artifact output/tenant_<tenant-id>_import_rehearsal.md \
+  --artifact output/tenant_<tenant-id>_operator_rehearsal_evidence.md \
+  --artifact output/tenant_<tenant-id>_import_rehearsal_evidence.json \
+  --artifact output/tenant_<tenant-id>_import_rehearsal_evidence_archive.json \
+  --output-json output/tenant_<tenant-id>_redaction_guard.json \
+  --output-md output/tenant_<tenant-id>_redaction_guard.md \
+  --strict
+```
+
+The guard must say:
+
+```text
+Ready for artifact handoff: `true`
+Ready for cutover: `false`
+```
+
+The report never prints the plaintext secret value. It reports only the artifact
+path, line number, and redacted URL. If it fails, fix the artifact source before
+sharing or archiving the files.
+
+This guard reads local files only. It does not open database connections, run
+rehearsal commands, accept evidence, build an archive, authorize production
+cutover, or enable runtime schema-per-tenant mode.
+
 ## 21. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
