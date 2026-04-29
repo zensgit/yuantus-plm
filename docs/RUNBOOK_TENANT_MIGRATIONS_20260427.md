@@ -361,6 +361,23 @@ migrate schemas, and must not enable `TENANCY_MODE=schema-per-tenant`.
 
 After the row-copy command finishes, capture the operator evidence in a local
 Markdown file. Keep credentials out of the file; use the redacted target URL.
+Prefer generating the correctly formatted Markdown from the row-copy report:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence_template \
+  --rehearsal-json output/tenant_<tenant-id>_import_rehearsal.json \
+  --backup-restore-owner "<owner>" \
+  --rehearsal-window "<window>" \
+  --rehearsal-executed-by "<operator>" \
+  --rehearsal-result pass \
+  --evidence-reviewer "<reviewer>" \
+  --date "<yyyy-mm-dd>" \
+  --output-json output/tenant_<tenant-id>_operator_rehearsal_evidence_template.json \
+  --output-md output/tenant_<tenant-id>_operator_rehearsal_evidence.md \
+  --strict
+```
+
+The generated Markdown has this sign-off shape:
 
 ````markdown
 # Tenant Import Rehearsal Operator Evidence
