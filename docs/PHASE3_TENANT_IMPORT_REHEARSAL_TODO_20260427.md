@@ -39,11 +39,11 @@ Date: 2026-04-27
 ## Future Implementation PR
 
 - [x] Implement real row-copy execution behind `tenant_import_rehearsal`.
-- [ ] Require a green Claude handoff Markdown before starting.
-- [ ] Require next-action report with `claude_required=true`.
-- [ ] Require import plan report with `ready_for_importer=true`.
-- [ ] Require source preflight report with `ready_for_importer_source=true`.
-- [ ] Require target preflight report with `ready_for_importer_target=true`.
+- [x] Require a green Claude handoff report before starting.
+- [x] Require next-action report with `claude_required=true`.
+- [x] Require import plan report with `ready_for_importer=true`.
+- [x] Require source preflight report with `ready_for_importer_source=true`.
+- [x] Require target preflight report with `ready_for_importer_target=true`.
 - [x] Require implementation packet with `ready_for_claude_importer=true`.
 - [x] Require `--confirm-rehearsal`.
 - [x] Validate dry-run JSON before DB connections.
@@ -57,6 +57,7 @@ Date: 2026-04-27
 - [x] Add rehearsal evidence archive manifest generator.
 - [x] Add operator execution packet generator.
 - [x] Add external operator progress status checker.
+- [x] Reconcile P3.4 toolchain closeout status.
 - [ ] Add operator-run PostgreSQL rehearsal evidence.
 - [x] Update `RUNBOOK_TENANT_MIGRATIONS_20260427.md`.
 - [x] Add DEV/verification MD for the implementation PR.
