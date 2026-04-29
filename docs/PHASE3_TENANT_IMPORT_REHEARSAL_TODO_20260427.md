@@ -54,6 +54,7 @@ Date: 2026-04-27
 - [x] Emit JSON and Markdown row-import rehearsal reports.
 - [x] Add offline operator-run rehearsal evidence validator.
 - [x] Add operator evidence Markdown template generator.
+- [x] Add rehearsal evidence archive manifest generator.
 - [ ] Add operator-run PostgreSQL rehearsal evidence.
 - [x] Update `RUNBOOK_TENANT_MIGRATIONS_20260427.md`.
 - [x] Add DEV/verification MD for the implementation PR.

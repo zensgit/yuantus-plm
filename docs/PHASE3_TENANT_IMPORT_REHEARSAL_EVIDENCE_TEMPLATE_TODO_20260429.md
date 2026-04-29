@@ -34,6 +34,13 @@ Date: 2026-04-29
 - [x] Update parent P3.4 TODOs.
 - [x] Update delivery doc index.
 
+## Follow-Up Archive Gate
+
+- [x] Add DB-free evidence archive manifest generator.
+- [x] Include SHA-256 digests for the evidence chain.
+- [x] Keep archive manifest `ready_for_cutover=false`.
+- [ ] Run archive manifest generator against real rehearsal outputs.
+
 ## Still External
 
 - [ ] Run row-copy rehearsal against operator-provided non-production PostgreSQL DSNs.
