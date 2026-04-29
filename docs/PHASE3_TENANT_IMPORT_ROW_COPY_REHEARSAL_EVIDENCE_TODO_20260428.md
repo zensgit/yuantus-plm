@@ -5,6 +5,7 @@ Date: 2026-04-28
 ## Implementation
 
 - [x] Add offline rehearsal evidence CLI.
+- [x] Add operator evidence Markdown template generator.
 - [x] Read row-copy rehearsal JSON.
 - [x] Read implementation packet JSON.
 - [x] Read operator evidence Markdown.
@@ -19,6 +20,7 @@ Date: 2026-04-28
 
 ## Tests
 
+- [x] Template generator emits evidence-gate-parseable Markdown.
 - [x] Green evidence path passes.
 - [x] Missing operator evidence blocks.
 - [x] Missing sign-off fields block.
@@ -34,6 +36,7 @@ Date: 2026-04-28
 
 ## Documentation
 
+- [x] Add template generator taskbook.
 - [x] Add taskbook.
 - [x] Add DEV and verification MD.
 - [x] Add TODO MD.
