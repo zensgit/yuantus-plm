@@ -557,6 +557,33 @@ This guard reads local files only. It does not open database connections, run
 rehearsal commands, accept evidence, build an archive, authorize production
 cutover, or enable runtime schema-per-tenant mode.
 
+### 20.2 P3.4.2 Evidence Handoff Gate
+
+Before handing the archive to reviewers, tie the archive manifest to the
+redaction guard and require redaction coverage for every archived artifact:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence_handoff \
+  --archive-json output/tenant_<tenant-id>_import_rehearsal_evidence_archive.json \
+  --redaction-guard-json output/tenant_<tenant-id>_redaction_guard.json \
+  --output-json output/tenant_<tenant-id>_evidence_handoff.json \
+  --output-md output/tenant_<tenant-id>_evidence_handoff.md \
+  --strict
+```
+
+The handoff gate must say:
+
+```text
+Ready for evidence handoff: `true`
+Ready for cutover: `false`
+```
+
+This catches partial redaction scans: the guard fails unless every artifact
+listed by the archive manifest also appears in the redaction guard report. It
+does not open database connections, run rehearsal commands, accept new
+evidence, build an archive, authorize production cutover, or enable runtime
+schema-per-tenant mode.
+
 ## 21. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
