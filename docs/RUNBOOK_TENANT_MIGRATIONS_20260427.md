@@ -324,7 +324,32 @@ not ready, contains blockers, or disagrees with the next-action tenant/schema
 context. Do not hand the Markdown to Claude unless the `Artifact Integrity`
 table shows every ready value as `true`.
 
-## 16. P3.4.2 Tenant Import Rehearsal Row Copy
+## 16. P3.4.2 Operator Execution Packet
+
+Before running the row-copy rehearsal, generate a DB-free operator execution
+packet with the exact command sequence and output paths:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_operator_packet \
+  --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
+  --artifact-prefix output/tenant_<tenant-id> \
+  --output-json output/tenant_<tenant-id>_operator_execution_packet.json \
+  --output-md output/tenant_<tenant-id>_operator_execution_packet.md \
+  --strict
+```
+
+The packet must say:
+
+```text
+Ready for operator execution: `true`
+Ready for cutover: `false`
+```
+
+This packet does not run any command, open any database connection, or authorize
+production cutover. It only consolidates the row-copy, operator-evidence,
+evidence-gate, and archive-manifest commands into one reviewable handoff.
+
+## 17. P3.4.2 Tenant Import Rehearsal Row Copy
 
 After the implementation packet is green, run the guarded row-copy rehearsal:
 
@@ -357,7 +382,7 @@ Ready for cutover: `false`
 The command must not import any global/control-plane table, must not create or
 migrate schemas, and must not enable `TENANCY_MODE=schema-per-tenant`.
 
-## 17. P3.4.2 Rehearsal Evidence Gate
+## 18. P3.4.2 Rehearsal Evidence Gate
 
 After the row-copy command finishes, capture the operator evidence in a local
 Markdown file. Keep credentials out of the file; use the redacted target URL.
@@ -420,7 +445,7 @@ Ready for cutover: `false`
 This gate only proves that non-production rehearsal evidence is internally
 consistent and reviewable. It does not authorize production cutover.
 
-## 18. P3.4.2 Rehearsal Evidence Archive Manifest
+## 19. P3.4.2 Rehearsal Evidence Archive Manifest
 
 After the evidence gate accepts the rehearsal output, build a DB-free archive
 manifest with SHA-256 digests for the full evidence chain:
@@ -447,7 +472,7 @@ Ready for cutover: `false`
 This manifest is an integrity and handoff artifact only. It does not authorize
 production cutover.
 
-## 19. Rollback
+## 20. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
 
@@ -464,7 +489,7 @@ Downgrading the baseline (`t1_initial_tenant_baseline`) drops tenant application
 
 Never run downgrade without `-x target_schema=<schema>`.
 
-## 20. Stop Gate
+## 21. Stop Gate
 
 Do not start P3.4 cutover (data migration / runtime enablement) until all are true:
 
