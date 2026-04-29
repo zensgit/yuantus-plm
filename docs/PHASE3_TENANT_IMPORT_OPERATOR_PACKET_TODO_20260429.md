@@ -34,6 +34,7 @@ Date: 2026-04-29
 - [x] Add TODO MD.
 - [x] Update tenant migration runbook.
 - [x] Update parent P3.4 TODOs.
+- [x] Add external status follow-up.
 - [x] Update delivery doc index.
 
 ## Still External
