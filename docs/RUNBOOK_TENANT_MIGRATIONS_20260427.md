@@ -377,6 +377,31 @@ The status checker reads files only. It does not run any command, open any
 database connection, accept evidence, build an archive, or authorize production
 cutover.
 
+### 17.1 P3.4.2 Operator Request Packet
+
+To hand the current external-status result to an operator without asking them
+to re-derive the next action from JSON, generate a DB-free operator request:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_operator_request \
+  --external-status-json output/tenant_<tenant-id>_external_status.json \
+  --output-json output/tenant_<tenant-id>_operator_request.json \
+  --output-md output/tenant_<tenant-id>_operator_request.md \
+  --strict
+```
+
+The request must say:
+
+```text
+Ready for operator request: `true`
+Ready for cutover: `false`
+```
+
+The Markdown lists the current stage, required operator inputs, artifact
+summary, and the exact next command from the external-status report. It does
+not run that command, open database connections, accept evidence, build an
+archive, authorize production cutover, or enable runtime schema-per-tenant mode.
+
 ## 18. P3.4.2 Tenant Import Rehearsal Row Copy
 
 After the implementation packet is green, run the guarded row-copy rehearsal:
