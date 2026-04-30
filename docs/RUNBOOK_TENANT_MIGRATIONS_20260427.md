@@ -615,7 +615,32 @@ run rehearsal commands, accept evidence, build an archive, run the evidence
 handoff gate, authorize production cutover, or enable runtime schema-per-tenant
 mode.
 
-### 20.4 P3.4.2 Synthetic Operator Drill
+### 20.4 P3.4.2 Reviewer Packet
+
+After both the evidence intake checklist and the evidence handoff gate are
+green, generate a DB-free reviewer packet:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_reviewer_packet \
+  --evidence-intake-json output/tenant_<tenant-id>_evidence_intake.json \
+  --evidence-handoff-json output/tenant_<tenant-id>_evidence_handoff.json \
+  --output-json output/tenant_<tenant-id>_reviewer_packet.json \
+  --output-md output/tenant_<tenant-id>_reviewer_packet.md \
+  --strict
+```
+
+The reviewer packet must say:
+
+```text
+Ready for reviewer packet: `true`
+Ready for cutover: `false`
+```
+
+This packet consolidates the green intake and handoff summaries into one file
+for reviewer handoff. It does not accept evidence, build an archive, run a
+cutover, or enable runtime schema-per-tenant mode.
+
+### 20.5 P3.4.2 Synthetic Operator Drill
 
 Use the synthetic drill only to practice the local artifact and redaction
 command path before real non-production PostgreSQL evidence exists:
