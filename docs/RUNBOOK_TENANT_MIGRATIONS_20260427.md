@@ -605,6 +605,24 @@ consistent and reviewable. It does not authorize production cutover.
 
 ## 20. P3.4.2 Rehearsal Evidence Archive Manifest
 
+After the evidence gate accepts the rehearsal output, the shortest closeout path
+is the shell entrypoint:
+
+```bash
+scripts/run_tenant_import_evidence_closeout.sh \
+  --evidence-json output/tenant_<tenant-id>_import_rehearsal_evidence.json \
+  --operator-packet-json output/tenant_<tenant-id>_operator_execution_packet.json \
+  --operator-evidence-template-json output/tenant_<tenant-id>_operator_rehearsal_evidence_template.json \
+  --artifact-prefix output/tenant_<tenant-id>
+```
+
+The shell entrypoint builds the archive manifest, scans archived artifacts with
+the redaction guard, validates the evidence handoff, runs the evidence intake
+checklist, and emits the reviewer packet. It reads local artifacts only and is
+strict by default.
+
+Equivalent individual commands are listed below.
+
 After the evidence gate accepts the rehearsal output, build a DB-free archive
 manifest with SHA-256 digests for the full evidence chain:
 
