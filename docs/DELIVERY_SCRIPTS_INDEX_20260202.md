@@ -48,6 +48,7 @@
 - print_p2_shared_dev_142_readonly_rerun_commands.sh
 - print_p2_shared_dev_first_run_commands.sh
 - print_p2_shared_dev_mode_selection.sh
+- precheck_tenant_import_rehearsal_operator.sh
 - print_p2_shared_dev_observation_commands.sh
 - precheck_p2_observation_regression.sh
 - print_strict_gate_split_helper.sh
@@ -124,6 +125,7 @@
 - `print_p2_shared_dev_142_rerun_commands.sh` prints the fixed rerun checklist for the already-initialized `142` shared-dev environment.
 - `print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.
 - `print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.
+- `precheck_tenant_import_rehearsal_operator.sh` checks the P3.4 operator rehearsal prerequisites without printing DSN values, connecting to databases, running row-copy, or authorizing cutover.
 - `print_p2_shared_dev_observation_commands.sh` prints the canonical P2 shared-dev shell and workflow entry commands.
 - `precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe for auth plus the dashboard summary read surface, and writes `OBSERVATION_PRECHECK.md`.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
