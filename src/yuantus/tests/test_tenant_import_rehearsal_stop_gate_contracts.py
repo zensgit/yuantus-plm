@@ -18,6 +18,9 @@ _VERIFICATION = (
     / "docs"
     / "DEV_AND_VERIFICATION_PHASE3_TENANT_IMPORT_SYNTHETIC_DRILL_20260429.md"
 )
+_READINESS_STATUS = (
+    _ROOT / "docs" / "PHASE3_TENANT_IMPORT_READINESS_STATUS_20260430.md"
+)
 
 
 def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_drill():
@@ -67,3 +70,14 @@ def test_design_and_verification_docs_state_external_evidence_remains_missing():
     assert "real_rehearsal_evidence=false" in design
     assert "ready_for_evidence_handoff=false" in design
     assert "operator-run PostgreSQL rehearsal evidence is still missing" in verification
+
+
+def test_readiness_status_preserves_external_blocked_state():
+    status = _READINESS_STATUS.read_text()
+
+    assert "operator-run PostgreSQL rehearsal evidence is not complete" in status
+    assert "production cutover" in status
+    assert "runtime `TENANCY_MODE=schema-per-tenant` enablement" in status
+    assert "The next valid action is external operator execution" in status
+    assert "`ready_for_cutover=false`" in status
+    assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in status
