@@ -468,6 +468,17 @@ To generate the operator execution packet plus the full operator flow from the
 implementation packet in one DB-free step, run:
 
 ```bash
+scripts/run_tenant_import_operator_launchpack.sh \
+  --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
+  --artifact-prefix output/tenant_<tenant-id>
+```
+
+The shell entrypoint derives the standard output paths. It is strict by default
+and exits non-zero if the launchpack is blocked.
+
+Equivalent explicit Python invocation:
+
+```bash
 PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_operator_launchpack \
   --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
   --artifact-prefix output/tenant_<tenant-id> \
