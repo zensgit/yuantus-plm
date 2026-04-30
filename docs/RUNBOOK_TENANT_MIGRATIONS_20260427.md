@@ -476,6 +476,17 @@ Review the printed commands before execution. The helper prints placeholders
 for `SOURCE_DATABASE_URL` and `TARGET_DATABASE_URL`; it never reads or displays
 secret URL values.
 
+Before executing the printed commands, run the DB-free precheck:
+
+```bash
+scripts/precheck_tenant_import_rehearsal_operator.sh \
+  --artifact-prefix output/tenant_<tenant-id>
+```
+
+The precheck confirms the implementation packet is green, the helper scripts
+exist, and `SOURCE_DATABASE_URL` / `TARGET_DATABASE_URL` are set. It reports
+only environment variable names and never prints the secret URL values.
+
 To generate the operator execution packet plus the full operator flow from the
 implementation packet in one DB-free step, run:
 
