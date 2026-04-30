@@ -107,6 +107,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_p2_shared_dev_mode_selection.sh",
         scripts_dir / "precheck_p2_observation_regression.sh",
         scripts_dir / "print_strict_gate_split_helper.sh",
+        scripts_dir / "print_tenant_import_rehearsal_commands.sh",
         scripts_dir / "print_subcontracting_first_cut_anchors.sh",
         scripts_dir / "run_claude_code_parallel_reviewer.sh",
         scripts_dir / "run_p2_shared_dev_142_entrypoint.sh",
