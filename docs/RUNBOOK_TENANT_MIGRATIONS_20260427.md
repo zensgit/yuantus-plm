@@ -430,6 +430,38 @@ The bundle reads the operator request only. It does not run commands, open
 database connections, accept evidence, build an archive, authorize production
 cutover, or enable runtime schema-per-tenant mode.
 
+### 17.3 P3.4.2 Operator Flow
+
+To generate the external status, operator request, and operator bundle in one
+DB-free step, run:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_operator_flow \
+  --operator-packet-json output/tenant_<tenant-id>_operator_execution_packet.json \
+  --artifact-prefix output/tenant_<tenant-id>_operator_flow \
+  --output-json output/tenant_<tenant-id>_operator_flow.json \
+  --output-md output/tenant_<tenant-id>_operator_flow.md \
+  --strict
+```
+
+The flow report must say:
+
+```text
+Ready for operator flow: `true`
+Ready for cutover: `false`
+```
+
+The command writes six handoff artifacts:
+
+- external status JSON/Markdown;
+- operator request JSON/Markdown;
+- operator bundle JSON/Markdown.
+
+Use the generated operator bundle Markdown as the execution handoff. The flow
+reads local artifacts and writes reports only. It does not run rehearsal
+commands, open database connections, accept evidence, build an archive,
+authorize production cutover, or enable runtime schema-per-tenant mode.
+
 ## 18. P3.4.2 Tenant Import Rehearsal Row Copy
 
 After the implementation packet is green, run the guarded row-copy rehearsal:
