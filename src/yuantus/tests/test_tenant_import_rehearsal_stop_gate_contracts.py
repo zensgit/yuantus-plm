@@ -32,7 +32,7 @@ def test_runbook_warns_synthetic_drill_is_not_operator_run_evidence():
     runbook = _RUNBOOK.read_text()
 
     handoff_pos = runbook.index("### 20.2 P3.4.2 Evidence Handoff Gate")
-    synthetic_pos = runbook.index("### 20.3 P3.4.2 Synthetic Operator Drill")
+    synthetic_pos = runbook.index("### 20.4 P3.4.2 Synthetic Operator Drill")
     rollback_pos = runbook.index("## 21. Rollback")
     assert handoff_pos < synthetic_pos < rollback_pos
     assert "This output is not operator-run PostgreSQL rehearsal evidence." in runbook

@@ -584,7 +584,38 @@ does not open database connections, run rehearsal commands, accept new
 evidence, build an archive, authorize production cutover, or enable runtime
 schema-per-tenant mode.
 
-### 20.3 P3.4.2 Synthetic Operator Drill
+### 20.3 P3.4.2 Evidence Intake Checklist
+
+After the operator has generated the row-copy, evidence, and archive artifacts,
+run a DB-free intake checklist before handing files to reviewers:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence_intake \
+  --operator-packet-json output/tenant_<tenant-id>_operator_execution_packet.json \
+  --output-json output/tenant_<tenant-id>_evidence_intake.json \
+  --output-md output/tenant_<tenant-id>_evidence_intake.md \
+  --strict
+```
+
+The intake report must say:
+
+```text
+Ready for evidence intake: `true`
+Ready for cutover: `false`
+Redaction ready: `true`
+```
+
+The checklist verifies that the operator packet outputs exist, key JSON files
+have the expected schema versions and ready fields, synthetic drill output is
+not being submitted as real evidence, and the full artifact set is clean under
+the redaction guard.
+
+This checklist reads local files only. It does not open database connections,
+run rehearsal commands, accept evidence, build an archive, run the evidence
+handoff gate, authorize production cutover, or enable runtime schema-per-tenant
+mode.
+
+### 20.4 P3.4.2 Synthetic Operator Drill
 
 Use the synthetic drill only to practice the local artifact and redaction
 command path before real non-production PostgreSQL evidence exists:
