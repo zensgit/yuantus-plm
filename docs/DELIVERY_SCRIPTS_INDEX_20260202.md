@@ -51,6 +51,7 @@
 - print_p2_shared_dev_observation_commands.sh
 - precheck_p2_observation_regression.sh
 - print_strict_gate_split_helper.sh
+- print_tenant_import_rehearsal_commands.sh
 - run_claude_code_parallel_reviewer.sh
 - run_p2_shared_dev_142_entrypoint.sh
 - run_p2_shared_dev_142_drift_audit.sh
@@ -126,6 +127,7 @@
 - `print_p2_shared_dev_observation_commands.sh` prints the canonical P2 shared-dev shell and workflow entry commands.
 - `precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe for auth plus the dashboard summary read surface, and writes `OBSERVATION_PRECHECK.md`.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
+- `print_tenant_import_rehearsal_commands.sh` prints the safe P3.4 operator command sequence from implementation packet through evidence closeout, using environment variable placeholders instead of secret database URL values.
 - `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
 - `run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to print-daily-commands, readonly-rerun, refreeze-readiness, refreeze-candidate, refreeze-proposal, drift-audit, drift-investigation, workflow-probe, workflow-readonly-check, and the expanded readonly/refreeze/drift/investigation command printouts.
 - `run_p2_shared_dev_142_drift_audit.sh` runs the fixed readonly rerun into a dedicated current result dir and renders a top-level `DRIFT_AUDIT.md` plus `drift_audit.json`.

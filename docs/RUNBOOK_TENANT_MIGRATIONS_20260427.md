@@ -464,6 +464,18 @@ authorize production cutover, or enable runtime schema-per-tenant mode.
 
 ### 17.4 P3.4.2 Operator Launchpack
 
+To print the full operator command sequence from launchpack through evidence
+closeout without executing it, run:
+
+```bash
+scripts/print_tenant_import_rehearsal_commands.sh \
+  --artifact-prefix output/tenant_<tenant-id>
+```
+
+Review the printed commands before execution. The helper prints placeholders
+for `SOURCE_DATABASE_URL` and `TARGET_DATABASE_URL`; it never reads or displays
+secret URL values.
+
 To generate the operator execution packet plus the full operator flow from the
 implementation packet in one DB-free step, run:
 
