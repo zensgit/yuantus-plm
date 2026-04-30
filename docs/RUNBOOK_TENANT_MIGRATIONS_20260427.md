@@ -584,6 +584,36 @@ does not open database connections, run rehearsal commands, accept new
 evidence, build an archive, authorize production cutover, or enable runtime
 schema-per-tenant mode.
 
+### 20.3 P3.4.2 Synthetic Operator Drill
+
+Use the synthetic drill only to practice the local artifact and redaction
+command path before real non-production PostgreSQL evidence exists:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_synthetic_drill \
+  --artifact-dir output/tenant_<tenant-id>_synthetic_drill \
+  --artifact-prefix tenant_<tenant-id>_synthetic_drill \
+  --output-json output/tenant_<tenant-id>_synthetic_drill.json \
+  --output-md output/tenant_<tenant-id>_synthetic_drill.md \
+  --strict
+```
+
+The drill must say:
+
+```text
+Synthetic drill: `true`
+Real rehearsal evidence: `false`
+DB connection attempted: `false`
+Ready for synthetic drill: `true`
+Ready for operator evidence: `false`
+Ready for evidence handoff: `false`
+Ready for cutover: `false`
+```
+
+This output is not operator-run PostgreSQL rehearsal evidence. Do not attach it
+as real evidence, do not feed it to the real archive or handoff gates, and do
+not mark the P3.4 stop gate complete from synthetic output.
+
 ## 21. Rollback
 
 This runbook performs no data migration; rollback is purely schema-level.
