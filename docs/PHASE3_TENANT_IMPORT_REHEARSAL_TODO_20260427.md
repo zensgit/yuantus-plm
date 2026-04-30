@@ -63,6 +63,7 @@ Date: 2026-04-27
 - [x] Add evidence handoff gate tying archive and redaction coverage.
 - [x] Add synthetic operator drill for DB-free command-path rehearsal.
 - [x] Add evidence intake checklist before reviewer handoff.
+- [x] Add reviewer packet after intake and handoff are green.
 - [ ] Add operator-run PostgreSQL rehearsal evidence.
 - [x] Update `RUNBOOK_TENANT_MIGRATIONS_20260427.md`.
 - [x] Add DEV/verification MD for the implementation PR.
