@@ -462,6 +462,40 @@ reads local artifacts and writes reports only. It does not run rehearsal
 commands, open database connections, accept evidence, build an archive,
 authorize production cutover, or enable runtime schema-per-tenant mode.
 
+### 17.4 P3.4.2 Operator Launchpack
+
+To generate the operator execution packet plus the full operator flow from the
+implementation packet in one DB-free step, run:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_operator_launchpack \
+  --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
+  --artifact-prefix output/tenant_<tenant-id> \
+  --operator-packet-json output/tenant_<tenant-id>_operator_execution_packet.json \
+  --operator-packet-md output/tenant_<tenant-id>_operator_execution_packet.md \
+  --flow-artifact-prefix output/tenant_<tenant-id>_operator_flow \
+  --output-json output/tenant_<tenant-id>_operator_launchpack.json \
+  --output-md output/tenant_<tenant-id>_operator_launchpack.md \
+  --strict
+```
+
+The launchpack report must say:
+
+```text
+Ready for operator launchpack: `true`
+Ready for cutover: `false`
+```
+
+The command writes the operator execution packet, external status, operator
+request, operator bundle, and launchpack summary. Use this command when the
+operator starts from a green implementation packet and wants all DB-free
+handoff artifacts prepared at once.
+
+The launchpack reads local artifacts and writes reports only. It does not run
+rehearsal commands, open database connections, accept evidence, build an
+archive, authorize production cutover, or enable runtime schema-per-tenant
+mode.
+
 ## 18. P3.4.2 Tenant Import Rehearsal Row Copy
 
 After the implementation packet is green, run the guarded row-copy rehearsal:
