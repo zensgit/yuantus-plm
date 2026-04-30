@@ -402,6 +402,34 @@ summary, and the exact next command from the external-status report. It does
 not run that command, open database connections, accept evidence, build an
 archive, authorize production cutover, or enable runtime schema-per-tenant mode.
 
+### 17.2 P3.4.2 Operator Bundle
+
+To reduce operator handoff friction, convert the operator request into a
+single DB-free execution bundle:
+
+```bash
+PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_operator_bundle \
+  --operator-request-json output/tenant_<tenant-id>_operator_request.json \
+  --output-json output/tenant_<tenant-id>_operator_bundle.json \
+  --output-md output/tenant_<tenant-id>_operator_bundle.md \
+  --strict
+```
+
+The bundle must say:
+
+```text
+Ready for operator bundle: `true`
+Ready for cutover: `false`
+```
+
+For command stages, the Markdown lists safety reminders, required inputs,
+environment checks, and the exact next command. For `rehearsal_archive_ready`,
+the bundle emits a manual-review instruction instead of inventing a command.
+
+The bundle reads the operator request only. It does not run commands, open
+database connections, accept evidence, build an archive, authorize production
+cutover, or enable runtime schema-per-tenant mode.
+
 ## 18. P3.4.2 Tenant Import Rehearsal Row Copy
 
 After the implementation packet is green, run the guarded row-copy rehearsal:
