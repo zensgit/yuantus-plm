@@ -43,6 +43,7 @@ def test_operator_command_pack_help_documents_db_free_scope() -> None:
     out = cp.stdout
     assert "prepare_tenant_import_rehearsal_operator_commands.sh" in out
     assert "only if the precheck passes" in out
+    assert "--env-file" in out
     assert "does not print database URL values" in out
     assert "authorize cutover" in out
 
@@ -80,6 +81,8 @@ def test_operator_command_pack_writes_commands_after_green_precheck(tmp_path: Pa
     assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
     assert output_path.is_file()
     commands = output_path.read_text()
+    assert "scripts/generate_tenant_import_rehearsal_env_template.sh" in commands
+    assert "scripts/precheck_tenant_import_rehearsal_env_file.sh" in commands
     assert "scripts/run_tenant_import_operator_launchpack.sh" in commands
     assert "python -m yuantus.scripts.tenant_import_rehearsal" in commands
     assert "--source-url \"$SRC_DB_URL\"" in commands
@@ -89,6 +92,56 @@ def test_operator_command_pack_writes_commands_after_green_precheck(tmp_path: Pa
     assert "postgresql://" not in commands
     assert "user:secret@example.com" not in commands
     assert "Ready for cutover: false" in cp.stdout
+
+
+def test_operator_command_pack_accepts_env_file_without_preexported_dsn_vars(
+    tmp_path: Path,
+) -> None:
+    implementation_packet_json = _write_green_packet(tmp_path)
+    artifact_prefix = tmp_path / "tenant_acme"
+    implementation_packet_json.rename(
+        tmp_path / "tenant_acme_importer_implementation_packet.json"
+    )
+    output_path = tmp_path / "operator" / "commands.sh"
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "SOURCE_DATABASE_URL='postgresql://user:secret@example.com/source'",
+                "TARGET_DATABASE_URL='postgresql://user:secret@example.com/target'",
+                "",
+            ]
+        )
+    )
+    env = os.environ.copy()
+    env.pop("SOURCE_DATABASE_URL", None)
+    env.pop("TARGET_DATABASE_URL", None)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--artifact-prefix",
+            str(artifact_prefix),
+            "--output",
+            str(output_path),
+            "--env-file",
+            str(env_file),
+        ],
+        cwd=_REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    commands = output_path.read_text()
+    assert f'--env-file "{env_file}"' in commands
+    assert f'. "{env_file}"' in commands
+    assert "postgresql://" not in cp.stdout
+    assert "secret" not in cp.stdout
+    assert "postgresql://" not in commands
+    assert "user:secret@example.com" not in commands
 
 
 def test_operator_command_pack_does_not_write_commands_when_precheck_fails(
@@ -118,12 +171,9 @@ def test_operator_command_pack_does_not_write_commands_when_precheck_fails(
         capture_output=True,
     )
 
-    assert cp.returncode == 1
+    assert cp.returncode == 2
     assert not output_path.exists()
-    assert "Ready for operator command execution: false" in cp.stdout
-    assert "missing file:" in cp.stdout
-    assert "missing environment variable: SRC_DB_URL" in cp.stdout
-    assert "Ready for cutover: false" in cp.stdout
+    assert "SRC_DB_URL is not set" in cp.stderr
 
 
 def test_operator_command_pack_preserves_db_free_scope() -> None:
