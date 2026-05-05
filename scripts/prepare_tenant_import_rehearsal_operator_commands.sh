@@ -7,6 +7,7 @@ Usage:
   scripts/prepare_tenant_import_rehearsal_operator_commands.sh \
     --artifact-prefix PREFIX \
     --output PATH \
+    [--env-file PATH] \
     [--source-url-env NAME] \
     [--target-url-env NAME]
 
@@ -20,6 +21,7 @@ USAGE
 
 artifact_prefix=""
 output_path=""
+env_file=""
 source_url_env="SOURCE_DATABASE_URL"
 target_url_env="TARGET_DATABASE_URL"
 
@@ -31,6 +33,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --output)
       output_path="${2:?missing value for --output}"
+      shift 2
+      ;;
+    --env-file)
+      env_file="${2:?missing value for --env-file}"
       shift 2
       ;;
     --source-url-env)
@@ -61,20 +67,45 @@ fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 precheck_script="$repo_root/scripts/precheck_tenant_import_rehearsal_operator.sh"
+env_precheck_script="$repo_root/scripts/precheck_tenant_import_rehearsal_env_file.sh"
 printer_script="$repo_root/scripts/print_tenant_import_rehearsal_commands.sh"
 
 mkdir -p "$(dirname "$output_path")"
+
+if [[ -n "$env_file" ]]; then
+  "$env_precheck_script" \
+    --env-file "$env_file" \
+    --source-url-env "$source_url_env" \
+    --target-url-env "$target_url_env"
+  set -a
+  # shellcheck disable=SC1090
+  . "$env_file"
+  set +a
+else
+  "$env_precheck_script" \
+    --source-url-env "$source_url_env" \
+    --target-url-env "$target_url_env"
+fi
 
 "$precheck_script" \
   --artifact-prefix "$artifact_prefix" \
   --source-url-env "$source_url_env" \
   --target-url-env "$target_url_env"
 
-"$printer_script" \
-  --artifact-prefix "$artifact_prefix" \
-  --source-url-env "$source_url_env" \
-  --target-url-env "$target_url_env" \
-  > "$output_path"
+if [[ -n "$env_file" ]]; then
+  "$printer_script" \
+    --artifact-prefix "$artifact_prefix" \
+    --env-file "$env_file" \
+    --source-url-env "$source_url_env" \
+    --target-url-env "$target_url_env" \
+    > "$output_path"
+else
+  "$printer_script" \
+    --artifact-prefix "$artifact_prefix" \
+    --source-url-env "$source_url_env" \
+    --target-url-env "$target_url_env" \
+    > "$output_path"
+fi
 
 echo
 echo "Operator command file: $output_path"

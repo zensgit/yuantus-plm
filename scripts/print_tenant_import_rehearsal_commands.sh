@@ -6,6 +6,7 @@ usage() {
 Usage:
   scripts/print_tenant_import_rehearsal_commands.sh \
     --artifact-prefix PREFIX \
+    [--env-file PATH] \
     [--source-url-env NAME] \
     [--target-url-env NAME]
 
@@ -18,6 +19,7 @@ cutover.
 Inputs:
 
   --artifact-prefix PREFIX   Required. Example: output/tenant_acme
+  --env-file PATH            Optional. Default: $HOME/.config/yuantus/tenant-import-rehearsal.env
   --source-url-env NAME      Optional. Default: SOURCE_DATABASE_URL
   --target-url-env NAME      Optional. Default: TARGET_DATABASE_URL
 
@@ -28,6 +30,7 @@ USAGE
 }
 
 artifact_prefix=""
+env_file='$HOME/.config/yuantus/tenant-import-rehearsal.env'
 source_url_env="SOURCE_DATABASE_URL"
 target_url_env="TARGET_DATABASE_URL"
 
@@ -35,6 +38,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --artifact-prefix)
       artifact_prefix="${2:?missing value for --artifact-prefix}"
+      shift 2
+      ;;
+    --env-file)
+      env_file="${2:?missing value for --env-file}"
       shift 2
       ;;
     --source-url-env)
@@ -81,12 +88,22 @@ cat <<COMMANDS
 #
 # Prerequisites:
 # - Real non-production PostgreSQL rehearsal DSNs are available.
-# - ${source_url_env} and ${target_url_env} are exported in the shell.
 # - ${implementation_packet_json} exists and is green.
 # - Do not paste secret URL values into tracked files or chat.
 
-test -n "\${${source_url_env}:-}" || { echo "missing ${source_url_env}" >&2; exit 2; }
-test -n "\${${target_url_env}:-}" || { echo "missing ${target_url_env}" >&2; exit 2; }
+scripts/generate_tenant_import_rehearsal_env_template.sh \\
+  --out "${env_file}"
+
+# Edit "${env_file}" locally and replace placeholder DSNs before continuing.
+
+scripts/precheck_tenant_import_rehearsal_env_file.sh \\
+  --env-file "${env_file}" \\
+  --source-url-env ${source_url_env} \\
+  --target-url-env ${target_url_env}
+
+set -a
+. "${env_file}"
+set +a
 
 scripts/run_tenant_import_operator_launchpack.sh \\
   --implementation-packet-json ${implementation_packet_json} \\

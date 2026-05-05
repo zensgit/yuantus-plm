@@ -40,6 +40,7 @@ def test_command_printer_help_documents_print_only_scope() -> None:
     out = cp.stdout
     assert "print_tenant_import_rehearsal_commands.sh" in out
     assert "prints commands only" in out
+    assert "--env-file PATH" in out
     assert "does not execute them" in out
     assert "cutover" in out
 
@@ -62,6 +63,9 @@ def test_command_printer_outputs_full_operator_sequence_without_secret_values() 
 
     assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
     out = cp.stdout
+    assert "scripts/generate_tenant_import_rehearsal_env_template.sh" in out
+    assert "scripts/precheck_tenant_import_rehearsal_env_file.sh" in out
+    assert 'set -a\n. "$HOME/.config/yuantus/tenant-import-rehearsal.env"\nset +a' in out
     assert "scripts/run_tenant_import_operator_launchpack.sh" in out
     assert "python -m yuantus.scripts.tenant_import_rehearsal" in out
     assert "python -m yuantus.scripts.tenant_import_rehearsal_evidence_template" in out
@@ -72,6 +76,27 @@ def test_command_printer_outputs_full_operator_sequence_without_secret_values() 
     assert "postgresql://" not in out
     assert "password" not in out.lower()
     assert "ready_for_cutover=true" not in out
+
+
+def test_command_printer_accepts_custom_env_file_path() -> None:
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--artifact-prefix",
+            "output/tenant_acme",
+            "--env-file",
+            "/tmp/tenant-import.env",
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    out = cp.stdout
+    assert '--out "/tmp/tenant-import.env"' in out
+    assert '--env-file "/tmp/tenant-import.env"' in out
+    assert '. "/tmp/tenant-import.env"' in out
 
 
 def test_command_printer_preserves_print_only_scope() -> None:

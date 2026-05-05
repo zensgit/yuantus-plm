@@ -469,12 +469,14 @@ closeout without executing it, run:
 
 ```bash
 scripts/print_tenant_import_rehearsal_commands.sh \
-  --artifact-prefix output/tenant_<tenant-id>
+  --artifact-prefix output/tenant_<tenant-id> \
+  --env-file "$HOME/.config/yuantus/tenant-import-rehearsal.env"
 ```
 
-Review the printed commands before execution. The helper prints placeholders
-for `SOURCE_DATABASE_URL` and `TARGET_DATABASE_URL`; it never reads or displays
-secret URL values.
+Review the printed commands before execution. The helper now includes the
+repo-external env-file template generation step, the env-file precheck, and a
+safe `set -a; . <env-file>; set +a` load before row-copy. It never reads or
+displays secret URL values.
 
 Before executing the printed commands, run the DB-free precheck:
 
@@ -539,14 +541,16 @@ precheck-gated wrapper:
 scripts/prepare_tenant_import_rehearsal_operator_commands.sh \
   --artifact-prefix output/tenant_<tenant-id> \
   --output output/tenant_<tenant-id>_operator_commands.sh \
+  --env-file "$HOME/.config/yuantus/tenant-import-rehearsal.env" \
   --source-url-env SOURCE_DATABASE_URL \
   --target-url-env TARGET_DATABASE_URL
 ```
 
-The wrapper first runs the DB-free operator precheck. If the implementation
-packet is missing, the packet is not green, or the source/target DSN
-environment variables are not set, the wrapper exits non-zero and does not
-write the command file.
+The wrapper first runs the DB-free env-file precheck and then the DB-free
+operator precheck. If the implementation packet is missing, the packet is not
+green, the env file is missing, placeholders remain, or the source/target DSN
+variables are not set after loading the env file, the wrapper exits non-zero
+and does not write the command file.
 
 The generated command file contains environment variable placeholders only. It
 does not contain secret DSN values and does not authorize cutover.
