@@ -203,6 +203,50 @@ def test_operator_sequence_runs_ordered_chain_with_fake_python(tmp_path: Path) -
     assert "secret" not in cp.stdout
 
 
+def test_operator_sequence_rejects_invalid_variable_name_before_indirect_expansion(
+    tmp_path: Path,
+) -> None:
+    implementation_packet_json = _write_green_packet(tmp_path)
+    env = os.environ.copy()
+    env["PYTHON"] = str(_fake_python(tmp_path))
+    env["SOURCE_DATABASE_URL"] = "postgresql://user:secret@example.com/source"
+    env["TARGET_DATABASE_URL"] = "postgresql://user:secret@example.com/target"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--implementation-packet-json",
+            str(implementation_packet_json),
+            "--artifact-prefix",
+            str(tmp_path / "tenant_acme"),
+            "--backup-restore-owner",
+            "Ops Owner",
+            "--rehearsal-window",
+            "2026-05-05T10:00:00Z/2026-05-05T12:00:00Z",
+            "--rehearsal-executed-by",
+            "Operator",
+            "--evidence-reviewer",
+            "Reviewer",
+            "--date",
+            "2026-05-05",
+            "--source-url-env",
+            "SOURCE-DATABASE-URL",
+            "--confirm-rehearsal",
+        ],
+        cwd=_REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "--source-url-env must be an uppercase shell environment variable name" in cp.stderr
+    assert "invalid variable name" not in cp.stderr
+    assert "postgresql://" not in cp.stdout
+    assert "secret" not in cp.stdout
+
+
 def test_operator_sequence_preserves_cutover_and_closeout_boundaries() -> None:
     source = _SCRIPT.read_text()
 

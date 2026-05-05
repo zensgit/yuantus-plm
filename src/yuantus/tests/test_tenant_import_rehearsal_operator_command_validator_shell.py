@@ -150,6 +150,26 @@ def test_command_validator_requires_env_var_url_references(tmp_path: Path) -> No
     assert 'missing required command pattern: --source-url "$' in cp.stdout
 
 
+def test_command_validator_rejects_invalid_env_var_url_reference(tmp_path: Path) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    text = command_file.read_text().replace(
+        '--target-url "$TARGET_DATABASE_URL"',
+        '--target-url "$TARGET-DATABASE-URL"',
+    )
+    command_file.write_text(text)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "invalid --target-url environment variable reference" in cp.stdout
+    assert "expected quoted uppercase env var reference" in cp.stdout
+
+
 def test_command_validator_rejects_database_url_literal(tmp_path: Path) -> None:
     command_file = _write_generated_command_file(tmp_path)
     command_file.write_text(

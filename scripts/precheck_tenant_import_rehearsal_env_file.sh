@@ -52,6 +52,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+validate_env_var_name() {
+  local option="$1"
+  local name="$2"
+
+  if [[ ! "$name" =~ ^[A-Z_][A-Z0-9_]*$ ]]; then
+    echo "error: $option must be an uppercase shell environment variable name ([A-Z_][A-Z0-9_]*)" >&2
+    return 2
+  fi
+}
+
 validate_env_file_static_safety() {
   local file="$1"
   local line_number=0
@@ -98,6 +108,9 @@ validate_env_file_static_safety() {
     esac
   done < "$file"
 }
+
+validate_env_var_name "--source-url-env" "$source_url_env"
+validate_env_var_name "--target-url-env" "$target_url_env"
 
 if [[ -n "$env_file" ]]; then
   if [[ ! -f "$env_file" ]]; then

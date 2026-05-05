@@ -87,6 +87,39 @@ def test_shell_entrypoint_builds_launchpack_with_default_outputs(tmp_path: Path)
     assert "Ready for cutover: `false`" in output_md.read_text()
 
 
+def test_shell_entrypoint_rejects_invalid_variable_name_before_python(
+    tmp_path: Path,
+) -> None:
+    implementation_packet_json = _write_green_packet(tmp_path)
+    marker = tmp_path / "python-invoked"
+    fake_python = tmp_path / "python"
+    fake_python.write_text(f"#!/usr/bin/env bash\ntouch {marker}\n")
+    fake_python.chmod(0o755)
+    env = _env()
+    env["PYTHON"] = str(fake_python)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--implementation-packet-json",
+            str(implementation_packet_json),
+            "--artifact-prefix",
+            str(tmp_path / "tenant_acme"),
+            "--target-url-env",
+            "TARGET-DATABASE-URL",
+        ],
+        cwd=_REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "--target-url-env must be an uppercase shell environment variable name" in cp.stderr
+    assert not marker.exists()
+
+
 def test_shell_entrypoint_preserves_launchpack_only_scope() -> None:
     source = _SCRIPT.read_text()
 

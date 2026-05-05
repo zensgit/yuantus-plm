@@ -36,6 +36,7 @@ def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_dril
     assert "- [x] Add operator command-file and env-file source safety hardening." in todo
     assert "- [x] Add wrapper-level unsafe env-file source guard contracts." in todo
     assert "- [x] Add runbook operator safety contracts." in todo
+    assert "- [x] Add source/target URL env-name allowlist hardening." in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
     assert "- [x] Add operator-run PostgreSQL rehearsal evidence." not in todo
 
@@ -102,9 +103,11 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     assert "DB-free env-file static precheck before shell source" in status
     assert "generated operator command-file validation" in status
     assert "runbook operator safety contracts" in status
+    assert "source/target URL env-name allowlist hardening" in status
     assert "rejecting unsafe env-file syntax" in status
     assert "out-of-order generated command files" in status
     assert "full-closeout wrapper using the prechecked env-file path" in status
+    assert "uppercase source/target URL env-var names when overriding defaults" in status
     assert "operator-run PostgreSQL rehearsal evidence is not complete" in status
     assert "The next valid action is external operator execution" in status
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in status
@@ -114,6 +117,12 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     assert (
         "- [x] Keep env-file precheck, command-file validator, and wrapper safety "
         "contracts scoped to local safety."
+    ) in todo
+    assert (
+        "- [x] Track source/target URL env-name allowlist hardening as local safety only."
+    ) in todo
+    assert (
+        "- [x] Assert URL env-name allowlist does not close the external evidence gate."
     ) in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
 
@@ -154,3 +163,18 @@ def test_readiness_status_preserves_external_blocked_state():
     assert "The next valid action is external operator execution" in status
     assert "`ready_for_cutover=false`" in status
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in status
+
+
+def test_runbook_pins_source_target_env_name_allowlist_before_operator_commands():
+    runbook = _RUNBOOK.read_text()
+
+    command_pack_pos = runbook.index("## 17.1 P3.4.2 Operator Command Pack")
+    sequence_pos = runbook.index("## 17.2 P3.4.2 Operator Sequence Wrapper")
+    command_pack_section = runbook[command_pack_pos:sequence_pos]
+
+    assert "`--source-url-env` and `--target-url-env`" in command_pack_section
+    assert "[A-Z_][A-Z0-9_]*" in command_pack_section
+    assert "before any env file is sourced" in command_pack_section
+    assert "before indirect environment expansion" in command_pack_section
+    assert "before generated operator commands are written" in command_pack_section
+    assert "uppercase shell variable names" in command_pack_section

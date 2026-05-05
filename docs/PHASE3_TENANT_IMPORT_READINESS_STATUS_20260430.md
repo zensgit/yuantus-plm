@@ -38,6 +38,7 @@ The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 - command-file and env-file source safety hardening;
 - wrapper-level unsafe env-file source guard contracts;
 - runbook operator safety contracts.
+- source/target URL env-name allowlist hardening.
 
 ## 2. Blocked State
 
@@ -79,6 +80,7 @@ The operator must provide or run:
 - repo-external env-file generated from the template and statically prechecked;
 - generated operator command file that passes the command-file validator;
 - full-closeout wrapper using the prechecked env-file path;
+- uppercase source/target URL env-var names when overriding defaults;
 - row-copy rehearsal;
 - operator evidence;
 - evidence gate;
