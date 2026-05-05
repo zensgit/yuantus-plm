@@ -530,6 +530,27 @@ rehearsal commands, open database connections, accept evidence, build an
 archive, authorize production cutover, or enable runtime schema-per-tenant
 mode.
 
+## 17.1 P3.4.2 Operator Command Pack
+
+Before running row-copy, generate the operator command file through the
+precheck-gated wrapper:
+
+```bash
+scripts/prepare_tenant_import_rehearsal_operator_commands.sh \
+  --artifact-prefix output/tenant_<tenant-id> \
+  --output output/tenant_<tenant-id>_operator_commands.sh \
+  --source-url-env SOURCE_DATABASE_URL \
+  --target-url-env TARGET_DATABASE_URL
+```
+
+The wrapper first runs the DB-free operator precheck. If the implementation
+packet is missing, the packet is not green, or the source/target DSN
+environment variables are not set, the wrapper exits non-zero and does not
+write the command file.
+
+The generated command file contains environment variable placeholders only. It
+does not contain secret DSN values and does not authorize cutover.
+
 ## 18. P3.4.2 Tenant Import Rehearsal Row Copy
 
 After the implementation packet is green, run the guarded row-copy rehearsal:
