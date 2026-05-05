@@ -211,9 +211,11 @@ redaction_args=(
   --output-json "$redaction_guard_json"
   --output-md "$redaction_guard_md"
 )
-for artifact in "${redaction_artifacts[@]}"; do
-  redaction_args+=(--artifact "$artifact")
-done
+if [[ "${#redaction_artifacts[@]}" -gt 0 ]]; then
+  for artifact in "${redaction_artifacts[@]}"; do
+    redaction_args+=(--artifact "$artifact")
+  done
+fi
 
 PYTHONPATH="$repo_root/src${PYTHONPATH:+:$PYTHONPATH}" "$python_bin" "${redaction_args[@]}" "${strict_args[@]}"
 
