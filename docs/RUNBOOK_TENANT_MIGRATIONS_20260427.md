@@ -582,6 +582,18 @@ next section.
 If the rehearsal window allows a single operator command from row-copy through
 reviewer-packet generation, use the full-closeout wrapper:
 
+First generate a repo-external env-file template if one does not already exist:
+
+```bash
+scripts/generate_tenant_import_rehearsal_env_template.sh \
+  --out "$HOME/.config/yuantus/tenant-import-rehearsal.env"
+```
+
+Edit the generated file locally and replace the placeholders with real
+non-production source and target PostgreSQL DSNs. The generator writes
+placeholder values only, sets file mode 0600, and refuses to overwrite an
+existing file unless `--force` is passed.
+
 ```bash
 scripts/run_tenant_import_rehearsal_full_closeout.sh \
   --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \

@@ -28,6 +28,7 @@
 - verify_playwright_plm_workspace_demo_resume.sh
 - verify_playwright_plm_workspace_document_handoff.sh
 - verify_playwright_plm_workspace_eco_actions.sh
+- generate_tenant_import_rehearsal_env_template.sh
 - print_claude_code_parallel_commands.sh
 - print_current_worktree_closeout_commands.sh
 - print_cross_domain_services_split_helper.sh
@@ -109,6 +110,7 @@
 - Native workspace Playwright wrappers require Playwright installed in `node_modules` and a running API at `http://127.0.0.1:7910`.
 - `verify_compose_sku_profiles.sh` renders the `base`, `collab`, and `combined` overlays and requires a sibling `metasheet2` checkout (or `METASHEET2_ROOT`) for the combined profile.
 - `verify_compose_sku_profiles_smoke.sh` boots one SKU profile, waits for health, and tears the stack down unless `KEEP_UP=1`.
+- `generate_tenant_import_rehearsal_env_template.sh` writes a repo-external P3.4 full-closeout env-file template with placeholder non-production DSNs, chmods it to 0600, refuses accidental overwrite unless `--force` is passed, and does not print database URL values.
 - `print_claude_code_parallel_commands.sh` prints safe Claude Code CLI templates for read-only, worktree, and reviewer flows.
 - `print_current_worktree_closeout_commands.sh` prints the current worktree closeout split plan and ready-to-copy review/staging command templates, supports `--group`, and excludes local-only artifacts.
 - `print_cross_domain_services_split_helper.sh` prints the fast-path staging commands for the cross-domain-services split.

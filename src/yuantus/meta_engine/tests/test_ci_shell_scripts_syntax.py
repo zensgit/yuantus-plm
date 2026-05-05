@@ -78,6 +78,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_cad_dedup_relationship_s3.sh",
         scripts_dir / "verify_cad_ml_quick.sh",
         scripts_dir / "verify_cad_preview_online.sh",
+        scripts_dir / "generate_tenant_import_rehearsal_env_template.sh",
         scripts_dir / "verify_playwright_product_ui_summaries.sh",
         scripts_dir / "list_native_workspace_bundle.sh",
         scripts_dir / "verify_playwright_plm_workspace_all.sh",
