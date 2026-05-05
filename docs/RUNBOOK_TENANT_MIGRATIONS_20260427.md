@@ -551,6 +551,32 @@ write the command file.
 The generated command file contains environment variable placeholders only. It
 does not contain secret DSN values and does not authorize cutover.
 
+## 17.2 P3.4.2 Operator Sequence Wrapper
+
+When the operator is ready to run the real non-production rehearsal, use the
+single explicit sequence wrapper:
+
+```bash
+scripts/run_tenant_import_rehearsal_operator_sequence.sh \
+  --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
+  --artifact-prefix output/tenant_<tenant-id> \
+  --backup-restore-owner "<owner>" \
+  --rehearsal-window "<window>" \
+  --rehearsal-executed-by "<operator>" \
+  --evidence-reviewer "<reviewer>" \
+  --date "<yyyy-mm-dd>" \
+  --confirm-rehearsal
+```
+
+The wrapper runs the operator precheck, launchpack, guarded row-copy,
+operator-evidence template, and evidence precheck. It reads
+`SOURCE_DATABASE_URL` and `TARGET_DATABASE_URL` by default, but prints only
+environment variable names and local artifact paths.
+
+This wrapper does not run evidence closeout. After it prints
+`Ready for evidence closeout: true`, run the evidence closeout wrapper in the
+next section.
+
 ## 18. P3.4.2 Tenant Import Rehearsal Row Copy
 
 After the implementation packet is green, run the guarded row-copy rehearsal:
