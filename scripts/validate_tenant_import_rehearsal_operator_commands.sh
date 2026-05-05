@@ -137,10 +137,55 @@ line_has_forbidden_shell_control() {
   return 1
 }
 
+strip_trailing_continuation() {
+  local line="$1"
+
+  if [[ "$line" == *'\' ]]; then
+    line="${line%\\}"
+  fi
+  line="${line%"${line##*[![:space:]]}"}"
+  printf '%s' "$line"
+}
+
+option_allowed_for_command() {
+  local command="$1"
+  local line="$2"
+
+  line="$(strip_trailing_continuation "$line")"
+
+  case "$command" in
+    env_template)
+      [[ "$line" =~ ^--out[[:space:]]+\"[^\"]+\"$ ]]
+      ;;
+    env_precheck)
+      [[ "$line" =~ ^--env-file[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--source-url-env[[:space:]]+[A-Z_][A-Z0-9_]*$ || "$line" =~ ^--target-url-env[[:space:]]+[A-Z_][A-Z0-9_]*$ ]]
+      ;;
+    launchpack)
+      [[ "$line" =~ ^--(implementation-packet-json|artifact-prefix|operator-packet-json|operator-packet-md|flow-artifact-prefix|output-json|output-md)[[:space:]]+[^[:space:]]+$ ]]
+      ;;
+    row_copy)
+      [[ "$line" =~ ^--implementation-packet-json[[:space:]]+[^[:space:]]+$ || "$line" =~ ^--source-url[[:space:]]+\"\$[A-Z_][A-Z0-9_]*\"$ || "$line" =~ ^--target-url[[:space:]]+\"\$[A-Z_][A-Z0-9_]*\"$ || "$line" =~ ^--output-json[[:space:]]+[^[:space:]]+$ || "$line" =~ ^--output-md[[:space:]]+[^[:space:]]+$ || "$line" == "--confirm-rehearsal" ]]
+      ;;
+    evidence_template)
+      [[ "$line" =~ ^--rehearsal-json[[:space:]]+[^[:space:]]+$ || "$line" =~ ^--backup-restore-owner[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--rehearsal-window[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--rehearsal-executed-by[[:space:]]+\"[^\"]+\"$ || "$line" == "--rehearsal-result pass" || "$line" =~ ^--evidence-reviewer[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--evidence-date[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--output-json[[:space:]]+[^[:space:]]+$ || "$line" =~ ^--output-md[[:space:]]+[^[:space:]]+$ ]]
+      ;;
+    evidence_gate)
+      [[ "$line" =~ ^--(rehearsal-json|implementation-packet-json|operator-evidence-md|output-json|output-md)[[:space:]]+[^[:space:]]+$ || "$line" == "--strict" ]]
+      ;;
+    evidence_closeout)
+      [[ "$line" =~ ^--(evidence-json|operator-packet-json|operator-evidence-template-json|artifact-prefix)[[:space:]]+[^[:space:]]+$ ]]
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 validate_allowed_command_lines() {
   local line_number=0
   local line=""
   local trimmed=""
+  local current_command=""
 
   while IFS= read -r line || [[ -n "$line" ]]; do
     line_number=$((line_number + 1))
@@ -159,24 +204,61 @@ validate_allowed_command_lines() {
     fi
 
     case "$trimmed" in
-      "scripts/generate_tenant_import_rehearsal_env_template.sh \\"|\
-      "scripts/precheck_tenant_import_rehearsal_env_file.sh \\"|\
-      "set -a"|\
-      "set +a"|\
-      "scripts/run_tenant_import_operator_launchpack.sh \\"|\
-      "PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal \\"|\
-      "PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence_template \\"|\
-      "PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence \\"|\
+      "scripts/generate_tenant_import_rehearsal_env_template.sh \\")
+        current_command="env_template"
+        continue
+        ;;
+      "scripts/precheck_tenant_import_rehearsal_env_file.sh \\")
+        current_command="env_precheck"
+        continue
+        ;;
+      "scripts/run_tenant_import_operator_launchpack.sh \\")
+        current_command="launchpack"
+        continue
+        ;;
+      "PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal \\")
+        current_command="row_copy"
+        continue
+        ;;
+      "PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence_template \\")
+        current_command="evidence_template"
+        continue
+        ;;
+      "PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence \\")
+        current_command="evidence_gate"
+        continue
+        ;;
       "scripts/run_tenant_import_evidence_closeout.sh \\")
+        current_command="evidence_closeout"
+        continue
+        ;;
+      "set -a"|"set +a")
+        if [[ -n "$current_command" ]]; then
+          failures+=("unsupported command line $line_number; only generated tenant import commands are allowed")
+        fi
         continue
         ;;
     esac
 
     if [[ "$trimmed" =~ ^\.[[:space:]]+\"[^\"]+\"$ ]]; then
+      if [[ -n "$current_command" ]]; then
+        failures+=("unsupported command line $line_number; only generated tenant import commands are allowed")
+      fi
       continue
     fi
 
     if [[ "$trimmed" == --* ]]; then
+      if [[ -z "$current_command" ]]; then
+        failures+=("unsupported option line $line_number outside generated command step")
+        continue
+      fi
+      if ! option_allowed_for_command "$current_command" "$trimmed"; then
+        failures+=("unsupported option line $line_number for generated command step: $current_command")
+        continue
+      fi
+      if [[ "$trimmed" != *'\' ]]; then
+        current_command=""
+      fi
       continue
     fi
 
