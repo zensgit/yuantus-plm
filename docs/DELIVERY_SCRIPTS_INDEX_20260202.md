@@ -75,6 +75,7 @@
 - run_scheduler_local_activation_suite.sh
 - run_tenant_import_evidence_closeout.sh
 - run_tenant_import_operator_launchpack.sh
+- run_tenant_import_rehearsal_full_closeout.sh
 - run_tenant_import_rehearsal_operator_sequence.sh
 - sync_metasheet2_pact.sh
 - compare_p2_observation_results.py
@@ -161,6 +162,7 @@
 - `run_scheduler_local_activation_suite.sh` runs the local-dev-only scheduler activation suite, chaining dry-run preflight, audit-retention activation, ECO escalation activation, and BOM to MBOM activation into one evidence directory with `suite_validation.json`.
 - `run_tenant_import_evidence_closeout.sh` runs the DB-free P3.4 evidence closeout chain after real operator-run rehearsal evidence exists, producing archive, redaction, handoff, intake, and reviewer-packet artifacts without running row-copy or authorizing cutover.
 - `run_tenant_import_operator_launchpack.sh` runs the DB-free P3.4 tenant import operator launchpack from an implementation packet, deriving default handoff artifact paths while preserving `ready_for_cutover=false`.
+- `run_tenant_import_rehearsal_full_closeout.sh` runs the explicit P3.4 operator sequence plus evidence closeout in one command, requiring both `--confirm-rehearsal` and `--confirm-closeout` while preserving `ready_for_cutover=false`.
 - `run_tenant_import_rehearsal_operator_sequence.sh` runs the explicit P3.4 operator sequence from precheck through real row-copy and evidence precheck, requiring `--confirm-rehearsal` and preserving `ready_for_cutover=false`.
 - `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.
 - `verify_cad_backend_profile_scope.sh` verifies `GET/PUT/DELETE /api/v1/cad/backend-profile` plus `GET /api/v1/cad/capabilities`, restores the original org scope, and skips tenant-default verification when an org override masks that read surface.

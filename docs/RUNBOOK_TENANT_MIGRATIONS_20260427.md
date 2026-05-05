@@ -577,6 +577,31 @@ This wrapper does not run evidence closeout. After it prints
 `Ready for evidence closeout: true`, run the evidence closeout wrapper in the
 next section.
 
+## 17.3 P3.4.2 Full Closeout Wrapper
+
+If the rehearsal window allows a single operator command from row-copy through
+reviewer-packet generation, use the full-closeout wrapper:
+
+```bash
+scripts/run_tenant_import_rehearsal_full_closeout.sh \
+  --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
+  --artifact-prefix output/tenant_<tenant-id> \
+  --backup-restore-owner "<owner>" \
+  --rehearsal-window "<window>" \
+  --rehearsal-executed-by "<operator>" \
+  --evidence-reviewer "<reviewer>" \
+  --date "<yyyy-mm-dd>" \
+  --confirm-rehearsal \
+  --confirm-closeout
+```
+
+The wrapper runs the operator sequence, then evidence closeout. It still reads
+database URLs from `SOURCE_DATABASE_URL` and `TARGET_DATABASE_URL`, does not
+print their values, and keeps `Ready for cutover: false`.
+
+Use this wrapper only when the operator intends to proceed directly from real
+rehearsal execution to local evidence closeout artifacts.
+
 ## 18. P3.4.2 Tenant Import Rehearsal Row Copy
 
 After the implementation packet is green, run the guarded row-copy rehearsal:
