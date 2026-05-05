@@ -627,6 +627,27 @@ Validate the rehearsal report, implementation packet, and operator evidence
 without opening any database connection:
 
 ```bash
+scripts/precheck_tenant_import_rehearsal_evidence.sh \
+  --rehearsal-json output/tenant_<tenant-id>_import_rehearsal.json \
+  --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
+  --operator-evidence-md output/tenant_<tenant-id>_operator_rehearsal_evidence.md \
+  --artifact-prefix output/tenant_<tenant-id>
+```
+
+This precheck writes:
+
+```text
+output/tenant_<tenant-id>_import_rehearsal_evidence.json
+output/tenant_<tenant-id>_import_rehearsal_evidence.md
+```
+
+It exits non-zero if the real row-copy report is not green, the implementation
+packet no longer validates, or the operator evidence Markdown has missing,
+placeholder, or mismatched sign-off fields.
+
+The underlying validator can also be run directly:
+
+```bash
 PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence \
   --rehearsal-json output/tenant_<tenant-id>_import_rehearsal.json \
   --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \
