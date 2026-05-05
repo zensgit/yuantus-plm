@@ -105,6 +105,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "print_p2_shared_dev_142_readonly_rerun_commands.sh",
         scripts_dir / "print_p2_shared_dev_first_run_commands.sh",
         scripts_dir / "print_p2_shared_dev_mode_selection.sh",
+        scripts_dir / "precheck_tenant_import_rehearsal_evidence.sh",
         scripts_dir / "precheck_tenant_import_rehearsal_operator.sh",
         scripts_dir / "prepare_tenant_import_rehearsal_operator_commands.sh",
         scripts_dir / "precheck_p2_observation_regression.sh",
