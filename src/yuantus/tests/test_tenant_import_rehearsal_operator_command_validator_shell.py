@@ -295,6 +295,68 @@ def test_command_validator_rejects_shell_control_syntax_without_echoing_line(
     assert "rm output" not in cp.stdout
 
 
+def test_command_validator_rejects_unknown_option_in_command_block(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    text = command_file.read_text().replace(
+        '  --target-url "$TARGET_DATABASE_URL" \\',
+        '  --target-url "$TARGET_DATABASE_URL" \\\n  --confirm-cutover \\',
+    )
+    command_file.write_text(text)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported option line" in cp.stdout
+    assert "generated command step: row_copy" in cp.stdout
+    assert "--confirm-cutover" not in cp.stdout
+
+
+def test_command_validator_rejects_option_in_wrong_command_block(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    text = command_file.read_text().replace(
+        '  --source-url-env SOURCE_DATABASE_URL \\',
+        '  --source-url-env SOURCE_DATABASE_URL \\\n  --output-json output/hijack.json \\',
+    )
+    command_file.write_text(text)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported option line" in cp.stdout
+    assert "generated command step: env_precheck" in cp.stdout
+    assert "output/hijack.json" not in cp.stdout
+
+
+def test_command_validator_rejects_orphan_option_line(tmp_path: Path) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    command_file.write_text(command_file.read_text() + "\n--strict\n")
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported option line" in cp.stdout
+    assert "outside generated command step" in cp.stdout
+
+
 def test_command_validator_rejects_shell_syntax_error(tmp_path: Path) -> None:
     command_file = _write_generated_command_file(tmp_path)
     command_file.write_text(command_file.read_text() + "\nif true; then\n")

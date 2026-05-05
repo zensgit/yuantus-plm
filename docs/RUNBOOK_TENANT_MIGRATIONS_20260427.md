@@ -572,8 +572,11 @@ command-file validator checks shell syntax, required step order, environment
 variable URL references with uppercase shell variable names, and forbidden
 DSN/cutover/remote-control patterns. It also rejects unsupported executable
 lines, so an edited command file cannot add extra `rm`, `ssh`, `python -c`,
-`export`, or shell-control lines and still pass validation. To revalidate the
-file later without executing it, run:
+`export`, or shell-control lines and still pass validation. Continuation option
+lines are also checked against the generated command step they belong to; an
+edited command file cannot add unknown options such as `--confirm-cutover`, move
+`--output-json` into the env precheck step, or append orphan option lines and
+still pass validation. To revalidate the file later without executing it, run:
 
 ```bash
 scripts/validate_tenant_import_rehearsal_operator_commands.sh \

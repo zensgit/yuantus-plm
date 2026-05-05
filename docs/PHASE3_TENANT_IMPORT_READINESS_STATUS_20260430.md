@@ -29,7 +29,8 @@ command-file validation, and full-closeout wrapper support. The latest safety
 hardening keeps these gates DB-free while rejecting unsafe env-file syntax and
 out-of-order generated command files. It now also rejects env-file keys outside
 the selected source/target URL variables before any shell source operation and
-unsupported executable lines in generated command files before operator use.
+unsupported executable or option lines in generated command files before
+operator use.
 
 The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 
@@ -43,6 +44,7 @@ The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 - source/target URL env-name allowlist hardening.
 - env-file key allowlist before shell source.
 - generated command-file executable-line allowlist.
+- generated command-file option-line allowlist.
 
 ## 2. Blocked State
 
@@ -106,6 +108,7 @@ Before treating P3.4 as rehearsal-complete, reviewers should require:
 - env-file precheck, command-file validation, and wrapper safety contracts green;
 - env-file key allowlist coverage for command-pack and full-closeout wrappers;
 - command-file executable-line allowlist coverage;
+- command-file option-line allowlist coverage;
 - evidence intake report with `ready_for_evidence_intake=true`;
 - evidence handoff report with `ready_for_evidence_handoff=true`;
 - reviewer packet with `ready_for_reviewer_packet=true`;
