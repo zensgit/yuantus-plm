@@ -43,6 +43,7 @@ def test_env_file_precheck_help_documents_scope() -> None:
     assert "--env-file PATH" in out
     assert "--source-url-env NAME" in out
     assert "--target-url-env NAME" in out
+    assert "static KEY=VALUE assignments" in out
     assert "does not connect to any database" in out
     assert "does not print database URL values" in out
 
@@ -130,6 +131,92 @@ def test_env_file_precheck_fails_missing_target_variable(tmp_path: Path) -> None
 
     assert cp.returncode == 2
     assert "TARGET_DATABASE_URL is not set" in cp.stderr
+    assert "secret" not in cp.stderr
+
+
+def test_env_file_precheck_rejects_command_substitution_without_executing(
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "command-substitution-executed"
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "SOURCE_DATABASE_URL='postgresql://user:secret@example.com/source'",
+                f"TARGET_DATABASE_URL=$(touch {marker})",
+                "",
+            ]
+        )
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--env-file", str(env_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "env-file line 2 contains shell expansion syntax" in cp.stderr
+    assert not marker.exists()
+    assert "postgresql://" not in cp.stdout
+    assert "postgresql://" not in cp.stderr
+    assert "secret" not in cp.stdout
+    assert "secret" not in cp.stderr
+
+
+def test_env_file_precheck_rejects_non_assignment_lines_without_executing(
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "bare-command-executed"
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "SOURCE_DATABASE_URL='postgresql://user:secret@example.com/source'",
+                f"touch {marker}",
+                "TARGET_DATABASE_URL='postgresql://user:secret@example.com/target'",
+                "",
+            ]
+        )
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--env-file", str(env_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "env-file line 2 must be a static KEY=VALUE assignment" in cp.stderr
+    assert not marker.exists()
+    assert "secret" not in cp.stdout
+    assert "secret" not in cp.stderr
+
+
+def test_env_file_precheck_rejects_double_quoted_values(tmp_path: Path) -> None:
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                'SOURCE_DATABASE_URL="postgresql://user:secret@example.com/source"',
+                "TARGET_DATABASE_URL='postgresql://user:secret@example.com/target'",
+                "",
+            ]
+        )
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--env-file", str(env_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "must use single quotes for values that require quoting" in cp.stderr
+    assert "secret" not in cp.stdout
     assert "secret" not in cp.stderr
 
 

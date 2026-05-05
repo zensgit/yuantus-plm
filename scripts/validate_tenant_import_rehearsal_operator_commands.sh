@@ -63,6 +63,62 @@ require_pattern() {
   fi
 }
 
+first_line_for_pattern() {
+  local pattern="$1"
+  local line
+  line="$(grep -nF -m 1 -- "$pattern" "$command_file" | cut -d: -f1 || true)"
+  if [[ -z "$line" ]]; then
+    echo "0"
+  else
+    echo "$line"
+  fi
+}
+
+require_ordered_sequence() {
+  local previous_label=""
+  local previous_line=0
+  local label
+  local pattern
+  local line
+
+  local -a labels=(
+    "env template generation"
+    "env file precheck"
+    "env export start"
+    "env export end"
+    "operator launchpack"
+    "row-copy rehearsal"
+    "evidence template"
+    "evidence gate"
+    "evidence closeout"
+  )
+  local -a patterns=(
+    "scripts/generate_tenant_import_rehearsal_env_template.sh"
+    "scripts/precheck_tenant_import_rehearsal_env_file.sh"
+    "set -a"
+    "set +a"
+    "scripts/run_tenant_import_operator_launchpack.sh"
+    "python -m yuantus.scripts.tenant_import_rehearsal \\"
+    "python -m yuantus.scripts.tenant_import_rehearsal_evidence_template \\"
+    "python -m yuantus.scripts.tenant_import_rehearsal_evidence \\"
+    "scripts/run_tenant_import_evidence_closeout.sh"
+  )
+
+  for i in "${!patterns[@]}"; do
+    label="${labels[$i]}"
+    pattern="${patterns[$i]}"
+    line="$(first_line_for_pattern "$pattern")"
+    if [[ "$line" -eq 0 ]]; then
+      continue
+    fi
+    if [[ "$previous_line" -ne 0 && "$line" -le "$previous_line" ]]; then
+      failures+=("command step out of order: $label must appear after $previous_label")
+    fi
+    previous_label="$label"
+    previous_line="$line"
+  done
+}
+
 forbid_pattern() {
   local pattern="$1"
   if grep -Fq -- "$pattern" "$command_file"; then
@@ -75,12 +131,16 @@ require_pattern "scripts/precheck_tenant_import_rehearsal_env_file.sh"
 require_pattern "set -a"
 require_pattern "set +a"
 require_pattern "scripts/run_tenant_import_operator_launchpack.sh"
-require_pattern "python -m yuantus.scripts.tenant_import_rehearsal"
+require_pattern "python -m yuantus.scripts.tenant_import_rehearsal \\"
+require_pattern '--source-url "$'
+require_pattern '--target-url "$'
 require_pattern "--confirm-rehearsal"
-require_pattern "python -m yuantus.scripts.tenant_import_rehearsal_evidence_template"
-require_pattern "python -m yuantus.scripts.tenant_import_rehearsal_evidence"
+require_pattern "python -m yuantus.scripts.tenant_import_rehearsal_evidence_template \\"
+require_pattern "python -m yuantus.scripts.tenant_import_rehearsal_evidence \\"
 require_pattern "--strict"
 require_pattern "scripts/run_tenant_import_evidence_closeout.sh"
+
+require_ordered_sequence
 
 forbid_pattern "postgresql://"
 forbid_pattern "postgresql+"
@@ -91,6 +151,10 @@ forbid_pattern "gh pr merge"
 forbid_pattern "gh pr create"
 forbid_pattern "curl "
 forbid_pattern "psql "
+forbid_pattern 'echo "$'
+forbid_pattern 'printf "$'
+forbid_pattern "printenv "
+forbid_pattern "env |"
 
 echo "P3.4 tenant import operator command file validation"
 echo
@@ -99,6 +163,7 @@ echo "Database URL values hidden: true"
 echo
 
 if [[ "${#failures[@]}" -eq 0 ]]; then
+  echo "Ordered command sequence: true"
   echo "Ready for operator command execution: true"
   echo "Ready for cutover: false"
   exit 0
