@@ -37,6 +37,7 @@ def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_dril
     assert "- [x] Add wrapper-level unsafe env-file source guard contracts." in todo
     assert "- [x] Add runbook operator safety contracts." in todo
     assert "- [x] Add source/target URL env-name allowlist hardening." in todo
+    assert "- [x] Add env-file key allowlist before shell source." in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
     assert "- [x] Add operator-run PostgreSQL rehearsal evidence." not in todo
 
@@ -65,11 +66,17 @@ def test_runbook_pins_env_file_precheck_before_wrapper_source():
 
     command_pack_section = runbook[command_pack_pos:sequence_pos]
     full_closeout_section = runbook[full_closeout_pos:row_copy_pos]
+    normalized_command_pack_section = " ".join(command_pack_section.split())
+    normalized_full_closeout_section = " ".join(full_closeout_section.split())
 
     assert "validates the file statically before loading it" in command_pack_section
     assert "rejected before the file is sourced" in command_pack_section
     assert "single-quoted assignments" in full_closeout_section
-    assert "before the file is sourced" in full_closeout_section
+    assert "before the file is sourced" in normalized_full_closeout_section
+    assert "Extra keys such as `PATH`, `PYTHON`, `PYTHONPATH`, and `BASH_ENV`" in (
+        normalized_command_pack_section
+    )
+    assert "unsupported variables" in full_closeout_section
 
     full_closeout_precheck_pos = full_closeout_section.index(
         "scripts/precheck_tenant_import_rehearsal_env_file.sh"
@@ -104,9 +111,12 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     assert "generated operator command-file validation" in status
     assert "runbook operator safety contracts" in status
     assert "source/target URL env-name allowlist hardening" in status
+    assert "env-file key allowlist before shell source" in status
+    assert "rejects env-file keys outside" in status
     assert "rejecting unsafe env-file syntax" in status
     assert "out-of-order generated command files" in status
     assert "full-closeout wrapper using the prechecked env-file path" in status
+    assert "repo-external env-file contains only the selected source/target URL variables" in status
     assert "uppercase source/target URL env-var names when overriding defaults" in status
     assert "operator-run PostgreSQL rehearsal evidence is not complete" in status
     assert "The next valid action is external operator execution" in status
@@ -121,8 +131,12 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     assert (
         "- [x] Track source/target URL env-name allowlist hardening as local safety only."
     ) in todo
+    assert "- [x] Track env-file key allowlist hardening as local safety only." in todo
     assert (
         "- [x] Assert URL env-name allowlist does not close the external evidence gate."
+    ) in todo
+    assert (
+        "- [x] Assert env-file key allowlist does not close the external evidence gate."
     ) in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
 

@@ -16,9 +16,10 @@ Options:
 
 Validate the P3.4 tenant import rehearsal source/target database URL variables
 before a real row-copy command runs. When --env-file is provided, the file must
-contain only comments, blank lines, or static KEY=VALUE assignments before it
-is loaded. This precheck does not connect to any database, does not run row-copy,
-and does not print database URL values.
+contain only comments, blank lines, or static assignments for the selected
+source and target URL variables before it is loaded. This precheck does not
+connect to any database, does not run row-copy, and does not print database URL
+values.
 USAGE
 }
 
@@ -67,6 +68,7 @@ validate_env_file_static_safety() {
   local line_number=0
   local line=""
   local inner=""
+  local key=""
   local value=""
 
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -81,12 +83,19 @@ validate_env_file_static_safety() {
       return 2
     fi
 
-    if [[ ! "$line" =~ ^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=(.*)$ ]]; then
-      echo "error: env-file line $line_number must be a static KEY=VALUE assignment" >&2
+    if [[ ! "$line" =~ ^[[:space:]]*(export[[:space:]]+)?([A-Z_][A-Z0-9_]*)=(.*)$ ]]; then
+      echo "error: env-file line $line_number must be a static uppercase KEY=VALUE assignment" >&2
       return 2
     fi
 
-    value="${BASH_REMATCH[2]}"
+    key="${BASH_REMATCH[2]}"
+    value="${BASH_REMATCH[3]}"
+    if [[ "$key" != "$source_url_env" && "$key" != "$target_url_env" ]]; then
+      echo "error: env-file line $line_number defines unsupported variable: $key" >&2
+      echo "error: env-file may define only $source_url_env and $target_url_env" >&2
+      return 2
+    fi
+
     case "$value" in
       "'"*"'")
         inner="${value:1:$(( ${#value} - 2 ))}"

@@ -27,7 +27,8 @@ The repository now includes DB-free gates and handoff tools for:
 env-file template generation, env-file precheck, command-pack generation,
 command-file validation, and full-closeout wrapper support. The latest safety
 hardening keeps these gates DB-free while rejecting unsafe env-file syntax and
-out-of-order generated command files.
+out-of-order generated command files. It now also rejects env-file keys outside
+the selected source/target URL variables before any shell source operation.
 
 The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 
@@ -39,6 +40,7 @@ The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 - wrapper-level unsafe env-file source guard contracts;
 - runbook operator safety contracts.
 - source/target URL env-name allowlist hardening.
+- env-file key allowlist before shell source.
 
 ## 2. Blocked State
 
@@ -78,6 +80,7 @@ The operator must provide or run:
 - signed table classification artifact;
 - P3.4.1 dry-run report with `ready_for_import=true`;
 - repo-external env-file generated from the template and statically prechecked;
+- repo-external env-file contains only the selected source/target URL variables;
 - generated operator command file that passes the command-file validator;
 - full-closeout wrapper using the prechecked env-file path;
 - uppercase source/target URL env-var names when overriding defaults;
@@ -99,6 +102,7 @@ Before treating P3.4 as rehearsal-complete, reviewers should require:
 - archive manifest with artifact hashes;
 - redaction guard with complete artifact coverage;
 - env-file precheck, command-file validation, and wrapper safety contracts green;
+- env-file key allowlist coverage for command-pack and full-closeout wrappers;
 - evidence intake report with `ready_for_evidence_intake=true`;
 - evidence handoff report with `ready_for_evidence_handoff=true`;
 - reviewer packet with `ready_for_reviewer_packet=true`;

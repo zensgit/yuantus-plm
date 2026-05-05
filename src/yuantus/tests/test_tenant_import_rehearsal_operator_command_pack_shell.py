@@ -196,6 +196,58 @@ def test_operator_command_pack_rejects_unsafe_env_file_before_source(
     assert "secret" not in cp.stderr
 
 
+def test_operator_command_pack_rejects_extra_env_file_key_before_source(
+    tmp_path: Path,
+) -> None:
+    implementation_packet_json = _write_green_packet(tmp_path)
+    artifact_prefix = tmp_path / "tenant_acme"
+    implementation_packet_json.rename(
+        tmp_path / "tenant_acme_importer_implementation_packet.json"
+    )
+    output_path = tmp_path / "operator" / "commands.sh"
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "SOURCE_DATABASE_URL='postgresql://user:secret@example.com/source'",
+                "TARGET_DATABASE_URL='postgresql://user:secret@example.com/target'",
+                "PATH='/tmp/blocked-path'",
+                "",
+            ]
+        )
+    )
+    env = os.environ.copy()
+    env.pop("SOURCE_DATABASE_URL", None)
+    env.pop("TARGET_DATABASE_URL", None)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--artifact-prefix",
+            str(artifact_prefix),
+            "--output",
+            str(output_path),
+            "--env-file",
+            str(env_file),
+        ],
+        cwd=_REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "unsupported variable: PATH" in cp.stderr
+    assert "may define only SOURCE_DATABASE_URL and TARGET_DATABASE_URL" in cp.stderr
+    assert not output_path.exists()
+    assert "postgresql://" not in cp.stdout
+    assert "postgresql://" not in cp.stderr
+    assert "secret" not in cp.stdout
+    assert "secret" not in cp.stderr
+    assert "command not found" not in cp.stderr
+
+
 def test_operator_command_pack_does_not_write_commands_when_precheck_fails(
     tmp_path: Path,
 ) -> None:
