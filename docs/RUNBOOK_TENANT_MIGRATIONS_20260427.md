@@ -594,6 +594,17 @@ non-production source and target PostgreSQL DSNs. The generator writes
 placeholder values only, sets file mode 0600, and refuses to overwrite an
 existing file unless `--force` is passed.
 
+Before running the full-closeout wrapper, validate the file without connecting
+to either database:
+
+```bash
+scripts/precheck_tenant_import_rehearsal_env_file.sh \
+  --env-file "$HOME/.config/yuantus/tenant-import-rehearsal.env"
+```
+
+The full-closeout wrapper also runs this precheck automatically before any
+row-copy command is invoked.
+
 ```bash
 scripts/run_tenant_import_rehearsal_full_closeout.sh \
   --implementation-packet-json output/tenant_<tenant-id>_importer_implementation_packet.json \

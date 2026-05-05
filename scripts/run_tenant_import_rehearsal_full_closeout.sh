@@ -140,6 +140,17 @@ fi
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [[ -n "$env_file" ]]; then
+  "$repo_root/scripts/precheck_tenant_import_rehearsal_env_file.sh" \
+    --env-file "$env_file" \
+    --source-url-env "$source_url_env" \
+    --target-url-env "$target_url_env"
+else
+  "$repo_root/scripts/precheck_tenant_import_rehearsal_env_file.sh" \
+    --source-url-env "$source_url_env" \
+    --target-url-env "$target_url_env"
+fi
+
+if [[ -n "$env_file" ]]; then
   if [[ ! -f "$env_file" ]]; then
     echo "error: --env-file does not exist: $env_file" >&2
     exit 2

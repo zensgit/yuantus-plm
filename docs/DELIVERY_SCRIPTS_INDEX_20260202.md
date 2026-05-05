@@ -49,6 +49,7 @@
 - print_p2_shared_dev_142_readonly_rerun_commands.sh
 - print_p2_shared_dev_first_run_commands.sh
 - print_p2_shared_dev_mode_selection.sh
+- precheck_tenant_import_rehearsal_env_file.sh
 - precheck_tenant_import_rehearsal_evidence.sh
 - precheck_tenant_import_rehearsal_operator.sh
 - prepare_tenant_import_rehearsal_operator_commands.sh
@@ -131,6 +132,7 @@
 - `print_p2_shared_dev_142_rerun_commands.sh` prints the fixed rerun checklist for the already-initialized `142` shared-dev environment.
 - `print_p2_shared_dev_first_run_commands.sh` prints the fixed first-run checklist for fresh or explicitly resettable shared-dev environments.
 - `print_p2_shared_dev_mode_selection.sh` prints the decision gate between existing shared-dev rerun and first-run bootstrap, defaulting unknown environments to rerun.
+- `precheck_tenant_import_rehearsal_env_file.sh` validates P3.4 source/target database URL environment variables or a repo-external env file before row-copy, failing on missing values, placeholders, and non-PostgreSQL URL shapes without printing database URL values or connecting to databases.
 - `precheck_tenant_import_rehearsal_evidence.sh` validates P3.4 operator evidence artifacts before evidence closeout without printing DSN values, connecting to databases, running row-copy, or authorizing cutover.
 - `precheck_tenant_import_rehearsal_operator.sh` checks the P3.4 operator rehearsal prerequisites without printing DSN values, connecting to databases, running row-copy, or authorizing cutover.
 - `prepare_tenant_import_rehearsal_operator_commands.sh` runs the DB-free P3.4 operator precheck and writes the command file only when the precheck passes.
