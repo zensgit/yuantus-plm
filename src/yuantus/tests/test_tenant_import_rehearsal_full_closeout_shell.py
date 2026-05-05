@@ -81,6 +81,8 @@ def test_full_closeout_help_documents_confirmation_and_scope() -> None:
     assert "run_tenant_import_rehearsal_full_closeout.sh" in out
     assert "--confirm-rehearsal" in out
     assert "--confirm-closeout" in out
+    assert "--env-file" in out
+    assert "$HOME/.config/yuantus/tenant-import-rehearsal.env" in out
     assert "does not print database URL values" in out
     assert "authorize cutover" in out
 
@@ -179,6 +181,66 @@ def test_full_closeout_runs_sequence_and_closeout_with_fake_python(tmp_path: Pat
     assert (tmp_path / "tenant_acme_evidence_intake.json").is_file()
     assert "Ready for reviewer packet: true" in cp.stdout
     assert "Ready for cutover: false" in cp.stdout
+    assert "postgresql://" not in cp.stdout
+    assert "secret" not in cp.stdout
+
+
+def test_full_closeout_can_load_dsn_env_file_without_printing_values(
+    tmp_path: Path,
+) -> None:
+    implementation_packet_json = _write_green_packet(tmp_path)
+    implementation_packet_json.rename(
+        tmp_path / "tenant_acme_importer_implementation_packet.json"
+    )
+    artifact_prefix = tmp_path / "tenant_acme"
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "SOURCE_DATABASE_URL='postgresql://user:secret@example.com/source'",
+                "TARGET_DATABASE_URL='postgresql://user:secret@example.com/target'",
+                "",
+            ]
+        )
+    )
+    env = os.environ.copy()
+    env["PYTHON"] = str(_full_fake_python(tmp_path))
+    env.pop("SOURCE_DATABASE_URL", None)
+    env.pop("TARGET_DATABASE_URL", None)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--implementation-packet-json",
+            str(tmp_path / "tenant_acme_importer_implementation_packet.json"),
+            "--artifact-prefix",
+            str(artifact_prefix),
+            "--backup-restore-owner",
+            "Ops Owner",
+            "--rehearsal-window",
+            "2026-05-05T10:00:00Z/2026-05-05T12:00:00Z",
+            "--rehearsal-executed-by",
+            "Operator",
+            "--evidence-reviewer",
+            "Reviewer",
+            "--date",
+            "2026-05-05",
+            "--env-file",
+            str(env_file),
+            "--confirm-rehearsal",
+            "--confirm-closeout",
+        ],
+        cwd=_REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    reviewer_packet = json.loads((tmp_path / "tenant_acme_reviewer_packet.json").read_text())
+    assert reviewer_packet["ready_for_reviewer_packet"] is True
+    assert reviewer_packet["ready_for_cutover"] is False
     assert "postgresql://" not in cp.stdout
     assert "secret" not in cp.stdout
 

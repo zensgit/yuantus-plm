@@ -16,6 +16,7 @@ Usage:
     --confirm-closeout \
     [--source-url-env NAME] \
     [--target-url-env NAME] \
+    [--env-file PATH] \
     [--batch-size N]
 
 Run the P3.4 operator rehearsal sequence and evidence closeout in one explicit
@@ -25,6 +26,10 @@ This wrapper executes the real non-production row-copy rehearsal through the
 operator-sequence wrapper, then runs the DB-free evidence closeout chain. It
 does not print database URL values, authorize cutover, or enable runtime
 schema-per-tenant mode.
+
+It can load source/target database URL variables from --env-file without
+printing their values. Keep that file outside the repository, for example
+$HOME/.config/yuantus/tenant-import-rehearsal.env.
 USAGE
 }
 
@@ -37,6 +42,7 @@ evidence_reviewer=""
 evidence_date=""
 source_url_env="SOURCE_DATABASE_URL"
 target_url_env="TARGET_DATABASE_URL"
+env_file=""
 batch_size="500"
 confirm_rehearsal=0
 confirm_closeout=0
@@ -77,6 +83,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --target-url-env)
       target_url_env="${2:?missing value for --target-url-env}"
+      shift 2
+      ;;
+    --env-file)
+      env_file="${2:?missing value for --env-file}"
       shift 2
       ;;
     --batch-size)
@@ -128,6 +138,17 @@ if [[ "$confirm_closeout" -ne 1 ]]; then
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+if [[ -n "$env_file" ]]; then
+  if [[ ! -f "$env_file" ]]; then
+    echo "error: --env-file does not exist: $env_file" >&2
+    exit 2
+  fi
+  set -a
+  # shellcheck disable=SC1090
+  . "$env_file"
+  set +a
+fi
 
 operator_packet_json="${artifact_prefix}_operator_execution_packet.json"
 operator_evidence_template_json="${artifact_prefix}_operator_rehearsal_evidence_template.json"
