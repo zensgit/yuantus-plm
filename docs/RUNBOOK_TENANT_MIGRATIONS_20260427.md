@@ -591,13 +591,26 @@ scripts/run_tenant_import_rehearsal_full_closeout.sh \
   --rehearsal-executed-by "<operator>" \
   --evidence-reviewer "<reviewer>" \
   --date "<yyyy-mm-dd>" \
+  --env-file "$HOME/.config/yuantus/tenant-import-rehearsal.env" \
   --confirm-rehearsal \
   --confirm-closeout
 ```
 
 The wrapper runs the operator sequence, then evidence closeout. It still reads
-database URLs from `SOURCE_DATABASE_URL` and `TARGET_DATABASE_URL`, does not
-print their values, and keeps `Ready for cutover: false`.
+database URLs from `SOURCE_DATABASE_URL` and `TARGET_DATABASE_URL`, can load
+those variables from a repo-external env file, does not print their values, and
+keeps `Ready for cutover: false`.
+
+Example repo-external env file:
+
+```bash
+SOURCE_DATABASE_URL='postgresql://source-user:...@source-host/source-db'
+TARGET_DATABASE_URL='postgresql://target-user:...@target-host/target-db'
+```
+
+Keep the file outside the repository and never commit it. The wrapper exports
+variables from the file only for the child operator sequence and evidence
+closeout process.
 
 Use this wrapper only when the operator intends to proceed directly from real
 rehearsal execution to local evidence closeout artifacts.
