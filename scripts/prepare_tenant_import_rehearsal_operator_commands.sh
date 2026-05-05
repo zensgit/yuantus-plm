@@ -69,6 +69,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 precheck_script="$repo_root/scripts/precheck_tenant_import_rehearsal_operator.sh"
 env_precheck_script="$repo_root/scripts/precheck_tenant_import_rehearsal_env_file.sh"
 printer_script="$repo_root/scripts/print_tenant_import_rehearsal_commands.sh"
+validator_script="$repo_root/scripts/validate_tenant_import_rehearsal_operator_commands.sh"
 
 mkdir -p "$(dirname "$output_path")"
 
@@ -106,6 +107,8 @@ else
     --target-url-env "$target_url_env" \
     > "$output_path"
 fi
+
+"$validator_script" --command-file "$output_path"
 
 echo
 echo "Operator command file: $output_path"
