@@ -29,6 +29,16 @@ command-file validation, and full-closeout wrapper support. The latest safety
 hardening keeps these gates DB-free while rejecting unsafe env-file syntax and
 out-of-order generated command files.
 
+The 2026-05-05 safety closeout is tracked as completed for local tooling only:
+
+- repo-external env-file template generation;
+- DB-free env-file static precheck before shell source;
+- env-file support in operator command pack and full-closeout wrappers;
+- generated operator command-file validation;
+- command-file and env-file source safety hardening;
+- wrapper-level unsafe env-file source guard contracts;
+- runbook operator safety contracts.
+
 ## 2. Blocked State
 
 The remaining P3.4 blocker is external:
@@ -66,6 +76,9 @@ The operator must provide or run:
 - rehearsal window;
 - signed table classification artifact;
 - P3.4.1 dry-run report with `ready_for_import=true`;
+- repo-external env-file generated from the template and statically prechecked;
+- generated operator command file that passes the command-file validator;
+- full-closeout wrapper using the prechecked env-file path;
 - row-copy rehearsal;
 - operator evidence;
 - evidence gate;
@@ -83,6 +96,7 @@ Before treating P3.4 as rehearsal-complete, reviewers should require:
 - real operator evidence Markdown with non-placeholder sign-off fields;
 - archive manifest with artifact hashes;
 - redaction guard with complete artifact coverage;
+- env-file precheck, command-file validation, and wrapper safety contracts green;
 - evidence intake report with `ready_for_evidence_intake=true`;
 - evidence handoff report with `ready_for_evidence_handoff=true`;
 - reviewer packet with `ready_for_reviewer_packet=true`;
