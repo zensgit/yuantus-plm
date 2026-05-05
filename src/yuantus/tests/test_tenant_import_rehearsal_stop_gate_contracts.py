@@ -45,6 +45,57 @@ def test_runbook_warns_synthetic_drill_is_not_operator_run_evidence():
     )
 
 
+def test_runbook_pins_env_file_precheck_before_wrapper_source():
+    runbook = _RUNBOOK.read_text()
+
+    command_pack_pos = runbook.index("## 17.1 P3.4.2 Operator Command Pack")
+    sequence_pos = runbook.index("## 17.2 P3.4.2 Operator Sequence Wrapper")
+    full_closeout_pos = runbook.index("## 17.3 P3.4.2 Full Closeout Wrapper")
+    row_copy_pos = runbook.index("## 18. P3.4.2 Tenant Import Rehearsal Row Copy")
+
+    command_pack_section = runbook[command_pack_pos:sequence_pos]
+    full_closeout_section = runbook[full_closeout_pos:row_copy_pos]
+
+    assert "validates the file statically before loading it" in command_pack_section
+    assert "rejected before the file is sourced" in command_pack_section
+    assert "single-quoted assignments" in full_closeout_section
+    assert "before the file is sourced" in full_closeout_section
+
+    full_closeout_precheck_pos = full_closeout_section.index(
+        "scripts/precheck_tenant_import_rehearsal_env_file.sh"
+    )
+    full_closeout_wrapper_pos = full_closeout_section.index(
+        "scripts/run_tenant_import_rehearsal_full_closeout.sh"
+    )
+    assert full_closeout_precheck_pos < full_closeout_wrapper_pos
+
+
+def test_runbook_pins_command_file_validator_as_non_executing_gate():
+    runbook = _RUNBOOK.read_text()
+
+    command_pack_pos = runbook.index("## 17.1 P3.4.2 Operator Command Pack")
+    sequence_pos = runbook.index("## 17.2 P3.4.2 Operator Sequence Wrapper")
+    command_pack_section = runbook[command_pack_pos:sequence_pos]
+    normalized_section = " ".join(command_pack_section.split())
+
+    assert "validates the generated command file before returning success" in command_pack_section
+    assert "without executing it" in command_pack_section
+    assert "required step order" in normalized_section
+    assert "environment variable URL references" in normalized_section
+    assert "forbidden DSN/cutover/remote-control patterns" in normalized_section
+
+
+def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
+    status = _READINESS_STATUS.read_text()
+
+    assert "DB-free" in status
+    assert "rejecting unsafe env-file syntax" in status
+    assert "out-of-order generated command files" in status
+    assert "operator-run PostgreSQL rehearsal evidence is not complete" in status
+    assert "The next valid action is external operator execution" in status
+    assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in status
+
+
 def test_synthetic_drill_runtime_contract_keeps_real_gates_closed(tmp_path):
     report = drill.build_synthetic_drill_report(artifact_dir=tmp_path)
 

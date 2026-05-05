@@ -625,8 +625,8 @@ The full-closeout wrapper also runs this precheck automatically before any
 row-copy command is invoked.
 
 The precheck rejects env files that contain shell expansion syntax, double
-quotes, or non-assignment commands before loading the file. Keep DSN values in
-single-quoted assignments.
+quotes, or non-assignment commands before the file is sourced. Keep DSN values
+in single-quoted assignments.
 
 ```bash
 scripts/run_tenant_import_rehearsal_full_closeout.sh \
