@@ -555,6 +555,14 @@ and does not write the command file.
 The generated command file contains environment variable placeholders only. It
 does not contain secret DSN values and does not authorize cutover.
 
+The wrapper validates the generated command file before returning success. To
+revalidate the file later without executing it, run:
+
+```bash
+scripts/validate_tenant_import_rehearsal_operator_commands.sh \
+  --command-file output/tenant_<tenant-id>_operator_commands.sh
+```
+
 ## 17.2 P3.4.2 Operator Sequence Wrapper
 
 When the operator is ready to run the real non-production rehearsal, use the

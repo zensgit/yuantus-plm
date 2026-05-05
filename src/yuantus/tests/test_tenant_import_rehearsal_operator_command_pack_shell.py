@@ -138,6 +138,7 @@ def test_operator_command_pack_accepts_env_file_without_preexported_dsn_vars(
     commands = output_path.read_text()
     assert f'--env-file "{env_file}"' in commands
     assert f'. "{env_file}"' in commands
+    assert "P3.4 tenant import operator command file validation" in cp.stdout
     assert "postgresql://" not in cp.stdout
     assert "secret" not in cp.stdout
     assert "postgresql://" not in commands
@@ -181,6 +182,7 @@ def test_operator_command_pack_preserves_db_free_scope() -> None:
 
     assert "precheck_tenant_import_rehearsal_operator.sh" in source
     assert "print_tenant_import_rehearsal_commands.sh" in source
+    assert "validate_tenant_import_rehearsal_operator_commands.sh" in source
     assert "psql" not in source
     assert "TENANCY_MODE" not in source
     assert "curl " not in source

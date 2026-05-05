@@ -136,6 +136,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "run_tenant_import_operator_launchpack.sh",
         scripts_dir / "run_tenant_import_rehearsal_full_closeout.sh",
         scripts_dir / "run_tenant_import_rehearsal_operator_sequence.sh",
+        scripts_dir / "validate_tenant_import_rehearsal_operator_commands.sh",
         scripts_dir / "verify_run_h_e2e.sh",
         scripts_dir / "verify_run_h.sh",
     ]
