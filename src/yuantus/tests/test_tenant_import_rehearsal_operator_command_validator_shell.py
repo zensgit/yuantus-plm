@@ -219,6 +219,82 @@ def test_command_validator_rejects_env_var_printing(tmp_path: Path) -> None:
     assert 'forbidden command pattern present: echo "$' in cp.stdout
 
 
+def test_command_validator_rejects_extra_rm_command_without_echoing_line(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    command_file.write_text(command_file.read_text() + "\nrm -rf output\n")
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported command line" in cp.stdout
+    assert "only generated tenant import commands are allowed" in cp.stdout
+    assert "rm -rf" not in cp.stdout
+
+
+def test_command_validator_rejects_extra_python_command_without_echoing_secret(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    command_file.write_text(
+        command_file.read_text()
+        + "\npython -c 'print(\"postgresql://user:secret@example.com/source\")'\n"
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported command line" in cp.stdout
+    assert "python -c" not in cp.stdout
+    assert "secret" not in cp.stdout
+
+
+def test_command_validator_rejects_extra_export_command(tmp_path: Path) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    command_file.write_text(command_file.read_text() + "\nexport PATH=/tmp/blocked\n")
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported command line" in cp.stdout
+    assert "export PATH" not in cp.stdout
+
+
+def test_command_validator_rejects_shell_control_syntax_without_echoing_line(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    command_file.write_text(command_file.read_text() + "\ntouch output/a; rm output/a\n")
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "forbidden shell control syntax on line" in cp.stdout
+    assert "touch output" not in cp.stdout
+    assert "rm output" not in cp.stdout
+
+
 def test_command_validator_rejects_shell_syntax_error(tmp_path: Path) -> None:
     command_file = _write_generated_command_file(tmp_path)
     command_file.write_text(command_file.read_text() + "\nif true; then\n")
