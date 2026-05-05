@@ -10,6 +10,8 @@ Date: 2026-04-30
 - [x] State production cutover is not authorized.
 - [x] State runtime `TENANCY_MODE=schema-per-tenant` is not enabled.
 - [x] List next valid external operator actions.
+- [x] Track 2026-05-05 DB-free operator safety additions.
+- [x] Keep env-file precheck, command-file validator, and wrapper safety contracts scoped to local safety.
 - [x] Add verification MD.
 - [x] Update delivery doc index.
 
@@ -19,6 +21,7 @@ Date: 2026-04-30
 - [x] Assert readiness status exists.
 - [x] Assert readiness status preserves cutover/runtime block.
 - [x] Assert readiness status points to external operator execution.
+- [x] Assert readiness status tracks local safety additions without closing the external evidence gate.
 
 ## Explicitly Not Done
 

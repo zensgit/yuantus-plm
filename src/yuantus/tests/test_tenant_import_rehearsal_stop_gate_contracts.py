@@ -21,12 +21,21 @@ _VERIFICATION = (
 _READINESS_STATUS = (
     _ROOT / "docs" / "PHASE3_TENANT_IMPORT_READINESS_STATUS_20260430.md"
 )
+_READINESS_TODO = (
+    _ROOT / "docs" / "PHASE3_TENANT_IMPORT_READINESS_STATUS_TODO_20260430.md"
+)
 
 
 def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_drill():
     todo = _TODO.read_text()
 
     assert "- [x] Add synthetic operator drill for DB-free command-path rehearsal." in todo
+    assert "- [x] Add repo-external env-file template and DB-free env-file precheck." in todo
+    assert "- [x] Add env-file support to operator command pack and full-closeout wrappers." in todo
+    assert "- [x] Add generated operator command-file validator." in todo
+    assert "- [x] Add operator command-file and env-file source safety hardening." in todo
+    assert "- [x] Add wrapper-level unsafe env-file source guard contracts." in todo
+    assert "- [x] Add runbook operator safety contracts." in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
     assert "- [x] Add operator-run PostgreSQL rehearsal evidence." not in todo
 
@@ -89,11 +98,24 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     status = _READINESS_STATUS.read_text()
 
     assert "DB-free" in status
+    assert "repo-external env-file template generation" in status
+    assert "DB-free env-file static precheck before shell source" in status
+    assert "generated operator command-file validation" in status
+    assert "runbook operator safety contracts" in status
     assert "rejecting unsafe env-file syntax" in status
     assert "out-of-order generated command files" in status
+    assert "full-closeout wrapper using the prechecked env-file path" in status
     assert "operator-run PostgreSQL rehearsal evidence is not complete" in status
     assert "The next valid action is external operator execution" in status
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in status
+
+    todo = _READINESS_TODO.read_text()
+    assert "- [x] Track 2026-05-05 DB-free operator safety additions." in todo
+    assert (
+        "- [x] Keep env-file precheck, command-file validator, and wrapper safety "
+        "contracts scoped to local safety."
+    ) in todo
+    assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
 
 
 def test_synthetic_drill_runtime_contract_keeps_real_gates_closed(tmp_path):

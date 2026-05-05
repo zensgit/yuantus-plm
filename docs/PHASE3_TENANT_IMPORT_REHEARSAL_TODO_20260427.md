@@ -64,6 +64,12 @@ Date: 2026-04-27
 - [x] Add synthetic operator drill for DB-free command-path rehearsal.
 - [x] Add evidence intake checklist before reviewer handoff.
 - [x] Add reviewer packet after intake and handoff are green.
+- [x] Add repo-external env-file template and DB-free env-file precheck.
+- [x] Add env-file support to operator command pack and full-closeout wrappers.
+- [x] Add generated operator command-file validator.
+- [x] Add operator command-file and env-file source safety hardening.
+- [x] Add wrapper-level unsafe env-file source guard contracts.
+- [x] Add runbook operator safety contracts.
 - [ ] Add operator-run PostgreSQL rehearsal evidence.
 - [x] Update `RUNBOOK_TENANT_MIGRATIONS_20260427.md`.
 - [x] Add DEV/verification MD for the implementation PR.
