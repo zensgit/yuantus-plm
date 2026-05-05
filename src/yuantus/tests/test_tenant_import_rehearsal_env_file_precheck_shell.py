@@ -247,6 +247,47 @@ def test_env_file_precheck_supports_custom_variable_names(tmp_path: Path) -> Non
     assert "secret" not in cp.stdout
 
 
+def test_env_file_precheck_rejects_invalid_variable_name_before_source(
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "env-file-sourced"
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                f"SOURCE_DATABASE_URL=$(touch {marker})",
+                "TARGET_DATABASE_URL='postgresql://user:secret@example.com/target'",
+                "",
+            ]
+        )
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--env-file",
+            str(env_file),
+            "--source-url-env",
+            "SOURCE-DATABASE-URL",
+        ],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert (
+        "--source-url-env must be an uppercase shell environment variable name "
+        "([A-Z_][A-Z0-9_]*)"
+    ) in cp.stderr
+    assert not marker.exists()
+    assert "postgresql://" not in cp.stdout
+    assert "postgresql://" not in cp.stderr
+    assert "secret" not in cp.stdout
+    assert "secret" not in cp.stderr
+
+
 def test_env_file_precheck_preserves_db_free_scope() -> None:
     source = _SCRIPT.read_text()
 

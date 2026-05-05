@@ -557,12 +557,18 @@ comments, blank lines, and static `KEY=VALUE` assignments are allowed. Command
 substitution, shell expansion syntax, double-quoted values, and non-assignment
 lines are rejected before the file is sourced.
 
+Custom `--source-url-env` and `--target-url-env` values must be uppercase shell
+environment variable names matching `[A-Z_][A-Z0-9_]*`. Invalid names are
+rejected before any env file is sourced, before indirect environment expansion,
+and before generated operator commands are written.
+
 The generated command file contains environment variable placeholders only. It
 does not contain secret DSN values and does not authorize cutover.
 
 The wrapper validates the generated command file before returning success. The
 command-file validator checks shell syntax, required step order, environment
-variable URL references, and forbidden DSN/cutover/remote-control patterns. To
+variable URL references with uppercase shell variable names, and forbidden
+DSN/cutover/remote-control patterns. To
 revalidate the file later without executing it, run:
 
 ```bash

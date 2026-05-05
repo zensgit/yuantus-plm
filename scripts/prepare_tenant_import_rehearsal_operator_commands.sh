@@ -59,11 +59,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+validate_env_var_name() {
+  local option="$1"
+  local name="$2"
+
+  if [[ ! "$name" =~ ^[A-Z_][A-Z0-9_]*$ ]]; then
+    echo "error: $option must be an uppercase shell environment variable name ([A-Z_][A-Z0-9_]*)" >&2
+    return 2
+  fi
+}
+
 if [[ -z "$artifact_prefix" || -z "$output_path" ]]; then
   echo "error: --artifact-prefix and --output are required" >&2
   usage >&2
   exit 2
 fi
+
+validate_env_var_name "--source-url-env" "$source_url_env"
+validate_env_var_name "--target-url-env" "$target_url_env"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 precheck_script="$repo_root/scripts/precheck_tenant_import_rehearsal_operator.sh"

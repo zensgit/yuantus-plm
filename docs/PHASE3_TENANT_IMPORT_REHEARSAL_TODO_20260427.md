@@ -70,6 +70,7 @@ Date: 2026-04-27
 - [x] Add operator command-file and env-file source safety hardening.
 - [x] Add wrapper-level unsafe env-file source guard contracts.
 - [x] Add runbook operator safety contracts.
+- [x] Add source/target URL env-name allowlist hardening.
 - [ ] Add operator-run PostgreSQL rehearsal evidence.
 - [x] Update `RUNBOOK_TENANT_MIGRATIONS_20260427.md`.
 - [x] Add DEV/verification MD for the implementation PR.

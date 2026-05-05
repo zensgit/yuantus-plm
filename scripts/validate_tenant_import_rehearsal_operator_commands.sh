@@ -63,6 +63,15 @@ require_pattern() {
   fi
 }
 
+require_url_env_reference() {
+  local option="$1"
+  local regex='^[[:space:]]*'"${option}"'[[:space:]]+"\$[A-Z_][A-Z0-9_]*"[[:space:]]*\\?[[:space:]]*$'
+
+  if ! grep -Eq -- "$regex" "$command_file"; then
+    failures+=("invalid ${option} environment variable reference; expected quoted uppercase env var reference")
+  fi
+}
+
 first_line_for_pattern() {
   local pattern="$1"
   local line
@@ -134,6 +143,8 @@ require_pattern "scripts/run_tenant_import_operator_launchpack.sh"
 require_pattern "python -m yuantus.scripts.tenant_import_rehearsal \\"
 require_pattern '--source-url "$'
 require_pattern '--target-url "$'
+require_url_env_reference "--source-url"
+require_url_env_reference "--target-url"
 require_pattern "--confirm-rehearsal"
 require_pattern "python -m yuantus.scripts.tenant_import_rehearsal_evidence_template \\"
 require_pattern "python -m yuantus.scripts.tenant_import_rehearsal_evidence \\"

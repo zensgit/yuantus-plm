@@ -99,6 +99,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+validate_env_var_name() {
+  local option="$1"
+  local name="$2"
+
+  if [[ ! "$name" =~ ^[A-Z_][A-Z0-9_]*$ ]]; then
+    echo "error: $option must be an uppercase shell environment variable name ([A-Z_][A-Z0-9_]*)" >&2
+    return 2
+  fi
+}
+
 if [[ -z "$implementation_packet_json" || -z "$artifact_prefix" ]]; then
   echo "error: --implementation-packet-json and --artifact-prefix are required" >&2
   usage >&2
@@ -116,6 +126,9 @@ if [[ "$confirm_rehearsal" -ne 1 ]]; then
   usage >&2
   exit 2
 fi
+
+validate_env_var_name "--source-url-env" "$source_url_env"
+validate_env_var_name "--target-url-env" "$target_url_env"
 
 if [[ -z "${!source_url_env:-}" || -z "${!target_url_env:-}" ]]; then
   echo "error: source/target database URL environment variables must be set" >&2

@@ -99,6 +99,26 @@ def test_command_printer_accepts_custom_env_file_path() -> None:
     assert '. "/tmp/tenant-import.env"' in out
 
 
+def test_command_printer_rejects_invalid_variable_name_without_printing_commands() -> None:
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--artifact-prefix",
+            "output/tenant_acme",
+            "--source-url-env",
+            "SRC_DB_URL;touch/tmp/pwned",
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "--source-url-env must be an uppercase shell environment variable name" in cp.stderr
+    assert "tenant import rehearsal operator commands" not in cp.stdout
+    assert "touch/tmp/pwned" not in cp.stdout
+
+
 def test_command_printer_preserves_print_only_scope() -> None:
     source = _SCRIPT.read_text()
 

@@ -228,6 +228,41 @@ def test_operator_command_pack_does_not_write_commands_when_precheck_fails(
     assert "SRC_DB_URL is not set" in cp.stderr
 
 
+def test_operator_command_pack_rejects_invalid_variable_name_before_writing(
+    tmp_path: Path,
+) -> None:
+    output_path = tmp_path / "operator" / "commands.sh"
+    env = os.environ.copy()
+    env["SRC_DB_URL"] = "postgresql://user:secret@example.com/source"
+    env["TGT_DB_URL"] = "postgresql://user:secret@example.com/target"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--artifact-prefix",
+            str(tmp_path / "tenant_acme"),
+            "--output",
+            str(output_path),
+            "--source-url-env",
+            "SRC DB URL",
+            "--target-url-env",
+            "TGT_DB_URL",
+        ],
+        cwd=_REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "--source-url-env must be an uppercase shell environment variable name" in cp.stderr
+    assert not output_path.exists()
+    assert not output_path.parent.exists()
+    assert "postgresql://" not in cp.stdout
+    assert "secret" not in cp.stdout
+
+
 def test_operator_command_pack_preserves_db_free_scope() -> None:
     source = _SCRIPT.read_text()
 
