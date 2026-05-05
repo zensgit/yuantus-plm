@@ -15,7 +15,10 @@ Options:
   -h, --help            Show this help.
 
 Validate the P3.4 tenant import rehearsal source/target database URL variables
-before a real row-copy command runs. This precheck does not connect to any database, does not run row-copy, and does not print database URL values.
+before a real row-copy command runs. When --env-file is provided, the file must
+contain only comments, blank lines, or static KEY=VALUE assignments before it
+is loaded. This precheck does not connect to any database, does not run row-copy,
+and does not print database URL values.
 USAGE
 }
 
@@ -49,11 +52,59 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+validate_env_file_static_safety() {
+  local file="$1"
+  local line_number=0
+  local line=""
+  local inner=""
+  local value=""
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line_number=$((line_number + 1))
+
+    if [[ "$line" =~ ^[[:space:]]*$ || "$line" =~ ^[[:space:]]*# ]]; then
+      continue
+    fi
+
+    if [[ "$line" == *'$('* || "$line" == *'`'* || "$line" == *'${'* || "$line" == *'$['* ]]; then
+      echo "error: env-file line $line_number contains shell expansion syntax" >&2
+      return 2
+    fi
+
+    if [[ ! "$line" =~ ^[[:space:]]*(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=(.*)$ ]]; then
+      echo "error: env-file line $line_number must be a static KEY=VALUE assignment" >&2
+      return 2
+    fi
+
+    value="${BASH_REMATCH[2]}"
+    case "$value" in
+      "'"*"'")
+        inner="${value:1:$(( ${#value} - 2 ))}"
+        if [[ "$inner" == *"'"* ]]; then
+          echo "error: env-file line $line_number has unsupported quoted value syntax" >&2
+          return 2
+        fi
+        ;;
+      *'"'*)
+        echo "error: env-file line $line_number must use single quotes for values that require quoting" >&2
+        return 2
+        ;;
+      *)
+        if [[ ! "$value" =~ ^[A-Za-z0-9_./:@%+=,-]+$ ]]; then
+          echo "error: env-file line $line_number has unsupported value syntax; use single quotes" >&2
+          return 2
+        fi
+        ;;
+    esac
+  done < "$file"
+}
+
 if [[ -n "$env_file" ]]; then
   if [[ ! -f "$env_file" ]]; then
     echo "error: --env-file does not exist: $env_file" >&2
     exit 2
   fi
+  validate_env_file_static_safety "$env_file"
   set -a
   # shellcheck disable=SC1090
   . "$env_file"

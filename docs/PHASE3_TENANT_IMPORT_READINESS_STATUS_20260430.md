@@ -23,6 +23,12 @@ The repository now includes DB-free gates and handoff tools for:
 - reviewer packet;
 - synthetic drill for command-path rehearsal.
 
+2026-05-05 update: the local operator handoff path also includes repo-external
+env-file template generation, env-file precheck, command-pack generation,
+command-file validation, and full-closeout wrapper support. The latest safety
+hardening keeps these gates DB-free while rejecting unsafe env-file syntax and
+out-of-order generated command files.
+
 ## 2. Blocked State
 
 The remaining P3.4 blocker is external:
@@ -84,8 +90,9 @@ Before treating P3.4 as rehearsal-complete, reviewers should require:
 
 ## 6. Engineering Recommendation
 
-Do not add more local bypass tooling for P3.4 unless a real operator execution
-attempt exposes a concrete gap.
+Do not add local bypass tooling for P3.4. DB-free safety hardening is acceptable
+only when it reduces operator risk without simulating evidence or changing the
+external stop gate.
 
 After real rehearsal evidence exists, the next engineering PR should be a small
 final signoff PR that records the real evidence artifact digests and preserves

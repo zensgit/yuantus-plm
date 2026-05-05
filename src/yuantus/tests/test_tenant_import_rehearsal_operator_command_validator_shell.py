@@ -77,6 +77,7 @@ def test_command_validator_accepts_generated_command_file(tmp_path: Path) -> Non
     )
 
     assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert "Ordered command sequence: true" in cp.stdout
     assert "Ready for operator command execution: true" in cp.stdout
     assert "Ready for cutover: false" in cp.stdout
     assert "postgresql://" not in cp.stdout
@@ -100,6 +101,53 @@ def test_command_validator_rejects_missing_required_step(tmp_path: Path) -> None
     assert cp.returncode == 1
     assert "missing required command pattern" in cp.stdout
     assert "precheck_tenant_import_rehearsal_env_file.sh" in cp.stdout
+
+
+def test_command_validator_rejects_out_of_order_required_step(tmp_path: Path) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    text = command_file.read_text()
+    launchpack_start = text.index("scripts/run_tenant_import_operator_launchpack.sh")
+    row_copy_start = text.index("PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal")
+    launchpack_block = text[launchpack_start:row_copy_start]
+    text_without_launchpack = text[:launchpack_start] + text[row_copy_start:]
+    evidence_template_start = text_without_launchpack.index(
+        "PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence_template"
+    )
+    command_file.write_text(
+        text_without_launchpack[:evidence_template_start]
+        + launchpack_block
+        + text_without_launchpack[evidence_template_start:]
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "command step out of order" in cp.stdout
+    assert "row-copy rehearsal must appear after operator launchpack" in cp.stdout
+
+
+def test_command_validator_requires_env_var_url_references(tmp_path: Path) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    text = command_file.read_text().replace(
+        '--source-url "$SOURCE_DATABASE_URL"',
+        "--source-url output/source.txt",
+    )
+    command_file.write_text(text)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert 'missing required command pattern: --source-url "$' in cp.stdout
 
 
 def test_command_validator_rejects_database_url_literal(tmp_path: Path) -> None:
@@ -134,6 +182,21 @@ def test_command_validator_rejects_cutover_authorization(tmp_path: Path) -> None
 
     assert cp.returncode == 1
     assert "forbidden command pattern present: ready_for_cutover=true" in cp.stdout
+
+
+def test_command_validator_rejects_env_var_printing(tmp_path: Path) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    command_file.write_text(command_file.read_text() + '\necho "$SOURCE_DATABASE_URL"\n')
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert 'forbidden command pattern present: echo "$' in cp.stdout
 
 
 def test_command_validator_rejects_shell_syntax_error(tmp_path: Path) -> None:

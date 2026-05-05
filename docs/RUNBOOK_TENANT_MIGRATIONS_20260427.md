@@ -552,10 +552,17 @@ green, the env file is missing, placeholders remain, or the source/target DSN
 variables are not set after loading the env file, the wrapper exits non-zero
 and does not write the command file.
 
+The env-file precheck validates the file statically before loading it. Only
+comments, blank lines, and static `KEY=VALUE` assignments are allowed. Command
+substitution, shell expansion syntax, double-quoted values, and non-assignment
+lines are rejected before the file is sourced.
+
 The generated command file contains environment variable placeholders only. It
 does not contain secret DSN values and does not authorize cutover.
 
-The wrapper validates the generated command file before returning success. To
+The wrapper validates the generated command file before returning success. The
+command-file validator checks shell syntax, required step order, environment
+variable URL references, and forbidden DSN/cutover/remote-control patterns. To
 revalidate the file later without executing it, run:
 
 ```bash
@@ -616,6 +623,10 @@ scripts/precheck_tenant_import_rehearsal_env_file.sh \
 
 The full-closeout wrapper also runs this precheck automatically before any
 row-copy command is invoked.
+
+The precheck rejects env files that contain shell expansion syntax, double
+quotes, or non-assignment commands before loading the file. Keep DSN values in
+single-quoted assignments.
 
 ```bash
 scripts/run_tenant_import_rehearsal_full_closeout.sh \
