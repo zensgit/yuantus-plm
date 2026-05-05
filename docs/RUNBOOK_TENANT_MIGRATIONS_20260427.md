@@ -553,9 +553,11 @@ variables are not set after loading the env file, the wrapper exits non-zero
 and does not write the command file.
 
 The env-file precheck validates the file statically before loading it. Only
-comments, blank lines, and static `KEY=VALUE` assignments are allowed. Command
-substitution, shell expansion syntax, double-quoted values, and non-assignment
-lines are rejected before the file is sourced.
+comments, blank lines, and static assignments for the selected source/target URL
+variables are allowed. Extra keys such as `PATH`, `PYTHON`, `PYTHONPATH`, and
+`BASH_ENV` are rejected before the file is sourced. Command substitution, shell
+expansion syntax, double-quoted values, and non-assignment lines are also
+rejected before the file is sourced.
 
 Custom `--source-url-env` and `--target-url-env` values must be uppercase shell
 environment variable names matching `[A-Z_][A-Z0-9_]*`. Invalid names are
@@ -630,9 +632,10 @@ scripts/precheck_tenant_import_rehearsal_env_file.sh \
 The full-closeout wrapper also runs this precheck automatically before any
 row-copy command is invoked.
 
-The precheck rejects env files that contain shell expansion syntax, double
-quotes, or non-assignment commands before the file is sourced. Keep DSN values
-in single-quoted assignments.
+The precheck rejects env files that contain unsupported variables, shell
+expansion syntax, double quotes, or non-assignment commands before the file is
+sourced. Keep DSN values in single-quoted assignments for only the selected
+source and target URL variables.
 
 ```bash
 scripts/run_tenant_import_rehearsal_full_closeout.sh \

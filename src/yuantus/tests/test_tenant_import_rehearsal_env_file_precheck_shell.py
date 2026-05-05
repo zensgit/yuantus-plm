@@ -43,9 +43,10 @@ def test_env_file_precheck_help_documents_scope() -> None:
     assert "--env-file PATH" in out
     assert "--source-url-env NAME" in out
     assert "--target-url-env NAME" in out
-    assert "static KEY=VALUE assignments" in out
-    assert "does not connect to any database" in out
-    assert "does not print database URL values" in out
+    assert "static assignments for the selected" in out
+    normalized_out = " ".join(out.split())
+    assert "does not connect to any database" in normalized_out
+    assert "does not print database URL values" in normalized_out
 
 
 def test_env_file_precheck_passes_without_printing_values(tmp_path: Path) -> None:
@@ -189,7 +190,7 @@ def test_env_file_precheck_rejects_non_assignment_lines_without_executing(
     )
 
     assert cp.returncode == 2
-    assert "env-file line 2 must be a static KEY=VALUE assignment" in cp.stderr
+    assert "env-file line 2 must be a static uppercase KEY=VALUE assignment" in cp.stderr
     assert not marker.exists()
     assert "secret" not in cp.stdout
     assert "secret" not in cp.stderr
@@ -245,6 +246,123 @@ def test_env_file_precheck_supports_custom_variable_names(tmp_path: Path) -> Non
     assert "Target variable: TENANT_TARGET_URL" in cp.stdout
     assert "postgresql://" not in cp.stdout
     assert "secret" not in cp.stdout
+
+
+def test_env_file_precheck_loads_custom_variable_names_from_env_file(
+    tmp_path: Path,
+) -> None:
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "TENANT_SOURCE_URL='postgresql://user:secret@example.com/source'",
+                "TENANT_TARGET_URL='postgresql://user:secret@example.com/target'",
+                "",
+            ]
+        )
+    )
+    env = os.environ.copy()
+    env.pop("TENANT_SOURCE_URL", None)
+    env.pop("TENANT_TARGET_URL", None)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--env-file",
+            str(env_file),
+            "--source-url-env",
+            "TENANT_SOURCE_URL",
+            "--target-url-env",
+            "TENANT_TARGET_URL",
+        ],
+        cwd=_REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
+    assert "Source variable: TENANT_SOURCE_URL" in cp.stdout
+    assert "Target variable: TENANT_TARGET_URL" in cp.stdout
+    assert "postgresql://" not in cp.stdout
+    assert "secret" not in cp.stdout
+
+
+def test_env_file_precheck_rejects_extra_static_keys_before_source(
+    tmp_path: Path,
+) -> None:
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "SOURCE_DATABASE_URL='postgresql://user:secret@example.com/source'",
+                "TARGET_DATABASE_URL='postgresql://user:secret@example.com/target'",
+                "PATH='/tmp/blocked-path'",
+                "PYTHON='/tmp/blocked-python'",
+                "",
+            ]
+        )
+    )
+    env = os.environ.copy()
+    env.pop("SOURCE_DATABASE_URL", None)
+    env.pop("TARGET_DATABASE_URL", None)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--env-file", str(env_file)],
+        cwd=_REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "unsupported variable: PATH" in cp.stderr
+    assert "may define only SOURCE_DATABASE_URL and TARGET_DATABASE_URL" in cp.stderr
+    assert "postgresql://" not in cp.stdout
+    assert "postgresql://" not in cp.stderr
+    assert "secret" not in cp.stdout
+    assert "secret" not in cp.stderr
+    assert "command not found" not in cp.stderr
+
+
+def test_env_file_precheck_rejects_default_keys_when_custom_names_selected(
+    tmp_path: Path,
+) -> None:
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "SOURCE_DATABASE_URL='postgresql://user:secret@example.com/source'",
+                "TENANT_TARGET_URL='postgresql://user:secret@example.com/target'",
+                "",
+            ]
+        )
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--env-file",
+            str(env_file),
+            "--source-url-env",
+            "TENANT_SOURCE_URL",
+            "--target-url-env",
+            "TENANT_TARGET_URL",
+        ],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "unsupported variable: SOURCE_DATABASE_URL" in cp.stderr
+    assert "may define only TENANT_SOURCE_URL and TENANT_TARGET_URL" in cp.stderr
+    assert "postgresql://" not in cp.stdout
+    assert "postgresql://" not in cp.stderr
+    assert "secret" not in cp.stdout
+    assert "secret" not in cp.stderr
 
 
 def test_env_file_precheck_rejects_invalid_variable_name_before_source(
