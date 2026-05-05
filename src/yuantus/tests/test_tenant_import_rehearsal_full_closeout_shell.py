@@ -245,6 +245,69 @@ def test_full_closeout_can_load_dsn_env_file_without_printing_values(
     assert "secret" not in cp.stdout
 
 
+def test_full_closeout_rejects_unsafe_env_file_before_source(
+    tmp_path: Path,
+) -> None:
+    implementation_packet_json = _write_green_packet(tmp_path)
+    implementation_packet_json.rename(
+        tmp_path / "tenant_acme_importer_implementation_packet.json"
+    )
+    artifact_prefix = tmp_path / "tenant_acme"
+    marker = tmp_path / "env-file-command-executed"
+    env_file = tmp_path / "tenant-import-rehearsal.env"
+    env_file.write_text(
+        "\n".join(
+            [
+                "SOURCE_DATABASE_URL='postgresql://user:secret@example.com/source'",
+                f"TARGET_DATABASE_URL=$(touch {marker})",
+                "",
+            ]
+        )
+    )
+    env = os.environ.copy()
+    env["PYTHON"] = str(_full_fake_python(tmp_path))
+    env.pop("SOURCE_DATABASE_URL", None)
+    env.pop("TARGET_DATABASE_URL", None)
+
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--implementation-packet-json",
+            str(tmp_path / "tenant_acme_importer_implementation_packet.json"),
+            "--artifact-prefix",
+            str(artifact_prefix),
+            "--backup-restore-owner",
+            "Ops Owner",
+            "--rehearsal-window",
+            "2026-05-05T10:00:00Z/2026-05-05T12:00:00Z",
+            "--rehearsal-executed-by",
+            "Operator",
+            "--evidence-reviewer",
+            "Reviewer",
+            "--date",
+            "2026-05-05",
+            "--env-file",
+            str(env_file),
+            "--confirm-rehearsal",
+            "--confirm-closeout",
+        ],
+        cwd=_REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 2
+    assert "contains shell expansion syntax" in cp.stderr
+    assert not marker.exists()
+    assert not (tmp_path / "tenant_acme_reviewer_packet.json").exists()
+    assert "postgresql://" not in cp.stdout
+    assert "postgresql://" not in cp.stderr
+    assert "secret" not in cp.stdout
+    assert "secret" not in cp.stderr
+
+
 def test_full_closeout_preserves_scope_boundaries() -> None:
     source = _SCRIPT.read_text()
 
