@@ -128,6 +128,62 @@ require_ordered_sequence() {
   done
 }
 
+line_has_forbidden_shell_control() {
+  local line="$1"
+
+  if [[ "$line" == *'$('* || "$line" == *'`'* || "$line" == *';'* || "$line" == *'&&'* || "$line" == *'||'* || "$line" == *'|'* ]]; then
+    return 0
+  fi
+  return 1
+}
+
+validate_allowed_command_lines() {
+  local line_number=0
+  local line=""
+  local trimmed=""
+
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line_number=$((line_number + 1))
+    trimmed="${line#"${line%%[![:space:]]*}"}"
+    trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+
+    case "$trimmed" in
+      ""|\#*)
+        continue
+        ;;
+    esac
+
+    if line_has_forbidden_shell_control "$trimmed"; then
+      failures+=("forbidden shell control syntax on line $line_number")
+      continue
+    fi
+
+    case "$trimmed" in
+      "scripts/generate_tenant_import_rehearsal_env_template.sh \\"|\
+      "scripts/precheck_tenant_import_rehearsal_env_file.sh \\"|\
+      "set -a"|\
+      "set +a"|\
+      "scripts/run_tenant_import_operator_launchpack.sh \\"|\
+      "PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal \\"|\
+      "PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence_template \\"|\
+      "PYTHONPATH=src python -m yuantus.scripts.tenant_import_rehearsal_evidence \\"|\
+      "scripts/run_tenant_import_evidence_closeout.sh \\")
+        continue
+        ;;
+    esac
+
+    if [[ "$trimmed" =~ ^\.[[:space:]]+\"[^\"]+\"$ ]]; then
+      continue
+    fi
+
+    if [[ "$trimmed" == --* ]]; then
+      continue
+    fi
+
+    failures+=("unsupported command line $line_number; only generated tenant import commands are allowed")
+  done < "$command_file"
+}
+
 forbid_pattern() {
   local pattern="$1"
   if grep -Fq -- "$pattern" "$command_file"; then
@@ -152,6 +208,7 @@ require_pattern "--strict"
 require_pattern "scripts/run_tenant_import_evidence_closeout.sh"
 
 require_ordered_sequence
+validate_allowed_command_lines
 
 forbid_pattern "postgresql://"
 forbid_pattern "postgresql+"

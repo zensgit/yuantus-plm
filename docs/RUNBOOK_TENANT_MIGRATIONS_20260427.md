@@ -570,8 +570,10 @@ does not contain secret DSN values and does not authorize cutover.
 The wrapper validates the generated command file before returning success. The
 command-file validator checks shell syntax, required step order, environment
 variable URL references with uppercase shell variable names, and forbidden
-DSN/cutover/remote-control patterns. To
-revalidate the file later without executing it, run:
+DSN/cutover/remote-control patterns. It also rejects unsupported executable
+lines, so an edited command file cannot add extra `rm`, `ssh`, `python -c`,
+`export`, or shell-control lines and still pass validation. To revalidate the
+file later without executing it, run:
 
 ```bash
 scripts/validate_tenant_import_rehearsal_operator_commands.sh \

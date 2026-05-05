@@ -38,6 +38,7 @@ def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_dril
     assert "- [x] Add runbook operator safety contracts." in todo
     assert "- [x] Add source/target URL env-name allowlist hardening." in todo
     assert "- [x] Add env-file key allowlist before shell source." in todo
+    assert "- [x] Add generated command-file executable-line allowlist." in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
     assert "- [x] Add operator-run PostgreSQL rehearsal evidence." not in todo
 
@@ -100,6 +101,8 @@ def test_runbook_pins_command_file_validator_as_non_executing_gate():
     assert "required step order" in normalized_section
     assert "environment variable URL references" in normalized_section
     assert "forbidden DSN/cutover/remote-control patterns" in normalized_section
+    assert "rejects unsupported executable lines" in normalized_section
+    assert "`rm`, `ssh`, `python -c`, `export`" in normalized_section
 
 
 def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
@@ -113,6 +116,8 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     assert "source/target URL env-name allowlist hardening" in status
     assert "env-file key allowlist before shell source" in status
     assert "rejects env-file keys outside" in status
+    assert "generated command-file executable-line allowlist" in status
+    assert "unsupported executable lines in generated command files" in status
     assert "rejecting unsafe env-file syntax" in status
     assert "out-of-order generated command files" in status
     assert "full-closeout wrapper using the prechecked env-file path" in status
@@ -133,10 +138,16 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     ) in todo
     assert "- [x] Track env-file key allowlist hardening as local safety only." in todo
     assert (
+        "- [x] Track command-file executable-line allowlist hardening as local safety only."
+    ) in todo
+    assert (
         "- [x] Assert URL env-name allowlist does not close the external evidence gate."
     ) in todo
     assert (
         "- [x] Assert env-file key allowlist does not close the external evidence gate."
+    ) in todo
+    assert (
+        "- [x] Assert command-file executable-line allowlist does not close the external evidence gate."
     ) in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
 
