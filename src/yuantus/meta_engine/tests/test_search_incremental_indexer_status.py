@@ -47,14 +47,28 @@ def test_search_indexer_status_lists_incremental_event_handlers() -> None:
     status = search_indexer.indexer_status()
 
     assert status["handlers"] == EXPECTED_HANDLERS
+    assert set(status["subscription_counts"]) == set(EXPECTED_HANDLERS)
+    assert isinstance(status["missing_handlers"], list)
     assert set(status["event_counts"]) == set(EXPECTED_HANDLERS)
     assert set(status["success_counts"]) == set(EXPECTED_HANDLERS)
     assert set(status["skipped_counts"]) == set(EXPECTED_HANDLERS)
     assert set(status["error_counts"]) == set(EXPECTED_HANDLERS)
     assert all(isinstance(value, int) for value in status["event_counts"].values())
+    assert all(isinstance(value, int) for value in status["subscription_counts"].values())
     assert all(isinstance(value, int) for value in status["success_counts"].values())
     assert all(isinstance(value, int) for value in status["skipped_counts"].values())
     assert all(isinstance(value, int) for value in status["error_counts"].values())
+
+
+def test_register_search_index_handlers_records_expected_subscriptions() -> None:
+    search_indexer.register_search_index_handlers()
+
+    status = search_indexer.indexer_status()
+    assert status["registered"] is True
+    assert status["missing_handlers"] == []
+    assert status["subscription_counts"] == {
+        event_type: 1 for event_type in EXPECTED_HANDLERS
+    }
 
 
 def test_item_created_handler_updates_runtime_status(monkeypatch) -> None:
@@ -192,6 +206,8 @@ def test_search_indexer_status_endpoint_returns_status_for_admin() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["handlers"] == EXPECTED_HANDLERS
+    assert set(body["subscription_counts"]) == set(EXPECTED_HANDLERS)
+    assert isinstance(body["missing_handlers"], list)
     assert set(body["event_counts"]) == set(EXPECTED_HANDLERS)
     assert set(body["success_counts"]) == set(EXPECTED_HANDLERS)
     assert set(body["skipped_counts"]) == set(EXPECTED_HANDLERS)
