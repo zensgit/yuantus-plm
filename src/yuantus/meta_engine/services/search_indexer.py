@@ -129,6 +129,17 @@ def _format_error(exc: Exception) -> str:
 
 def indexer_status() -> dict[str, Any]:
     subscription_counts = _subscription_counts()
+    missing_handlers = [
+        event_type for event_type, count in subscription_counts.items() if count == 0
+    ]
+    duplicate_handlers = [
+        event_type for event_type, count in subscription_counts.items() if count > 1
+    ]
+    health, health_reasons = _health_summary(
+        registered=_REGISTERED,
+        missing_handlers=missing_handlers,
+        duplicate_handlers=duplicate_handlers,
+    )
     with _STATUS_LOCK:
         return {
             "registered": _REGISTERED,
@@ -137,15 +148,14 @@ def indexer_status() -> dict[str, Any]:
             "uptime_seconds": int(
                 (datetime.now(timezone.utc) - _STATUS_STARTED_AT).total_seconds()
             ),
+            "health": health,
+            "health_reasons": health_reasons,
             "item_index_ready": _INDEX_READY,
             "eco_index_ready": _ECO_INDEX_READY,
             "handlers": list(_EVENT_TYPES.values()),
             "subscription_counts": subscription_counts,
-            "missing_handlers": [
-                event_type
-                for event_type, count in subscription_counts.items()
-                if count == 0
-            ],
+            "missing_handlers": missing_handlers,
+            "duplicate_handlers": duplicate_handlers,
             "event_counts": dict(_EVENT_COUNTS),
             "success_counts": dict(_SUCCESS_COUNTS),
             "skipped_counts": dict(_SKIPPED_COUNTS),
@@ -162,6 +172,26 @@ def indexer_status() -> dict[str, Any]:
             "last_error_at": _LAST_ERROR_AT,
             "last_error": _LAST_ERROR,
         }
+
+
+def _health_summary(
+    *,
+    registered: bool,
+    missing_handlers: list[str],
+    duplicate_handlers: list[str],
+) -> tuple[str, list[str]]:
+    reasons: list[str] = []
+    if not registered:
+        reasons.append("not-registered")
+    if missing_handlers:
+        reasons.append("missing-handlers")
+    if duplicate_handlers:
+        reasons.append("duplicate-handlers")
+    if not reasons:
+        return "ok", []
+    if reasons == ["not-registered"]:
+        return "not_registered", reasons
+    return "degraded", reasons
 
 
 def _ensure_index(service: SearchService) -> None:
