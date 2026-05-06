@@ -10,6 +10,7 @@ from yuantus.api.dependencies.auth import (
     get_current_user,
 )
 from yuantus.meta_engine.services.file_search_service import FileSearchService
+from yuantus.meta_engine.services.search_indexer import indexer_status
 from yuantus.meta_engine.services.search_service import SearchService
 
 search_router = APIRouter(prefix="/search", tags=["Search"])
@@ -20,6 +21,24 @@ class SearchStatusResponse(BaseModel):
     enabled: bool
     index: str
     index_exists: bool = False
+
+
+class SearchIndexerStatusResponse(BaseModel):
+    registered: bool
+    item_index_ready: bool
+    eco_index_ready: bool
+    handlers: list[str]
+    event_counts: Dict[str, int]
+    last_event_type: Optional[str] = None
+    last_event_at: Optional[str] = None
+    last_success_event_type: Optional[str] = None
+    last_success_at: Optional[str] = None
+    last_skipped_event_type: Optional[str] = None
+    last_skipped_at: Optional[str] = None
+    last_skipped_reason: Optional[str] = None
+    last_error_event_type: Optional[str] = None
+    last_error_at: Optional[str] = None
+    last_error: Optional[str] = None
 
 
 class SearchReindexRequest(BaseModel):
@@ -119,6 +138,13 @@ def search_ecos_status(
 ) -> SearchStatusResponse:
     service = SearchService(db)
     return SearchStatusResponse(**service.eco_status())
+
+
+@search_router.get("/indexer/status", response_model=SearchIndexerStatusResponse)
+def search_indexer_status(
+    _: CurrentUser = Depends(require_admin_user),
+) -> SearchIndexerStatusResponse:
+    return SearchIndexerStatusResponse(**indexer_status())
 
 
 @search_router.post("/ecos/reindex", response_model=EcoReindexResponse)
