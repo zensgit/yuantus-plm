@@ -514,3 +514,25 @@ def test_command_validator_rejects_shell_syntax_error(tmp_path: Path) -> None:
 
     assert cp.returncode == 1
     assert "shell syntax failed" in cp.stdout
+
+
+def test_command_validator_redacts_shell_syntax_error_details(tmp_path: Path) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    command_file.write_text(
+        command_file.read_text()
+        + "\npython -c print(postgresql://user:secret@example.com/source)\n"
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "shell syntax failed" in cp.stdout
+    assert "shell syntax details hidden: true" in cp.stdout
+    assert "python -c print" not in cp.stdout
+    assert "postgresql://user" not in cp.stdout
+    assert "secret" not in cp.stdout

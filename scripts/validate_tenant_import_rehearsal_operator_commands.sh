@@ -52,7 +52,7 @@ failures=()
 syntax_output="$(bash -n "$command_file" 2>&1)" || {
   failures+=("shell syntax failed")
   if [[ -n "$syntax_output" ]]; then
-    failures+=("$syntax_output")
+    failures+=("shell syntax details hidden: true")
   fi
 }
 
