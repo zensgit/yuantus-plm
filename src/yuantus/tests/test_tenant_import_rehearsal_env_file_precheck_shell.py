@@ -49,6 +49,45 @@ def test_env_file_precheck_help_documents_scope() -> None:
     assert "does not print database URL values" in normalized_out
 
 
+def test_env_file_precheck_rejects_unknown_cli_argument_without_echoing_value() -> None:
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--bad=postgresql://user:secret@example.com/source",
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    combined = cp.stdout + cp.stderr
+    assert cp.returncode == 2
+    assert "unknown argument" in combined
+    assert "argument value hidden: true" in combined
+    assert "postgresql://user" not in combined
+    assert "secret@example.com" not in combined
+
+
+def test_env_file_precheck_rejects_missing_env_file_without_echoing_path(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "postgresql:" / "user:secret@example.com" / "source.env"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--env-file", str(missing)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    combined = cp.stdout + cp.stderr
+    assert cp.returncode == 2
+    assert "--env-file does not exist" in combined
+    assert "env-file path hidden: true" in combined
+    assert "postgresql:" not in combined
+    assert "secret" not in combined
+
+
 def test_env_file_precheck_passes_without_printing_values(tmp_path: Path) -> None:
     env_file = tmp_path / "tenant-import-rehearsal.env"
     env_file.write_text(

@@ -559,6 +559,9 @@ variables are allowed. Extra keys such as `PATH`, `PYTHON`, `PYTHONPATH`, and
 expansion syntax, double-quoted values, and non-assignment lines are also
 rejected before the file is sourced.
 
+Env-file precheck CLI parse errors are also redacted: unknown argument values
+and missing env-file paths are not echoed before any file is opened or sourced.
+
 Custom `--source-url-env` and `--target-url-env` values must be uppercase shell
 environment variable names matching `[A-Z_][A-Z0-9_]*`. Invalid names are
 rejected before any env file is sourced, before indirect environment expansion,

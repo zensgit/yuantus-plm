@@ -37,7 +37,9 @@ metadata fields now also reject shell variable expansion and backslash escape
 syntax before operator use. Shell syntax diagnostics from generated command-file
 validation are redacted so raw `bash -n` error lines cannot echo edited command
 content. Validator CLI parse errors also hide unknown argument values and
-missing command-file paths.
+missing command-file paths. Env-file precheck CLI parse errors also hide
+unknown argument values and missing env-file paths before any file is opened or
+sourced.
 
 The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 
@@ -56,6 +58,7 @@ The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 - generated command-file quoted metadata expansion guard.
 - generated command-file shell syntax diagnostic redaction.
 - generated command-file validator CLI error redaction.
+- env-file precheck CLI error redaction.
 
 ## 2. Blocked State
 
@@ -103,6 +106,8 @@ The operator must provide or run:
 - generated command file whose shell syntax failure diagnostics stay redacted;
 - generated command-file validator CLI errors do not echo argument values or
   missing command-file paths;
+- env-file precheck CLI errors do not echo argument values or missing env-file
+  paths;
 - full-closeout wrapper using the prechecked env-file path;
 - uppercase source/target URL env-var names when overriding defaults;
 - row-copy rehearsal;
@@ -132,6 +137,7 @@ Before treating P3.4 as rehearsal-complete, reviewers should require:
   backslash escape syntax;
 - command-file shell syntax diagnostic redaction coverage;
 - command-file validator CLI error redaction coverage;
+- env-file precheck CLI error redaction coverage;
 - evidence intake report with `ready_for_evidence_intake=true`;
 - evidence handoff report with `ready_for_evidence_handoff=true`;
 - reviewer packet with `ready_for_reviewer_packet=true`;

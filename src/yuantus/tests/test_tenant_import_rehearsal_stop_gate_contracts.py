@@ -44,6 +44,7 @@ def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_dril
     assert "- [x] Add generated command-file quoted metadata expansion guard." in todo
     assert "- [x] Add generated command-file shell syntax diagnostic redaction." in todo
     assert "- [x] Add generated command-file validator CLI error redaction." in todo
+    assert "- [x] Add env-file precheck CLI error redaction." in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
     assert "- [x] Add operator-run PostgreSQL rehearsal evidence." not in todo
 
@@ -83,6 +84,12 @@ def test_runbook_pins_env_file_precheck_before_wrapper_source():
         normalized_command_pack_section
     )
     assert "unsupported variables" in full_closeout_section
+    assert "Env-file precheck CLI parse errors are also redacted" in (
+        normalized_command_pack_section
+    )
+    assert "unknown argument values and missing env-file paths are not echoed" in (
+        normalized_command_pack_section
+    )
 
     full_closeout_precheck_pos = full_closeout_section.index(
         "scripts/precheck_tenant_import_rehearsal_env_file.sh"
@@ -163,6 +170,12 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
         normalized_status
     )
     assert "missing command-file paths" in normalized_status
+    assert "Env-file precheck CLI parse errors also hide unknown argument values" in (
+        normalized_status
+    )
+    assert "missing env-file paths before any file is opened or sourced" in (
+        normalized_status
+    )
     assert "unsupported executable or option lines in generated command files" in status
     assert "rejecting unsafe env-file syntax" in status
     assert "out-of-order generated command files" in status
@@ -202,6 +215,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
         "- [x] Track command-file validator CLI error redaction as local safety only."
     ) in todo
     assert (
+        "- [x] Track env-file precheck CLI error redaction as local safety only."
+    ) in todo
+    assert (
         "- [x] Assert URL env-name allowlist does not close the external evidence gate."
     ) in todo
     assert (
@@ -224,6 +240,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     ) in todo
     assert (
         "- [x] Assert command-file validator CLI error redaction does not close the external evidence gate."
+    ) in todo
+    assert (
+        "- [x] Assert env-file precheck CLI error redaction does not close the external evidence gate."
     ) in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
 
