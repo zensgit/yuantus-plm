@@ -32,7 +32,9 @@ the selected source/target URL variables before any shell source operation and
 unsupported executable or option lines in generated command files before
 operator use. Path-valued generated command options are now also limited to a
 safe artifact path token set, so edited redirection, variable expansion, and
-quoted path rewrites are rejected before operator use.
+quoted path rewrites are rejected before operator use. Quoted generated evidence
+metadata fields now also reject shell variable expansion and backslash escape
+syntax before operator use.
 
 The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 
@@ -48,6 +50,7 @@ The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 - generated command-file executable-line allowlist.
 - generated command-file option-line allowlist.
 - generated command-file safe path option validation.
+- generated command-file quoted metadata expansion guard.
 
 ## 2. Blocked State
 
@@ -90,6 +93,8 @@ The operator must provide or run:
 - repo-external env-file contains only the selected source/target URL variables;
 - generated operator command file that passes the command-file validator;
 - generated command file whose path-valued options pass safe path validation;
+- generated command file whose quoted metadata fields pass expansion-guard
+  validation;
 - full-closeout wrapper using the prechecked env-file path;
 - uppercase source/target URL env-var names when overriding defaults;
 - row-copy rehearsal;
@@ -115,6 +120,8 @@ Before treating P3.4 as rehearsal-complete, reviewers should require:
 - command-file option-line allowlist coverage;
 - command-file safe path option coverage for redirection, variable expansion,
   and quoted path rewrites;
+- command-file quoted metadata coverage for shell variable expansion and
+  backslash escape syntax;
 - evidence intake report with `ready_for_evidence_intake=true`;
 - evidence handoff report with `ready_for_evidence_handoff=true`;
 - reviewer packet with `ready_for_reviewer_packet=true`;

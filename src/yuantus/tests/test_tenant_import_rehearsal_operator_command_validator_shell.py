@@ -358,6 +358,52 @@ def test_command_validator_rejects_quoted_path_option_without_echoing_value(
     assert '"output/hijack.md"' not in cp.stdout
 
 
+def test_command_validator_rejects_variable_expansion_in_metadata_without_echoing_value(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    _replace_one(
+        command_file,
+        '--backup-restore-owner "<owner>" \\',
+        '--backup-restore-owner "$SOURCE_DATABASE_URL" \\',
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported option line" in cp.stdout
+    assert "generated command step: evidence_template" in cp.stdout
+    assert "SOURCE_DATABASE_URL" not in cp.stdout
+
+
+def test_command_validator_rejects_backslash_escape_in_metadata_without_echoing_value(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    _replace_one(
+        command_file,
+        '--evidence-reviewer "<reviewer>" \\',
+        r'--evidence-reviewer "ops\reviewer" \\',
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported option line" in cp.stdout
+    assert "generated command step: evidence_template" in cp.stdout
+    assert r"ops\reviewer" not in cp.stdout
+
+
 def test_command_validator_rejects_extra_export_command(tmp_path: Path) -> None:
     command_file = _write_generated_command_file(tmp_path)
     command_file.write_text(command_file.read_text() + "\nexport PATH=/tmp/blocked\n")

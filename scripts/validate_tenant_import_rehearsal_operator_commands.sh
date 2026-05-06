@@ -148,6 +148,7 @@ strip_trailing_continuation() {
 }
 
 safe_path_token_regex='[-A-Za-z0-9_./:]+'
+safe_quoted_metadata_regex='"[^"$`\\]+"'
 
 option_allowed_for_command() {
   local command="$1"
@@ -169,7 +170,7 @@ option_allowed_for_command() {
       [[ "$line" =~ ^--implementation-packet-json[[:space:]]+${safe_path_token_regex}$ || "$line" =~ ^--source-url[[:space:]]+\"\$[A-Z_][A-Z0-9_]*\"$ || "$line" =~ ^--target-url[[:space:]]+\"\$[A-Z_][A-Z0-9_]*\"$ || "$line" =~ ^--output-json[[:space:]]+${safe_path_token_regex}$ || "$line" =~ ^--output-md[[:space:]]+${safe_path_token_regex}$ || "$line" == "--confirm-rehearsal" ]]
       ;;
     evidence_template)
-      [[ "$line" =~ ^--rehearsal-json[[:space:]]+${safe_path_token_regex}$ || "$line" =~ ^--backup-restore-owner[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--rehearsal-window[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--rehearsal-executed-by[[:space:]]+\"[^\"]+\"$ || "$line" == "--rehearsal-result pass" || "$line" =~ ^--evidence-reviewer[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--evidence-date[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--output-json[[:space:]]+${safe_path_token_regex}$ || "$line" =~ ^--output-md[[:space:]]+${safe_path_token_regex}$ ]]
+      [[ "$line" =~ ^--rehearsal-json[[:space:]]+${safe_path_token_regex}$ || "$line" =~ ^--backup-restore-owner[[:space:]]+${safe_quoted_metadata_regex}$ || "$line" =~ ^--rehearsal-window[[:space:]]+${safe_quoted_metadata_regex}$ || "$line" =~ ^--rehearsal-executed-by[[:space:]]+${safe_quoted_metadata_regex}$ || "$line" == "--rehearsal-result pass" || "$line" =~ ^--evidence-reviewer[[:space:]]+${safe_quoted_metadata_regex}$ || "$line" =~ ^--evidence-date[[:space:]]+${safe_quoted_metadata_regex}$ || "$line" =~ ^--output-json[[:space:]]+${safe_path_token_regex}$ || "$line" =~ ^--output-md[[:space:]]+${safe_path_token_regex}$ ]]
       ;;
     evidence_gate)
       [[ "$line" =~ ^--(rehearsal-json|implementation-packet-json|operator-evidence-md|output-json|output-md)[[:space:]]+${safe_path_token_regex}$ || "$line" == "--strict" ]]
