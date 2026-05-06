@@ -579,8 +579,11 @@ edited command file cannot add unknown options such as `--confirm-cutover`, move
 still pass validation. Path-valued option arguments are restricted to a safe
 artifact path token set (`[-A-Za-z0-9_./:]+`), so redirection, variable
 expansion, and quoted path rewrites such as `>`, `<`, `$HOME`, or `"path"` are
-rejected without echoing the edited value. To revalidate the file later without
-executing it, run:
+rejected without echoing the edited value. Quoted evidence metadata fields are
+also checked for shell expansion and escape syntax; values such as
+`"$SOURCE_DATABASE_URL"` or `"ops\reviewer"` are rejected before operator use
+without echoing the edited value. To revalidate the file later without executing
+it, run:
 
 ```bash
 scripts/validate_tenant_import_rehearsal_operator_commands.sh \
