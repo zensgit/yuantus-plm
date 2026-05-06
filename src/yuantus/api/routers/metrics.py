@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from starlette.responses import PlainTextResponse
 
 from yuantus.config import get_settings
-from yuantus.observability.metrics import render_prometheus_text
+from yuantus.observability.metrics import render_runtime_prometheus_text
 
 
 router = APIRouter(tags=["Observability"])
@@ -15,5 +15,5 @@ def metrics_endpoint() -> PlainTextResponse:
     settings = get_settings()
     if not settings.METRICS_ENABLED:
         raise HTTPException(status_code=404, detail="Metrics disabled")
-    text = render_prometheus_text()
+    text = render_runtime_prometheus_text()
     return PlainTextResponse(content=text, media_type="text/plain; version=0.0.4")

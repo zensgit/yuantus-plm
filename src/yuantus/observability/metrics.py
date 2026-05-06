@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import threading
-from typing import Dict, Iterable, List, Optional, Tuple
+from collections.abc import Mapping
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
 _DURATION_BUCKETS_MS: Tuple[int, ...] = (
@@ -14,6 +15,13 @@ _DURATION_BUCKETS_MS: Tuple[int, ...] = (
     30000,
     60000,
     300000,
+)
+_SEARCH_INDEXER_HEALTH_STATES: Tuple[str, ...] = ("ok", "not_registered", "degraded")
+_SEARCH_INDEXER_OUTCOME_FIELDS: Tuple[Tuple[str, str], ...] = (
+    ("received", "event_counts"),
+    ("success", "success_counts"),
+    ("skipped", "skipped_counts"),
+    ("error", "error_counts"),
 )
 
 
@@ -116,6 +124,94 @@ def render_prometheus_text() -> str:
     return _registry.render_prometheus_text()
 
 
+def render_runtime_prometheus_text() -> str:
+    from yuantus.meta_engine.services import search_indexer
+
+    return _join_metric_sections(
+        (
+            render_prometheus_text(),
+            render_search_indexer_metrics(search_indexer.indexer_status()),
+        )
+    )
+
+
+def render_search_indexer_metrics(status: Mapping[str, Any]) -> str:
+    handlers = _status_handlers(status)
+    health = str(status.get("health") or "unknown")
+    health_reasons = sorted({str(reason) for reason in status.get("health_reasons") or []})
+    lines: List[str] = [
+        "# HELP yuantus_search_indexer_registered Search indexer handlers are registered",
+        "# TYPE yuantus_search_indexer_registered gauge",
+        f"yuantus_search_indexer_registered {_bool_metric(status.get('registered'))}",
+        "",
+        "# HELP yuantus_search_indexer_uptime_seconds Search indexer uptime seconds",
+        "# TYPE yuantus_search_indexer_uptime_seconds gauge",
+        f"yuantus_search_indexer_uptime_seconds {_int_metric(status.get('uptime_seconds'))}",
+        "",
+        "# HELP yuantus_search_indexer_health Search indexer health state",
+        "# TYPE yuantus_search_indexer_health gauge",
+    ]
+    for state in _SEARCH_INDEXER_HEALTH_STATES:
+        lines.append(
+            f'yuantus_search_indexer_health{{state="{_escape(state)}"}} '
+            f"{1 if health == state else 0}"
+        )
+    if health not in _SEARCH_INDEXER_HEALTH_STATES:
+        lines.append(
+            f'yuantus_search_indexer_health{{state="{_escape(health)}"}} 1'
+        )
+
+    if health_reasons:
+        lines.extend(
+            [
+                "",
+                "# HELP yuantus_search_indexer_health_reason Active search indexer health reasons",
+                "# TYPE yuantus_search_indexer_health_reason gauge",
+            ]
+        )
+        for reason in health_reasons:
+            lines.append(
+                f'yuantus_search_indexer_health_reason{{reason="{_escape(reason)}"}} 1'
+            )
+
+    lines.extend(
+        [
+            "",
+            "# HELP yuantus_search_indexer_index_ready Search index readiness by index",
+            "# TYPE yuantus_search_indexer_index_ready gauge",
+            f'yuantus_search_indexer_index_ready{{index="item"}} '
+            f"{_bool_metric(status.get('item_index_ready'))}",
+            f'yuantus_search_indexer_index_ready{{index="eco"}} '
+            f"{_bool_metric(status.get('eco_index_ready'))}",
+            "",
+            "# HELP yuantus_search_indexer_subscriptions Search indexer subscriptions",
+            "# TYPE yuantus_search_indexer_subscriptions gauge",
+        ]
+    )
+    subscription_counts = _status_map(status, "subscription_counts")
+    for event_type in handlers:
+        lines.append(
+            f'yuantus_search_indexer_subscriptions{{event_type="{_escape(event_type)}"}} '
+            f"{_int_metric(subscription_counts.get(event_type))}"
+        )
+
+    lines.extend(
+        [
+            "",
+            "# HELP yuantus_search_indexer_events_total Search indexer event outcomes",
+            "# TYPE yuantus_search_indexer_events_total counter",
+        ]
+    )
+    for outcome, field_name in _SEARCH_INDEXER_OUTCOME_FIELDS:
+        counts = _status_map(status, field_name)
+        for event_type in handlers:
+            lines.append(
+                f'yuantus_search_indexer_events_total{{event_type="{_escape(event_type)}",'
+                f'outcome="{_escape(outcome)}"}} {_int_metric(counts.get(event_type))}'
+            )
+    return "\n".join(lines) + "\n"
+
+
 def reset_registry() -> None:
     """Test-only helper to clear in-memory metric state between cases."""
     _registry.reset()
@@ -123,3 +219,32 @@ def reset_registry() -> None:
 
 def duration_buckets() -> Iterable[int]:
     return _DURATION_BUCKETS_MS
+
+
+def _join_metric_sections(sections: Iterable[str]) -> str:
+    chunks = [section.strip() for section in sections if section.strip()]
+    return "\n\n".join(chunks) + ("\n" if chunks else "")
+
+
+def _status_handlers(status: Mapping[str, Any]) -> List[str]:
+    handlers = {str(event_type) for event_type in status.get("handlers") or []}
+    for _outcome, field_name in _SEARCH_INDEXER_OUTCOME_FIELDS:
+        handlers.update(_status_map(status, field_name))
+    handlers.update(_status_map(status, "subscription_counts"))
+    return sorted(handlers)
+
+
+def _status_map(status: Mapping[str, Any], field_name: str) -> Mapping[str, Any]:
+    value = status.get(field_name)
+    return value if isinstance(value, Mapping) else {}
+
+
+def _bool_metric(value: Any) -> int:
+    return 1 if bool(value) else 0
+
+
+def _int_metric(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0

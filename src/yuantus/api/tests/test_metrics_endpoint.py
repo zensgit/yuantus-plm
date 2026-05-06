@@ -67,9 +67,11 @@ def test_metrics_route_is_registered_in_app() -> None:
     assert "/api/v1/metrics" in paths
 
 
-def test_metrics_endpoint_empty_registry_returns_empty_body() -> None:
+def test_metrics_endpoint_empty_job_registry_returns_runtime_search_indexer_metrics() -> None:
     app = create_app()
     client = TestClient(app)
     response = client.get("/api/v1/metrics")
     assert response.status_code == 200
-    assert response.text == ""
+    assert "yuantus_jobs_total" not in response.text
+    assert "yuantus_search_indexer_registered" in response.text
+    assert "yuantus_search_indexer_events_total" in response.text
