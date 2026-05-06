@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+import re
+from datetime import datetime, timezone
 from threading import Lock
-from typing import Callable
+from typing import Any, Callable
 
 from yuantus.database import get_db_session
 from yuantus.meta_engine.events.domain_events import (
@@ -27,6 +29,107 @@ _ECO_INDEX_READY = False
 _ECO_INDEX_LOCK = Lock()
 _REGISTERED = False
 _REGISTER_LOCK = Lock()
+_STATUS_LOCK = Lock()
+_EVENT_TYPES = {
+    ItemCreatedEvent: "item.created",
+    ItemUpdatedEvent: "item.updated",
+    ItemStateChangedEvent: "item.state_changed",
+    ItemDeletedEvent: "item.deleted",
+    EcoCreatedEvent: "eco.created",
+    EcoUpdatedEvent: "eco.updated",
+    EcoDeletedEvent: "eco.deleted",
+}
+_EVENT_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
+_LAST_EVENT_TYPE: str | None = None
+_LAST_EVENT_AT: str | None = None
+_LAST_SUCCESS_EVENT_TYPE: str | None = None
+_LAST_SUCCESS_AT: str | None = None
+_LAST_SKIPPED_EVENT_TYPE: str | None = None
+_LAST_SKIPPED_AT: str | None = None
+_LAST_SKIPPED_REASON: str | None = None
+_LAST_ERROR_EVENT_TYPE: str | None = None
+_LAST_ERROR_AT: str | None = None
+_LAST_ERROR: str | None = None
+_MAX_ERROR_MESSAGE_LENGTH = 300
+_SENSITIVE_ERROR_PATTERNS = (
+    (
+        re.compile(
+            r"(?i)"
+            r"(password|passwd|pwd|token|secret|api[_-]?key|access[_-]?key)"
+            r"(\s*[=:]\s*)"
+            r"([^,\s;&]+)"
+        ),
+        r"\1\2***",
+    ),
+    (re.compile(r"://([^:/\s]+):([^@\s]+)@"), r"://\1:***@"),
+)
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _record_event_received(event_type: str) -> None:
+    global _LAST_EVENT_TYPE, _LAST_EVENT_AT
+    with _STATUS_LOCK:
+        _EVENT_COUNTS[event_type] = _EVENT_COUNTS.get(event_type, 0) + 1
+        _LAST_EVENT_TYPE = event_type
+        _LAST_EVENT_AT = _utc_now()
+
+
+def _record_event_success(event_type: str) -> None:
+    global _LAST_SUCCESS_EVENT_TYPE, _LAST_SUCCESS_AT
+    with _STATUS_LOCK:
+        _LAST_SUCCESS_EVENT_TYPE = event_type
+        _LAST_SUCCESS_AT = _utc_now()
+
+
+def _record_event_skipped(event_type: str, reason: str) -> None:
+    global _LAST_SKIPPED_EVENT_TYPE, _LAST_SKIPPED_AT, _LAST_SKIPPED_REASON
+    with _STATUS_LOCK:
+        _LAST_SKIPPED_EVENT_TYPE = event_type
+        _LAST_SKIPPED_AT = _utc_now()
+        _LAST_SKIPPED_REASON = reason
+
+
+def _record_event_error(event_type: str, exc: Exception) -> None:
+    global _LAST_ERROR_EVENT_TYPE, _LAST_ERROR_AT, _LAST_ERROR
+    with _STATUS_LOCK:
+        _LAST_ERROR_EVENT_TYPE = event_type
+        _LAST_ERROR_AT = _utc_now()
+        _LAST_ERROR = _format_error(exc)
+
+
+def _format_error(exc: Exception) -> str:
+    message = str(exc).strip()
+    for pattern, replacement in _SENSITIVE_ERROR_PATTERNS:
+        message = pattern.sub(replacement, message)
+    if len(message) > _MAX_ERROR_MESSAGE_LENGTH:
+        message = f"{message[:_MAX_ERROR_MESSAGE_LENGTH]}..."
+    if not message:
+        return type(exc).__name__
+    return f"{type(exc).__name__}: {message}"
+
+
+def indexer_status() -> dict[str, Any]:
+    with _STATUS_LOCK:
+        return {
+            "registered": _REGISTERED,
+            "item_index_ready": _INDEX_READY,
+            "eco_index_ready": _ECO_INDEX_READY,
+            "handlers": list(_EVENT_TYPES.values()),
+            "event_counts": dict(_EVENT_COUNTS),
+            "last_event_type": _LAST_EVENT_TYPE,
+            "last_event_at": _LAST_EVENT_AT,
+            "last_success_event_type": _LAST_SUCCESS_EVENT_TYPE,
+            "last_success_at": _LAST_SUCCESS_AT,
+            "last_skipped_event_type": _LAST_SKIPPED_EVENT_TYPE,
+            "last_skipped_at": _LAST_SKIPPED_AT,
+            "last_skipped_reason": _LAST_SKIPPED_REASON,
+            "last_error_event_type": _LAST_ERROR_EVENT_TYPE,
+            "last_error_at": _LAST_ERROR_AT,
+            "last_error": _LAST_ERROR,
+        }
 
 
 def _ensure_index(service: SearchService) -> None:
@@ -57,19 +160,26 @@ def _ensure_eco_index(service: SearchService) -> None:
             logger.exception("ECO search index initialization failed")
 
 
-def _with_search_service(handler: Callable[[SearchService], None]) -> None:
+def _with_search_service(
+    event_type: str, handler: Callable[[SearchService], None]
+) -> None:
     try:
         with get_db_session() as session:
             service = SearchService(session)
             if not service.client:
+                _record_event_skipped(event_type, "search-engine-disabled")
                 return
             _ensure_index(service)
             handler(service)
-    except Exception:
+            _record_event_success(event_type)
+    except Exception as exc:
+        _record_event_error(event_type, exc)
         logger.exception("Search indexing handler failed")
 
 
 def _handle_item_created(event: ItemCreatedEvent) -> None:
+    _record_event_received(event.event_type)
+
     def _index(service: SearchService) -> None:
         item = service.session.get(Item, event.item_id) if service.session else None
         if not item:
@@ -77,10 +187,12 @@ def _handle_item_created(event: ItemCreatedEvent) -> None:
             return
         service.index_item(item)
 
-    _with_search_service(_index)
+    _with_search_service(event.event_type, _index)
 
 
 def _handle_item_updated(event: ItemUpdatedEvent) -> None:
+    _record_event_received(event.event_type)
+
     def _index(service: SearchService) -> None:
         item = service.session.get(Item, event.item_id) if service.session else None
         if not item:
@@ -88,17 +200,21 @@ def _handle_item_updated(event: ItemUpdatedEvent) -> None:
             return
         service.index_item(item)
 
-    _with_search_service(_index)
+    _with_search_service(event.event_type, _index)
 
 
 def _handle_item_deleted(event: ItemDeletedEvent) -> None:
+    _record_event_received(event.event_type)
+
     def _delete(service: SearchService) -> None:
         service.delete_item(event.item_id)
 
-    _with_search_service(_delete)
+    _with_search_service(event.event_type, _delete)
 
 
 def _handle_item_state_changed(event: ItemStateChangedEvent) -> None:
+    _record_event_received(event.event_type)
+
     def _index(service: SearchService) -> None:
         item = service.session.get(Item, event.item_id) if service.session else None
         if not item:
@@ -106,10 +222,12 @@ def _handle_item_state_changed(event: ItemStateChangedEvent) -> None:
             return
         service.index_item(item)
 
-    _with_search_service(_index)
+    _with_search_service(event.event_type, _index)
 
 
 def _handle_eco_created(event: EcoCreatedEvent) -> None:
+    _record_event_received(event.event_type)
+
     def _index(service: SearchService) -> None:
         _ensure_eco_index(service)
         eco = service.session.get(ECO, event.eco_id) if service.session else None
@@ -118,10 +236,12 @@ def _handle_eco_created(event: EcoCreatedEvent) -> None:
             return
         service.index_eco(eco)
 
-    _with_search_service(_index)
+    _with_search_service(event.event_type, _index)
 
 
 def _handle_eco_updated(event: EcoUpdatedEvent) -> None:
+    _record_event_received(event.event_type)
+
     def _index(service: SearchService) -> None:
         _ensure_eco_index(service)
         eco = service.session.get(ECO, event.eco_id) if service.session else None
@@ -130,15 +250,17 @@ def _handle_eco_updated(event: EcoUpdatedEvent) -> None:
             return
         service.index_eco(eco)
 
-    _with_search_service(_index)
+    _with_search_service(event.event_type, _index)
 
 
 def _handle_eco_deleted(event: EcoDeletedEvent) -> None:
+    _record_event_received(event.event_type)
+
     def _delete(service: SearchService) -> None:
         _ensure_eco_index(service)
         service.delete_eco(event.eco_id)
 
-    _with_search_service(_delete)
+    _with_search_service(event.event_type, _delete)
 
 
 def register_search_index_handlers() -> None:
