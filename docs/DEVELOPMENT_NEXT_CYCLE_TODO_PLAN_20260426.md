@@ -5,6 +5,12 @@
 > any of Phases 1–6. The "no-go pending external trigger" stance recorded in
 > `DEV_AND_VERIFICATION_NEW_CYCLE_BACKLOG_TRIAGE_20260426.md` (PR #401) remains
 > in effect until the user explicitly opts in to a phase below.
+>
+> **2026-05-06 status refresh**: Phases 1 and 2 are closed. Phase 3's
+> repository-side schema-per-tenant and tenant-import rehearsal toolchain work
+> is also closed through the P3.4 external-operator handoff boundary at
+> `main=32d9fb5`; the remaining P3.4 item is real operator-run PostgreSQL
+> rehearsal evidence, which cannot be completed by local code changes.
 
 ## 1. Goal & Scope
 
@@ -44,12 +50,12 @@ auto-triggered; each requires explicit user opt-in.
 | S3 BOM + Version | ✅ Done | — |
 | S4 ECO/Workflow | ✅ Done | — |
 | S5 CAD MVP | ✅ Done | (deferred: real CAD parsers) |
-| S6 搜索/索引 | 🟡 Partial | Phase 4 (incremental + reports) |
-| S7 私有化 + 多租户 | 🟡 Partial | Phase 3 (Postgres tenancy), Phase 5 (provisioning + backup) |
+| S6 搜索/索引 | 🟡 Partial | Phase 4 (incremental + reports) remains the next internal-code candidate |
+| S7 私有化 + 多租户 | 🟡 Partial | Phase 3 repo-side Postgres tenancy is closed; P3.4 external rehearsal evidence remains; Phase 5 waits behind that gate |
 | Roadmap §11 可观测 | 🟢 Foundation done | Phase 2 closed in PRs #414, #415, #416; Phase 6 circuit breakers remain trigger-gated |
 | 技术债：10 个 router shells | ✅ Done | Phase 1 closed in PRs #402–#413 |
 
-Concrete code-level findings supporting the assessment as of `main=2eddbf8`:
+Concrete code-level findings supporting the assessment as of `main=32d9fb5`:
 
 - Phase 1 shell cleanup is closed. The 10 zero-route compatibility shells
   (`bom_router`, `eco_router`, `version_router`, `quality_router`,
@@ -63,13 +69,17 @@ Concrete code-level findings supporting the assessment as of `main=2eddbf8`:
   exposes `LOG_FORMAT`, `REQUEST_ID_HEADER`, `METRICS_ENABLED`, and
   `METRICS_BACKEND`; `docs/RUNBOOK_RUNTIME.md` documents the field/metric
   schema.
+- Phase 3 repository-side tenancy work is closed through the external handoff
+  boundary. `TENANCY_MODE=schema-per-tenant` exists as a default-off
+  PostgreSQL-only runtime path, `migrations_tenant/` has its tenant Alembic
+  environment and deterministic baseline revision, tenant provisioning and
+  rehearsal runbooks exist, and the tenant-import P3.4 local toolchain is
+  closed through `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_IMPORT_EXTERNAL_OPERATOR_HANDOFF_20260506.md`.
+  The remaining P3.4 blocker is real operator-run non-production PostgreSQL
+  evidence, not another local implementation PR.
 - `src/yuantus/meta_engine/services/search_service.py` already supports
   Elasticsearch with DB fallback (`engine="elasticsearch"|"db"`); the
   pluggability is real. Gap is incremental indexing + reports/RPC aggregation.
-- `src/yuantus/config/settings.py` exposes `TENANCY_MODE` ∈
-  `{single, db-per-tenant, db-per-tenant-org}`, all sqlite-driven. Postgres
-  schema-per-tenant is not implemented; design doc §3.2 explicitly calls it out
-  as "未来如使用 Postgres，可改为 schema-per-tenant 或独立库".
 - `src/yuantus/security/auth/quota_service.py` exists; quota model groundwork is in place but no provisioning API consumes it yet.
 - `src/yuantus/api/middleware/` has `audit.py`, `auth_enforce.py`, `context.py`,
   and `request_logging.py`. P2.1/P2.2 deliberately used stdlib logging plus a
@@ -241,15 +251,43 @@ pending work.
 
 ## 7. Phase 3 — Postgres Schema-per-Tenant (S7)
 
+**Status as of `main=32d9fb5`**: repository-side work is complete through the
+P3.4 external-operator handoff boundary. Do not treat this section as pending
+local implementation work.
+
+Shipped records:
+
+- P3.1 strategy:
+  `docs/DEV_AND_VERIFICATION_PHASE3_SCHEMA_PER_TENANT_STRATEGY_20260426.md`
+- P3.2 runtime default-off path:
+  `docs/DEV_AND_VERIFICATION_PHASE3_SCHEMA_PER_TENANT_RUNTIME_20260426.md`
+- P3.3.1 tenant Alembic env:
+  `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_ALEMBIC_ENV_20260427.md`
+- P3.3.2 tenant provisioning helper + runbook:
+  `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_PROVISIONING_RUNBOOK_20260427.md`
+- P3.3.3 deterministic tenant baseline revision:
+  `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_BASELINE_REVISION_20260427.md`
+- P3.4 tenant-import rehearsal toolchain and external handoff:
+  `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_IMPORT_EXTERNAL_OPERATOR_HANDOFF_20260506.md`
+
+Remaining P3.4 item:
+
+- operator-run PostgreSQL rehearsal evidence from real non-production
+  source/target DSNs, an approved rehearsal window, and reviewer packet output.
+
+This remaining item is external. It must not be replaced by synthetic drill
+output, local mock evidence, or another repository-only bypass.
+
 **Goal**: Production-grade tenancy isolation in Postgres mode, addressing
 `DEVELOPMENT_DESIGN.md` §3.2 explicit follow-up.
 
 **Trigger**: production deployment plan with Postgres backend; OR specific
 tenant-isolation contract gap surfaced by a security review.
 
-**Total effort**: ~5–7 days across 4 sub-PRs.
+**Historical estimate**: ~5–7 days across 4 sub-PRs. The actual implementation
+landed as a longer P3.1/P3.2/P3.3/P3.4 sequence with explicit stop gates.
 
-**Sub-PRs:**
+**Original sub-PR sketch, retained for historical context:**
 
 | Sub-PR | Scope | Branch | Effort |
 | --- | --- | --- | ---: |
@@ -261,10 +299,13 @@ tenant-isolation contract gap surfaced by a security review.
 
 **Acceptance criteria:**
 
-- `TENANCY_MODE=schema-per-tenant` works end-to-end with Postgres.
-- `verify_multitenancy.sh` script exists and passes (per `DEVELOPMENT_PLAN.md` Appendix A row 7).
+- `TENANCY_MODE=schema-per-tenant` works as a default-off, PostgreSQL-only
+  runtime path and refuses non-PostgreSQL use.
+- Tenant Alembic env, provisioning helper, deterministic baseline revision,
+  and tenant-import rehearsal tooling are present and locally verified.
 - Existing `single` and `db-per-tenant` modes continue to work (no regression).
-- Migration script documented and tested on a non-production Postgres instance.
+- Real data migration / runtime cutover remains blocked on external
+  operator-run non-production PostgreSQL evidence.
 
 **Risk**: High — schema migrations affect every table; misalignment between alembic and runtime can corrupt or duplicate data.
 
@@ -272,7 +313,8 @@ tenant-isolation contract gap surfaced by a security review.
 - Pilot on dev DB first.
 - Hard-required code review step before P3.3 lands.
 - Alembic revert plan included in P3.1.
-- Phase 3 is the only phase with a formal "stop and reassess" gate after P3.2 before P3.3 starts.
+- Phase 3 keeps the formal stop gate at P3.4: no production cutover and no
+  runtime tenant-mode enablement without real operator evidence.
 
 ## 8. Phase 4 — Search Incremental + Reports (S6)
 
@@ -459,7 +501,14 @@ Expected: 4 passed + clean.
 Per `DEV_AND_VERIFICATION_NEW_CYCLE_BACKLOG_TRIAGE_20260426.md` §9:
 
 1. Keep `main` stable.
-2. User decides whether to opt-in to Phase 1 (or any phase). Each opt-in starts the corresponding sub-PR sequence.
-3. Phases proceed sequentially by default; parallelism is allowed only between Phase 1 and Phase 2 (no shared files), and between Phase 6 and Phase 5 (independent surfaces).
-4. After each phase, re-evaluate priority before continuing — external signal may have shifted the order.
-5. Terminate the implementation arc when (a) all 6 phases close, OR (b) external trigger redirects to a Category D item.
+2. Do not continue P3.4 locally unless real operator-run non-production
+   PostgreSQL rehearsal evidence exists.
+3. If internal development continues before external P3.4 evidence arrives, the
+   next candidate is Phase 4 P4.1 only: search incremental indexing taskbook
+   and first bounded implementation slice.
+4. Phases proceed sequentially by default. Do not start Phase 5 provisioning or
+   production cutover until P3.4 evidence is accepted.
+5. After each phase, re-evaluate priority before continuing — external signal
+   may have shifted the order.
+6. Terminate the implementation arc when (a) all 6 phases close, OR (b)
+   external trigger redirects to a Category D item.
