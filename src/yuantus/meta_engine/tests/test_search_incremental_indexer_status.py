@@ -49,9 +49,12 @@ def test_search_indexer_status_lists_incremental_event_handlers() -> None:
     assert status["status_started_at"].endswith("Z")
     assert isinstance(status["uptime_seconds"], int)
     assert status["uptime_seconds"] >= 0
+    assert status["health"] in {"ok", "not_registered", "degraded"}
+    assert isinstance(status["health_reasons"], list)
     assert status["handlers"] == EXPECTED_HANDLERS
     assert set(status["subscription_counts"]) == set(EXPECTED_HANDLERS)
     assert isinstance(status["missing_handlers"], list)
+    assert isinstance(status["duplicate_handlers"], list)
     assert set(status["event_counts"]) == set(EXPECTED_HANDLERS)
     assert set(status["success_counts"]) == set(EXPECTED_HANDLERS)
     assert set(status["skipped_counts"]) == set(EXPECTED_HANDLERS)
@@ -69,10 +72,42 @@ def test_register_search_index_handlers_records_expected_subscriptions() -> None
     status = search_indexer.indexer_status()
     assert status["registered"] is True
     assert status["registered_at"].endswith("Z")
+    assert status["health"] == "ok"
+    assert status["health_reasons"] == []
     assert status["missing_handlers"] == []
+    assert status["duplicate_handlers"] == []
     assert status["subscription_counts"] == {
         event_type: 1 for event_type in EXPECTED_HANDLERS
     }
+
+
+def test_indexer_health_reports_registration_and_subscription_anomalies(monkeypatch) -> None:
+    subscription_counts = {event_type: 1 for event_type in EXPECTED_HANDLERS}
+    subscription_counts["item.created"] = 0
+    subscription_counts["eco.deleted"] = 2
+    monkeypatch.setattr(search_indexer, "_REGISTERED", True)
+    monkeypatch.setattr(search_indexer, "_subscription_counts", lambda: subscription_counts)
+
+    status = search_indexer.indexer_status()
+
+    assert status["health"] == "degraded"
+    assert status["health_reasons"] == ["missing-handlers", "duplicate-handlers"]
+    assert status["missing_handlers"] == ["item.created"]
+    assert status["duplicate_handlers"] == ["eco.deleted"]
+
+
+def test_indexer_health_reports_not_registered(monkeypatch) -> None:
+    monkeypatch.setattr(search_indexer, "_REGISTERED", False)
+    monkeypatch.setattr(
+        search_indexer,
+        "_subscription_counts",
+        lambda: {event_type: 0 for event_type in EXPECTED_HANDLERS},
+    )
+
+    status = search_indexer.indexer_status()
+
+    assert status["health"] == "degraded"
+    assert status["health_reasons"] == ["not-registered", "missing-handlers"]
 
 
 def test_item_created_handler_updates_runtime_status(monkeypatch) -> None:
@@ -211,9 +246,12 @@ def test_search_indexer_status_endpoint_returns_status_for_admin() -> None:
     body = response.json()
     assert body["status_started_at"].endswith("Z")
     assert isinstance(body["uptime_seconds"], int)
+    assert body["health"] in {"ok", "not_registered", "degraded"}
+    assert isinstance(body["health_reasons"], list)
     assert body["handlers"] == EXPECTED_HANDLERS
     assert set(body["subscription_counts"]) == set(EXPECTED_HANDLERS)
     assert isinstance(body["missing_handlers"], list)
+    assert isinstance(body["duplicate_handlers"], list)
     assert set(body["event_counts"]) == set(EXPECTED_HANDLERS)
     assert set(body["success_counts"]) == set(EXPECTED_HANDLERS)
     assert set(body["skipped_counts"]) == set(EXPECTED_HANDLERS)

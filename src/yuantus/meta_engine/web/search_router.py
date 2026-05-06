@@ -28,11 +28,14 @@ class SearchIndexerStatusResponse(BaseModel):
     registered_at: Optional[str] = None
     status_started_at: str
     uptime_seconds: int
+    health: str
+    health_reasons: list[str]
     item_index_ready: bool
     eco_index_ready: bool
     handlers: list[str]
     subscription_counts: Dict[str, int]
     missing_handlers: list[str]
+    duplicate_handlers: list[str]
     event_counts: Dict[str, int]
     success_counts: Dict[str, int]
     skipped_counts: Dict[str, int]
