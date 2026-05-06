@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
 from yuantus.scripts import tenant_import_rehearsal_operator_packet as operator_packet
+from yuantus.tests.tenant_import_shell_test_env import shell_test_env
 from yuantus.tests.test_tenant_import_rehearsal_evidence_archive import _write_green_chain
 
 
@@ -26,10 +26,7 @@ _TARGET_URL_REDACTED = "postgresql://user:***@example.com/rehearsal"
 
 
 def _env() -> dict[str, str]:
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(_REPO_ROOT / "src")
-    env["PYTHON"] = str(_REPO_ROOT / ".venv" / "bin" / "python")
-    return env
+    return shell_test_env(_REPO_ROOT)
 
 
 def _write_text(path: Path, text: str) -> Path:

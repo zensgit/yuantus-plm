@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
+from yuantus.tests.tenant_import_shell_test_env import shell_test_env
 from yuantus.tests.test_tenant_import_rehearsal_operator_packet import _write_green_packet
 
 
@@ -54,7 +54,7 @@ def test_operator_precheck_passes_with_green_packet_and_env(tmp_path: Path) -> N
     implementation_packet_json.rename(
         tmp_path / "tenant_acme_importer_implementation_packet.json"
     )
-    env = os.environ.copy()
+    env = shell_test_env(_REPO_ROOT)
     env["SRC_DB_URL"] = "postgresql://user:secret@example.com/source"
     env["TGT_DB_URL"] = "postgresql://user:secret@example.com/target"
 
@@ -88,7 +88,7 @@ def test_operator_precheck_blocks_missing_env_without_printing_values(tmp_path: 
     implementation_packet_json.rename(
         tmp_path / "tenant_acme_importer_implementation_packet.json"
     )
-    env = os.environ.copy()
+    env = shell_test_env(_REPO_ROOT)
     env.pop("SRC_DB_URL", None)
     env.pop("TGT_DB_URL", None)
 
@@ -123,7 +123,7 @@ def test_operator_precheck_rejects_invalid_variable_name_before_indirect_expansi
     implementation_packet_json.rename(
         tmp_path / "tenant_acme_importer_implementation_packet.json"
     )
-    env = os.environ.copy()
+    env = shell_test_env(_REPO_ROOT)
     env["SRC_DB_URL"] = "postgresql://user:secret@example.com/source"
     env["TGT_DB_URL"] = "postgresql://user:secret@example.com/target"
 
@@ -162,7 +162,7 @@ def test_operator_precheck_blocks_non_green_packet(tmp_path: Path) -> None:
     target = tmp_path / "tenant_acme_importer_implementation_packet.json"
     target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
     artifact_prefix = tmp_path / "tenant_acme"
-    env = os.environ.copy()
+    env = shell_test_env(_REPO_ROOT)
     env["SOURCE_DATABASE_URL"] = "postgresql://user:secret@example.com/source"
     env["TARGET_DATABASE_URL"] = "postgresql://user:secret@example.com/target"
 

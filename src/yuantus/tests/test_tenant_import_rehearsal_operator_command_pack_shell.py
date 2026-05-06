@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import os
 import subprocess
 from pathlib import Path
 
+from yuantus.tests.tenant_import_shell_test_env import shell_test_env
 from yuantus.tests.test_tenant_import_rehearsal_operator_packet import _write_green_packet
 
 
@@ -55,7 +55,7 @@ def test_operator_command_pack_writes_commands_after_green_precheck(tmp_path: Pa
         tmp_path / "tenant_acme_importer_implementation_packet.json"
     )
     output_path = tmp_path / "operator" / "commands.sh"
-    env = os.environ.copy()
+    env = shell_test_env(_REPO_ROOT)
     env["SRC_DB_URL"] = "postgresql://user:secret@example.com/source"
     env["TGT_DB_URL"] = "postgresql://user:secret@example.com/target"
 
@@ -113,7 +113,7 @@ def test_operator_command_pack_accepts_env_file_without_preexported_dsn_vars(
             ]
         )
     )
-    env = os.environ.copy()
+    env = shell_test_env(_REPO_ROOT)
     env.pop("SOURCE_DATABASE_URL", None)
     env.pop("TARGET_DATABASE_URL", None)
 
@@ -165,7 +165,7 @@ def test_operator_command_pack_rejects_unsafe_env_file_before_source(
             ]
         )
     )
-    env = os.environ.copy()
+    env = shell_test_env(_REPO_ROOT)
     env.pop("SOURCE_DATABASE_URL", None)
     env.pop("TARGET_DATABASE_URL", None)
 
@@ -216,7 +216,7 @@ def test_operator_command_pack_rejects_extra_env_file_key_before_source(
             ]
         )
     )
-    env = os.environ.copy()
+    env = shell_test_env(_REPO_ROOT)
     env.pop("SOURCE_DATABASE_URL", None)
     env.pop("TARGET_DATABASE_URL", None)
 
@@ -252,7 +252,7 @@ def test_operator_command_pack_does_not_write_commands_when_precheck_fails(
     tmp_path: Path,
 ) -> None:
     output_path = tmp_path / "operator" / "commands.sh"
-    env = os.environ.copy()
+    env = shell_test_env(_REPO_ROOT)
     env.pop("SRC_DB_URL", None)
     env.pop("TGT_DB_URL", None)
 
@@ -284,7 +284,7 @@ def test_operator_command_pack_rejects_invalid_variable_name_before_writing(
     tmp_path: Path,
 ) -> None:
     output_path = tmp_path / "operator" / "commands.sh"
-    env = os.environ.copy()
+    env = shell_test_env(_REPO_ROOT)
     env["SRC_DB_URL"] = "postgresql://user:secret@example.com/source"
     env["TGT_DB_URL"] = "postgresql://user:secret@example.com/target"
 
