@@ -21,6 +21,7 @@ Date: 2026-04-30
 - [x] Track command-file shell syntax diagnostic redaction as local safety only.
 - [x] Track command-file validator CLI error redaction as local safety only.
 - [x] Track env-file precheck CLI error redaction as local safety only.
+- [x] Track shell wrapper CLI error redaction as local safety only.
 - [x] Add verification MD.
 - [x] Update delivery doc index.
 
@@ -40,6 +41,7 @@ Date: 2026-04-30
 - [x] Assert command-file shell syntax diagnostic redaction does not close the external evidence gate.
 - [x] Assert command-file validator CLI error redaction does not close the external evidence gate.
 - [x] Assert env-file precheck CLI error redaction does not close the external evidence gate.
+- [x] Assert shell wrapper CLI error redaction does not close the external evidence gate.
 
 ## Explicitly Not Done
 
