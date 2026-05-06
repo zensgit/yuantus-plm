@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 from dataclasses import dataclass
@@ -12,6 +11,7 @@ from yuantus.scripts import tenant_import_rehearsal_evidence as evidence
 from yuantus.scripts import tenant_import_rehearsal_evidence_archive as archive
 from yuantus.scripts import tenant_import_rehearsal_evidence_template as template
 from yuantus.scripts import tenant_import_rehearsal_operator_packet as operator_packet
+from yuantus.scripts.tenant_import_cli_safety import build_redacting_parser
 
 
 SCHEMA_VERSION = "p3.4.2-tenant-import-rehearsal-external-status-v1"
@@ -383,7 +383,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = build_redacting_parser(
         prog="python -m yuantus.scripts.tenant_import_rehearsal_external_status",
         description="Report DB-free P3.4.2 external rehearsal progress.",
     )

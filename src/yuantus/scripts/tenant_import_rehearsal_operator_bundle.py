@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 from pathlib import Path
 from typing import Any
 
 from yuantus.scripts import tenant_import_rehearsal_operator_request as operator_request
+from yuantus.scripts.tenant_import_cli_safety import build_redacting_parser
 
 
 SCHEMA_VERSION = "p3.4.2-tenant-import-rehearsal-operator-bundle-v1"
@@ -202,7 +202,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = build_redacting_parser(
         prog="python -m yuantus.scripts.tenant_import_rehearsal_operator_bundle",
         description="Build a DB-free P3.4.2 operator bundle from an operator request.",
     )

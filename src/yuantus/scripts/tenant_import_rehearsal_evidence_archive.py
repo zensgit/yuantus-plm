@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import sys
@@ -18,6 +17,7 @@ from yuantus.scripts import tenant_import_rehearsal_readiness as readiness
 from yuantus.scripts import tenant_import_rehearsal_source_preflight as source_preflight
 from yuantus.scripts import tenant_import_rehearsal_target_preflight as target_preflight
 from yuantus.scripts import tenant_migration_dry_run as dry_run
+from yuantus.scripts.tenant_import_cli_safety import build_redacting_parser
 
 
 SCHEMA_VERSION = "p3.4.2-tenant-import-rehearsal-evidence-archive-v1"
@@ -317,7 +317,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = build_redacting_parser(
         prog="python -m yuantus.scripts.tenant_import_rehearsal_evidence_archive",
         description="Build a DB-free P3.4.2 rehearsal evidence archive manifest.",
     )

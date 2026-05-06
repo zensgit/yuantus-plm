@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 import re
 import sys
@@ -11,6 +10,7 @@ from sqlalchemy.engine import make_url
 
 from yuantus.scripts import tenant_import_rehearsal
 from yuantus.scripts import tenant_import_rehearsal_implementation_packet as packet
+from yuantus.scripts.tenant_import_cli_safety import build_redacting_parser
 from yuantus.scripts.tenant_schema import GLOBAL_TABLE_NAMES
 
 
@@ -441,7 +441,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = build_redacting_parser(
         prog="python -m yuantus.scripts.tenant_import_rehearsal_evidence",
         description="Validate P3.4.2 operator rehearsal evidence without DB access.",
     )

@@ -46,6 +46,7 @@ def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_dril
     assert "- [x] Add generated command-file validator CLI error redaction." in todo
     assert "- [x] Add env-file precheck CLI error redaction." in todo
     assert "- [x] Add shell wrapper CLI error redaction." in todo
+    assert "- [x] Add Python module CLI error redaction." in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
     assert "- [x] Add operator-run PostgreSQL rehearsal evidence." not in todo
 
@@ -185,6 +186,14 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
         normalized_status
     )
     assert "evidence closeout entrypoints" in normalized_status
+    assert "tenant import Python module CLIs now also hide parse-time argument values" in (
+        normalized_status
+    )
+    assert "instead of raw `argparse` diagnostics" in normalized_status
+    assert "P3.4 Python module CLI errors do not echo unknown argument values" in (
+        normalized_status
+    )
+    assert "Python module CLI error redaction coverage" in normalized_status
     assert "unsupported executable or option lines in generated command files" in status
     assert "rejecting unsafe env-file syntax" in status
     assert "out-of-order generated command files" in status
@@ -230,6 +239,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
         "- [x] Track shell wrapper CLI error redaction as local safety only."
     ) in todo
     assert (
+        "- [x] Track Python module CLI error redaction as local safety only."
+    ) in todo
+    assert (
         "- [x] Assert URL env-name allowlist does not close the external evidence gate."
     ) in todo
     assert (
@@ -258,6 +270,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     ) in todo
     assert (
         "- [x] Assert shell wrapper CLI error redaction does not close the external evidence gate."
+    ) in todo
+    assert (
+        "- [x] Assert Python module CLI error redaction does not close the external evidence gate."
     ) in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
 

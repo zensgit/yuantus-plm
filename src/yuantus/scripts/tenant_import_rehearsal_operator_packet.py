@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 import re
 import sys
@@ -8,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from yuantus.scripts import tenant_import_rehearsal_implementation_packet as packet
+from yuantus.scripts.tenant_import_cli_safety import build_redacting_parser
 
 
 SCHEMA_VERSION = "p3.4.2-tenant-import-rehearsal-operator-packet-v1"
@@ -297,7 +297,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = build_redacting_parser(
         prog="python -m yuantus.scripts.tenant_import_rehearsal_operator_packet",
         description="Build DB-free operator commands for P3.4.2 tenant import rehearsal.",
     )

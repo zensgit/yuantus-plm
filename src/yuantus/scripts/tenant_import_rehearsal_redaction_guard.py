@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 import re
 import sys
@@ -9,6 +8,7 @@ from typing import Any
 
 from sqlalchemy.engine import make_url
 
+from yuantus.scripts.tenant_import_cli_safety import build_redacting_parser
 
 SCHEMA_VERSION = "p3.4.2-tenant-import-rehearsal-redaction-guard-v1"
 _POSTGRES_URL_RE = re.compile(
@@ -181,7 +181,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = build_redacting_parser(
         prog="python -m yuantus.scripts.tenant_import_rehearsal_redaction_guard",
         description="Scan P3.4.2 rehearsal artifacts for unredacted PostgreSQL passwords.",
     )

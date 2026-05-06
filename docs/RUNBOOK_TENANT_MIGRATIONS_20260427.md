@@ -595,6 +595,13 @@ env-template generation, operator precheck, command-pack preparation, command
 printing, operator launchpack, operator sequence, full closeout, evidence
 precheck, and evidence closeout entrypoints do not echo unknown argument values.
 
+The P3.4 Python module entrypoints also redact parse-time CLI errors. Unknown
+argument values are not echoed by the tenant import rehearsal, preflight,
+handoff, packet, evidence, synthetic drill, redaction guard, reviewer, operator,
+and external-status modules. The CLIs keep usage output and exit code `2`, but
+replace raw parser diagnostics with fixed `CLI parse failed` and
+`argument value hidden: true` markers.
+
 To revalidate the file later without executing it, run:
 
 ```bash

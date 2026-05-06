@@ -44,6 +44,12 @@ across env-template generation, operator precheck, command-pack preparation,
 command printing, operator launchpack, operator sequence, full closeout,
 evidence precheck, and evidence closeout entrypoints.
 
+2026-05-06 update: the tenant import Python module CLIs now also hide
+parse-time argument values. Unknown arguments for the rehearsal, preflight,
+handoff, packet, evidence, synthetic drill, redaction guard, reviewer,
+operator, and external-status modules emit fixed parse-failure markers instead
+of raw `argparse` diagnostics.
+
 The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 
 - repo-external env-file template generation;
@@ -63,6 +69,7 @@ The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 - generated command-file validator CLI error redaction.
 - env-file precheck CLI error redaction.
 - shell wrapper CLI error redaction.
+- Python module CLI error redaction.
 
 ## 2. Blocked State
 
@@ -113,6 +120,7 @@ The operator must provide or run:
 - env-file precheck CLI errors do not echo argument values or missing env-file
   paths;
 - P3.4 shell wrapper CLI errors do not echo unknown argument values;
+- P3.4 Python module CLI errors do not echo unknown argument values;
 - full-closeout wrapper using the prechecked env-file path;
 - uppercase source/target URL env-var names when overriding defaults;
 - row-copy rehearsal;
@@ -144,6 +152,7 @@ Before treating P3.4 as rehearsal-complete, reviewers should require:
 - command-file validator CLI error redaction coverage;
 - env-file precheck CLI error redaction coverage;
 - shell wrapper CLI error redaction coverage;
+- Python module CLI error redaction coverage;
 - evidence intake report with `ready_for_evidence_intake=true`;
 - evidence handoff report with `ready_for_evidence_handoff=true`;
 - reviewer packet with `ready_for_reviewer_packet=true`;
