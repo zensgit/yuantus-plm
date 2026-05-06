@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 from pathlib import Path
@@ -10,6 +9,7 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import make_url
 from sqlalchemy.pool import NullPool
 
+from yuantus.scripts.tenant_import_cli_safety import build_redacting_parser
 from yuantus.scripts.tenant_import_rehearsal_plan import (
     SCHEMA_VERSION as PLAN_SCHEMA_VERSION,
 )
@@ -271,7 +271,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = build_redacting_parser(
         prog="python -m yuantus.scripts.tenant_import_rehearsal_source_preflight",
         description="Read-only P3.4.2 source schema preflight before import rehearsal.",
     )

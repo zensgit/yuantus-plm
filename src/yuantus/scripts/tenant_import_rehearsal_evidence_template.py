@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 from pathlib import Path
@@ -13,6 +12,7 @@ from yuantus.scripts.tenant_import_rehearsal_evidence import (
     PASS_RESULTS,
     SIGN_OFF_HEADING,
 )
+from yuantus.scripts.tenant_import_cli_safety import build_redacting_parser
 
 
 SCHEMA_VERSION = "p3.4.2-tenant-import-rehearsal-evidence-template-v1"
@@ -183,7 +183,7 @@ def _write_markdown(path: Path, report: dict[str, Any]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
+    parser = build_redacting_parser(
         prog="python -m yuantus.scripts.tenant_import_rehearsal_evidence_template",
         description="Render P3.4.2 operator evidence Markdown from a green rehearsal report.",
     )
