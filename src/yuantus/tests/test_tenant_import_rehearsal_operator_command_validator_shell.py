@@ -72,6 +72,44 @@ def test_command_validator_help_documents_scope() -> None:
     assert "does not print database URL values" in out
 
 
+def test_command_validator_rejects_unknown_cli_argument_without_echoing_value() -> None:
+    cp = subprocess.run(  # noqa: S603,S607
+        [
+            "bash",
+            str(_SCRIPT),
+            "--bad=postgresql://user:secret@example.com/source",
+        ],
+        text=True,
+        capture_output=True,
+    )
+
+    combined = cp.stdout + cp.stderr
+    assert cp.returncode == 2
+    assert "unknown argument" in combined
+    assert "argument value hidden: true" in combined
+    assert "postgresql://user" not in combined
+    assert "secret@example.com" not in combined
+
+
+def test_command_validator_rejects_missing_command_file_without_echoing_path(
+    tmp_path: Path,
+) -> None:
+    missing_path = tmp_path / "postgresql:" / "user:secret@example.com" / "source"
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(missing_path)],
+        text=True,
+        capture_output=True,
+    )
+
+    combined = cp.stdout + cp.stderr
+    assert cp.returncode == 2
+    assert "command file does not exist" in combined
+    assert "command file path hidden: true" in combined
+    assert "postgresql:" not in combined
+    assert "secret" not in combined
+
+
 def test_command_validator_accepts_generated_command_file(tmp_path: Path) -> None:
     command_file = _write_generated_command_file(tmp_path)
 

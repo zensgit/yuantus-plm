@@ -43,6 +43,7 @@ def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_dril
     assert "- [x] Add generated command-file safe path option validation." in todo
     assert "- [x] Add generated command-file quoted metadata expansion guard." in todo
     assert "- [x] Add generated command-file shell syntax diagnostic redaction." in todo
+    assert "- [x] Add generated command-file validator CLI error redaction." in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
     assert "- [x] Add operator-run PostgreSQL rehearsal evidence." not in todo
 
@@ -124,6 +125,10 @@ def test_runbook_pins_command_file_validator_as_non_executing_gate():
     assert r'"ops\reviewer"' in normalized_section
     assert "Shell syntax diagnostics are also redacted" in normalized_section
     assert "does not echo the raw `bash -n` error line" in normalized_section
+    assert "CLI parse errors are redacted as well" in normalized_section
+    assert "unknown argument values and missing command-file paths are not echoed" in (
+        normalized_section
+    )
 
 
 def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
@@ -143,6 +148,7 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     assert "generated command-file safe path option validation" in status
     assert "generated command-file quoted metadata expansion guard" in status
     assert "generated command-file shell syntax diagnostic redaction" in status
+    assert "generated command-file validator CLI error redaction" in status
     assert "Path-valued generated command options" in status
     assert "redirection, variable expansion, and quoted path rewrites" in normalized_status
     assert "Quoted generated evidence metadata fields" in normalized_status
@@ -153,6 +159,10 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     assert "raw `bash -n` error lines cannot echo edited command content" in (
         normalized_status
     )
+    assert "Validator CLI parse errors also hide unknown argument values" in (
+        normalized_status
+    )
+    assert "missing command-file paths" in normalized_status
     assert "unsupported executable or option lines in generated command files" in status
     assert "rejecting unsafe env-file syntax" in status
     assert "out-of-order generated command files" in status
@@ -189,6 +199,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
         "- [x] Track command-file shell syntax diagnostic redaction as local safety only."
     ) in todo
     assert (
+        "- [x] Track command-file validator CLI error redaction as local safety only."
+    ) in todo
+    assert (
         "- [x] Assert URL env-name allowlist does not close the external evidence gate."
     ) in todo
     assert (
@@ -208,6 +221,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     ) in todo
     assert (
         "- [x] Assert command-file shell syntax diagnostic redaction does not close the external evidence gate."
+    ) in todo
+    assert (
+        "- [x] Assert command-file validator CLI error redaction does not close the external evidence gate."
     ) in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
 

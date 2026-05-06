@@ -77,6 +77,7 @@ Date: 2026-04-27
 - [x] Add generated command-file safe path option validation.
 - [x] Add generated command-file quoted metadata expansion guard.
 - [x] Add generated command-file shell syntax diagnostic redaction.
+- [x] Add generated command-file validator CLI error redaction.
 - [ ] Add operator-run PostgreSQL rehearsal evidence.
 - [x] Update `RUNBOOK_TENANT_MIGRATIONS_20260427.md`.
 - [x] Add DEV/verification MD for the implementation PR.
