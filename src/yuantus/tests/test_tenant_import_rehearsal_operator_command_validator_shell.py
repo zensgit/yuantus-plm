@@ -40,6 +40,12 @@ def _write_generated_command_file(tmp_path: Path) -> Path:
     return out
 
 
+def _replace_one(command_file: Path, old: str, new: str) -> None:
+    text = command_file.read_text()
+    assert old in text
+    command_file.write_text(text.replace(old, new, 1))
+
+
 def test_command_validator_shell_is_syntax_valid() -> None:
     cp = subprocess.run(  # noqa: S603,S607
         ["bash", "-n", str(_SCRIPT)],
@@ -258,6 +264,98 @@ def test_command_validator_rejects_extra_python_command_without_echoing_secret(
     assert "unsupported command line" in cp.stdout
     assert "python -c" not in cp.stdout
     assert "secret" not in cp.stdout
+
+
+def test_command_validator_rejects_redirection_in_path_option_without_echoing_value(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    _replace_one(
+        command_file,
+        f"--output-json {tmp_path / 'tenant_acme_import_rehearsal.json'} \\",
+        f"--output-json {tmp_path / 'tenant_acme_import_rehearsal.json'}>output/leak \\",
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported option line" in cp.stdout
+    assert "generated command step: row_copy" in cp.stdout
+    assert ">output/leak" not in cp.stdout
+
+
+def test_command_validator_rejects_input_redirection_in_path_option_without_echoing_value(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    _replace_one(
+        command_file,
+        f"--artifact-prefix {tmp_path / 'tenant_acme'}\n",
+        f"--artifact-prefix {tmp_path / 'tenant_acme'}<input\n",
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported option line" in cp.stdout
+    assert "generated command step: evidence_closeout" in cp.stdout
+    assert "<input" not in cp.stdout
+
+
+def test_command_validator_rejects_dollar_expansion_in_path_option_without_echoing_value(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    _replace_one(
+        command_file,
+        f"--operator-packet-json {tmp_path / 'tenant_acme_operator_execution_packet.json'} \\",
+        "--operator-packet-json $HOME/output.json \\",
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported option line" in cp.stdout
+    assert "generated command step: launchpack" in cp.stdout
+    assert "$HOME" not in cp.stdout
+
+
+def test_command_validator_rejects_quoted_path_option_without_echoing_value(
+    tmp_path: Path,
+) -> None:
+    command_file = _write_generated_command_file(tmp_path)
+    _replace_one(
+        command_file,
+        f"--output-md {tmp_path / 'tenant_acme_import_rehearsal_evidence.md'} \\",
+        '--output-md "output/hijack.md" \\',
+    )
+
+    cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(_SCRIPT), "--command-file", str(command_file)],
+        cwd=_REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert cp.returncode == 1
+    assert "unsupported option line" in cp.stdout
+    assert "generated command step: evidence_gate" in cp.stdout
+    assert '"output/hijack.md"' not in cp.stdout
 
 
 def test_command_validator_rejects_extra_export_command(tmp_path: Path) -> None:

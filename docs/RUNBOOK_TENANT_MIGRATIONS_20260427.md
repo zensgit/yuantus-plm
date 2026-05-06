@@ -576,7 +576,11 @@ lines, so an edited command file cannot add extra `rm`, `ssh`, `python -c`,
 lines are also checked against the generated command step they belong to; an
 edited command file cannot add unknown options such as `--confirm-cutover`, move
 `--output-json` into the env precheck step, or append orphan option lines and
-still pass validation. To revalidate the file later without executing it, run:
+still pass validation. Path-valued option arguments are restricted to a safe
+artifact path token set (`[-A-Za-z0-9_./:]+`), so redirection, variable
+expansion, and quoted path rewrites such as `>`, `<`, `$HOME`, or `"path"` are
+rejected without echoing the edited value. To revalidate the file later without
+executing it, run:
 
 ```bash
 scripts/validate_tenant_import_rehearsal_operator_commands.sh \

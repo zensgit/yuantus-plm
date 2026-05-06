@@ -16,6 +16,7 @@ Date: 2026-04-30
 - [x] Track env-file key allowlist hardening as local safety only.
 - [x] Track command-file executable-line allowlist hardening as local safety only.
 - [x] Track command-file option-line allowlist hardening as local safety only.
+- [x] Track command-file safe path option validation as local safety only.
 - [x] Add verification MD.
 - [x] Update delivery doc index.
 
@@ -30,6 +31,7 @@ Date: 2026-04-30
 - [x] Assert env-file key allowlist does not close the external evidence gate.
 - [x] Assert command-file executable-line allowlist does not close the external evidence gate.
 - [x] Assert command-file option-line allowlist does not close the external evidence gate.
+- [x] Assert command-file safe path option validation does not close the external evidence gate.
 
 ## Explicitly Not Done
 

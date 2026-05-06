@@ -30,7 +30,9 @@ hardening keeps these gates DB-free while rejecting unsafe env-file syntax and
 out-of-order generated command files. It now also rejects env-file keys outside
 the selected source/target URL variables before any shell source operation and
 unsupported executable or option lines in generated command files before
-operator use.
+operator use. Path-valued generated command options are now also limited to a
+safe artifact path token set, so edited redirection, variable expansion, and
+quoted path rewrites are rejected before operator use.
 
 The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 
@@ -45,6 +47,7 @@ The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 - env-file key allowlist before shell source.
 - generated command-file executable-line allowlist.
 - generated command-file option-line allowlist.
+- generated command-file safe path option validation.
 
 ## 2. Blocked State
 
@@ -86,6 +89,7 @@ The operator must provide or run:
 - repo-external env-file generated from the template and statically prechecked;
 - repo-external env-file contains only the selected source/target URL variables;
 - generated operator command file that passes the command-file validator;
+- generated command file whose path-valued options pass safe path validation;
 - full-closeout wrapper using the prechecked env-file path;
 - uppercase source/target URL env-var names when overriding defaults;
 - row-copy rehearsal;
@@ -109,6 +113,8 @@ Before treating P3.4 as rehearsal-complete, reviewers should require:
 - env-file key allowlist coverage for command-pack and full-closeout wrappers;
 - command-file executable-line allowlist coverage;
 - command-file option-line allowlist coverage;
+- command-file safe path option coverage for redirection, variable expansion,
+  and quoted path rewrites;
 - evidence intake report with `ready_for_evidence_intake=true`;
 - evidence handoff report with `ready_for_evidence_handoff=true`;
 - reviewer packet with `ready_for_reviewer_packet=true`;

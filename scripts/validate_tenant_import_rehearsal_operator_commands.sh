@@ -147,6 +147,8 @@ strip_trailing_continuation() {
   printf '%s' "$line"
 }
 
+safe_path_token_regex='[-A-Za-z0-9_./:]+'
+
 option_allowed_for_command() {
   local command="$1"
   local line="$2"
@@ -161,19 +163,19 @@ option_allowed_for_command() {
       [[ "$line" =~ ^--env-file[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--source-url-env[[:space:]]+[A-Z_][A-Z0-9_]*$ || "$line" =~ ^--target-url-env[[:space:]]+[A-Z_][A-Z0-9_]*$ ]]
       ;;
     launchpack)
-      [[ "$line" =~ ^--(implementation-packet-json|artifact-prefix|operator-packet-json|operator-packet-md|flow-artifact-prefix|output-json|output-md)[[:space:]]+[^[:space:]]+$ ]]
+      [[ "$line" =~ ^--(implementation-packet-json|artifact-prefix|operator-packet-json|operator-packet-md|flow-artifact-prefix|output-json|output-md)[[:space:]]+${safe_path_token_regex}$ ]]
       ;;
     row_copy)
-      [[ "$line" =~ ^--implementation-packet-json[[:space:]]+[^[:space:]]+$ || "$line" =~ ^--source-url[[:space:]]+\"\$[A-Z_][A-Z0-9_]*\"$ || "$line" =~ ^--target-url[[:space:]]+\"\$[A-Z_][A-Z0-9_]*\"$ || "$line" =~ ^--output-json[[:space:]]+[^[:space:]]+$ || "$line" =~ ^--output-md[[:space:]]+[^[:space:]]+$ || "$line" == "--confirm-rehearsal" ]]
+      [[ "$line" =~ ^--implementation-packet-json[[:space:]]+${safe_path_token_regex}$ || "$line" =~ ^--source-url[[:space:]]+\"\$[A-Z_][A-Z0-9_]*\"$ || "$line" =~ ^--target-url[[:space:]]+\"\$[A-Z_][A-Z0-9_]*\"$ || "$line" =~ ^--output-json[[:space:]]+${safe_path_token_regex}$ || "$line" =~ ^--output-md[[:space:]]+${safe_path_token_regex}$ || "$line" == "--confirm-rehearsal" ]]
       ;;
     evidence_template)
-      [[ "$line" =~ ^--rehearsal-json[[:space:]]+[^[:space:]]+$ || "$line" =~ ^--backup-restore-owner[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--rehearsal-window[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--rehearsal-executed-by[[:space:]]+\"[^\"]+\"$ || "$line" == "--rehearsal-result pass" || "$line" =~ ^--evidence-reviewer[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--evidence-date[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--output-json[[:space:]]+[^[:space:]]+$ || "$line" =~ ^--output-md[[:space:]]+[^[:space:]]+$ ]]
+      [[ "$line" =~ ^--rehearsal-json[[:space:]]+${safe_path_token_regex}$ || "$line" =~ ^--backup-restore-owner[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--rehearsal-window[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--rehearsal-executed-by[[:space:]]+\"[^\"]+\"$ || "$line" == "--rehearsal-result pass" || "$line" =~ ^--evidence-reviewer[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--evidence-date[[:space:]]+\"[^\"]+\"$ || "$line" =~ ^--output-json[[:space:]]+${safe_path_token_regex}$ || "$line" =~ ^--output-md[[:space:]]+${safe_path_token_regex}$ ]]
       ;;
     evidence_gate)
-      [[ "$line" =~ ^--(rehearsal-json|implementation-packet-json|operator-evidence-md|output-json|output-md)[[:space:]]+[^[:space:]]+$ || "$line" == "--strict" ]]
+      [[ "$line" =~ ^--(rehearsal-json|implementation-packet-json|operator-evidence-md|output-json|output-md)[[:space:]]+${safe_path_token_regex}$ || "$line" == "--strict" ]]
       ;;
     evidence_closeout)
-      [[ "$line" =~ ^--(evidence-json|operator-packet-json|operator-evidence-template-json|artifact-prefix)[[:space:]]+[^[:space:]]+$ ]]
+      [[ "$line" =~ ^--(evidence-json|operator-packet-json|operator-evidence-template-json|artifact-prefix)[[:space:]]+${safe_path_token_regex}$ ]]
       ;;
     *)
       return 1

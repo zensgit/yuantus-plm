@@ -74,6 +74,7 @@ Date: 2026-04-27
 - [x] Add env-file key allowlist before shell source.
 - [x] Add generated command-file executable-line allowlist.
 - [x] Add generated command-file option-line allowlist.
+- [x] Add generated command-file safe path option validation.
 - [ ] Add operator-run PostgreSQL rehearsal evidence.
 - [x] Update `RUNBOOK_TENANT_MIGRATIONS_20260427.md`.
 - [x] Add DEV/verification MD for the implementation PR.

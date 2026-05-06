@@ -40,6 +40,7 @@ def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_dril
     assert "- [x] Add env-file key allowlist before shell source." in todo
     assert "- [x] Add generated command-file executable-line allowlist." in todo
     assert "- [x] Add generated command-file option-line allowlist." in todo
+    assert "- [x] Add generated command-file safe path option validation." in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
     assert "- [x] Add operator-run PostgreSQL rehearsal evidence." not in todo
 
@@ -98,7 +99,7 @@ def test_runbook_pins_command_file_validator_as_non_executing_gate():
     normalized_section = " ".join(command_pack_section.split())
 
     assert "validates the generated command file before returning success" in command_pack_section
-    assert "without executing it" in command_pack_section
+    assert "without executing it" in normalized_section
     assert "required step order" in normalized_section
     assert "environment variable URL references" in normalized_section
     assert "forbidden DSN/cutover/remote-control patterns" in normalized_section
@@ -109,10 +110,16 @@ def test_runbook_pins_command_file_validator_as_non_executing_gate():
     )
     assert "`--confirm-cutover`" in normalized_section
     assert "orphan option lines" in normalized_section
+    assert "Path-valued option arguments are restricted to a safe artifact path token set" in (
+        normalized_section
+    )
+    assert "redirection, variable expansion, and quoted path rewrites" in normalized_section
+    assert "rejected without echoing the edited value" in normalized_section
 
 
 def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     status = _READINESS_STATUS.read_text()
+    normalized_status = " ".join(status.split())
 
     assert "DB-free" in status
     assert "repo-external env-file template generation" in status
@@ -124,6 +131,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     assert "rejects env-file keys outside" in status
     assert "generated command-file executable-line allowlist" in status
     assert "generated command-file option-line allowlist" in status
+    assert "generated command-file safe path option validation" in status
+    assert "Path-valued generated command options" in status
+    assert "redirection, variable expansion, and quoted path rewrites" in normalized_status
     assert "unsupported executable or option lines in generated command files" in status
     assert "rejecting unsafe env-file syntax" in status
     assert "out-of-order generated command files" in status
@@ -151,6 +161,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
         "- [x] Track command-file option-line allowlist hardening as local safety only."
     ) in todo
     assert (
+        "- [x] Track command-file safe path option validation as local safety only."
+    ) in todo
+    assert (
         "- [x] Assert URL env-name allowlist does not close the external evidence gate."
     ) in todo
     assert (
@@ -161,6 +174,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     ) in todo
     assert (
         "- [x] Assert command-file option-line allowlist does not close the external evidence gate."
+    ) in todo
+    assert (
+        "- [x] Assert command-file safe path option validation does not close the external evidence gate."
     ) in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
 
