@@ -190,19 +190,22 @@ If request values are invalid, API returns `400` with `detail.code=doc_sync_chec
 When `doc_sync_strictness_mode=warn`, the checkout proceeds and the API returns
 `X-Doc-Sync-Checkout-Warning: Checkout allowed despite doc-sync backlog`.
 
-## Observability — request logging and job metrics (Phase 2)
+## Observability — request logging, job metrics, and search indexer metrics
 
-Phase 2 (PRs #414 P2.1, #415 P2.2) adds structured per-request logging and a
-Prometheus-format job-metrics endpoint. The schemas below are collectively
-guarded by the P2.1/P2.2/P2.3 test suites: P2.1 tests
+Phase 2 (PRs #414 P2.1, #415 P2.2) added structured per-request logging and a
+Prometheus-format job-metrics endpoint. Phase 4 P4.1.5 adds search indexer
+status metrics to the same endpoint. The schemas below are collectively
+guarded by the P2.1/P2.2/P2.3 and P4.1.x test suites: P2.1 tests
 (`test_request_logging_middleware.py`) pin implementation-level log-field and
 ContextVar-chain behaviour; P2.2 tests (`test_observability_metrics_registry.py`,
 `test_metrics_endpoint.py`, `test_job_service_emits_metrics.py`,
 `test_metrics_router_route_count_delta.py`) cover the registry, endpoint, and
 JobService integration; P2.3 (`test_phase2_observability_closeout_contracts.py`)
 pins the downstream-consumer surface (metric names, label cardinality, bucket
-boundaries, middleware order). Changes to these schemas require deliberate
-updates to the relevant tests.
+boundaries, middleware order); P4.1.x tests
+(`test_search_incremental_indexer_status.py`) pin the search indexer status
+snapshot that feeds the Prometheus renderer. Changes to these schemas require
+deliberate updates to the relevant tests.
 
 ### Per-request log line schema
 
@@ -276,6 +279,55 @@ Boundaries are observed by downstream alerts and dashboards
 (`histogram_quantile()`). **Do not change without explicit discussion**;
 the contract test
 `test_histogram_bucket_boundaries_are_pinned` enforces this.
+
+### Search indexer metrics
+
+`GET /api/v1/metrics` also renders a read-only snapshot from
+`yuantus.meta_engine.services.search_indexer.indexer_status()`. These metrics
+mirror the admin JSON status endpoint without exposing `last_error`, event
+payloads, tenant IDs, org IDs, user IDs, item IDs, or ECO IDs.
+
+| Metric | Type | Labels | Notes |
+| --- | --- | --- | --- |
+| `yuantus_search_indexer_registered` | gauge | none | `1` when `register_search_index_handlers()` has completed in this process |
+| `yuantus_search_indexer_uptime_seconds` | gauge | none | Seconds since the in-process status tracker started |
+| `yuantus_search_indexer_health` | gauge | `state` | Emits `1` for the active state and `0` for inactive pinned states |
+| `yuantus_search_indexer_health_reason` | gauge | `reason` | Emits active health reasons only |
+| `yuantus_search_indexer_index_ready` | gauge | `index` | `item` and `eco` index readiness flags |
+| `yuantus_search_indexer_subscriptions` | gauge | `event_type` | Count of exact expected event-bus handler subscriptions |
+| `yuantus_search_indexer_events_total` | counter | `event_type, outcome` | In-process received/success/skipped/error counts |
+
+Permitted `state` values:
+
+- `ok`
+- `not_registered`
+- `degraded`
+
+Permitted `reason` values currently emitted:
+
+- `not-registered`
+- `missing-handlers`
+- `duplicate-handlers`
+
+Permitted `event_type` values:
+
+- `item.created`
+- `item.updated`
+- `item.state_changed`
+- `item.deleted`
+- `eco.created`
+- `eco.updated`
+- `eco.deleted`
+
+Permitted `outcome` values:
+
+- `received`
+- `success`
+- `skipped`
+- `error`
+
+Do not add tenant/org/user/item/ECO/error-text labels to these metrics. Those
+belong in logs or the admin JSON endpoint, not Prometheus labels.
 
 ### Settings
 

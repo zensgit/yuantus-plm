@@ -3,14 +3,17 @@ from __future__ import annotations
 from yuantus.api.app import create_app
 
 
-EXPECTED_TOTAL_ROUTES = 672
+EXPECTED_TOTAL_ROUTES = 673
 
 
-def test_metrics_router_brings_total_routes_to_expected_count() -> None:
-    """Phase 2 P2.2 contract: registering metrics_router moves the total
-    route count from 671 (post-Phase-1) to 672. If a future change adds a
-    second route in this PR's scope, this test fails and forces a
-    conversation about scope creep."""
+def test_metrics_router_keeps_post_p4_route_count_at_expected_count() -> None:
+    """Route-count guard after P4.1 added search indexer status.
+
+    The metrics router still owns exactly one route; the app-level total is now
+    673 because `/api/v1/search/indexer/status` landed after Phase 2. If a
+    future change adds another route in this scope, this test fails and forces a
+    conversation about scope creep.
+    """
     app = create_app()
     assert len(app.routes) == EXPECTED_TOTAL_ROUTES, (
         f"expected {EXPECTED_TOTAL_ROUTES} total routes after P2.2, "
