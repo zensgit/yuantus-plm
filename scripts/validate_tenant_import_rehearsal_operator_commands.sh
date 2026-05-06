@@ -29,7 +29,8 @@ while [[ $# -gt 0 ]]; do
       exit 0
       ;;
     *)
-      echo "error: unknown argument: $1" >&2
+      echo "error: unknown argument" >&2
+      echo "argument value hidden: true" >&2
       usage >&2
       exit 2
       ;;
@@ -43,7 +44,8 @@ if [[ -z "$command_file" ]]; then
 fi
 
 if [[ ! -f "$command_file" ]]; then
-  echo "error: command file does not exist: $command_file" >&2
+  echo "error: command file does not exist" >&2
+  echo "command file path hidden: true" >&2
   exit 2
 fi
 
