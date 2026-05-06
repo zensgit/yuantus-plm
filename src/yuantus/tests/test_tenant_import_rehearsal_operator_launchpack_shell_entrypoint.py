@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
+from yuantus.tests.tenant_import_shell_test_env import shell_test_env
 from yuantus.tests.test_tenant_import_rehearsal_operator_packet import _write_green_packet
 
 
@@ -24,10 +24,7 @@ _SCRIPT = _REPO_ROOT / "scripts" / "run_tenant_import_operator_launchpack.sh"
 
 
 def _env() -> dict[str, str]:
-    env = os.environ.copy()
-    env["PYTHONPATH"] = str(_REPO_ROOT / "src")
-    env["PYTHON"] = str(_REPO_ROOT / ".venv" / "bin" / "python")
-    return env
+    return shell_test_env(_REPO_ROOT)
 
 
 def test_shell_entrypoint_is_syntax_valid() -> None:
