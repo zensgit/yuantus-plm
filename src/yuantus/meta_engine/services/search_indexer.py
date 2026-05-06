@@ -40,8 +40,12 @@ _EVENT_TYPES = {
     EcoDeletedEvent: "eco.deleted",
 }
 _EVENT_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
+_SUCCESS_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
+_SKIPPED_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
+_ERROR_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
 _LAST_EVENT_TYPE: str | None = None
 _LAST_EVENT_AT: str | None = None
+_LAST_OUTCOME: str | None = None
 _LAST_SUCCESS_EVENT_TYPE: str | None = None
 _LAST_SUCCESS_AT: str | None = None
 _LAST_SKIPPED_EVENT_TYPE: str | None = None
@@ -78,23 +82,29 @@ def _record_event_received(event_type: str) -> None:
 
 
 def _record_event_success(event_type: str) -> None:
-    global _LAST_SUCCESS_EVENT_TYPE, _LAST_SUCCESS_AT
+    global _LAST_OUTCOME, _LAST_SUCCESS_EVENT_TYPE, _LAST_SUCCESS_AT
     with _STATUS_LOCK:
+        _SUCCESS_COUNTS[event_type] = _SUCCESS_COUNTS.get(event_type, 0) + 1
+        _LAST_OUTCOME = "success"
         _LAST_SUCCESS_EVENT_TYPE = event_type
         _LAST_SUCCESS_AT = _utc_now()
 
 
 def _record_event_skipped(event_type: str, reason: str) -> None:
-    global _LAST_SKIPPED_EVENT_TYPE, _LAST_SKIPPED_AT, _LAST_SKIPPED_REASON
+    global _LAST_OUTCOME, _LAST_SKIPPED_EVENT_TYPE, _LAST_SKIPPED_AT, _LAST_SKIPPED_REASON
     with _STATUS_LOCK:
+        _SKIPPED_COUNTS[event_type] = _SKIPPED_COUNTS.get(event_type, 0) + 1
+        _LAST_OUTCOME = "skipped"
         _LAST_SKIPPED_EVENT_TYPE = event_type
         _LAST_SKIPPED_AT = _utc_now()
         _LAST_SKIPPED_REASON = reason
 
 
 def _record_event_error(event_type: str, exc: Exception) -> None:
-    global _LAST_ERROR_EVENT_TYPE, _LAST_ERROR_AT, _LAST_ERROR
+    global _LAST_OUTCOME, _LAST_ERROR_EVENT_TYPE, _LAST_ERROR_AT, _LAST_ERROR
     with _STATUS_LOCK:
+        _ERROR_COUNTS[event_type] = _ERROR_COUNTS.get(event_type, 0) + 1
+        _LAST_OUTCOME = "error"
         _LAST_ERROR_EVENT_TYPE = event_type
         _LAST_ERROR_AT = _utc_now()
         _LAST_ERROR = _format_error(exc)
@@ -119,8 +129,12 @@ def indexer_status() -> dict[str, Any]:
             "eco_index_ready": _ECO_INDEX_READY,
             "handlers": list(_EVENT_TYPES.values()),
             "event_counts": dict(_EVENT_COUNTS),
+            "success_counts": dict(_SUCCESS_COUNTS),
+            "skipped_counts": dict(_SKIPPED_COUNTS),
+            "error_counts": dict(_ERROR_COUNTS),
             "last_event_type": _LAST_EVENT_TYPE,
             "last_event_at": _LAST_EVENT_AT,
+            "last_outcome": _LAST_OUTCOME,
             "last_success_event_type": _LAST_SUCCESS_EVENT_TYPE,
             "last_success_at": _LAST_SUCCESS_AT,
             "last_skipped_event_type": _LAST_SKIPPED_EVENT_TYPE,

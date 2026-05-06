@@ -29,8 +29,12 @@ class SearchIndexerStatusResponse(BaseModel):
     eco_index_ready: bool
     handlers: list[str]
     event_counts: Dict[str, int]
+    success_counts: Dict[str, int]
+    skipped_counts: Dict[str, int]
+    error_counts: Dict[str, int]
     last_event_type: Optional[str] = None
     last_event_at: Optional[str] = None
+    last_outcome: Optional[str] = None
     last_success_event_type: Optional[str] = None
     last_success_at: Optional[str] = None
     last_skipped_event_type: Optional[str] = None

@@ -48,11 +48,19 @@ def test_search_indexer_status_lists_incremental_event_handlers() -> None:
 
     assert status["handlers"] == EXPECTED_HANDLERS
     assert set(status["event_counts"]) == set(EXPECTED_HANDLERS)
+    assert set(status["success_counts"]) == set(EXPECTED_HANDLERS)
+    assert set(status["skipped_counts"]) == set(EXPECTED_HANDLERS)
+    assert set(status["error_counts"]) == set(EXPECTED_HANDLERS)
     assert all(isinstance(value, int) for value in status["event_counts"].values())
+    assert all(isinstance(value, int) for value in status["success_counts"].values())
+    assert all(isinstance(value, int) for value in status["skipped_counts"].values())
+    assert all(isinstance(value, int) for value in status["error_counts"].values())
 
 
 def test_item_created_handler_updates_runtime_status(monkeypatch) -> None:
-    before = search_indexer.indexer_status()["event_counts"]["item.created"]
+    before_status = search_indexer.indexer_status()
+    event_count_before = before_status["event_counts"]["item.created"]
+    success_count_before = before_status["success_counts"]["item.created"]
     indexed_item_ids: list[str] = []
 
     class FakeSession:
@@ -82,13 +90,51 @@ def test_item_created_handler_updates_runtime_status(monkeypatch) -> None:
     )
 
     status = search_indexer.indexer_status()
-    assert status["event_counts"]["item.created"] == before + 1
+    assert status["event_counts"]["item.created"] == event_count_before + 1
+    assert status["success_counts"]["item.created"] == success_count_before + 1
     assert status["last_event_type"] == "item.created"
+    assert status["last_outcome"] == "success"
     assert status["last_success_event_type"] == "item.created"
     assert indexed_item_ids == ["item-123"]
 
 
+def test_handler_skip_updates_outcome_counts(monkeypatch) -> None:
+    before_status = search_indexer.indexer_status()
+    event_count_before = before_status["event_counts"]["item.created"]
+    skipped_count_before = before_status["skipped_counts"]["item.created"]
+
+    class FakeSession:
+        def get(self, _model, item_id: str):
+            return SimpleNamespace(id=item_id)
+
+    class FakeSearchService:
+        def __init__(self, session):
+            self.session = session
+            self.client = None
+
+    @contextmanager
+    def fake_db_session():
+        yield FakeSession()
+
+    monkeypatch.setattr(search_indexer, "SearchService", FakeSearchService)
+    monkeypatch.setattr(search_indexer, "get_db_session", fake_db_session)
+
+    search_indexer._handle_item_created(
+        ItemCreatedEvent(item_id="item-disabled", item_type_id="Part", properties={})
+    )
+
+    status = search_indexer.indexer_status()
+    assert status["event_counts"]["item.created"] == event_count_before + 1
+    assert status["skipped_counts"]["item.created"] == skipped_count_before + 1
+    assert status["last_event_type"] == "item.created"
+    assert status["last_outcome"] == "skipped"
+    assert status["last_skipped_event_type"] == "item.created"
+    assert status["last_skipped_reason"] == "search-engine-disabled"
+
+
 def test_handler_error_status_is_redacted(monkeypatch) -> None:
+    error_count_before = search_indexer.indexer_status()["error_counts"]["item.created"]
+
     class FakeSession:
         def get(self, _model, item_id: str):
             return SimpleNamespace(id=item_id)
@@ -118,6 +164,8 @@ def test_handler_error_status_is_redacted(monkeypatch) -> None:
     )
 
     status = search_indexer.indexer_status()
+    assert status["error_counts"]["item.created"] == error_count_before + 1
+    assert status["last_outcome"] == "error"
     assert status["last_error_event_type"] == "item.created"
     assert status["last_error"].startswith("RuntimeError: ")
     assert "supersecret" not in status["last_error"]
@@ -145,6 +193,9 @@ def test_search_indexer_status_endpoint_returns_status_for_admin() -> None:
     body = response.json()
     assert body["handlers"] == EXPECTED_HANDLERS
     assert set(body["event_counts"]) == set(EXPECTED_HANDLERS)
+    assert set(body["success_counts"]) == set(EXPECTED_HANDLERS)
+    assert set(body["skipped_counts"]) == set(EXPECTED_HANDLERS)
+    assert set(body["error_counts"]) == set(EXPECTED_HANDLERS)
     assert isinstance(body["registered"], bool)
 
 
