@@ -42,6 +42,7 @@ def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_dril
     assert "- [x] Add generated command-file option-line allowlist." in todo
     assert "- [x] Add generated command-file safe path option validation." in todo
     assert "- [x] Add generated command-file quoted metadata expansion guard." in todo
+    assert "- [x] Add generated command-file shell syntax diagnostic redaction." in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
     assert "- [x] Add operator-run PostgreSQL rehearsal evidence." not in todo
 
@@ -121,6 +122,8 @@ def test_runbook_pins_command_file_validator_as_non_executing_gate():
     )
     assert '"$SOURCE_DATABASE_URL"' in normalized_section
     assert r'"ops\reviewer"' in normalized_section
+    assert "Shell syntax diagnostics are also redacted" in normalized_section
+    assert "does not echo the raw `bash -n` error line" in normalized_section
 
 
 def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
@@ -139,10 +142,17 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     assert "generated command-file option-line allowlist" in status
     assert "generated command-file safe path option validation" in status
     assert "generated command-file quoted metadata expansion guard" in status
+    assert "generated command-file shell syntax diagnostic redaction" in status
     assert "Path-valued generated command options" in status
     assert "redirection, variable expansion, and quoted path rewrites" in normalized_status
     assert "Quoted generated evidence metadata fields" in normalized_status
     assert "shell variable expansion and backslash escape syntax" in normalized_status
+    assert "Shell syntax diagnostics from generated command-file validation are redacted" in (
+        normalized_status
+    )
+    assert "raw `bash -n` error lines cannot echo edited command content" in (
+        normalized_status
+    )
     assert "unsupported executable or option lines in generated command files" in status
     assert "rejecting unsafe env-file syntax" in status
     assert "out-of-order generated command files" in status
@@ -176,6 +186,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
         "- [x] Track command-file quoted metadata expansion guard as local safety only."
     ) in todo
     assert (
+        "- [x] Track command-file shell syntax diagnostic redaction as local safety only."
+    ) in todo
+    assert (
         "- [x] Assert URL env-name allowlist does not close the external evidence gate."
     ) in todo
     assert (
@@ -192,6 +205,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     ) in todo
     assert (
         "- [x] Assert command-file quoted metadata expansion guard does not close the external evidence gate."
+    ) in todo
+    assert (
+        "- [x] Assert command-file shell syntax diagnostic redaction does not close the external evidence gate."
     ) in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
 

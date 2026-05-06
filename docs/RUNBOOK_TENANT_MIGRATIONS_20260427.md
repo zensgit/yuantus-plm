@@ -582,8 +582,9 @@ expansion, and quoted path rewrites such as `>`, `<`, `$HOME`, or `"path"` are
 rejected without echoing the edited value. Quoted evidence metadata fields are
 also checked for shell expansion and escape syntax; values such as
 `"$SOURCE_DATABASE_URL"` or `"ops\reviewer"` are rejected before operator use
-without echoing the edited value. To revalidate the file later without executing
-it, run:
+without echoing the edited value. Shell syntax diagnostics are also redacted:
+the validator reports that syntax failed, but it does not echo the raw
+`bash -n` error line. To revalidate the file later without executing it, run:
 
 ```bash
 scripts/validate_tenant_import_rehearsal_operator_commands.sh \
