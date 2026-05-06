@@ -45,6 +45,7 @@ def test_parent_todo_keeps_real_operator_evidence_unchecked_after_synthetic_dril
     assert "- [x] Add generated command-file shell syntax diagnostic redaction." in todo
     assert "- [x] Add generated command-file validator CLI error redaction." in todo
     assert "- [x] Add env-file precheck CLI error redaction." in todo
+    assert "- [x] Add shell wrapper CLI error redaction." in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
     assert "- [x] Add operator-run PostgreSQL rehearsal evidence." not in todo
 
@@ -136,6 +137,10 @@ def test_runbook_pins_command_file_validator_as_non_executing_gate():
     assert "unknown argument values and missing command-file paths are not echoed" in (
         normalized_section
     )
+    assert "The surrounding P3.4 shell wrappers also redact unknown-argument parse errors" in (
+        normalized_section
+    )
+    assert "do not echo unknown argument values" in normalized_section
 
 
 def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
@@ -176,6 +181,10 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     assert "missing env-file paths before any file is opened or sourced" in (
         normalized_status
     )
+    assert "P3.4 shell wrapper CLI parse errors also hide unknown argument values" in (
+        normalized_status
+    )
+    assert "evidence closeout entrypoints" in normalized_status
     assert "unsupported executable or option lines in generated command files" in status
     assert "rejecting unsafe env-file syntax" in status
     assert "out-of-order generated command files" in status
@@ -218,6 +227,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
         "- [x] Track env-file precheck CLI error redaction as local safety only."
     ) in todo
     assert (
+        "- [x] Track shell wrapper CLI error redaction as local safety only."
+    ) in todo
+    assert (
         "- [x] Assert URL env-name allowlist does not close the external evidence gate."
     ) in todo
     assert (
@@ -243,6 +255,9 @@ def test_readiness_status_keeps_operator_safety_hardening_db_free_and_blocked():
     ) in todo
     assert (
         "- [x] Assert env-file precheck CLI error redaction does not close the external evidence gate."
+    ) in todo
+    assert (
+        "- [x] Assert shell wrapper CLI error redaction does not close the external evidence gate."
     ) in todo
     assert "- [ ] Add operator-run PostgreSQL rehearsal evidence." in todo
 

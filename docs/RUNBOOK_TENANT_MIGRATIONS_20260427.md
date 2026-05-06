@@ -588,8 +588,14 @@ also checked for shell expansion and escape syntax; values such as
 without echoing the edited value. Shell syntax diagnostics are also redacted:
 the validator reports that syntax failed, but it does not echo the raw
 `bash -n` error line. CLI parse errors are redacted as well: unknown argument
-values and missing command-file paths are not echoed. To revalidate the file
-later without executing it, run:
+values and missing command-file paths are not echoed.
+
+The surrounding P3.4 shell wrappers also redact unknown-argument parse errors:
+env-template generation, operator precheck, command-pack preparation, command
+printing, operator launchpack, operator sequence, full closeout, evidence
+precheck, and evidence closeout entrypoints do not echo unknown argument values.
+
+To revalidate the file later without executing it, run:
 
 ```bash
 scripts/validate_tenant_import_rehearsal_operator_commands.sh \
