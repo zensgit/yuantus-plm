@@ -28,6 +28,8 @@ class SearchIndexerStatusResponse(BaseModel):
     item_index_ready: bool
     eco_index_ready: bool
     handlers: list[str]
+    subscription_counts: Dict[str, int]
+    missing_handlers: list[str]
     event_counts: Dict[str, int]
     success_counts: Dict[str, int]
     skipped_counts: Dict[str, int]

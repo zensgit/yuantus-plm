@@ -122,12 +122,19 @@ def _format_error(exc: Exception) -> str:
 
 
 def indexer_status() -> dict[str, Any]:
+    subscription_counts = _subscription_counts()
     with _STATUS_LOCK:
         return {
             "registered": _REGISTERED,
             "item_index_ready": _INDEX_READY,
             "eco_index_ready": _ECO_INDEX_READY,
             "handlers": list(_EVENT_TYPES.values()),
+            "subscription_counts": subscription_counts,
+            "missing_handlers": [
+                event_type
+                for event_type, count in subscription_counts.items()
+                if count == 0
+            ],
             "event_counts": dict(_EVENT_COUNTS),
             "success_counts": dict(_SUCCESS_COUNTS),
             "skipped_counts": dict(_SKIPPED_COUNTS),
@@ -277,6 +284,27 @@ def _handle_eco_deleted(event: EcoDeletedEvent) -> None:
     _with_search_service(event.event_type, _delete)
 
 
+_HANDLERS_BY_EVENT = {
+    ItemCreatedEvent: _handle_item_created,
+    ItemUpdatedEvent: _handle_item_updated,
+    ItemStateChangedEvent: _handle_item_state_changed,
+    ItemDeletedEvent: _handle_item_deleted,
+    EcoCreatedEvent: _handle_eco_created,
+    EcoUpdatedEvent: _handle_eco_updated,
+    EcoDeletedEvent: _handle_eco_deleted,
+}
+
+
+def _subscription_counts() -> dict[str, int]:
+    subscribers = getattr(event_bus, "_subscribers", {})
+    return {
+        _EVENT_TYPES[event_type]: sum(
+            1 for handler in subscribers.get(event_type, []) if handler is expected
+        )
+        for event_type, expected in _HANDLERS_BY_EVENT.items()
+    }
+
+
 def register_search_index_handlers() -> None:
     global _REGISTERED
     if _REGISTERED:
@@ -284,12 +312,7 @@ def register_search_index_handlers() -> None:
     with _REGISTER_LOCK:
         if _REGISTERED:
             return
-        event_bus.subscribe(ItemCreatedEvent, _handle_item_created)
-        event_bus.subscribe(ItemUpdatedEvent, _handle_item_updated)
-        event_bus.subscribe(ItemStateChangedEvent, _handle_item_state_changed)
-        event_bus.subscribe(ItemDeletedEvent, _handle_item_deleted)
-        event_bus.subscribe(EcoCreatedEvent, _handle_eco_created)
-        event_bus.subscribe(EcoUpdatedEvent, _handle_eco_updated)
-        event_bus.subscribe(EcoDeletedEvent, _handle_eco_deleted)
+        for event_type, handler in _HANDLERS_BY_EVENT.items():
+            event_bus.subscribe(event_type, handler)
         _REGISTERED = True
         logger.info("Search index handlers registered")
