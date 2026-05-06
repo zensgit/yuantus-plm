@@ -46,6 +46,9 @@ def _client(user: CurrentUser) -> TestClient:
 def test_search_indexer_status_lists_incremental_event_handlers() -> None:
     status = search_indexer.indexer_status()
 
+    assert status["status_started_at"].endswith("Z")
+    assert isinstance(status["uptime_seconds"], int)
+    assert status["uptime_seconds"] >= 0
     assert status["handlers"] == EXPECTED_HANDLERS
     assert set(status["subscription_counts"]) == set(EXPECTED_HANDLERS)
     assert isinstance(status["missing_handlers"], list)
@@ -65,6 +68,7 @@ def test_register_search_index_handlers_records_expected_subscriptions() -> None
 
     status = search_indexer.indexer_status()
     assert status["registered"] is True
+    assert status["registered_at"].endswith("Z")
     assert status["missing_handlers"] == []
     assert status["subscription_counts"] == {
         event_type: 1 for event_type in EXPECTED_HANDLERS
@@ -205,6 +209,8 @@ def test_search_indexer_status_endpoint_returns_status_for_admin() -> None:
 
     assert response.status_code == 200
     body = response.json()
+    assert body["status_started_at"].endswith("Z")
+    assert isinstance(body["uptime_seconds"], int)
     assert body["handlers"] == EXPECTED_HANDLERS
     assert set(body["subscription_counts"]) == set(EXPECTED_HANDLERS)
     assert isinstance(body["missing_handlers"], list)

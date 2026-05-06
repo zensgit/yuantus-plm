@@ -43,9 +43,11 @@ _EVENT_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
 _SUCCESS_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
 _SKIPPED_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
 _ERROR_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
+_STATUS_STARTED_AT = datetime.now(timezone.utc)
 _LAST_EVENT_TYPE: str | None = None
 _LAST_EVENT_AT: str | None = None
 _LAST_OUTCOME: str | None = None
+_REGISTERED_AT: str | None = None
 _LAST_SUCCESS_EVENT_TYPE: str | None = None
 _LAST_SUCCESS_AT: str | None = None
 _LAST_SKIPPED_EVENT_TYPE: str | None = None
@@ -69,8 +71,12 @@ _SENSITIVE_ERROR_PATTERNS = (
 )
 
 
+def _format_utc(dt: datetime) -> str:
+    return dt.isoformat().replace("+00:00", "Z")
+
+
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return _format_utc(datetime.now(timezone.utc))
 
 
 def _record_event_received(event_type: str) -> None:
@@ -126,6 +132,11 @@ def indexer_status() -> dict[str, Any]:
     with _STATUS_LOCK:
         return {
             "registered": _REGISTERED,
+            "registered_at": _REGISTERED_AT,
+            "status_started_at": _format_utc(_STATUS_STARTED_AT),
+            "uptime_seconds": int(
+                (datetime.now(timezone.utc) - _STATUS_STARTED_AT).total_seconds()
+            ),
             "item_index_ready": _INDEX_READY,
             "eco_index_ready": _ECO_INDEX_READY,
             "handlers": list(_EVENT_TYPES.values()),
@@ -306,7 +317,7 @@ def _subscription_counts() -> dict[str, int]:
 
 
 def register_search_index_handlers() -> None:
-    global _REGISTERED
+    global _REGISTERED, _REGISTERED_AT
     if _REGISTERED:
         return
     with _REGISTER_LOCK:
@@ -315,4 +326,5 @@ def register_search_index_handlers() -> None:
         for event_type, handler in _HANDLERS_BY_EVENT.items():
             event_bus.subscribe(event_type, handler)
         _REGISTERED = True
+        _REGISTERED_AT = _utc_now()
         logger.info("Search index handlers registered")

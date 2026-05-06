@@ -25,6 +25,9 @@ class SearchStatusResponse(BaseModel):
 
 class SearchIndexerStatusResponse(BaseModel):
     registered: bool
+    registered_at: Optional[str] = None
+    status_started_at: str
+    uptime_seconds: int
     item_index_ready: bool
     eco_index_ready: bool
     handlers: list[str]
