@@ -296,6 +296,7 @@ payloads, tenant IDs, org IDs, user IDs, item IDs, or ECO IDs.
 | `yuantus_search_indexer_index_ready` | gauge | `index` | `item` and `eco` index readiness flags |
 | `yuantus_search_indexer_subscriptions` | gauge | `event_type` | Count of exact expected event-bus handler subscriptions |
 | `yuantus_search_indexer_events_total` | counter | `event_type, outcome` | In-process received/success/skipped/error counts |
+| `yuantus_search_indexer_event_coverage` | gauge | `event_type, coverage` | Domain event coverage classification: `indexed` or `not_indexed` |
 | `yuantus_search_indexer_last_event_age_seconds` | gauge | `kind` | Age of the last received/success/skipped/error timestamp; omitted until that kind exists |
 
 Permitted `state` values:
@@ -327,6 +328,12 @@ Permitted `outcome` values:
 - `skipped`
 - `error`
 
+Permitted `coverage` values for `yuantus_search_indexer_event_coverage`:
+
+- `indexed` — the event has an incremental search indexing handler.
+- `not_indexed` — the event exists but is not handled by incremental search
+  indexing yet.
+
 Permitted `kind` values for `yuantus_search_indexer_last_event_age_seconds`:
 
 - `event` — last received event.
@@ -336,6 +343,10 @@ Permitted `kind` values for `yuantus_search_indexer_last_event_age_seconds`:
 
 Do not add tenant/org/user/item/ECO/error-text labels to these metrics. Those
 belong in logs or the admin JSON endpoint, not Prometheus labels.
+
+Current `not_indexed` event types are `file.uploaded`, `file.checked_in`, and
+`cad.attributes_synced`; file search is currently database-backed via
+`FileSearchService`, not Elasticsearch-backed.
 
 ### Settings
 

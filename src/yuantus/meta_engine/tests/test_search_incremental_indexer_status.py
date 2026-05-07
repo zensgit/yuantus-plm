@@ -8,7 +8,8 @@ from fastapi.testclient import TestClient
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies.auth import CurrentUser, get_current_user
-from yuantus.meta_engine.events.domain_events import ItemCreatedEvent
+from yuantus.meta_engine.events import domain_events
+from yuantus.meta_engine.events.domain_events import DomainEvent, ItemCreatedEvent
 from yuantus.meta_engine.services import search_indexer
 from yuantus.meta_engine.web.search_router import search_router
 
@@ -21,6 +22,11 @@ EXPECTED_HANDLERS = [
     "eco.created",
     "eco.updated",
     "eco.deleted",
+]
+EXPECTED_UNINDEXED_EVENTS = [
+    "file.uploaded",
+    "file.checked_in",
+    "cad.attributes_synced",
 ]
 
 
@@ -52,6 +58,12 @@ def test_search_indexer_status_lists_incremental_event_handlers() -> None:
     assert status["health"] in {"ok", "not_registered", "degraded"}
     assert isinstance(status["health_reasons"], list)
     assert status["handlers"] == EXPECTED_HANDLERS
+    assert status["indexed_event_types"] == EXPECTED_HANDLERS
+    assert status["unindexed_event_types"] == EXPECTED_UNINDEXED_EVENTS
+    assert status["event_coverage"] == {
+        **{event_type: "indexed" for event_type in EXPECTED_HANDLERS},
+        **{event_type: "not_indexed" for event_type in EXPECTED_UNINDEXED_EVENTS},
+    }
     assert set(status["subscription_counts"]) == set(EXPECTED_HANDLERS)
     assert isinstance(status["missing_handlers"], list)
     assert isinstance(status["duplicate_handlers"], list)
@@ -72,6 +84,24 @@ def test_search_indexer_status_lists_incremental_event_handlers() -> None:
     ):
         assert field in status
         assert status[field] is None or status[field] >= 0
+
+
+def test_search_indexer_event_coverage_accounts_for_all_domain_events() -> None:
+    status = search_indexer.indexer_status()
+    coverage = status["event_coverage"]
+    concrete_event_types = {
+        event_type
+        for event_type in (
+            _domain_event_type(event_cls)
+            for event_cls in vars(domain_events).values()
+            if isinstance(event_cls, type)
+            and issubclass(event_cls, DomainEvent)
+            and event_cls is not DomainEvent
+        )
+        if event_type
+    }
+
+    assert set(coverage) == concrete_event_types
 
 
 def test_register_search_index_handlers_records_expected_subscriptions() -> None:
@@ -267,6 +297,10 @@ def test_search_indexer_status_endpoint_returns_status_for_admin() -> None:
     assert body["health"] in {"ok", "not_registered", "degraded"}
     assert isinstance(body["health_reasons"], list)
     assert body["handlers"] == EXPECTED_HANDLERS
+    assert body["indexed_event_types"] == EXPECTED_HANDLERS
+    assert body["unindexed_event_types"] == EXPECTED_UNINDEXED_EVENTS
+    assert body["event_coverage"]["item.created"] == "indexed"
+    assert body["event_coverage"]["file.uploaded"] == "not_indexed"
     assert set(body["subscription_counts"]) == set(EXPECTED_HANDLERS)
     assert isinstance(body["missing_handlers"], list)
     assert isinstance(body["duplicate_handlers"], list)
@@ -297,3 +331,9 @@ def test_search_indexer_status_route_registered_once_and_owned_by_search_router(
 
     assert len(matches) == 1
     assert matches[0].endpoint.__module__ == "yuantus.meta_engine.web.search_router"
+
+
+def _domain_event_type(event_cls: type[DomainEvent]) -> str | None:
+    fields = getattr(event_cls, "model_fields", None) or getattr(event_cls, "__fields__", {})
+    field = fields.get("event_type")
+    return getattr(field, "default", None)

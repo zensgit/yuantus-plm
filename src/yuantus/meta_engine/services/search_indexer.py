@@ -43,6 +43,11 @@ _EVENT_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
 _SUCCESS_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
 _SKIPPED_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
 _ERROR_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
+_UNINDEXED_EVENT_TYPES = (
+    "file.uploaded",
+    "file.checked_in",
+    "cad.attributes_synced",
+)
 _STATUS_STARTED_AT = datetime.now(timezone.utc)
 _LAST_EVENT_TYPE: str | None = None
 _LAST_EVENT_AT: str | None = None
@@ -176,6 +181,9 @@ def indexer_status() -> dict[str, Any]:
             "item_index_ready": _INDEX_READY,
             "eco_index_ready": _ECO_INDEX_READY,
             "handlers": list(_EVENT_TYPES.values()),
+            "indexed_event_types": list(_EVENT_TYPES.values()),
+            "unindexed_event_types": list(_UNINDEXED_EVENT_TYPES),
+            "event_coverage": _event_coverage(),
             "subscription_counts": subscription_counts,
             "missing_handlers": missing_handlers,
             "duplicate_handlers": duplicate_handlers,
@@ -203,6 +211,14 @@ def indexer_status() -> dict[str, Any]:
             "last_error_age_seconds": _age_seconds(now, _LAST_ERROR_RECORDED_AT),
             "last_error": _LAST_ERROR,
         }
+
+
+def _event_coverage() -> dict[str, str]:
+    coverage = {event_type: "indexed" for event_type in _EVENT_TYPES.values()}
+    coverage.update(
+        {event_type: "not_indexed" for event_type in _UNINDEXED_EVENT_TYPES}
+    )
+    return coverage
 
 
 def _health_summary(

@@ -82,6 +82,11 @@ def test_search_indexer_metrics_snapshot_renders_health_and_outcomes() -> None:
             "item_index_ready": True,
             "eco_index_ready": False,
             "handlers": ["item.created", "eco.deleted"],
+            "event_coverage": {
+                "item.created": "indexed",
+                "eco.deleted": "indexed",
+                "file.uploaded": "not_indexed",
+            },
             "subscription_counts": {"item.created": 1, "eco.deleted": 0},
             "event_counts": {"item.created": 3, "eco.deleted": 1},
             "success_counts": {"item.created": 2, "eco.deleted": 0},
@@ -117,6 +122,14 @@ def test_search_indexer_metrics_snapshot_renders_health_and_outcomes() -> None:
         in out
     )
     assert (
+        'yuantus_search_indexer_event_coverage{event_type="item.created",coverage="indexed"} 1'
+        in out
+    )
+    assert (
+        'yuantus_search_indexer_event_coverage{event_type="file.uploaded",coverage="not_indexed"} 1'
+        in out
+    )
+    assert (
         'yuantus_search_indexer_last_event_age_seconds{kind="event"} 7'
         in out
     )
@@ -149,6 +162,7 @@ def test_runtime_prometheus_text_combines_job_registry_and_search_indexer(
             "item_index_ready": False,
             "eco_index_ready": False,
             "handlers": ["item.created"],
+            "event_coverage": {"item.created": "indexed"},
             "subscription_counts": {"item.created": 0},
             "event_counts": {"item.created": 0},
             "success_counts": {"item.created": 0},
