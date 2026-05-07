@@ -23,6 +23,12 @@ _SEARCH_INDEXER_OUTCOME_FIELDS: Tuple[Tuple[str, str], ...] = (
     ("skipped", "skipped_counts"),
     ("error", "error_counts"),
 )
+_SEARCH_INDEXER_AGE_FIELDS: Tuple[Tuple[str, str], ...] = (
+    ("event", "last_event_age_seconds"),
+    ("success", "last_success_age_seconds"),
+    ("skipped", "last_skipped_age_seconds"),
+    ("error", "last_error_age_seconds"),
+)
 
 
 class _Registry:
@@ -209,6 +215,16 @@ def render_search_indexer_metrics(status: Mapping[str, Any]) -> str:
                 f'yuantus_search_indexer_events_total{{event_type="{_escape(event_type)}",'
                 f'outcome="{_escape(outcome)}"}} {_int_metric(counts.get(event_type))}'
             )
+    age_lines = _search_indexer_age_lines(status)
+    if age_lines:
+        lines.extend(
+            [
+                "",
+                "# HELP yuantus_search_indexer_last_event_age_seconds Last event ages",
+                "# TYPE yuantus_search_indexer_last_event_age_seconds gauge",
+                *age_lines,
+            ]
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -237,6 +253,19 @@ def _status_handlers(status: Mapping[str, Any]) -> List[str]:
 def _status_map(status: Mapping[str, Any], field_name: str) -> Mapping[str, Any]:
     value = status.get(field_name)
     return value if isinstance(value, Mapping) else {}
+
+
+def _search_indexer_age_lines(status: Mapping[str, Any]) -> List[str]:
+    lines: List[str] = []
+    for kind, field_name in _SEARCH_INDEXER_AGE_FIELDS:
+        value = status.get(field_name)
+        if value is None:
+            continue
+        lines.append(
+            f'yuantus_search_indexer_last_event_age_seconds{{kind="{_escape(kind)}"}} '
+            f"{_int_metric(value)}"
+        )
+    return lines
 
 
 def _bool_metric(value: Any) -> int:

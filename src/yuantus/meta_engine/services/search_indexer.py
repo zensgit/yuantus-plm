@@ -46,15 +46,19 @@ _ERROR_COUNTS = {event_type: 0 for event_type in _EVENT_TYPES.values()}
 _STATUS_STARTED_AT = datetime.now(timezone.utc)
 _LAST_EVENT_TYPE: str | None = None
 _LAST_EVENT_AT: str | None = None
+_LAST_EVENT_RECORDED_AT: datetime | None = None
 _LAST_OUTCOME: str | None = None
 _REGISTERED_AT: str | None = None
 _LAST_SUCCESS_EVENT_TYPE: str | None = None
 _LAST_SUCCESS_AT: str | None = None
+_LAST_SUCCESS_RECORDED_AT: datetime | None = None
 _LAST_SKIPPED_EVENT_TYPE: str | None = None
 _LAST_SKIPPED_AT: str | None = None
+_LAST_SKIPPED_RECORDED_AT: datetime | None = None
 _LAST_SKIPPED_REASON: str | None = None
 _LAST_ERROR_EVENT_TYPE: str | None = None
 _LAST_ERROR_AT: str | None = None
+_LAST_ERROR_RECORDED_AT: datetime | None = None
 _LAST_ERROR: str | None = None
 _MAX_ERROR_MESSAGE_LENGTH = 300
 _SENSITIVE_ERROR_PATTERNS = (
@@ -75,44 +79,64 @@ def _format_utc(dt: datetime) -> str:
     return dt.isoformat().replace("+00:00", "Z")
 
 
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def _utc_now() -> str:
-    return _format_utc(datetime.now(timezone.utc))
+    return _format_utc(_now_utc())
+
+
+def _age_seconds(now: datetime, recorded_at: datetime | None) -> int | None:
+    if recorded_at is None:
+        return None
+    return max(0, int((now - recorded_at).total_seconds()))
 
 
 def _record_event_received(event_type: str) -> None:
-    global _LAST_EVENT_TYPE, _LAST_EVENT_AT
+    global _LAST_EVENT_TYPE, _LAST_EVENT_AT, _LAST_EVENT_RECORDED_AT
+    recorded_at = _now_utc()
     with _STATUS_LOCK:
         _EVENT_COUNTS[event_type] = _EVENT_COUNTS.get(event_type, 0) + 1
         _LAST_EVENT_TYPE = event_type
-        _LAST_EVENT_AT = _utc_now()
+        _LAST_EVENT_AT = _format_utc(recorded_at)
+        _LAST_EVENT_RECORDED_AT = recorded_at
 
 
 def _record_event_success(event_type: str) -> None:
-    global _LAST_OUTCOME, _LAST_SUCCESS_EVENT_TYPE, _LAST_SUCCESS_AT
+    global _LAST_OUTCOME, _LAST_SUCCESS_EVENT_TYPE, _LAST_SUCCESS_AT, _LAST_SUCCESS_RECORDED_AT
+    recorded_at = _now_utc()
     with _STATUS_LOCK:
         _SUCCESS_COUNTS[event_type] = _SUCCESS_COUNTS.get(event_type, 0) + 1
         _LAST_OUTCOME = "success"
         _LAST_SUCCESS_EVENT_TYPE = event_type
-        _LAST_SUCCESS_AT = _utc_now()
+        _LAST_SUCCESS_AT = _format_utc(recorded_at)
+        _LAST_SUCCESS_RECORDED_AT = recorded_at
 
 
 def _record_event_skipped(event_type: str, reason: str) -> None:
-    global _LAST_OUTCOME, _LAST_SKIPPED_EVENT_TYPE, _LAST_SKIPPED_AT, _LAST_SKIPPED_REASON
+    global _LAST_OUTCOME, _LAST_SKIPPED_EVENT_TYPE, _LAST_SKIPPED_AT
+    global _LAST_SKIPPED_RECORDED_AT, _LAST_SKIPPED_REASON
+    recorded_at = _now_utc()
     with _STATUS_LOCK:
         _SKIPPED_COUNTS[event_type] = _SKIPPED_COUNTS.get(event_type, 0) + 1
         _LAST_OUTCOME = "skipped"
         _LAST_SKIPPED_EVENT_TYPE = event_type
-        _LAST_SKIPPED_AT = _utc_now()
+        _LAST_SKIPPED_AT = _format_utc(recorded_at)
+        _LAST_SKIPPED_RECORDED_AT = recorded_at
         _LAST_SKIPPED_REASON = reason
 
 
 def _record_event_error(event_type: str, exc: Exception) -> None:
-    global _LAST_OUTCOME, _LAST_ERROR_EVENT_TYPE, _LAST_ERROR_AT, _LAST_ERROR
+    global _LAST_OUTCOME, _LAST_ERROR_EVENT_TYPE, _LAST_ERROR_AT
+    global _LAST_ERROR_RECORDED_AT, _LAST_ERROR
+    recorded_at = _now_utc()
     with _STATUS_LOCK:
         _ERROR_COUNTS[event_type] = _ERROR_COUNTS.get(event_type, 0) + 1
         _LAST_OUTCOME = "error"
         _LAST_ERROR_EVENT_TYPE = event_type
-        _LAST_ERROR_AT = _utc_now()
+        _LAST_ERROR_AT = _format_utc(recorded_at)
+        _LAST_ERROR_RECORDED_AT = recorded_at
         _LAST_ERROR = _format_error(exc)
 
 
@@ -140,14 +164,13 @@ def indexer_status() -> dict[str, Any]:
         missing_handlers=missing_handlers,
         duplicate_handlers=duplicate_handlers,
     )
+    now = _now_utc()
     with _STATUS_LOCK:
         return {
             "registered": _REGISTERED,
             "registered_at": _REGISTERED_AT,
             "status_started_at": _format_utc(_STATUS_STARTED_AT),
-            "uptime_seconds": int(
-                (datetime.now(timezone.utc) - _STATUS_STARTED_AT).total_seconds()
-            ),
+            "uptime_seconds": int((now - _STATUS_STARTED_AT).total_seconds()),
             "health": health,
             "health_reasons": health_reasons,
             "item_index_ready": _INDEX_READY,
@@ -162,14 +185,22 @@ def indexer_status() -> dict[str, Any]:
             "error_counts": dict(_ERROR_COUNTS),
             "last_event_type": _LAST_EVENT_TYPE,
             "last_event_at": _LAST_EVENT_AT,
+            "last_event_age_seconds": _age_seconds(now, _LAST_EVENT_RECORDED_AT),
             "last_outcome": _LAST_OUTCOME,
             "last_success_event_type": _LAST_SUCCESS_EVENT_TYPE,
             "last_success_at": _LAST_SUCCESS_AT,
+            "last_success_age_seconds": _age_seconds(
+                now, _LAST_SUCCESS_RECORDED_AT
+            ),
             "last_skipped_event_type": _LAST_SKIPPED_EVENT_TYPE,
             "last_skipped_at": _LAST_SKIPPED_AT,
+            "last_skipped_age_seconds": _age_seconds(
+                now, _LAST_SKIPPED_RECORDED_AT
+            ),
             "last_skipped_reason": _LAST_SKIPPED_REASON,
             "last_error_event_type": _LAST_ERROR_EVENT_TYPE,
             "last_error_at": _LAST_ERROR_AT,
+            "last_error_age_seconds": _age_seconds(now, _LAST_ERROR_RECORDED_AT),
             "last_error": _LAST_ERROR,
         }
 

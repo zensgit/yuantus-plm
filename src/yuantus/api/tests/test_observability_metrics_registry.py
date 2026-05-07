@@ -87,6 +87,10 @@ def test_search_indexer_metrics_snapshot_renders_health_and_outcomes() -> None:
             "success_counts": {"item.created": 2, "eco.deleted": 0},
             "skipped_counts": {"item.created": 1, "eco.deleted": 0},
             "error_counts": {"item.created": 0, "eco.deleted": 1},
+            "last_event_age_seconds": 7,
+            "last_success_age_seconds": 6,
+            "last_skipped_age_seconds": None,
+            "last_error_age_seconds": 5,
             "last_error": "RuntimeError: token=supersecret",
         }
     )
@@ -112,6 +116,19 @@ def test_search_indexer_metrics_snapshot_renders_health_and_outcomes() -> None:
         'yuantus_search_indexer_events_total{event_type="eco.deleted",outcome="error"} 1'
         in out
     )
+    assert (
+        'yuantus_search_indexer_last_event_age_seconds{kind="event"} 7'
+        in out
+    )
+    assert (
+        'yuantus_search_indexer_last_event_age_seconds{kind="success"} 6'
+        in out
+    )
+    assert (
+        'yuantus_search_indexer_last_event_age_seconds{kind="error"} 5'
+        in out
+    )
+    assert 'yuantus_search_indexer_last_event_age_seconds{kind="skipped"}' not in out
     assert "supersecret" not in out
     assert "last_error" not in out
 
@@ -137,6 +154,10 @@ def test_runtime_prometheus_text_combines_job_registry_and_search_indexer(
             "success_counts": {"item.created": 0},
             "skipped_counts": {"item.created": 0},
             "error_counts": {"item.created": 0},
+            "last_event_age_seconds": None,
+            "last_success_age_seconds": None,
+            "last_skipped_age_seconds": None,
+            "last_error_age_seconds": None,
         },
     )
     record_job_lifecycle("cad_convert", "success", 25.0)

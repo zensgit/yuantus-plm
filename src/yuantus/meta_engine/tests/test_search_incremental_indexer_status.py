@@ -64,6 +64,14 @@ def test_search_indexer_status_lists_incremental_event_handlers() -> None:
     assert all(isinstance(value, int) for value in status["success_counts"].values())
     assert all(isinstance(value, int) for value in status["skipped_counts"].values())
     assert all(isinstance(value, int) for value in status["error_counts"].values())
+    for field in (
+        "last_event_age_seconds",
+        "last_success_age_seconds",
+        "last_skipped_age_seconds",
+        "last_error_age_seconds",
+    ):
+        assert field in status
+        assert status[field] is None or status[field] >= 0
 
 
 def test_register_search_index_handlers_records_expected_subscriptions() -> None:
@@ -146,8 +154,12 @@ def test_item_created_handler_updates_runtime_status(monkeypatch) -> None:
     assert status["event_counts"]["item.created"] == event_count_before + 1
     assert status["success_counts"]["item.created"] == success_count_before + 1
     assert status["last_event_type"] == "item.created"
+    assert status["last_event_at"].endswith("Z")
+    assert 0 <= status["last_event_age_seconds"] <= 10
     assert status["last_outcome"] == "success"
     assert status["last_success_event_type"] == "item.created"
+    assert status["last_success_at"].endswith("Z")
+    assert 0 <= status["last_success_age_seconds"] <= 10
     assert indexed_item_ids == ["item-123"]
 
 
@@ -180,8 +192,12 @@ def test_handler_skip_updates_outcome_counts(monkeypatch) -> None:
     assert status["event_counts"]["item.created"] == event_count_before + 1
     assert status["skipped_counts"]["item.created"] == skipped_count_before + 1
     assert status["last_event_type"] == "item.created"
+    assert status["last_event_at"].endswith("Z")
+    assert 0 <= status["last_event_age_seconds"] <= 10
     assert status["last_outcome"] == "skipped"
     assert status["last_skipped_event_type"] == "item.created"
+    assert status["last_skipped_at"].endswith("Z")
+    assert 0 <= status["last_skipped_age_seconds"] <= 10
     assert status["last_skipped_reason"] == "search-engine-disabled"
 
 
@@ -220,6 +236,8 @@ def test_handler_error_status_is_redacted(monkeypatch) -> None:
     assert status["error_counts"]["item.created"] == error_count_before + 1
     assert status["last_outcome"] == "error"
     assert status["last_error_event_type"] == "item.created"
+    assert status["last_error_at"].endswith("Z")
+    assert 0 <= status["last_error_age_seconds"] <= 10
     assert status["last_error"].startswith("RuntimeError: ")
     assert "supersecret" not in status["last_error"]
     assert "hidden" not in status["last_error"]
@@ -257,6 +275,14 @@ def test_search_indexer_status_endpoint_returns_status_for_admin() -> None:
     assert set(body["skipped_counts"]) == set(EXPECTED_HANDLERS)
     assert set(body["error_counts"]) == set(EXPECTED_HANDLERS)
     assert isinstance(body["registered"], bool)
+    for field in (
+        "last_event_age_seconds",
+        "last_success_age_seconds",
+        "last_skipped_age_seconds",
+        "last_error_age_seconds",
+    ):
+        assert field in body
+        assert body[field] is None or body[field] >= 0
 
 
 def test_search_indexer_status_route_registered_once_and_owned_by_search_router() -> None:
