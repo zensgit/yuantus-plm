@@ -3,22 +3,23 @@ from __future__ import annotations
 from yuantus.api.app import create_app
 
 
-EXPECTED_TOTAL_ROUTES = 675
+EXPECTED_TOTAL_ROUTES = 676
 
 
 def test_metrics_router_keeps_post_p4_route_count_at_expected_count() -> None:
     """Route-count guard after P4.1 added search indexer status.
 
     The metrics router still owns exactly one route; the app-level total is now
-    675 because `/api/v1/search/indexer/status`,
+    676 because `/api/v1/search/indexer/status`,
     `/api/v1/search/reports/summary`, and
-    `/api/v1/search/reports/eco-stage-aging` landed after Phase 2. If a future
+    `/api/v1/search/reports/eco-stage-aging`, and
+    `/api/v1/search/reports/eco-state-trend` landed after Phase 2. If a future
     change adds another route in this scope, this test fails and forces a
     conversation about scope creep.
     """
     app = create_app()
     assert len(app.routes) == EXPECTED_TOTAL_ROUTES, (
-        f"expected {EXPECTED_TOTAL_ROUTES} total routes after P4.2.2, "
+        f"expected {EXPECTED_TOTAL_ROUTES} total routes after P4.2.3, "
         f"got {len(app.routes)}"
     )
 
