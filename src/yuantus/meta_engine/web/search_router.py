@@ -1,6 +1,10 @@
+import csv
+from io import StringIO
+from typing import Any, Dict, Literal, Optional
+
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 from yuantus.database import get_db
@@ -58,6 +62,29 @@ class SearchIndexerStatusResponse(BaseModel):
     last_error_at: Optional[str] = None
     last_error_age_seconds: Optional[int] = None
     last_error: Optional[str] = None
+
+
+class SearchReportBucket(BaseModel):
+    key: str
+    count: int
+
+
+class SearchItemReport(BaseModel):
+    total: int
+    by_item_type: list[SearchReportBucket]
+    by_state: list[SearchReportBucket]
+
+
+class SearchEcoReport(BaseModel):
+    total: int
+    by_state: list[SearchReportBucket]
+    by_stage: list[SearchReportBucket]
+
+
+class SearchReportsSummaryResponse(BaseModel):
+    engine: str
+    items: SearchItemReport
+    ecos: SearchEcoReport
 
 
 class SearchReindexRequest(BaseModel):
@@ -166,6 +193,29 @@ def search_indexer_status(
     return SearchIndexerStatusResponse(**indexer_status())
 
 
+@search_router.get("/reports/summary", response_model=None)
+def search_reports_summary(
+    export_format: Literal["json", "csv"] = Query(
+        "json",
+        alias="format",
+        description="Response format for summary aggregation.",
+    ),
+    _: CurrentUser = Depends(require_admin_user),
+    db: Session = Depends(get_db),
+) -> SearchReportsSummaryResponse | Response:
+    service = SearchService(db)
+    summary = SearchReportsSummaryResponse(**service.reports_summary())
+    if export_format == "csv":
+        return Response(
+            content=_format_search_reports_summary_csv(summary),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": 'attachment; filename="search-reports-summary.csv"'
+            },
+        )
+    return summary
+
+
 @search_router.post("/ecos/reindex", response_model=EcoReindexResponse)
 def search_ecos_reindex(
     req: EcoReindexRequest,
@@ -205,3 +255,20 @@ def search_reindex(
         batch_size=req.batch_size,
     )
     return SearchReindexResponse(**result)
+
+
+def _format_search_reports_summary_csv(summary: SearchReportsSummaryResponse) -> str:
+    buffer = StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["section", "key", "count"])
+    writer.writerow(["items.total", "total", summary.items.total])
+    for bucket in summary.items.by_item_type:
+        writer.writerow(["items.by_item_type", bucket.key, bucket.count])
+    for bucket in summary.items.by_state:
+        writer.writerow(["items.by_state", bucket.key, bucket.count])
+    writer.writerow(["ecos.total", "total", summary.ecos.total])
+    for bucket in summary.ecos.by_state:
+        writer.writerow(["ecos.by_state", bucket.key, bucket.count])
+    for bucket in summary.ecos.by_stage:
+        writer.writerow(["ecos.by_stage", bucket.key, bucket.count])
+    return buffer.getvalue()

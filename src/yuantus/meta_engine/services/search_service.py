@@ -551,6 +551,56 @@ class SearchService:
         hits = [self._eco_to_doc(eco) for eco in ecos]
         return {"hits": hits, "total": total}
 
+    def reports_summary(self) -> Dict[str, Any]:
+        """Return DB-backed aggregate counts for search/report consumers."""
+        empty = {
+            "engine": "db",
+            "items": {
+                "total": 0,
+                "by_item_type": [],
+                "by_state": [],
+            },
+            "ecos": {
+                "total": 0,
+                "by_state": [],
+                "by_stage": [],
+            },
+        }
+        if not self.session:
+            return empty
+
+        return {
+            "engine": "db",
+            "items": {
+                "total": self._count_table(Item),
+                "by_item_type": self._bucket_counts(Item.item_type_id),
+                "by_state": self._bucket_counts(Item.state),
+            },
+            "ecos": {
+                "total": self._count_table(ECO),
+                "by_state": self._bucket_counts(ECO.state),
+                "by_stage": self._bucket_counts(ECO.stage_id),
+            },
+        }
+
+    def _count_table(self, model) -> int:
+        value = self.session.execute(select(func.count()).select_from(model)).scalar()
+        return int(value or 0)
+
+    def _bucket_counts(self, column) -> list[Dict[str, Any]]:
+        rows = self.session.execute(
+            select(column, func.count())
+            .group_by(column)
+            .order_by(func.count().desc(), column.asc())
+        ).all()
+        return [
+            {
+                "key": str(key) if key not in (None, "") else "unknown",
+                "count": int(count or 0),
+            }
+            for key, count in rows
+        ]
+
     def _item_to_doc(self, item: Item) -> Dict[str, Any]:
         return self._build_doc(item)
 
