@@ -54,6 +54,7 @@ PATHS=(
   "scripts/print_cad_material_delivery_git_commands.sh"
   "playwright/tests/cad_material_workbench_ui.spec.js"
   "docs/samples/cad_material_diff_confirm_fixture.json"
+  "docs/CAD_MATERIAL_SYNC_GITHUB_HANDOFF_20260506.md"
   "docs/DEV_AND_VERIFICATION_CAD_MATERIAL_SYNC_PLUGIN_20260506.md"
   "docs/DEVELOPMENT_CLAUDE_TASK_CAD_MATERIAL_SYNC_PLUGIN_20260506.md"
   "docs/TODO_CAD_MATERIAL_SYNC_PLUGIN_20260506.md"
@@ -85,6 +86,7 @@ git diff --check -- \
   src/yuantus/meta_engine/tests/test_plugin_cad_material_sync.py \
   playwright/tests/cad_material_workbench_ui.spec.js \
   docs/samples/cad_material_diff_confirm_fixture.json \
+  docs/CAD_MATERIAL_SYNC_GITHUB_HANDOFF_20260506.md \
   docs/DEV_AND_VERIFICATION_CAD_MATERIAL_SYNC_PLUGIN_20260506.md \
   docs/DEVELOPMENT_CLAUDE_TASK_CAD_MATERIAL_SYNC_PLUGIN_20260506.md \
   docs/TODO_CAD_MATERIAL_SYNC_PLUGIN_20260506.md \
@@ -102,6 +104,7 @@ git status --short -- \
   src/yuantus/meta_engine/tests/test_plugin_cad_material_sync.py \
   playwright/tests/cad_material_workbench_ui.spec.js \
   docs/samples/cad_material_diff_confirm_fixture.json \
+  docs/CAD_MATERIAL_SYNC_GITHUB_HANDOFF_20260506.md \
   docs/DEV_AND_VERIFICATION_CAD_MATERIAL_SYNC_PLUGIN_20260506.md \
   docs/DEVELOPMENT_CLAUDE_TASK_CAD_MATERIAL_SYNC_PLUGIN_20260506.md \
   docs/TODO_CAD_MATERIAL_SYNC_PLUGIN_20260506.md \

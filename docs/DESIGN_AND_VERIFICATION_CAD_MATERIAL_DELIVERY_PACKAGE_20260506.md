@@ -32,6 +32,7 @@
 新增客户端 manifest：
 
 - `clients/autocad-material-sync/MANIFEST.md`
+- `docs/CAD_MATERIAL_SYNC_GITHUB_HANDOFF_20260506.md`
 
 manifest 说明：
 
@@ -40,6 +41,7 @@ manifest 说明：
 - macOS 本地验证入口。
 - Windows + AutoCAD 2018 验收入口。
 - 不应提交的构建产物边界。
+- GitHub 分支、新电脑继续步骤和 Windows AutoCAD 2018 后续验证边界。
 
 新增 Git staging 指令打印器：
 
@@ -61,6 +63,7 @@ manifest 说明：
 - `scripts/verify_cad_material_delivery_package.py`
 - `scripts/print_cad_material_delivery_git_commands.sh`
 - `playwright/tests/cad_material_workbench_ui.spec.js`
+- `docs/CAD_MATERIAL_SYNC_GITHUB_HANDOFF_20260506.md`
 - `docs/DESIGN_AND_VERIFICATION_CAD_MATERIAL_*.md`
 - `docs/DEV_AND_VERIFICATION_CAD_MATERIAL_SYNC_PLUGIN_20260506.md`
 - `docs/TODO_CAD_MATERIAL_SYNC_PLUGIN_20260506.md`

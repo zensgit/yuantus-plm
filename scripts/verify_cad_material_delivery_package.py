@@ -59,6 +59,7 @@ REQUIRED_PATHS = [
     "src/yuantus/meta_engine/tests/test_plugin_cad_material_sync.py",
     "scripts/verify_cad_material_diff_confirm_contract.py",
     "docs/samples/cad_material_diff_confirm_fixture.json",
+    "docs/CAD_MATERIAL_SYNC_GITHUB_HANDOFF_20260506.md",
     "scripts/verify_cad_material_delivery_package.py",
     "scripts/print_cad_material_delivery_git_commands.sh",
     "playwright/tests/cad_material_workbench_ui.spec.js",
