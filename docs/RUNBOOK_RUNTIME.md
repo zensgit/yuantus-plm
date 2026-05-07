@@ -348,6 +348,47 @@ Current `not_indexed` event types are `file.uploaded`, `file.checked_in`, and
 `cad.attributes_synced`; file search is currently database-backed via
 `FileSearchService`, not Elasticsearch-backed.
 
+### Search reports
+
+The search reports endpoints are read-only admin surfaces under
+`/api/v1/search/reports/*`. They are database-backed and do not require
+Elasticsearch to be configured.
+
+All three endpoints require an admin identity. Non-admin callers receive
+`403` with `detail="Admin role required"`.
+
+| Endpoint | Default format | CSV header | Source and meaning |
+| --- | --- | --- | --- |
+| `GET /api/v1/search/reports/summary` | JSON | `section,key,count` | Current `Item` and `ECO` inventory counts by item type, item state, ECO state, and ECO stage |
+| `GET /api/v1/search/reports/eco-stage-aging` | JSON | `stage,count,avg_age_days,max_age_days` | Current ECO rows grouped by `stage_id`; age uses `updated_at` with `created_at` fallback |
+| `GET /api/v1/search/reports/eco-state-trend` | JSON | `date,state,count` | ECO intake buckets grouped by UTC `created_at` date and current state; source marker is `created_at_current_state` |
+
+CSV export uses `?format=csv`:
+
+```bash
+curl -s \
+  "http://127.0.0.1:7910/api/v1/search/reports/summary?format=csv" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -s \
+  "http://127.0.0.1:7910/api/v1/search/reports/eco-stage-aging?format=csv" \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -s \
+  "http://127.0.0.1:7910/api/v1/search/reports/eco-state-trend?days=30&format=csv" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Important interpretation boundary:
+
+- `eco-state-trend` is an intake/current-state report, not state-transition history.
+  It does not answer when an ECO entered a state because the current
+  model does not store durable state-entered timestamps.
+- `eco-stage-aging` uses current-row timestamps only. It is not an SLA engine
+  and does not emit alerts or metrics.
+- `summary` and both ECO reports are operator/reporting surfaces; they do not
+  mutate search indexes or enqueue indexing jobs.
+
 ### Settings
 
 | Setting | Default | Purpose |
