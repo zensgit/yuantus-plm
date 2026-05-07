@@ -14,6 +14,7 @@ documentation.
 ## 2. Files Changed
 
 - `src/yuantus/meta_engine/tests/test_search_reports_closeout_contracts.py`
+- `.github/workflows/ci.yml`
 - `docs/RUNBOOK_RUNTIME.md`
 - `docs/DEVELOPMENT_CLAUDE_TASK_PHASE4_SEARCH_REPORTS_CLOSEOUT_20260507.md`
 - `docs/PHASE4_SEARCH_REPORTS_CLOSEOUT_TODO_20260507.md`
@@ -91,6 +92,9 @@ git diff --check
 - Broader focused regression: 60 passed.
 - Doc-index trio plus runbook index completeness: 5 passed after MD/index update.
 - `git diff --check`: clean.
+- PR #498 initial CI `contracts` run failed because the new closeout contract
+  was not registered in `.github/workflows/ci.yml`; the follow-up patch adds
+  it to the contracts step and re-runs the CI wiring contract locally.
 
 ## 7. Non-Goals
 
