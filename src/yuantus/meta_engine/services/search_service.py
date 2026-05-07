@@ -6,7 +6,7 @@ Phase 9: Advanced Search
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Dict, Any, Optional, Iterable
 
 from sqlalchemy import String, cast, func, or_, select
@@ -642,6 +642,49 @@ class SearchService:
             for key, values in grouped.items()
         ]
         report["buckets"].sort(key=lambda bucket: (-bucket["count"], bucket["key"]))
+        return report
+
+    def eco_state_trend_report(
+        self, *, days: int = 30, now: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """Return ECO creation trend grouped by creation date and current state."""
+        as_of = self._to_utc(now or datetime.now(timezone.utc))
+        day_count = max(1, int(days))
+        end_date = as_of.date()
+        start_date = end_date - timedelta(days=day_count - 1)
+        report = {
+            "engine": "db",
+            "trend_source": "created_at_current_state",
+            "days": day_count,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+            "buckets": [],
+        }
+        if not self.session:
+            return report
+
+        # ECO.created_at is a timezone-naive DateTime column; keep DB predicates
+        # naive while normalizing returned values to UTC for bucket labels.
+        start_at = datetime.combine(start_date, time.min)
+        end_at = as_of.replace(tzinfo=None)
+        rows = self.session.execute(
+            select(ECO.state, ECO.created_at)
+            .where(ECO.created_at >= start_at)
+            .where(ECO.created_at <= end_at)
+        ).all()
+
+        grouped: dict[tuple[str, str], int] = {}
+        for state, created_at in rows:
+            if not created_at:
+                continue
+            created_date = self._to_utc(created_at).date().isoformat()
+            key = str(state) if state not in (None, "") else "unknown"
+            grouped[(created_date, key)] = grouped.get((created_date, key), 0) + 1
+
+        report["buckets"] = [
+            {"date": created_date, "state": state, "count": count}
+            for (created_date, state), count in sorted(grouped.items())
+        ]
         return report
 
     @staticmethod

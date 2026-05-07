@@ -100,6 +100,21 @@ class SearchEcoStageAgingResponse(BaseModel):
     buckets: list[SearchReportAgeBucket]
 
 
+class SearchEcoStateTrendBucket(BaseModel):
+    date: str
+    state: str
+    count: int
+
+
+class SearchEcoStateTrendResponse(BaseModel):
+    engine: str
+    trend_source: str
+    days: int
+    start_date: str
+    end_date: str
+    buckets: list[SearchEcoStateTrendBucket]
+
+
 class SearchReindexRequest(BaseModel):
     item_type_id: Optional[str] = Field(default=None)
     reset: bool = Field(default=False)
@@ -252,6 +267,35 @@ def search_reports_eco_stage_aging(
     return report
 
 
+@search_router.get("/reports/eco-state-trend", response_model=None)
+def search_reports_eco_state_trend(
+    days: int = Query(
+        30,
+        ge=1,
+        le=366,
+        description="Number of UTC calendar days to include.",
+    ),
+    export_format: Literal["json", "csv"] = Query(
+        "json",
+        alias="format",
+        description="Response format for ECO state trend aggregation.",
+    ),
+    _: CurrentUser = Depends(require_admin_user),
+    db: Session = Depends(get_db),
+) -> SearchEcoStateTrendResponse | Response:
+    service = SearchService(db)
+    report = SearchEcoStateTrendResponse(**service.eco_state_trend_report(days=days))
+    if export_format == "csv":
+        return Response(
+            content=_format_search_eco_state_trend_csv(report),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": 'attachment; filename="search-eco-state-trend.csv"'
+            },
+        )
+    return report
+
+
 @search_router.post("/ecos/reindex", response_model=EcoReindexResponse)
 def search_ecos_reindex(
     req: EcoReindexRequest,
@@ -318,4 +362,13 @@ def _format_search_eco_stage_aging_csv(report: SearchEcoStageAgingResponse) -> s
         writer.writerow(
             [bucket.key, bucket.count, bucket.avg_age_days, bucket.max_age_days]
         )
+    return buffer.getvalue()
+
+
+def _format_search_eco_state_trend_csv(report: SearchEcoStateTrendResponse) -> str:
+    buffer = StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["date", "state", "count"])
+    for bucket in report.buckets:
+        writer.writerow([bucket.date, bucket.state, bucket.count])
     return buffer.getvalue()
