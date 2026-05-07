@@ -6,6 +6,7 @@ Phase 9: Advanced Search
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Iterable
 
 from sqlalchemy import String, cast, func, or_, select
@@ -600,6 +601,54 @@ class SearchService:
             }
             for key, count in rows
         ]
+
+    def eco_stage_aging_report(
+        self, *, now: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """Return age statistics for ECOs grouped by current stage."""
+        report = {
+            "engine": "db",
+            "age_source": "updated_at_or_created_at",
+            "buckets": [],
+        }
+        if not self.session:
+            return report
+
+        as_of = self._to_utc(now or datetime.now(timezone.utc))
+        rows = self.session.execute(
+            select(ECO.stage_id, ECO.updated_at, ECO.created_at)
+        ).all()
+
+        grouped: dict[str, list[float]] = {}
+        for stage_id, updated_at, created_at in rows:
+            key = str(stage_id) if stage_id not in (None, "") else "unknown"
+            timestamp = updated_at or created_at
+            age_days = 0.0
+            if timestamp:
+                age_seconds = max(
+                    0.0,
+                    (as_of - self._to_utc(timestamp)).total_seconds(),
+                )
+                age_days = age_seconds / 86400
+            grouped.setdefault(key, []).append(age_days)
+
+        report["buckets"] = [
+            {
+                "key": key,
+                "count": len(values),
+                "avg_age_days": round(sum(values) / len(values), 2),
+                "max_age_days": round(max(values), 2),
+            }
+            for key, values in grouped.items()
+        ]
+        report["buckets"].sort(key=lambda bucket: (-bucket["count"], bucket["key"]))
+        return report
+
+    @staticmethod
+    def _to_utc(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
     def _item_to_doc(self, item: Item) -> Dict[str, Any]:
         return self._build_doc(item)

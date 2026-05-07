@@ -87,6 +87,19 @@ class SearchReportsSummaryResponse(BaseModel):
     ecos: SearchEcoReport
 
 
+class SearchReportAgeBucket(BaseModel):
+    key: str
+    count: int
+    avg_age_days: float
+    max_age_days: float
+
+
+class SearchEcoStageAgingResponse(BaseModel):
+    engine: str
+    age_source: str
+    buckets: list[SearchReportAgeBucket]
+
+
 class SearchReindexRequest(BaseModel):
     item_type_id: Optional[str] = Field(default=None)
     reset: bool = Field(default=False)
@@ -216,6 +229,29 @@ def search_reports_summary(
     return summary
 
 
+@search_router.get("/reports/eco-stage-aging", response_model=None)
+def search_reports_eco_stage_aging(
+    export_format: Literal["json", "csv"] = Query(
+        "json",
+        alias="format",
+        description="Response format for ECO stage aging aggregation.",
+    ),
+    _: CurrentUser = Depends(require_admin_user),
+    db: Session = Depends(get_db),
+) -> SearchEcoStageAgingResponse | Response:
+    service = SearchService(db)
+    report = SearchEcoStageAgingResponse(**service.eco_stage_aging_report())
+    if export_format == "csv":
+        return Response(
+            content=_format_search_eco_stage_aging_csv(report),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": 'attachment; filename="search-eco-stage-aging.csv"'
+            },
+        )
+    return report
+
+
 @search_router.post("/ecos/reindex", response_model=EcoReindexResponse)
 def search_ecos_reindex(
     req: EcoReindexRequest,
@@ -271,4 +307,15 @@ def _format_search_reports_summary_csv(summary: SearchReportsSummaryResponse) ->
         writer.writerow(["ecos.by_state", bucket.key, bucket.count])
     for bucket in summary.ecos.by_stage:
         writer.writerow(["ecos.by_stage", bucket.key, bucket.count])
+    return buffer.getvalue()
+
+
+def _format_search_eco_stage_aging_csv(report: SearchEcoStageAgingResponse) -> str:
+    buffer = StringIO()
+    writer = csv.writer(buffer, lineterminator="\n")
+    writer.writerow(["stage", "count", "avg_age_days", "max_age_days"])
+    for bucket in report.buckets:
+        writer.writerow(
+            [bucket.key, bucket.count, bucket.avg_age_days, bucket.max_age_days]
+        )
     return buffer.getvalue()
