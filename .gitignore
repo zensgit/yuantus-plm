@@ -28,3 +28,9 @@ playwright-report/
 .playwright-cli/
 .playwright-mcp/
 tmp-plm-workspace-snapshot.md
+
+# AutoCAD client build outputs
+clients/autocad-material-sync/CADDedupPlugin/bin/
+clients/autocad-material-sync/CADDedupPlugin/obj/
+clients/autocad-material-sync/publish/
+clients/autocad-material-sync/build_output.txt

@@ -23,6 +23,46 @@ def test_workbench_page_renders_html():
     assert "Approval Inbox" in response.text
     assert "Release Orchestration" in response.text
     assert "Object Drilldown" in response.text
+    assert "CAD Material Profiles" in response.text
+    assert "Structured Rule Builder" in response.text
+    assert "CAD Write Confirmation" in response.text
+    assert 'id="cad-material-field-name"' in response.text
+    assert 'id="cad-material-compose-template"' in response.text
+    assert 'id="cad-material-match-fields"' in response.text
+    assert 'id="cad-material-write-fields"' in response.text
+    assert 'data-action="cad-material-list-profiles"' in response.text
+    assert 'data-action="cad-material-preview-config"' in response.text
+    assert 'data-action="cad-material-diff-preview"' in response.text
+    assert 'data-action="cad-material-export-config"' in response.text
+
+
+def test_workbench_cad_material_actions_are_wired():
+    app = FastAPI()
+    app.include_router(workbench_router, prefix="/api/v1")
+    client = TestClient(app)
+
+    response = client.get("/api/v1/workbench")
+
+    assert response.status_code == 200
+    for action in [
+        "cad-material-upsert-field",
+        "cad-material-set-compose",
+        "cad-material-set-matching",
+        "cad-material-confirm-diff",
+        "cad-material-list-profiles",
+        "cad-material-get-config",
+        "cad-material-preview-config",
+        "cad-material-save-config",
+        "cad-material-delete-config",
+        "cad-material-compose",
+        "cad-material-diff-preview",
+        "cad-material-outbound",
+        "cad-material-export-config",
+        "cad-material-import-dry",
+        "cad-material-import-config",
+    ]:
+        assert f'data-action="{action}"' in response.text
+        assert f'case "{action}"' in response.text
 
 
 def test_workbench_route_registered_in_create_app():

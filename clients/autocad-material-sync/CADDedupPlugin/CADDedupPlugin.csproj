@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
+    <ProjectGuid>{8251F539-63B0-5B3B-72F0-10F420793291}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>CADDedupPlugin</RootNamespace>
+    <AssemblyName>CADDedupPlugin</AssemblyName>
+    <AutoCADVersion Condition="'$(AutoCADVersion)' == ''">2018</AutoCADVersion>
+    <AutoCADInstallDir Condition="'$(AutoCADInstallDir)' == '' and '$(AutoCADVersion)' == '2018'">C:\Program Files\Autodesk\AutoCAD 2018</AutoCADInstallDir>
+    <AutoCADInstallDir Condition="'$(AutoCADInstallDir)' == '' and '$(AutoCADVersion)' == '2024'">C:\Program Files\Autodesk\AutoCAD 2024</AutoCADInstallDir>
+    <AutoCADInstallDir Condition="'$(AutoCADInstallDir)' == ''">C:\Program Files\Autodesk\AutoCAD $(AutoCADVersion)</AutoCADInstallDir>
+    <TargetFrameworkVersion Condition="'$(TargetFrameworkVersion)' == '' and '$(AutoCADVersion)' == '2018'">v4.6</TargetFrameworkVersion>
+    <TargetFrameworkVersion Condition="'$(TargetFrameworkVersion)' == ''">v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <LangVersion>7.3</LangVersion>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\x64\Debug\AutoCAD$(AutoCADVersion)\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\x64\Release\AutoCAD$(AutoCADVersion)\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+  <!-- AutoCAD 引用 -->
+  <ItemGroup>
+    <Reference Include="accoremgd">
+      <HintPath>$(AutoCADInstallDir)\accoremgd.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="acdbmgd">
+      <HintPath>$(AutoCADInstallDir)\acdbmgd.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="acmgd">
+      <HintPath>$(AutoCADInstallDir)\acmgd.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="AcWindows">
+      <HintPath>$(AutoCADInstallDir)\AcWindows.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="AdWindows">
+      <HintPath>$(AutoCADInstallDir)\AdWindows.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <!-- System 引用 -->
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.DirectoryServices" />
+    <Reference Include="System.DirectoryServices.AccountManagement" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <!-- NuGet 包 -->
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+  <!-- 源文件 -->
+  <ItemGroup>
+    <Compile Include="CadMaterialFieldMapper.cs" />
+    <Compile Include="CadMaterialFieldService.cs" />
+    <Compile Include="ConfigForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="DedupApiClient.cs" />
+    <Compile Include="DedupConfig.cs" />
+    <Compile Include="DedupPlugin.cs" />
+    <Compile Include="ICadMaterialFieldAdapter.cs" />
+    <Compile Include="MaterialSyncDiffPreviewWindow.xaml.cs">
+      <DependentUpon>MaterialSyncDiffPreviewWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="MaterialSyncApiClient.cs" />
+    <Compile Include="NotificationManager.cs" />
+    <Compile Include="SimilarityDetailWindow.xaml.cs">
+      <DependentUpon>SimilarityDetailWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="TrendWarningManager.cs" />
+    <Compile Include="UserIdentification.cs" />
+  </ItemGroup>
+  <!-- XAML 文件 -->
+  <ItemGroup>
+    <Page Include="MaterialSyncDiffPreviewWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="SimilarityDetailWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+  <!-- 其他资源 -->
+  <ItemGroup>
+    <None Include="PackageContents.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="PackageContents.2018.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="PackageContents.2024.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <Target Name="ValidateAutoCADReferences" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(AutoCADInstallDir)\accoremgd.dll')" Text="AutoCAD managed assemblies not found. Set /p:AutoCADVersion=2018 or /p:AutoCADInstallDir=&quot;C:\Program Files\Autodesk\AutoCAD 2018&quot;. Current AutoCADInstallDir=$(AutoCADInstallDir)" />
+  </Target>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- 构建后复制到 AutoCAD 插件目录 -->
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <PropertyGroup>
+      <PluginBundleDir>$(APPDATA)\Autodesk\ApplicationPlugins\CADDedup.bundle</PluginBundleDir>
+      <PluginDir>$(PluginBundleDir)\Contents</PluginDir>
+      <PackageContentsSource>$(ProjectDir)PackageContents.$(AutoCADVersion).xml</PackageContentsSource>
+      <PackageContentsSource Condition="!Exists('$(PackageContentsSource)')">$(ProjectDir)PackageContents.xml</PackageContentsSource>
+    </PropertyGroup>
+    <MakeDir Directories="$(PluginDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginDir)" />
+    <Copy SourceFiles="$(TargetDir)Newtonsoft.Json.dll" DestinationFolder="$(PluginDir)" Condition="Exists('$(TargetDir)Newtonsoft.Json.dll')" />
+    <Copy SourceFiles="$(PackageContentsSource)" DestinationFiles="$(PluginBundleDir)\PackageContents.xml" Condition="Exists('$(PackageContentsSource)')" />
+    <Message Text="插件已复制到: $(PluginDir) (AutoCAD $(AutoCADVersion), $(TargetFrameworkVersion))" Importance="high" />
+  </Target>
+</Project>

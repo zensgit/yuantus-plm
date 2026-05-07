@@ -152,6 +152,14 @@ RUN_CAD_ML_DOCKER=1 RUN_CAD_ML_METRICS=1 \
   scripts/verify_cad_ml_quick.sh http://127.0.0.1:7910 tenant-1 org-1
 ```
 
+CAD Material Sync AutoCAD client:
+```bash
+python3 scripts/verify_cad_material_delivery_package.py
+```
+
+AutoCAD client source and Windows 2018 validation guide:
+`clients/autocad-material-sync/`
+
 Native PLM workspace browser regressions:
 ```bash
 npm run playwright:test:plm-workspace

@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "description": "CAD material diff confirmation contract fixture for local CAD adapters.",
+  "cases": [
+    {
+      "name": "sheet_add_thickness_and_change_specification",
+      "request": {
+        "profile_id": "sheet",
+        "current_cad_fields": {
+          "物料类别": "sheet",
+          "材料": "Q235B",
+          "长": "1200",
+          "宽": "600",
+          "厚": "",
+          "规格": "旧规格"
+        },
+        "values": {
+          "material": "Q235B",
+          "length": 1200,
+          "width": 600,
+          "thickness": 12
+        }
+      },
+      "expect": {
+        "ok": true,
+        "summary": {
+          "added": 1,
+          "changed": 1,
+          "cleared": 0,
+          "unchanged": 4
+        },
+        "write_cad_fields": {
+          "厚": 12,
+          "规格": "1200*600*12"
+        },
+        "requires_confirmation": true,
+        "statuses": {
+          "厚": "added",
+          "规格": "changed"
+        }
+      }
+    },
+    {
+      "name": "explicit_clear_unmapped_note",
+      "request": {
+        "profile_id": "sheet",
+        "current_cad_fields": {
+          "备注": "旧备注"
+        },
+        "target_cad_fields": {
+          "备注": ""
+        }
+      },
+      "expect": {
+        "ok": true,
+        "summary": {
+          "added": 0,
+          "changed": 0,
+          "cleared": 1,
+          "unchanged": 0
+        },
+        "write_cad_fields": {
+          "备注": ""
+        },
+        "requires_confirmation": true,
+        "statuses": {
+          "备注": "cleared"
+        }
+      }
+    },
+    {
+      "name": "unchanged_material_requires_no_write",
+      "request": {
+        "profile_id": "sheet",
+        "current_cad_fields": {
+          "材料": "Q235B"
+        },
+        "target_cad_fields": {
+          "材料": "Q235B"
+        }
+      },
+      "expect": {
+        "ok": true,
+        "summary": {
+          "added": 0,
+          "changed": 0,
+          "cleared": 0,
+          "unchanged": 1
+        },
+        "write_cad_fields": {},
+        "requires_confirmation": false,
+        "statuses": {
+          "材料": "unchanged"
+        }
+      }
+    }
+  ]
+}

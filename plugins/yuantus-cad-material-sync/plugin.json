@@ -1,0 +1,37 @@
+{
+  "id": "yuantus-cad-material-sync",
+  "name": "Yuantus CAD Material Sync Plugin",
+  "version": "0.1.0",
+  "description": "Configurable CAD material field sync and specification composition.",
+  "author": "YuantusPLM",
+  "plugin_type": "extension",
+  "category": "cad",
+  "tags": ["cad", "material", "sync", "specification"],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "profiles": {
+        "description": "Profile overrides or custom profiles. Accepts an object keyed by profile_id or a list of profile objects.",
+        "oneOf": [
+          {"type": "object"},
+          {"type": "array", "items": {"type": "object"}}
+        ]
+      },
+      "default_profile_id": {
+        "type": "string",
+        "default": "sheet"
+      }
+    }
+  },
+  "capabilities": {
+    "profiles": true,
+    "field_mapping": true,
+    "spec_compose": true,
+    "validation": true,
+    "inbound_sync": true,
+    "outbound_sync": true,
+    "cad_field_package": true,
+    "default_profiles": ["sheet", "tube", "bar", "forging"]
+  },
+  "entry_point": "main.py"
+}
