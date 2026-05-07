@@ -33,6 +33,9 @@ class SearchIndexerStatusResponse(BaseModel):
     item_index_ready: bool
     eco_index_ready: bool
     handlers: list[str]
+    indexed_event_types: list[str]
+    unindexed_event_types: list[str]
+    event_coverage: Dict[str, str]
     subscription_counts: Dict[str, int]
     missing_handlers: list[str]
     duplicate_handlers: list[str]

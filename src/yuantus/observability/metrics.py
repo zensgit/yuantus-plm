@@ -215,6 +215,20 @@ def render_search_indexer_metrics(status: Mapping[str, Any]) -> str:
                 f'yuantus_search_indexer_events_total{{event_type="{_escape(event_type)}",'
                 f'outcome="{_escape(outcome)}"}} {_int_metric(counts.get(event_type))}'
             )
+    coverage = _status_map(status, "event_coverage")
+    if coverage:
+        lines.extend(
+            [
+                "",
+                "# HELP yuantus_search_indexer_event_coverage Search indexer event coverage",
+                "# TYPE yuantus_search_indexer_event_coverage gauge",
+            ]
+        )
+        for event_type, coverage_state in sorted(coverage.items()):
+            lines.append(
+                f'yuantus_search_indexer_event_coverage{{event_type="{_escape(event_type)}",'
+                f'coverage="{_escape(str(coverage_state))}"}} 1'
+            )
     age_lines = _search_indexer_age_lines(status)
     if age_lines:
         lines.extend(
