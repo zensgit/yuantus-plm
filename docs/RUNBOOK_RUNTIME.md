@@ -284,7 +284,8 @@ the contract test
 
 `GET /api/v1/metrics` also renders a read-only snapshot from
 `yuantus.meta_engine.services.search_indexer.indexer_status()`. These metrics
-mirror the admin JSON status endpoint without exposing `last_error`, event
+mirror the admin JSON status endpoint
+`GET /api/v1/search/indexer/status` without exposing `last_error`, event
 payloads, tenant IDs, org IDs, user IDs, item IDs, or ECO IDs.
 
 | Metric | Type | Labels | Notes |
