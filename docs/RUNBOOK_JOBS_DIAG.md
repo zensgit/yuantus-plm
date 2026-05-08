@@ -146,3 +146,43 @@ rate(yuantus_circuit_breaker_short_circuited_total{name="dedup_vision"}[5m]) > 1
 2. 检查 `window_seconds` 是否过宽（包含历史故障）。
 3. 短期豁免直接关旗标即可，配合 `successes_total` 在 5 分钟内涨为
    通过判据。
+
+## 7) CAD ML Platform 断路器（Phase 6 P6.2）
+
+P6.2 在 P6.1 基础上为 CAD ML Platform 客户端加装相同形态的断路器，
+**默认关闭**。失败分类策略、metrics、`/health/deps` JSON 块、
+故障处理流程与 §6 完全一致，区别仅在配置前缀（`CAD_ML`）与
+breaker name（`cad_ml`）。
+
+### 启用
+
+| 字段 | 默认 | 含义 |
+| --- | --- | --- |
+| `YUANTUS_CIRCUIT_BREAKER_CAD_ML_ENABLED` | `false` | 总开关 |
+| `YUANTUS_CIRCUIT_BREAKER_CAD_ML_FAILURE_THRESHOLD` | `5` | 滚动窗口内失败次数到此即开路 |
+| `YUANTUS_CIRCUIT_BREAKER_CAD_ML_WINDOW_SECONDS` | `60` | 失败计数滚动窗口（秒） |
+| `YUANTUS_CIRCUIT_BREAKER_CAD_ML_RECOVERY_SECONDS` | `30` | 开路后多少秒进入半开试探 |
+| `YUANTUS_CIRCUIT_BREAKER_CAD_ML_HALF_OPEN_MAX_CALLS` | `1` | 半开期允许同时发出的试探调用数 |
+| `YUANTUS_CIRCUIT_BREAKER_CAD_ML_BACKOFF_MAX_SECONDS` | `600` | 重复触发开路时指数退避的上限 |
+
+### 状态查询
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/health/deps \
+  -H "Authorization: Bearer $TOKEN" \
+  | jq '.external.cad_ml.breaker'
+```
+
+Prometheus 告警（与 §6 同形）：
+
+```promql
+yuantus_circuit_breaker_state{name="cad_ml",state="open"} == 1
+
+rate(yuantus_circuit_breaker_short_circuited_total{name="cad_ml"}[5m]) > 1
+```
+
+### 故障处理
+
+完全沿用 §6 的流程；上游 health 端点为
+`http://<cad-ml-host>:8001/api/v1/health`。紧急关断点：
+`YUANTUS_CIRCUIT_BREAKER_CAD_ML_ENABLED=false` 重启服务。

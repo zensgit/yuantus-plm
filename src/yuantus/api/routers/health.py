@@ -13,6 +13,7 @@ from yuantus.config import get_settings
 from yuantus.context import get_request_context
 from yuantus.database import get_db_session
 from yuantus.integrations import circuit_breaker
+from yuantus.integrations.cad_ml import build_cad_ml_breaker
 from yuantus.integrations.dedup_vision import build_dedup_vision_breaker
 from yuantus.meta_engine.services.file_service import FileService
 from yuantus.security.auth.database import get_identity_db_session
@@ -138,11 +139,15 @@ def health_deps() -> dict:
             external_checks[name] = {"configured": bool(url), "checked": False}
 
     # Phase 6 — circuit breaker state attached to relevant integrations.
-    # Pre-register the dedup-vision breaker so its state is visible regardless
-    # of whether any client call has happened in this process yet.
+    # Pre-register breakers so their state is visible regardless of
+    # whether any client call has happened in this process yet.
     build_dedup_vision_breaker()
+    build_cad_ml_breaker()
     breakers = circuit_breaker.list_breakers()
-    breaker_field_map = {"dedup_vision": "dedup_vision"}
+    breaker_field_map = {
+        "dedup_vision": "dedup_vision",
+        "cad_ml": "cad_ml",
+    }
     for service_key, breaker_name in breaker_field_map.items():
         breaker = breakers.get(breaker_name)
         if breaker is None:
