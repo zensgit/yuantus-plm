@@ -238,13 +238,14 @@ class CircuitBreaker:
                 self._transition_locked(CLOSED, now)
                 self._state.consecutive_open_cycles = 0
             elif self._state.state == CLOSED:
-                # Close window: drop stale failure count after a clean call.
-                if self._state.failure_window_start and (
-                    now - self._state.failure_window_start
-                    > self._config.window_seconds
-                ):
-                    self._state.failures = 0
-                    self._state.failure_window_start = 0.0
+                # Consecutive-failure semantics: any successful call clears
+                # the in-progress failure window so intermittent successes
+                # don't leave stale failures drifting toward the threshold.
+                # Without this reset, 4 failures + 1 success + 1 failure
+                # within the rolling window would trip a 5-failure threshold,
+                # which contradicts the breaker's documented behaviour.
+                self._state.failures = 0
+                self._state.failure_window_start = 0.0
 
     def _after_interrupt(self) -> None:
         """Release a half-open trial slot without counting an upstream failure.

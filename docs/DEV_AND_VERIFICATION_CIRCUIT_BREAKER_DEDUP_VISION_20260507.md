@@ -7,7 +7,7 @@ Date: 2026-05-07
 Phase 6 P6.1 lands a circuit breaker for the DedupCAD Vision integration
 client. The breaker is **default-off** per the Phase 6 mitigation principle
 ("status-quo behavior; enable per service after acceptance"). When enabled
-via the `CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` flag, repeated outbound
+via the `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` flag, repeated outbound
 failures within a rolling window short-circuit subsequent calls until a
 half-open trial validates that the upstream has recovered.
 
@@ -71,17 +71,24 @@ Non-goals (deferred to P6.2–P6.4):
 ### 3.1 State machine
 
 ```
-            failures >= threshold within window
-   closed ─────────────────────────────────────► open
-     ▲                                              │
-     │                                              │ elapsed >= recovery_seconds
-     │ success                                      ▼
-   closed ◄────────── half_open  ◄─────────────── half_open
-                        │
-                        │ failure
-                        ▼
-                       open  (recovery_seconds *= 2, capped)
+            consecutive failures >= threshold within window
+   closed ─────────────────────────────────────────────────► open
+     ▲                                                          │
+     │                                                          │ elapsed >= recovery_seconds
+     │ success                                                  ▼
+   closed ◄────────────── half_open  ◄────────────────────── half_open
+                            │
+                            │ failure
+                            ▼
+                           open  (recovery_seconds *= 2, capped)
 ```
+
+The "consecutive failures within window" condition is enforced strictly:
+**any** successful CLOSED-state call clears the in-progress failure
+window, so an `N-1` failure burst followed by a single success requires
+a fresh `N` consecutive failures to trip the breaker. Without this
+reset, intermittent successes would let stale counters drift toward the
+threshold and trip the breaker on a healthy upstream.
 
 Recovery window doubles on each consecutive open cycle (1×, 2×, 4×, …)
 up to `backoff_max_seconds`. A successful close resets the cycle counter,
@@ -152,7 +159,7 @@ counting the original exception — same defensive principle.
 
 ### 3.5 Default-off contract
 
-The `CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` flag defaults to `False`. When
+The `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` flag defaults to `False`. When
 disabled, `CircuitBreaker.call_sync` / `call_async` is a thin pass-through
 that does not record metrics, so behaviour is byte-for-byte identical to
 the pre-P6.1 client.
@@ -180,14 +187,18 @@ the JSON without scraping metrics.
 
 ## 4. Settings
 
-| Field | Default | Notes |
-| --- | --- | --- |
-| `CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` | `false` | Default-off invariant. Production enablement is per-deployment via env override. |
-| `CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD` | `5` | Failures within window before opening. |
-| `CIRCUIT_BREAKER_DEDUP_VISION_WINDOW_SECONDS` | `60` | Rolling failure window. |
-| `CIRCUIT_BREAKER_DEDUP_VISION_RECOVERY_SECONDS` | `30` | Base open→half-open delay. |
-| `CIRCUIT_BREAKER_DEDUP_VISION_HALF_OPEN_MAX_CALLS` | `1` | Concurrent trial calls in half-open. |
-| `CIRCUIT_BREAKER_DEDUP_VISION_BACKOFF_MAX_SECONDS` | `600` | Cap for exponential backoff. |
+`Settings` declares `env_prefix="YUANTUS_"`, so each table row's "Settings
+field" maps to a `YUANTUS_…` environment variable at runtime. Use the env
+var form (right column) when toggling on a deployment.
+
+| Settings field | Env var (production) | Default | Notes |
+| --- | --- | --- | --- |
+| `CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` | `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` | `false` | Default-off invariant. Production enablement is per-deployment via env override. |
+| `CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD` | `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD` | `5` | Failures within window before opening. |
+| `CIRCUIT_BREAKER_DEDUP_VISION_WINDOW_SECONDS` | `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_WINDOW_SECONDS` | `60` | Rolling failure window. |
+| `CIRCUIT_BREAKER_DEDUP_VISION_RECOVERY_SECONDS` | `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_RECOVERY_SECONDS` | `30` | Base open→half-open delay. |
+| `CIRCUIT_BREAKER_DEDUP_VISION_HALF_OPEN_MAX_CALLS` | `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_HALF_OPEN_MAX_CALLS` | `1` | Concurrent trial calls in half-open. |
+| `CIRCUIT_BREAKER_DEDUP_VISION_BACKOFF_MAX_SECONDS` | `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_BACKOFF_MAX_SECONDS` | `600` | Cap for exponential backoff. |
 
 ## 5. Acceptance Criteria (from `DEVELOPMENT_NEXT_CYCLE_TODO_PLAN_20260426.md` §10)
 
@@ -215,7 +226,7 @@ the JSON without scraping metrics.
   src/yuantus/api/tests/test_circuit_breaker_dedup_vision_contracts.py
 ```
 
-Expected: **36 passed** (16 unit + 12 integration + 8 contract).
+Expected: **37 passed** (17 unit + 12 integration + 8 contract).
 
 ### 6.2 Adjacent regression (no behaviour change expected)
 

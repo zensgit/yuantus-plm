@@ -93,12 +93,12 @@ P6.2 / P6.3 会以同样模式接 `cad-ml` / `Athena`。
 
 | 字段 | 默认 | 含义 |
 | --- | --- | --- |
-| `CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` | `false` | 总开关；上线前先在测试环境置 `true` 验收 |
-| `CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD` | `5` | 滚动窗口内连续失败次数到此即开路 |
-| `CIRCUIT_BREAKER_DEDUP_VISION_WINDOW_SECONDS` | `60` | 失败计数滚动窗口（秒） |
-| `CIRCUIT_BREAKER_DEDUP_VISION_RECOVERY_SECONDS` | `30` | 开路后多少秒进入半开试探 |
-| `CIRCUIT_BREAKER_DEDUP_VISION_HALF_OPEN_MAX_CALLS` | `1` | 半开期允许同时发出的试探调用数 |
-| `CIRCUIT_BREAKER_DEDUP_VISION_BACKOFF_MAX_SECONDS` | `600` | 重复触发开路时指数退避的上限 |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` | `false` | 总开关；上线前先在测试环境置 `true` 验收 |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD` | `5` | 滚动窗口内连续失败次数到此即开路 |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_WINDOW_SECONDS` | `60` | 失败计数滚动窗口（秒） |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_RECOVERY_SECONDS` | `30` | 开路后多少秒进入半开试探 |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_HALF_OPEN_MAX_CALLS` | `1` | 半开期允许同时发出的试探调用数 |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_BACKOFF_MAX_SECONDS` | `600` | 重复触发开路时指数退避的上限 |
 
 ### 状态查询
 
@@ -135,7 +135,7 @@ rate(yuantus_circuit_breaker_short_circuited_total{name="dedup_vision"}[5m]) > 1
 2. 直接 curl 上游 `dedupcad-vision` `/health` 排查（绕过断路器，确认是
    服务真崩还是网络抖动）。
 3. 上游恢复后无需手动重置：半开试探调用成功即自动 closed。
-4. 紧急关断点：把 `CIRCUIT_BREAKER_DEDUP_VISION_ENABLED=false`
+4. 紧急关断点：把 `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_ENABLED=false`
    重启服务即可还原老链路（透传 + 重试），代价是失去断路保护。
 
 ### 误开判处理

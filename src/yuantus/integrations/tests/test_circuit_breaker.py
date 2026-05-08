@@ -126,6 +126,34 @@ def test_half_open_failure_reopens_with_backoff():
     assert snapshot["current_recovery_seconds"] == 20.0
 
 
+def test_intermittent_success_resets_failure_window():
+    """Consecutive-failure semantics: a successful call between failures
+    must clear the in-progress window so a 4F+1S+1F sequence within the
+    same window does not trip a 5-failure threshold."""
+    breaker = _make_breaker(failure_threshold=5, window_seconds=60.0)
+
+    def boom():
+        raise RuntimeError("flaky")
+
+    for _ in range(4):
+        with pytest.raises(RuntimeError):
+            breaker.call_sync(boom)
+    # 4 failures stack — close to but below threshold.
+    assert breaker.status()["failures_in_window"] == 4
+    assert breaker.status()["state"] == CLOSED
+
+    # One clean call within the same window must reset the counter.
+    assert breaker.call_sync(lambda: "ok") == "ok"
+    assert breaker.status()["failures_in_window"] == 0
+
+    # A subsequent failure starts counting from 1, not 5.
+    with pytest.raises(RuntimeError):
+        breaker.call_sync(boom)
+    snapshot = breaker.status()
+    assert snapshot["state"] == CLOSED
+    assert snapshot["failures_in_window"] == 1
+
+
 def test_failures_reset_after_window():
     fake_time = [1000.0]
 
