@@ -1,10 +1,66 @@
 from __future__ import annotations
 
+import os
 import httpx
 from typing import Any, Dict, Optional
 
 from yuantus.config import get_settings
+from yuantus.integrations.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    get_or_create_breaker,
+)
 from yuantus.integrations.http import build_outbound_headers
+
+
+CAD_ML_BREAKER_NAME = "cad_ml"
+
+_CAD_ML_BREAKER_COUNT_STATUS = {408, 429}
+
+
+def is_cad_ml_breaker_failure(exc: Exception) -> bool:
+    """P6.2 failure classification (mirrors P6.1's policy).
+
+    Counted (upstream unhealthy):
+      - `httpx.RequestError` subclasses (connect/read/timeout).
+      - `httpx.HTTPStatusError` 5xx.
+      - `httpx.HTTPStatusError` 408 / 429 (recoverable upstream pressure).
+
+    NOT counted (re-raised, breaker not implicated):
+      - `OSError` and subclasses — local I/O failures.
+      - `httpx.HTTPStatusError` other 4xx — caller-side errors.
+
+    Unknown exception types fall back to counting (defensive).
+    """
+    if isinstance(exc, OSError):
+        return False
+    if isinstance(exc, httpx.RequestError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        if not isinstance(status, int):
+            # Defensive default: count when status is missing / non-int.
+            return True
+        if 500 <= status < 600 or status in _CAD_ML_BREAKER_COUNT_STATUS:
+            return True
+        return False
+    return True
+
+
+def build_cad_ml_breaker() -> CircuitBreaker:
+    settings = get_settings()
+    config = CircuitBreakerConfig(
+        name=CAD_ML_BREAKER_NAME,
+        enabled=bool(settings.CIRCUIT_BREAKER_CAD_ML_ENABLED),
+        failure_threshold=int(settings.CIRCUIT_BREAKER_CAD_ML_FAILURE_THRESHOLD),
+        window_seconds=float(settings.CIRCUIT_BREAKER_CAD_ML_WINDOW_SECONDS),
+        recovery_seconds=float(settings.CIRCUIT_BREAKER_CAD_ML_RECOVERY_SECONDS),
+        half_open_max_calls=int(settings.CIRCUIT_BREAKER_CAD_ML_HALF_OPEN_MAX_CALLS),
+        backoff_max_seconds=float(settings.CIRCUIT_BREAKER_CAD_ML_BACKOFF_MAX_SECONDS),
+        is_failure=is_cad_ml_breaker_failure,
+    )
+    return get_or_create_breaker(config)
 
 
 class CadMLClient:
@@ -13,6 +69,7 @@ class CadMLClient:
         self.base_url = (base_url or settings.CAD_ML_BASE_URL).rstrip("/")
         self._service_token = settings.CAD_ML_SERVICE_TOKEN
         self.timeout_s = timeout_s
+        self._breaker = build_cad_ml_breaker()
 
     def _resolve_authorization(self, authorization: Optional[str]) -> Optional[str]:
         token = authorization or self._service_token
@@ -26,6 +83,11 @@ class CadMLClient:
         return f"Bearer {token}"
 
     async def health(self, *, authorization: Optional[str] = None) -> dict:
+        return await self._breaker.call_async(
+            self._health_inner, authorization=authorization
+        )
+
+    async def _health_inner(self, *, authorization: Optional[str] = None) -> dict:
         headers = build_outbound_headers(
             authorization=self._resolve_authorization(authorization)
         ).as_dict()
@@ -35,6 +97,24 @@ class CadMLClient:
             return resp.json()
 
     def vision_analyze_sync(
+        self,
+        *,
+        image_base64: str,
+        include_description: bool = True,
+        include_ocr: bool = True,
+        provider: Optional[str] = None,
+        authorization: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return self._breaker.call_sync(
+            self._vision_analyze_sync_inner,
+            image_base64=image_base64,
+            include_description=include_description,
+            include_ocr=include_ocr,
+            provider=provider,
+            authorization=authorization,
+        )
+
+    def _vision_analyze_sync_inner(
         self,
         *,
         image_base64: str,
@@ -73,6 +153,22 @@ class CadMLClient:
         provider: Optional[str] = None,
         authorization: Optional[str] = None,
     ) -> Dict[str, Any]:
+        return self._breaker.call_sync(
+            self._ocr_extract_sync_inner,
+            file_path=file_path,
+            filename=filename,
+            provider=provider,
+            authorization=authorization,
+        )
+
+    def _ocr_extract_sync_inner(
+        self,
+        *,
+        file_path: str,
+        filename: Optional[str] = None,
+        provider: Optional[str] = None,
+        authorization: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Call cad-ml-platform `/api/v1/ocr/extract` for title-block OCR.
         """
@@ -91,6 +187,20 @@ class CadMLClient:
                 return resp.json()
 
     def render_cad_preview_sync(
+        self,
+        *,
+        file_path: str,
+        filename: Optional[str] = None,
+        authorization: Optional[str] = None,
+    ) -> bytes:
+        return self._breaker.call_sync(
+            self._render_cad_preview_sync_inner,
+            file_path=file_path,
+            filename=filename,
+            authorization=authorization,
+        )
+
+    def _render_cad_preview_sync_inner(
         self,
         *,
         file_path: str,
