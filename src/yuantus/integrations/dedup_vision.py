@@ -19,6 +19,46 @@ logger = logging.getLogger(__name__)
 
 DEDUP_VISION_BREAKER_NAME = "dedup_vision"
 
+# Phase 6 P6.1 — failure classification for the DedupVision breaker.
+# Status codes that imply the upstream service is unhealthy / overloaded
+# (i.e. "service-side" failures the breaker is meant to protect against).
+# All other 4xx are treated as client-side errors and re-raised without
+# implicating the breaker.
+_DEDUP_VISION_BREAKER_COUNT_STATUS = {408, 429}
+
+
+def is_dedup_vision_breaker_failure(exc: Exception) -> bool:
+    """Decide whether `exc` should count toward the DedupVision breaker.
+
+    Counted (suggests upstream is unhealthy):
+      - `httpx.RequestError` and subclasses (connect / read / timeout).
+      - `httpx.HTTPStatusError` with 5xx status.
+      - `httpx.HTTPStatusError` with 408 (Request Timeout) or 429
+        (Too Many Requests) — recoverable upstream pressure signals.
+
+    NOT counted (re-raised, breaker not implicated):
+      - `httpx.HTTPStatusError` with other 4xx (400/401/403/404/422 …) —
+        these are caller-side errors (bad input, missing auth, validation)
+        and must not trip protection meant for upstream outages.
+
+    Unknown exception types fall back to counting — silent uncounted
+    failures would let true outages slip through.
+    """
+    if isinstance(exc, httpx.RequestError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int):
+            if 500 <= status < 600:
+                return True
+            if status in _DEDUP_VISION_BREAKER_COUNT_STATUS:
+                return True
+            return False
+        # No response status available — defensive: count.
+        return True
+    return True
+
 
 def build_dedup_vision_breaker() -> CircuitBreaker:
     settings = get_settings()
@@ -34,6 +74,7 @@ def build_dedup_vision_breaker() -> CircuitBreaker:
         backoff_max_seconds=float(
             settings.CIRCUIT_BREAKER_DEDUP_VISION_BACKOFF_MAX_SECONDS
         ),
+        is_failure=is_dedup_vision_breaker_failure,
     )
     return get_or_create_breaker(config)
 

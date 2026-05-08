@@ -22,8 +22,12 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Awaitable, Callable, Dict, Optional, TypeVar
+
+# A predicate accepting any caught Exception subclass and returning True if
+# the exception should count toward the breaker's failure window.
+FailurePredicate = Callable[[Exception], bool]
 
 T = TypeVar("T")
 
@@ -53,6 +57,12 @@ class CircuitBreakerConfig:
     recovery_seconds: float = 30.0
     half_open_max_calls: int = 1
     backoff_max_seconds: float = 600.0
+    # Optional predicate. When provided, only exceptions for which it returns
+    # True count toward the failure window. Exceptions that don't qualify are
+    # re-raised without implicating the breaker so client-side errors
+    # (e.g. HTTP 4xx, validation errors) don't trip protection meant for
+    # service-side outages. None = legacy behaviour (all Exception counts).
+    is_failure: Optional[Callable[[Exception], bool]] = None
 
 
 @dataclass
@@ -137,7 +147,7 @@ class CircuitBreaker:
         # KeyboardInterrupt, SystemExit, asyncio.CancelledError — do not get
         # counted as upstream failures and trip the breaker.
         except Exception as exc:
-            self._after_failure(exc)
+            self._handle_exception(exc)
             raise
         except BaseException:
             # Interrupt: release the half-open slot but do not count as
@@ -160,7 +170,7 @@ class CircuitBreaker:
         try:
             result = await coro_factory(*args, **kwargs)
         except Exception as exc:
-            self._after_failure(exc)
+            self._handle_exception(exc)
             raise
         except BaseException:
             self._after_interrupt()
@@ -168,6 +178,29 @@ class CircuitBreaker:
         else:
             self._after_success()
             return result
+
+    def _handle_exception(self, exc: Exception) -> None:
+        """Decide whether `exc` should count toward the failure window.
+
+        With no predicate configured, all Exception subclasses count
+        (preserves legacy semantics). With a predicate, only exceptions
+        for which it returns True count; others are released as if they
+        were process-level interrupts — the upstream service is not
+        implicated, but the half-open slot is still freed.
+        """
+        predicate = self._config.is_failure
+        counts = True
+        if predicate is not None:
+            try:
+                counts = bool(predicate(exc))
+            except Exception:
+                # Defensive: if the predicate itself blows up, fall back
+                # to counting the exception.
+                counts = True
+        if counts:
+            self._after_failure(exc)
+        else:
+            self._after_interrupt()
 
     # --- internals -----------------------------------------------------------
 

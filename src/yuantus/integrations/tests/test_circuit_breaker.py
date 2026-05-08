@@ -279,6 +279,88 @@ def test_interrupt_in_half_open_releases_inflight_slot():
     assert breaker.status()["state"] == CLOSED
 
 
+def test_predicate_can_exclude_exceptions_from_failure_count():
+    """Failure predicate lets callers re-raise some exceptions without
+    counting them as upstream failures."""
+
+    class ClientError(Exception):
+        pass
+
+    class UpstreamError(Exception):
+        pass
+
+    def is_failure(exc: Exception) -> bool:
+        return isinstance(exc, UpstreamError)
+
+    breaker = _make_breaker(failure_threshold=2, is_failure=is_failure)
+
+    def client_boom():
+        raise ClientError("bad input")
+
+    def upstream_boom():
+        raise UpstreamError("server down")
+
+    # Many client errors — must not trip the breaker.
+    for _ in range(10):
+        with pytest.raises(ClientError):
+            breaker.call_sync(client_boom)
+    snapshot = breaker.status()
+    assert snapshot["state"] == CLOSED
+    assert snapshot["failures_total"] == 0
+
+    # Two upstream errors — trips.
+    for _ in range(2):
+        with pytest.raises(UpstreamError):
+            breaker.call_sync(upstream_boom)
+    assert breaker.status()["state"] == OPEN
+
+
+def test_excluded_exception_releases_half_open_slot():
+    """An excluded exception during half-open trial must still free the
+    inflight slot so subsequent recovery calls can proceed."""
+    fake_time = [1000.0]
+
+    def now():
+        return fake_time[0]
+
+    class ClientError(Exception):
+        pass
+
+    breaker = _make_breaker(
+        failure_threshold=1,
+        recovery_seconds=10.0,
+        is_failure=lambda e: not isinstance(e, ClientError),
+    )
+    breaker._now = now  # type: ignore[assignment]
+
+    # Trip once, advance to half-open eligibility.
+    with pytest.raises(RuntimeError):
+        breaker.call_sync(lambda: (_ for _ in ()).throw(RuntimeError("upstream")))
+    fake_time[0] += 11.0
+
+    # Half-open trial gets a client error — released without re-opening.
+    with pytest.raises(ClientError):
+        breaker.call_sync(lambda: (_ for _ in ()).throw(ClientError("bad")))
+
+    # Subsequent success closes the breaker.
+    assert breaker.call_sync(lambda: "ok") == "ok"
+    assert breaker.status()["state"] == CLOSED
+
+
+def test_predicate_failure_falls_back_to_counting():
+    """If the predicate itself raises, defensively count the original exc."""
+
+    def buggy_predicate(_exc):
+        raise RuntimeError("bug in predicate")
+
+    breaker = _make_breaker(failure_threshold=1, is_failure=buggy_predicate)
+
+    with pytest.raises(ValueError):
+        breaker.call_sync(lambda: (_ for _ in ()).throw(ValueError("orig")))
+    # Predicate blew up, so we fell back to counting → breaker opened.
+    assert breaker.status()["state"] == OPEN
+
+
 def test_status_keys_are_stable():
     breaker = _make_breaker(name="status_keys")
     snapshot = breaker.status()

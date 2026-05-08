@@ -27,6 +27,7 @@ from yuantus.integrations import circuit_breaker
 from yuantus.integrations.dedup_vision import (
     DEDUP_VISION_BREAKER_NAME,
     build_dedup_vision_breaker,
+    is_dedup_vision_breaker_failure,
 )
 from yuantus.observability.metrics import (
     render_circuit_breaker_metrics,
@@ -170,6 +171,56 @@ def test_health_deps_surfaces_dedup_vision_breaker_block() -> None:
     finally:
         settings.AUTH_MODE = original_auth
         circuit_breaker.reset_registry()
+
+
+# ---------------------------------------------------------------------------
+# Contract 3b: failure classification policy is pinned (4xx must not trip).
+# ---------------------------------------------------------------------------
+
+
+import httpx as _httpx_for_classification  # local alias to avoid collisions
+
+
+def _stub_status_error(code: int) -> _httpx_for_classification.HTTPStatusError:
+    response = _httpx_for_classification.Response(
+        status_code=code,
+        request=_httpx_for_classification.Request("GET", "http://x"),
+    )
+    return _httpx_for_classification.HTTPStatusError(
+        f"HTTP {code}", request=response.request, response=response
+    )
+
+
+def test_failure_classification_pins_breaker_policy() -> None:
+    """Phase 6 P6.1 contract: only service-side / recoverable failures
+    implicate the breaker. Other 4xx are caller-side errors and must
+    not trip protection meant for upstream outages."""
+    counted = (
+        _httpx_for_classification.ConnectError("net"),
+        _httpx_for_classification.ReadTimeout("slow"),
+        _stub_status_error(500),
+        _stub_status_error(502),
+        _stub_status_error(503),
+        _stub_status_error(504),
+        _stub_status_error(408),
+        _stub_status_error(429),
+    )
+    not_counted = (
+        _stub_status_error(400),
+        _stub_status_error(401),
+        _stub_status_error(403),
+        _stub_status_error(404),
+        _stub_status_error(409),
+        _stub_status_error(422),
+    )
+    for exc in counted:
+        assert is_dedup_vision_breaker_failure(exc), (
+            f"{exc!r} must count toward the breaker's failure window"
+        )
+    for exc in not_counted:
+        assert not is_dedup_vision_breaker_failure(exc), (
+            f"{exc!r} is a client-side error and must not trip the breaker"
+        )
 
 
 # ---------------------------------------------------------------------------

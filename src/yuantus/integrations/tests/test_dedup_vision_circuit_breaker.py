@@ -140,3 +140,101 @@ def test_build_returns_idempotent_instance_per_settings_set():
     b = build_dedup_vision_breaker()
     assert a is b
     breaker_mod.reset_registry()
+
+
+# ---------------------------------------------------------------------------
+# Phase 6 P6.1 — failure classification: 4xx must not trip the breaker.
+# ---------------------------------------------------------------------------
+
+
+def _http_status_error(status_code: int) -> httpx.HTTPStatusError:
+    """Build an HTTPStatusError with a real Response carrying the given status."""
+    response = httpx.Response(status_code=status_code, request=httpx.Request("GET", "http://x"))
+    return httpx.HTTPStatusError(
+        f"HTTP {status_code}", request=response.request, response=response
+    )
+
+
+def test_4xx_client_errors_do_not_trip_breaker():
+    breaker_mod.reset_registry()
+    breaker, saved = _force_breaker_with(
+        CIRCUIT_BREAKER_DEDUP_VISION_ENABLED=True,
+        CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD=2,
+    )
+    try:
+        client = DedupVisionClient()
+        for status in (400, 401, 403, 404, 422):
+            err = _http_status_error(status)
+            with patch.object(client, "_search_sync_inner", side_effect=err):
+                with pytest.raises(httpx.HTTPStatusError):
+                    client.search_sync(file_path="/tmp/x.dwg")
+        snap = breaker.status()
+        assert snap["state"] == CLOSED, (
+            f"4xx must not implicate the breaker; state={snap['state']}"
+        )
+        assert snap["failures_total"] == 0
+        assert snap["opens_total"] == 0
+    finally:
+        _restore_settings(saved)
+        breaker_mod.reset_registry()
+
+
+def test_5xx_server_errors_trip_breaker():
+    breaker_mod.reset_registry()
+    breaker, saved = _force_breaker_with(
+        CIRCUIT_BREAKER_DEDUP_VISION_ENABLED=True,
+        CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD=3,
+    )
+    try:
+        client = DedupVisionClient()
+        for status in (500, 502, 503):
+            err = _http_status_error(status)
+            with patch.object(client, "_search_sync_inner", side_effect=err):
+                with pytest.raises(httpx.HTTPStatusError):
+                    client.search_sync(file_path="/tmp/x.dwg")
+        assert breaker.status()["state"] == OPEN
+    finally:
+        _restore_settings(saved)
+        breaker_mod.reset_registry()
+
+
+def test_408_and_429_are_counted_as_breaker_failures():
+    """408 (timeout) and 429 (too many requests) are recoverable upstream
+    pressure signals — count them so the breaker can shed load."""
+    breaker_mod.reset_registry()
+    breaker, saved = _force_breaker_with(
+        CIRCUIT_BREAKER_DEDUP_VISION_ENABLED=True,
+        CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD=2,
+    )
+    try:
+        client = DedupVisionClient()
+        for status in (408, 429):
+            err = _http_status_error(status)
+            with patch.object(client, "_search_sync_inner", side_effect=err):
+                with pytest.raises(httpx.HTTPStatusError):
+                    client.search_sync(file_path="/tmp/x.dwg")
+        assert breaker.status()["state"] == OPEN
+    finally:
+        _restore_settings(saved)
+        breaker_mod.reset_registry()
+
+
+def test_request_error_trips_breaker():
+    """Network-layer failures (RequestError subclasses) always count."""
+    breaker_mod.reset_registry()
+    breaker, saved = _force_breaker_with(
+        CIRCUIT_BREAKER_DEDUP_VISION_ENABLED=True,
+        CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD=2,
+    )
+    try:
+        client = DedupVisionClient()
+        with patch.object(
+            client, "_health_inner", side_effect=httpx.ConnectError("net")
+        ):
+            for _ in range(2):
+                with pytest.raises(httpx.ConnectError):
+                    asyncio.run(client.health())
+        assert breaker.status()["state"] == OPEN
+    finally:
+        _restore_settings(saved)
+        breaker_mod.reset_registry()

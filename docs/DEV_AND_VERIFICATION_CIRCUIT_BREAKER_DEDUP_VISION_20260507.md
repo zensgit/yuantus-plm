@@ -121,6 +121,34 @@ exiting or cancelling. The half-open slot release is essential: without it,
 a single interrupt during a half-open trial would lock subsequent recovery
 attempts out indefinitely.
 
+#### 3.4.1 Failure classification (Phase 6 P6.1 policy)
+
+Phase 6's stated goal is **service-side outage protection**, not generic
+exception accounting. Naïvely counting every `Exception` would let
+client-side errors (HTTP 400 from a bad payload, 401/403 from an expired
+token, 404/422 validation failures) trip protection meant for upstream
+outages — and a flood of 4xx from a misbehaving caller would short-circuit
+**healthy** upstream traffic for everyone.
+
+`CircuitBreakerConfig.is_failure` is an optional predicate per-breaker.
+When provided (P6.1 always provides one), only exceptions for which it
+returns `True` count; other exceptions are released as if they were
+process-level interrupts (re-raised, in-flight slot freed, no state
+change, no failure counter increment).
+
+The DedupVision breaker uses `is_dedup_vision_breaker_failure`:
+
+| Exception | Counted? | Rationale |
+| --- | --- | --- |
+| `httpx.RequestError` (any subclass: `ConnectError`, `ReadTimeout`, `WriteError`, …) | ✅ Yes | Transport failure — upstream unreachable. |
+| `httpx.HTTPStatusError` 5xx (500/502/503/504/…) | ✅ Yes | Server-side failure. |
+| `httpx.HTTPStatusError` 408 / 429 | ✅ Yes | Recoverable upstream pressure (timeout, rate limit). |
+| `httpx.HTTPStatusError` other 4xx (400/401/403/404/409/422/…) | ❌ No | Client-side error; upstream is healthy. |
+| Anything else | ✅ Yes (defensive) | Fall back to counting so true outages don't slip through. |
+
+Predicate failures (a buggy `is_failure` that itself raises) fall back to
+counting the original exception — same defensive principle.
+
 ### 3.5 Default-off contract
 
 The `CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` flag defaults to `False`. When
@@ -186,7 +214,7 @@ the JSON without scraping metrics.
   src/yuantus/api/tests/test_circuit_breaker_dedup_vision_contracts.py
 ```
 
-Expected: **25 passed** (13 unit + 5 integration + 7 contract).
+Expected: **33 passed** (16 unit + 9 integration + 8 contract).
 
 ### 6.2 Adjacent regression (no behaviour change expected)
 
