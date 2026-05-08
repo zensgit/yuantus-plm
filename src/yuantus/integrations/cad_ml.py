@@ -39,13 +39,12 @@ def is_cad_ml_breaker_failure(exc: Exception) -> bool:
     if isinstance(exc, httpx.HTTPStatusError):
         response = getattr(exc, "response", None)
         status = getattr(response, "status_code", None)
-        if isinstance(status, int):
-            if 500 <= status < 600:
-                return True
-            if status in _CAD_ML_BREAKER_COUNT_STATUS:
-                return True
-            return False
-        return True
+        if not isinstance(status, int):
+            # Defensive default: count when status is missing / non-int.
+            return True
+        if 500 <= status < 600 or status in _CAD_ML_BREAKER_COUNT_STATUS:
+            return True
+        return False
     return True
 
 

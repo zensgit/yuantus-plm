@@ -91,11 +91,11 @@ def test_cold_start_metrics_include_cad_ml_breaker() -> None:
         circuit_breaker.reset_registry()
 
 
-def test_health_deps_surfaces_cad_ml_breaker_block() -> None:
+def test_health_deps_surfaces_cad_ml_breaker_block(monkeypatch) -> None:
+    # `monkeypatch` auto-restores AUTH_MODE on teardown so a failure inside
+    # the test doesn't leak settings state into subsequent tests.
     circuit_breaker.reset_registry()
-    settings = get_settings()
-    original_auth = settings.AUTH_MODE
-    settings.AUTH_MODE = "optional"
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
     try:
         app = create_app()
         client = TestClient(app)
@@ -113,7 +113,6 @@ def test_health_deps_surfaces_cad_ml_breaker_block() -> None:
         assert breaker_block["name"] == CAD_ML_BREAKER_NAME
         assert isinstance(breaker_block["enabled"], bool)
     finally:
-        settings.AUTH_MODE = original_auth
         circuit_breaker.reset_registry()
 
 

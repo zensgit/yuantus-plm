@@ -19,39 +19,20 @@ from yuantus.integrations.cad_ml import (
 )
 
 
-def _force_breaker_with(**overrides):
-    """Replace the registered cad_ml breaker with one built from overridden settings."""
+def _force_breaker_with(monkeypatch, **overrides):
+    """Replace the registered cad_ml breaker with one built from overridden settings.
+
+    Uses pytest's `monkeypatch` for per-attribute restoration so test state
+    cannot leak across cases — the fixture undoes the writes on teardown
+    even if the body raises.
+    """
     from yuantus.config import get_settings
 
     breaker_mod.reset_registry()
     settings = get_settings()
-    saved = {}
-    fields = {
-        "CIRCUIT_BREAKER_CAD_ML_ENABLED",
-        "CIRCUIT_BREAKER_CAD_ML_FAILURE_THRESHOLD",
-        "CIRCUIT_BREAKER_CAD_ML_WINDOW_SECONDS",
-        "CIRCUIT_BREAKER_CAD_ML_RECOVERY_SECONDS",
-        "CIRCUIT_BREAKER_CAD_ML_HALF_OPEN_MAX_CALLS",
-        "CIRCUIT_BREAKER_CAD_ML_BACKOFF_MAX_SECONDS",
-    }
-    for field in fields:
-        saved[field] = getattr(settings, field)
-    try:
-        for key, value in overrides.items():
-            setattr(settings, key, value)
-        return build_cad_ml_breaker(), saved
-    except Exception:  # pragma: no cover
-        for field, value in saved.items():
-            setattr(settings, field, value)
-        raise
-
-
-def _restore_settings(saved):
-    from yuantus.config import get_settings
-
-    settings = get_settings()
-    for field, value in saved.items():
-        setattr(settings, field, value)
+    for key, value in overrides.items():
+        monkeypatch.setattr(settings, key, value)
+    return build_cad_ml_breaker()
 
 
 def _http_status_error(status_code: int) -> httpx.HTTPStatusError:
@@ -67,9 +48,9 @@ def test_breaker_name_is_stable():
     assert CAD_ML_BREAKER_NAME == "cad_ml"
 
 
-def test_default_off_is_passthrough():
+def test_default_off_is_passthrough(monkeypatch):
     breaker_mod.reset_registry()
-    breaker, saved = _force_breaker_with(CIRCUIT_BREAKER_CAD_ML_ENABLED=False)
+    breaker = _force_breaker_with(monkeypatch, CIRCUIT_BREAKER_CAD_ML_ENABLED=False)
     try:
         assert breaker.enabled is False
         client = CadMLClient()
@@ -82,13 +63,13 @@ def test_default_off_is_passthrough():
         assert snapshot["state"] == CLOSED
         assert snapshot["failures_total"] == 0
     finally:
-        _restore_settings(saved)
         breaker_mod.reset_registry()
 
 
-def test_enabled_breaker_opens_after_repeated_request_errors():
+def test_enabled_breaker_opens_after_repeated_request_errors(monkeypatch):
     breaker_mod.reset_registry()
-    breaker, saved = _force_breaker_with(
+    breaker = _force_breaker_with(
+        monkeypatch,
         CIRCUIT_BREAKER_CAD_ML_ENABLED=True,
         CIRCUIT_BREAKER_CAD_ML_FAILURE_THRESHOLD=3,
     )
@@ -107,16 +88,16 @@ def test_enabled_breaker_opens_after_repeated_request_errors():
             with pytest.raises(CircuitOpenError):
                 asyncio.run(client.health())
     finally:
-        _restore_settings(saved)
         breaker_mod.reset_registry()
 
 
-def test_sync_paths_share_breaker():
+def test_sync_paths_share_breaker(monkeypatch):
     """All three sync methods must route through the same breaker — a
     failure on `vision_analyze_sync` must contribute to the same counter
     that `render_cad_preview_sync` checks."""
     breaker_mod.reset_registry()
-    breaker, saved = _force_breaker_with(
+    breaker = _force_breaker_with(
+        monkeypatch,
         CIRCUIT_BREAKER_CAD_ML_ENABLED=True,
         CIRCUIT_BREAKER_CAD_ML_FAILURE_THRESHOLD=2,
     )
@@ -139,13 +120,13 @@ def test_sync_paths_share_breaker():
         with pytest.raises(CircuitOpenError):
             client.ocr_extract_sync(file_path="/tmp/x.dwg")
     finally:
-        _restore_settings(saved)
         breaker_mod.reset_registry()
 
 
-def test_4xx_client_errors_do_not_trip_breaker():
+def test_4xx_client_errors_do_not_trip_breaker(monkeypatch):
     breaker_mod.reset_registry()
-    breaker, saved = _force_breaker_with(
+    breaker = _force_breaker_with(
+        monkeypatch,
         CIRCUIT_BREAKER_CAD_ML_ENABLED=True,
         CIRCUIT_BREAKER_CAD_ML_FAILURE_THRESHOLD=2,
     )
@@ -160,13 +141,13 @@ def test_4xx_client_errors_do_not_trip_breaker():
         assert snap["state"] == CLOSED
         assert snap["failures_total"] == 0
     finally:
-        _restore_settings(saved)
         breaker_mod.reset_registry()
 
 
-def test_5xx_server_errors_trip_breaker():
+def test_5xx_server_errors_trip_breaker(monkeypatch):
     breaker_mod.reset_registry()
-    breaker, saved = _force_breaker_with(
+    breaker = _force_breaker_with(
+        monkeypatch,
         CIRCUIT_BREAKER_CAD_ML_ENABLED=True,
         CIRCUIT_BREAKER_CAD_ML_FAILURE_THRESHOLD=3,
     )
@@ -179,13 +160,13 @@ def test_5xx_server_errors_trip_breaker():
                     client.vision_analyze_sync(image_base64="ZGF0YQ==")
         assert breaker.status()["state"] == OPEN
     finally:
-        _restore_settings(saved)
         breaker_mod.reset_registry()
 
 
-def test_408_and_429_are_counted_as_breaker_failures():
+def test_408_and_429_are_counted_as_breaker_failures(monkeypatch):
     breaker_mod.reset_registry()
-    breaker, saved = _force_breaker_with(
+    breaker = _force_breaker_with(
+        monkeypatch,
         CIRCUIT_BREAKER_CAD_ML_ENABLED=True,
         CIRCUIT_BREAKER_CAD_ML_FAILURE_THRESHOLD=2,
     )
@@ -198,13 +179,13 @@ def test_408_and_429_are_counted_as_breaker_failures():
                     client.vision_analyze_sync(image_base64="ZGF0YQ==")
         assert breaker.status()["state"] == OPEN
     finally:
-        _restore_settings(saved)
         breaker_mod.reset_registry()
 
 
-def test_ocr_extract_missing_file_does_not_open_breaker():
+def test_ocr_extract_missing_file_does_not_open_breaker(monkeypatch):
     breaker_mod.reset_registry()
-    breaker, saved = _force_breaker_with(
+    breaker = _force_breaker_with(
+        monkeypatch,
         CIRCUIT_BREAKER_CAD_ML_ENABLED=True,
         CIRCUIT_BREAKER_CAD_ML_FAILURE_THRESHOLD=2,
     )
@@ -217,13 +198,13 @@ def test_ocr_extract_missing_file_does_not_open_breaker():
         assert snap["state"] == CLOSED
         assert snap["failures_total"] == 0
     finally:
-        _restore_settings(saved)
         breaker_mod.reset_registry()
 
 
-def test_render_cad_preview_missing_file_does_not_open_breaker():
+def test_render_cad_preview_missing_file_does_not_open_breaker(monkeypatch):
     breaker_mod.reset_registry()
-    breaker, saved = _force_breaker_with(
+    breaker = _force_breaker_with(
+        monkeypatch,
         CIRCUIT_BREAKER_CAD_ML_ENABLED=True,
         CIRCUIT_BREAKER_CAD_ML_FAILURE_THRESHOLD=2,
     )
@@ -236,7 +217,6 @@ def test_render_cad_preview_missing_file_does_not_open_breaker():
         assert snap["state"] == CLOSED
         assert snap["failures_total"] == 0
     finally:
-        _restore_settings(saved)
         breaker_mod.reset_registry()
 
 
