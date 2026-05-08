@@ -204,6 +204,81 @@ def test_registry_reuses_existing_breaker():
     assert "reg_test" not in list_breakers()
 
 
+def test_keyboard_interrupt_does_not_trip_breaker():
+    """Process-level interrupts must not be counted as upstream failures."""
+    breaker = _make_breaker(failure_threshold=1)
+
+    def cancelled():
+        raise KeyboardInterrupt()
+
+    with pytest.raises(KeyboardInterrupt):
+        breaker.call_sync(cancelled)
+    snapshot = breaker.status()
+    assert snapshot["state"] == CLOSED
+    assert snapshot["failures_total"] == 0
+    assert snapshot["opens_total"] == 0
+
+
+def test_system_exit_does_not_trip_breaker():
+    breaker = _make_breaker(failure_threshold=1)
+
+    def shutdown():
+        raise SystemExit("graceful")
+
+    with pytest.raises(SystemExit):
+        breaker.call_sync(shutdown)
+    snapshot = breaker.status()
+    assert snapshot["state"] == CLOSED
+    assert snapshot["failures_total"] == 0
+
+
+def test_async_cancellation_does_not_trip_breaker():
+    """asyncio.CancelledError inherits BaseException in 3.8+ and must not
+    be counted as an upstream failure."""
+
+    async def runner():
+        breaker = _make_breaker(failure_threshold=1)
+
+        async def cancelled():
+            raise asyncio.CancelledError()
+
+        with pytest.raises(asyncio.CancelledError):
+            await breaker.call_async(cancelled)
+        snapshot = breaker.status()
+        assert snapshot["state"] == CLOSED
+        assert snapshot["failures_total"] == 0
+
+    asyncio.run(runner())
+
+
+def test_interrupt_in_half_open_releases_inflight_slot():
+    """Interrupt during half-open trial must not leak the in-flight slot
+    or the breaker would refuse all subsequent recovery attempts."""
+    fake_time = [1000.0]
+
+    def now():
+        return fake_time[0]
+
+    breaker = _make_breaker(
+        failure_threshold=1, recovery_seconds=10.0, half_open_max_calls=1
+    )
+    breaker._now = now  # type: ignore[assignment]
+
+    # Trip and advance to half-open eligibility.
+    with pytest.raises(RuntimeError):
+        breaker.call_sync(lambda: (_ for _ in ()).throw(RuntimeError("upstream")))
+    fake_time[0] += 11.0
+
+    # Half-open trial gets interrupted.
+    with pytest.raises(KeyboardInterrupt):
+        breaker.call_sync(lambda: (_ for _ in ()).throw(KeyboardInterrupt()))
+
+    # Slot must be released so a follow-up trial can proceed.
+    assert breaker.status()["state"] in (HALF_OPEN, CLOSED)
+    assert breaker.call_sync(lambda: "recovered") == "recovered"
+    assert breaker.status()["state"] == CLOSED
+
+
 def test_status_keys_are_stable():
     breaker = _make_breaker(name="status_keys")
     snapshot = breaker.status()

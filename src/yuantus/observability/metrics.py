@@ -133,7 +133,14 @@ def render_prometheus_text() -> str:
 
 def render_runtime_prometheus_text() -> str:
     from yuantus.integrations import circuit_breaker
+    from yuantus.integrations.dedup_vision import build_dedup_vision_breaker
     from yuantus.meta_engine.services import search_indexer
+
+    # Pre-register P6.1 breaker so a cold-scrape of /api/v1/metrics emits
+    # the yuantus_circuit_breaker_* families even before any client call
+    # or /health/deps probe has happened in this process. Without this,
+    # Prometheus scraping order would silently hide the metrics.
+    build_dedup_vision_breaker()
 
     breaker_statuses = [
         breaker.status() for breaker in circuit_breaker.list_breakers().values()

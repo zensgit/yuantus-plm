@@ -100,17 +100,35 @@ in-flight count for half-open trials is bounded by
 `get_or_create_breaker(config)` returns a process-shared instance keyed by
 `config.name`. Configuration changes during a process lifetime do not
 re-create the breaker; the codebase explicitly calls
-`build_dedup_vision_breaker()` once at health-endpoint warm-up so `/health/deps`
-shows enabled/disabled even before the first client call.
+`build_dedup_vision_breaker()` from two warm-up sites:
 
-### 3.4 Default-off contract
+- `render_runtime_prometheus_text()` — guarantees a Prometheus cold-scrape
+  of `/api/v1/metrics` emits the `yuantus_circuit_breaker_*` families even
+  before any client call or health probe has occurred in this process.
+  Without this, scrape order would silently hide the metrics.
+- `/api/v1/health/deps` — same guarantee for the JSON `breaker` block.
+
+### 3.4 Exception handling
+
+The breaker catches `Exception` for failure accounting (transport errors,
+upstream HTTP errors, etc. count toward the failure window). It catches
+`BaseException` separately for `_after_interrupt`, which **only** releases
+the half-open in-flight slot without counting a failure or transitioning
+state. This keeps process-level interrupts —
+`KeyboardInterrupt` / `SystemExit` / `asyncio.CancelledError` — from
+implicating the upstream service when in fact only the local process is
+exiting or cancelling. The half-open slot release is essential: without it,
+a single interrupt during a half-open trial would lock subsequent recovery
+attempts out indefinitely.
+
+### 3.5 Default-off contract
 
 The `CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` flag defaults to `False`. When
 disabled, `CircuitBreaker.call_sync` / `call_async` is a thin pass-through
 that does not record metrics, so behaviour is byte-for-byte identical to
 the pre-P6.1 client.
 
-### 3.5 Observability surface
+### 3.6 Observability surface
 
 Metrics (Prometheus text):
 
@@ -168,7 +186,7 @@ the JSON without scraping metrics.
   src/yuantus/api/tests/test_circuit_breaker_dedup_vision_contracts.py
 ```
 
-Expected: **21 passed**.
+Expected: **25 passed** (13 unit + 5 integration + 7 contract).
 
 ### 6.2 Adjacent regression (no behaviour change expected)
 

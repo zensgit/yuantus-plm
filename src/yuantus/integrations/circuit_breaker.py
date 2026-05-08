@@ -133,8 +133,16 @@ class CircuitBreaker:
         self._before_call()
         try:
             result = func(*args, **kwargs)
-        except BaseException as exc:
+        # Catch Exception (not BaseException) so process-level interrupts —
+        # KeyboardInterrupt, SystemExit, asyncio.CancelledError — do not get
+        # counted as upstream failures and trip the breaker.
+        except Exception as exc:
             self._after_failure(exc)
+            raise
+        except BaseException:
+            # Interrupt: release the half-open slot but do not count as
+            # an upstream failure or transition state.
+            self._after_interrupt()
             raise
         else:
             self._after_success()
@@ -151,8 +159,11 @@ class CircuitBreaker:
         self._before_call()
         try:
             result = await coro_factory(*args, **kwargs)
-        except BaseException as exc:
+        except Exception as exc:
             self._after_failure(exc)
+            raise
+        except BaseException:
+            self._after_interrupt()
             raise
         else:
             self._after_success()
@@ -201,6 +212,19 @@ class CircuitBreaker:
                 ):
                     self._state.failures = 0
                     self._state.failure_window_start = 0.0
+
+    def _after_interrupt(self) -> None:
+        """Release a half-open trial slot without counting an upstream failure.
+
+        Used for process-level interrupts (KeyboardInterrupt, SystemExit,
+        asyncio.CancelledError) that should not contribute to the breaker's
+        failure window — the upstream service is not implicated.
+        """
+        with self._lock:
+            if self._state.state == HALF_OPEN:
+                self._state.half_open_inflight = max(
+                    0, self._state.half_open_inflight - 1
+                )
 
     def _after_failure(self, exc: BaseException) -> None:
         with self._lock:

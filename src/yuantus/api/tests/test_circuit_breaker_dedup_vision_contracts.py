@@ -117,10 +117,26 @@ def test_runtime_prometheus_includes_circuit_breaker_section_when_registered() -
         circuit_breaker.reset_registry()
 
 
-def test_runtime_prometheus_skips_section_when_no_breakers_registered() -> None:
+def test_cold_start_metrics_include_dedup_vision_breaker() -> None:
+    """Critical contract: Prometheus scrape that hits /api/v1/metrics before
+    any DedupVisionClient call or /health/deps probe must still emit the
+    yuantus_circuit_breaker_* families. `render_runtime_prometheus_text`
+    pre-registers the dedup_vision breaker for exactly this case so the
+    metrics families do not silently disappear depending on scrape order.
+    """
     circuit_breaker.reset_registry()
-    text = render_runtime_prometheus_text()
-    assert "yuantus_circuit_breaker_" not in text
+    try:
+        text = render_runtime_prometheus_text()
+        # No prior call, no client constructed — but the metrics endpoint
+        # must still emit the dedup_vision breaker section.
+        assert "yuantus_circuit_breaker_enabled" in text
+        assert f'name="{DEDUP_VISION_BREAKER_NAME}"' in text
+        assert (
+            f'yuantus_circuit_breaker_state{{name="{DEDUP_VISION_BREAKER_NAME}",'
+            'state="closed"}}'.replace("}}", "}") in text
+        )
+    finally:
+        circuit_breaker.reset_registry()
 
 
 # ---------------------------------------------------------------------------
