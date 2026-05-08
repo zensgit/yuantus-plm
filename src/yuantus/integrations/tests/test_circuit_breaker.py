@@ -1,0 +1,228 @@
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+
+from yuantus.integrations.circuit_breaker import (
+    CLOSED,
+    HALF_OPEN,
+    OPEN,
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitOpenError,
+    get_or_create_breaker,
+    list_breakers,
+    reset_registry,
+)
+
+
+def _make_breaker(**overrides) -> CircuitBreaker:
+    base = dict(
+        name=overrides.pop("name", "test"),
+        enabled=overrides.pop("enabled", True),
+        failure_threshold=overrides.pop("failure_threshold", 3),
+        window_seconds=overrides.pop("window_seconds", 60.0),
+        recovery_seconds=overrides.pop("recovery_seconds", 5.0),
+        half_open_max_calls=overrides.pop("half_open_max_calls", 1),
+        backoff_max_seconds=overrides.pop("backoff_max_seconds", 60.0),
+    )
+    base.update(overrides)
+    return CircuitBreaker(CircuitBreakerConfig(**base))
+
+
+def test_disabled_breaker_is_passthrough():
+    breaker = _make_breaker(enabled=False, failure_threshold=1)
+
+    def boom():
+        raise ValueError("nope")
+
+    # Disabled breaker should not record anything and re-raise as-is.
+    for _ in range(5):
+        with pytest.raises(ValueError):
+            breaker.call_sync(boom)
+    status = breaker.status()
+    assert status["state"] == CLOSED
+    assert status["failures_total"] == 0
+    assert status["opens_total"] == 0
+
+
+def test_opens_after_threshold_failures():
+    breaker = _make_breaker(failure_threshold=3)
+
+    def boom():
+        raise RuntimeError("upstream")
+
+    for i in range(3):
+        with pytest.raises(RuntimeError):
+            breaker.call_sync(boom)
+    assert breaker.status()["state"] == OPEN
+    # Subsequent call should short-circuit, not invoke `boom`.
+    with pytest.raises(CircuitOpenError):
+        breaker.call_sync(boom)
+    status = breaker.status()
+    assert status["short_circuited_total"] == 1
+    assert status["opens_total"] == 1
+
+
+def test_open_to_half_open_after_recovery():
+    fake_time = [1000.0]
+
+    def now():
+        return fake_time[0]
+
+    breaker = _make_breaker(failure_threshold=2, recovery_seconds=10.0)
+    breaker._now = now  # type: ignore[assignment]
+
+    def boom():
+        raise RuntimeError("upstream")
+
+    for _ in range(2):
+        with pytest.raises(RuntimeError):
+            breaker.call_sync(boom)
+    assert breaker.status()["state"] == OPEN
+
+    # advance past recovery window
+    fake_time[0] += 11.0
+
+    def ok():
+        return "fine"
+
+    # First call after recovery transitions OPEN -> HALF_OPEN, executes, closes.
+    assert breaker.call_sync(ok) == "fine"
+    assert breaker.status()["state"] == CLOSED
+    assert breaker.status()["consecutive_open_cycles"] == 0
+
+
+def test_half_open_failure_reopens_with_backoff():
+    fake_time = [1000.0]
+
+    def now():
+        return fake_time[0]
+
+    breaker = _make_breaker(
+        failure_threshold=1, recovery_seconds=10.0, backoff_max_seconds=1000.0
+    )
+    breaker._now = now  # type: ignore[assignment]
+
+    def boom():
+        raise RuntimeError("still broken")
+
+    # First failure trips the breaker.
+    with pytest.raises(RuntimeError):
+        breaker.call_sync(boom)
+    assert breaker.status()["state"] == OPEN
+    base_recovery = breaker.status()["current_recovery_seconds"]
+    assert base_recovery == 10.0
+
+    fake_time[0] += 11.0
+
+    # Half-open trial fails -> reopens.
+    with pytest.raises(RuntimeError):
+        breaker.call_sync(boom)
+    snapshot = breaker.status()
+    assert snapshot["state"] == OPEN
+    # Backoff doubled.
+    assert snapshot["current_recovery_seconds"] == 20.0
+
+
+def test_failures_reset_after_window():
+    fake_time = [1000.0]
+
+    def now():
+        return fake_time[0]
+
+    breaker = _make_breaker(failure_threshold=3, window_seconds=10.0)
+    breaker._now = now  # type: ignore[assignment]
+
+    def boom():
+        raise RuntimeError("flaky")
+
+    for _ in range(2):
+        with pytest.raises(RuntimeError):
+            breaker.call_sync(boom)
+    assert breaker.status()["state"] == CLOSED
+
+    # Advance beyond window — next failure should restart counting.
+    fake_time[0] += 30.0
+    with pytest.raises(RuntimeError):
+        breaker.call_sync(boom)
+    snapshot = breaker.status()
+    assert snapshot["state"] == CLOSED
+    assert snapshot["failures_in_window"] == 1
+
+
+def test_async_call_path():
+    async def runner():
+        breaker = _make_breaker(failure_threshold=2)
+
+        async def ok():
+            return 42
+
+        async def boom():
+            raise RuntimeError("async upstream")
+
+        result = await breaker.call_async(ok)
+        assert result == 42
+
+        for _ in range(2):
+            with pytest.raises(RuntimeError):
+                await breaker.call_async(boom)
+        assert breaker.status()["state"] == OPEN
+        with pytest.raises(CircuitOpenError):
+            await breaker.call_async(ok)
+
+    asyncio.run(runner())
+
+
+def test_short_circuit_error_carries_retry_hint():
+    breaker = _make_breaker(failure_threshold=1, recovery_seconds=42.0)
+
+    def boom():
+        raise RuntimeError("x")
+
+    with pytest.raises(RuntimeError):
+        breaker.call_sync(boom)
+
+    def never():
+        raise AssertionError("should not run while open")
+
+    with pytest.raises(CircuitOpenError) as info:
+        breaker.call_sync(never)
+    assert info.value.name == "test"
+    assert 0.0 < info.value.retry_in_seconds <= 42.0
+
+
+def test_registry_reuses_existing_breaker():
+    reset_registry()
+    cfg = CircuitBreakerConfig(name="reg_test", enabled=True)
+    a = get_or_create_breaker(cfg)
+    b = get_or_create_breaker(cfg)
+    assert a is b
+    assert "reg_test" in list_breakers()
+    reset_registry()
+    assert "reg_test" not in list_breakers()
+
+
+def test_status_keys_are_stable():
+    breaker = _make_breaker(name="status_keys")
+    snapshot = breaker.status()
+    expected_keys = {
+        "name",
+        "enabled",
+        "state",
+        "failures_in_window",
+        "failure_threshold",
+        "window_seconds",
+        "recovery_seconds",
+        "current_recovery_seconds",
+        "consecutive_open_cycles",
+        "open_for_seconds",
+        "retry_in_seconds",
+        "opens_total",
+        "short_circuited_total",
+        "failures_total",
+        "successes_total",
+        "last_failure_error",
+    }
+    assert set(snapshot.keys()) == expected_keys

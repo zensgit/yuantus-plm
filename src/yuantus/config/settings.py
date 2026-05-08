@@ -97,6 +97,34 @@ class Settings(BaseSettings):
         default="",
         description="Optional service token (JWT) for DedupCAD Vision integrations",
     )
+    # Phase 6 P6.1 — DedupCAD Vision circuit breaker (default off, status quo).
+    # When enabled, consecutive request failures within the rolling window cause
+    # the breaker to open and short-circuit subsequent calls until recovery_seconds
+    # elapses, then a half-open trial decides closed/open.
+    CIRCUIT_BREAKER_DEDUP_VISION_ENABLED: bool = Field(
+        default=False,
+        description="Enable circuit breaker for DedupCAD Vision client (default off)",
+    )
+    CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD: int = Field(
+        default=5,
+        description="DedupCAD Vision: failures within window to open circuit",
+    )
+    CIRCUIT_BREAKER_DEDUP_VISION_WINDOW_SECONDS: int = Field(
+        default=60,
+        description="DedupCAD Vision: rolling failure window in seconds",
+    )
+    CIRCUIT_BREAKER_DEDUP_VISION_RECOVERY_SECONDS: int = Field(
+        default=30,
+        description="DedupCAD Vision: base seconds before open->half-open trial",
+    )
+    CIRCUIT_BREAKER_DEDUP_VISION_HALF_OPEN_MAX_CALLS: int = Field(
+        default=1,
+        description="DedupCAD Vision: max trial calls allowed in half-open state",
+    )
+    CIRCUIT_BREAKER_DEDUP_VISION_BACKOFF_MAX_SECONDS: int = Field(
+        default=600,
+        description="DedupCAD Vision: maximum exponential backoff cap in seconds",
+    )
     CAD_ML_SERVICE_TOKEN: str = Field(
         default="",
         description="Optional service token (JWT) for CAD ML Platform integrations",

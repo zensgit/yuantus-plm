@@ -7,9 +7,35 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 from yuantus.config import get_settings
+from yuantus.integrations.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    get_or_create_breaker,
+)
 from yuantus.integrations.http import build_outbound_headers
 
 logger = logging.getLogger(__name__)
+
+
+DEDUP_VISION_BREAKER_NAME = "dedup_vision"
+
+
+def build_dedup_vision_breaker() -> CircuitBreaker:
+    settings = get_settings()
+    config = CircuitBreakerConfig(
+        name=DEDUP_VISION_BREAKER_NAME,
+        enabled=bool(settings.CIRCUIT_BREAKER_DEDUP_VISION_ENABLED),
+        failure_threshold=int(settings.CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD),
+        window_seconds=float(settings.CIRCUIT_BREAKER_DEDUP_VISION_WINDOW_SECONDS),
+        recovery_seconds=float(settings.CIRCUIT_BREAKER_DEDUP_VISION_RECOVERY_SECONDS),
+        half_open_max_calls=int(
+            settings.CIRCUIT_BREAKER_DEDUP_VISION_HALF_OPEN_MAX_CALLS
+        ),
+        backoff_max_seconds=float(
+            settings.CIRCUIT_BREAKER_DEDUP_VISION_BACKOFF_MAX_SECONDS
+        ),
+    )
+    return get_or_create_breaker(config)
 
 
 class DedupVisionClient:
@@ -18,6 +44,7 @@ class DedupVisionClient:
         self.base_url = (base_url or settings.DEDUP_VISION_BASE_URL).rstrip("/")
         self._service_token = settings.DEDUP_VISION_SERVICE_TOKEN
         self.timeout_s = timeout_s
+        self._breaker = build_dedup_vision_breaker()
 
     def _fallback_base_url(self) -> Optional[str]:
         explicit = (os.environ.get("YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL") or "").strip()
@@ -56,6 +83,11 @@ class DedupVisionClient:
         return f"Bearer {token}"
 
     async def health(self, *, authorization: Optional[str] = None) -> dict:
+        return await self._breaker.call_async(
+            self._health_inner, authorization=authorization
+        )
+
+    async def _health_inner(self, *, authorization: Optional[str] = None) -> dict:
         headers = build_outbound_headers(
             authorization=self._resolve_authorization(authorization)
         ).as_dict()
@@ -83,6 +115,32 @@ class DedupVisionClient:
         raise last_error
 
     def search_sync(
+        self,
+        *,
+        file_path: str,
+        upload_filename: Optional[str] = None,
+        mode: str = "balanced",
+        phash_threshold: int = 10,
+        feature_threshold: float = 0.85,
+        max_results: int = 5,
+        exclude_self: bool = True,
+        diff_top_k: int = 0,
+        authorization: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return self._breaker.call_sync(
+            self._search_sync_inner,
+            file_path=file_path,
+            upload_filename=upload_filename,
+            mode=mode,
+            phash_threshold=phash_threshold,
+            feature_threshold=feature_threshold,
+            max_results=max_results,
+            exclude_self=exclude_self,
+            diff_top_k=diff_top_k,
+            authorization=authorization,
+        )
+
+    def _search_sync_inner(
         self,
         *,
         file_path: str,
@@ -161,6 +219,24 @@ class DedupVisionClient:
         raise last_error
 
     def index_add_sync(
+        self,
+        *,
+        file_path: str,
+        upload_filename: Optional[str] = None,
+        user_name: str,
+        upload_to_s3: bool = False,
+        authorization: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return self._breaker.call_sync(
+            self._index_add_sync_inner,
+            file_path=file_path,
+            upload_filename=upload_filename,
+            user_name=user_name,
+            upload_to_s3=upload_to_s3,
+            authorization=authorization,
+        )
+
+    def _index_add_sync_inner(
         self,
         *,
         file_path: str,
