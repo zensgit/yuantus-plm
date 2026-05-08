@@ -37,6 +37,9 @@ def is_dedup_vision_breaker_failure(exc: Exception) -> bool:
         (Too Many Requests) — recoverable upstream pressure signals.
 
     NOT counted (re-raised, breaker not implicated):
+      - `OSError` and subclasses (`FileNotFoundError`, `PermissionError`,
+        `IsADirectoryError`, …) — local file-system failures from reading
+        the upload payload, never an upstream signal.
       - `httpx.HTTPStatusError` with other 4xx (400/401/403/404/422 …) —
         these are caller-side errors (bad input, missing auth, validation)
         and must not trip protection meant for upstream outages.
@@ -44,6 +47,12 @@ def is_dedup_vision_breaker_failure(exc: Exception) -> bool:
     Unknown exception types fall back to counting — silent uncounted
     failures would let true outages slip through.
     """
+    # Local I/O errors raised before/around the upload (e.g. caller
+    # passes a path that does not exist or is unreadable) are not
+    # upstream signals. httpx exceptions are NOT OSError subclasses, so
+    # this branch only matches genuine local-side I/O failures.
+    if isinstance(exc, OSError):
+        return False
     if isinstance(exc, httpx.RequestError):
         return True
     if isinstance(exc, httpx.HTTPStatusError):

@@ -144,6 +144,7 @@ The DedupVision breaker uses `is_dedup_vision_breaker_failure`:
 | `httpx.HTTPStatusError` 5xx (500/502/503/504/…) | ✅ Yes | Server-side failure. |
 | `httpx.HTTPStatusError` 408 / 429 | ✅ Yes | Recoverable upstream pressure (timeout, rate limit). |
 | `httpx.HTTPStatusError` other 4xx (400/401/403/404/409/422/…) | ❌ No | Client-side error; upstream is healthy. |
+| `OSError` and subclasses (`FileNotFoundError`, `PermissionError`, `IsADirectoryError`, …) | ❌ No | Local file-system failure (e.g. caller passes a missing/unreadable path). httpx exceptions are not `OSError` subclasses, so this branch only matches genuine local I/O. |
 | Anything else | ✅ Yes (defensive) | Fall back to counting so true outages don't slip through. |
 
 Predicate failures (a buggy `is_failure` that itself raises) fall back to
@@ -214,7 +215,7 @@ the JSON without scraping metrics.
   src/yuantus/api/tests/test_circuit_breaker_dedup_vision_contracts.py
 ```
 
-Expected: **33 passed** (16 unit + 9 integration + 8 contract).
+Expected: **36 passed** (16 unit + 12 integration + 8 contract).
 
 ### 6.2 Adjacent regression (no behaviour change expected)
 

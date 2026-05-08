@@ -238,3 +238,80 @@ def test_request_error_trips_breaker():
     finally:
         _restore_settings(saved)
         breaker_mod.reset_registry()
+
+
+# ---------------------------------------------------------------------------
+# Local I/O errors must not implicate the breaker (regression for review
+# finding: a caller passing a non-existent file would otherwise trip the
+# breaker on every attempt and short-circuit healthy upstream traffic).
+# ---------------------------------------------------------------------------
+
+
+def test_search_sync_missing_file_does_not_open_breaker():
+    """A bad caller path (no file at file_path) raises FileNotFoundError
+    before any network call. That is local-side, not upstream — must not
+    count toward the breaker's failure window."""
+    breaker_mod.reset_registry()
+    breaker, saved = _force_breaker_with(
+        CIRCUIT_BREAKER_DEDUP_VISION_ENABLED=True,
+        CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD=2,
+    )
+    try:
+        client = DedupVisionClient()
+        for _ in range(5):
+            with pytest.raises(FileNotFoundError):
+                client.search_sync(file_path="/nonexistent/dir/missing.dwg")
+        snap = breaker.status()
+        assert snap["state"] == CLOSED, (
+            f"FileNotFoundError must not implicate the breaker; got state={snap['state']}"
+        )
+        assert snap["failures_total"] == 0
+        assert snap["opens_total"] == 0
+    finally:
+        _restore_settings(saved)
+        breaker_mod.reset_registry()
+
+
+def test_index_add_sync_missing_file_does_not_open_breaker():
+    breaker_mod.reset_registry()
+    breaker, saved = _force_breaker_with(
+        CIRCUIT_BREAKER_DEDUP_VISION_ENABLED=True,
+        CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD=2,
+    )
+    try:
+        client = DedupVisionClient()
+        for _ in range(5):
+            with pytest.raises(FileNotFoundError):
+                client.index_add_sync(
+                    file_path="/nonexistent/dir/missing.dwg", user_name="u"
+                )
+        snap = breaker.status()
+        assert snap["state"] == CLOSED
+        assert snap["failures_total"] == 0
+        assert snap["opens_total"] == 0
+    finally:
+        _restore_settings(saved)
+        breaker_mod.reset_registry()
+
+
+def test_permission_error_does_not_open_breaker():
+    breaker_mod.reset_registry()
+    breaker, saved = _force_breaker_with(
+        CIRCUIT_BREAKER_DEDUP_VISION_ENABLED=True,
+        CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD=1,
+    )
+    try:
+        client = DedupVisionClient()
+        with patch.object(
+            client,
+            "_search_sync_inner",
+            side_effect=PermissionError("denied"),
+        ):
+            with pytest.raises(PermissionError):
+                client.search_sync(file_path="/tmp/x.dwg")
+        snap = breaker.status()
+        assert snap["state"] == CLOSED
+        assert snap["failures_total"] == 0
+    finally:
+        _restore_settings(saved)
+        breaker_mod.reset_registry()

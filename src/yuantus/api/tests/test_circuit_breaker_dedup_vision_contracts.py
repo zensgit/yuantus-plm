@@ -212,6 +212,11 @@ def test_failure_classification_pins_breaker_policy() -> None:
         _stub_status_error(404),
         _stub_status_error(409),
         _stub_status_error(422),
+        # Local-side I/O failures: never an upstream signal.
+        FileNotFoundError("missing"),
+        PermissionError("denied"),
+        IsADirectoryError("dir"),
+        OSError("disk full"),
     )
     for exc in counted:
         assert is_dedup_vision_breaker_failure(exc), (
