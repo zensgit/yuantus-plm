@@ -80,3 +80,69 @@ DB_URL_TEMPLATE=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_mt_
 IDENTITY_DB_URL=postgresql+psycopg://yuantus:yuantus@localhost:55432/yuantus_identity_mt_pg \
   scripts/verify_cad_pipeline_s3.sh
 ```
+
+## 6) DedupCAD Vision 断路器（Phase 6 P6.1）
+
+Phase 6 P6.1 为 DedupCAD Vision 客户端加装了断路器，**默认关闭**，开启后
+连续失败超过阈值即短路后续调用，阻止重试风暴拖垮上游恢复窗口。后续
+P6.2 / P6.3 会以同样模式接 `cad-ml` / `Athena`。
+
+### 启用
+
+通过环境变量切换（默认 false 即 status-quo）：
+
+| 字段 | 默认 | 含义 |
+| --- | --- | --- |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_ENABLED` | `false` | 总开关；上线前先在测试环境置 `true` 验收 |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD` | `5` | 滚动窗口内连续失败次数到此即开路 |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_WINDOW_SECONDS` | `60` | 失败计数滚动窗口（秒） |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_RECOVERY_SECONDS` | `30` | 开路后多少秒进入半开试探 |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_HALF_OPEN_MAX_CALLS` | `1` | 半开期允许同时发出的试探调用数 |
+| `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_BACKOFF_MAX_SECONDS` | `600` | 重复触发开路时指数退避的上限 |
+
+### 状态查询
+
+API（json，免 Prometheus 即可看）：
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/health/deps \
+  -H "Authorization: Bearer $TOKEN" \
+  | jq '.external.dedup_vision.breaker'
+```
+
+返回字段含义：
+
+- `state`：`closed` / `open` / `half_open`
+- `failures_in_window`：当前窗口内连续失败计数
+- `current_recovery_seconds`：当前实际生效的开路恢复秒数（含指数退避）
+- `opens_total` / `short_circuited_total` / `failures_total` / `successes_total`：
+  累计计数器（与 Prometheus 同源）
+
+Prometheus（建议告警）：
+
+```promql
+# 当前开路即告警
+yuantus_circuit_breaker_state{name="dedup_vision",state="open"} == 1
+
+# 短路次数突增
+rate(yuantus_circuit_breaker_short_circuited_total{name="dedup_vision"}[5m]) > 1
+```
+
+### 故障处理流程
+
+1. 看 `state`：若 `open`，记录 `current_recovery_seconds` 与
+   `consecutive_open_cycles`。
+2. 直接 curl 上游 `dedupcad-vision` `/health` 排查（绕过断路器，确认是
+   服务真崩还是网络抖动）。
+3. 上游恢复后无需手动重置：半开试探调用成功即自动 closed。
+4. 紧急关断点：把 `YUANTUS_CIRCUIT_BREAKER_DEDUP_VISION_ENABLED=false`
+   重启服务即可还原老链路（透传 + 重试），代价是失去断路保护。
+
+### 误开判处理
+
+若怀疑断路器**误开**（上游正常但短路了）：
+
+1. 检查 `failure_threshold` 是否过低；调整环境变量后重启进程生效。
+2. 检查 `window_seconds` 是否过宽（包含历史故障）。
+3. 短期豁免直接关旗标即可，配合 `successes_total` 在 5 分钟内涨为
+   通过判据。

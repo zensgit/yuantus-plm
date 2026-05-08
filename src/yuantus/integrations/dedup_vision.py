@@ -7,9 +7,85 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 from yuantus.config import get_settings
+from yuantus.integrations.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    get_or_create_breaker,
+)
 from yuantus.integrations.http import build_outbound_headers
 
 logger = logging.getLogger(__name__)
+
+
+DEDUP_VISION_BREAKER_NAME = "dedup_vision"
+
+# Phase 6 P6.1 — failure classification for the DedupVision breaker.
+# Status codes that imply the upstream service is unhealthy / overloaded
+# (i.e. "service-side" failures the breaker is meant to protect against).
+# All other 4xx are treated as client-side errors and re-raised without
+# implicating the breaker.
+_DEDUP_VISION_BREAKER_COUNT_STATUS = {408, 429}
+
+
+def is_dedup_vision_breaker_failure(exc: Exception) -> bool:
+    """Decide whether `exc` should count toward the DedupVision breaker.
+
+    Counted (suggests upstream is unhealthy):
+      - `httpx.RequestError` and subclasses (connect / read / timeout).
+      - `httpx.HTTPStatusError` with 5xx status.
+      - `httpx.HTTPStatusError` with 408 (Request Timeout) or 429
+        (Too Many Requests) — recoverable upstream pressure signals.
+
+    NOT counted (re-raised, breaker not implicated):
+      - `OSError` and subclasses (`FileNotFoundError`, `PermissionError`,
+        `IsADirectoryError`, …) — local file-system failures from reading
+        the upload payload, never an upstream signal.
+      - `httpx.HTTPStatusError` with other 4xx (400/401/403/404/422 …) —
+        these are caller-side errors (bad input, missing auth, validation)
+        and must not trip protection meant for upstream outages.
+
+    Unknown exception types fall back to counting — silent uncounted
+    failures would let true outages slip through.
+    """
+    # Local I/O errors raised before/around the upload (e.g. caller
+    # passes a path that does not exist or is unreadable) are not
+    # upstream signals. httpx exceptions are NOT OSError subclasses, so
+    # this branch only matches genuine local-side I/O failures.
+    if isinstance(exc, OSError):
+        return False
+    if isinstance(exc, httpx.RequestError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        if isinstance(status, int):
+            if 500 <= status < 600:
+                return True
+            if status in _DEDUP_VISION_BREAKER_COUNT_STATUS:
+                return True
+            return False
+        # No response status available — defensive: count.
+        return True
+    return True
+
+
+def build_dedup_vision_breaker() -> CircuitBreaker:
+    settings = get_settings()
+    config = CircuitBreakerConfig(
+        name=DEDUP_VISION_BREAKER_NAME,
+        enabled=bool(settings.CIRCUIT_BREAKER_DEDUP_VISION_ENABLED),
+        failure_threshold=int(settings.CIRCUIT_BREAKER_DEDUP_VISION_FAILURE_THRESHOLD),
+        window_seconds=float(settings.CIRCUIT_BREAKER_DEDUP_VISION_WINDOW_SECONDS),
+        recovery_seconds=float(settings.CIRCUIT_BREAKER_DEDUP_VISION_RECOVERY_SECONDS),
+        half_open_max_calls=int(
+            settings.CIRCUIT_BREAKER_DEDUP_VISION_HALF_OPEN_MAX_CALLS
+        ),
+        backoff_max_seconds=float(
+            settings.CIRCUIT_BREAKER_DEDUP_VISION_BACKOFF_MAX_SECONDS
+        ),
+        is_failure=is_dedup_vision_breaker_failure,
+    )
+    return get_or_create_breaker(config)
 
 
 class DedupVisionClient:
@@ -18,6 +94,7 @@ class DedupVisionClient:
         self.base_url = (base_url or settings.DEDUP_VISION_BASE_URL).rstrip("/")
         self._service_token = settings.DEDUP_VISION_SERVICE_TOKEN
         self.timeout_s = timeout_s
+        self._breaker = build_dedup_vision_breaker()
 
     def _fallback_base_url(self) -> Optional[str]:
         explicit = (os.environ.get("YUANTUS_DEDUP_VISION_FALLBACK_BASE_URL") or "").strip()
@@ -56,6 +133,11 @@ class DedupVisionClient:
         return f"Bearer {token}"
 
     async def health(self, *, authorization: Optional[str] = None) -> dict:
+        return await self._breaker.call_async(
+            self._health_inner, authorization=authorization
+        )
+
+    async def _health_inner(self, *, authorization: Optional[str] = None) -> dict:
         headers = build_outbound_headers(
             authorization=self._resolve_authorization(authorization)
         ).as_dict()
@@ -83,6 +165,32 @@ class DedupVisionClient:
         raise last_error
 
     def search_sync(
+        self,
+        *,
+        file_path: str,
+        upload_filename: Optional[str] = None,
+        mode: str = "balanced",
+        phash_threshold: int = 10,
+        feature_threshold: float = 0.85,
+        max_results: int = 5,
+        exclude_self: bool = True,
+        diff_top_k: int = 0,
+        authorization: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return self._breaker.call_sync(
+            self._search_sync_inner,
+            file_path=file_path,
+            upload_filename=upload_filename,
+            mode=mode,
+            phash_threshold=phash_threshold,
+            feature_threshold=feature_threshold,
+            max_results=max_results,
+            exclude_self=exclude_self,
+            diff_top_k=diff_top_k,
+            authorization=authorization,
+        )
+
+    def _search_sync_inner(
         self,
         *,
         file_path: str,
@@ -161,6 +269,24 @@ class DedupVisionClient:
         raise last_error
 
     def index_add_sync(
+        self,
+        *,
+        file_path: str,
+        upload_filename: Optional[str] = None,
+        user_name: str,
+        upload_to_s3: bool = False,
+        authorization: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        return self._breaker.call_sync(
+            self._index_add_sync_inner,
+            file_path=file_path,
+            upload_filename=upload_filename,
+            user_name=user_name,
+            upload_to_s3=upload_to_s3,
+            authorization=authorization,
+        )
+
+    def _index_add_sync_inner(
         self,
         *,
         file_path: str,

@@ -17,6 +17,7 @@ _DURATION_BUCKETS_MS: Tuple[int, ...] = (
     300000,
 )
 _SEARCH_INDEXER_HEALTH_STATES: Tuple[str, ...] = ("ok", "not_registered", "degraded")
+_CIRCUIT_BREAKER_STATES: Tuple[str, ...] = ("closed", "open", "half_open")
 _SEARCH_INDEXER_OUTCOME_FIELDS: Tuple[Tuple[str, str], ...] = (
     ("received", "event_counts"),
     ("success", "success_counts"),
@@ -131,14 +132,118 @@ def render_prometheus_text() -> str:
 
 
 def render_runtime_prometheus_text() -> str:
+    from yuantus.integrations import circuit_breaker
+    from yuantus.integrations.dedup_vision import build_dedup_vision_breaker
     from yuantus.meta_engine.services import search_indexer
 
+    # Pre-register P6.1 breaker so a cold-scrape of /api/v1/metrics emits
+    # the yuantus_circuit_breaker_* families even before any client call
+    # or /health/deps probe has happened in this process. Without this,
+    # Prometheus scraping order would silently hide the metrics.
+    build_dedup_vision_breaker()
+
+    breaker_statuses = [
+        breaker.status() for breaker in circuit_breaker.list_breakers().values()
+    ]
     return _join_metric_sections(
         (
             render_prometheus_text(),
             render_search_indexer_metrics(search_indexer.indexer_status()),
+            render_circuit_breaker_metrics(breaker_statuses),
         )
     )
+
+
+def render_circuit_breaker_metrics(statuses: Iterable[Mapping[str, Any]]) -> str:
+    """Render Prometheus text for the integration circuit breakers.
+
+    `statuses` is an iterable of `CircuitBreaker.status()` snapshots; an empty
+    iterable produces empty output so the section is skipped from the runtime
+    text when no breakers are registered.
+    """
+    snapshots = sorted(
+        (dict(s) for s in statuses),
+        key=lambda s: str(s.get("name", "")),
+    )
+    if not snapshots:
+        return ""
+
+    lines: List[str] = []
+    lines.append(
+        "# HELP yuantus_circuit_breaker_enabled Circuit breaker feature flag (1=enabled,0=disabled)"
+    )
+    lines.append("# TYPE yuantus_circuit_breaker_enabled gauge")
+    for snapshot in snapshots:
+        name = _escape(str(snapshot.get("name", "unknown")))
+        lines.append(
+            f'yuantus_circuit_breaker_enabled{{name="{name}"}} '
+            f"{_bool_metric(snapshot.get('enabled'))}"
+        )
+
+    lines.append("")
+    lines.append(
+        "# HELP yuantus_circuit_breaker_state Current circuit breaker state (1=current,0=other)"
+    )
+    lines.append("# TYPE yuantus_circuit_breaker_state gauge")
+    for snapshot in snapshots:
+        name = _escape(str(snapshot.get("name", "unknown")))
+        current = str(snapshot.get("state") or "")
+        for state in _CIRCUIT_BREAKER_STATES:
+            lines.append(
+                f'yuantus_circuit_breaker_state{{name="{name}",state="{state}"}} '
+                f"{1 if current == state else 0}"
+            )
+        if current and current not in _CIRCUIT_BREAKER_STATES:
+            lines.append(
+                f'yuantus_circuit_breaker_state{{name="{name}",state="{_escape(current)}"}} 1'
+            )
+
+    counter_fields: Tuple[Tuple[str, str, str], ...] = (
+        (
+            "yuantus_circuit_breaker_opens_total",
+            "opens_total",
+            "Times circuit transitioned closed/half_open -> open",
+        ),
+        (
+            "yuantus_circuit_breaker_short_circuited_total",
+            "short_circuited_total",
+            "Calls rejected while circuit was open",
+        ),
+        (
+            "yuantus_circuit_breaker_failures_total",
+            "failures_total",
+            "Outbound calls that raised an exception",
+        ),
+        (
+            "yuantus_circuit_breaker_successes_total",
+            "successes_total",
+            "Outbound calls that returned successfully",
+        ),
+    )
+    for metric_name, field_name, help_text in counter_fields:
+        lines.append("")
+        lines.append(f"# HELP {metric_name} {help_text}")
+        lines.append(f"# TYPE {metric_name} counter")
+        for snapshot in snapshots:
+            name = _escape(str(snapshot.get("name", "unknown")))
+            lines.append(
+                f'{metric_name}{{name="{name}"}} '
+                f"{_int_metric(snapshot.get(field_name))}"
+            )
+
+    lines.append("")
+    lines.append(
+        "# HELP yuantus_circuit_breaker_failures_in_window Failures within rolling window"
+    )
+    lines.append("# TYPE yuantus_circuit_breaker_failures_in_window gauge")
+    for snapshot in snapshots:
+        name = _escape(str(snapshot.get("name", "unknown")))
+        lines.append(
+            f'yuantus_circuit_breaker_failures_in_window{{name="{name}"}} '
+            f"{_int_metric(snapshot.get('failures_in_window'))}"
+        )
+
+    return "\n".join(lines) + "\n"
 
 
 def render_search_indexer_metrics(status: Mapping[str, Any]) -> str:
