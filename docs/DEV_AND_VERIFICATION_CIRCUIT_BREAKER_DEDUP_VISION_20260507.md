@@ -150,6 +150,13 @@ the JSON without scraping metrics.
 | Circuit-breaker state visible via metrics and `GET /api/v1/health/dependencies` | Met. `/health/deps` returns `external.dedup_vision.breaker`; metrics endpoint emits 7 `yuantus_circuit_breaker_*` families. |
 | Documented thresholds in `RUNBOOK_JOBS_DIAG.md` | Met (§4 of this MD lists thresholds; runbook adds the ops procedure). |
 
+> **Endpoint naming note**: the plan's wording `/api/v1/health/dependencies`
+> is interpreted as the existing `/api/v1/health/deps` route. Renaming a
+> stable health-check route to match an illustrative spec phrase would
+> break downstream consumers and is out of scope for P6.1. The contract
+> test asserts presence of the `breaker` block under `external.dedup_vision`
+> regardless of route name.
+
 ## 6. Verification
 
 ### 6.1 Focused regression (this PR)
@@ -194,6 +201,24 @@ Expected: passes.
 ```
 
 Expected: no `ModuleNotFoundError` or registration loss.
+
+### 6.5 Pact provider verification
+
+```bash
+.venv/bin/python -m pytest -q src/yuantus/api/tests/test_pact_provider_yuantus_plm.py
+```
+
+Expected: passes.
+
+> **Pact scope note**: the local consumer pact
+> (`contracts/pacts/metasheet2-yuantus-plm.json`) covers `/api/v1/health`
+> but **not** `/api/v1/health/deps`. The shape change in this PR
+> (added `external.dedup_vision.breaker`) therefore does not touch any
+> Pact-registered interaction. The contract test
+> `test_health_deps_surfaces_dedup_vision_breaker_block` is the
+> authoritative regression-prevention guard for the `/health/deps`
+> shape; downstream consumers that integrate with `/health/deps` should
+> consider upgrading to a Pact contract in a future cycle.
 
 ## 7. Rollout Plan (for downstream PRs)
 
