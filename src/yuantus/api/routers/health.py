@@ -13,6 +13,7 @@ from yuantus.config import get_settings
 from yuantus.context import get_request_context
 from yuantus.database import get_db_session
 from yuantus.integrations import circuit_breaker
+from yuantus.integrations.athena import build_athena_breaker
 from yuantus.integrations.cad_ml import build_cad_ml_breaker
 from yuantus.integrations.dedup_vision import build_dedup_vision_breaker
 from yuantus.meta_engine.services.file_service import FileService
@@ -143,10 +144,12 @@ def health_deps() -> dict:
     # whether any client call has happened in this process yet.
     build_dedup_vision_breaker()
     build_cad_ml_breaker()
+    build_athena_breaker()
     breakers = circuit_breaker.list_breakers()
     breaker_field_map = {
         "dedup_vision": "dedup_vision",
         "cad_ml": "cad_ml",
+        "athena": "athena",
     }
     for service_key, breaker_name in breaker_field_map.items():
         breaker = breakers.get(breaker_name)
