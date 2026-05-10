@@ -7,7 +7,69 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from yuantus.config import get_settings
+from yuantus.integrations.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    get_or_create_breaker,
+)
 from yuantus.integrations.http import build_outbound_headers
+
+
+ATHENA_BREAKER_NAME = "athena"
+
+# Status codes treated as service-side / recoverable upstream failures.
+_ATHENA_BREAKER_COUNT_STATUS = {408, 429}
+
+
+def is_athena_breaker_failure(exc: Exception) -> bool:
+    """P6.3 failure classification (mirrors P6.1/P6.2's policy).
+
+    Counted (suggests Athena — or its OAuth token endpoint — is unhealthy):
+      - `httpx.RequestError` subclasses (connect / read / timeout).
+      - `httpx.HTTPStatusError` 5xx.
+      - `httpx.HTTPStatusError` 408 / 429 (recoverable upstream pressure).
+
+    NOT counted (re-raised, breaker not implicated):
+      - `OSError` and subclasses — local I/O (e.g. client-secret file).
+        `AthenaClient._resolve_client_secret` already swallows `OSError`
+        and returns "", so this is defensive belt-and-braces.
+      - `httpx.HTTPStatusError` other 4xx — caller-side errors.
+
+    Unknown exception types fall back to counting (defensive).
+
+    Note: `AthenaClient.health()` may trigger an OAuth client-credentials
+    token fetch internally; that HTTP call runs inside the breaker-wrapped
+    method, so a flaky token endpoint counts as Athena being unreachable —
+    intentional, since you cannot reach Athena without auth.
+    """
+    if isinstance(exc, OSError):
+        return False
+    if isinstance(exc, httpx.RequestError):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        if not isinstance(status, int):
+            return True
+        if 500 <= status < 600 or status in _ATHENA_BREAKER_COUNT_STATUS:
+            return True
+        return False
+    return True
+
+
+def build_athena_breaker() -> CircuitBreaker:
+    settings = get_settings()
+    config = CircuitBreakerConfig(
+        name=ATHENA_BREAKER_NAME,
+        enabled=bool(settings.CIRCUIT_BREAKER_ATHENA_ENABLED),
+        failure_threshold=int(settings.CIRCUIT_BREAKER_ATHENA_FAILURE_THRESHOLD),
+        window_seconds=float(settings.CIRCUIT_BREAKER_ATHENA_WINDOW_SECONDS),
+        recovery_seconds=float(settings.CIRCUIT_BREAKER_ATHENA_RECOVERY_SECONDS),
+        half_open_max_calls=int(settings.CIRCUIT_BREAKER_ATHENA_HALF_OPEN_MAX_CALLS),
+        backoff_max_seconds=float(settings.CIRCUIT_BREAKER_ATHENA_BACKOFF_MAX_SECONDS),
+        is_failure=is_athena_breaker_failure,
+    )
+    return get_or_create_breaker(config)
 
 
 class AthenaClient:
@@ -21,6 +83,7 @@ class AthenaClient:
         self.client_secret = settings.ATHENA_CLIENT_SECRET.strip()
         self.client_secret_file = settings.ATHENA_CLIENT_SECRET_FILE.strip()
         self.client_scope = settings.ATHENA_CLIENT_SCOPE.strip()
+        self._breaker = build_athena_breaker()
 
     def _resolve_client_secret(self) -> str:
         if self.client_secret:
@@ -46,6 +109,18 @@ class AthenaClient:
         return token
 
     async def health(
+        self,
+        *,
+        authorization: Optional[str] = None,
+        athena_authorization: Optional[str] = None,
+    ) -> dict:
+        return await self._breaker.call_async(
+            self._health_inner,
+            authorization=authorization,
+            athena_authorization=athena_authorization,
+        )
+
+    async def _health_inner(
         self,
         *,
         authorization: Optional[str] = None,

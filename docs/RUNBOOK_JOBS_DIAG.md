@@ -186,3 +186,49 @@ rate(yuantus_circuit_breaker_short_circuited_total{name="cad_ml"}[5m]) > 1
 完全沿用 §6 的流程；上游 health 端点为
 `http://<cad-ml-host>:8001/api/v1/health`。紧急关断点：
 `YUANTUS_CIRCUIT_BREAKER_CAD_ML_ENABLED=false` 重启服务。
+
+## 8) Athena ECM 断路器（Phase 6 P6.3）
+
+P6.3 在 P6.1/P6.2 基础上为 Athena ECM 客户端加装相同形态的断路器，
+**默认关闭**。失败分类策略、metrics、`/health/deps` JSON 块、
+故障处理流程与 §6/§7 完全一致，区别仅在配置前缀（`ATHENA`）与
+breaker name（`athena`）。
+
+注意：`AthenaClient.health()` 内部可能触发 OAuth client-credentials
+token fetch；该 HTTP 调用在 breaker 包裹的方法内部，token 端点抖动
+会被计入 breaker —— 这是有意为之，因为够不到 Athena 的 auth 等同于
+Athena 上游不可用。
+
+### 启用
+
+| 字段 | 默认 | 含义 |
+| --- | --- | --- |
+| `YUANTUS_CIRCUIT_BREAKER_ATHENA_ENABLED` | `false` | 总开关 |
+| `YUANTUS_CIRCUIT_BREAKER_ATHENA_FAILURE_THRESHOLD` | `5` | 滚动窗口内失败次数到此即开路 |
+| `YUANTUS_CIRCUIT_BREAKER_ATHENA_WINDOW_SECONDS` | `60` | 失败计数滚动窗口（秒） |
+| `YUANTUS_CIRCUIT_BREAKER_ATHENA_RECOVERY_SECONDS` | `30` | 开路后多少秒进入半开试探 |
+| `YUANTUS_CIRCUIT_BREAKER_ATHENA_HALF_OPEN_MAX_CALLS` | `1` | 半开期允许同时发出的试探调用数 |
+| `YUANTUS_CIRCUIT_BREAKER_ATHENA_BACKOFF_MAX_SECONDS` | `600` | 重复触发开路时指数退避的上限 |
+
+### 状态查询
+
+```bash
+curl -s http://127.0.0.1:7910/api/v1/health/deps \
+  -H "Authorization: Bearer $TOKEN" \
+  | jq '.external.athena.breaker'
+```
+
+Prometheus 告警（与 §6/§7 同形）：
+
+```promql
+yuantus_circuit_breaker_state{name="athena",state="open"} == 1
+
+rate(yuantus_circuit_breaker_short_circuited_total{name="athena"}[5m]) > 1
+```
+
+### 故障处理
+
+完全沿用 §6 的流程；上游 health 端点为
+`http://<athena-host>/system/status`（404 时 fallback 到 `/health`）。
+如果用 OAuth，先 curl token 端点排查 auth 是否可达。紧急关断点：
+`YUANTUS_CIRCUIT_BREAKER_ATHENA_ENABLED=false` 重启服务。

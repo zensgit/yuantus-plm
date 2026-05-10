@@ -133,6 +133,7 @@ def render_prometheus_text() -> str:
 
 def render_runtime_prometheus_text() -> str:
     from yuantus.integrations import circuit_breaker
+    from yuantus.integrations.athena import build_athena_breaker
     from yuantus.integrations.cad_ml import build_cad_ml_breaker
     from yuantus.integrations.dedup_vision import build_dedup_vision_breaker
     from yuantus.meta_engine.services import search_indexer
@@ -143,6 +144,7 @@ def render_runtime_prometheus_text() -> str:
     # this, Prometheus scraping order would silently hide the metrics.
     build_dedup_vision_breaker()
     build_cad_ml_breaker()
+    build_athena_breaker()
 
     breaker_statuses = [
         breaker.status() for breaker in circuit_breaker.list_breakers().values()

@@ -151,6 +151,32 @@ class Settings(BaseSettings):
         default=600,
         description="CAD ML: maximum exponential backoff cap in seconds",
     )
+    # Phase 6 P6.3 — Athena ECM circuit breaker (default off, status quo).
+    # Mirrors P6.1/P6.2 thresholds; toggled via YUANTUS_CIRCUIT_BREAKER_ATHENA_*.
+    CIRCUIT_BREAKER_ATHENA_ENABLED: bool = Field(
+        default=False,
+        description="Enable circuit breaker for Athena ECM client (default off)",
+    )
+    CIRCUIT_BREAKER_ATHENA_FAILURE_THRESHOLD: int = Field(
+        default=5,
+        description="Athena: failures within window to open circuit",
+    )
+    CIRCUIT_BREAKER_ATHENA_WINDOW_SECONDS: int = Field(
+        default=60,
+        description="Athena: rolling failure window in seconds",
+    )
+    CIRCUIT_BREAKER_ATHENA_RECOVERY_SECONDS: int = Field(
+        default=30,
+        description="Athena: base seconds before open->half-open trial",
+    )
+    CIRCUIT_BREAKER_ATHENA_HALF_OPEN_MAX_CALLS: int = Field(
+        default=1,
+        description="Athena: max trial calls allowed in half-open state",
+    )
+    CIRCUIT_BREAKER_ATHENA_BACKOFF_MAX_SECONDS: int = Field(
+        default=600,
+        description="Athena: maximum exponential backoff cap in seconds",
+    )
     CAD_ML_SERVICE_TOKEN: str = Field(
         default="",
         description="Optional service token (JWT) for CAD ML Platform integrations",
