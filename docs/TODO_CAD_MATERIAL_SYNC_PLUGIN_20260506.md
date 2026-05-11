@@ -47,6 +47,8 @@
   - [x] 提供 CAD 差异确认写回包 contract fixture 和独立验证脚本，供 CAD 客户端接入。
   - [x] AutoCAD 客户端 `PLMMATPULL` 接入 `/diff/preview`，提供本地 WPF 差异预览和确认写回 UI。
   - [ ] SolidWorks 明细表/属性表字段读取。
+    - [x] SDK-free SolidWorks 属性表/明细表 fixture 与 contract，固定字段归一化和写回字段包边界。
+    - [ ] 真实 SolidWorks Add-in/COM 读取实现与 Windows smoke。
   - [ ] SolidWorks 本地客户端可视化差异预览和确认写回 UI。
 - [x] PLM 管理端配置 UI：
   - [x] 服务端提供 profile 配置草稿预览/诊断 API，支撑 UI 实时预览。
