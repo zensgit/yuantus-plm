@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -231,17 +232,30 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="also require the AutoCAD 2024 regression section to be complete",
     )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit a redaction-safe machine-readable result",
+    )
     args = parser.parse_args(argv)
 
     evidence_path = Path(args.evidence)
     if not evidence_path.is_file():
-        print(f"FAIL: evidence file does not exist: {evidence_path}", file=sys.stderr)
+        failures = [f"evidence file does not exist: {evidence_path}"]
+        if args.json:
+            print(_json_report(evidence_path, failures, require_2024=args.require_2024))
+        else:
+            print(f"FAIL: {failures[0]}", file=sys.stderr)
         return 1
 
     failures = validate(
         evidence_path.read_text(encoding="utf-8", errors="replace"),
         require_2024=args.require_2024,
     )
+    if args.json:
+        print(_json_report(evidence_path, failures, require_2024=args.require_2024))
+        return 1 if failures else 0
+
     if failures:
         print("FAIL: CAD material Windows evidence is not acceptable")
         for failure in failures:
@@ -250,6 +264,21 @@ def main(argv: list[str] | None = None) -> int:
 
     print("OK: CAD material Windows evidence shape is acceptable")
     return 0
+
+
+def _json_report(evidence_path: Path, failures: list[str], *, require_2024: bool) -> str:
+    return json.dumps(
+        {
+            "schema_version": 1,
+            "ok": not failures,
+            "evidence": str(evidence_path),
+            "require_2024": require_2024,
+            "failure_count": len(failures),
+            "failures": failures,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
 
 
 if __name__ == "__main__":

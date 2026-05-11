@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,10 @@ EVIDENCE_TEMPLATE_DV = (
 EVIDENCE_VALIDATOR_DV = (
     ROOT
     / "docs/DEV_AND_VERIFICATION_CAD_MATERIAL_SYNC_WINDOWS_EVIDENCE_VALIDATOR_20260511.md"
+)
+EVIDENCE_VALIDATOR_JSON_DV = (
+    ROOT
+    / "docs/DEV_AND_VERIFICATION_CAD_MATERIAL_SYNC_WINDOWS_EVIDENCE_VALIDATOR_JSON_20260511.md"
 )
 TODO = ROOT / "docs/TODO_CAD_MATERIAL_SYNC_PLUGIN_20260506.md"
 WINDOWS_GUIDE = (
@@ -234,6 +239,30 @@ def test_windows_evidence_validator_rejects_incomplete_2024_claim(tmp_path: Path
     assert "AutoCAD 2024 DWG write-back result must be filled" in cp.stdout
 
 
+def test_windows_evidence_validator_json_output_is_redaction_safe(tmp_path: Path) -> None:
+    evidence = tmp_path / "secret-bearing-cad-material-windows-evidence.md"
+    evidence.write_text(
+        _minimal_real_2018_evidence().replace(
+            "Yuantus real-write log path: evidence/real-write.log",
+            "Yuantus real-write log path: token=SUPERSECRET123",
+        ),
+        encoding="utf-8",
+    )
+
+    cp = _run_validator(evidence, "--json")
+
+    assert cp.returncode == 1
+    payload = json.loads(cp.stdout)
+    assert payload["schema_version"] == 1
+    assert payload["ok"] is False
+    assert payload["failure_count"] == 1
+    assert payload["failures"] == [
+        "Yuantus real-write log path appears to contain a plaintext secret"
+    ]
+    assert "SUPERSECRET123" not in cp.stdout
+    assert "token=" not in cp.stdout
+
+
 def test_external_validation_handoff_is_indexed_and_ci_wired() -> None:
     index = _text(INDEX)
     scripts_index = _text(SCRIPTS_INDEX)
@@ -242,11 +271,13 @@ def test_external_validation_handoff_is_indexed_and_ci_wired() -> None:
     template_doc = str(EVIDENCE_TEMPLATE.relative_to(ROOT))
     template_dv_doc = str(EVIDENCE_TEMPLATE_DV.relative_to(ROOT))
     validator_dv_doc = str(EVIDENCE_VALIDATOR_DV.relative_to(ROOT))
+    validator_json_dv_doc = str(EVIDENCE_VALIDATOR_JSON_DV.relative_to(ROOT))
 
     assert handoff_doc in index
     assert template_doc in index
     assert template_dv_doc in index
     assert validator_dv_doc in index
+    assert validator_json_dv_doc in index
     assert handoff_doc in _text(HANDOFF)
     assert template_dv_doc in _text(EVIDENCE_TEMPLATE_DV)
     assert "validate_cad_material_windows_evidence.py" in scripts_index
