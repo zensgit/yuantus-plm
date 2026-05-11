@@ -159,7 +159,21 @@ Reject the evidence if any item below is true:
   in the evidence.
 - The template is submitted with placeholder values.
 
-## 10. Current Repository State
+## 10. Local Pre-Review Check
+
+After filling this template with real Windows output, run the local shape
+validator before reviewer sign-off:
+
+```bash
+python3 scripts/validate_cad_material_windows_evidence.py \
+  docs/CAD_MATERIAL_SYNC_WINDOWS_VALIDATION_EVIDENCE_TEMPLATE_20260511.md
+```
+
+The validator does not run AutoCAD and does not create validation evidence. It
+only checks that this markdown contains the required fields, keeps secrets out
+of the record, and does not accept placeholder, mock, or synthetic evidence.
+
+## 11. Current Repository State
 
 As of `main=8593911` and the post-merge handoff in `main=fed5128`:
 
