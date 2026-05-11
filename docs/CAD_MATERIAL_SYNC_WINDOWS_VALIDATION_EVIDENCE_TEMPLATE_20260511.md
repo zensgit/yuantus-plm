@@ -169,6 +169,9 @@ python3 scripts/validate_cad_material_windows_evidence.py \
   docs/CAD_MATERIAL_SYNC_WINDOWS_VALIDATION_EVIDENCE_TEMPLATE_20260511.md
 ```
 
+For automation, add `--json` to emit a redaction-safe machine-readable result
+that lists field-level failures without echoing evidence values.
+
 The validator does not run AutoCAD and does not create validation evidence. It
 only checks that this markdown contains the required fields, keeps secrets out
 of the record, and does not accept placeholder, mock, or synthetic evidence.
