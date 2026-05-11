@@ -17,6 +17,13 @@
 > circuit breakers closed in #503. The only plan-gated forward path left is
 > Phase 5 tenant/org provisioning + backup/restore, and it remains blocked
 > until P3.4 real non-production PostgreSQL rehearsal evidence is accepted.
+>
+> **2026-05-11 status refresh**: P3.4 local handoff/status work is closed
+> through #506, #507, and #508 on `main=89ba973`. The repository now has a
+> post-P6 operator handoff packet, reviewer acceptance checklist, and readiness
+> closeout record. This still does not supply real operator-run PostgreSQL
+> evidence or reviewer acceptance; Phase 5 remains blocked until a future
+> signoff PR records accepted real evidence with `Ready for cutover: false`.
 
 ## 1. Goal & Scope
 
@@ -61,7 +68,7 @@ auto-triggered; each requires explicit user opt-in.
 | Roadmap §11 可观测 | ✅ Done | Phase 2 observability foundation and Phase 6 circuit breakers are closed |
 | 技术债：10 个 router shells | ✅ Done | Phase 1 closed in PRs #402–#413 |
 
-Concrete code-level findings supporting the assessment as of `main=32d9fb5`:
+Concrete code-level findings supporting the assessment as of `main=89ba973`:
 
 - Phase 1 shell cleanup is closed. The 10 zero-route compatibility shells
   (`bom_router`, `eco_router`, `version_router`, `quality_router`,
@@ -81,8 +88,10 @@ Concrete code-level findings supporting the assessment as of `main=32d9fb5`:
   environment and deterministic baseline revision, tenant provisioning and
   rehearsal runbooks exist, and the tenant-import P3.4 local toolchain is
   closed through `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_IMPORT_EXTERNAL_OPERATOR_HANDOFF_20260506.md`.
-  The remaining P3.4 blocker is real operator-run non-production PostgreSQL
-  evidence, not another local implementation PR.
+  Post-P6 operator handoff, reviewer checklist, and readiness closeout are
+  recorded in #506-#508. The remaining P3.4 blockers are real operator-run
+  non-production PostgreSQL evidence and reviewer acceptance, not another
+  local implementation PR.
 - `src/yuantus/meta_engine/services/search_service.py` already supports
   Elasticsearch with DB fallback (`engine="elasticsearch"|"db"`); Phase 4
   closed the incremental-indexing and reports/RPC aggregation surface.
@@ -260,9 +269,10 @@ pending work.
 
 ## 7. Phase 3 — Postgres Schema-per-Tenant (S7)
 
-**Status as of `main=32d9fb5`**: repository-side work is complete through the
-P3.4 external-operator handoff boundary. Do not treat this section as pending
-local implementation work.
+**Status as of `main=89ba973`**: repository-side work is complete through the
+P3.4 external-operator handoff, post-P6 handoff packet, reviewer checklist, and
+readiness closeout boundary. Do not treat this section as pending local
+implementation work.
 
 Shipped records:
 
@@ -278,11 +288,19 @@ Shipped records:
   `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_BASELINE_REVISION_20260427.md`
 - P3.4 tenant-import rehearsal toolchain and external handoff:
   `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_IMPORT_EXTERNAL_OPERATOR_HANDOFF_20260506.md`
+- P3.4 post-P6 external evidence handoff packet:
+  `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_IMPORT_EXTERNAL_EVIDENCE_HANDOFF_PACKET_20260511.md`
+- P3.4 external evidence reviewer checklist:
+  `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_IMPORT_EXTERNAL_EVIDENCE_REVIEW_CHECKLIST_20260511.md`
+- P3.4 external evidence readiness closeout:
+  `docs/DEV_AND_VERIFICATION_PHASE3_TENANT_IMPORT_EXTERNAL_EVIDENCE_READINESS_CLOSEOUT_20260511.md`
 
 Remaining P3.4 item:
 
 - operator-run PostgreSQL rehearsal evidence from real non-production
   source/target DSNs, an approved rehearsal window, and reviewer packet output.
+- reviewer acceptance of that real evidence in a future signoff PR that keeps
+  `Ready for cutover: false`.
 
 This remaining item is external. It must not be replaced by synthetic drill
 output, local mock evidence, or another repository-only bypass.
@@ -362,9 +380,11 @@ re-indexes any lagging Item); freshness check exposed at `GET /api/v1/search/sta
 
 ## 9. Phase 5 — Tenant/Org Provisioning + Backup Runbook (S7)
 
-**Status as of `main=61b5951`**: not started. This phase remains blocked by the
+**Status as of `main=89ba973`**: not started. This phase remains blocked by the
 P3.4 external operator evidence gate. Do not start P5.1 local implementation
-until real non-production PostgreSQL rehearsal evidence has been accepted.
+until real non-production PostgreSQL rehearsal evidence has been accepted and a
+future signoff PR records that acceptance while preserving
+`Ready for cutover: false`.
 
 **Goal**: Close remaining S7 gaps.
 
@@ -527,11 +547,12 @@ Per `DEV_AND_VERIFICATION_NEW_CYCLE_BACKLOG_TRIAGE_20260426.md` §9:
 
 1. Keep `main` stable.
 2. Do not continue P3.4 locally unless real operator-run non-production
-   PostgreSQL rehearsal evidence exists.
+   PostgreSQL rehearsal evidence exists and the work is a bounded signoff PR
+   recording accepted evidence.
 3. Phase 4 and Phase 6 are now complete; do not reopen them without a new
    defect or operator signal.
 4. Phases proceed sequentially by default. Do not start Phase 5 provisioning or
-   production cutover until P3.4 evidence is accepted.
+   production cutover until P3.4 evidence is accepted and recorded by signoff.
 5. After each phase, re-evaluate priority before continuing — external signal
    may have shifted the order.
 6. Terminate the implementation arc when (a) all 6 phases close, OR (b)
