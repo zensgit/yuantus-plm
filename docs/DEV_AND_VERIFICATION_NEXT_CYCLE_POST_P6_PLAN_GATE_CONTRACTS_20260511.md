@@ -78,6 +78,9 @@ git diff --check
 - Doc-index trio: 4 passed.
 - Focused suite (post-P6 plan gate + Phase 6 closeout + Phase 4 closeout +
   P3 stop-gate + doc-index trio): 31 passed.
+- CI list-order remediation:
+  `test_ci_contracts_ci_yml_test_list_order.py` + new post-P6 contract:
+  6 passed.
 - `py_compile` on the new contract: passed.
 - `git diff --check`: clean.
 
