@@ -389,6 +389,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_p2_observation_regression_workflow_wrapper.py \
             src/yuantus/meta_engine/tests/test_p2_observation_regression_wrapper_login.py \
             src/yuantus/meta_engine/tests/test_p3_4_external_evidence_handoff_packet_contracts.py \
+            src/yuantus/meta_engine/tests/test_p3_4_external_evidence_review_checklist_contracts.py \
             src/yuantus/meta_engine/tests/test_parallel_tasks_breakage_router_contracts.py \
             src/yuantus/meta_engine/tests/test_parallel_tasks_cad_3d_router_contracts.py \
             src/yuantus/meta_engine/tests/test_parallel_tasks_consumption_router_contracts.py \
