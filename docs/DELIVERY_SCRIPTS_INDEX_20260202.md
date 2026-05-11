@@ -98,6 +98,7 @@
 - verify_bom_obsolete.sh
 - verify_bom_weight_rollup.sh
 - verify_cad_backend_profile_scope.sh
+- verify_cad_material_solidworks_fixture.py
 - verify_cad_ml_quick.sh
 - verify_cad_ml_metrics.sh
 - verify_cad_ml_queue_smoke.sh
@@ -171,6 +172,7 @@
 - `run_tenant_import_rehearsal_full_closeout.sh` runs the explicit P3.4 operator sequence plus evidence closeout in one command, can load source/target DSN variables from `--env-file`, and requires both `--confirm-rehearsal` and `--confirm-closeout` while preserving `ready_for_cutover=false`.
 - `run_tenant_import_rehearsal_operator_sequence.sh` runs the explicit P3.4 operator sequence from precheck through real row-copy and evidence precheck, requiring `--confirm-rehearsal` and preserving `ready_for_cutover=false`.
 - `validate_cad_material_windows_evidence.py` validates a filled CAD Material Sync Windows evidence markdown file before reviewer sign-off, supports redaction-safe `--json` output, and rejects placeholder, mock, synthetic, secret-bearing, or incomplete AutoCAD 2018 evidence without running AutoCAD or creating evidence.
+- `verify_cad_material_solidworks_fixture.py` runs an SDK-free SolidWorks material sync fixture, validating property/table extraction and SolidWorks target writeback field names without importing SolidWorks COM, running Windows, or creating real client evidence.
 - `validate_tenant_import_rehearsal_operator_commands.sh` validates generated P3.4 operator command files without executing them, checking shell syntax, required steps, and forbidden DSN/cutover patterns.
 - `sync_metasheet2_pact.sh` checks or syncs `contracts/pacts/metasheet2-yuantus-plm.json` from the `metasheet2` consumer source-of-truth and can optionally run the local provider verifier.
 - `verify_cad_backend_profile_scope.sh` verifies `GET/PUT/DELETE /api/v1/cad/backend-profile` plus `GET /api/v1/cad/capabilities`, restores the original org scope, and skips tenant-default verification when an org override masks that read surface.
