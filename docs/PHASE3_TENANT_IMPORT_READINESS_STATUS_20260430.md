@@ -50,6 +50,20 @@ handoff, packet, evidence, synthetic drill, redaction guard, reviewer,
 operator, and external-status modules emit fixed parse-failure markers instead
 of raw `argparse` diagnostics.
 
+2026-05-11 update: post-P6 external evidence handoff is now explicit through
+two reviewable documents:
+
+- `docs/PHASE3_TENANT_IMPORT_EXTERNAL_EVIDENCE_HANDOFF_PACKET_20260511.md`
+  gives the operator the shortest approved path from repo-external env-file
+  preparation through the full-closeout wrapper and evidence review.
+- `docs/PHASE3_TENANT_IMPORT_EXTERNAL_EVIDENCE_REVIEW_CHECKLIST_20260511.md`
+  gives reviewers the acceptance and rejection checklist for real
+  non-production PostgreSQL rehearsal evidence.
+
+These documents close the remaining local handoff/documentation gap only. They
+do not provide operator-run PostgreSQL evidence, do not mark P3.4 complete, and
+do not unblock Phase 5 without accepted real evidence.
+
 The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 
 - repo-external env-file template generation;
@@ -70,12 +84,15 @@ The 2026-05-05 safety closeout is tracked as completed for local tooling only:
 - env-file precheck CLI error redaction.
 - shell wrapper CLI error redaction.
 - Python module CLI error redaction.
+- post-P6 external evidence handoff packet.
+- post-P6 external evidence reviewer checklist.
 
 ## 2. Blocked State
 
 The remaining P3.4 blocker is external:
 
 - operator-run PostgreSQL rehearsal evidence is not complete.
+- reviewer acceptance of real operator-run evidence is not recorded.
 
 The parent TODO intentionally still says:
 
@@ -100,7 +117,7 @@ Every P3.4 artifact produced by the current toolchain must keep
 The next valid action is external operator execution using
 `docs/RUNBOOK_TENANT_MIGRATIONS_20260427.md`.
 
-The operator must provide or run:
+The operator and reviewer must provide, run, or use:
 
 - approved pilot tenant;
 - non-production PostgreSQL rehearsal DSN;
@@ -131,6 +148,8 @@ The operator must provide or run:
 - evidence handoff gate;
 - evidence intake checklist;
 - reviewer packet.
+- external evidence handoff packet;
+- external evidence reviewer checklist.
 
 ## 5. Reviewer Checklist
 
@@ -156,6 +175,7 @@ Before treating P3.4 as rehearsal-complete, reviewers should require:
 - evidence intake report with `ready_for_evidence_intake=true`;
 - evidence handoff report with `ready_for_evidence_handoff=true`;
 - reviewer packet with `ready_for_reviewer_packet=true`;
+- review checklist decision that accepts real operator evidence;
 - all reports still showing `ready_for_cutover=false`.
 
 ## 6. Engineering Recommendation
@@ -164,9 +184,10 @@ Do not add local bypass tooling for P3.4. DB-free safety hardening is acceptable
 only when it reduces operator risk without simulating evidence or changing the
 external stop gate.
 
-After real rehearsal evidence exists, the next engineering PR should be a small
-final signoff PR that records the real evidence artifact digests and preserves
-the cutover block.
+After real rehearsal evidence exists and passes reviewer checklist acceptance,
+the next engineering PR should be a small final signoff PR that records the
+real evidence artifact digests and preserves the cutover block. Phase 5 should
+start only after that signoff records accepted evidence.
 
 ## 7. Verification Anchor
 
