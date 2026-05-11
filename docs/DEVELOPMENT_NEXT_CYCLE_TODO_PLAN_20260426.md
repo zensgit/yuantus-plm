@@ -11,6 +11,12 @@
 > is also closed through the P3.4 external-operator handoff boundary at
 > `main=32d9fb5`; the remaining P3.4 item is real operator-run PostgreSQL
 > rehearsal evidence, which cannot be completed by local code changes.
+>
+> **2026-05-10 status refresh**: Phases 4 and 6 are now closed on `main`.
+> Phase 4 search incremental/reports closed in #499, and Phase 6 external
+> circuit breakers closed in #503. The only plan-gated forward path left is
+> Phase 5 tenant/org provisioning + backup/restore, and it remains blocked
+> until P3.4 real non-production PostgreSQL rehearsal evidence is accepted.
 
 ## 1. Goal & Scope
 
@@ -50,9 +56,9 @@ auto-triggered; each requires explicit user opt-in.
 | S3 BOM + Version | ✅ Done | — |
 | S4 ECO/Workflow | ✅ Done | — |
 | S5 CAD MVP | ✅ Done | (deferred: real CAD parsers) |
-| S6 搜索/索引 | 🟡 Partial | Phase 4 (incremental + reports) remains the next internal-code candidate |
+| S6 搜索/索引 | ✅ Done | Phase 4 incremental indexing + reports closed in #499 |
 | S7 私有化 + 多租户 | 🟡 Partial | Phase 3 repo-side Postgres tenancy is closed; P3.4 external rehearsal evidence remains; Phase 5 waits behind that gate |
-| Roadmap §11 可观测 | 🟢 Foundation done | Phase 2 closed in PRs #414, #415, #416; Phase 6 circuit breakers remain trigger-gated |
+| Roadmap §11 可观测 | ✅ Done | Phase 2 observability foundation and Phase 6 circuit breakers are closed |
 | 技术债：10 个 router shells | ✅ Done | Phase 1 closed in PRs #402–#413 |
 
 Concrete code-level findings supporting the assessment as of `main=32d9fb5`:
@@ -78,8 +84,8 @@ Concrete code-level findings supporting the assessment as of `main=32d9fb5`:
   The remaining P3.4 blocker is real operator-run non-production PostgreSQL
   evidence, not another local implementation PR.
 - `src/yuantus/meta_engine/services/search_service.py` already supports
-  Elasticsearch with DB fallback (`engine="elasticsearch"|"db"`); the
-  pluggability is real. Gap is incremental indexing + reports/RPC aggregation.
+  Elasticsearch with DB fallback (`engine="elasticsearch"|"db"`); Phase 4
+  closed the incremental-indexing and reports/RPC aggregation surface.
 - `src/yuantus/security/auth/quota_service.py` exists; quota model groundwork is in place but no provisioning API consumes it yet.
 - `src/yuantus/api/middleware/` has `audit.py`, `auth_enforce.py`, `context.py`,
   and `request_logging.py`. P2.1/P2.2 deliberately used stdlib logging plus a
@@ -87,6 +93,9 @@ Concrete code-level findings supporting the assessment as of `main=32d9fb5`:
 - `src/yuantus/integrations/cad_connectors/` has `base.py`, `builtin.py`,
   `registry.py`, `config_loader.py` — connector architecture exists, but
   real DWG/DXF/SW parsers are out of this plan's scope.
+- Phase 6 is closed. `dedup_vision`, `cad_ml`, and `athena` now share the
+  default-off circuit-breaker portfolio guarded by
+  `test_phase6_circuit_breaker_closeout_contracts.py`.
 
 ## 4. Development Scheme
 
@@ -318,6 +327,12 @@ landed as a longer P3.1/P3.2/P3.3/P3.4 sequence with explicit stop gates.
 
 ## 8. Phase 4 — Search Incremental + Reports (S6)
 
+**Status as of `main=61b5951`**: complete. Implemented and merged through the
+Phase 4 sequence ending in #499; closeout record:
+`docs/DEV_AND_VERIFICATION_PHASE4_SEARCH_CLOSEOUT_20260507.md`.
+This section is retained as historical plan context and should not be treated as
+pending work.
+
 **Goal**: Close the two named S6 gaps in `DEVELOPMENT_PLAN.md`.
 
 **Trigger**: search-freshness pain (e.g., reported lag between Item creation
@@ -346,6 +361,10 @@ cause user-visible inconsistency if not monitored.
 re-indexes any lagging Item); freshness check exposed at `GET /api/v1/search/status`.
 
 ## 9. Phase 5 — Tenant/Org Provisioning + Backup Runbook (S7)
+
+**Status as of `main=61b5951`**: not started. This phase remains blocked by the
+P3.4 external operator evidence gate. Do not start P5.1 local implementation
+until real non-production PostgreSQL rehearsal evidence has been accepted.
 
 **Goal**: Close remaining S7 gaps.
 
@@ -379,6 +398,12 @@ admin-only auth on provisioning endpoints; backup drill against dev DB before
 documenting.
 
 ## 10. Phase 6 — External-Service Circuit Breakers (Roadmap §11)
+
+**Status as of `main=61b5951`**: complete. Implemented and merged through PRs
+#500, #501, #502, and #503; closeout record:
+`docs/DEV_AND_VERIFICATION_PHASE6_CIRCUIT_BREAKER_CLOSEOUT_20260510.md`.
+This section is retained as historical plan context and should not be treated as
+pending work.
 
 **Goal**: External-service call resilience.
 
@@ -503,12 +528,14 @@ Per `DEV_AND_VERIFICATION_NEW_CYCLE_BACKLOG_TRIAGE_20260426.md` §9:
 1. Keep `main` stable.
 2. Do not continue P3.4 locally unless real operator-run non-production
    PostgreSQL rehearsal evidence exists.
-3. If internal development continues before external P3.4 evidence arrives, the
-   next candidate is Phase 4 P4.1 only: search incremental indexing taskbook
-   and first bounded implementation slice.
+3. Phase 4 and Phase 6 are now complete; do not reopen them without a new
+   defect or operator signal.
 4. Phases proceed sequentially by default. Do not start Phase 5 provisioning or
    production cutover until P3.4 evidence is accepted.
 5. After each phase, re-evaluate priority before continuing — external signal
    may have shifted the order.
 6. Terminate the implementation arc when (a) all 6 phases close, OR (b)
    external trigger redirects to a Category D item.
+7. If development continues before P3.4 evidence exists, it must be a new
+   trigger-gated taskbook outside this plan (for example CAD plugin work in its
+   own branch), not an implicit continuation of the six-phase arc.
