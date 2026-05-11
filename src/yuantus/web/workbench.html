@@ -669,6 +669,34 @@
         line-height: 1.55;
       }
 
+      .diff-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .diff-item {
+        display: grid;
+        grid-template-columns: minmax(96px, 0.9fr) minmax(0, 1fr);
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(21, 32, 42, 0.04);
+        border: 1px solid rgba(29, 38, 46, 0.08);
+      }
+
+      .diff-item strong {
+        display: block;
+        font-size: 0.84rem;
+      }
+
+      .diff-item span {
+        display: block;
+        color: var(--ink-soft);
+        font-size: 0.8rem;
+        line-height: 1.45;
+      }
+
       .field-flash {
         outline: 2px solid rgba(197, 108, 58, 0.38);
         box-shadow: 0 0 0 4px rgba(197, 108, 58, 0.12);
@@ -747,7 +775,8 @@
           <h1>PLM Workbench</h1>
           <p>
             A compact operator console for the API surface that now matters:
-            search, change, versioning, sync, packaging, cutting, governance, and app operations.
+            search, change, versioning, sync, packaging, cutting, CAD material rules,
+            governance, and app operations.
           </p>
         </div>
 
@@ -765,8 +794,9 @@
           <a href="#section-sync"><span class="nav-index">05</span><span class="nav-label"><strong>Document Sync</strong><span>sites, probe, overview</span></span></a>
           <a href="#section-box"><span class="nav-index">06</span><span class="nav-label"><strong>Packaging</strong><span>box inventory and overview</span></span></a>
           <a href="#section-cutting"><span class="nav-index">07</span><span class="nav-label"><strong>Cutting</strong><span>plans and material analytics</span></span></a>
-          <a href="#section-store"><span class="nav-index">08</span><span class="nav-label"><strong>App Store</strong><span>catalog sync and install</span></span></a>
-          <a href="#section-governance"><span class="nav-index">09</span><span class="nav-label"><strong>Governance</strong><span>approval inbox, release, drilldown</span></span></a>
+          <a href="#section-cad-material"><span class="nav-index">08</span><span class="nav-label"><strong>CAD Material</strong><span>profiles, preview, diff</span></span></a>
+          <a href="#section-store"><span class="nav-index">09</span><span class="nav-label"><strong>App Store</strong><span>catalog sync and install</span></span></a>
+          <a href="#section-governance"><span class="nav-index">10</span><span class="nav-label"><strong>Governance</strong><span>approval inbox, release, drilldown</span></span></a>
         </nav>
       </aside>
 
@@ -782,11 +812,11 @@
                 a single surface with request logging and raw response visibility.
               </p>
               <div class="metric-strip">
-                <div class="metric">
-                  <div class="metric-label">Mounted Areas</div>
-                  <div class="metric-value">9</div>
-                  <div class="metric-sub">Context, query, ECO, versions, sync, packaging, cutting, app operations, governance.</div>
-                </div>
+	                <div class="metric">
+	                  <div class="metric-label">Mounted Areas</div>
+	                  <div class="metric-value">10</div>
+	                  <div class="metric-sub">Context, query, ECO, versions, sync, packaging, cutting, CAD material, app operations, governance.</div>
+	                </div>
                 <div class="metric">
                   <div class="metric-label">Request Mode</div>
                   <div class="metric-value mono" id="metric-auth-mode"></div>
@@ -1180,9 +1210,154 @@
               </div>
             </section>
 
-            <section class="module" id="section-store">
+            <section class="module" id="section-cad-material">
               <div class="module-head">
                 <div class="module-index">08</div>
+                <div>
+                  <h3>CAD Material Profiles</h3>
+                  <p>
+                    Manage CAD material profile rules from the operator surface: inspect current
+                    profiles, preview a draft against sample values, then save or exchange config bundles.
+                  </p>
+                </div>
+              </div>
+              <div class="module-grid">
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>Profile and Sample</h4>
+                    <div class="field-grid">
+                      <label><span>Profile id</span><input id="cad-material-profile-id" class="mono" type="text" value="sheet" /></label>
+                      <label><span>CAD system</span><select id="cad-material-cad-system"><option value="">default</option><option value="autocad">autocad</option><option value="solidworks">solidworks</option><option value="zwcad">zwcad</option><option value="inventor">inventor</option><option value="nx">nx</option><option value="creo">creo</option></select></label>
+                    </div>
+                    <label>
+                      <span>Sample values JSON</span>
+                      <textarea id="cad-material-values" class="mono">{
+  "material": "Q235B",
+  "length": 1200,
+  "width": 600,
+  "thickness": 12
+}</textarea>
+                    </label>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="cad-material-list-profiles">List profiles</button>
+                      <button class="ghost" type="button" data-action="cad-material-get-config">Get config</button>
+                      <button class="primary" type="button" data-action="cad-material-compose">Compose CAD fields</button>
+                    </div>
+                  </div>
+
+                  <div class="subpanel">
+                    <h4>Config Draft</h4>
+                    <label>
+                      <span>Config JSON</span>
+                      <textarea id="cad-material-config" class="mono">{
+  "profiles": {}
+}</textarea>
+                    </label>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="cad-material-preview-config">Preview draft</button>
+                      <button class="secondary" type="button" data-action="cad-material-save-config">Save config</button>
+                      <button class="danger" type="button" data-action="cad-material-delete-config">Delete config</button>
+                    </div>
+                  </div>
+
+                  <div class="subpanel">
+                    <h4>Structured Rule Builder</h4>
+                    <div class="field-grid">
+                      <label><span>Field name</span><input id="cad-material-field-name" class="mono" type="text" value="length" /></label>
+                      <label><span>Field label</span><input id="cad-material-field-label" type="text" value="长" /></label>
+                      <label><span>Field type</span><select id="cad-material-field-type"><option value="string">string</option><option value="number" selected>number</option><option value="integer">integer</option><option value="boolean">boolean</option></select></label>
+                      <label><span>CAD field</span><input id="cad-material-field-cad-key" type="text" value="长" /></label>
+                      <label><span>Unit</span><input id="cad-material-field-unit" type="text" value="mm" /></label>
+                      <label><span>Display unit</span><input id="cad-material-field-display-unit" type="text" placeholder="mm" /></label>
+                    </div>
+                    <div class="field-grid">
+                      <label><span>Display precision</span><input id="cad-material-field-display-precision" type="number" min="0" max="6" placeholder="0" /></label>
+                      <label><span>Required</span><select id="cad-material-field-required"><option value="true" selected>true</option><option value="false">false</option></select></label>
+                    </div>
+                    <div class="action-row tight">
+                      <button class="secondary" type="button" data-action="cad-material-upsert-field">Upsert field</button>
+                    </div>
+                    <div class="field-grid">
+                      <label><span>Compose target</span><input id="cad-material-compose-target" class="mono" type="text" value="specification" /></label>
+                      <label><span>Compose template</span><input id="cad-material-compose-template" class="mono" type="text" value="{length}*{width}*{thickness}" /></label>
+                    </div>
+                    <div class="hint mono" id="cad-material-compose-preview">1200*600*12</div>
+                    <div class="action-row tight">
+                      <button class="secondary" type="button" data-action="cad-material-set-compose">Set template</button>
+                    </div>
+                    <div class="field-grid">
+                      <label><span>Match fields</span><input id="cad-material-match-fields" class="mono" type="text" value="material_category,material,specification" /></label>
+                      <label><span>Sync overwrite default</span><select id="cad-material-overwrite-default"><option value="false" selected>false</option><option value="true">true</option></select></label>
+                    </div>
+                    <div class="action-row tight">
+                      <button class="secondary" type="button" data-action="cad-material-set-matching">Set matching</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="stack">
+                  <div class="subpanel">
+                    <h4>CAD Field Diff</h4>
+                    <label>
+                      <span>Current CAD fields JSON</span>
+                      <textarea id="cad-material-current-fields" class="mono">{
+  "材料": "",
+  "规格": ""
+}</textarea>
+                    </label>
+                    <label>
+                      <span>Target CAD fields JSON</span>
+                      <textarea id="cad-material-target-fields" class="mono">{}</textarea>
+                    </label>
+                    <div class="action-row">
+                      <button class="primary" type="button" data-action="cad-material-diff-preview">Preview diff</button>
+                      <button class="ghost" type="button" data-action="cad-material-outbound">Outbound fields</button>
+                    </div>
+                  </div>
+
+                  <div class="subpanel">
+                    <h4>CAD Write Confirmation</h4>
+                    <div class="mini-grid">
+                      <div class="mini-stat">
+                        <strong id="cad-material-diff-summary">0 changes</strong>
+                        <span>Pending CAD writes</span>
+                      </div>
+                      <div class="mini-stat">
+                        <strong id="cad-material-diff-verdict">Not ready</strong>
+                        <span>Confirmation state</span>
+                      </div>
+                    </div>
+                    <div class="diff-list" id="cad-material-diff-list">
+                      <div class="lens-empty">Run Preview diff to prepare a write-back package.</div>
+                    </div>
+                    <label>
+                      <span>Confirmed write-back package JSON</span>
+                      <textarea id="cad-material-write-fields" class="mono">{}</textarea>
+                    </label>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="cad-material-confirm-diff">Confirm write package</button>
+                    </div>
+                  </div>
+
+                  <div class="subpanel">
+                    <h4>Bundle Exchange</h4>
+                    <label>
+                      <span>Import bundle JSON</span>
+                      <textarea id="cad-material-bundle" class="mono">{}</textarea>
+                    </label>
+                    <div class="action-row">
+                      <button class="secondary" type="button" data-action="cad-material-export-config">Export bundle</button>
+                      <button class="ghost" type="button" data-action="cad-material-import-dry">Dry-run import</button>
+                      <button class="primary" type="button" data-action="cad-material-import-config">Import config</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="module" id="section-store">
+              <div class="module-head">
+                <div class="module-index">09</div>
                 <div>
                   <h3>App Store and Jobs</h3>
                   <p>
@@ -1226,7 +1401,7 @@
 
             <section class="module" id="section-governance">
               <div class="module-head">
-                <div class="module-index">09</div>
+                <div class="module-index">10</div>
                 <div>
                   <h3>Governance and Release</h3>
                   <p>
@@ -1485,6 +1660,9 @@
         structureLens: document.querySelector("#structure-lens"),
         syncLens: document.querySelector("#sync-lens"),
         governanceLens: document.querySelector("#governance-lens"),
+        cadMaterialDiffSummary: document.querySelector("#cad-material-diff-summary"),
+        cadMaterialDiffVerdict: document.querySelector("#cad-material-diff-verdict"),
+        cadMaterialDiffList: document.querySelector("#cad-material-diff-list"),
       };
 
       function byId(id) {
@@ -1694,13 +1872,15 @@
           "jobs",
           "sites",
           "entries",
-          "categories",
-          "stages",
-          "results",
-          "steps",
-          "resources",
-          "lines",
-        ]);
+	          "categories",
+	          "stages",
+	          "results",
+	          "steps",
+	          "resources",
+	          "lines",
+	          "profiles",
+	          "diffs",
+	        ]);
         if (rows.length) {
           return rows.length;
         }
@@ -1714,13 +1894,15 @@
           "jobs",
           "sites",
           "entries",
-          "categories",
-          "results",
-          "steps",
-          "resources",
-          "lines",
-          "exploded",
-        ]);
+	          "categories",
+	          "results",
+	          "steps",
+	          "resources",
+	          "lines",
+	          "exploded",
+	          "profiles",
+	          "diffs",
+	        ]);
         if (rows.length && isObject(rows[0])) {
           return rows[0];
         }
@@ -1758,15 +1940,18 @@
         if (path.startsWith("/aml")) {
           return "Item";
         }
-        if (path.startsWith("/box")) {
-          return "Box";
-        }
-        if (path.startsWith("/cutted-parts")) {
-          return "Cut Plan";
-        }
-        if (path.startsWith("/jobs")) {
-          return "Job";
-        }
+	        if (path.startsWith("/box")) {
+	          return "Box";
+	        }
+	        if (path.startsWith("/cutted-parts")) {
+	          return "Cut Plan";
+	        }
+	        if (path.startsWith("/plugins/cad-material-sync")) {
+	          return "CAD Material";
+	        }
+	        if (path.startsWith("/jobs")) {
+	          return "Job";
+	        }
         if (path.startsWith("/store")) {
           return "Store";
         }
@@ -1949,19 +2134,23 @@
           push("drill-object-id", "Object id", jobId, "detected job");
           push("drill-kind", "Object kind", "sync-job", "detected job");
         }
-        if (path.startsWith("/box")) {
-          push("box-id", "Box id", primaryId, "latest box");
-          push("drill-object-id", "Object id", primaryId, "latest box");
-          push("drill-kind", "Object kind", "box", "latest box");
-        }
-        if (path.includes("/cutted-parts/plans")) {
-          push("cut-plan-id", "Cut plan id", primaryId, "latest plan");
-          push("drill-object-id", "Object id", primaryId, "latest plan");
-          push("drill-kind", "Object kind", "cut-plan", "latest plan");
-        }
-        if (path.startsWith("/store")) {
-          push("store-listing-id", "Listing id", firstNonEmpty(record.listing_id, primaryId), "latest listing");
-        }
+	        if (path.startsWith("/box")) {
+	          push("box-id", "Box id", primaryId, "latest box");
+	          push("drill-object-id", "Object id", primaryId, "latest box");
+	          push("drill-kind", "Object kind", "box", "latest box");
+	        }
+	        if (path.includes("/cutted-parts/plans")) {
+	          push("cut-plan-id", "Cut plan id", primaryId, "latest plan");
+	          push("drill-object-id", "Object id", primaryId, "latest plan");
+	          push("drill-kind", "Object kind", "cut-plan", "latest plan");
+	        }
+	        if (path.startsWith("/plugins/cad-material-sync")) {
+	          const profileId = firstNonEmpty(payload?.profile_id, payload?.profile?.profile_id, record.profile_id);
+	          push("cad-material-profile-id", "CAD material profile", profileId, "latest profile");
+	        }
+	        if (path.startsWith("/store")) {
+	          push("store-listing-id", "Listing id", firstNonEmpty(record.listing_id, primaryId), "latest listing");
+	        }
         if (path.startsWith("/approvals")) {
           push("approval-request-id", "Approval request", primaryId, "latest approval");
           push("drill-object-id", "Object id", primaryId, "latest approval");
@@ -2362,11 +2551,222 @@
           baseline_limit: 20,
           continue_on_error: isChecked("release-continue-on-error"),
           rollback_on_failure: isChecked("release-rollback-on-failure"),
-          dry_run: dryRun,
-        };
-      }
+	          dry_run: dryRun,
+	        };
+	      }
 
-      function drillRequestFor(mode) {
+	      function cadMaterialSystem() {
+	        return getValue("cad-material-cad-system") || null;
+	      }
+
+	      function cadMaterialProfileId() {
+	        return getValue("cad-material-profile-id") || "sheet";
+	      }
+
+	      function cadMaterialValues() {
+	        return requireJson("cad-material-values");
+	      }
+
+	      function cadMaterialPreviewBody() {
+	        return {
+	          profile_id: cadMaterialProfileId(),
+	          cad_system: cadMaterialSystem(),
+	          include_profiles: false,
+	          config: requireJson("cad-material-config"),
+	          values: cadMaterialValues(),
+	        };
+	      }
+
+	      function cadMaterialConfigDraft() {
+	        return requireJson("cad-material-config");
+	      }
+
+	      function clonePlain(value) {
+	        if (!isObject(value)) {
+	          return {};
+	        }
+	        return JSON.parse(JSON.stringify(value));
+	      }
+
+	      function ensureCadMaterialProfile(rawConfig) {
+	        const config = clonePlain(rawConfig || {});
+	        const profileId = cadMaterialProfileId();
+	        config.profiles = isObject(config.profiles) ? config.profiles : {};
+	        config.profiles[profileId] = isObject(config.profiles[profileId])
+	          ? config.profiles[profileId]
+	          : {};
+	        config.profiles[profileId].profile_id = profileId;
+	        return { config, profile: config.profiles[profileId], profileId };
+	      }
+
+	      function splitCsv(value) {
+	        return String(value || "")
+	          .split(",")
+	          .map((item) => item.trim())
+	          .filter(Boolean);
+	      }
+
+	      function cadMaterialFieldDraft() {
+	        const name = getValue("cad-material-field-name");
+	        if (!name) {
+	          throw new Error("CAD material field name is required.");
+	        }
+	        const field = {
+	          name,
+	          label: getValue("cad-material-field-label") || name,
+	          type: getValue("cad-material-field-type") || "string",
+	          required: getValue("cad-material-field-required") !== "false",
+	        };
+	        const cadKey = getValue("cad-material-field-cad-key");
+	        const unit = getValue("cad-material-field-unit");
+	        const displayUnit = getValue("cad-material-field-display-unit");
+	        const displayPrecision = getValue("cad-material-field-display-precision");
+	        if (cadKey) {
+	          field.cad_key = cadKey;
+	        }
+	        if (unit) {
+	          field.unit = unit;
+	        }
+	        if (displayUnit) {
+	          field.display_unit = displayUnit;
+	        }
+	        if (displayPrecision) {
+	          const precision = Number(displayPrecision);
+	          if (!Number.isFinite(precision) || precision < 0) {
+	            throw new Error("Display precision must be a non-negative number.");
+	          }
+	          field.display_precision = precision;
+	        }
+	        return field;
+	      }
+
+	      function writeCadMaterialConfig(config) {
+	        writeJsonTextarea("cad-material-config", config);
+	        updateCadMaterialBuilderPreview();
+	      }
+
+	      function upsertCadMaterialField() {
+	        const field = cadMaterialFieldDraft();
+	        const { config, profile } = ensureCadMaterialProfile(cadMaterialConfigDraft());
+	        const fields = Array.isArray(profile.fields) ? profile.fields.filter(isObject) : [];
+	        const index = fields.findIndex((entry) => String(entry.name || "") === field.name);
+	        if (index >= 0) {
+	          fields[index] = field;
+	        } else {
+	          fields.push(field);
+	        }
+	        profile.fields = fields;
+	        writeCadMaterialConfig(config);
+	        return field;
+	      }
+
+	      function setCadMaterialComposeRule() {
+	        const target = getValue("cad-material-compose-target") || "specification";
+	        const template = getValue("cad-material-compose-template");
+	        if (!template) {
+	          throw new Error("CAD material compose template is required.");
+	        }
+	        const { config, profile } = ensureCadMaterialProfile(cadMaterialConfigDraft());
+	        profile.compose = { target, template };
+	        writeCadMaterialConfig(config);
+	        return profile.compose;
+	      }
+
+	      function setCadMaterialMatchingRule() {
+	        const fields = splitCsv(getValue("cad-material-match-fields"));
+	        if (!fields.length) {
+	          throw new Error("At least one CAD material match field is required.");
+	        }
+	        const { config, profile } = ensureCadMaterialProfile(cadMaterialConfigDraft());
+	        profile.matching = isObject(profile.matching) ? profile.matching : {};
+	        profile.matching.strategies = [{ fields }];
+	        profile.sync_defaults = isObject(profile.sync_defaults) ? profile.sync_defaults : {};
+	        profile.sync_defaults.overwrite = getValue("cad-material-overwrite-default") === "true";
+	        writeCadMaterialConfig(config);
+	        return { fields, overwrite: profile.sync_defaults.overwrite };
+	      }
+
+	      function renderCadMaterialTemplate(template, values) {
+	        return String(template || "").replace(/\{([^{}]+)\}/g, (_match, key) => {
+	          const name = String(key || "").trim();
+	          const value = values?.[name];
+	          return value === undefined || value === null || value === "" ? `{${name}}` : String(value);
+	        });
+	      }
+
+	      function updateCadMaterialBuilderPreview() {
+	        try {
+	          const values = cadMaterialValues();
+	          const template = getValue("cad-material-compose-template") || "{length}*{width}*{thickness}";
+	          setText("cad-material-compose-preview", renderCadMaterialTemplate(template, values));
+	        } catch (error) {
+	          setText("cad-material-compose-preview", `Invalid sample JSON: ${error.message}`);
+	        }
+	      }
+
+	      function renderCadMaterialDiffConfirmation(payload) {
+	        const diffs = Array.isArray(payload?.diffs) ? payload.diffs : [];
+	        const actionable = diffs.filter((diff) => ["added", "changed", "cleared"].includes(diff?.status));
+	        const summary = payload?.summary || {};
+	        const writeFields = payload?.write_cad_fields || {};
+	        writeJsonTextarea("cad-material-write-fields", writeFields);
+	        if (dom.cadMaterialDiffSummary) {
+	          dom.cadMaterialDiffSummary.textContent = `${actionable.length} changes`;
+	        }
+	        if (dom.cadMaterialDiffVerdict) {
+	          dom.cadMaterialDiffVerdict.textContent = payload?.requires_confirmation ? "Needs confirmation" : "No changes";
+	        }
+	        if (!dom.cadMaterialDiffList) {
+	          return;
+	        }
+	        dom.cadMaterialDiffList.innerHTML = "";
+	        if (!actionable.length) {
+	          const empty = document.createElement("div");
+	          empty.className = "lens-empty";
+	          empty.textContent = `No write-back changes. unchanged=${summary.unchanged || 0}`;
+	          dom.cadMaterialDiffList.appendChild(empty);
+	          return;
+	        }
+	        actionable.forEach((diff) => {
+	          const row = document.createElement("div");
+	          row.className = "diff-item";
+	          const head = document.createElement("div");
+	          const title = document.createElement("strong");
+	          title.textContent = `${diff.cad_key || "-"} · ${humanizeKey(diff.status || "change")}`;
+	          const prop = document.createElement("span");
+	          prop.textContent = diff.property ? `property ${diff.property}` : "unmapped CAD field";
+	          head.appendChild(title);
+	          head.appendChild(prop);
+	          const detail = document.createElement("span");
+	          detail.textContent = `${String(diff.current ?? "")} -> ${String(diff.target ?? "")}`;
+	          row.appendChild(head);
+	          row.appendChild(detail);
+	          dom.cadMaterialDiffList.appendChild(row);
+	        });
+	      }
+
+	      function confirmCadMaterialDiffPackage() {
+	        const writeFields = requireJson("cad-material-write-fields");
+	        const keys = Object.keys(writeFields || {});
+	        if (!keys.length) {
+	          throw new Error("No CAD write-back fields to confirm.");
+	        }
+	        setActionState("CAD write package confirmed", `${keys.length} fields are ready for the local CAD adapter.`);
+	        const field = byId("cad-material-write-fields");
+	        if (field) {
+	          flashField(field);
+	        }
+	      }
+
+	      function writeJsonTextarea(id, value) {
+	        const field = byId(id);
+	        if (field) {
+	          field.value = pretty(value || {});
+	          flashField(field);
+	        }
+	      }
+
+	      function drillRequestFor(mode) {
         const kind = getValue("drill-kind") || "item";
         const objectId = getValue("drill-object-id");
         const itemType = getValue("drill-item-type") || "Part";
@@ -2815,14 +3215,118 @@
           case "cut-plan-cuts":
             await sendRequest("GET", `/cutted-parts/plans/${encodeURIComponent(getValue("cut-plan-id"))}/cuts`);
             break;
-          case "cut-materials":
-            await sendRequest("GET", "/cutted-parts/materials", {
-              query: { material_type: getValue("cut-material-type") || null },
-            });
-            break;
-          case "store-sync":
-            await sendRequest("POST", "/store/sync");
-            break;
+	          case "cut-materials":
+	            await sendRequest("GET", "/cutted-parts/materials", {
+	              query: { material_type: getValue("cut-material-type") || null },
+	            });
+	            break;
+	          case "cad-material-upsert-field": {
+	            const field = upsertCadMaterialField();
+	            setActionState("CAD material field updated", `${field.name} mapped to ${field.cad_key || field.name}.`);
+	            break;
+	          }
+	          case "cad-material-set-compose": {
+	            const compose = setCadMaterialComposeRule();
+	            setActionState("CAD material compose updated", `${compose.target} = ${compose.template}`);
+	            break;
+	          }
+	          case "cad-material-set-matching": {
+	            const matching = setCadMaterialMatchingRule();
+	            setActionState("CAD material matching updated", matching.fields.join(", "));
+	            break;
+	          }
+	          case "cad-material-confirm-diff":
+	            confirmCadMaterialDiffPackage();
+	            break;
+	          case "cad-material-list-profiles":
+	            await sendRequest("GET", "/plugins/cad-material-sync/profiles");
+	            break;
+	          case "cad-material-get-config": {
+	            const entry = await sendRequest("GET", "/plugins/cad-material-sync/config");
+	            if (entry.status >= 200 && entry.status < 300) {
+	              writeJsonTextarea("cad-material-config", entry.payload.config || {});
+	            }
+	            break;
+	          }
+	          case "cad-material-preview-config": {
+	            const entry = await sendRequest("POST", "/plugins/cad-material-sync/config/preview", {
+	              body: cadMaterialPreviewBody(),
+	            });
+	            if (entry.status >= 200 && entry.status < 300 && entry.payload.preview?.cad_fields) {
+	              writeJsonTextarea("cad-material-target-fields", entry.payload.preview.cad_fields);
+	            }
+	            break;
+	          }
+	          case "cad-material-save-config":
+	            await sendRequest("PUT", "/plugins/cad-material-sync/config", {
+	              body: { config: requireJson("cad-material-config"), merge: false },
+	            });
+	            break;
+	          case "cad-material-delete-config":
+	            await sendRequest("DELETE", "/plugins/cad-material-sync/config");
+	            break;
+	          case "cad-material-compose": {
+	            const entry = await sendRequest("POST", "/plugins/cad-material-sync/compose", {
+	              body: {
+	                profile_id: cadMaterialProfileId(),
+	                cad_system: cadMaterialSystem(),
+	                include_cad_fields: true,
+	                values: cadMaterialValues(),
+	              },
+	            });
+	            if (entry.status >= 200 && entry.status < 300 && entry.payload.cad_fields) {
+	              writeJsonTextarea("cad-material-target-fields", entry.payload.cad_fields);
+	            }
+	            break;
+	          }
+	          case "cad-material-diff-preview": {
+	            const entry = await sendRequest("POST", "/plugins/cad-material-sync/diff/preview", {
+	              body: {
+	                profile_id: cadMaterialProfileId(),
+	                cad_system: cadMaterialSystem(),
+	                values: cadMaterialValues(),
+	                current_cad_fields: requireJson("cad-material-current-fields"),
+	                target_cad_fields: requireJson("cad-material-target-fields"),
+	              },
+	            });
+	            if (entry.status >= 200 && entry.status < 300) {
+	              renderCadMaterialDiffConfirmation(entry.payload);
+	            }
+	            break;
+	          }
+	          case "cad-material-outbound": {
+	            const entry = await sendRequest("POST", "/plugins/cad-material-sync/sync/outbound", {
+	              body: {
+	                profile_id: cadMaterialProfileId(),
+	                cad_system: cadMaterialSystem(),
+	                values: cadMaterialValues(),
+	              },
+	            });
+	            if (entry.status >= 200 && entry.status < 300 && entry.payload.cad_fields) {
+	              writeJsonTextarea("cad-material-target-fields", entry.payload.cad_fields);
+	            }
+	            break;
+	          }
+	          case "cad-material-export-config": {
+	            const entry = await sendRequest("GET", "/plugins/cad-material-sync/config/export");
+	            if (entry.status >= 200 && entry.status < 300 && entry.payload.bundle) {
+	              writeJsonTextarea("cad-material-bundle", entry.payload.bundle);
+	            }
+	            break;
+	          }
+	          case "cad-material-import-dry":
+	            await sendRequest("POST", "/plugins/cad-material-sync/config/import", {
+	              body: { bundle: requireJson("cad-material-bundle"), dry_run: true, merge: false },
+	            });
+	            break;
+	          case "cad-material-import-config":
+	            await sendRequest("POST", "/plugins/cad-material-sync/config/import", {
+	              body: { bundle: requireJson("cad-material-bundle"), dry_run: false, merge: false },
+	            });
+	            break;
+	          case "store-sync":
+	            await sendRequest("POST", "/store/sync");
+	            break;
           case "store-search":
             await sendRequest("GET", "/store/search", {
               query: {
@@ -2886,6 +3390,19 @@
         });
       }
 
+      function setupCadMaterialBuilder() {
+        [
+          "cad-material-values",
+          "cad-material-compose-template",
+        ].forEach((id) => {
+          const field = byId(id);
+          if (field) {
+            field.addEventListener("input", updateCadMaterialBuilderPreview);
+          }
+        });
+        updateCadMaterialBuilderPreview();
+      }
+
       function setupRevealObserver() {
         const observer = new IntersectionObserver(
           (entries) => {
@@ -2924,6 +3441,7 @@
       async function boot() {
         restoreContext();
         setupActionHandlers();
+        setupCadMaterialBuilder();
         setupRevealObserver();
         setupNavObserver();
         dom.responseOutput.textContent = "Workbench ready. Select an action from the main surface.";

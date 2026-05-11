@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage
+  SchemaVersion="1.0"
+  AutodeskProduct="AutoCAD"
+  ProductType="Application"
+  Name="CADDedup"
+  Description="CAD Drawing Deduplication and PLM Material Sync Plugin - 自动检测图纸重复并同步物料字段"
+  AppVersion="1.0.0"
+  Author="IT Department"
+  ProductCode="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+  UpgradeCode="{B2C3D4E5-F6G7-8901-BCDE-F01234567890}"
+  FriendlyVersion="1.0.0"
+  SupportedLocales="zh-CN;en-US"
+  HelpFile="./Contents/Help/help.htm"
+  OnlineDocumentation="http://your-server:8000/docs">
+
+  <CompanyDetails
+    Name="Your Company"
+    Url="http://your-company.com"
+    Email="it-support@your-company.com"
+    Phone="+86-xxx-xxxx"/>
+
+  <Components Description="CAD Deduplication and PLM Material Sync Components">
+
+    <!-- AutoCAD版本支持 -->
+    <RuntimeRequirements
+      OS="Win64"
+      Platform="AutoCAD"
+      SeriesMin="R22.0"
+      SeriesMax="R22.0"/>
+
+    <!-- 主插件组件 -->
+    <ComponentEntry
+      AppName="CADDedup"
+      Version="1.0"
+      ModuleName="./Contents/CADDedupPlugin.dll"
+      AppDescription="Automatically check duplicate CAD drawings and synchronize PLM material fields"
+      LoadOnCommandInvocation="False"
+      LoadOnAutoCADStartup="True">
+
+      <!-- 命令定义 -->
+      <Commands GroupName="CADDedup">
+        <Command Global="DEDUPCHECK" Local="DEDUPCHECK" Description="手动检查当前图纸重复"/>
+        <Command Global="DEDUPVIEW" Local="DEDUPVIEW" Description="查看上次检查结果"/>
+        <Command Global="DEDUPCONFIG" Local="DEDUPCONFIG" Description="打开配置对话框"/>
+        <Command Global="DEDUPHELP" Local="DEDUPHELP" Description="显示帮助信息"/>
+        <Command Global="DEDUPSTATS" Local="DEDUPSTATS" Description="显示使用统计"/>
+        <Command Global="PLMMATPROFILES" Local="PLMMATPROFILES" Description="查看 PLM 物料 profile"/>
+        <Command Global="PLMMATCOMPOSE" Local="PLMMATCOMPOSE" Description="合成物料规格并回填 CAD"/>
+        <Command Global="PLMMATPUSH" Local="PLMMATPUSH" Description="从 CAD 提取字段并同步到 PLM"/>
+        <Command Global="PLMMATPULL" Local="PLMMATPULL" Description="从 PLM 拉取字段，差异预览确认后回填 CAD"/>
+      </Commands>
+
+    </ComponentEntry>
+  </Components>
+</ApplicationPackage>
