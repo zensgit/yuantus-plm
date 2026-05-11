@@ -19,6 +19,10 @@ POST_P6_GATE_MD = (
     ROOT
     / "docs/DEV_AND_VERIFICATION_NEXT_CYCLE_POST_P6_PLAN_GATE_CONTRACTS_20260511.md"
 )
+EXTERNAL_GATE_STOP_MD = (
+    ROOT
+    / "docs/DEV_AND_VERIFICATION_NEXT_CYCLE_EXTERNAL_GATE_LOCAL_STOP_20260511.md"
+)
 POST_P3_4_PLAN_REFRESH_MD = (
     ROOT
     / "docs/DEV_AND_VERIFICATION_NEXT_CYCLE_POST_P3_4_READINESS_PLAN_REFRESH_20260511.md"
@@ -127,14 +131,38 @@ def test_p3_4_external_stop_gate_remains_six_part_and_real_evidence_only() -> No
         assert phrase in handoff
 
 
+def test_external_gate_local_stop_doc_blocks_implicit_six_phase_continuation() -> None:
+    stop_doc = _text(EXTERNAL_GATE_STOP_MD)
+
+    for phrase in (
+        "Local six-phase implementation arc status: stopped at the external evidence\ngate.",
+        "real operator-run\nnon-production PostgreSQL rehearsal evidence plus reviewer acceptance",
+        "Do not continue P3.4 locally unless real operator-run non-production PostgreSQL\nrehearsal evidence exists",
+        "Do not start Phase 5, production cutover, or `TENANCY_MODE=schema-per-tenant`\nenablement from a generic \"continue\" instruction.",
+        "Evidence signoff PR: records accepted real P3.4 operator evidence, keeps\n   `Ready for cutover: false`",
+        "Independent triggered taskbook: explicitly outside the six-phase arc",
+        "Everything else remains blocked.",
+        "Current main after the post-P3.4 readiness plan refresh: `b707369`.",
+        "No P3.4 evidence creation or acceptance.",
+        "No Phase 5 implementation.",
+        "No CAD plugin changes.",
+    ):
+        assert phrase in stop_doc
+
+    assert "Ready for cutover: true" not in stop_doc
+
+
 def test_post_p6_gate_doc_is_indexed_and_ci_runs_this_contract() -> None:
     index = _text(INDEX)
     ci_yml = _text(CI_YML)
     gate_doc = str(POST_P6_GATE_MD.relative_to(ROOT))
+    stop_doc = str(EXTERNAL_GATE_STOP_MD.relative_to(ROOT))
     refresh_doc = str(POST_P3_4_PLAN_REFRESH_MD.relative_to(ROOT))
 
     assert gate_doc in index
+    assert stop_doc in index
     assert refresh_doc in index
     assert "test_next_cycle_post_p6_plan_gate_contracts.py" in ci_yml
     assert gate_doc in _text(POST_P6_GATE_MD)
+    assert stop_doc in _text(EXTERNAL_GATE_STOP_MD)
     assert refresh_doc in _text(POST_P3_4_PLAN_REFRESH_MD)
