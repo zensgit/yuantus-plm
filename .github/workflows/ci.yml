@@ -399,6 +399,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_perf_ci_baseline_downloader_script.py \
             src/yuantus/meta_engine/tests/test_perf_gate_config_file.py \
             src/yuantus/meta_engine/tests/test_perf_workflow_contracts.py \
+            src/yuantus/meta_engine/tests/test_next_cycle_post_p6_plan_gate_contracts.py \
             src/yuantus/meta_engine/tests/test_phase4_search_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_phase6_circuit_breaker_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_quality_router_decomposition_closeout_contracts.py \
