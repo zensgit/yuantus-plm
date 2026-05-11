@@ -23,6 +23,9 @@ Date: 2026-04-30
 - [x] Track env-file precheck CLI error redaction as local safety only.
 - [x] Track shell wrapper CLI error redaction as local safety only.
 - [x] Track Python module CLI error redaction as local safety only.
+- [x] Track post-P6 external evidence handoff packet as local documentation only.
+- [x] Track post-P6 external evidence reviewer checklist as local documentation only.
+- [x] State reviewer acceptance of real operator evidence is still missing.
 - [x] Add verification MD.
 - [x] Update delivery doc index.
 
@@ -44,10 +47,14 @@ Date: 2026-04-30
 - [x] Assert env-file precheck CLI error redaction does not close the external evidence gate.
 - [x] Assert shell wrapper CLI error redaction does not close the external evidence gate.
 - [x] Assert Python module CLI error redaction does not close the external evidence gate.
+- [x] Assert external evidence handoff packet does not close the external evidence gate.
+- [x] Assert external evidence reviewer checklist does not close the external evidence gate.
+- [x] Assert readiness status does not allow Phase 5 until evidence signoff records accepted evidence.
 
 ## Explicitly Not Done
 
 - [ ] Add operator-run PostgreSQL rehearsal evidence.
+- [ ] Record reviewer acceptance of real operator evidence.
 - [ ] Mark P3.4 rehearsal complete.
 - [ ] Enable production cutover.
 - [ ] Enable runtime `TENANCY_MODE=schema-per-tenant`.
