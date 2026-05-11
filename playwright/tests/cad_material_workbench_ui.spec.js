@@ -1,6 +1,11 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('CAD material Workbench UI', () => {
+  test.skip(
+    process.env.PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD === '1',
+    'Browser not available when PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1'
+  );
+
   test('renders structured config controls and updates draft JSON locally', async ({ page }) => {
     await page.goto('/api/v1/workbench');
 
