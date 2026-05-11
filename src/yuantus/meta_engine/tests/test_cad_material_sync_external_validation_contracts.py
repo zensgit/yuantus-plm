@@ -10,6 +10,13 @@ HANDOFF = (
     ROOT
     / "docs/DEV_AND_VERIFICATION_CAD_MATERIAL_SYNC_EXTERNAL_VALIDATION_HANDOFF_20260511.md"
 )
+EVIDENCE_TEMPLATE = (
+    ROOT / "docs/CAD_MATERIAL_SYNC_WINDOWS_VALIDATION_EVIDENCE_TEMPLATE_20260511.md"
+)
+EVIDENCE_TEMPLATE_DV = (
+    ROOT
+    / "docs/DEV_AND_VERIFICATION_CAD_MATERIAL_SYNC_WINDOWS_EVIDENCE_TEMPLATE_20260511.md"
+)
 TODO = ROOT / "docs/TODO_CAD_MATERIAL_SYNC_PLUGIN_20260506.md"
 WINDOWS_GUIDE = (
     ROOT / "clients/autocad-material-sync/WINDOWS_AUTOCAD2018_VALIDATION_GUIDE.md"
@@ -73,11 +80,49 @@ def test_windows_validation_guide_preserves_required_evidence_and_exit_criteria(
         assert phrase in guide
 
 
+def test_windows_evidence_template_is_blank_and_not_acceptance() -> None:
+    template = _text(EVIDENCE_TEMPLATE)
+
+    for phrase in (
+        "Status: **template only; not validation evidence**",
+        "Do not mark the Windows validation complete\nuntil this template is filled with real operator output and reviewed.",
+        "AutoCAD primary version: `2018`",
+        "AutoCAD ACADVER output: `R22.0`",
+        "AutoCAD regression version: `2024`",
+        "AutoCAD 2018 support complete: no",
+        "Real DWG write-back validated: no",
+        "Windows client runtime accepted: no",
+        "AutoCAD 2024 regression complete: no",
+        "Decision: pending",
+        "must remain `no` and the decision must remain `pending`",
+        "The DWG write-back result uses a mock fixture instead of a real DWG.",
+        "The saved DWG was not reopened to confirm persistence.",
+        "Any plaintext token, password, or production customer drawing content appears\n  in the evidence.",
+        "Windows + AutoCAD 2018 evidence is not recorded.",
+        "AutoCAD 2024 regression evidence is not recorded.",
+    ):
+        assert phrase in template
+
+    for forbidden in (
+        "AutoCAD 2018 support complete: yes\n",
+        "Real DWG write-back validated: yes\n",
+        "Windows client runtime accepted: yes\n",
+        "AutoCAD 2024 regression complete: yes\n",
+        "Decision: accept\n",
+    ):
+        assert forbidden not in template
+
+
 def test_external_validation_handoff_is_indexed_and_ci_wired() -> None:
     index = _text(INDEX)
     ci_yml = _text(CI_YML)
     handoff_doc = str(HANDOFF.relative_to(ROOT))
+    template_doc = str(EVIDENCE_TEMPLATE.relative_to(ROOT))
+    template_dv_doc = str(EVIDENCE_TEMPLATE_DV.relative_to(ROOT))
 
     assert handoff_doc in index
+    assert template_doc in index
+    assert template_dv_doc in index
     assert handoff_doc in _text(HANDOFF)
+    assert template_dv_doc in _text(EVIDENCE_TEMPLATE_DV)
     assert "test_cad_material_sync_external_validation_contracts.py" in ci_yml
