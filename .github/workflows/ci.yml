@@ -397,6 +397,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_maintenance_request_router_contracts.py \
             src/yuantus/meta_engine/tests/test_maintenance_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_maintenance_schedule_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_manufacturing_admin_guard_contracts.py \
             src/yuantus/meta_engine/tests/test_migration_table_coverage_contracts.py \
             src/yuantus/meta_engine/tests/test_next_cycle_post_p6_plan_gate_contracts.py \
             src/yuantus/meta_engine/tests/test_p2_observation_regression_workflow_contracts.py \
