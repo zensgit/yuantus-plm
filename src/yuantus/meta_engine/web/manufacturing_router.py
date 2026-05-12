@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.api.dependencies.auth import CurrentUser, get_current_user, require_admin_user
 from yuantus.database import get_db
 from yuantus.meta_engine.manufacturing.mbom_service import MBOMService
 from yuantus.meta_engine.manufacturing.routing_service import RoutingService
@@ -222,15 +222,6 @@ class WorkCenterResponse(BaseModel):
     created_at: Optional[datetime] = None
 
 
-def _ensure_admin(user: CurrentUser) -> None:
-    roles = {str(role).lower() for role in (getattr(user, "roles", []) or [])}
-    if bool(getattr(user, "is_superuser", False)):
-        return
-    if "admin" in roles or "superuser" in roles:
-        return
-    raise HTTPException(status_code=403, detail="Admin role required")
-
-
 def _mbom_to_response(mbom: ManufacturingBOM, *, include_structure: bool) -> MBOMResponse:
     return MBOMResponse(
         id=mbom.id,
@@ -333,7 +324,7 @@ async def create_mbom_from_ebom(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = MBOMService(db)
     try:
         mbom = service.create_mbom_from_ebom(
@@ -388,7 +379,7 @@ async def release_mbom(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = MBOMService(db)
     try:
         mbom = service.release_mbom(mbom_id, ruleset_id=ruleset_id)
@@ -406,7 +397,7 @@ async def get_mbom_release_diagnostics(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = MBOMService(db)
     try:
         diagnostics = service.get_release_diagnostics(mbom_id, ruleset_id=ruleset_id)
@@ -431,7 +422,7 @@ async def reopen_mbom(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = MBOMService(db)
     try:
         mbom = service.reopen_mbom(mbom_id)
@@ -458,7 +449,7 @@ async def create_routing(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = RoutingService(db)
     try:
         routing = service.create_routing(
@@ -509,7 +500,7 @@ async def set_primary_routing(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = RoutingService(db)
     try:
         routing = service.set_primary_routing(routing_id)
@@ -541,7 +532,7 @@ async def add_operation(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = RoutingService(db)
     try:
         op = service.add_operation(
@@ -576,7 +567,7 @@ async def update_operation(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = RoutingService(db)
     try:
         operation = service.update_operation(
@@ -598,7 +589,7 @@ async def delete_operation(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = RoutingService(db)
     try:
         service.delete_operation(routing_id, operation_id)
@@ -616,7 +607,7 @@ async def resequence_operations(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = RoutingService(db)
     try:
         operations = service.resequence_operations(
@@ -657,7 +648,7 @@ async def release_routing(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = RoutingService(db)
     try:
         routing = service.release_routing(routing_id, ruleset_id=ruleset_id)
@@ -675,7 +666,7 @@ async def get_routing_release_diagnostics(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = RoutingService(db)
     try:
         diagnostics = service.get_release_diagnostics(routing_id, ruleset_id=ruleset_id)
@@ -700,7 +691,7 @@ async def reopen_routing(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = RoutingService(db)
     try:
         routing = service.reopen_routing(routing_id)
@@ -740,7 +731,7 @@ async def copy_routing(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = RoutingService(db)
     try:
         routing = service.copy_routing(
@@ -764,7 +755,7 @@ async def create_workcenter(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = WorkCenterService(db)
     try:
         workcenter = service.create_workcenter(request.model_dump())
@@ -810,7 +801,7 @@ async def update_workcenter(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_admin(user)
+    require_admin_user(user)
     service = WorkCenterService(db)
     item = service.get_workcenter(workcenter_id)
     if not item:

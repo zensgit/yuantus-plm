@@ -10,7 +10,6 @@ RELEASE_ORCHESTRATION_ROUTER = (
 )
 ITEM_COCKPIT_ROUTER = ROOT / "src/yuantus/meta_engine/web/item_cockpit_router.py"
 DEDUP_ROUTER = ROOT / "src/yuantus/meta_engine/web/dedup_router.py"
-MANUFACTURING_ROUTER = ROOT / "src/yuantus/meta_engine/web/manufacturing_router.py"
 CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
 DOC_INDEX = ROOT / "docs/DELIVERY_DOC_INDEX.md"
 DEV_VERIFICATION_DOC = (
@@ -40,14 +39,11 @@ def test_release_orchestration_and_item_cockpit_use_shared_permission_guard() ->
         assert "Admin permission required" not in source
 
 
-def test_dedup_and_manufacturing_admin_guards_remain_out_of_scope() -> None:
+def test_dedup_admin_guard_remains_out_of_permission_scope() -> None:
     dedup_source = _source(DEDUP_ROUTER)
-    manufacturing_source = _source(MANUFACTURING_ROUTER)
 
     assert "_ensure_admin" in _local_defs(DEDUP_ROUTER)
     assert 'detail="Admin required"' in dedup_source
-    assert "_ensure_admin" in _local_defs(MANUFACTURING_ROUTER)
-    assert 'detail="Admin role required"' in manufacturing_source
 
 
 def test_admin_permission_router_guard_contract_is_ci_wired_and_doc_indexed() -> None:
