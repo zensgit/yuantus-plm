@@ -50,6 +50,8 @@
     - [x] SDK-free SolidWorks 属性表/明细表 fixture 与 contract，固定字段归一化和写回字段包边界。
     - [ ] 真实 SolidWorks Add-in/COM 读取实现与 Windows smoke。
   - [ ] SolidWorks 本地客户端可视化差异预览和确认写回 UI。
+    - [x] SDK-free SolidWorks `/diff/preview` 确认写回包 fixture 与 contract，固定 `SW-*@Part` 写回字段和确认边界。
+    - [ ] 真实 SolidWorks 本地确认 UI、COM 写回和 Windows smoke。
 - [x] PLM 管理端配置 UI：
   - [x] 服务端提供 profile 配置草稿预览/诊断 API，支撑 UI 实时预览。
   - [x] 服务端提供 profile 配置读取/保存/删除 API，保存前校验且写操作要求 admin。

@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "description": "SDK-free SolidWorks diff confirmation fixture for future local client adapters.",
+  "profile_config": {
+    "profiles": {
+      "sheet": {
+        "fields": [
+          {
+            "name": "material",
+            "type": "string",
+            "required": true,
+            "cad_key": "材料",
+            "cad_key_by_connector": {
+              "solidworks": "SW-Material@Part"
+            }
+          },
+          {
+            "name": "length",
+            "type": "number",
+            "required": true,
+            "unit": "mm",
+            "cad_key": "长",
+            "cad_key_by_connector": {
+              "solidworks": "SW-Length@Part"
+            }
+          },
+          {
+            "name": "width",
+            "type": "number",
+            "required": true,
+            "unit": "mm",
+            "cad_key": "宽",
+            "cad_key_by_connector": {
+              "solidworks": "SW-Width@Part"
+            }
+          },
+          {
+            "name": "thickness",
+            "type": "number",
+            "required": true,
+            "unit": "mm",
+            "cad_key": "厚",
+            "cad_key_by_connector": {
+              "solidworks": "SW-Thickness@Part"
+            }
+          }
+        ],
+        "cad_mapping": {
+          "specification": {
+            "default": "规格",
+            "solidworks": "SW-Specification@Part"
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "solidworks_sheet_add_thickness_and_change_specification",
+      "request": {
+        "profile_id": "sheet",
+        "cad_system": "solidworks",
+        "current_cad_fields": {
+          "SW-Material@Part": "Q235B",
+          "SW-Length@Part": "1200",
+          "SW-Width@Part": "600",
+          "SW-Thickness@Part": "",
+          "SW-Specification@Part": "old-spec"
+        },
+        "values": {
+          "material": "Q235B",
+          "length": 1200,
+          "width": 600,
+          "thickness": 12
+        }
+      },
+      "expect": {
+        "ok": true,
+        "summary": {
+          "added": 1,
+          "changed": 1,
+          "cleared": 0,
+          "unchanged": 3
+        },
+        "target_cad_fields": {
+          "SW-Material@Part": "Q235B",
+          "SW-Length@Part": 1200,
+          "SW-Width@Part": 600,
+          "SW-Thickness@Part": 12,
+          "SW-Specification@Part": "1200*600*12"
+        },
+        "write_cad_fields": {
+          "SW-Specification@Part": "1200*600*12",
+          "SW-Thickness@Part": 12
+        },
+        "requires_confirmation": true,
+        "statuses": {
+          "SW-Material@Part": "unchanged",
+          "SW-Length@Part": "unchanged",
+          "SW-Width@Part": "unchanged",
+          "SW-Thickness@Part": "added",
+          "SW-Specification@Part": "changed"
+        }
+      }
+    },
+    {
+      "name": "solidworks_noop_requires_no_confirmation",
+      "request": {
+        "profile_id": "sheet",
+        "cad_system": "solidworks",
+        "current_cad_fields": {
+          "SW-Material@Part": "Q235B",
+          "SW-Length@Part": "1200",
+          "SW-Width@Part": "600",
+          "SW-Thickness@Part": "12",
+          "SW-Specification@Part": "1200*600*12"
+        },
+        "values": {
+          "material": "Q235B",
+          "length": 1200,
+          "width": 600,
+          "thickness": 12
+        }
+      },
+      "expect": {
+        "ok": true,
+        "summary": {
+          "added": 0,
+          "changed": 0,
+          "cleared": 0,
+          "unchanged": 5
+        },
+        "target_cad_fields": {
+          "SW-Material@Part": "Q235B",
+          "SW-Length@Part": 1200,
+          "SW-Width@Part": 600,
+          "SW-Thickness@Part": 12,
+          "SW-Specification@Part": "1200*600*12"
+        },
+        "write_cad_fields": {},
+        "requires_confirmation": false,
+        "statuses": {
+          "SW-Material@Part": "unchanged",
+          "SW-Length@Part": "unchanged",
+          "SW-Width@Part": "unchanged",
+          "SW-Thickness@Part": "unchanged",
+          "SW-Specification@Part": "unchanged"
+        }
+      }
+    },
+    {
+      "name": "solidworks_explicit_clear_custom_property",
+      "request": {
+        "profile_id": "sheet",
+        "cad_system": "solidworks",
+        "current_cad_fields": {
+          "SW-Coating@Part": "painted"
+        },
+        "target_cad_fields": {
+          "SW-Coating@Part": ""
+        }
+      },
+      "expect": {
+        "ok": true,
+        "summary": {
+          "added": 0,
+          "changed": 0,
+          "cleared": 1,
+          "unchanged": 0
+        },
+        "target_cad_fields": {
+          "SW-Coating@Part": ""
+        },
+        "write_cad_fields": {
+          "SW-Coating@Part": ""
+        },
+        "requires_confirmation": true,
+        "statuses": {
+          "SW-Coating@Part": "cleared"
+        }
+      }
+    }
+  ]
+}
