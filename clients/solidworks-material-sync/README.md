@@ -26,6 +26,9 @@ API surface:
 - `SolidWorksDiffConfirmationViewModel` converts the preview response into
   UI-ready rows and produces either confirmed `write_cad_fields` or an empty
   cancel/no-op write package.
+- `SolidWorksMaterialPullWorkflow` orchestrates field extraction, diff preview,
+  confirmation, and the final apply boundary without depending on SolidWorks
+  COM or WPF.
 - `SolidWorksWriteBackPlan` accepts only confirmed `write_cad_fields` keys and
   rejects AutoCAD primary labels.
 
