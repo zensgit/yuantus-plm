@@ -48,6 +48,7 @@
   - [x] AutoCAD 客户端 `PLMMATPULL` 接入 `/diff/preview`，提供本地 WPF 差异预览和确认写回 UI。
   - [ ] SolidWorks 明细表/属性表字段读取。
     - [x] SDK-free SolidWorks 属性表/明细表 fixture 与 contract，固定字段归一化和写回字段包边界。
+    - [x] SolidWorks Windows evidence 模板与 validator，固定真实 Add-in/COM/确认 UI smoke 的验收字段。
     - [ ] 真实 SolidWorks Add-in/COM 读取实现与 Windows smoke。
   - [ ] SolidWorks 本地客户端可视化差异预览和确认写回 UI。
     - [x] SDK-free SolidWorks `/diff/preview` 确认写回包 fixture 与 contract，固定 `SW-*@Part` 写回字段和确认边界。

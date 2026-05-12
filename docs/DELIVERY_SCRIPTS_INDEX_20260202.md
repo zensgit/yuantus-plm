@@ -79,6 +79,7 @@
 - run_tenant_import_operator_launchpack.sh
 - run_tenant_import_rehearsal_full_closeout.sh
 - run_tenant_import_rehearsal_operator_sequence.sh
+- validate_cad_material_solidworks_windows_evidence.py
 - validate_cad_material_windows_evidence.py
 - validate_tenant_import_rehearsal_operator_commands.sh
 - sync_metasheet2_pact.sh
@@ -172,6 +173,7 @@
 - `run_tenant_import_operator_launchpack.sh` runs the DB-free P3.4 tenant import operator launchpack from an implementation packet, deriving default handoff artifact paths while preserving `ready_for_cutover=false`.
 - `run_tenant_import_rehearsal_full_closeout.sh` runs the explicit P3.4 operator sequence plus evidence closeout in one command, can load source/target DSN variables from `--env-file`, and requires both `--confirm-rehearsal` and `--confirm-closeout` while preserving `ready_for_cutover=false`.
 - `run_tenant_import_rehearsal_operator_sequence.sh` runs the explicit P3.4 operator sequence from precheck through real row-copy and evidence precheck, requiring `--confirm-rehearsal` and preserving `ready_for_cutover=false`.
+- `validate_cad_material_solidworks_windows_evidence.py` validates a filled SolidWorks CAD Material Sync Windows evidence markdown file before reviewer sign-off, supports redaction-safe `--json` output, and rejects placeholder, mock, synthetic, secret-bearing, or incomplete SolidWorks evidence without running SolidWorks or creating evidence.
 - `validate_cad_material_windows_evidence.py` validates a filled CAD Material Sync Windows evidence markdown file before reviewer sign-off, supports redaction-safe `--json` output, and rejects placeholder, mock, synthetic, secret-bearing, or incomplete AutoCAD 2018 evidence without running AutoCAD or creating evidence.
 - `verify_cad_material_solidworks_diff_confirm.py` runs an SDK-free SolidWorks diff-confirmation fixture, validating `SW-*@Part` target/write packages, `requires_confirmation`, no-op, and explicit clear behavior without SolidWorks COM, Windows, or real client UI evidence.
 - `verify_cad_material_solidworks_fixture.py` runs an SDK-free SolidWorks material sync fixture, validating property/table extraction and SolidWorks target writeback field names without importing SolidWorks COM, running Windows, or creating real client evidence.
