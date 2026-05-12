@@ -55,7 +55,7 @@ def test_admin_permission_router_guard_contract_is_ci_wired_and_doc_indexed() ->
     index = _source(DOC_INDEX)
 
     assert (
-        "src/yuantus/meta_engine/tests/test_admin_permission_router_guard_contracts.py"
+        "src/yuantus/meta_engine/tests/test_admin_permission_shared_guard_contracts.py"
         in workflow
     )
     assert DEV_VERIFICATION_DOC in index

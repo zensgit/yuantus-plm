@@ -44,7 +44,7 @@ test overrides and route dependency shapes remain stable.
 
 ## 4. Contract Coverage
 
-Added `src/yuantus/meta_engine/tests/test_admin_permission_router_guard_contracts.py`.
+Added `src/yuantus/meta_engine/tests/test_admin_permission_shared_guard_contracts.py`.
 
 The contract covers:
 
@@ -69,7 +69,7 @@ Existing endpoint tests cover route behavior:
 `.github/workflows/ci.yml` now includes:
 
 ```text
-src/yuantus/meta_engine/tests/test_admin_permission_router_guard_contracts.py
+src/yuantus/meta_engine/tests/test_admin_permission_shared_guard_contracts.py
 ```
 
 `docs/DELIVERY_DOC_INDEX.md` includes this document in alphabetical order.
@@ -93,12 +93,16 @@ Commands run:
 .venv/bin/python -m py_compile \
   src/yuantus/meta_engine/web/release_orchestration_router.py \
   src/yuantus/meta_engine/web/item_cockpit_router.py \
-  src/yuantus/meta_engine/tests/test_admin_permission_router_guard_contracts.py
+  src/yuantus/meta_engine/tests/test_admin_permission_shared_guard_contracts.py
 
 YUANTUS_AUTH_MODE=optional .venv/bin/python -m pytest \
-  src/yuantus/meta_engine/tests/test_admin_permission_router_guard_contracts.py \
+  src/yuantus/meta_engine/tests/test_admin_permission_shared_guard_contracts.py \
   src/yuantus/meta_engine/tests/test_release_orchestration_router.py \
   src/yuantus/meta_engine/tests/test_item_cockpit_router.py
+
+.venv/bin/python -m pytest \
+  src/yuantus/meta_engine/tests/test_admin_permission_shared_guard_contracts.py \
+  src/yuantus/meta_engine/tests/test_router_decomposition_portfolio_contracts.py
 
 .venv/bin/python -m pytest \
   src/yuantus/meta_engine/tests/test_dev_and_verification_doc_index_completeness.py \
@@ -115,9 +119,15 @@ Results:
 
 - py_compile: passed
 - release-orchestration + item-cockpit focused suite: 21 passed
+- shared-guard contract + router-decomposition portfolio regression: 8 passed
 - doc-index + CI list contracts: 5 passed
 - app boot: routes=676, middleware=4
 - git diff --check: clean
+
+CI remediation note: the contract file is named
+`test_admin_permission_shared_guard_contracts.py`, not
+`test_admin_permission_router_guard_contracts.py`, so it does not match the
+router-decomposition portfolio's router-contract file discovery pattern.
 
 ## 8. Reviewer Checklist
 
