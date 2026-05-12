@@ -29,6 +29,11 @@ acceptance evidence.
   committed SolidWorks diff-confirmation fixture.
 - `verify_solidworks_pull_workflow_fixture.py` - SDK-free verifier for
   confirm/apply, cancel/no-op, and explicit clear workflow behavior.
+- `WINDOWS_SOLIDWORKS_VALIDATION_GUIDE.md` - Windows operator guide for real
+  SolidWorks build, Add-in/COM load, field read, confirmation, persistence, and
+  evidence validation.
+- `verify_solidworks_windows_preflight.ps1` - Windows preflight for SolidWorks
+  install discovery, MSBuild discovery, and optional build execution.
 
 ## Explicit Non-Deliverables
 
