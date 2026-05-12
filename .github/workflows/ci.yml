@@ -238,6 +238,7 @@ jobs:
       - name: Contract checks (perf workflows + delivery doc index)
         run: |
           pytest -q \
+            src/yuantus/meta_engine/tests/test_admin_auth_guard_contracts.py \
             src/yuantus/meta_engine/tests/test_approval_category_router_contracts.py \
             src/yuantus/meta_engine/tests/test_approval_ops_router_contracts.py \
             src/yuantus/meta_engine/tests/test_approval_request_router_contracts.py \
