@@ -55,6 +55,7 @@
     - [x] SDK-free SolidWorks `/diff/preview` 确认写回包 fixture 与 contract，固定 `SW-*@Part` 写回字段和确认边界。
     - [x] SDK-free SolidWorks diff-preview client skeleton：固定 `cad_system=solidworks`、`write_cad_fields` 和确认/取消边界。
     - [x] SDK-free SolidWorks confirmation view-model：固定确认、取消/no-op、显式清空和 `write_cad_fields` 过滤。
+    - [x] SDK-free SolidWorks pull workflow orchestration：串联字段快照、`/diff/preview`、确认/取消和 apply 边界。
     - [ ] 真实 SolidWorks 本地确认 UI、COM 写回和 Windows smoke。
 - [x] PLM 管理端配置 UI：
   - [x] 服务端提供 profile 配置草稿预览/诊断 API，支撑 UI 实时预览。

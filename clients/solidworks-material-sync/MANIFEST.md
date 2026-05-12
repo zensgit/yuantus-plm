@@ -20,10 +20,15 @@ acceptance evidence.
 - `SolidWorksMaterialSync/SolidWorksDiffConfirmationViewModel.cs` - SDK-free
   local confirmation model for confirm, cancel, no-op, and explicit-clear
   behavior.
+- `SolidWorksMaterialSync/SolidWorksMaterialPullWorkflow.cs` - SDK-free
+  orchestration for field snapshot, diff preview, confirmation, and apply
+  boundary.
 - `SolidWorksMaterialSync/SolidWorksWriteBackPlan.cs` - confirmation write-back
   boundary that accepts only SolidWorks `write_cad_fields`.
 - `verify_solidworks_confirmation_fixture.py` - SDK-free verifier for the
   committed SolidWorks diff-confirmation fixture.
+- `verify_solidworks_pull_workflow_fixture.py` - SDK-free verifier for
+  confirm/apply, cancel/no-op, and explicit clear workflow behavior.
 
 ## Explicit Non-Deliverables
 
