@@ -7,7 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.api.dependencies.auth import (
+    CurrentUser,
+    get_current_user,
+    require_admin_permission,
+)
 from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.meta_engine.manufacturing.mbom_service import MBOMService
@@ -32,15 +36,6 @@ release_orchestration_router = APIRouter(
 )
 
 _FAILPOINT_HEADER = "x-yuantus-failpoint"
-
-
-def _ensure_admin(user: CurrentUser) -> None:
-    roles = {str(r).strip().lower() for r in (user.roles or []) if str(r).strip()}
-    if bool(getattr(user, "is_superuser", False)):
-        return
-    if "admin" in roles or "superuser" in roles:
-        return
-    raise HTTPException(status_code=403, detail="Admin permission required")
 
 
 def _diag_response(
@@ -214,7 +209,7 @@ def get_release_plan(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ReleaseOrchestrationPlanResponse:
-    _ensure_admin(user)
+    require_admin_permission(user)
 
     item = db.get(Item, item_id)
     if not item:
@@ -253,7 +248,7 @@ def execute_release_plan(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ReleaseOrchestrationExecuteResponse:
-    _ensure_admin(user)
+    require_admin_permission(user)
 
     item = db.get(Item, item_id)
     if not item:

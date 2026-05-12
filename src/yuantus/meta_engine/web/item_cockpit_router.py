@@ -12,7 +12,11 @@ from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.api.dependencies.auth import (
+    CurrentUser,
+    get_current_user,
+    require_admin_permission,
+)
 from yuantus.database import get_db
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.eco_service import ECOService
@@ -34,15 +38,6 @@ from yuantus.meta_engine.web.release_readiness_router import (
 
 
 item_cockpit_router = APIRouter(prefix="/items", tags=["Item Cockpit"])
-
-
-def _ensure_admin(user: CurrentUser) -> None:
-    roles = {str(r).lower() for r in (user.roles or [])}
-    if bool(getattr(user, "is_superuser", False)):
-        return
-    if "admin" in roles or "superuser" in roles:
-        return
-    raise HTTPException(status_code=403, detail="Admin permission required")
 
 
 class CockpitItem(BaseModel):
@@ -235,7 +230,7 @@ def get_item_cockpit(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ItemCockpitResponse:
-    _ensure_admin(user)
+    require_admin_permission(user)
     try:
         return _build_cockpit(
             item_id=item_id,
@@ -274,7 +269,7 @@ def export_item_cockpit(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
-    _ensure_admin(user)
+    require_admin_permission(user)
     cockpit = _build_cockpit(
         item_id=item_id,
         ruleset_id=ruleset_id,
