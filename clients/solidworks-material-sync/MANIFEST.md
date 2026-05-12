@@ -17,8 +17,13 @@ acceptance evidence.
   extraction/write-back adapter over the gateway seam.
 - `SolidWorksMaterialSync/SolidWorksDiffPreviewClient.cs` - diff-preview
   request seam pinned to `cad_system=solidworks`.
+- `SolidWorksMaterialSync/SolidWorksDiffConfirmationViewModel.cs` - SDK-free
+  local confirmation model for confirm, cancel, no-op, and explicit-clear
+  behavior.
 - `SolidWorksMaterialSync/SolidWorksWriteBackPlan.cs` - confirmation write-back
   boundary that accepts only SolidWorks `write_cad_fields`.
+- `verify_solidworks_confirmation_fixture.py` - SDK-free verifier for the
+  committed SolidWorks diff-confirmation fixture.
 
 ## Explicit Non-Deliverables
 
@@ -27,4 +32,3 @@ acceptance evidence.
 - No Windows registry files.
 - No screenshots, logs, or CAD sample files.
 - No filled Windows evidence.
-

@@ -23,6 +23,9 @@ API surface:
 - `SolidWorksDiffPreviewClient` sends the local document snapshot to
   `/api/v1/plugins/cad-material-sync/diff/preview` with
   `cad_system=solidworks`.
+- `SolidWorksDiffConfirmationViewModel` converts the preview response into
+  UI-ready rows and produces either confirmed `write_cad_fields` or an empty
+  cancel/no-op write package.
 - `SolidWorksWriteBackPlan` accepts only confirmed `write_cad_fields` keys and
   rejects AutoCAD primary labels.
 
@@ -45,4 +48,3 @@ SolidWorks Add-in/COM calls:
 The parent TODO items for SolidWorks field reading and local confirmation UI
 must remain unchecked until real Windows evidence is accepted. This skeleton is
 only the implementation seam for the next Windows-capable slice.
-
