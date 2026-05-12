@@ -7,7 +7,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.api.dependencies.auth import (
+    CurrentUser,
+    get_current_user,
+    require_admin_permission,
+)
 from yuantus.config import get_settings
 from yuantus.database import get_db
 from yuantus.security.auth.database import get_identity_db
@@ -117,12 +121,6 @@ class ManifestCreateRequest(BaseModel):
     required_signatures: List[Dict[str, Any]]
 
 
-def _ensure_admin(user: CurrentUser) -> None:
-    roles = {str(role).strip().lower() for role in (user.roles or []) if str(role).strip()}
-    if not ("admin" in roles or "superuser" in roles or bool(getattr(user, "is_superuser", False))):
-        raise HTTPException(status_code=403, detail="Admin permission required")
-
-
 def _service(db: Session, identity_db: Session) -> ElectronicSignatureService:
     settings = get_settings()
     secret = (getattr(settings, "ESIGN_SECRET_KEY", None) or settings.JWT_SECRET_KEY).strip()
@@ -148,7 +146,7 @@ def create_signing_reason(
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> SigningReasonResponse:
-    _ensure_admin(user)
+    require_admin_permission(user)
     service = _service(db, identity_db)
     reason = service.create_signing_reason(
         code=req.code,
@@ -231,7 +229,7 @@ def update_signing_reason(
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> SigningReasonResponse:
-    _ensure_admin(user)
+    require_admin_permission(user)
     service = _service(db, identity_db)
     try:
         reason = service.update_signing_reason(
@@ -384,7 +382,7 @@ def create_manifest(
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> Dict[str, Any]:
-    _ensure_admin(user)
+    require_admin_permission(user)
     service = _service(db, identity_db)
     manifest = service.create_manifest(
         item_id=req.item_id,
@@ -431,7 +429,7 @@ def list_audit_logs(
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> Dict[str, Any]:
-    _ensure_admin(user)
+    require_admin_permission(user)
     service = _service(db, identity_db)
     logs = service.list_audit_logs(
         item_id=item_id,
@@ -477,7 +475,7 @@ def get_audit_summary(
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> Dict[str, Any]:
-    _ensure_admin(user)
+    require_admin_permission(user)
     service = _service(db, identity_db)
     return service.get_audit_summary(
         item_id=item_id,
@@ -506,7 +504,7 @@ def export_audit_logs(
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
 ) -> Response:
-    _ensure_admin(user)
+    require_admin_permission(user)
     service = _service(db, identity_db)
     try:
         result = service.export_audit_logs(
