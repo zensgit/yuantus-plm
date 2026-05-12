@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <AssemblyName>SolidWorksMaterialSync</AssemblyName>
+    <RootNamespace>SolidWorksMaterialSync</RootNamespace>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+</Project>
+
