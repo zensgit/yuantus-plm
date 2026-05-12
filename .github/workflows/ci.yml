@@ -256,6 +256,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_cad_file_data_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_history_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_import_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_cad_material_sync_external_gate_local_stop_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_material_sync_external_validation_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_material_sync_solidworks_client_skeleton_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_material_sync_solidworks_client_taskbook_contracts.py \
