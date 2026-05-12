@@ -12,7 +12,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from fastapi.responses import Response, StreamingResponse
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.api.dependencies.auth import (
+    CurrentUser,
+    get_current_user,
+    require_admin_permission,
+)
 from yuantus.database import get_db
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.release_readiness_service import ReleaseReadinessService
@@ -26,13 +30,6 @@ release_readiness_router = APIRouter(
     prefix="/release-readiness",
     tags=["Release Readiness"],
 )
-
-
-def _ensure_admin(user: CurrentUser) -> None:
-    roles = {str(r).lower() for r in (user.roles or [])}
-    if user.is_superuser or ("admin" in roles) or ("superuser" in roles):
-        return
-    raise HTTPException(status_code=403, detail="Admin permission required")
 
 
 class KindSummary(BaseModel):
@@ -150,7 +147,7 @@ def get_item_release_readiness(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ReleaseReadinessResponse:
-    _ensure_admin(user)
+    require_admin_permission(user)
 
     item = db.get(Item, item_id)
     if not item:
@@ -182,7 +179,7 @@ def export_item_release_readiness(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
-    _ensure_admin(user)
+    require_admin_permission(user)
 
     item = db.get(Item, item_id)
     if not item:

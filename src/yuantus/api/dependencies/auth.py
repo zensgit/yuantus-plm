@@ -318,6 +318,12 @@ def require_admin_user(user: CurrentUser = Depends(get_current_user)) -> Current
     return user
 
 
+def require_admin_permission(user: CurrentUser) -> CurrentUser:
+    if not user_has_admin_role(user):
+        raise HTTPException(status_code=403, detail="Admin permission required")
+    return user
+
+
 def get_current_user_id(user: CurrentUser = Depends(get_current_user)) -> int:
     return user.id
 
