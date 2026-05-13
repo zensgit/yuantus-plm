@@ -38,7 +38,7 @@ def site_lineage(
     try:
         return service.site_lineage(site_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_lineage_router.get("/jobs/{job_id}/snapshot-lineage")
@@ -51,7 +51,7 @@ def job_snapshot_lineage(
     try:
         return service.job_snapshot_lineage(job_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_lineage_router.get("/export/lineage")
