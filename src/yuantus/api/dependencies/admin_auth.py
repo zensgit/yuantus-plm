@@ -51,8 +51,8 @@ def require_org_admin(
         roles = AuthService(db).get_roles_for_user_org(
             tenant_id=identity.tenant_id, org_id=org_id, user_id=identity.user_id
         )
-    except Exception:
-        raise HTTPException(status_code=403, detail="Org admin required")
+    except Exception as exc:
+        raise HTTPException(status_code=403, detail="Org admin required") from exc
     if "admin" not in roles and "org_admin" not in roles:
         raise HTTPException(status_code=403, detail="Org admin required")
     return identity

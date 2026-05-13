@@ -168,6 +168,7 @@ def test_require_org_admin_rejects_membership_lookup_failure(
         admin_auth.require_org_admin("org-1", _identity(), object())
 
     _assert_http_error(exc_info.value, 403, "Org admin required")
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
 def test_admin_router_imports_shared_guards_not_local_definitions() -> None:
