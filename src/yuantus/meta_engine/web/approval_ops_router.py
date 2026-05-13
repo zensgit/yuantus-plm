@@ -82,7 +82,7 @@ async def export_approval_summary(
             category_id=category_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _export_response(
         payload=payload,
         fmt=normalized_format,
@@ -106,7 +106,7 @@ async def export_approvals_ops_report(
     try:
         payload = svc.export_ops_report(fmt=normalized_format)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _export_response(payload=payload, fmt=normalized_format, stem="approval-ops-report")
 
 
@@ -127,7 +127,7 @@ async def approvals_queue_health(
             category_id=category_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @approval_ops_router.get("/queue-health/export")
@@ -150,7 +150,7 @@ async def export_approvals_queue_health(
             category_id=category_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _export_response(
         payload=payload,
         fmt=normalized_format,
