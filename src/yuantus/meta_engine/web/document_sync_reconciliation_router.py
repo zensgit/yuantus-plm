@@ -38,7 +38,7 @@ def reconciliation_job_summary(
     try:
         return service.conflict_resolution_summary(job_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_reconciliation_router.get("/reconciliation/sites/{site_id}/status")
@@ -51,7 +51,7 @@ def reconciliation_site_status(
     try:
         return service.site_reconciliation_status(site_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_reconciliation_router.get("/export/reconciliation")

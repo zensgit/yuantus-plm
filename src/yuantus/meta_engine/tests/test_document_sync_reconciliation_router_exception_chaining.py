@@ -1,0 +1,99 @@
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import MagicMock
+
+import pytest
+from fastapi import HTTPException
+
+from yuantus.meta_engine.web import (
+    document_sync_reconciliation_router as reconciliation_module,
+)
+
+
+ROOT = Path(__file__).resolve().parents[4]
+RECONCILIATION_ROUTER = (
+    ROOT / "src/yuantus/meta_engine/web/document_sync_reconciliation_router.py"
+)
+CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
+DOC_INDEX = ROOT / "docs/DELIVERY_DOC_INDEX.md"
+DEV_VERIFICATION_DOC = (
+    "docs/DEV_AND_VERIFICATION_DOCUMENT_SYNC_RECONCILIATION_ROUTER_EXCEPTION_CHAINING_20260513.md"
+)
+
+
+class FailingDocumentSyncService:
+    def __init__(self, db: object) -> None:
+        self.db = db
+
+    def conflict_resolution_summary(self, job_id: str) -> object:
+        raise ValueError(f"reconciliation job summary not found: {job_id}")
+
+    def site_reconciliation_status(self, site_id: str) -> object:
+        raise ValueError(f"reconciliation site status not found: {site_id}")
+
+
+def _source(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
+def test_reconciliation_job_summary_failure_preserves_original_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        reconciliation_module,
+        "DocumentSyncService",
+        FailingDocumentSyncService,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        reconciliation_module.reconciliation_job_summary(
+            job_id="job-1",
+            db=MagicMock(),
+            user=MagicMock(),
+        )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "reconciliation job summary not found: job-1"
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+def test_reconciliation_site_status_failure_preserves_original_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        reconciliation_module,
+        "DocumentSyncService",
+        FailingDocumentSyncService,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        reconciliation_module.reconciliation_site_status(
+            site_id="site-1",
+            db=MagicMock(),
+            user=MagicMock(),
+        )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "reconciliation site status not found: site-1"
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+def test_document_sync_reconciliation_router_exception_chaining_is_source_pinned() -> None:
+    source = _source(RECONCILIATION_ROUTER)
+
+    assert (
+        source.count("raise HTTPException(status_code=404, detail=str(exc)) from exc")
+        == 2
+    )
+
+
+def test_document_sync_reconciliation_exception_chaining_contract_is_ci_wired_and_doc_indexed() -> None:
+    workflow = _source(CI_WORKFLOW)
+    index = _source(DOC_INDEX)
+
+    assert (
+        "src/yuantus/meta_engine/tests/test_document_sync_reconciliation_router_exception_chaining.py"
+        in workflow
+    )
+    assert DEV_VERIFICATION_DOC in index

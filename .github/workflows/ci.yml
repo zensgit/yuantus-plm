@@ -383,6 +383,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_document_sync_lineage_router_contracts.py \
             src/yuantus/meta_engine/tests/test_document_sync_lineage_router_exception_chaining.py \
             src/yuantus/meta_engine/tests/test_document_sync_reconciliation_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_reconciliation_router_exception_chaining.py \
             src/yuantus/meta_engine/tests/test_document_sync_replay_audit_router_contracts.py \
             src/yuantus/meta_engine/tests/test_document_sync_retention_router_contracts.py \
             src/yuantus/meta_engine/tests/test_document_sync_retention_router_exception_chaining.py \
