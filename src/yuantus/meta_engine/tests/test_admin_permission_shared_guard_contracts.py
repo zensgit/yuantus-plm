@@ -42,8 +42,10 @@ def test_release_orchestration_and_item_cockpit_use_shared_permission_guard() ->
 def test_dedup_admin_guard_remains_out_of_permission_scope() -> None:
     dedup_source = _source(DEDUP_ROUTER)
 
-    assert "_ensure_admin" in _local_defs(DEDUP_ROUTER)
-    assert 'detail="Admin required"' in dedup_source
+    assert "require_admin_access" in dedup_source
+    assert "require_admin_permission" not in dedup_source
+    assert "_ensure_admin" not in _local_defs(DEDUP_ROUTER)
+    assert "Admin permission required" not in dedup_source
 
 
 def test_admin_permission_router_guard_contract_is_ci_wired_and_doc_indexed() -> None:

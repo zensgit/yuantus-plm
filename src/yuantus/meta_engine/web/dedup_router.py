@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from yuantus.api.dependencies.auth import CurrentUser, get_current_user
+from yuantus.api.dependencies.auth import CurrentUser, get_current_user, require_admin_access
 from yuantus.database import get_db
 from yuantus.meta_engine.dedup.models import (
     DedupBatch,
@@ -146,13 +146,6 @@ class DedupBatchRunResponse(BaseModel):
     jobs_created: int
 
 
-def _ensure_admin(user: CurrentUser) -> None:
-    roles = set(user.roles or [])
-    if "admin" in roles or "superuser" in roles or user.is_superuser:
-        return
-    raise HTTPException(status_code=403, detail="Admin required")
-
-
 def _rule_to_response(rule: DedupRule) -> DedupRuleResponse:
     return DedupRuleResponse(
         id=rule.id,
@@ -223,7 +216,7 @@ async def list_rules(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     return [_rule_to_response(r) for r in service.list_rules(include_inactive=include_inactive)]
 
@@ -234,7 +227,7 @@ async def get_rule(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     rule = service.get_rule(rule_id)
     if not rule:
@@ -248,7 +241,7 @@ async def create_rule(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     try:
         rule = service.create_rule(request.model_dump(), user_id=user.id)
@@ -265,7 +258,7 @@ async def update_rule(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     rule = service.get_rule(rule_id)
     if not rule:
@@ -284,7 +277,7 @@ async def delete_rule(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     rule = service.get_rule(rule_id)
     if not rule:
@@ -305,7 +298,7 @@ async def list_records(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     items, total = service.list_records(
         status=status,
@@ -330,7 +323,7 @@ async def get_report(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     try:
         return service.generate_report(
@@ -358,7 +351,7 @@ async def export_report(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     try:
         rows = service.list_records_for_export(
@@ -407,7 +400,7 @@ async def get_record(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     record = service.get_record(record_id)
     if not record:
@@ -422,7 +415,7 @@ async def review_record(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     if request.status not in {s.value for s in SimilarityStatus}:
         raise HTTPException(status_code=400, detail="Invalid status")
     service = DedupService(db)
@@ -446,7 +439,7 @@ async def create_batch(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     batch = service.create_batch(request.model_dump(), user_id=user.id)
     db.commit()
@@ -461,7 +454,7 @@ async def list_batches(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     q = db.query(DedupBatch)
     if status:
         q = q.filter(DedupBatch.status == status)
@@ -476,7 +469,7 @@ async def get_batch(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     batch = db.get(DedupBatch, batch_id)
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
@@ -490,7 +483,7 @@ async def run_batch(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     batch = db.get(DedupBatch, batch_id)
     if not batch:
@@ -521,7 +514,7 @@ async def refresh_batch(
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _ensure_admin(user)
+    require_admin_access(user)
     service = DedupService(db)
     batch = db.get(DedupBatch, batch_id)
     if not batch:
