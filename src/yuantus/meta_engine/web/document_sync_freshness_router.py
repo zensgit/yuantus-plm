@@ -48,7 +48,7 @@ def site_freshness(
     try:
         return service.site_freshness(site_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_freshness_router.get("/export/watermarks")
