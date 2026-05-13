@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from yuantus.api.dependencies.admin_auth import require_superuser
 from yuantus.api.dependencies.auth import CurrentUser, get_current_user
 from yuantus.database import get_db
 from yuantus.meta_engine.models.configuration import (
@@ -208,11 +209,6 @@ class ValidateSelectionsRequest(BaseModel):
     selections: Dict[str, Any]
 
 
-def _ensure_superuser(user: CurrentUser) -> None:
-    if not user.is_superuser:
-        raise HTTPException(status_code=403, detail="Superuser required")
-
-
 def _option_to_response(option: ConfigOption) -> OptionResponse:
     return OptionResponse(
         id=option.id,
@@ -329,7 +325,7 @@ async def create_option_set(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_superuser(user)
+    require_superuser(user)
     service = ConfigService(db)
     try:
         payload = request.model_dump()
@@ -349,7 +345,7 @@ async def update_option_set(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_superuser(user)
+    require_superuser(user)
     service = ConfigService(db)
     option_set = service.get_option_set(option_set_id)
     if not option_set:
@@ -370,7 +366,7 @@ async def delete_option_set(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_superuser(user)
+    require_superuser(user)
     service = ConfigService(db)
     option_set = service.get_option_set(option_set_id)
     if not option_set:
@@ -391,7 +387,7 @@ async def add_option(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_superuser(user)
+    require_superuser(user)
     service = ConfigService(db)
     option_set = service.get_option_set(option_set_id)
     if not option_set:
@@ -413,7 +409,7 @@ async def update_option(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_superuser(user)
+    require_superuser(user)
     service = ConfigService(db)
     option = db.get(ConfigOption, option_id)
     if not option or option.option_set_id != option_set_id:
@@ -434,7 +430,7 @@ async def delete_option(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_superuser(user)
+    require_superuser(user)
     option = db.get(ConfigOption, option_id)
     if not option or option.option_set_id != option_set_id:
         raise HTTPException(status_code=404, detail="Option not found")
@@ -489,7 +485,7 @@ async def create_variant_rule(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_superuser(user)
+    require_superuser(user)
     service = ConfigService(db)
     try:
         payload = request.model_dump()
@@ -509,7 +505,7 @@ async def update_variant_rule(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_superuser(user)
+    require_superuser(user)
     service = ConfigService(db)
     rule = service.get_variant_rule(rule_id)
     if not rule:
@@ -529,7 +525,7 @@ async def delete_variant_rule(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    _ensure_superuser(user)
+    require_superuser(user)
     service = ConfigService(db)
     rule = service.get_variant_rule(rule_id)
     if not rule:

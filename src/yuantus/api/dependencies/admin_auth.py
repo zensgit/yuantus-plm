@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from yuantus.api.dependencies.auth import Identity, get_current_identity
+from yuantus.api.dependencies.auth import CurrentUser, Identity, get_current_identity
 from yuantus.config import get_settings
 from yuantus.security.auth.database import get_identity_db
 from yuantus.security.auth.models import Organization
@@ -21,7 +21,9 @@ def _get_org(db: Session, tenant_id: str, org_id: str) -> Organization:
     return org
 
 
-def require_superuser(identity: Identity = Depends(get_current_identity)) -> Identity:
+def require_superuser(
+    identity: Identity | CurrentUser = Depends(get_current_identity),
+) -> Identity | CurrentUser:
     if not identity.is_superuser:
         raise HTTPException(status_code=403, detail="Superuser required")
     return identity
