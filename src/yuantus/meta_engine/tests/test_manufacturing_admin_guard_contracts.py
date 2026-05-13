@@ -47,8 +47,10 @@ def test_shared_admin_role_guard_preserves_manufacturing_detail() -> None:
 def test_dedup_admin_guard_remains_distinct_and_out_of_scope() -> None:
     dedup_source = _source(DEDUP_ROUTER)
 
-    assert "_ensure_admin" in _local_defs(DEDUP_ROUTER)
-    assert 'detail="Admin required"' in dedup_source
+    assert "require_admin_access" in dedup_source
+    assert "require_admin_user" not in dedup_source
+    assert "_ensure_admin" not in _local_defs(DEDUP_ROUTER)
+    assert "Admin role required" not in dedup_source
 
 
 def test_manufacturing_admin_guard_contract_is_ci_wired_and_doc_indexed() -> None:
