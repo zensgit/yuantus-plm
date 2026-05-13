@@ -210,7 +210,7 @@ async def export_approval_requests(
             assigned_to_id=assigned_to_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _export_response(
         payload=payload,
         fmt=normalized_format,
@@ -227,7 +227,7 @@ async def get_approval_request_lifecycle(
     try:
         return svc.get_request_lifecycle(request_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @approval_request_router.get("/requests/{request_id}/consumer-summary")
@@ -245,7 +245,7 @@ async def get_approval_request_consumer_summary(
             history_limit=history_limit,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     payload["urls"] = {
         "detail": f"/api/v1/approvals/requests/{request_id}",
         "transition": f"/api/v1/approvals/requests/{request_id}/transition",
@@ -265,7 +265,7 @@ async def get_approval_request_history(
     try:
         return svc.get_request_history(request_id, limit=history_limit)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @approval_request_router.post("/requests/pack-summary")
