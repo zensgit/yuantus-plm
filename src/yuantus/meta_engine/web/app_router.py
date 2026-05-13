@@ -25,7 +25,7 @@ def register_app(
         return {"status": "success", "app_id": app.id, "name": app.name}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app_router.get("/extensions/{point_name}")
@@ -57,4 +57,4 @@ def create_point(
         return {"id": ep.id, "name": ep.name}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
