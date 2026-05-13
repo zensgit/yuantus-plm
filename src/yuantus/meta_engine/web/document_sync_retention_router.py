@@ -48,7 +48,7 @@ def site_checkpoints(
     try:
         return service.site_checkpoints(site_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_retention_router.get("/export/retention")
