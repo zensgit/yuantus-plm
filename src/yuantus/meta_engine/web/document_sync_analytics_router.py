@@ -38,7 +38,7 @@ def site_analytics(
     try:
         return service.site_analytics(site_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_analytics_router.get("/jobs/{job_id}/conflicts")
@@ -51,7 +51,7 @@ def job_conflicts(
     try:
         return service.job_conflicts(job_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_analytics_router.get("/export/overview")
