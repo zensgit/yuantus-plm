@@ -376,6 +376,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_document_sync_analytics_router_contracts.py \
             src/yuantus/meta_engine/tests/test_document_sync_core_router_contracts.py \
             src/yuantus/meta_engine/tests/test_document_sync_drift_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_document_sync_drift_router_exception_chaining.py \
             src/yuantus/meta_engine/tests/test_document_sync_freshness_router_contracts.py \
             src/yuantus/meta_engine/tests/test_document_sync_lineage_router_contracts.py \
             src/yuantus/meta_engine/tests/test_document_sync_reconciliation_router_contracts.py \

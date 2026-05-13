@@ -38,7 +38,7 @@ def site_snapshots(
     try:
         return service.site_snapshots(site_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_drift_router.get("/jobs/{job_id}/drift")
@@ -51,7 +51,7 @@ def job_drift(
     try:
         return service.job_drift(job_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @document_sync_drift_router.get("/export/drift")
