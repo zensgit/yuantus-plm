@@ -30,6 +30,8 @@ The contract pins these shared dependency owners:
 | `require_admin_permission` | `Admin permission required` | `src/yuantus/api/dependencies/auth.py` |
 | `require_admin_access` | `Admin required` | `src/yuantus/api/dependencies/auth.py` |
 | `require_superuser` | `Superuser required` | `src/yuantus/api/dependencies/admin_auth.py` |
+| `require_platform_admin` | `Platform admin disabled`; `Platform admin required` | `src/yuantus/api/dependencies/admin_auth.py` |
+| `require_org_admin` | `Org admin required` | `src/yuantus/api/dependencies/admin_auth.py` |
 
 The meta-engine router layer must consume these helpers instead of defining
 local admin or superuser guard helpers and local guard failure literals.
@@ -41,6 +43,8 @@ The new contract verifies:
 - no `src/yuantus/meta_engine/web/*.py` file defines `_ensure_admin`
 - no `src/yuantus/meta_engine/web/*.py` file defines `_ensure_superuser`
 - no meta-engine web router owns any of the four shared access-guard failure
+  literals
+- `src/yuantus/api/routers/admin.py` does not own shared access-guard failure
   literals
 - each failure detail remains owned by its shared dependency helper
 - the three admin-role helpers still use `user_has_admin_role(user)`

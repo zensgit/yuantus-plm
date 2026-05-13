@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 WEB_DIR = ROOT / "src/yuantus/meta_engine/web"
+ADMIN_ROUTER = ROOT / "src/yuantus/api/routers/admin.py"
 AUTH_DEPENDENCY = ROOT / "src/yuantus/api/dependencies/auth.py"
 ADMIN_AUTH_DEPENDENCY = ROOT / "src/yuantus/api/dependencies/admin_auth.py"
 CI_WORKFLOW = ROOT / ".github/workflows/ci.yml"
@@ -16,12 +17,17 @@ DEV_VERIFICATION_DOC = (
 
 ACCESS_GUARD_HELPERS = {
     AUTH_DEPENDENCY: {
-        "require_admin_user": "Admin role required",
-        "require_admin_permission": "Admin permission required",
-        "require_admin_access": "Admin required",
+        "require_admin_user": ("Admin role required",),
+        "require_admin_permission": ("Admin permission required",),
+        "require_admin_access": ("Admin required",),
     },
     ADMIN_AUTH_DEPENDENCY: {
-        "require_superuser": "Superuser required",
+        "require_superuser": ("Superuser required",),
+        "require_platform_admin": (
+            "Platform admin disabled",
+            "Platform admin required",
+        ),
+        "require_org_admin": ("Org admin required",),
     },
 }
 
@@ -58,7 +64,8 @@ def _access_guard_details() -> set[str]:
     return {
         detail
         for helper_details in ACCESS_GUARD_HELPERS.values()
-        for detail in helper_details.values()
+        for details in helper_details.values()
+        for detail in details
     }
 
 
@@ -84,13 +91,25 @@ def test_meta_engine_web_no_longer_owns_access_guard_failure_literals() -> None:
     assert offenders == []
 
 
+def test_admin_router_no_longer_owns_admin_auth_guard_failure_literals() -> None:
+    source = _source(ADMIN_ROUTER)
+    offenders = [
+        detail
+        for detail in _access_guard_details()
+        if detail in source
+    ]
+
+    assert offenders == []
+
+
 def test_access_guard_detail_taxonomy_is_owned_by_shared_dependencies() -> None:
     for path, helper_details in ACCESS_GUARD_HELPERS.items():
-        for helper_name, detail in helper_details.items():
+        for helper_name, details in helper_details.items():
             helper_source = _function_source(path, helper_name)
 
             assert "HTTPException" in helper_source
-            assert f'detail="{detail}"' in helper_source
+            for detail in details:
+                assert f'detail="{detail}"' in helper_source
 
 
 def test_admin_role_guards_still_share_the_same_role_predicate() -> None:
