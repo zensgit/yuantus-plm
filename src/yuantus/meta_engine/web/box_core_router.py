@@ -99,7 +99,7 @@ def create_box_item(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, **_box_dict(box)}
 
 
@@ -153,5 +153,5 @@ def export_box_meta(
     try:
         meta = service.export_meta(box_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return meta

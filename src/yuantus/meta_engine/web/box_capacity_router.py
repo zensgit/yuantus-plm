@@ -40,7 +40,7 @@ def box_item_capacity(
     try:
         return service.box_capacity(box_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @box_capacity_router.get("/export/capacity")

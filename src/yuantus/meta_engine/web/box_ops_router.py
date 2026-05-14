@@ -40,7 +40,7 @@ def box_ops_report(
     try:
         return service.ops_report(box_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @box_ops_router.get("/export/ops-report")
