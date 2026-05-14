@@ -74,7 +74,7 @@ async def create_maintenance_request(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _request_dict(mreq)
 
 
@@ -94,7 +94,7 @@ async def transition_maintenance_request(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _request_dict(mreq)
 
 

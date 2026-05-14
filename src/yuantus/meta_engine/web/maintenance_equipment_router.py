@@ -123,5 +123,5 @@ async def update_equipment_status(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _equipment_dict(equip)
