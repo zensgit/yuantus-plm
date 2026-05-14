@@ -183,7 +183,7 @@ async def auto_assign_approvers(
         raise HTTPException(status_code=403, detail="Forbidden: insufficient ECO permission")
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @eco_approval_workflow_router.post("/approvals/escalate-overdue", response_model=Dict[str, Any])
@@ -206,7 +206,7 @@ async def escalate_overdue_approvals(
         raise HTTPException(status_code=403, detail="Forbidden: insufficient ECO permission")
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @eco_approval_workflow_router.post("/{eco_id}/approve", response_model=Dict[str, Any])
@@ -223,10 +223,10 @@ async def approve_eco(
         db.commit()
         return approval.to_dict()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @eco_approval_workflow_router.post("/{eco_id}/reject", response_model=Dict[str, Any])
@@ -243,10 +243,10 @@ async def reject_eco(
         db.commit()
         return approval.to_dict()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @eco_approval_workflow_router.get("/{eco_id}/approvals", response_model=List[Dict[str, Any]])

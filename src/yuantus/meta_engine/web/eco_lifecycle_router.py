@@ -70,10 +70,10 @@ async def cancel_eco(
         db.commit()
         return eco.to_dict()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @eco_lifecycle_router.get(
@@ -128,10 +128,10 @@ async def suspend_eco(
         db.rollback()
         raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @eco_lifecycle_router.post("/{eco_id}/unsuspend", response_model=Dict[str, Any])
@@ -181,10 +181,10 @@ async def unsuspend_eco(
         db.rollback()
         raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @eco_lifecycle_router.post("/{eco_id}/move-stage", response_model=Dict[str, Any])
@@ -201,7 +201,7 @@ async def move_to_stage(
         db.commit()
         return eco.to_dict()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

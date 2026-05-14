@@ -135,9 +135,9 @@ async def get_eco_impact(
             compare_mode=compare_mode,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @eco_impact_apply_router.get("/{eco_id}/impact/export")
@@ -184,9 +184,9 @@ async def export_eco_impact(
             compare_mode=compare_mode,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
     fmt = (format or "").strip().lower()
     if fmt in {"json", "application/json"}:
@@ -253,9 +253,9 @@ async def get_eco_bom_diff(
             compare_mode=compare_mode,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @eco_impact_apply_router.post("/{eco_id}/apply", response_model=Dict[str, Any])
@@ -309,10 +309,10 @@ async def apply_eco(
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=exc.to_dict()) from exc
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @eco_impact_apply_router.get(

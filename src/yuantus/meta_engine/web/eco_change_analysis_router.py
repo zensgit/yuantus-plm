@@ -49,10 +49,10 @@ async def compute_routing_changes(
         db.commit()
         return changes
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @eco_change_analysis_router.get(
@@ -93,10 +93,10 @@ async def compute_bom_changes(
         db.commit()
         return [c.to_dict() for c in changes]
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @eco_change_analysis_router.get(
@@ -112,6 +112,6 @@ async def detect_conflicts(eco_id: str, db: Session = Depends(get_db)):
         conflicts = service.detect_rebase_conflicts(eco_id)
         return conflicts
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
