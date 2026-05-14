@@ -199,6 +199,6 @@ async def remove_equivalent(
     try:
         service.remove_equivalent(equivalent_id, user_id=int(user.id))
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
     return RemoveEquivalentResponse(ok=True, equivalent_id=equivalent_id)

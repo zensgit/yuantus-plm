@@ -148,10 +148,10 @@ def checkout_document(
         }
     except ValueError as e:
         mgr.session.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         mgr.session.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @cad_checkin_router.post("/{item_id}/undo-checkout")
@@ -163,7 +163,7 @@ def undo_checkout(
         mgr.session.commit()
         return {"status": "success", "message": "Item unlocked."}
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @cad_checkin_router.post("/{item_id}/checkin")
@@ -220,14 +220,14 @@ def checkin_document(
         )
     except ValueError as e:
         mgr.session.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except HTTPException:
         mgr.session.rollback()
         raise
     except Exception as e:
         mgr.session.rollback()
         # Log error
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @cad_checkin_router.get("/{item_id}/checkin-status", response_model=CadCheckinStatusResponse)

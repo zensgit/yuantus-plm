@@ -80,7 +80,7 @@ def add_affected_item(
         return JSONResponse(content=result, headers=_DEPRECATION_HEADERS)
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @change_router.post("/eco/{eco_id}/execute")
@@ -102,4 +102,4 @@ def execute_eco(
         return JSONResponse(content=result, headers=_DEPRECATION_HEADERS)
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
