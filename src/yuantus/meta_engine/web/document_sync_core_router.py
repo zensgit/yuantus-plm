@@ -100,7 +100,7 @@ def create_site(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, **_site_dict(site)}
 
 
@@ -145,7 +145,7 @@ def mirror_probe_site(
     try:
         result = service.mirror_probe(site_id)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return result
 
 
@@ -167,7 +167,7 @@ def mirror_execute_site(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return result
 
 
@@ -189,7 +189,7 @@ def create_job(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, **_job_dict(job)}
 
 
@@ -228,5 +228,5 @@ def get_job_summary(
     try:
         summary = service.job_summary(job_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return summary
