@@ -437,6 +437,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_phase4_search_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_phase6_circuit_breaker_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_quality_router_decomposition_closeout_contracts.py \
+            src/yuantus/meta_engine/tests/test_quality_router_exception_chaining.py \
             src/yuantus/meta_engine/tests/test_readme_runbook_references.py \
             src/yuantus/meta_engine/tests/test_readme_runbooks_are_indexed_in_delivery_doc_index.py \
             src/yuantus/meta_engine/tests/test_readme_runbooks_sorting_contracts.py \
