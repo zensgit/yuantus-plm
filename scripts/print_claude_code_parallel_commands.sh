@@ -89,7 +89,10 @@ EOF
 print_read_only() {
   cat <<EOF
 ## read-only
-claude -p --add-dir ${repo_q} 'In repo ${REPO_PATH} on branch ${BRANCH_NAME}, do a read-only audit. Do not edit files. Summarize current risks, remaining cleanup, and the shortest reviewer path.'
+(
+  cd ${repo_q}
+  printf '%s\n' 'In repo ${REPO_PATH} on branch ${BRANCH_NAME}, do a read-only audit. Do not edit files. Treat output as advisory only; do not authorize implementation, merge, phase transition, production cutover, or evidence signoff. Summarize current risks, remaining cleanup, and the shortest reviewer path.' | claude -p --no-session-persistence --tools ""
+)
 
 EOF
 }
@@ -97,8 +100,9 @@ EOF
 print_worktree() {
   cat <<EOF
 ## worktree
+# Requires explicit user authorization before running.
 mkdir -p ${worktree_parent_q}
-claude --worktree ${WORKTREE_NAME} --add-dir ${repo_q} 'Work in an isolated git worktree for repo ${REPO_PATH} on branch ${BRANCH_NAME}. Stay within one narrow scope, inspect git status first, and keep the change set small and reviewable.'
+claude --worktree ${WORKTREE_NAME} --add-dir ${repo_q} 'Work in an isolated git worktree for repo ${REPO_PATH} on branch ${BRANCH_NAME}. This write-mode run has explicit user authorization. Stay within one narrow scope, inspect git status first, keep the change set small and reviewable, do not use permission-skipping modes, and do not commit .claude/ or local-dev-env/.'
 # expected worktree path: ${WORKTREE_PATH}
 
 EOF
@@ -107,7 +111,10 @@ EOF
 print_reviewer() {
   cat <<EOF
 ## reviewer
-claude -p --add-dir ${repo_q} 'In repo ${REPO_PATH} on branch ${BRANCH_NAME}, write a concise reviewer brief: scope, changed files, verification commands, and residual risk. Do not edit files.'
+(
+  cd ${repo_q}
+  printf '%s\n' 'In repo ${REPO_PATH} on branch ${BRANCH_NAME}, write a concise reviewer brief: scope, changed files, verification commands, and residual risk. Do not edit files. Treat output as advisory only.' | claude -p --no-session-persistence --tools ""
+)
 
 EOF
 }

@@ -53,14 +53,20 @@ while (($# > 0)); do
 done
 
 if [[ -z "${PROMPT}" ]]; then
-  PROMPT="In repo ${REPO_PATH} on branch ${BRANCH_NAME}, do a read-only audit. Do not edit files. Return only 3 bullets: top residual risk, shortest reviewer path, and next safest step."
+  PROMPT="In repo ${REPO_PATH} on branch ${BRANCH_NAME}, do a read-only audit. Do not edit files. Treat output as advisory only; do not authorize implementation, merge, phase transition, production cutover, or evidence signoff. Return only 3 bullets: top residual risk, shortest reviewer path, and next safest step."
 fi
 
 claude auth status >/dev/null
 
 if [[ -n "${OUT_PATH}" ]]; then
   mkdir -p "$(dirname "${OUT_PATH}")"
-  claude -p --add-dir "${REPO_PATH}" -- "${PROMPT}" | tee "${OUT_PATH}"
+  (
+    cd "${REPO_PATH}"
+    printf '%s\n' "${PROMPT}" | claude -p --no-session-persistence --tools ""
+  ) | tee "${OUT_PATH}"
 else
-  claude -p --add-dir "${REPO_PATH}" -- "${PROMPT}"
+  (
+    cd "${REPO_PATH}"
+    printf '%s\n' "${PROMPT}" | claude -p --no-session-persistence --tools ""
+  )
 fi
