@@ -38,7 +38,7 @@ async def create_quality_alert(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return alert_to_dict(alert)
 
 
@@ -57,7 +57,7 @@ async def transition_quality_alert(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return alert_to_dict(alert)
 
 

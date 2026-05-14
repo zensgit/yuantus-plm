@@ -48,7 +48,7 @@ async def create_quality_point(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return point_to_dict(point)
 
 

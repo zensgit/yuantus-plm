@@ -34,7 +34,7 @@ async def create_quality_check(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return check_to_dict(check)
 
 
@@ -59,7 +59,7 @@ async def record_quality_check(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return check_to_dict(check)
 
 
