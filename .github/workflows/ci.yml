@@ -405,6 +405,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_file_conversion_router_contracts.py \
             src/yuantus/meta_engine/tests/test_file_metadata_router_contracts.py \
             src/yuantus/meta_engine/tests/test_file_router_decomposition_closeout_contracts.py \
+            src/yuantus/meta_engine/tests/test_file_router_exception_chaining_closeout.py \
             src/yuantus/meta_engine/tests/test_file_router_shell_contracts.py \
             src/yuantus/meta_engine/tests/test_file_storage_router_contracts.py \
             src/yuantus/meta_engine/tests/test_file_viewer_router_contracts.py \

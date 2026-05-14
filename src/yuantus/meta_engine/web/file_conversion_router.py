@@ -289,7 +289,7 @@ async def request_conversion(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @file_conversion_router.get("/conversion/{job_id}", response_model=ConversionJobResponse)
@@ -359,7 +359,7 @@ async def process_conversion_queue(
 
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @file_conversion_router.post("/process_cad")
@@ -403,4 +403,4 @@ async def process_cad_legacy(
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
