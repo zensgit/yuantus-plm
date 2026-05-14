@@ -453,7 +453,9 @@ async def download_file(file_id: str, db: Session = Depends(get_db)):
                 },
             )
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Download failed: {str(e)}"
+            ) from e
 
 
 @file_storage_router.get("/{file_id}/preview")

@@ -90,7 +90,7 @@ def test_post_p3_4_readiness_plan_refresh_records_local_closeout_only() -> None:
     plan = _text(PLAN)
 
     for phrase in (
-        "Concrete code-level findings supporting the assessment as of `main=89ba973`:",
+        "Concrete code-level findings supporting the assessment after the 2026-05-14 refresh:",
         "**Status as of `main=89ba973`**: repository-side work is complete through the",
         "P3.4 post-P6 external evidence handoff packet:",
         "P3.4 external evidence reviewer checklist:",
@@ -101,6 +101,8 @@ def test_post_p3_4_readiness_plan_refresh_records_local_closeout_only() -> None:
         assert phrase in plan
 
     assert "Concrete code-level findings supporting the assessment as of `main=32d9fb5`" not in plan
+    assert "Concrete code-level findings supporting the assessment as of `main=89ba973`" not in plan
+    assert "Concrete code-level findings supporting the assessment as of `main=99a9fd7`" not in plan
 
 
 def test_p3_4_external_stop_gate_remains_six_part_and_real_evidence_only() -> None:

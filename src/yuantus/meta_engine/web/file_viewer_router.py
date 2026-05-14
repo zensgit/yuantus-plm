@@ -86,7 +86,7 @@ def _serve_storage_path(storage_path: str, media_type: str, error_prefix: str):
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"{error_prefix} download failed: {str(e)}"
-        )
+        ) from e
 
 
 def _sanitize_asset_name(asset_name: str) -> str:
