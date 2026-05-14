@@ -469,6 +469,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_subcontracting_approval_mapping_router_contracts.py \
             src/yuantus/meta_engine/tests/test_subcontracting_orders_router_contracts.py \
             src/yuantus/meta_engine/tests/test_subcontracting_router_decomposition_closeout_contracts.py \
+            src/yuantus/meta_engine/tests/test_subcontracting_router_exception_chaining.py \
             src/yuantus/meta_engine/tests/test_suspended_guard_seed_migration_contracts.py \
             src/yuantus/meta_engine/tests/test_version_effectivity_router_contracts.py \
             src/yuantus/meta_engine/tests/test_version_file_router_contracts.py \

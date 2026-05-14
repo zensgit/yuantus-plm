@@ -91,7 +91,7 @@ async def upsert_subcontracting_approval_role_mapping(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     payload = svc.get_approval_role_mapping_registry()
     payload["urls"] = {
         "self": "/api/v1/subcontracting/approval-role-mappings",
@@ -125,7 +125,7 @@ async def subcontracting_approval_role_mapping_registry(
             sort_by=sort_by,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     payload["urls"] = {
         "self": "/api/v1/subcontracting/approval-role-mappings",
         "export": "/api/v1/subcontracting/approval-role-mappings/export?format=json",
@@ -161,7 +161,7 @@ async def export_subcontracting_approval_role_mapping_registry(
             sort_by=sort_by,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _export_response(
         payload=payload,
         fmt=normalized_format,

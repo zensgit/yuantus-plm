@@ -72,7 +72,7 @@ async def create_order(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return svc.get_order_read_model(order.id)
 
 
@@ -103,7 +103,7 @@ async def get_order(order_id: str, db: Session = Depends(get_db)):
     try:
         return svc.get_order_read_model(order_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @subcontracting_orders_router.post("/orders/{order_id}/assign-vendor")
@@ -118,7 +118,7 @@ async def assign_vendor(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return svc.get_order_read_model(order.id)
 
 
@@ -141,7 +141,7 @@ async def issue_material(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _event_dict(event)
 
 
@@ -164,7 +164,7 @@ async def record_receipt(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _event_dict(event)
 
 

@@ -66,7 +66,7 @@ async def export_subcontracting_overview(
     try:
         payload = svc.export_overview(fmt=format)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _export_response(payload=payload, fmt=format, stem="subcontracting-overview")
 
 
@@ -79,7 +79,7 @@ async def export_subcontracting_vendors(
     try:
         payload = svc.export_vendor_analytics(fmt=format)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _export_response(payload=payload, fmt=format, stem="subcontracting-vendors")
 
 
@@ -92,5 +92,5 @@ async def export_subcontracting_receipts(
     try:
         payload = svc.export_receipt_analytics(fmt=format)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _export_response(payload=payload, fmt=format, stem="subcontracting-receipts")
