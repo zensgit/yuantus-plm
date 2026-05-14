@@ -40,7 +40,7 @@ def box_item_turnover(
     try:
         return service.box_turnover(box_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @box_turnover_router.get("/export/turnover")

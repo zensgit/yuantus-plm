@@ -40,7 +40,7 @@ def box_item_custody(
     try:
         return service.box_custody(box_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @box_custody_router.get("/export/custody")

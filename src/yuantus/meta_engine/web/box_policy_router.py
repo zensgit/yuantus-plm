@@ -40,7 +40,7 @@ def box_policy_check(
     try:
         return service.box_policy_check(box_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @box_policy_router.get("/export/exceptions")

@@ -40,7 +40,7 @@ def box_item_reservations(
     try:
         return service.box_reservations(box_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @box_traceability_router.get("/export/traceability")

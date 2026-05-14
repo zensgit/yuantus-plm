@@ -40,7 +40,7 @@ def box_item_reconciliation(
     try:
         return service.box_reconciliation(box_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @box_reconciliation_router.get("/export/reconciliation")

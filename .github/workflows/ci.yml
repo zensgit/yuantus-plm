@@ -257,6 +257,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_bom_tree_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_where_used_router_contracts.py \
             src/yuantus/meta_engine/tests/test_box_router_decomposition_closeout_contracts.py \
+            src/yuantus/meta_engine/tests/test_box_router_exception_chaining.py \
             src/yuantus/meta_engine/tests/test_cad_backend_profile_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_checkin_router_contracts.py \
             src/yuantus/meta_engine/tests/test_cad_connectors_router_contracts.py \
