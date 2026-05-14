@@ -170,11 +170,14 @@ bash scripts/verify_playwright_plm_workspace_all.sh http://127.0.0.1:7910
 Workspace-specific coverage and operator wrappers:
 `playwright/tests/README_plm_workspace.md`
 
-Claude Code sidecar/worktree templates:
+Claude Code sidecar/worktree templates (read-only by default):
 `bash scripts/print_claude_code_parallel_commands.sh`
 
-Read-only Claude reviewer sidecar:
+Read-only Claude reviewer sidecar (`claude -p --no-session-persistence --tools ""`):
 `bash scripts/run_claude_code_parallel_reviewer.sh`
+
+Claude Code output is advisory. Write-mode worktree usage requires explicit
+user authorization and must not commit `.claude/` or `local-dev-env/`.
 
 ## Runbooks
 

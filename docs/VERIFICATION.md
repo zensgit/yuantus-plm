@@ -153,12 +153,17 @@ bash scripts/list_native_workspace_bundle.sh --full --git-add-cmd
 bash scripts/list_native_workspace_bundle.sh --full --commit-plan
 ```
 
-Claude Code CLI parallel helper:
+Claude Code CLI parallel helper (read-only by default):
 ```bash
 bash scripts/print_claude_code_parallel_commands.sh
 bash scripts/print_claude_code_parallel_commands.sh --mode worktree --worktree-name claude-native-followup
 bash scripts/run_claude_code_parallel_reviewer.sh
 ```
+
+The read-only/reviewer templates use
+`claude -p --no-session-persistence --tools ""`. Claude Code output is
+advisory only; write-mode worktree usage requires explicit user authorization
+and must not commit `.claude/` or `local-dev-env/`.
 
 Runbook:
 `docs/RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md`
