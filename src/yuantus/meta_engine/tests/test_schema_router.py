@@ -2,10 +2,17 @@ import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 from yuantus.api.app import create_app
+from yuantus.config import get_settings
 from yuantus.database import get_db
 
 
 # We need to simulate the dependency injection
+@pytest.fixture(autouse=True)
+def _disable_auth_enforcement_for_router_unit_tests(monkeypatch):
+    """These tests override DB dependencies; middleware auth is out of scope."""
+    monkeypatch.setattr(get_settings(), "AUTH_MODE", "optional")
+
+
 @pytest.fixture
 def mock_db_session():
     return MagicMock()

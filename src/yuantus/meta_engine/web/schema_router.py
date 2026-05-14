@@ -448,7 +448,7 @@ async def refresh_item_type_schema(
             "property_count": len(schema.get("properties", {})),
         }
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @schema_router.get("/item-types/{item_type_id}/schema")
@@ -480,4 +480,4 @@ async def get_item_type_schema(
         return schema
 
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e

@@ -44,7 +44,7 @@ def purchase_app(
         return {"license_key": lic.license_key, "status": lic.status}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @store_router.post("/install")
@@ -60,7 +60,7 @@ def install_app(
         return res
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @store_router.post("/install/{listing_id}")

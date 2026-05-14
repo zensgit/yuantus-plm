@@ -451,6 +451,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_report_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_report_saved_search_router_contracts.py \
             src/yuantus/meta_engine/tests/test_report_summary_search_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_residual_router_exception_chaining_closeout.py \
             src/yuantus/meta_engine/tests/test_router_decomposition_portfolio_contracts.py \
             src/yuantus/meta_engine/tests/test_runbook_index_completeness.py \
             src/yuantus/meta_engine/tests/test_scheduler_audit_retention_activation_smoke_contracts.py \
