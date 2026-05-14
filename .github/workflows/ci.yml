@@ -408,6 +408,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_file_viewer_router_contracts.py \
             src/yuantus/meta_engine/tests/test_graphql_item_number_alias_contracts.py \
             src/yuantus/meta_engine/tests/test_job_queue_tx_boundary_contracts.py \
+            src/yuantus/meta_engine/tests/test_locale_router_exception_chaining.py \
             src/yuantus/meta_engine/tests/test_maintenance_category_router_contracts.py \
             src/yuantus/meta_engine/tests/test_maintenance_equipment_router_contracts.py \
             src/yuantus/meta_engine/tests/test_maintenance_request_router_contracts.py \
