@@ -54,7 +54,7 @@ async def apply_item(
         raise HTTPException(status_code=409, detail=exc.to_detail())
     except Exception as exc:  # pragma: no cover - defensive
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @meta_router.get("/metadata/{item_type_name}")
