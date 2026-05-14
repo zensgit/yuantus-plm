@@ -62,14 +62,14 @@ def _raise_version_file_http_error(exc: VersionFileError) -> None:
     detail = str(exc)
     lower = detail.lower()
     if "not found" in lower or "not attached" in lower:
-        raise HTTPException(status_code=404, detail=detail)
+        raise HTTPException(status_code=404, detail=detail) from exc
     if (
         "checked out" in lower
         or "released" in lower
         or "locked" in lower
     ):
-        raise HTTPException(status_code=409, detail=detail)
-    raise HTTPException(status_code=400, detail=detail)
+        raise HTTPException(status_code=409, detail=detail) from exc
+    raise HTTPException(status_code=400, detail=detail) from exc
 
 
 @version_file_router.get("/{version_id}/detail")
@@ -79,7 +79,7 @@ def get_version_detail(version_id: str, db: Session = Depends(get_db)):
     try:
         return file_service.get_version_detail(version_id)
     except VersionFileError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @version_file_router.post("/{version_id}/files")
@@ -301,7 +301,7 @@ def set_version_thumbnail(
         return {"status": "updated", "version_id": version.id}
     except VersionFileError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @version_file_router.get("/compare-full")
@@ -317,7 +317,7 @@ def compare_versions_full(v1: str, v2: str, db: Session = Depends(get_db)):
         file_diff = file_service.compare_version_files(v1, v2)
         return {"property_comparison": prop_diff, "file_comparison": file_diff}
     except (VersionError, VersionFileError) as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @version_file_router.get("/items/{item_id}/tree-full")
