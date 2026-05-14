@@ -84,4 +84,4 @@ async def rpc_dispatch(
 
         traceback.print_exc()
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc

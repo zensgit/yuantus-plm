@@ -553,7 +553,7 @@ async def compare_bom(
             compare_mode
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if mode_line_key:
         line_key = mode_line_key
         include_props = mode_props
