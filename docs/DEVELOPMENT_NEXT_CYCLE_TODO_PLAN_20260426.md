@@ -24,6 +24,16 @@
 > closeout record. This still does not supply real operator-run PostgreSQL
 > evidence or reviewer acceptance; Phase 5 remains blocked until a future
 > signoff PR records accepted real evidence with `Ready for cutover: false`.
+>
+> **2026-05-14 status refresh**: Direct residual router exception chaining
+> landed on `main=99a9fd7`. This refresh broadens the guard to f-string and
+> `repr(...)` style stringified `HTTPException` details, then chains the two
+> additional file-router fallback mappings exposed by that stronger contract.
+> The resulting invariant covers `src/yuantus/meta_engine/web` and
+> `src/yuantus/api` with no bare stringified `HTTPException` mappings without
+> `from e` / `from exc`. This closes the local router exception-chaining debt
+> only; it does not change the Phase 5 gate. Phase 5 remains blocked until
+> accepted real P3.4 external PostgreSQL rehearsal evidence is recorded.
 
 ## 1. Goal & Scope
 
@@ -67,8 +77,9 @@ auto-triggered; each requires explicit user opt-in.
 | S7 私有化 + 多租户 | 🟡 Partial | Phase 3 repo-side Postgres tenancy is closed; P3.4 external rehearsal evidence remains; Phase 5 waits behind that gate |
 | Roadmap §11 可观测 | ✅ Done | Phase 2 observability foundation and Phase 6 circuit breakers are closed |
 | 技术债：10 个 router shells | ✅ Done | Phase 1 closed in PRs #402–#413 |
+| 技术债：router exception chaining | ✅ Done | Direct residual closeout landed on `main=99a9fd7`; extended f-string/repr guard and file fallback chaining close this local debt |
 
-Concrete code-level findings supporting the assessment as of `main=89ba973`:
+Concrete code-level findings supporting the assessment after the 2026-05-14 refresh:
 
 - Phase 1 shell cleanup is closed. The 10 zero-route compatibility shells
   (`bom_router`, `eco_router`, `version_router`, `quality_router`,
@@ -105,6 +116,12 @@ Concrete code-level findings supporting the assessment as of `main=89ba973`:
 - Phase 6 is closed. `dedup_vision`, `cad_ml`, and `athena` now share the
   default-off circuit-breaker portfolio guarded by
   `test_phase6_circuit_breaker_closeout_contracts.py`.
+- Router exception-chaining debt is closed. The residual closeout converted the
+  direct router-local `HTTPException(... detail=str(e))` mappings to chained
+  raises. This refresh extends that guard to f-string/repr stringified
+  exception details, chains the two file-router fallback misses, and guards
+  `src/yuantus/meta_engine/web` plus `src/yuantus/api` against reintroducing
+  bare stringified exception mappings.
 
 ## 4. Development Scheme
 
