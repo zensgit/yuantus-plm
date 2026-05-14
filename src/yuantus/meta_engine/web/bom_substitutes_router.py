@@ -212,6 +212,6 @@ async def remove_bom_substitute(
     try:
         service.remove_substitute(substitute_id, user_id=int(user.id))
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
     return RemoveSubstituteResponse(ok=True, substitute_id=substitute_id)

@@ -174,7 +174,7 @@ async def resolve_obsolete_bom(
         return result
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @bom_obsolete_rollup_router.post("/{item_id}/rollup/weight", response_model=Dict[str, Any])

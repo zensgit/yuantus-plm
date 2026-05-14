@@ -145,7 +145,7 @@ async def add_bom_child(
         raise HTTPException(status_code=409, detail=e.to_detail())
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @bom_children_router.delete(
@@ -200,4 +200,4 @@ async def remove_bom_child(
     except ValueError as e:
         db.rollback()
         status_code = 400 if "multiple bom relationships" in str(e).lower() else 404
-        raise HTTPException(status_code=status_code, detail=str(e))
+        raise HTTPException(status_code=status_code, detail=str(e)) from e
