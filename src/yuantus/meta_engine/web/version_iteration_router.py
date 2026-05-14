@@ -54,7 +54,7 @@ def create_iteration(
         }
     except VersionError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @version_iteration_router.get("/{version_id}/iterations")
@@ -115,7 +115,7 @@ def restore_iteration(
         }
     except VersionError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @version_iteration_router.delete("/iterations/{iteration_id}")
@@ -130,4 +130,4 @@ def delete_iteration(iteration_id: str, db: Session = Depends(get_db)):
         return {"status": "deleted"}
     except VersionError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e

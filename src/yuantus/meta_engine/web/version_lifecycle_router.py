@@ -19,15 +19,15 @@ def _raise_version_http_error(exc: VersionError) -> None:
     detail = str(exc)
     lower = detail.lower()
     if "not found" in lower:
-        raise HTTPException(status_code=404, detail=detail)
+        raise HTTPException(status_code=404, detail=detail) from exc
     if (
         "checked out" in lower
         or "locked" in lower
         or "file-level lock" in lower
         or "locks held" in lower
     ):
-        raise HTTPException(status_code=409, detail=detail)
-    raise HTTPException(status_code=400, detail=detail)
+        raise HTTPException(status_code=409, detail=detail) from exc
+    raise HTTPException(status_code=400, detail=detail) from exc
 
 
 @version_lifecycle_router.post("/items/{item_id}/init")
@@ -49,7 +49,7 @@ def create_initial_version(
         return ver
     except VersionError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @version_lifecycle_router.post("/items/{item_id}/checkout")
@@ -210,7 +210,7 @@ def compare_versions(v1: str, v2: str, db: Session = Depends(get_db)):
     try:
         return service.compare_versions(v1, v2)
     except VersionError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @version_lifecycle_router.post("/items/{item_id}/revise")
