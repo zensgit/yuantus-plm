@@ -623,7 +623,7 @@ async def compare_bom(
                 include_substitutes=include_substitutes,
             )
         except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
+            raise HTTPException(status_code=404, detail=str(e)) from e
 
     def normalize_root(tree: Dict[str, Any]) -> Dict[str, Any]:
         if not tree:

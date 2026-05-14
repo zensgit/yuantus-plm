@@ -253,6 +253,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_bom_children_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_compare_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_obsolete_rollup_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_bom_router_exception_chaining_closeout.py \
             src/yuantus/meta_engine/tests/test_bom_substitutes_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_tree_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_where_used_router_contracts.py \

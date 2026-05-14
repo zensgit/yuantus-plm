@@ -112,7 +112,7 @@ async def get_effective_bom(
             unit_position=unit_position,
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @bom_tree_router.get("/version/{version_id}", response_model=Dict[str, Any])
@@ -129,7 +129,7 @@ async def get_bom_by_version(
     try:
         return service.get_bom_for_version(version_id, levels=levels)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 # ============================================================================
@@ -177,10 +177,10 @@ async def convert_ebom_to_mbom(
         mbom_root = service.convert_ebom_to_mbom(request.root_id, user_id=int(user.id))
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:  # pragma: no cover - defensive
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
     return ConvertBomResponse(
         ok=True,
@@ -253,7 +253,7 @@ async def get_bom_tree(
             unit_position=unit_position,
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @bom_tree_router.get("/mbom/{parent_id}/tree", response_model=Dict[str, Any])
@@ -299,4 +299,4 @@ async def get_mbom_tree(
             config_selection=config_selection,
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
