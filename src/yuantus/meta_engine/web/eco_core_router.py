@@ -113,7 +113,7 @@ async def create_eco(
         return eco.to_dict()
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @eco_core_router.get("", response_model=List[Dict[str, Any]])
@@ -182,7 +182,7 @@ async def bind_product_to_eco(
         return eco.to_dict()
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @eco_core_router.put("/{eco_id}", response_model=Dict[str, Any])
@@ -204,7 +204,7 @@ async def update_eco(
         return eco.to_dict()
     except ValueError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @eco_core_router.delete("/{eco_id}")
@@ -226,7 +226,7 @@ async def delete_eco(eco_id: str, db: Session = Depends(get_db)):
         return {"success": True, "message": "ECO deleted"}
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @eco_core_router.post("/{eco_id}/new-revision", response_model=Dict[str, Any])
@@ -249,7 +249,7 @@ async def create_new_revision(
             "version_label": version.version_label,
         }
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e

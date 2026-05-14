@@ -93,7 +93,7 @@ async def create_stage(data: StageCreate, db: Session = Depends(get_db)):
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @eco_stage_router.put("/stages/{stage_id}", response_model=Dict[str, Any])
@@ -115,10 +115,10 @@ async def update_stage(stage_id: str, data: StageUpdate, db: Session = Depends(g
             "sla_hours": stage.sla_hours,
         }
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @eco_stage_router.delete("/stages/{stage_id}")
@@ -134,7 +134,7 @@ async def delete_stage(stage_id: str, db: Session = Depends(get_db)):
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
