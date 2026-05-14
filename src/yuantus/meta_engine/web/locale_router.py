@@ -154,7 +154,7 @@ async def upsert_translation(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _translation_dict(t)
 
 
@@ -236,7 +236,7 @@ async def create_report_profile(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return _profile_dict(p)
 
 
