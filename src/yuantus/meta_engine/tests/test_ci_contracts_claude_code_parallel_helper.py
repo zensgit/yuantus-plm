@@ -62,10 +62,29 @@ def test_claude_code_parallel_helper_is_documented_and_runnable() -> None:
     worktree_out = worktree_cp.stdout or ""
     for token in (
         "claude auth status",
+        "Requires explicit user authorization before running.",
         "claude --worktree claude-test-scope",
         "Stay within one narrow scope",
+        "do not use permission-skipping modes",
+        "do not commit .claude/ or local-dev-env/",
     ):
         assert token in worktree_out, f"worktree output missing token: {token}"
+
+    read_only_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--mode", "read-only"],
+        text=True,
+        capture_output=True,
+    )
+    assert read_only_cp.returncode == 0, read_only_cp.stdout + "\n" + read_only_cp.stderr
+    read_only_out = read_only_cp.stdout or ""
+    for token in (
+        "printf '%s\\n'",
+        "claude -p --no-session-persistence --tools \"\"",
+        "Treat output as advisory only",
+        "do not authorize implementation, merge, phase transition, production cutover, or evidence signoff",
+    ):
+        assert token in read_only_out, f"read-only output missing token: {token}"
+    assert "claude -p --add-dir" not in read_only_out
 
     reviewer_help_cp = subprocess.run(  # noqa: S603,S607
         ["bash", str(reviewer_script), "--help"],
@@ -83,6 +102,28 @@ def test_claude_code_parallel_helper_is_documented_and_runnable() -> None:
         "--prompt TEXT",
     ):
         assert token in reviewer_help, f"reviewer help missing token: {token}"
+
+    reviewer_template_cp = subprocess.run(  # noqa: S603,S607
+        ["bash", str(script), "--mode", "reviewer"],
+        text=True,
+        capture_output=True,
+    )
+    assert reviewer_template_cp.returncode == 0, (
+        reviewer_template_cp.stdout + "\n" + reviewer_template_cp.stderr
+    )
+    reviewer_template = reviewer_template_cp.stdout or ""
+    assert "claude -p --no-session-persistence --tools \"\"" in reviewer_template
+    assert "Treat output as advisory only" in reviewer_template
+    assert "claude -p --add-dir" not in reviewer_template
+
+    reviewer_script_text = _read(reviewer_script)
+    for token in (
+        "Treat output as advisory only",
+        "do not authorize implementation, merge, phase transition, production cutover, or evidence signoff",
+        "printf '%s\\n' \"${PROMPT}\" | claude -p --no-session-persistence --tools \"\"",
+    ):
+        assert token in reviewer_script_text, f"reviewer script missing token: {token}"
+    assert "claude -p --add-dir" not in reviewer_script_text
 
     expected_tokens = {
         repo_readme: (
