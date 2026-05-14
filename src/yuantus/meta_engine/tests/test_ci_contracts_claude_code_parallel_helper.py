@@ -130,11 +130,21 @@ def test_claude_code_parallel_helper_is_documented_and_runnable() -> None:
             "print_claude_code_parallel_commands.sh",
             "run_claude_code_parallel_reviewer.sh",
             "RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md",
+            "read-only by default",
+            "claude -p --no-session-persistence --tools \"\"",
+            "output is advisory",
+            "explicit\nuser authorization",
+            "must not commit `.claude/` or `local-dev-env/`",
         ),
         verification_doc: (
             "print_claude_code_parallel_commands.sh",
             "run_claude_code_parallel_reviewer.sh",
             "RUNBOOK_CLAUDE_CODE_PARALLEL_WORKTREE.md",
+            "read-only by default",
+            "claude -p --no-session-persistence --tools \"\"",
+            "output is\nadvisory only",
+            "requires explicit user authorization",
+            "must not commit `.claude/` or `local-dev-env/`",
         ),
         runbook: (
             "print_claude_code_parallel_commands.sh",
@@ -145,6 +155,9 @@ def test_claude_code_parallel_helper_is_documented_and_runnable() -> None:
         delivery_index: (
             "print_claude_code_parallel_commands.sh",
             "run_claude_code_parallel_reviewer.sh",
+            "claude -p --no-session-persistence --tools \"\"",
+            "worktree mode requires explicit user authorization",
+            "output is advisory only",
         ),
     }
 

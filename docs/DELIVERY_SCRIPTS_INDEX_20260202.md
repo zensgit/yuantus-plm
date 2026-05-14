@@ -117,7 +117,7 @@
 - `verify_compose_sku_profiles.sh` renders the `base`, `collab`, and `combined` overlays and requires a sibling `metasheet2` checkout (or `METASHEET2_ROOT`) for the combined profile.
 - `verify_compose_sku_profiles_smoke.sh` boots one SKU profile, waits for health, and tears the stack down unless `KEEP_UP=1`.
 - `generate_tenant_import_rehearsal_env_template.sh` writes a repo-external P3.4 full-closeout env-file template with placeholder non-production DSNs, chmods it to 0600, refuses accidental overwrite unless `--force` is passed, and does not print database URL values.
-- `print_claude_code_parallel_commands.sh` prints safe Claude Code CLI templates for read-only, worktree, and reviewer flows.
+- `print_claude_code_parallel_commands.sh` prints safe Claude Code CLI templates for read-only, worktree, and reviewer flows; read-only/reviewer templates use `claude -p --no-session-persistence --tools ""`, while worktree mode requires explicit user authorization.
 - `print_current_worktree_closeout_commands.sh` prints the current worktree closeout split plan and ready-to-copy review/staging command templates, supports `--group`, and excludes local-only artifacts.
 - `print_cross_domain_services_split_helper.sh` prints the fast-path staging commands for the cross-domain-services split.
 - `print_delivery_pack_split_helper.sh` prints the fast-path staging commands for the delivery-pack split.
@@ -145,7 +145,7 @@
 - `precheck_p2_observation_regression.sh` is the cheap local shared-dev readiness probe for auth plus the dashboard summary read surface, and writes `OBSERVATION_PRECHECK.md`.
 - `print_strict_gate_split_helper.sh` prints the fast-path staging commands for the strict-gate split.
 - `print_tenant_import_rehearsal_commands.sh` prints the safe P3.4 operator command sequence from env-file template generation through evidence closeout, using environment variable placeholders instead of secret database URL values.
-- `run_claude_code_parallel_reviewer.sh` runs a non-interactive Claude Code reviewer sidecar against the current repo.
+- `run_claude_code_parallel_reviewer.sh` runs a non-interactive read-only Claude Code reviewer sidecar against the current repo with `claude -p --no-session-persistence --tools ""`; output is advisory only.
 - `run_p2_shared_dev_142_entrypoint.sh` is the single mode selector for shared-dev host `142.171.239.56`, routing to print-daily-commands, readonly-rerun, refreeze-readiness, refreeze-candidate, refreeze-proposal, drift-audit, drift-investigation, workflow-probe, workflow-readonly-check, and the expanded readonly/refreeze/drift/investigation command printouts.
 - `run_p2_shared_dev_142_drift_audit.sh` runs the fixed readonly rerun into a dedicated current result dir and renders a top-level `DRIFT_AUDIT.md` plus `drift_audit.json`.
 - `run_p2_shared_dev_142_drift_investigation.sh` runs the fixed drift-audit flow into a nested result dir and renders a top-level `DRIFT_INVESTIGATION.md` plus `drift_investigation.json`.
