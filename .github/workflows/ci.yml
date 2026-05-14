@@ -288,6 +288,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_ci_contracts_cad_backend_profile_scope_verifier.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_cad_import_dedup_index.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_ci_yml_test_list_order.py \
+            src/yuantus/meta_engine/tests/test_ci_contracts_claude_code_assist_discipline.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_claude_code_parallel_helper.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_compose_security_defaults.py \
             src/yuantus/meta_engine/tests/test_ci_contracts_compose_sku_profiles.py \

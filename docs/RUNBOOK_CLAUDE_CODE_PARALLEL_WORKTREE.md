@@ -43,10 +43,28 @@ bash scripts/run_claude_code_parallel_reviewer.sh --out /tmp/yuantus-review.txt
 Use this for repo audits, reviewer briefs, change summaries, and scope checks.
 It should not edit files.
 
+Recommended non-interactive shape:
+
+```bash
+printf '%s\n' '<read-only prompt>' | claude -p --no-session-persistence --tools ""
+```
+
+Use read-only mode as the default whenever the active repo has local work, an
+open PR, or a plan gate that could be misinterpreted by a second agent.
+
+Read-only Claude Code output is advisory. It can identify risks, suggest a
+scope, or review a staged diff, but it does not authorize implementation,
+merge, phase transition, production cutover, or external evidence signoff.
+
 ### Worktree
 
 Use this for implementation work. The printed command uses `claude --worktree`
 so the sidecar writes in an isolated git worktree instead of the current tree.
+
+Use worktree mode only after the user explicitly authorizes Claude Code to
+write code for a bounded task. Keep the write set disjoint from active local
+work, and have the primary agent review, test, and integrate the result before
+opening or updating a PR.
 
 ### Reviewer
 
@@ -59,3 +77,12 @@ read-only by instruction.
 - Prefer worktree mode for any write action.
 - Keep sidecar scopes narrow and file-local when possible.
 - Do not use the sidecar to clean unrelated dirty files in the current tree.
+- Do not treat a Claude Code recommendation as a user opt-in to start a blocked
+  phase. Phase gates still require explicit user authorization and the required
+  evidence artifacts.
+- Do not include secrets, webhook URLs, tokens, passwords, `.claude/`, or
+  `local-dev-env/` in prompts, commits, review output, or indexed delivery
+  docs.
+- Do not bypass repository safety by using permission-skipping modes in the
+  shared worktree. If write access is required, use an isolated worktree and
+  keep the final integration under normal git review.
