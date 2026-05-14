@@ -40,7 +40,7 @@ def plan_alerts(
     try:
         return service.plan_alerts(plan_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @cutted_parts_alerts_router.get("/export/outliers")

@@ -31,7 +31,7 @@ def scenario_summary(
     try:
         return service.scenario_summary(plan_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @cutted_parts_scenarios_router.get("/materials/templates")

@@ -40,7 +40,7 @@ def waste_summary(
     try:
         return service.waste_summary(plan_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @cutted_parts_analytics_router.get("/export/overview")

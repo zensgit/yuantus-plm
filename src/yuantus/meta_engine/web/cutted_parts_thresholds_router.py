@@ -40,7 +40,7 @@ def plan_threshold_check(
     try:
         return service.plan_threshold_check(plan_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @cutted_parts_thresholds_router.get("/export/envelopes")

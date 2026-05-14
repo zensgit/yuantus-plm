@@ -40,7 +40,7 @@ def plan_cadence(
     try:
         return service.plan_cadence(plan_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @cutted_parts_throughput_router.get("/export/cadence")
