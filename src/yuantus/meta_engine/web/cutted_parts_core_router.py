@@ -91,7 +91,7 @@ def create_plan(
         db.commit()
     except ValueError as exc:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, **_plan_dict(plan)}
 
 
@@ -130,7 +130,7 @@ def get_plan_summary(
     try:
         summary = service.plan_summary(plan_id)
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     return summary
 
 
