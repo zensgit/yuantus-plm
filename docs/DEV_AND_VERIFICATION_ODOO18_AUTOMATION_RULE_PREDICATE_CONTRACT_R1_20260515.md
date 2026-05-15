@@ -37,17 +37,30 @@ prior five Odoo18 contracts are **unchanged**.
 
 All fields optional, absent = wildcard: `workflow_map_id`, `stage_id`,
 `eco_priority`, `actor_roles` (tuple), `product_id`, `eco_type`.
-`eco_priority`/`eco_type` validators reject values outside the live
-`ECOPriority`/`ECOType` domains. `workflow_map_id` is an **independent**
-field (a rule-column scope filter, NOT part of `match_predicates`).
-`is_empty()` is true iff no constraint at all.
+**Direct construction normalizes** (mode="before" validators) exactly
+like `WorkflowCustomActionService._normalize_match_predicates`:
+`workflow_map_id`/`stage_id`/`product_id` trimmed (blank → `None`);
+`eco_priority`/`eco_type` trimmed + lowercased + validated against the
+live `ECOPriority`/`ECOType` domains; `actor_roles` de-dup/lowercased
+(non-array → `ValueError`, mirroring `_normalize_string_list`). So
+`WorkflowRulePredicate(eco_priority="HIGH")` == the factory's `"high"`
+— the public DTO path cannot diverge from
+`normalize_workflow_rule_predicate`. `workflow_map_id` is an
+**independent** field (a rule-column scope filter, NOT part of
+`match_predicates`). `is_empty()` is true iff no constraint at all.
 
 ### 3.2 `WorkflowRuleFacts` (Pydantic v2, frozen, `extra="forbid"`)
 
-Runtime-context counterpart. `from_context(dict)` normalizes exactly
-like `WorkflowCustomActionService._normalize_runtime_context`
-(`_normalize_optional_string`; lowercase `eco_priority`/`eco_type`;
-`actor_roles` → de-duplicated lowercased tuple).
+Runtime-context counterpart. **Direct construction normalizes** (same
+validators) exactly like
+`WorkflowCustomActionService._normalize_runtime_context`: trim optional
+strings; lowercase `eco_priority`/`eco_type` **without** enum-domain
+enforcement (runtime context is normalized, not validated, by the
+service); `actor_roles` → de-duplicated lowercased tuple. Hence
+`WorkflowRuleFacts(eco_priority="HIGH")` ==
+`WorkflowRuleFacts.from_context({"eco_priority": "HIGH"})`;
+`from_context` is a thin adapter that extracts the known keys (unknown
+keys ignored) and delegates to the normalizing constructor.
 
 ### 3.3 `normalize_workflow_rule_predicate(workflow_map_id, match_predicates)`
 
@@ -92,7 +105,7 @@ added):
   `actor_roles`, non-dict) → empty predicate **but `workflow_map_id`
   preserved**; comment cites `_rule_match_predicates` line 2169 and
   states R1 must NOT harden it.
-- **Service-parity matrix** (core R1 value): 19 cases of
+- **Service-parity matrix** (core R1 value): 21 cases of
   `(workflow_map_id, raw_match_predicates, runtime_context)` — legal,
   empty, wildcard, multi-key, actor-role, `workflow_map_id` set/unset,
   and illegal/fail-open — each asserted to produce the **same boolean**

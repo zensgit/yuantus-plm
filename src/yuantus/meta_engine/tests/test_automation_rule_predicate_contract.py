@@ -81,6 +81,45 @@ def test_facts_normalization_matches_context_rules():
     assert f.actor_roles == ("qa",)
 
 
+def test_direct_dto_construction_normalizes_like_factory():
+    # Medium fix: direct construction must normalize, not just validate
+    # membership. The public DTO path must not diverge from the factory /
+    # from_context path.
+    p_direct = WorkflowRulePredicate(
+        eco_priority="HIGH", eco_type="BOM", actor_roles=("QA", "qa", " Eng ")
+    )
+    p_factory = normalize_workflow_rule_predicate(
+        None, {"eco_priority": "high", "eco_type": "bom", "actor_roles": ["qa", "eng"]}
+    )
+    assert p_direct.eco_priority == "high"
+    assert p_direct.eco_type == "bom"
+    assert p_direct.actor_roles == ("qa", "eng")
+    assert p_direct == p_factory
+
+    f_direct = WorkflowRuleFacts(eco_priority="HIGH", eco_type="BOM")
+    f_ctx = WorkflowRuleFacts.from_context({"eco_priority": "HIGH", "eco_type": "BOM"})
+    assert f_direct == f_ctx
+    assert f_direct.eco_priority == "high"
+
+    # The misuse the reviewer flagged is now impossible: a mixed-case
+    # direct predicate matches lowercased facts.
+    assert evaluate_rule_predicate(
+        WorkflowRulePredicate(actor_roles=("QA",)),
+        WorkflowRuleFacts(actor_roles=("qa",)),
+    ) is True
+    assert evaluate_rule_predicate(
+        WorkflowRulePredicate(eco_priority="HIGH"),
+        WorkflowRuleFacts.from_context({"eco_priority": "HIGH"}),
+    ) is True
+
+
+def test_facts_direct_construction_does_not_enforce_enum_domain():
+    # _normalize_runtime_context only lowercases; it does NOT validate
+    # the runtime value against the enum domain. Mirror that.
+    f = WorkflowRuleFacts(eco_priority="exotic")
+    assert f.eco_priority == "exotic"
+
+
 # --------------------------------------------------------------------------
 # Evaluator matrix
 # --------------------------------------------------------------------------

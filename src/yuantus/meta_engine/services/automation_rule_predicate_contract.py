@@ -136,19 +136,24 @@ def _normalize_match_predicates_strict(
 
 
 class WorkflowRulePredicate(BaseModel):
-    """Already-normalized rule predicate. All fields optional; absent = wildcard.
+    """Rule predicate. All fields optional; absent = wildcard.
 
     ``workflow_map_id`` is a rule-column scope filter, modeled as an
     independent field (NOT part of match_predicates) so the fail-open
     path can preserve it while zeroing the predicate-derived keys —
     bit-for-bit with the service.
 
-    Fields must be **already normalized**. ``normalize_workflow_rule_predicate``
-    is the blessed constructor (it lowercases enums, de-dups
-    ``actor_roles``, drops blanks, and fails open). Direct construction
-    validates enum *membership* but does NOT normalize casing — e.g.
-    ``WorkflowRulePredicate(eco_priority="HIGH")`` raises, whereas the
-    factory yields ``eco_priority == "high"``.
+    **Direct construction normalizes** like
+    ``WorkflowCustomActionService._normalize_match_predicates``:
+    `workflow_map_id`/`stage_id`/`product_id` are trimmed (blank →
+    ``None``); `eco_priority`/`eco_type` are trimmed, lowercased, then
+    validated against the live `ECOPriority`/`ECOType` domains;
+    `actor_roles` is de-duplicated/lowercased (non-array → ``ValueError``,
+    mirroring `_normalize_string_list`). So
+    ``WorkflowRulePredicate(eco_priority="HIGH")`` yields
+    ``eco_priority == "high"`` — identical to the
+    ``normalize_workflow_rule_predicate`` factory (which additionally
+    fails open on illegal stored predicates).
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -160,25 +165,41 @@ class WorkflowRulePredicate(BaseModel):
     product_id: Optional[str] = None
     eco_type: Optional[str] = None
 
-    @field_validator("eco_priority")
+    @field_validator(
+        "workflow_map_id", "stage_id", "product_id", mode="before"
+    )
     @classmethod
-    def _known_priority(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
+    def _opt_str(cls, v: Any) -> Optional[str]:
+        return _normalize_optional_string(v)
+
+    @field_validator("eco_priority", mode="before")
+    @classmethod
+    def _priority(cls, v: Any) -> Optional[str]:
+        s = _normalize_optional_string(v)
+        if s is None:
             return None
-        if v not in _ALLOWED_ECO_PRIORITIES:
+        s = s.lower()
+        if s not in _ALLOWED_ECO_PRIORITIES:
             raise ValueError(
                 "eco_priority must be one of: low, normal, high, urgent"
             )
-        return v
+        return s
 
-    @field_validator("eco_type")
+    @field_validator("eco_type", mode="before")
     @classmethod
-    def _known_type(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
+    def _type(cls, v: Any) -> Optional[str]:
+        s = _normalize_optional_string(v)
+        if s is None:
             return None
-        if v not in _ALLOWED_ECO_TYPES:
+        s = s.lower()
+        if s not in _ALLOWED_ECO_TYPES:
             raise ValueError("eco_type must be one of: bom, product, document")
-        return v
+        return s
+
+    @field_validator("actor_roles", mode="before")
+    @classmethod
+    def _roles(cls, v: Any) -> Tuple[str, ...]:
+        return _normalize_string_list(v, field="actor_roles")
 
     def is_empty(self) -> bool:
         """True iff no constraint at all (matches everything)."""
@@ -193,7 +214,16 @@ class WorkflowRulePredicate(BaseModel):
 
 
 class WorkflowRuleFacts(BaseModel):
-    """Runtime context counterpart, normalized like _normalize_runtime_context."""
+    """Runtime context counterpart.
+
+    **Direct construction normalizes** like
+    ``WorkflowCustomActionService._normalize_runtime_context``: trim
+    optional strings (blank → ``None``); lowercase `eco_priority` /
+    `eco_type` **without** enum-domain enforcement (runtime context is
+    not validated by the service, only normalized); de-dup/lowercase
+    `actor_roles`. So ``WorkflowRuleFacts(eco_priority="HIGH")`` ==
+    ``WorkflowRuleFacts.from_context({"eco_priority": "HIGH"})``.
+    """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -204,20 +234,39 @@ class WorkflowRuleFacts(BaseModel):
     eco_type: Optional[str] = None
     actor_roles: Tuple[str, ...] = ()
 
+    @field_validator(
+        "workflow_map_id", "stage_id", "product_id", mode="before"
+    )
+    @classmethod
+    def _opt_str(cls, v: Any) -> Optional[str]:
+        return _normalize_optional_string(v)
+
+    @field_validator("eco_priority", "eco_type", mode="before")
+    @classmethod
+    def _lower_opt(cls, v: Any) -> Optional[str]:
+        s = _normalize_optional_string(v)
+        return s.lower() if s else None
+
+    @field_validator("actor_roles", mode="before")
+    @classmethod
+    def _roles(cls, v: Any) -> Tuple[str, ...]:
+        return _normalize_string_list(v, field="context.actor_roles")
+
     @classmethod
     def from_context(cls, context: Optional[Dict[str, Any]]) -> "WorkflowRuleFacts":
+        """Build from a raw runtime context dict (unknown keys ignored).
+
+        Thin adapter — the field validators do the normalization, so
+        this is equivalent to direct construction with the known keys.
+        """
         ctx = dict(context or {})
-        eco_priority = _normalize_optional_string(ctx.get("eco_priority"))
-        eco_type = _normalize_optional_string(ctx.get("eco_type"))
         return cls(
-            workflow_map_id=_normalize_optional_string(ctx.get("workflow_map_id")),
-            stage_id=_normalize_optional_string(ctx.get("stage_id")),
-            eco_priority=eco_priority.lower() if eco_priority else None,
-            product_id=_normalize_optional_string(ctx.get("product_id")),
-            eco_type=eco_type.lower() if eco_type else None,
-            actor_roles=_normalize_string_list(
-                ctx.get("actor_roles"), field="context.actor_roles"
-            ),
+            workflow_map_id=ctx.get("workflow_map_id"),
+            stage_id=ctx.get("stage_id"),
+            eco_priority=ctx.get("eco_priority"),
+            product_id=ctx.get("product_id"),
+            eco_type=ctx.get("eco_type"),
+            actor_roles=ctx.get("actor_roles"),
         )
 
 
