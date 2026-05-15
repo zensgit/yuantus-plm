@@ -35,6 +35,7 @@ from yuantus.meta_engine.services.parallel_tasks_service import (
     WorkflowCustomActionService,
     WorkorderDocumentPackService,
 )
+from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.models.base import Base
 from yuantus.security.rbac.models import RBACUser
 
@@ -58,6 +59,7 @@ def session():
             ThreeDOverlay.__table__,
             ConversionJob.__table__,
             ReportLocaleProfile.__table__,
+            ItemVersion.__table__,
         ],
     )
     SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
@@ -2947,6 +2949,271 @@ def test_workorder_doc_pack_includes_locale_profile_context(session):
     zf = ZipFile(io.BytesIO(pack["zip_bytes"]))
     names = set(zf.namelist())
     assert "locale.json" in names
+
+
+def _seed_item_version(
+    session,
+    *,
+    version_id: str,
+    item_id: str,
+    label: str = "1.A",
+    is_current: bool = True,
+    is_released: bool = False,
+) -> ItemVersion:
+    version = ItemVersion(
+        id=version_id,
+        item_id=item_id,
+        version_label=label,
+        is_current=is_current,
+        is_released=is_released,
+    )
+    session.add(version)
+    session.flush()
+    return version
+
+
+def test_workorder_doc_pack_upsert_persists_version_lock_metadata(session):
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-1", item_id="doc-1", is_current=True)
+
+    link = service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-1",
+        document_version_id="v-1",
+        version_lock_source="manual",
+    )
+    session.commit()
+
+    assert link.document_version_id == "v-1"
+    assert link.version_locked_at is not None
+    assert link.version_lock_source == "manual"
+
+    serialized = service.serialize_link(link)
+    assert serialized["version_locked"] is True
+    assert serialized["version_lock_source"] == "manual"
+    assert serialized["version_label"] == "1.A"
+    assert serialized["version_is_current"] is True
+    assert serialized["version_belongs_to_item"] is True
+
+
+def test_workorder_doc_pack_upsert_rejects_missing_version(session):
+    service = WorkorderDocumentPackService(session)
+    with pytest.raises(ValueError, match="not found"):
+        service.upsert_link(
+            routing_id="r-1",
+            document_item_id="doc-1",
+            document_version_id="v-missing",
+        )
+
+
+def test_workorder_doc_pack_upsert_rejects_cross_item_version(session):
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-A", item_id="doc-A")
+    with pytest.raises(ValueError, match="does not belong"):
+        service.upsert_link(
+            routing_id="r-1",
+            document_item_id="doc-B",
+            document_version_id="v-A",
+        )
+
+
+def test_workorder_doc_pack_upsert_rejects_unknown_lock_source(session):
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-1", item_id="doc-1")
+    with pytest.raises(ValueError, match="version_lock_source"):
+        service.upsert_link(
+            routing_id="r-1",
+            document_item_id="doc-1",
+            document_version_id="v-1",
+            version_lock_source="bogus",
+        )
+
+
+def test_workorder_doc_pack_list_serializes_version_metadata(session):
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-routing", item_id="doc-routing")
+    _seed_item_version(session, version_id="v-op", item_id="doc-op")
+    service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-routing",
+        document_version_id="v-routing",
+    )
+    service.upsert_link(
+        routing_id="r-1",
+        operation_id="op-10",
+        document_item_id="doc-op",
+        document_version_id="v-op",
+        version_lock_source="eco_apply",
+    )
+    session.commit()
+
+    links = service.list_links(routing_id="r-1", operation_id="op-10")
+    serialized = [service.serialize_link(link) for link in links]
+    by_doc = {row["document_item_id"]: row for row in serialized}
+    assert by_doc["doc-routing"]["version_locked"] is True
+    assert by_doc["doc-routing"]["version_lock_source"] == "manual"
+    assert by_doc["doc-op"]["version_lock_source"] == "eco_apply"
+
+
+def test_workorder_doc_pack_export_manifest_includes_lock_summary(session):
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-locked", item_id="doc-locked")
+    service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-locked",
+        document_version_id="v-locked",
+    )
+    service.upsert_link(routing_id="r-1", document_item_id="doc-unlocked")
+    session.commit()
+
+    pack = service.export_pack(routing_id="r-1")
+    manifest = pack["manifest"]
+    assert manifest["version_lock_summary"] == {
+        "locked": 1,
+        "unlocked": 1,
+        "mismatched": 0,
+        "stale": 0,
+        "requires_lock": False,
+    }
+    docs_by_item = {row["document_item_id"]: row for row in manifest["documents"]}
+    assert docs_by_item["doc-locked"]["version_locked"] is True
+    assert docs_by_item["doc-unlocked"]["version_locked"] is False
+    zf = ZipFile(io.BytesIO(pack["zip_bytes"]))
+    csv_body = zf.read("documents.csv").decode("utf-8")
+    assert "document_version_id" in csv_body
+    assert "version_locked" in csv_body
+
+
+def test_workorder_doc_pack_export_require_locked_versions_fail_closed(session):
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-locked", item_id="doc-locked")
+    service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-locked",
+        document_version_id="v-locked",
+    )
+    service.upsert_link(routing_id="r-1", document_item_id="doc-unlocked")
+    session.commit()
+
+    with pytest.raises(ValueError, match="require_locked_versions"):
+        service.export_pack(routing_id="r-1", require_locked_versions=True)
+
+
+def test_workorder_doc_pack_export_require_locked_versions_accepts_all_locked(session):
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-routing", item_id="doc-routing")
+    _seed_item_version(session, version_id="v-op", item_id="doc-op")
+    service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-routing",
+        document_version_id="v-routing",
+    )
+    service.upsert_link(
+        routing_id="r-1",
+        operation_id="op-10",
+        document_item_id="doc-op",
+        document_version_id="v-op",
+        inherit_to_children=False,
+    )
+    session.commit()
+
+    pack = service.export_pack(
+        routing_id="r-1",
+        operation_id="op-10",
+        require_locked_versions=True,
+    )
+    summary = pack["manifest"]["version_lock_summary"]
+    assert summary["locked"] == 2
+    assert summary["unlocked"] == 0
+    assert summary["requires_lock"] is True
+
+
+def test_workorder_doc_pack_export_marks_stale_without_failing_closed(session):
+    """Locked-but-stale rows surface in version_lock_summary.stale and DO NOT raise.
+
+    Freshness rejection is deferred per taskbook §5.3 — the ECO apply hook is
+    the authoritative refresh path in R1. This test locks the contract so a
+    future contributor cannot silently flip stale rejection on.
+    """
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(
+        session,
+        version_id="v-old",
+        item_id="doc-1",
+        label="1.A",
+        is_current=False,
+        is_released=True,
+    )
+    service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-1",
+        document_version_id="v-old",
+    )
+    session.commit()
+
+    pack = service.export_pack(routing_id="r-1", require_locked_versions=True)
+    summary = pack["manifest"]["version_lock_summary"]
+    assert summary["locked"] == 1
+    assert summary["unlocked"] == 0
+    assert summary["mismatched"] == 0
+    assert summary["stale"] == 1
+    assert summary["requires_lock"] is True
+
+
+def test_workorder_doc_pack_refresh_updates_only_matching_item(session):
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-A1", item_id="doc-A")
+    _seed_item_version(session, version_id="v-A2", item_id="doc-A")
+    _seed_item_version(session, version_id="v-B1", item_id="doc-B")
+    link_a_routing = service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-A",
+        document_version_id="v-A1",
+    )
+    link_a_op = service.upsert_link(
+        routing_id="r-1",
+        operation_id="op-10",
+        document_item_id="doc-A",
+        document_version_id="v-A1",
+    )
+    link_b = service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-B",
+        document_version_id="v-B1",
+    )
+    link_unlocked = service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-A",
+        operation_id="op-20",
+    )
+    session.commit()
+
+    updated = service.refresh_document_version_locks_for_item(
+        document_item_id="doc-A",
+        document_version_id="v-A2",
+    )
+    session.commit()
+    assert updated == 3
+
+    session.refresh(link_a_routing)
+    session.refresh(link_a_op)
+    session.refresh(link_unlocked)
+    session.refresh(link_b)
+    assert link_a_routing.document_version_id == "v-A2"
+    assert link_a_routing.version_lock_source == "eco_apply"
+    assert link_a_op.document_version_id == "v-A2"
+    assert link_unlocked.document_version_id == "v-A2"
+    assert link_b.document_version_id == "v-B1"
+
+
+def test_workorder_doc_pack_refresh_rejects_cross_item_version(session):
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-X", item_id="doc-X")
+    with pytest.raises(ValueError, match="does not belong"):
+        service.refresh_document_version_locks_for_item(
+            document_item_id="doc-Y",
+            document_version_id="v-X",
+        )
 
 
 def test_3d_overlay_role_gate_and_component_lookup(session):

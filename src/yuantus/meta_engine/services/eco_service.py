@@ -1833,6 +1833,21 @@ class ECOService:
         except VersionFileError as exc:
             raise ValueError(str(exc)) from exc
 
+        try:
+            from yuantus.meta_engine.services.parallel_tasks_service import (
+                WorkorderDocumentPackService,
+            )
+
+            WorkorderDocumentPackService(self.session).refresh_document_version_locks_for_item(
+                document_item_id=product.id,
+                document_version_id=target_version.id,
+                source="eco_apply",
+            )
+        except ValueError as exc:
+            raise ValueError(
+                f"workorder document version-lock refresh failed: {exc}"
+            ) from exc
+
         eco.state = ECOState.DONE.value
         eco.kanban_state = "done"
         eco.product_version_after = target_version.version_label
