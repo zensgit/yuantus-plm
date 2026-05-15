@@ -35,6 +35,7 @@ from yuantus.meta_engine.models.parallel_tasks import (
 )
 from yuantus.meta_engine.report_locale.service import ReportLocaleService
 from yuantus.meta_engine.services.job_service import JobService
+from yuantus.meta_engine.version.models import ItemVersion
 
 
 def _uuid() -> str:
@@ -6113,9 +6114,83 @@ class BreakageIncidentService:
         return response
 
 
+_WORKORDER_VERSION_UNSET = object()
+
+
 class WorkorderDocumentPackService:
+    _VERSION_LOCK_SOURCES = frozenset({"manual", "eco_apply", "backfill"})
+
+    # Re-exported so callers in the same module can opt out of clearing the
+    # lock columns without passing magic strings around.
+    VERSION_UNSET = _WORKORDER_VERSION_UNSET
+
     def __init__(self, session: Session):
         self.session = session
+
+    def _load_owned_version(
+        self,
+        *,
+        document_item_id: str,
+        document_version_id: str,
+    ) -> ItemVersion:
+        version = self.session.get(ItemVersion, document_version_id)
+        if version is None:
+            raise ValueError(
+                f"document_version_id {document_version_id!r} not found"
+            )
+        if str(version.item_id) != str(document_item_id):
+            raise ValueError(
+                "document_version_id does not belong to document_item_id"
+            )
+        return version
+
+    def _resolve_lock_source(self, value: Optional[str]) -> str:
+        normalized = (value or "manual").strip().lower()
+        if normalized not in self._VERSION_LOCK_SOURCES:
+            raise ValueError(
+                f"version_lock_source must be one of {sorted(self._VERSION_LOCK_SOURCES)}"
+            )
+        return normalized
+
+    def serialize_link(self, link: WorkorderDocumentLink) -> Dict[str, Any]:
+        version_id = getattr(link, "document_version_id", None)
+        version_locked_at = getattr(link, "version_locked_at", None)
+        version_lock_source = getattr(link, "version_lock_source", None)
+        version_is_current: Optional[bool] = None
+        version_is_released: Optional[bool] = None
+        version_label: Optional[str] = None
+        version_belongs_to_item: Optional[bool] = None
+        if version_id:
+            version = self.session.get(ItemVersion, version_id)
+            if version is not None:
+                version_is_current = bool(version.is_current)
+                version_is_released = bool(version.is_released)
+                version_label = getattr(version, "version_label", None)
+                version_belongs_to_item = (
+                    str(version.item_id) == str(link.document_item_id)
+                )
+            else:
+                version_belongs_to_item = False
+        return {
+            "id": link.id,
+            "routing_id": link.routing_id,
+            "operation_id": link.operation_id,
+            "document_item_id": link.document_item_id,
+            "inherit_to_children": bool(link.inherit_to_children),
+            "visible_in_production": bool(link.visible_in_production),
+            "document_scope": "routing" if link.operation_id is None else "operation",
+            "created_at": link.created_at.isoformat() if link.created_at else None,
+            "document_version_id": version_id,
+            "version_locked": bool(version_id),
+            "version_lock_source": version_lock_source,
+            "version_locked_at": (
+                version_locked_at.isoformat() if version_locked_at else None
+            ),
+            "version_label": version_label,
+            "version_is_current": version_is_current,
+            "version_is_released": version_is_released,
+            "version_belongs_to_item": version_belongs_to_item,
+        }
 
     def upsert_link(
         self,
@@ -6125,7 +6200,20 @@ class WorkorderDocumentPackService:
         operation_id: Optional[str] = None,
         inherit_to_children: bool = True,
         visible_in_production: bool = True,
+        document_version_id: Any = _WORKORDER_VERSION_UNSET,
+        version_lock_source: str = "manual",
     ) -> WorkorderDocumentLink:
+        """Upsert a workorder document link.
+
+        ``document_version_id`` is tri-state:
+
+        - **Not passed** (``_WORKORDER_VERSION_UNSET`` sentinel): the existing
+          lock on the row, if any, is preserved untouched. This is the
+          backward-compatible path for callers that predate version-lock.
+        - **Explicit ``None``**: the lock is cleared
+          (``document_version_id = NULL`` + nulled audit columns).
+        - **A string**: validated and applied as a new lock.
+        """
         existing = (
             self.session.query(WorkorderDocumentLink)
             .filter(
@@ -6148,8 +6236,63 @@ class WorkorderDocumentPackService:
 
         link.inherit_to_children = bool(inherit_to_children)
         link.visible_in_production = bool(visible_in_production)
+
+        if document_version_id is _WORKORDER_VERSION_UNSET:
+            # Preserve whatever lock state already exists on the row.
+            pass
+        elif document_version_id is None:
+            link.document_version_id = None
+            link.version_locked_at = None
+            link.version_lock_source = None
+        else:
+            self._load_owned_version(
+                document_item_id=document_item_id,
+                document_version_id=document_version_id,
+            )
+            source = self._resolve_lock_source(version_lock_source)
+            link.document_version_id = document_version_id
+            link.version_locked_at = _utcnow()
+            link.version_lock_source = source
+
         self.session.flush()
         return link
+
+    def refresh_document_version_locks_for_item(
+        self,
+        *,
+        document_item_id: str,
+        document_version_id: str,
+        source: str = "eco_apply",
+    ) -> int:
+        """Re-point every existing workorder-doc link for the given item.
+
+        Strict scope: only rows whose ``document_item_id`` exactly matches the
+        target item are touched. No inference from BOM/routing trees. No new
+        links are created. Returns the number of rows updated.
+        """
+        version = self._load_owned_version(
+            document_item_id=document_item_id,
+            document_version_id=document_version_id,
+        )
+        resolved_source = self._resolve_lock_source(source)
+        rows = (
+            self.session.query(WorkorderDocumentLink)
+            .filter(WorkorderDocumentLink.document_item_id == document_item_id)
+            .all()
+        )
+        now = _utcnow()
+        updated = 0
+        for row in rows:
+            if row.document_version_id == version.id:
+                continue
+            row.document_version_id = version.id
+            row.version_locked_at = now
+            row.version_lock_source = resolved_source
+            self.session.add(row)
+            updated += 1
+        if updated:
+            self.session.flush()
+        return updated
 
     def list_links(
         self,
@@ -6189,12 +6332,38 @@ class WorkorderDocumentPackService:
         operation_id: Optional[str] = None,
         include_inherited: bool = True,
         export_meta: Optional[Dict[str, Any]] = None,
+        require_locked_versions: bool = False,
     ) -> Dict[str, Any]:
         links = self.list_links(
             routing_id=routing_id,
             operation_id=operation_id,
             include_inherited=include_inherited,
         )
+        serialized = [self.serialize_link(link) for link in links]
+
+        unlocked: List[Dict[str, Any]] = []
+        mismatched: List[Dict[str, Any]] = []
+        stale: List[Dict[str, Any]] = []
+        for row in serialized:
+            if not row["visible_in_production"]:
+                continue
+            if not row["version_locked"]:
+                unlocked.append(row)
+                continue
+            if row["version_belongs_to_item"] is False:
+                mismatched.append(row)
+                continue
+            if row["version_is_current"] is False:
+                stale.append(row)
+
+        if require_locked_versions and (unlocked or mismatched):
+            offending_ids = [row["id"] for row in unlocked + mismatched]
+            raise ValueError(
+                "require_locked_versions=true: "
+                f"{len(unlocked)} unlocked + {len(mismatched)} mismatched links "
+                f"(ids={offending_ids})"
+            )
+
         generated_at = _utcnow().isoformat()
         normalized_meta = export_meta if isinstance(export_meta, dict) else {}
         operator_id = normalized_meta.get("operator_id")
@@ -6208,7 +6377,7 @@ class WorkorderDocumentPackService:
             "operator_id": operator_id,
             "operator_name": str(normalized_meta.get("operator_name") or "").strip() or None,
             "exported_by": str(normalized_meta.get("exported_by") or "").strip() or None,
-            "format_version": "workorder-doc-pack.v2",
+            "format_version": "workorder-doc-pack.v3",
         }
         locale_context = _resolve_report_locale_context(
             self.session,
@@ -6218,27 +6387,43 @@ class WorkorderDocumentPackService:
         )
         docs = [
             {
-                "link_id": link.id,
-                "routing_id": link.routing_id,
-                "operation_id": link.operation_id,
-                "document_item_id": link.document_item_id,
-                "inherit_to_children": bool(link.inherit_to_children),
-                "visible_in_production": bool(link.visible_in_production),
-                "document_scope": "routing" if link.operation_id is None else "operation",
-                "created_at": link.created_at.isoformat() if link.created_at else None,
+                "link_id": row["id"],
+                "routing_id": row["routing_id"],
+                "operation_id": row["operation_id"],
+                "document_item_id": row["document_item_id"],
+                "inherit_to_children": row["inherit_to_children"],
+                "visible_in_production": row["visible_in_production"],
+                "document_scope": row["document_scope"],
+                "created_at": row["created_at"],
+                "document_version_id": row["document_version_id"],
+                "version_locked": row["version_locked"],
+                "version_lock_source": row["version_lock_source"],
+                "version_locked_at": row["version_locked_at"],
+                "version_label": row["version_label"],
+                "version_is_current": row["version_is_current"],
+                "version_is_released": row["version_is_released"],
             }
-            for link in links
+            for row in serialized
         ]
         scope_counter = Counter(
             str(row.get("document_scope") or "unknown")
             for row in docs
         )
+        visible_count = sum(1 for row in docs if row["visible_in_production"])
+        version_lock_summary = {
+            "locked": visible_count - len(unlocked) - len(mismatched),
+            "unlocked": len(unlocked),
+            "mismatched": len(mismatched),
+            "stale": len(stale),
+            "requires_lock": bool(require_locked_versions),
+        }
         manifest = {
             "generated_at": generated_at,
             "routing_id": routing_id,
             "operation_id": operation_id,
             "count": len(docs),
             "scope_summary": dict(scope_counter),
+            "version_lock_summary": version_lock_summary,
             "export_meta": export_context,
             "documents": docs,
         }
@@ -6257,6 +6442,13 @@ class WorkorderDocumentPackService:
                 "inherit_to_children",
                 "visible_in_production",
                 "created_at",
+                "document_version_id",
+                "version_locked",
+                "version_lock_source",
+                "version_locked_at",
+                "version_label",
+                "version_is_current",
+                "version_is_released",
             ],
         )
         writer.writeheader()

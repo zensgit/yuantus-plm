@@ -122,9 +122,12 @@ def test_action_apply_runs_activity_gate_and_custom_actions_hooks():
 
     with patch(
         "yuantus.meta_engine.services.eco_service.VersionFileService"
-    ) as version_file_service_cls:
+    ) as version_file_service_cls, patch(
+        "yuantus.meta_engine.services.parallel_tasks_service.WorkorderDocumentPackService"
+    ) as workorder_pack_cls:
         version_file_service_cls.return_value.get_blocking_file_locks.return_value = []
         version_file_service_cls.return_value.sync_version_files_to_item.return_value = None
+        workorder_pack_cls.return_value.refresh_document_version_locks_for_item.return_value = 0
         ok = service.action_apply("eco-1", user_id=1)
 
     assert ok is True
@@ -147,6 +150,11 @@ def test_action_apply_runs_activity_gate_and_custom_actions_hooks():
         item_id="item-1",
         user_id=1,
         remove_missing=True,
+    )
+    workorder_pack_cls.return_value.refresh_document_version_locks_for_item.assert_called_once_with(
+        document_item_id="item-1",
+        document_version_id="v-2",
+        source="eco_apply",
     )
 
 
@@ -257,6 +265,66 @@ def test_action_apply_propagates_projection_runtime_lock_errors():
         with pytest.raises(
             ValueError,
             match="Version has file-level locks held by another user",
+        ):
+            service.action_apply("eco-1", user_id=1)
+
+
+def test_action_apply_fails_closed_on_workorder_doc_version_lock_refresh_error():
+    session = MagicMock()
+    service = ECOService(session)
+    service.permission_service.check_permission = MagicMock()
+    service._ensure_activity_gate_ready = MagicMock()
+    service._run_custom_actions = MagicMock()
+    service._enqueue_eco_updated = MagicMock()
+    service.check_rebase_needed = MagicMock(return_value=False)
+    service.detect_rebase_conflicts = MagicMock(return_value=[])
+
+    eco = SimpleNamespace(
+        id="eco-1",
+        state=ECOState.APPROVED.value,
+        product_id="item-1",
+        target_version_id="v-2",
+    )
+    product = SimpleNamespace(
+        id="item-1",
+        current_version_id="v-1",
+        properties={"rev": "A"},
+        updated_at=None,
+    )
+    current_version = SimpleNamespace(id="v-1", is_current=True, checked_out_by_id=None)
+    target_version = SimpleNamespace(
+        id="v-2",
+        is_current=False,
+        checked_out_by_id=None,
+        properties={"rev": "B"},
+        version_label="B",
+    )
+
+    session.get.side_effect = lambda model, value: (
+        SimpleNamespace(roles=[SimpleNamespace(name="approver")])
+        if getattr(model, "__name__", "") == "RBACUser" and value == 1
+        else product
+        if value == "item-1"
+        else None
+    )
+    service.get_eco = MagicMock(return_value=eco)
+    service.version_service.get_version = MagicMock(
+        side_effect=lambda version_id: current_version if version_id == "v-1" else target_version
+    )
+
+    with patch(
+        "yuantus.meta_engine.services.eco_service.VersionFileService"
+    ) as version_file_service_cls, patch(
+        "yuantus.meta_engine.services.parallel_tasks_service.WorkorderDocumentPackService"
+    ) as workorder_pack_cls:
+        version_file_service_cls.return_value.get_blocking_file_locks.return_value = []
+        version_file_service_cls.return_value.sync_version_files_to_item.return_value = None
+        workorder_pack_cls.return_value.refresh_document_version_locks_for_item.side_effect = (
+            ValueError("document_version_id does not belong to document_item_id")
+        )
+        with pytest.raises(
+            ValueError,
+            match="workorder document version-lock refresh failed",
         ):
             service.action_apply("eco-1", user_id=1)
 

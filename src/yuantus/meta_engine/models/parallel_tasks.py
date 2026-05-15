@@ -201,6 +201,9 @@ class WorkorderDocumentLink(Base):
     document_item_id = Column(String, nullable=False, index=True)
     inherit_to_children = Column(Boolean, nullable=False, default=True)
     visible_in_production = Column(Boolean, nullable=False, default=True)
+    document_version_id = Column(String, nullable=True, index=True)
+    version_locked_at = Column(DateTime, nullable=True)
+    version_lock_source = Column(String(40), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     __table_args__ = (

@@ -63,6 +63,11 @@ def _manifest_to_pdf_bytes(manifest: Dict[str, Any]) -> bytes:
     locale = manifest.get("locale") if isinstance(manifest, dict) else {}
     if not isinstance(locale, dict):
         locale = {}
+    version_lock_summary = (
+        manifest.get("version_lock_summary") if isinstance(manifest, dict) else {}
+    )
+    if not isinstance(version_lock_summary, dict):
+        version_lock_summary = {}
 
     lines = [
         "Workorder Document Pack",
@@ -79,6 +84,17 @@ def _manifest_to_pdf_bytes(manifest: Dict[str, Any]) -> bytes:
         f"routing_scope_docs: {scope_summary.get('routing') or 0}",
         f"operation_scope_docs: {scope_summary.get('operation') or 0}",
     ]
+    if version_lock_summary:
+        lines.extend(
+            [
+                "=== Version Lock Summary ===",
+                f"locked: {version_lock_summary.get('locked') or 0}",
+                f"unlocked: {version_lock_summary.get('unlocked') or 0}",
+                f"mismatched: {version_lock_summary.get('mismatched') or 0}",
+                f"stale: {version_lock_summary.get('stale') or 0}",
+                f"requires_lock: {bool(version_lock_summary.get('requires_lock'))}",
+            ]
+        )
     if locale:
         lines.extend(
             [
@@ -152,6 +168,7 @@ class WorkorderDocLinkRequest(BaseModel):
     document_item_id: str
     inherit_to_children: bool = True
     visible_in_production: bool = True
+    document_version_id: Optional[str] = None
 
 
 @parallel_tasks_workorder_docs_router.post("/workorder-docs/links")
@@ -161,6 +178,11 @@ async def upsert_workorder_doc_link(
     user: CurrentUser = Depends(get_current_user),
 ):
     service = WorkorderDocumentPackService(db)
+    extras: Dict[str, Any] = {}
+    # Preserve existing lock state when the client omitted document_version_id
+    # entirely. An explicit null in the body still clears the lock.
+    if "document_version_id" in payload.model_fields_set:
+        extras["document_version_id"] = payload.document_version_id
     try:
         link = service.upsert_link(
             routing_id=payload.routing_id,
@@ -168,7 +190,9 @@ async def upsert_workorder_doc_link(
             document_item_id=payload.document_item_id,
             inherit_to_children=payload.inherit_to_children,
             visible_in_production=payload.visible_in_production,
+            **extras,
         )
+        serialized = service.serialize_link(link)
         db.commit()
     except Exception as exc:
         db.rollback()
@@ -180,16 +204,10 @@ async def upsert_workorder_doc_link(
                 "routing_id": payload.routing_id,
                 "operation_id": payload.operation_id,
                 "document_item_id": payload.document_item_id,
+                "document_version_id": payload.document_version_id,
             },
         )
-    return {
-        "id": link.id,
-        "routing_id": link.routing_id,
-        "operation_id": link.operation_id,
-        "document_item_id": link.document_item_id,
-        "inherit_to_children": bool(link.inherit_to_children),
-        "visible_in_production": bool(link.visible_in_production),
-    }
+    return serialized
 
 
 @parallel_tasks_workorder_docs_router.get("/workorder-docs/links")
@@ -210,18 +228,7 @@ async def list_workorder_doc_links(
         "routing_id": routing_id,
         "operation_id": operation_id,
         "total": len(links),
-        "links": [
-            {
-                "id": link.id,
-                "routing_id": link.routing_id,
-                "operation_id": link.operation_id,
-                "document_item_id": link.document_item_id,
-                "inherit_to_children": bool(link.inherit_to_children),
-                "visible_in_production": bool(link.visible_in_production),
-                "created_at": link.created_at.isoformat() if link.created_at else None,
-            }
-            for link in links
-        ],
+        "links": [service.serialize_link(link) for link in links],
         "operator_id": int(user.id),
     }
 
@@ -237,24 +244,38 @@ async def export_workorder_doc_pack(
     report_lang: Optional[str] = Query(None),
     report_type: Optional[str] = Query(None),
     locale_profile_id: Optional[str] = Query(None),
+    require_locked_versions: bool = Query(False),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
     service = WorkorderDocumentPackService(db)
-    result = service.export_pack(
-        routing_id=routing_id,
-        operation_id=operation_id,
-        include_inherited=include_inherited,
-        export_meta={
-            "job_no": job_no,
-            "operator_id": int(user.id),
-            "operator_name": operator_name,
-            "exported_by": str(getattr(user, "email", "") or getattr(user, "id", "")),
-            "report_lang": report_lang,
-            "report_type": report_type,
-            "locale_profile_id": locale_profile_id,
-        },
-    )
+    try:
+        result = service.export_pack(
+            routing_id=routing_id,
+            operation_id=operation_id,
+            include_inherited=include_inherited,
+            require_locked_versions=require_locked_versions,
+            export_meta={
+                "job_no": job_no,
+                "operator_id": int(user.id),
+                "operator_name": operator_name,
+                "exported_by": str(getattr(user, "email", "") or getattr(user, "id", "")),
+                "report_lang": report_lang,
+                "report_type": report_type,
+                "locale_profile_id": locale_profile_id,
+            },
+        )
+    except ValueError as exc:
+        _raise_api_error(
+            status_code=409,
+            code="workorder_export_unlocked_versions",
+            message=str(exc),
+            context={
+                "routing_id": routing_id,
+                "operation_id": operation_id,
+                "require_locked_versions": require_locked_versions,
+            },
+        )
     manifest = result["manifest"]
     normalized = (export_format or "zip").strip().lower()
     if normalized == "json":

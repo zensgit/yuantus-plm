@@ -470,6 +470,9 @@ def upgrade() -> None:
     sa.Column('document_item_id', sa.String(), nullable=False),
     sa.Column('inherit_to_children', sa.Boolean(), nullable=False),
     sa.Column('visible_in_production', sa.Boolean(), nullable=False),
+    sa.Column('document_version_id', sa.String(), nullable=True),
+    sa.Column('version_locked_at', sa.DateTime(), nullable=True),
+    sa.Column('version_lock_source', sa.String(length=40), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('routing_id', 'operation_id', 'document_item_id', name='uq_workorder_doc_link_scope')
@@ -1798,6 +1801,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_meta_workflow_custom_action_runs_object_id'), 'meta_workflow_custom_action_runs', ['object_id'], unique=False)
     op.create_index(op.f('ix_meta_workflow_custom_action_runs_rule_id'), 'meta_workflow_custom_action_runs', ['rule_id'], unique=False)
     op.create_index(op.f('ix_meta_workorder_document_links_document_item_id'), 'meta_workorder_document_links', ['document_item_id'], unique=False)
+    op.create_index(op.f('ix_meta_workorder_document_links_document_version_id'), 'meta_workorder_document_links', ['document_version_id'], unique=False)
     op.create_index(op.f('ix_meta_workorder_document_links_operation_id'), 'meta_workorder_document_links', ['operation_id'], unique=False)
     op.create_index(op.f('ix_meta_workorder_document_links_routing_id'), 'meta_workorder_document_links', ['routing_id'], unique=False)
     op.create_index(op.f('ix_meta_approval_requests_category_id'), 'meta_approval_requests', ['category_id'], unique=False)
@@ -2001,6 +2005,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_meta_approval_requests_category_id'), table_name='meta_approval_requests')
     op.drop_index(op.f('ix_meta_workorder_document_links_routing_id'), table_name='meta_workorder_document_links')
     op.drop_index(op.f('ix_meta_workorder_document_links_operation_id'), table_name='meta_workorder_document_links')
+    op.drop_index(op.f('ix_meta_workorder_document_links_document_version_id'), table_name='meta_workorder_document_links')
     op.drop_index(op.f('ix_meta_workorder_document_links_document_item_id'), table_name='meta_workorder_document_links')
     op.drop_index(op.f('ix_meta_workflow_custom_action_runs_rule_id'), table_name='meta_workflow_custom_action_runs')
     op.drop_index(op.f('ix_meta_workflow_custom_action_runs_object_id'), table_name='meta_workflow_custom_action_runs')
