@@ -78,8 +78,13 @@ New pure module, e.g.
     **live** `ECOPriority` values
   - `reason: str | None` — free-text justification; flows into the ECO
     `description` envelope
-  - `requester_user_id: int | None` — becomes `create_eco`'s `user_id`
-    (None ⇒ leave unset so `create_eco` applies its own default)
+  - `requester_user_id: int | None` — becomes `create_eco`'s `user_id`.
+    `EcoDraftInputs.user_id` keeps the value **as-is including `None`**
+    (the 1:1 kwarg mirror below is preserved — `user_id` is always
+    passed). No "leave unset": `create_eco` already normalizes a falsy
+    `user_id` to `1` internally (`user_id_int = int(user_id) if user_id
+    else 1`), so passing `user_id=None` is correct and equivalent to the
+    default without breaking the 1:1 mapping.
   - `effectivity_date: datetime | None` — passthrough; tz-aware →
     naive-UTC normalisation (reuse the consumption-contract precedent)
 - `EcoDraftInputs` — frozen dataclass mirroring the `create_eco`
