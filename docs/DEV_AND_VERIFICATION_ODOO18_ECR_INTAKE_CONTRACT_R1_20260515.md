@@ -108,8 +108,9 @@ added):
 - **Purity guard**: AST import scan asserts the module imports nothing
   from `yuantus.database` / `sqlalchemy` / `eco_service` /
   `change_service` / a router / `plugins`, and *does* import
-  `yuantus.meta_engine.models.eco` (enum source); a source scan asserts
-  `create_eco(` is never called.
+  `yuantus.meta_engine.models.eco` (enum source); a separate **AST
+  `Call` walk** asserts no `create_eco` call (robust to docstring/comment
+  mentions, unlike a source substring scan).
 - **Drift guards**: `change_type` domain == `{t.value for t in
   ECOType}`; `priority` domain == `{p.value for p in ECOPriority}`;
   `EcoDraftInputs` fields == the `create_eco` parameter set
