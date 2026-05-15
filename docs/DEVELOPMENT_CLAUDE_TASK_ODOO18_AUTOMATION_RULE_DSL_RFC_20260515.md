@@ -56,9 +56,18 @@ Evidence (read before forming an opinion):
   - `evaluate_transition` (line 2363) drives this and is wired into ECO
     transitions via `eco_service.py:243`
     (`WorkflowCustomActionService(...).evaluate_transition(...)`).
-  - Tests already exercise it
-    (`test_parallel_tasks_services.py` ~lines 1276/1321 around
-    `evaluate_transition` with predicates).
+  - Tests already exercise it:
+    `test_workflow_custom_actions_match_runtime_scope_predicates`
+    (`test_parallel_tasks_services.py` ~line 1400) and
+    `test_workflow_custom_actions_match_context_predicates` (~line
+    1525).
+  - **Fail-open edge.** `_rule_match_predicates` (line 2169) wraps
+    `_normalize_match_predicates` in `try/except ValueError: return {}`.
+    An *illegal stored* `match_predicates` therefore degrades to an
+    empty predicate, and an empty predicate in
+    `_rule_matches_runtime_scope` skips every check → the rule matches
+    **everything** (match-all / **fail-open**). This is load-bearing
+    current behavior, not an accident to be silently dropped.
 
 **Accurate gap statement.** Conditionality is **not absent** — it is:
 
@@ -103,6 +112,17 @@ predicate-key set tracks `_ALLOWED_MATCH_PREDICATES`). Same proven shape
 as the five shipped contracts (consumption MES, pack-and-go,
 maintenance, ECR intake): pure DTO + evaluator + drift tests, no DB, no
 engine wiring, no behavior change.
+
+**Fail-open is pinned, not dropped (binding requirement).** Because
+B's entire value is behavior-preservation, *changing* the fail-open
+behavior (illegal stored `match_predicates` → `{}` → match-all) would
+itself be a behavior change and is therefore **out of scope for B**.
+The compat matrix **must** include the illegal-stored-predicate case
+and assert the pure contract reproduces the current match-all/fail-open
+outcome bit-for-bit. Hardening fail-open to fail-closed (reject/skip a
+rule with a corrupt predicate) is a deliberate, **separate** later
+opt-in (adjacent to Option C), explicitly **not** bundled into B — so
+the choice is conscious, with B's compat matrix as its regression net.
 
 - **Risk**: low. Behavior-preserving; the service keeps its own code in
   R1 (the contract is parallel, not yet substituted). No `eval`, no
@@ -169,8 +189,9 @@ This RFC authorizes no code. Owner's choice:
 1. **Accept Option B** → a separate doc-only implementation taskbook
    for "automation-rule predicate pure-contract + service-parity guard"
    (pure DTO + `evaluate_rule_predicate` + a compat matrix vs
-   `_rule_matches_runtime_scope`, no engine edit, no schema), then a
-   separately opted-in implementation PR — same doc→impl cadence as the
+   `_rule_matches_runtime_scope` **including the illegal-stored-predicate
+   fail-open case**, no engine edit, no schema), then a separately
+   opted-in implementation PR — same doc→impl cadence as the
    five shipped contracts.
 2. **Accept Option A** → record "match_predicates stays embedded;
    isolation/drift-guard gap accepted" as a closed decision; move on.
@@ -199,6 +220,9 @@ No implementation branch is created until the owner picks 1, 2, or 3.
 - Is Option B genuinely behavior-preserving (a *parallel* pure contract
   + compat guard, not a rewrite of the live matcher) and free of
   `eval`/parser?
+- Does B explicitly **pin** the `_rule_match_predicates` fail-open
+  semantics (illegal stored predicate → match-all) in its compat
+  matrix, with fail-closed hardening called out as a separate opt-in?
 - Are Option C (operators/keys) and the `_ALLOWED_TYPES` widening
   correctly kept separate and undecided?
 - Is the decision gate genuinely owner-deferred and is D unambiguously
