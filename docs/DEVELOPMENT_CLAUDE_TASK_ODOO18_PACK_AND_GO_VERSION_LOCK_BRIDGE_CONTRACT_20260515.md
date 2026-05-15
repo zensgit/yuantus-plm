@@ -68,18 +68,26 @@ delivering:
   future resolver can map 1:1 and a drift test can assert alignment.
 - `BundleLockReport` — frozen result:
   - `total: int`
-  - `locked: int`
+  - `locked: int` — defined exactly as R1's `version_lock_summary`:
+    `locked = total - len(unlocked) - len(mismatched)`. A
+    version-present-but-mismatched descriptor is **not** counted as
+    locked. A `stale` descriptor (locked & owned but
+    `version_is_current is False`) **still counts as locked** — stale is
+    informational only, never subtracted.
   - `unlocked: list[str]` (item ids with no `document_version_id`)
   - `mismatched: list[str]` (`version_belongs_to_item is False`)
-  - `stale: list[str]` (`version_is_current is False`)
+  - `stale: list[str]` (`version_is_current is False`, among
+    locked & owned descriptors)
   - `ok: bool` (True iff `unlocked` and `mismatched` are both empty)
-- `evaluate_bundle_version_locks(descriptors, *, require_locked=False)
-  -> BundleLockReport` — **pure** (no DB, no I/O). When
-  `require_locked=True` it does not raise; it returns a report with
-  `ok=False`. (Raising vs. reporting: the contract *reports*; the
-  decision to block a bundle export is the caller's, mirroring how R1's
-  `export_pack` made the raise decision at the service edge, not in the
-  pure layer.)
+- `evaluate_bundle_version_locks(descriptors) -> BundleLockReport` —
+  **pure** (no DB, no I/O). It always *reports*; it never raises and
+  takes no enforcement flag. `ok` is fully determined by
+  `unlocked`/`mismatched`, so a `require_locked`-style parameter would be
+  semantically inert and is deliberately omitted. The decision to block a
+  bundle export is the caller's, made via
+  `assert_bundle_version_locks(...)` or future wiring — mirroring how
+  R1's `export_pack` made the raise decision at the service edge, not in
+  the pure layer.
 - `assert_bundle_version_locks(descriptors) -> None` — thin helper that
   raises `ValueError` with the offending ids when
   `evaluate_bundle_version_locks(...).ok is False`. Provided so the
@@ -102,9 +110,12 @@ New `test_pack_and_go_version_lock_contract.py`:
 - A descriptor with `version_belongs_to_item=False` → counted
   `mismatched`, `ok=False`.
 - A descriptor with `version_is_current=False` but locked & owned →
-  counted `stale`, **`ok=True`** (stale never fails the gate).
-- `evaluate_bundle_version_locks(require_locked=True)` returns a report
-  (does not raise); `assert_bundle_version_locks` raises `ValueError`
+  counted `stale`, still counted in `locked`, **`ok=True`** (stale never
+  fails the gate, never subtracted from `locked`).
+- `locked == total - len(unlocked) - len(mismatched)` holds for a mixed
+  bundle (assert the arithmetic explicitly).
+- `evaluate_bundle_version_locks(...)` never raises and accepts no
+  enforcement flag; `assert_bundle_version_locks` raises `ValueError`
   listing offending ids when not ok, returns None when ok.
 - Purity guard: the module imports nothing from `database` /
   `Session` / the plugin; a test asserts `evaluate_*` has no DB
