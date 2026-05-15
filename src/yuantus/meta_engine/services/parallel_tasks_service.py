@@ -6114,8 +6114,15 @@ class BreakageIncidentService:
         return response
 
 
+_WORKORDER_VERSION_UNSET = object()
+
+
 class WorkorderDocumentPackService:
     _VERSION_LOCK_SOURCES = frozenset({"manual", "eco_apply", "backfill"})
+
+    # Re-exported so callers in the same module can opt out of clearing the
+    # lock columns without passing magic strings around.
+    VERSION_UNSET = _WORKORDER_VERSION_UNSET
 
     def __init__(self, session: Session):
         self.session = session
@@ -6193,9 +6200,20 @@ class WorkorderDocumentPackService:
         operation_id: Optional[str] = None,
         inherit_to_children: bool = True,
         visible_in_production: bool = True,
-        document_version_id: Optional[str] = None,
+        document_version_id: Any = _WORKORDER_VERSION_UNSET,
         version_lock_source: str = "manual",
     ) -> WorkorderDocumentLink:
+        """Upsert a workorder document link.
+
+        ``document_version_id`` is tri-state:
+
+        - **Not passed** (``_WORKORDER_VERSION_UNSET`` sentinel): the existing
+          lock on the row, if any, is preserved untouched. This is the
+          backward-compatible path for callers that predate version-lock.
+        - **Explicit ``None``**: the lock is cleared
+          (``document_version_id = NULL`` + nulled audit columns).
+        - **A string**: validated and applied as a new lock.
+        """
         existing = (
             self.session.query(WorkorderDocumentLink)
             .filter(
@@ -6219,7 +6237,10 @@ class WorkorderDocumentPackService:
         link.inherit_to_children = bool(inherit_to_children)
         link.visible_in_production = bool(visible_in_production)
 
-        if document_version_id is None:
+        if document_version_id is _WORKORDER_VERSION_UNSET:
+            # Preserve whatever lock state already exists on the row.
+            pass
+        elif document_version_id is None:
             link.document_version_id = None
             link.version_locked_at = None
             link.version_lock_source = None

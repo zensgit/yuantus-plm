@@ -178,6 +178,11 @@ async def upsert_workorder_doc_link(
     user: CurrentUser = Depends(get_current_user),
 ):
     service = WorkorderDocumentPackService(db)
+    extras: Dict[str, Any] = {}
+    # Preserve existing lock state when the client omitted document_version_id
+    # entirely. An explicit null in the body still clears the lock.
+    if "document_version_id" in payload.model_fields_set:
+        extras["document_version_id"] = payload.document_version_id
     try:
         link = service.upsert_link(
             routing_id=payload.routing_id,
@@ -185,7 +190,7 @@ async def upsert_workorder_doc_link(
             document_item_id=payload.document_item_id,
             inherit_to_children=payload.inherit_to_children,
             visible_in_production=payload.visible_in_production,
-            document_version_id=payload.document_version_id,
+            **extras,
         )
         serialized = service.serialize_link(link)
         db.commit()

@@ -1,7 +1,7 @@
 """add workorder document version-lock columns
 
 Revision ID: aa1b2c3d4e7b0
-Revises: z1b2c3d4e7a5
+Revises: f4a5b6c7d8e9
 Create Date: 2026-05-15 00:00:00.000000
 """
 
@@ -14,7 +14,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "aa1b2c3d4e7b0"
-down_revision: Union[str, None] = "z1b2c3d4e7a5"
+down_revision: Union[str, None] = "f4a5b6c7d8e9"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

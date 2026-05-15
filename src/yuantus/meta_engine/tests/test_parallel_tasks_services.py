@@ -2996,6 +2996,65 @@ def test_workorder_doc_pack_upsert_persists_version_lock_metadata(session):
     assert serialized["version_belongs_to_item"] is True
 
 
+def test_workorder_doc_pack_upsert_legacy_payload_preserves_existing_lock(session):
+    """Old callers that never pass document_version_id must not unlock rows."""
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-1", item_id="doc-1")
+    service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-1",
+        document_version_id="v-1",
+    )
+    session.commit()
+
+    # Legacy signature — no document_version_id passed. The lock must persist.
+    service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-1",
+        inherit_to_children=False,
+        visible_in_production=True,
+    )
+    session.commit()
+
+    link = (
+        session.query(WorkorderDocumentLink)
+        .filter(WorkorderDocumentLink.document_item_id == "doc-1")
+        .one()
+    )
+    assert link.document_version_id == "v-1"
+    assert link.version_lock_source == "manual"
+    assert link.version_locked_at is not None
+    assert link.inherit_to_children is False
+
+
+def test_workorder_doc_pack_upsert_explicit_none_clears_lock(session):
+    """Explicit None for document_version_id clears the lock columns."""
+    service = WorkorderDocumentPackService(session)
+    _seed_item_version(session, version_id="v-1", item_id="doc-1")
+    service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-1",
+        document_version_id="v-1",
+    )
+    session.commit()
+
+    service.upsert_link(
+        routing_id="r-1",
+        document_item_id="doc-1",
+        document_version_id=None,
+    )
+    session.commit()
+
+    link = (
+        session.query(WorkorderDocumentLink)
+        .filter(WorkorderDocumentLink.document_item_id == "doc-1")
+        .one()
+    )
+    assert link.document_version_id is None
+    assert link.version_locked_at is None
+    assert link.version_lock_source is None
+
+
 def test_workorder_doc_pack_upsert_rejects_missing_version(session):
     service = WorkorderDocumentPackService(session)
     with pytest.raises(ValueError, match="not found"):
