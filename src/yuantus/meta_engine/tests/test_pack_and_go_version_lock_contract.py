@@ -127,12 +127,21 @@ def test_locked_arithmetic_holds_for_mixed_bundle():
     assert r.ok is False
 
 
-def test_belongs_none_is_not_mismatched():
-    # Only an explicit False is a mismatch; None (unknown) is not.
+def test_version_present_with_unknown_ownership_is_mismatched():
+    # A version is pinned but ownership is unknown (None). The contract
+    # guarantees "pinned AND confirmed to belong" -- unknown must not
+    # pass, so it is classified as mismatched.
     r = evaluate_bundle_version_locks([_d("a", "v1", None, True)])
-    assert r.mismatched == []
-    assert r.locked == 1
-    assert r.ok is True
+    assert r.mismatched == ["a"]
+    assert r.locked == 0
+    assert r.ok is False
+
+
+def test_version_present_requires_belongs_true():
+    # Only an explicit True clears the ownership check.
+    assert evaluate_bundle_version_locks([_d("a", "v1", True, True)]).ok is True
+    assert evaluate_bundle_version_locks([_d("a", "v1", False, True)]).ok is False
+    assert evaluate_bundle_version_locks([_d("a", "v1", None, True)]).ok is False
 
 
 def test_current_none_is_not_stale():

@@ -83,11 +83,21 @@ def evaluate_bundle_version_locks(
     block an export is the caller's (see ``assert_bundle_version_locks``
     or future wiring).
 
-    Precedence mirrors R1 ``export_pack``: a descriptor with no version
-    is ``unlocked`` (and not also checked for mismatch); a descriptor
-    with a version whose ``version_belongs_to_item is False`` is
-    ``mismatched``; a locked & owned descriptor with
+    Precedence: a descriptor with no version is ``unlocked`` (and not
+    also checked for ownership). A descriptor with a version whose
+    ownership is **not positively confirmed** —
+    ``version_belongs_to_item is not True`` (i.e. ``False`` *or* unknown
+    ``None``) — is ``mismatched``. A confirmed-owned descriptor with
     ``version_is_current is False`` is ``stale`` (still locked).
+
+    Note on R1 alignment: R1 ``export_pack`` only ever sees a resolved
+    boolean ``version_belongs_to_item`` when a version is present (the
+    DB lookup sets it), so on R1-shaped data ``is not True`` and
+    ``is False`` are equivalent. The stronger ``is not True`` check only
+    matters for *caller-supplied* descriptors, where unknown ownership
+    must not silently pass — the contract guarantees "version-pinned and
+    confirmed to belong to its item", not "pinned and not explicitly
+    foreign".
     """
 
     unlocked: List[str] = []
@@ -98,7 +108,7 @@ def evaluate_bundle_version_locks(
         if not d.document_version_id:
             unlocked.append(d.document_item_id)
             continue
-        if d.version_belongs_to_item is False:
+        if d.version_belongs_to_item is not True:
             mismatched.append(d.document_item_id)
             continue
         if d.version_is_current is False:

@@ -39,7 +39,7 @@ workorder version-lock R1, and the consumption MES contract are
 |---|---|---|
 | `document_item_id` | `str` | stripped, non-empty (validator) |
 | `document_version_id` | `str \| None` | absence ⇒ unlocked |
-| `version_belongs_to_item` | `bool \| None` | explicit `False` ⇒ mismatched; `None` is not a mismatch |
+| `version_belongs_to_item` | `bool \| None` | when a version is present, ownership must be **positively confirmed** (`is True`); both explicit `False` and unknown `None` ⇒ mismatched |
 | `version_is_current` | `bool \| None` | explicit `False` ⇒ stale; `None` is not stale |
 
 Field names mirror the keys of R1
@@ -73,10 +73,28 @@ can map 1:1; a drift test enforces this.
   offending unlocked + mismatched item ids. Stale-only bundles do not
   raise.
 
-Classification precedence mirrors R1 `export_pack`: no version →
-`unlocked` (mismatch not also checked); version present but
-`version_belongs_to_item is False` → `mismatched`; locked & owned but
-`version_is_current is False` → `stale`.
+Classification precedence: no version → `unlocked` (ownership not also
+checked); version present but ownership **not positively confirmed**
+(`version_belongs_to_item is not True`, i.e. `False` *or* unknown
+`None`) → `mismatched`; confirmed-owned but `version_is_current is
+False` → `stale`.
+
+### Documented deviation from the merged taskbook
+
+The taskbook (`9001707`) literally specified
+`mismatched` as `version_belongs_to_item is False`. The implementation
+strengthens this to `is not True` per the #570 review (Medium). Reason:
+the taskbook's stated *purpose* is "version-pinned **and belongs to its
+item**"; for a **caller-supplied** descriptor contract, unknown
+ownership (`None` alongside a present version) must not silently pass,
+otherwise the guarantee degrades to "pinned and not explicitly foreign".
+This does **not** contradict R1: R1 `export_pack`/`serialize_link` only
+ever yields a resolved boolean when a version is present (the DB lookup
+sets it), so `is not True` and `is False` are equivalent on R1-shaped
+data. The stronger check is purely defensive for the broader
+descriptor-contract input space and is covered by
+`test_version_present_with_unknown_ownership_is_mismatched` and
+`test_version_present_requires_belongs_true`.
 
 ## 4. Test Matrix
 
@@ -87,10 +105,12 @@ added):
 - **Descriptor validation**: empty id rejected, id stripped, frozen +
   `extra=forbid`.
 - **Classification**: all-locked ok; missing version → unlocked;
-  foreign version → mismatched; stale counts as locked & does not fail
-  the gate; unlocked-precedence-over-mismatch; mismatch-precedence-over-
-  stale; `belongs=None`/`current=None` are not violations; empty bundle
-  trivially ok.
+  foreign version → mismatched; **version present + unknown ownership
+  (`belongs=None`) → mismatched** (positive-confirmation requirement);
+  `belongs` must be `True` to clear; stale counts as locked & does not
+  fail the gate; unlocked-precedence-over-ownership;
+  mismatch-precedence-over-stale; `current=None` is not stale; empty
+  bundle trivially ok.
 - **`locked` arithmetic** explicitly asserted for a mixed bundle
   (`locked == total - len(unlocked) - len(mismatched)`).
 - **Report/raise split**: `evaluate` signature is exactly
