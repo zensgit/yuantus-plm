@@ -127,6 +127,16 @@ New `test_maintenance_workorder_bridge_contract.py`:
 - `active_request_state` `submitted` / `in_progress` → blocked,
   `ready=False`, even if `equipment_status=operational`.
 - `active_request_state` `draft` / `done` / `cancelled` → not blocked.
+- **`draft` distinction (pin this explicitly)**: a `draft` request →
+  `ready=True` for the workcenter. This intentionally differs from
+  `MaintenanceService.get_maintenance_queue_summary`, which counts
+  `draft` into the active maintenance queue. The two answer different
+  questions ("is there queued maintenance work?" vs. "is this workcenter
+  blocked *right now*?"); a `draft` request is not yet active so it does
+  not block readiness. The impl PR MUST include a test asserting a
+  `draft`-only descriptor yields `ready=True`, with a comment citing
+  this deliberate divergence so a future reader does not "fix" it into
+  agreement with the queue summary.
 - `equipment_status=in_maintenance` with no blocking request → degraded,
   still `ready=True`.
 - Multiple workcenters → one report each, sorted by `workcenter_id`;
