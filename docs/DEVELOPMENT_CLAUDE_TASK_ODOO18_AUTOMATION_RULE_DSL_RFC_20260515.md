@@ -109,9 +109,9 @@ equality-for-4-keys + actor-role-intersection **bit-for-bit**, plus a
 **compatibility/drift guard** asserting the pure contract and the
 embedded service agree on a matrix of cases (and that the pure
 predicate-key set tracks `_ALLOWED_MATCH_PREDICATES`). Same proven shape
-as the five shipped contracts (consumption MES, pack-and-go,
-maintenance, ECR intake): pure DTO + evaluator + drift tests, no DB, no
-engine wiring, no behavior change.
+as the five shipped contracts (workorder version-lock, consumption MES,
+pack-and-go, maintenance, ECR intake): pure DTO + evaluator + drift
+tests, no DB, no engine wiring, no behavior change.
 
 **Fail-open is pinned, not dropped (binding requirement).** Because
 B's entire value is behavior-preservation, *changing* the fail-open
