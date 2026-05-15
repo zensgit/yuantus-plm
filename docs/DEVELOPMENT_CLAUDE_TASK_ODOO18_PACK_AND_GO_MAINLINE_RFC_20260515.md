@@ -50,11 +50,12 @@ Evidence (read before forming an opinion):
   `PLUGINS_ENABLED` (or autoload is explicitly turned on). So pack-and-go
   is **already default-off** and unreachable in a default deployment.
 - Adjacent mainline capability that overlaps conceptually: the workorder
-  version-lock R1 (merged `6973a4c`/`12456d3`) added a
+  version-lock R1 (PR #565, merged `12456d3`) added a
   `document_version_id` pointer + `version_belongs_to_item` on workorder
   document links and a `version_lock_summary` export. pack-and-go's
-  `default_file_scope=version` is the closest existing knob but it is
-  **not** the same as the R1 version-lock invariant.
+  `default_file_scope` defaults to `item`; its `version` enum value is
+  the closest existing knob, but even that is **not** the same as the R1
+  version-lock invariant.
 
 **Key fact for the decision:** the capability is built and substantial.
 The question is purely about *delivery surface and lifecycle*, not about
