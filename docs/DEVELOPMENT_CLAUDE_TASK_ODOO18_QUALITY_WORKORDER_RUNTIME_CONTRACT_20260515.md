@@ -59,52 +59,77 @@ exist** (so it is doubly gated). This honesty is deliberate — see the
 automation-rule RFC lesson (do not claim a runtime hook that is not
 there).
 
-## 3. Ratifiable Decision (owner/reviewer must ratify before impl)
+## 3. Ratified Decision
 
 Because `QualityPoint` has **no mandatory/blocking flag**, the gate's
-"what blocks an operation" must be a pinned policy, not invented
-silently.
+"what blocks an operation" is a pinned policy, not invented silently.
 
-**Proposed (R1):** an operation is *quality-clear* iff **every active
-(`is_active=True`) `QualityPoint` whose `trigger_on == "production"`
-and whose `routing_id`/`operation_id` scope matches the operation has
-at least one `QualityCheck` with `result == "pass"`.** A point with a
-`fail` / `warning` / `none` / missing check → operation **blocked**.
-`warning` is treated as **not clearing** (conservative; reviewer may
-ratify `warning`→clear instead). Non-`production` `trigger_on` points
-are out of scope for the operation gate. This must be ratified (like
-the breakage-closeout decisions) and pinned by an exactly-named test
-(see §5).
+**RATIFIED by the owner (2026-05-15) — binding, test-pinned, not an
+open question:** an operation is *quality-clear* iff **every applicable
+`QualityPoint` (see §4 scope rule) has at least one *scope-matching*
+`QualityCheck` with `result == "pass"`.** A point with only
+`fail` / `warning` / `none` / missing scope-matching checks → operation
+**blocked**. **`warning` does NOT clear** the gate (ratified
+conservative policy — there is no mandatory flag and R1 is default-off,
+so the conservative choice cannot affect production behavior but
+prevents a future wiring from treating a quality `warning` as
+pass-through). Non-`production` `trigger_on` points are out of scope.
+Pinned by the four MANDATORY exactly-named tests in §5 (incl. the scope tests).
 
 ## 4. R1 Target Output (for the later, separately opted-in impl PR)
 
 New pure module
-`src/yuantus/meta_engine/services/quality_workorder_gate_contract.py`:
+`src/yuantus/meta_engine/services/quality_workorder_gate_contract.py`.
 
-- `OperationQualityFacts` — frozen Pydantic v2, `extra="forbid"`:
-  the operation context (`routing_id`, `operation_id`, `product_id`)
-  the caller resolved.
-- `QualityPointDescriptor` — frozen: mirrors the `QualityPoint`
-  fields the gate needs (`id`, `routing_id`, `operation_id`,
-  `product_id`, `trigger_on`, `is_active`). Field names mirror the
-  model (drift-guarded).
-- `QualityCheckDescriptor` — frozen: mirrors the `QualityCheck`
-  fields (`point_id`, `result`). `result` validated against the live
-  `QualityCheckResult` domain.
+### 4.1 Scope model (the four-field wildcard rule)
+
+`QualityPoint` carries **four** scope fields — `product_id`,
+`item_type_id`, `routing_id`, `operation_id` — not two. `QualityCheck`
+carries only **three** — `product_id`, `routing_id`, `operation_id`
+(**there is NO `item_type_id` on `QualityCheck`** — this asymmetry is
+real and must be modeled honestly, not invented).
+
+**Scope-match rule (applied identically for point applicability and
+for check-to-facts matching):** for each scope field, the descriptor
+matches the facts iff the descriptor field is `None` (**wildcard**) or
+**equals** the corresponding facts field. A point uses all four fields;
+a check uses its three (`item_type_id` is simply not a check
+constraint).
+
+### 4.2 DTOs
+
+- `OperationQualityFacts` — frozen Pydantic v2, `extra="forbid"`: the
+  operation context the caller resolved — `product_id`,
+  `item_type_id`, `routing_id`, `operation_id` (all optional).
+- `QualityPointDescriptor` — frozen: `id`, `product_id`,
+  `item_type_id`, `routing_id`, `operation_id`, `trigger_on`,
+  `is_active`. Field names mirror `QualityPoint` (drift-guarded).
+- `QualityCheckDescriptor` — frozen: `point_id`, `result`,
+  **`product_id`, `routing_id`, `operation_id`** (the check's own
+  scope — NO `item_type_id`, mirroring the model). `result` validated
+  against the live `QualityCheckResult` domain.
+
+### 4.3 Pure functions
+
 - `resolve_applicable_quality_points(facts, points) -> tuple[...]` —
-  pure: the active, `trigger_on=="production"` points whose
-  `routing_id`/`operation_id` scope matches `facts` (a `None` scope
-  field on the point = wildcard, mirroring the existing
-  list-points scoping semantics). Activates the dormant
-  `trigger_on="production"` meaning.
+  the points that are `is_active` **and** `trigger_on=="production"`
+  **and** whose **four-field scope** matches `facts` per §4.1. This
+  activates the dormant `trigger_on="production"` meaning.
 - `evaluate_operation_quality_gate(facts, points, checks)
-  -> OperationQualityGateReport` — pure, never raises:
-  `total/blocking/missing/clear` lists + `ok: bool`. `ok` iff every
-  applicable point has a `pass` check per the §3 ratified policy.
+  -> OperationQualityGateReport` — pure, never raises. A point is
+  *cleared* iff there exists a check with `check.point_id == point.id`
+  **AND** `check.result == "pass"` **AND** the **check's three-field
+  scope matches `facts`** per §4.1. This per-check scope filter is the
+  fix for cross-product / cross-routing / cross-operation
+  contamination: a `pass` check that belongs to a different
+  product/routing/operation context **must not** clear the current
+  operation's point even if `point_id` coincides. Report:
+  `total / blocked / missing / cleared` lists + `ok: bool`
+  (`ok` iff `blocked` and `missing` are both empty).
 - `assert_operation_quality_clear(facts, points, checks) -> None` —
-  the **enforcement seam**: raises `ValueError` listing the offending
-  point ids when not `ok`; returns `None` when clear. **Default-OFF
-  by construction** — nothing in the codebase calls it (there is no
+  the **enforcement seam**: raises `ValueError` listing offending
+  point ids when not `ok`; `None` when clear. **Default-OFF by
+  construction** — nothing in the codebase calls it (there is no
   operation-completion path), so merging R1 changes no behavior.
 
 No DB, no `eval`, no engine wiring, no quality/manufacturing
@@ -118,14 +143,27 @@ New `test_quality_workorder_gate_contract.py`:
 - DTO validation: frozen, `extra=forbid`; `QualityCheckDescriptor.result`
   rejects values outside `QualityCheckResult`.
 - Resolver: only `is_active` + `trigger_on=="production"` points;
-  routing/operation scope match incl. `None`-scope wildcard;
   non-production / inactive excluded.
+- **`test_point_four_field_scope_wildcard_and_equality`
+  (MANDATORY, exactly named)** — pins §4.1 for points: each of
+  `product_id` / `item_type_id` / `routing_id` / `operation_id` —
+  `None` on the point = wildcard (matches); non-`None` must equal the
+  facts field, else the point does NOT apply. Includes a case where a
+  production point for a *different* `product_id` and one for a
+  different `item_type_id` are correctly excluded.
+- **`test_cross_scope_pass_check_does_not_clear`
+  (MANDATORY, exactly named)** — pins §4.3: a `pass` check whose
+  `point_id` matches but whose `product_id` / `routing_id` /
+  `operation_id` differs from the facts must NOT clear the point
+  (cross-product / cross-routing / cross-operation contamination
+  guard); a check for a different `point_id` must NOT clear either.
 - **`test_only_production_trigger_points_gate_the_operation`
   (MANDATORY, exactly named)** — pins that `manual`/`receipt`/
   `transfer` points never block an operation.
 - **`test_pass_clears_fail_warning_none_block_by_ratified_policy`
   (MANDATORY, exactly named)** — pins the §3 ratified gate: `pass`
-  clears; `fail`/`warning`/`none`/missing block; comment cites §3.
+  clears; `fail`/`warning`/`none`/missing block; **`warning` does NOT
+  clear**; comment cites §3 as the ratified policy.
 - Gate: empty applicable set → `ok=True` (no production points = not
   gated); mixed; `assert_*` raises listing offending ids / returns
   None when clear.
@@ -170,7 +208,7 @@ No alembic / tenant-baseline — the contract adds no schema.
 The impl PR must add
 `docs/DEV_AND_VERIFICATION_ODOO18_QUALITY_WORKORDER_GATE_CONTRACT_R1_20260515.md`
 and register it in `docs/DELIVERY_DOC_INDEX.md`. It must explicitly
-document: (a) the §3 ratified gate policy and the two MANDATORY test
+document: (a) the §3 ratified gate policy and the four MANDATORY test
 names; (b) the honest finding that no operation-execution runtime
 exists, so the seam is default-off and true enforcement is gated on a
 future workorder-execution domain; (c) the contract is pure/parallel,
@@ -213,8 +251,16 @@ the first is itself blocked on a non-existent substrate):
   **no** operation-execution runtime, no mandatory flag? Spot-check
   `quality/service.py:55`, `manufacturing/models.py:118`,
   `manufacturing_router.py`.
-- Is the §3 gate policy explicitly ratifiable (not silently invented),
-  pinned by the two MANDATORY exactly-named tests?
+- The §3 gate policy is **ratified, not open** — verify *fidelity*:
+  `pass` clears, `fail`/`warning`/`none`/missing block, `warning` does
+  NOT clear, pinned by the four MANDATORY exactly-named tests.
+- **Scope correctness (the #580 review fix):** are all four point
+  scope fields (`product_id`, `item_type_id`, `routing_id`,
+  `operation_id`) honoured with the None=wildcard / non-None=equal
+  rule, and does the per-check three-field scope filter prevent a
+  cross-product / cross-routing / cross-operation `pass` from clearing
+  the wrong point? Is the `QualityCheck`-has-no-`item_type_id`
+  asymmetry modeled honestly (not invented onto the check)?
 - Is the seam genuinely default-OFF (nothing calls it; no path exists)
   and the contract pure (no service/model/router/DB import)?
 - Do the drift guards introspect the **real** `QualityPoint`/
