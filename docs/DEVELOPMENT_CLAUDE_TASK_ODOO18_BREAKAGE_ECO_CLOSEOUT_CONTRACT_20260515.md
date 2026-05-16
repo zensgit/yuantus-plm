@@ -67,8 +67,12 @@ questions. The impl PR MUST pin each with a directly-named test (see
 §5) so the policy cannot be silently changed later.
 
 1. **Eligibility — RATIFIED: `{resolved, closed}`.**
+   The implementation MUST expose this as a module constant named
+   exactly `eligible_statuses = {"resolved", "closed"}`.
    `is_breakage_eligible_for_design_loopback` returns `True` iff the
-   normalized status ∈ `{resolved, closed}`.
+   normalized (lower-cased, trimmed) status ∈ `eligible_statuses` —
+   so `open`, `in_progress`, and **any unknown status** are NOT
+   eligible.
    - `open` / `in_progress` are still under triage and must NOT trigger
      a design loopback.
    - `resolved` = investigation concluded; `closed` = process terminal
@@ -85,14 +89,25 @@ questions. The impl PR MUST pin each with a directly-named test (see
 2. **severity → ECOPriority — RATIFIED table + `unknown → normal`.**
    `severity` is a free `String(30)` with no enforced vocabulary, so
    fail-fast must NOT block a design loopback. The mapping is
-   deterministic and total:
-   `critical→urgent`, `high→high`, `medium→normal`, `low→low`;
-   **any unrecognized severity → `normal`**.
-   - Rationale (ratified): `unknown → normal` is the conservative
-     default — it neither escalates dirty data to `urgent`/`high` nor
-     drops a breakage that may need engineering attention.
-   - This is an **explicitly documented, test-pinned** policy — it must
-     never degrade into a "silent default" (the #570 review lesson).
+   deterministic and total. The implementation MUST expose it as a
+   module constant named exactly:
+   ```python
+   severity_to_priority = {
+       "critical": "urgent",
+       "high": "high",
+       "medium": "normal",
+       "low": "low",
+   }
+   ```
+   **Any severity not in this table maps to `"normal"`.**
+   - This `unknown → normal` rule is a **conservative *downgrade*
+     policy**, explicitly stated and test-pinned — it is **NOT a silent
+     fallback**. It is the deliberate, documented behavior: an
+     unrecognized severity is *downgraded* to `normal` so dirty data
+     can neither be escalated to `urgent`/`high` nor drop a breakage
+     that may need engineering attention. (The #570 review lesson:
+     never let an unknown value pass *silently* — here it is loud,
+     documented, and named in a test.)
    - Pinned by `test_unknown_severity_maps_to_normal_by_ratified_policy`.
 
 ## 4. R1 Target Output (for the later, separately opted-in impl PR)
