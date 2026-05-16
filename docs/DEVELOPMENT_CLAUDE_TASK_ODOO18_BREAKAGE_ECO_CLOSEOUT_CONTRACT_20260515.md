@@ -59,28 +59,41 @@ a **typed, pure, testable bridge** from a breakage to a change-request
 intake. R1 supplies exactly that bridge — no DB, no state-machine
 change, no ECO creation.
 
-## 3. Scope & Design Decisions (reviewer: confirm these)
+## 3. Ratified Design Decisions
 
-The contract has two pure pieces. Both are **decisions to ratify**, not
-just mechanics:
+Both decisions below are **ratified** by the owner (2026-05-15) — they
+are binding contract policy for the implementation PR, **not** open
+questions. The impl PR MUST pin each with a directly-named test (see
+§5) so the policy cannot be silently changed later.
 
-1. **Eligibility.** Not every breakage should loop back into
-   engineering. R1 pins an explicit eligible-status set. **Proposed:
-   `{resolved, closed}`** — a breakage only warrants a design-loopback
-   change once its investigation has concluded; `open`/`in_progress`
-   are still being triaged. The eligible set must be a subset of the
-   breakage status vocabulary (drift-guarded). Reviewer: confirm
-   `{resolved, closed}` (vs. e.g. only `resolved`).
-2. **severity → ECOPriority mapping.** `severity` is a free string with
-   no enforced vocabulary, so the mapping must be **deterministic and
-   total**. R1 pins a table for the common values and an **explicit,
-   documented fallback for unrecognized severity** — *not* a silent
-   default (the #570 review lesson). **Proposed table**:
+1. **Eligibility — RATIFIED: `{resolved, closed}`.**
+   `is_breakage_eligible_for_design_loopback` returns `True` iff the
+   normalized status ∈ `{resolved, closed}`.
+   - `open` / `in_progress` are still under triage and must NOT trigger
+     a design loopback.
+   - `resolved` = investigation concluded; `closed` = process terminal
+     state; both are appropriate for the pure "should a change request
+     be generated?" layer.
+   - **Code-fact support**: in
+     `BreakageIncidentService._HELPDESK_PROVIDER_TO_INCIDENT_STATUS`
+     (~line 2914) both `resolved` and `closed` are real incident status
+     values, and `canceled` maps to `closed` — so restricting to only
+     `resolved` would miss terminated-but-closed-out incidents. The
+     eligible set must remain a subset of the breakage status
+     vocabulary (drift-guarded).
+   - Pinned by `test_resolved_and_closed_are_eligible_only`.
+2. **severity → ECOPriority — RATIFIED table + `unknown → normal`.**
+   `severity` is a free `String(30)` with no enforced vocabulary, so
+   fail-fast must NOT block a design loopback. The mapping is
+   deterministic and total:
    `critical→urgent`, `high→high`, `medium→normal`, `low→low`;
-   **unrecognized severity → `normal` (conservative, documented,
-   test-pinned)** — chosen over fail-fast because a breakage with an
-   odd severity string should still be routed, not dropped. Reviewer:
-   confirm the table and the "unknown → normal" fallback (vs. raising).
+   **any unrecognized severity → `normal`**.
+   - Rationale (ratified): `unknown → normal` is the conservative
+     default — it neither escalates dirty data to `urgent`/`high` nor
+     drops a breakage that may need engineering attention.
+   - This is an **explicitly documented, test-pinned** policy — it must
+     never degrade into a "silent default" (the #570 review lesson).
+   - Pinned by `test_unknown_severity_maps_to_normal_by_ratified_policy`.
 
 ## 4. R1 Target Output (for the later, separately opted-in impl PR)
 
@@ -130,11 +143,17 @@ New `test_breakage_eco_closeout_contract.py`:
 
 - Descriptor: frozen, `extra=forbid`, empty `description` rejected,
   blank→None on optionals.
-- Eligibility: `resolved`/`closed` → eligible; `open`/`in_progress`
-  → not; case-insensitive; unknown status → not eligible (conservative).
-- severity→priority: each pinned row; **unrecognized severity →
-  `normal`** asserted explicitly with a comment citing §3.2 as the
-  ratified decision.
+- **`test_resolved_and_closed_are_eligible_only` (MANDATORY, named
+  exactly).** Asserts the ratified §3.1 policy: `resolved` and `closed`
+  → eligible; `open`, `in_progress`, and any unknown status → NOT
+  eligible; case-insensitive. The test name directly expresses the
+  ratified decision so a future change to the eligible set breaks a
+  test whose name states the policy.
+- **`test_unknown_severity_maps_to_normal_by_ratified_policy`
+  (MANDATORY, named exactly).** Asserts each ratified §3.2 row
+  (`critical→urgent`, `high→high`, `medium→normal`, `low→low`) **and**
+  that an unrecognized severity maps to `normal`, with a comment citing
+  §3.2 as the ratified, non-silent policy.
 - Mapping: `bom_id` present → `change_type="bom"` with
   `product_id=product_item_id`; `bom_id` present but no
   `product_item_id` → `change_type="product"` (pinned edge);
@@ -208,9 +227,12 @@ Follow-ups, each its own separate opt-in (explicitly NOT in R1):
 
 ## 9. Reviewer Focus
 
-- Are the two ratifiable decisions sound: eligible set `{resolved,
-  closed}` and the severity→priority table with `unknown → normal`
-  (documented, not silent)?
+- The two §3 decisions are **ratified, not open** — the reviewer
+  verifies *fidelity*, not the choice: is `{resolved, closed}`
+  implemented exactly, and is the severity table + `unknown → normal`
+  implemented exactly, each pinned by the mandatory exactly-named test
+  (`test_resolved_and_closed_are_eligible_only`,
+  `test_unknown_severity_maps_to_normal_by_ratified_policy`)?
 - Is the contract genuinely pure (no DB/service/router import; reuses
   the ECR intake contract as a pure dependency only)?
 - Is the `bom_id`-without-`product_item_id` edge pinned so the produced
