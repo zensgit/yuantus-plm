@@ -8,8 +8,22 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from yuantus.meta_engine.maintenance.models import Equipment, MaintenanceRequest
 from yuantus.meta_engine.manufacturing.models import Operation, Routing, WorkCenter
-from yuantus.meta_engine.services.release_validation import ValidationIssue, get_release_ruleset
+from yuantus.meta_engine.services.maintenance_db_resolver_contract import (
+    EquipmentRow,
+    MaintenanceRequestRow,
+    resolve_workcenter_maintenance_descriptors,
+)
+from yuantus.meta_engine.services.maintenance_workorder_bridge_contract import (
+    WorkcenterMaintenanceDescriptor,
+    assert_workcenter_ready,
+)
+from yuantus.meta_engine.services.release_validation import (
+    ROUTING_RELEASE_MAINTENANCE_READY_RULE,
+    ValidationIssue,
+    get_release_ruleset,
+)
 
 
 class RoutingService:
@@ -104,6 +118,63 @@ class RoutingService:
             raise ValueError(f"WorkCenter is inactive: {workcenter.code}")
 
         return workcenter.id, workcenter.code
+
+    def resolve_workcenter_maintenance_descriptors(
+        self,
+        workcenter_id: str,
+    ) -> Tuple[WorkcenterMaintenanceDescriptor, ...]:
+        """Resolve maintenance facts for one manufacturing workcenter.
+
+        This is the narrow runtime seam after the pure bridge and DB-resolver
+        contracts: DB reads stay in the manufacturing service, while row
+        mapping and readiness semantics stay in the merged contract modules.
+        """
+
+        target = (workcenter_id or "").strip()
+        if not target:
+            return tuple()
+
+        equipment_rows = (
+            self.session.query(Equipment)
+            .filter(Equipment.workcenter_id == target)
+            .order_by(Equipment.id.asc())
+            .all()
+        )
+
+        pairs: List[Tuple[EquipmentRow, List[MaintenanceRequestRow]]] = []
+        for equipment in equipment_rows:
+            request_rows = (
+                self.session.query(MaintenanceRequest)
+                .filter(MaintenanceRequest.equipment_id == equipment.id)
+                .order_by(
+                    MaintenanceRequest.created_at.desc(),
+                    MaintenanceRequest.id.desc(),
+                )
+                .all()
+            )
+            pairs.append(
+                (
+                    EquipmentRow(
+                        id=equipment.id,
+                        status=equipment.status,
+                        workcenter_id=equipment.workcenter_id,
+                    ),
+                    [
+                        MaintenanceRequestRow(
+                            id=request.id,
+                            equipment_id=request.equipment_id,
+                            state=request.state,
+                        )
+                        for request in request_rows
+                    ],
+                )
+            )
+
+        return resolve_workcenter_maintenance_descriptors(pairs)
+
+    def assert_workcenter_maintenance_ready(self, workcenter_id: str) -> None:
+        descriptors = self.resolve_workcenter_maintenance_descriptors(workcenter_id)
+        assert_workcenter_ready(descriptors, workcenter_id=workcenter_id)
 
     def create_routing(
         self,
@@ -594,6 +665,15 @@ class RoutingService:
             return "workcenter_inactive"
         return "workcenter_invalid"
 
+    def _workcenter_maintenance_issue_code(self, message: str) -> str:
+        if message.startswith("workcenter_blocked:"):
+            return "workcenter_maintenance_blocked"
+        if message.startswith("workcenter_unknown:"):
+            return "workcenter_maintenance_unknown"
+        if message.startswith("workcenter_invalid:"):
+            return "workcenter_maintenance_invalid"
+        return self._workcenter_issue_code(message)
+
     def get_release_diagnostics(
         self,
         routing_id: str,
@@ -617,7 +697,11 @@ class RoutingService:
             return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
 
         operations: Optional[List[Operation]] = None
-        if "routing.has_operations" in rules or "routing.operation_workcenters_valid" in rules:
+        if (
+            "routing.has_operations" in rules
+            or "routing.operation_workcenters_valid" in rules
+            or ROUTING_RELEASE_MAINTENANCE_READY_RULE in rules
+        ):
             operations = self.list_operations(routing_id)
 
         scope = self._scope_filters(mbom_id=routing.mbom_id, item_id=routing.item_id)
@@ -711,6 +795,38 @@ class RoutingService:
                                 },
                             )
                         )
+            elif rule == ROUTING_RELEASE_MAINTENANCE_READY_RULE:
+                if not operations:
+                    continue
+                for operation in operations:
+                    if not operation.workcenter_id and not operation.workcenter_code:
+                        continue
+                    try:
+                        resolved_workcenter_id, _ = self._resolve_workcenter(
+                            workcenter_id=operation.workcenter_id,
+                            workcenter_code=operation.workcenter_code,
+                            routing=routing,
+                        )
+                        if resolved_workcenter_id:
+                            self.assert_workcenter_maintenance_ready(
+                                resolved_workcenter_id
+                            )
+                    except ValueError as exc:
+                        message = str(exc)
+                        errors.append(
+                            ValidationIssue(
+                                code=self._workcenter_maintenance_issue_code(message),
+                                message=message,
+                                rule_id=rule,
+                                details={
+                                    "routing_id": routing_id,
+                                    "operation_id": operation.id,
+                                    "operation_number": operation.operation_number,
+                                    "workcenter_id": operation.workcenter_id,
+                                    "workcenter_code": operation.workcenter_code,
+                                },
+                            )
+                        )
 
         return {"ruleset_id": ruleset_id, "errors": errors, "warnings": warnings}
 
@@ -762,6 +878,24 @@ class RoutingService:
                         workcenter_code=operation.workcenter_code,
                         routing=routing,
                     )
+            elif rule == ROUTING_RELEASE_MAINTENANCE_READY_RULE:
+                operations = (
+                    operations
+                    if operations is not None
+                    else self.list_operations(routing_id)
+                )
+                for operation in operations:
+                    if not operation.workcenter_id and not operation.workcenter_code:
+                        continue
+                    resolved_workcenter_id, _ = self._resolve_workcenter(
+                        workcenter_id=operation.workcenter_id,
+                        workcenter_code=operation.workcenter_code,
+                        routing=routing,
+                    )
+                    if resolved_workcenter_id:
+                        self.assert_workcenter_maintenance_ready(
+                            resolved_workcenter_id
+                        )
 
         return routing
 

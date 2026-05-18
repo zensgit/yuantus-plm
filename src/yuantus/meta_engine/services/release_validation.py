@@ -24,6 +24,10 @@ ROUTING_RELEASE_RULES_DEFAULT: List[str] = [
     "routing.operation_workcenters_valid",
 ]
 
+ROUTING_RELEASE_MAINTENANCE_READY_RULE = (
+    "routing.operation_workcenters_maintenance_ready"
+)
+
 MBOM_RELEASE_RULES_DEFAULT: List[str] = [
     "mbom.exists",
     "mbom.not_already_released",
@@ -59,6 +63,10 @@ ROUTING_RELEASE_RULES_READINESS: List[str] = _without(
     "routing.not_already_released",
 )
 
+ROUTING_RELEASE_RULES_MAINTENANCE_READY: List[str] = list(
+    ROUTING_RELEASE_RULES_READINESS
+) + [ROUTING_RELEASE_MAINTENANCE_READY_RULE]
+
 MBOM_RELEASE_RULES_READINESS: List[str] = _without(
     list(MBOM_RELEASE_RULES_DEFAULT),
     "mbom.not_already_released",
@@ -73,6 +81,7 @@ BASELINE_RELEASE_RULES_READINESS: List[str] = _without(
 _BUILTIN_RULESETS: Mapping[str, Mapping[str, List[str]]] = {
     "routing_release": {
         "default": list(ROUTING_RELEASE_RULES_DEFAULT),
+        "maintenance_ready": list(ROUTING_RELEASE_RULES_MAINTENANCE_READY),
         "readiness": list(ROUTING_RELEASE_RULES_READINESS),
     },
     "mbom_release": {
@@ -87,7 +96,8 @@ _BUILTIN_RULESETS: Mapping[str, Mapping[str, List[str]]] = {
 }
 
 _ALLOWED_RULE_IDS: Mapping[str, set[str]] = {
-    "routing_release": set(ROUTING_RELEASE_RULES_DEFAULT),
+    "routing_release": set(ROUTING_RELEASE_RULES_DEFAULT)
+    | {ROUTING_RELEASE_MAINTENANCE_READY_RULE},
     "mbom_release": set(MBOM_RELEASE_RULES_DEFAULT),
     "baseline_release": set(BASELINE_RELEASE_RULES_DEFAULT),
     "eco_apply": set(ECO_APPLY_RULES_DEFAULT),
