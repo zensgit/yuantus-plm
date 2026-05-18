@@ -2244,34 +2244,32 @@ class WorkflowCustomActionService:
         rule: WorkflowCustomActionRule,
         context: Dict[str, Any],
     ) -> bool:
-        workflow_map_id = self._normalize_optional_string(rule.workflow_map_id)
-        if workflow_map_id and workflow_map_id != context.get("workflow_map_id"):
-            return False
+        # Delegate to the merged automation predicate contract
+        # (`automation_rule_predicate_contract`, PR #577 `36ad043`).
+        # The contract is the single source of truth for matcher
+        # semantics; this body now exists only to thread rule data
+        # into the contract's pure API. Bit-for-bit behavior is
+        # pinned by the spec-derived 21-row
+        # `_AUTOMATION_PARITY_SNAPSHOT` in the contract's tests
+        # (taskbook PR #598 `397422e`, §5).
+        from yuantus.meta_engine.services.automation_rule_predicate_contract import (
+            WorkflowRuleFacts,
+            evaluate_rule_predicate,
+            normalize_workflow_rule_predicate,
+        )
 
-        predicates = self._rule_match_predicates(rule)
-        stage_id = predicates.get("stage_id")
-        if stage_id and stage_id != context.get("stage_id"):
-            return False
-
-        eco_priority = predicates.get("eco_priority")
-        if eco_priority and eco_priority != context.get("eco_priority"):
-            return False
-
-        product_id = predicates.get("product_id")
-        if product_id and product_id != context.get("product_id"):
-            return False
-
-        eco_type = predicates.get("eco_type")
-        if eco_type and eco_type != context.get("eco_type"):
-            return False
-
-        actor_roles = predicates.get("actor_roles") or []
-        if actor_roles:
-            runtime_roles = set(context.get("actor_roles") or [])
-            if not runtime_roles.intersection(actor_roles):
-                return False
-
-        return True
+        params = rule.action_params if isinstance(rule.action_params, dict) else {}
+        predicate = normalize_workflow_rule_predicate(
+            rule.workflow_map_id,
+            params.get("match_predicates"),
+        )
+        # `context` is already normalized by the caller
+        # (`_normalize_runtime_context` at evaluate_transition).
+        # `WorkflowRuleFacts.from_context` normalization is idempotent
+        # on already-normalized input (lowercasing an already-lowercase
+        # string is a no-op) — verified by the parity snapshot.
+        facts = WorkflowRuleFacts.from_context(context)
+        return evaluate_rule_predicate(predicate, facts)
 
     def _rule_priority(self, rule: WorkflowCustomActionRule) -> int:
         params = rule.action_params if isinstance(rule.action_params, dict) else {}

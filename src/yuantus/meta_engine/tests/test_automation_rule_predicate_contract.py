@@ -226,62 +226,132 @@ def test_fail_open_drops_predicates_but_keeps_workflow_map_id(bad_mp):
 
 
 # --------------------------------------------------------------------------
-# Service-parity matrix vs the real _rule_matches_runtime_scope
+# Spec-derived frozen parity snapshot — the single regression net
 # --------------------------------------------------------------------------
+#
+# Each `expected` value is hand-derived from the documented matcher
+# semantics in `_rule_matches_runtime_scope` (steps 1–7: workflow_map_id
+# eq → stage_id eq → eco_priority eq → product_id eq → eco_type eq →
+# actor_roles set-intersection; absent predicate value = wildcard;
+# normalization fail-open keeps `workflow_map_id` but zeros
+# match_predicates-derived keys).
+#
+# This is NOT a runtime-captured snapshot — it is derived from the
+# spec independently of any service implementation, so post-substitution
+# (where the service delegates to the contract) the snapshot remains a
+# meaningful regression net rather than becoming circular.
+#
+# Single source of truth: both `test_contract_matches_spec_derived_parity_snapshot`
+# (regression net) and `test_service_delegates_to_contract` (wiring smoke)
+# parametrize over this same constant. A future case addition lands in
+# exactly one place.
+#
+# See `docs/DEVELOPMENT_CLAUDE_TASK_ODOO18_AUTOMATION_ENGINE_SUBSTITUTION_20260518.md`
+# §5 for the per-row derivation.
 
-
-_PARITY_CASES = [
-    # (workflow_map_id, raw_match_predicates, runtime_context)
-    (None, None, {}),
-    (None, {}, {"eco_type": "bom"}),
-    (None, {"eco_type": "bom"}, {"eco_type": "bom"}),
-    (None, {"eco_type": "bom"}, {"eco_type": "document"}),
-    (None, {"eco_type": "bom"}, {}),
-    (None, {"eco_priority": "High"}, {"eco_priority": "high"}),
+_AUTOMATION_PARITY_SNAPSHOT = (
+    # (workflow_map_id, raw_match_predicates, runtime_context, expected)
+    (None, None, {}, True),
+    (None, {}, {"eco_type": "bom"}, True),
+    (None, {"eco_type": "bom"}, {"eco_type": "bom"}, True),
+    (None, {"eco_type": "bom"}, {"eco_type": "document"}, False),
+    (None, {"eco_type": "bom"}, {}, False),
+    (None, {"eco_priority": "High"}, {"eco_priority": "high"}, True),
     (
         None,
         {"actor_roles": ["QA", "Eng"]},
         {"actor_roles": ["eng", "pm"]},
+        True,
     ),
-    (None, {"actor_roles": ["qa"]}, {"actor_roles": ["pm"]}),
+    (None, {"actor_roles": ["qa"]}, {"actor_roles": ["pm"]}, False),
     (
         None,
         {"stage_id": "s1", "product_id": "p1"},
         {"stage_id": "s1", "product_id": "p1"},
+        True,
     ),
     (
         None,
         {"stage_id": "s1", "product_id": "p1"},
         {"stage_id": "s1", "product_id": "p9"},
+        False,
     ),
-    ("wf1", None, {"workflow_map_id": "wf1"}),
-    ("wf1", None, {"workflow_map_id": "wf2"}),
-    ("wf1", {"eco_type": "bom"}, {"workflow_map_id": "wf1", "eco_type": "bom"}),
-    ("wf1", {"eco_type": "bom"}, {"workflow_map_id": "wf2", "eco_type": "bom"}),
+    ("wf1", None, {"workflow_map_id": "wf1"}, True),
+    ("wf1", None, {"workflow_map_id": "wf2"}, False),
+    (
+        "wf1",
+        {"eco_type": "bom"},
+        {"workflow_map_id": "wf1", "eco_type": "bom"},
+        True,
+    ),
+    (
+        "wf1",
+        {"eco_type": "bom"},
+        {"workflow_map_id": "wf2", "eco_type": "bom"},
+        False,
+    ),
     # mixed-case actor_roles on BOTH sides: bit-for-bit lowercasing is
-    # load-bearing here (service _normalize_match_predicates +
+    # load-bearing (service _normalize_match_predicates +
     # _normalize_runtime_context both lowercase).
     (
         None,
         {"actor_roles": ["QA", "Eng"]},
         {"actor_roles": ["ENG", "Pm"]},
+        True,
     ),
-    (
-        None,
-        {"actor_roles": ["QA"]},
-        {"actor_roles": ["Pm"]},
-    ),
+    (None, {"actor_roles": ["QA"]}, {"actor_roles": ["Pm"]}, False),
     # illegal/fail-open cases
-    (None, {"bogus": 1}, {"eco_type": "bom"}),
-    ("wfX", {"bogus": 1}, {"eco_type": "bom"}),
-    ("wfX", {"bogus": 1}, {"workflow_map_id": "wfX"}),
-    (None, {"eco_priority": "nope"}, {"eco_priority": "high"}),
-    (None, {"actor_roles": "qa"}, {"actor_roles": ["qa"]}),
-]
+    (None, {"bogus": 1}, {"eco_type": "bom"}, True),
+    ("wfX", {"bogus": 1}, {"eco_type": "bom"}, False),
+    ("wfX", {"bogus": 1}, {"workflow_map_id": "wfX"}, True),
+    (None, {"eco_priority": "nope"}, {"eco_priority": "high"}, True),
+    (None, {"actor_roles": "qa"}, {"actor_roles": ["qa"]}, True),
+)
 
 
-@pytest.mark.parametrize("wf,mp,ctx", _PARITY_CASES)
-def test_service_parity(wf, mp, ctx):
+@pytest.mark.parametrize(
+    "wf,mp,ctx,expected", _AUTOMATION_PARITY_SNAPSHOT
+)
+def test_contract_matches_spec_derived_parity_snapshot(wf, mp, ctx, expected):
+    """The contract's
+    ``evaluate_rule_predicate(normalize_workflow_rule_predicate(wf,
+    mp), WorkflowRuleFacts.from_context(ctx))`` must match the
+    spec-derived ``expected`` value for every case in the 21-row
+    snapshot — bit-for-bit.
+
+    This is the regression net post-substitution: a contract
+    semantic drift on any one of the 21 cases fails loudly here.
+    """
+
+    decision = evaluate_rule_predicate(
+        normalize_workflow_rule_predicate(wf, mp),
+        WorkflowRuleFacts.from_context(ctx),
+    )
+    assert decision == expected, (
+        f"snapshot drift: wf={wf} mp={mp} ctx={ctx} "
+        f"expected={expected} actual={decision}"
+    )
+
+
+@pytest.mark.parametrize(
+    "wf,mp,ctx,_expected", _AUTOMATION_PARITY_SNAPSHOT
+)
+def test_service_delegates_to_contract(wf, mp, ctx, _expected):
+    """Post-substitution (#598 `397422e`), the service's
+    `_rule_matches_runtime_scope` body delegates to the contract;
+    both sides compute via the same code path, so this assertion
+    is **tautological by construction** — it verifies the
+    delegation is wired end-to-end (rule + context flow through
+    the contract's API and back), not an independent-implementation
+    parity check. The regression-net role transferred to
+    `test_contract_matches_spec_derived_parity_snapshot` above,
+    which pins outputs to spec-derived truth.
+
+    Parametrizes over the same snapshot constant — single source
+    of truth. The ``_expected`` column is bound but unused here;
+    it's verified by the snapshot test above.
+    """
+
     svc = WorkflowCustomActionService(MagicMock())
     rule = WorkflowCustomActionRule(
         name="parity-rule",
@@ -296,9 +366,59 @@ def test_service_parity(wf, mp, ctx):
         WorkflowRuleFacts.from_context(ctx),
     )
     assert service_decision == contract_decision, (
-        f"parity drift: wf={wf} mp={mp} ctx={ctx} "
+        f"delegation drift: wf={wf} mp={mp} ctx={ctx} "
         f"service={service_decision} contract={contract_decision}"
     )
+
+
+def test_runtime_scope_delegates_to_contract():
+    """AST pin: `WorkflowCustomActionService._rule_matches_runtime_scope`
+    must delegate to the merged contract.
+
+    Positive: its source must reference each of the three contract
+    surfaces (the import line, the predicate normalizer, the facts
+    builder, the evaluator). Note: this relies on the local-import
+    pattern (`from … import …` inside the method body, per
+    `_rule_matches_runtime_scope`'s implementation). If the import
+    is ever hoisted to module level, the import-string check still
+    holds against the module-qualified contract identifiers
+    (`normalize_workflow_rule_predicate(` etc.) — those are unique
+    to the contract surface.
+
+    Negative: the method body must NOT call
+    `self._rule_match_predicates`. That helper was the
+    pre-substitution matcher's predicate accessor; its only caller
+    was `_rule_matches_runtime_scope`. A future refactor that
+    re-introduces local matcher arithmetic via that helper would
+    have to call it again, which this AST check forbids.
+    """
+
+    import textwrap as _textwrap
+
+    from yuantus.meta_engine.services import parallel_tasks_service as svc_mod
+
+    method_src = inspect.getsource(
+        svc_mod.WorkflowCustomActionService._rule_matches_runtime_scope
+    )
+
+    # Positive: contract surfaces present.
+    assert "automation_rule_predicate_contract" in method_src
+    assert "normalize_workflow_rule_predicate(" in method_src
+    assert "WorkflowRuleFacts.from_context(" in method_src
+    assert "evaluate_rule_predicate(" in method_src
+
+    # Negative: must not call self._rule_match_predicates anywhere
+    # in this method body — precise semantic inverse of the
+    # substitution. Parse the dedented source; walk for Call nodes
+    # whose func is an Attribute named `_rule_match_predicates`.
+    tree = ast.parse(_textwrap.dedent(method_src))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            assert node.func.attr != "_rule_match_predicates", (
+                "_rule_matches_runtime_scope must not call "
+                "_rule_match_predicates; if matcher arithmetic is needed, "
+                "delegate to the contract via evaluate_rule_predicate."
+            )
 
 
 # --------------------------------------------------------------------------
