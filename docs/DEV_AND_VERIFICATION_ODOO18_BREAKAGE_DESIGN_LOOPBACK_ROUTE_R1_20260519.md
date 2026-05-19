@@ -63,7 +63,12 @@ class BreakageDesignLoopbackEcoCreateRequest(BaseModel):
 ```
 
 Empty body `{}` is accepted (`allow_duplicate` defaults to
-`False`). A non-bool value yields the standard FastAPI 422.
+`False`). Pydantic's default `bool` coercion applies — strings
+like `"true"`/`"false"` and integers `0`/`1` are accepted and
+coerced; only an **unparseable** value (e.g., `"maybe"`, an
+object/array) yields the standard FastAPI 422. If strict typing
+is wanted later, switching the field to `pydantic.StrictBool`
+is a one-line edit + a 422-coverage test — out of scope for R1.
 
 ### Response — 200 success
 
@@ -247,9 +252,11 @@ git diff --check
 
 No alembic / tenant-baseline — the route adds no schema.
 
-Observed as of 2026-05-19: 95 tests passed across all
-breakage-touching + doc-index/portfolio files; new route file
-9/9 passed; `py_compile` clean; `git diff --check` clean.
+Observed as of 2026-05-19: 96 tests passed across all
+breakage-touching (82) + doc-index/portfolio (14) files; new
+route file 9/9 passed; phase-4 search closeout pin updated 676
+→ 677 (one new route) and still green; `py_compile` clean;
+`git diff --check` clean.
 
 ## 6. Non-Goals (reaffirmed from taskbook #601 §3.1)
 

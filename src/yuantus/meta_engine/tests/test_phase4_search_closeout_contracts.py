@@ -144,7 +144,13 @@ def test_phase4_public_route_surface_is_pinned() -> None:
 def test_phase4_route_count_is_pinned_after_search_reports_closeout() -> None:
     app = create_app()
 
-    assert len(app.routes) == 676
+    # Count history (each entry = one route added since the pin began):
+    # - 676: baseline at phase-4 search closeout pin.
+    # - 677: + `POST /breakages/{incident_id}/design-loopback/eco`
+    #   (PR #602, breakage state-machine integration §3.1 R1 — the
+    #   HTTP seam over `BreakageIncidentService.create_breakage_design_loopback_eco`
+    #   shipped by #596).
+    assert len(app.routes) == 677
 
 
 def test_search_indexer_status_schema_is_phase4_final_contract() -> None:
