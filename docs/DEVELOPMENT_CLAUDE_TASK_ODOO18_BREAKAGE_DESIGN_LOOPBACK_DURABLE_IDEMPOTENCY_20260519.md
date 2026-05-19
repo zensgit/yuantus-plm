@@ -688,9 +688,13 @@ Add `docs/DEV_AND_VERIFICATION_ODOO18_BREAKAGE_DESIGN_LOOPBACK_DURABLE_IDEMPOTEN
 (a) Which §3 alternative ratified (2a/2b/2c).
 (b) For 2a: schema migration + tenant baseline update + model
     change + service method substitution paths.
-(c) Race-loss handling (catch IntegrityError, rollback, re-query,
-    return `created=False`) + orphan-ECO disposition (author
-    rec: leave for separate cleanup opt-in).
+(c) Race-loss handling: the CAS `rowcount == 0` loser path —
+    `session.rollback()` (which also undoes the loser's own
+    `ECOService.create_eco` INSERT, per the no-internal-commit
+    invariant), re-query `incident.eco_id`, return
+    `created=False` with the winner's ECO. The rollback
+    prevents an orphan ECO from ever being committed by the
+    loser, so **no orphan-cleanup path is needed**.
 (d) Historical-data behavior (substring-scan fallback for
     pre-migration incidents).
 (e) Drift guards added and the alembic-head-pin update.
@@ -714,10 +718,14 @@ Add `docs/DEV_AND_VERIFICATION_ODOO18_BREAKAGE_DESIGN_LOOPBACK_DURABLE_IDEMPOTEN
   (§3.3/§3.4 separate opt-ins).
 - **No backfill of historical `eco_id`** values — the fallback
   substring scan handles those reads transparently.
-- **No orphan-ECO cleanup** for race-losers (separate cleanup
-  opt-in if desired).
-- **No `relationship()` between BreakageIncident and ECO** — FK
-  column alone.
+- **No orphan-ECO cleanup path is needed for CAS race losers**
+  — the loser's `session.rollback()` undoes its own
+  `create_eco` INSERT before it ever commits, so no orphan is
+  produced. (Historical / dangling-`eco_id` cleanup remains
+  out of scope and is only relevant if a future audit ever
+  needs it.)
+- **No `relationship()` between BreakageIncident and ECO** —
+  bare soft-link column only; no FK and no relationship.
 - **No event emission** for "link wired" (§3.6).
 - **No metric counter** for link state (§3.7).
 - **No `BreakageIncident` model edits beyond the one new
