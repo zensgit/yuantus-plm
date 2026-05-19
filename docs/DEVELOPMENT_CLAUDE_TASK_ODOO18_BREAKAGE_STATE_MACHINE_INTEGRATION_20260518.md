@@ -384,6 +384,131 @@ permission audit specifically requires the separation.
 
 ---
 
+---
+
+### §3.6 — Domain event emission (independent, low risk; reuses existing event bus)
+
+**Scope.** Emit a domain event when a breakage design loopback
+ECO is created (or re-discovered via dedupe) by reusing the
+existing event-bus surface that `ECOService` already uses.
+
+**Grounding.** The project **has** a service-level event bus:
+
+- `src/yuantus/meta_engine/events/event_bus.py` — singleton
+  `EventBus` with `subscribe()` + `publish()`.
+- `src/yuantus/meta_engine/events/transactional.py` —
+  `enqueue_event(session, domain_event)` (transactional wrapper
+  that publishes on `after_commit`).
+- `src/yuantus/meta_engine/events/domain_events.py` —
+  `DomainEvent` base class + concrete events
+  (`EcoCreatedEvent`, `EcoUpdatedEvent`, `EcoDeletedEvent`,
+  `ItemCreatedEvent`, etc.).
+- `ECOService._enqueue_eco_created/_updated/_deleted` (e.g.
+  `eco_service.py:75–98`) already wires `EcoCreatedEvent` via
+  `enqueue_event`. This slice mirrors that established pattern.
+
+The breakage loopback path simply has **no dedicated domain
+event yet** — that's the gap this slice closes, not the bus.
+
+**Prerequisites.** None directly; §3.1 (route) doesn't depend on
+it but might want to emit the event from the route handler. The
+service method should be the emission seam regardless, so the
+route just inherits.
+
+**Recommended R1 shape (OPEN for reviewer ratification):**
+
+- **New domain event:** add
+  `BreakageDesignLoopbackEcoCreatedEvent(DomainEvent)` to
+  `events/domain_events.py` with fields `{incident_id: str,
+  eco_id: str, reference: str, created: bool, operator_id:
+  Optional[int], source: str}`. `created=True` for new ECOs;
+  `created=False` for dedupe hits (the reviewer call from §3.1
+  applies here too — see below).
+- **Emission site:** inside
+  `BreakageIncidentService.create_breakage_design_loopback_eco`,
+  call
+  `enqueue_event(self.session, BreakageDesignLoopbackEcoCreatedEvent(...))`
+  before returning the `BreakageDesignLoopbackEcoCreation`
+  dataclass.
+- **Emission policy:**
+  - Emit on `created=True` always.
+  - Emit on `created=False` (dedupe hit) — **author
+    recommends YES**, so downstream consumers can distinguish
+    "this caller asked but the ECO already existed" from "no
+    one asked at all". Reviewer can flag NO if the noise isn't
+    wanted.
+- **`source` field values:** `"manual"` (explicit service
+  call), `"update_status"` (from §3.3 auto-trigger),
+  `"helpdesk_sync"` (from §3.4 auto-trigger). Default
+  `"manual"` for R1; §3.3/§3.4 impl PRs override.
+
+**Hard non-goals:**
+
+- No edit to `EventBus` / `enqueue_event` / `DomainEvent` base —
+  reuse the existing surface verbatim.
+- No new listener (subscribers can be added by separate later
+  opt-ins; emission alone is the R1 deliverable).
+- No webhook delivery to external systems.
+
+---
+
+### §3.7 — Observability instrumentation (independent, low risk; extends existing metrics)
+
+**Scope.** Add loopback-specific counters/gauges to the existing
+`ParallelOpsService.prometheus_metrics(...)` surface so SRE can
+answer "how many design loopback ECOs were spawned in the last
+N days, and how many were dedupe hits vs. new?".
+
+**Grounding.** The project **has** a Prometheus metrics surface:
+
+- `ParallelOpsService.prometheus_metrics(...)` at
+  `parallel_tasks_service.py:11067` returns Prometheus text-
+  format output. Its signature already includes extensive
+  breakage/helpdesk threshold knobs
+  (`breakage_open_rate_warn`, `breakage_helpdesk_failed_rate_warn`,
+  `breakage_helpdesk_provider_failed_rate_warn`, etc.) and
+  emits corresponding `breakage_*` / `breakage_helpdesk_*`
+  metric lines.
+- Format is hand-built Prometheus text (no `prometheus_client`
+  library dependency) and reuses the project's existing summary
+  computations.
+
+The breakage loopback path simply has **no dedicated metrics
+yet** — that's the gap this slice closes, not the surface.
+
+**Prerequisites.** None directly; pairs naturally with §3.3/§3.4
+(once auto-trigger fires, having "how often" metrics is
+immediately useful).
+
+**Recommended R1 shape (OPEN for reviewer ratification):**
+
+- Add counters via the existing `prometheus_metrics` builder:
+  - `breakage_design_loopback_eco_total{outcome="created"}`
+  - `breakage_design_loopback_eco_total{outcome="deduped"}`
+  - `breakage_design_loopback_eco_total{outcome="ineligible"}`
+  - `breakage_design_loopback_eco_total{outcome="error"}`
+- Source data: the new `BreakageDesignLoopbackEcoCreatedEvent`
+  from §3.6 if §3.6 lands first (subscribe to the bus in a
+  listener that increments a session-scoped counter); OR a
+  direct SQL aggregate over the new `BreakageIncident.eco_id`
+  column from §3.2 alt 2a if 2a is the ratified idempotency
+  choice (`COUNT(*) WHERE eco_id IS NOT NULL` etc.).
+- Reviewer call: prefer event-listener feeding metrics
+  (depends on §3.6) vs. direct SQL aggregate (depends on §3.2
+  alt 2a). Author recommends direct SQL aggregate when 2a is
+  chosen — fewer moving parts, same accuracy. If §3.2 lands
+  with 2b/2c instead, prefer the event-listener route.
+
+**Hard non-goals:**
+
+- No new metrics client / library (reuse existing hand-built
+  Prometheus text output).
+- No new dashboard config (separate ops opt-in).
+- No edit to existing `breakage_*` / `breakage_helpdesk_*`
+  metric lines.
+
+---
+
 ### Suggested landing order
 
 The dependency graph (`A → B` means "A should land before B"):
@@ -396,41 +521,14 @@ The dependency graph (`A → B` means "A should land before B"):
 4. **§3.4 (helpdesk-sync auto-trigger)** — depends on §3.2 + §3.3.
 5. **§3.5 (dedicated RBAC)** — depends on §3.1 if enforced;
    recommended rejected.
+6. **§3.6 (domain event emission)** — independent; pairs well
+   with §3.3/§3.4 for an audit trail.
+7. **§3.7 (observability)** — independent of §3.6 but its
+   source-data choice depends on which §3.2 alternative
+   ratified.
 
 Per the owner's serialization rule (2026-05-18), only **ONE**
 slice should be in flight at a time.
-
-### §3.6 — Out-of-this-taskbook findings (not slices)
-
-Two areas surfaced during scoping that **cannot** be made into
-this taskbook's slices without out-of-scope infrastructure
-decisions. They are recorded here as findings rather than
-slices, so the catalog stays honest about what it covers:
-
-- **No service-level event bus exists.** The only in-tree event
-  surface is `WorkflowCustomActionService`'s `emit_event` action
-  type (`parallel_tasks_service.py:2560`), which is a workflow-
-  rule **action**, not a general-purpose bus that services emit
-  to. There is no `event_bus` / `publish_event` / `EventBus`
-  client wired into the meta_engine services today. A "loopback
-  ECO created" domain event would therefore require **first**
-  adding a project-wide event bus — a much larger epic than a
-  breakage-integration slice. Out of scope for this taskbook;
-  flagged for owner direction.
-- **No structured observability surface exists.**
-  `parallel_tasks_service.py` has no `logging.getLogger`
-  usage; `src/yuantus/meta_engine/` has no `prometheus_client`,
-  no `opentelemetry`, no metrics client. A slice that added
-  observability around `create_breakage_design_loopback_eco`
-  would have to **bring its own infrastructure**, which is a
-  cross-cutting concern broader than this taskbook. Out of
-  scope; flagged for owner direction.
-
-Both are reachable — the owner may want to start a separate
-epic to add an event bus / observability stack, after which a
-follow-up taskbook can scope event-emission and instrumentation
-slices into the breakage loopback. They are not blocked by this
-taskbook; they block on a project-wide infra decision.
 
 ## 4. R1 Target Output (per slice)
 
@@ -531,19 +629,17 @@ need a fresh taskbook of their own.
 
 ## 10. Reviewer Focus
 
-This taskbook covers the remainder as 5 enumerable slices
-(§3.1–§3.5) plus 2 honest "out-of-this-taskbook" findings
-(§3.6) that block on project-wide infra decisions (event bus,
-observability stack). Reviewer focus:
+This taskbook covers the remainder as 7 enumerable slices
+(§3.1–§3.7), all of which reuse existing project infrastructure
+(no new event bus, no new metrics stack) and each of which is
+its own future opt-in. Reviewer focus:
 
-- **Slice scoping**: does §3.1–§3.5 correctly capture the
+- **Slice scoping**: does §3.1–§3.7 correctly capture the
   enumerable remainder? Notable adjacent items the author left
   out intentionally — push back if you want any of these
   in-scope: backfill ECOs for breakages closed before #596;
   UI/frontend affordance for "spawn loopback" (separate frontend
-  session); event-bus addition + observability stack (the
-  §3.6 findings — these are higher-level infra epics, not
-  slices of this taskbook).
+  session, out of scope for contracts track).
 - **Dependency arrows**: confirm §3.3/§3.4 require §3.2 (race
   safety). Push back if you want them parallelizable somehow.
 - **§3.1 response shape**: 200 + `created:false` vs. 409.
@@ -557,11 +653,13 @@ observability stack). Reviewer focus:
   needed.
 - **§3.5 (dedicated RBAC)**: keep recommended-reject or
   ratify the capability addition.
-- **§3.6 findings ratification**: confirm both findings are
-  correct — there really is no service-level event bus and no
-  metrics surface in `src/yuantus/meta_engine/` today — and
-  agree that both are out-of-scope for this taskbook (not
-  blocked, just at a higher infra level).
+- **§3.6 (event emission)**: ratify the `created=False`
+  emission policy (author recommends YES). Confirm event field
+  set, especially the `source` enum.
+- **§3.7 (observability)**: ratify the source-data choice —
+  direct SQL aggregate (author recommends, depends on §3.2 alt
+  2a being ratified) vs. event-bus listener counter
+  (independent of §3.2 choice, depends on §3.6).
 - **Out-of-scope check**: did anything in this catalog claim
   authorization for a slice that hasn't been ratified? It must
   not — the goal is enumeration, not pre-decision.
