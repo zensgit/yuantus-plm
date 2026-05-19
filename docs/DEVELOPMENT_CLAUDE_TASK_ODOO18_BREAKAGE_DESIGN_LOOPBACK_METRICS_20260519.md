@@ -74,9 +74,10 @@ multi-process and is exactly the trap to avoid; §3.6's event is
 fire-and-forget and explicitly NOT a metrics source).
 
 A **new** helper `_breakage_design_loopback_metrics(self) ->
-Dict[str, Any]` (NO `since` parameter) is added and called from
-`summary(...)` **alongside** `_breakage_summary(...)`. It is
-deliberately **not** an extension of `_breakage_summary`:
+Dict[str, Any]` (NO `since` parameter) is added and called
+**directly from `prometheus_metrics(...)`** — **NOT** from
+`summary(...)`. It is deliberately **not** an extension of
+`_breakage_summary`:
 - `_breakage_summary` is load-all + Python `Counter` +
   `created_at`-windowed; the loopback link metrics are a
   **point-in-time, full-table** fact (see §3.E) computed by a
@@ -84,10 +85,22 @@ deliberately **not** an extension of `_breakage_summary`:
 - No load-all: the helper issues `func.count` queries, never
   `query(BreakageIncident).all()`.
 
-`summary()` gains an additive `summary["breakage_design_loopback"]
-= {...}` block (no contract module exists for the summary dict;
-additive extension is allowed, same framing as §3.4's
-helper-extraction allowance).
+**Surface containment (Medium finding 1, 2026-05-19).**
+`summary()` is JSON-exposed via `GET /parallel-ops/summary`
+(`ops_router:94`) **and** `/parallel-ops/summary/export`
+(`ops_router:331`). Putting the loopback block into
+`summary()` would therefore additively expand **two JSON
+surfaces** — contradicting §3.F's "only surface change is the
+three Prometheus lines". RATIFIED resolution **(b): keep the
+metric internal to `prometheus_metrics`** — the helper is
+called from `prometheus_metrics` only; `summary()` and the
+`/parallel-ops/summary[/export]` JSON responses stay
+**byte-identical** (no `breakage_design_loopback` key). The
+Prometheus scrape text is the *only* surface that changes.
+(Alternative (a) — ratify an additive `summary[...]` JSON block
+— is **rejected**: it widens read surface beyond §3.7's
+metrics-only / no-surface-expansion boundary; (b) is the
+narrowest faithful choice.)
 
 ### 3.B Dangling `eco_id` 口径 — RATIFIED: (b) live-link only
 
@@ -138,11 +151,23 @@ state:
   (gauge, label `severity`) — live-linked incidents grouped by
   `BreakageIncident.severity`.
 
+**Labels (Medium finding 2, 2026-05-19).** These three gauges
+are current-state / full-table and **MUST NOT use the existing
+renderer's `common_labels`** (`window_days`, `site_id`,
+`target_object`, `template_key` — `parallel_tasks_service.py:11492`);
+emitting a full-table value under a `window_days` / filter label
+would be a lie. RATIFIED label sets: `*_links_total` has **no
+labels at all**; `*_by_status` has **only** `{status}`;
+`*_by_severity` has **only** `{severity}`. "Mirror the existing
+`# HELP`/`# TYPE` style" means the *text format only*, NOT the
+`common_labels` dict. MANDATORY test asserts none of
+`window_days` / `site_id` / `target_object` / `template_key`
+appears on any of the three metric lines.
+
 No other label dimensions (no `by_responsibility` /
 `by_product_item` / etc. — the user listed exactly these;
-further dimensions are future opt-ins). `# HELP`/`# TYPE`
-lines mirror the existing `prometheus_metrics` style; emitted
-from the existing route only.
+further dimensions are future opt-ins). Emitted from the
+existing route only.
 
 ### 3.E Current-state, not windowed — PRE-RATIFIED
 
@@ -157,25 +182,31 @@ still counted.
 
 ### 3.F Exposure + surface — PRE-RATIFIED (no expansion)
 
-Reuse `ParallelOpsOverviewService.prometheus_metrics` /
-`summary` / the existing `GET /parallel-ops/metrics` route. The
-**only** surface change is the three additional
+Reuse `ParallelOpsOverviewService.prometheus_metrics` + the
+existing `GET /parallel-ops/metrics` route only. The **single,
+exhaustive** surface change is the three additional
 `# HELP`/`# TYPE`/value lines in the existing Prometheus text
-body. **No new route; `len(app.routes)` stays 677**; the
+body. Per §3.A's (b) resolution, `summary()` is **NOT** touched,
+so `GET /parallel-ops/summary` and `/parallel-ops/summary/export`
+JSON responses are **byte-identical** (no `breakage_design_loopback`
+key). **No new route; `len(app.routes)` stays 677**; the
 ops-router contract test stays green (route set unchanged).
-`prometheus_metrics`/`summary` may take no new required params
-(any threshold/warn knob is out of scope — these are plain
-gauges, no SLO alerting in §3.7).
+`prometheus_metrics` takes no new required params and `summary`
+is unchanged (any threshold/warn knob is out of scope — these
+are plain gauges, no SLO alerting in §3.7).
 
 ## 4. R1 Target Output (for the impl PR)
 
 - `parallel_tasks_service.py`: add
   `_breakage_design_loopback_metrics(self) -> Dict[str, Any]`
   (SQL `func.count` + `GROUP BY`, live-link §3.B predicate, no
-  `since`, no load-all); call it from `summary(...)` →
-  `summary["breakage_design_loopback"]`; emit the three §3.D
-  gauges in `prometheus_metrics(...)` mirroring the existing
-  `# HELP`/`# TYPE`/`_prometheus_line` style.
+  `since`, no load-all); call it **only from
+  `prometheus_metrics(...)`** (NOT from `summary()` —
+  `summary()` stays unchanged, §3.A (b)); emit the three §3.D
+  gauges mirroring the existing `# HELP`/`# TYPE` text style
+  via `_prometheus_line` but **without `common_labels`**
+  (`*_links_total` no labels; `*_by_status` only `{status}`;
+  `*_by_severity` only `{severity}` — §3.D).
 - No new route; no request/response model change; no schema /
   alembic / tenant-baseline; no event subscriber; no runtime
   mutation; no edit to §3.2's CAS or any merged contract.
@@ -212,6 +243,16 @@ MANDATORY exactly-named (new file
   — the rendered text contains the three §3.D metric names with
   `# TYPE … gauge`; `len(app.routes) == 677`; the ops-router
   contract route set is unchanged.
+- **`test_summary_json_surface_unchanged`** (Medium 1) — §3.A
+  (b): `summary()` / `GET /parallel-ops/summary` /
+  `/parallel-ops/summary/export` carry **no**
+  `breakage_design_loopback` key; the loopback gauges appear
+  **only** in the Prometheus text.
+- **`test_loopback_gauges_have_no_common_labels`** (Medium 2) —
+  §3.D: none of `window_days` / `site_id` / `target_object` /
+  `template_key` appears on any of the three metric lines;
+  `*_links_total` has no labels, `*_by_status` only `{status}`,
+  `*_by_severity` only `{severity}`.
 
 Plus: the breakage/helpdesk/event regression
 (`test_breakage_design_loopback_event_emission.py`,
@@ -255,10 +296,13 @@ source-of-truth (and why a separate non-windowed helper, not
 `_breakage_summary`); the §3.B live-link 口径 with the §3.2
 dangling-contract cross-reference + the hard-delete test proof;
 the §3.C `created_vs_reused`-out rationale; the §3.D exact
-metric names/types; the §3.E current-state (not windowed)
-proof; the §3.F no-new-route / 677 / contract-route-set
-unchanged proof; inter-slice status (§3 catalog complete after
-this).
+metric names/types; the §3.A (b) surface-containment
+(`summary()` / `/parallel-ops/summary[/export]` JSON
+byte-identical — Medium 1) + the §3.D no-`common_labels` rule
+(Medium 2) with their two MANDATORY-test proofs; the §3.E
+current-state (not windowed) proof; the §3.F no-new-route / 677
+/ contract-route-set unchanged proof; inter-slice status (§3
+catalog complete after this).
 
 ## 8. Non-Goals (hard boundaries for the impl PR)
 
@@ -302,10 +346,21 @@ flips.
 - **§3.C — confirm `created_vs_reused` is correctly OUT** (no
   persisted signal; not an in-memory-event count) rather than
   silently dropped.
-- **§3.D/§3.E/§3.F** — exactly three `yuantus_parallel_*`
-  gauges; current-state not windowed; no new route /
-  `len(app.routes)` stays 677 / ops-router contract route set
-  unchanged.
+- **§3.A (b) surface containment (Medium 1)** — confirm the
+  helper is called from `prometheus_metrics` only; `summary()`
+  and `/parallel-ops/summary[/export]` JSON stay byte-identical
+  (no `breakage_design_loopback` key); the gauges live only in
+  the Prometheus text. (a) additive-JSON-block recorded
+  rejected.
+- **§3.D no `common_labels` (Medium 2)** — confirm the three
+  gauges do NOT carry `window_days` / `site_id` /
+  `target_object` / `template_key`; only `{status}` / `{severity}`
+  on the grouped gauges, none on `*_links_total`.
+- **§3.E/§3.F** — exactly three `yuantus_parallel_*` gauges;
+  current-state not windowed; no new route / `len(app.routes)`
+  stays 677 / ops-router contract route set unchanged.
 - Did anything add a route/schema/subscriber/runtime mutation,
-  introduce an in-memory metric counter, count a dangling
-  `eco_id` as linked, or touch a merged contract? It must not.
+  widen the JSON `summary` surface, emit the gauges under
+  window/filter labels, introduce an in-memory metric counter,
+  count a dangling `eco_id` as linked, or touch a merged
+  contract? It must not.
