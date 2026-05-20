@@ -106,7 +106,7 @@ R3 在 R2 基础上修复以下问题（详见 §11 变更记录）：
 
 | 层 | 名称 | 目标框架 | 职责 |
 |---|---|---|---|
-| Transport 共享层 | `Yuantus.Cad.Shared` | **多目标：`net46;net6.0`** | helper 进程发现（读 `helper.json`）、helper 自动启动、DPAPI token 读写、HTTP 同步调用、错误信封解码、注册表抽象 |
+| Transport 共享层 | `Yuantus.Cad.Shared` | **多目标：`net46;net6.0`** | helper 进程发现（读 `helper-session-{sessionId}.json`）、helper 自动启动、DPAPI token 读写、HTTP 同步调用、错误信封解码、注册表抽象、`install-id.json` 原子读写 |
 | AutoCAD 路线 | `CADDedupPlugin` | v4.6（2018）/ v4.8（2024）多 config | 引用 Shared 的 **net46** target 取代原 `MaterialSyncApiClient` 的直连 HTTP；继续承担 DWG 读写、diff 窗口、PLMMAT* 命令、`/audit/apply-result` 上报 |
 | 国产 CAD 路线 | `YuantusCadHelperBridge.dll` | **.NET Framework v4.6**（NETLOAD 必须完整 .NET Framework） | 引用 Shared 的 **net46** target；仅对外暴露 `(yuantus-helper-call endpoint json) → json` LISP 函数；不写 DWG、不解析业务 JSON |
 | 桌面服务 | `yuantus-cad-helper.exe` | **.NET 6 self-contained** | Kestrel loopback；端点实现；SQLite 审计 |
@@ -130,7 +130,7 @@ R3 在 R2 基础上修复以下问题（详见 §11 变更记录）：
 | **`Yuantus.Cad.Shared` 目标框架** | **`<TargetFrameworks>net46;net6.0</TargetFrameworks>`** | netstandard2.0（**已排除**） | AutoCAD 2018 基线 v4.6 不在 netstandard2.0 官方支持矩阵；多目标比拆双库更紧凑且共享源码 |
 | **`YuantusCadHelperBridge.dll` 目标框架** | **`<TargetFrameworkVersion>v4.6</TargetFrameworkVersion>`** | netstandard2.0（**已排除**） | NETLOAD 进 acad.exe / ZWCAD.exe 必须为完整 .NET Framework 程序集；以 AutoCAD 2018 v4.6 基线为最低共同分母 |
 | `CADDedupPlugin` 目标框架 | 保持现有 `v4.6`（2018）/`v4.8`（2024）多 config | — | 既有项目结构，零改动 |
-| 进程间发现 | `%APPDATA%\YuantusPLM\helper.json` | Named Pipe | 跨技术栈兼容；LISP / Tauri / PowerShell 都能读 |
+| 进程间发现 | `%APPDATA%\YuantusPLM\helper-session-{sessionId}.json`（per-session）+ `%APPDATA%\YuantusPLM\install-id.json`（per-user-per-machine，原子 CreateNew） | Named Pipe | 跨技术栈兼容；LISP / Tauri / PowerShell 都能读 |
 | 本地 token 存储 | Windows DPAPI 用户作用域 + 固定 entropy | Credential Manager（也是 DPAPI 后端） | 跨进程同用户可读；不防同用户其他进程 —— 见 §5.3 |
 | 日志 | `Serilog` → `%APPDATA%\YuantusPLM\logs\helper-YYYY-MM-DD.log` 每日轮转 | NLog | 与既有 .NET 团队习惯一致 |
 | 本地审计 | SQLite via `Microsoft.Data.Sqlite` | LiteDB | 单文件、跨工具可读 |
@@ -282,42 +282,90 @@ for each detected product:
 ### 5.1 进程模型
 
 - 单文件 self-contained .NET 6 exe，部署到 `%APPDATA%\YuantusPLM\helper\yuantus-cad-helper.exe`
-- **单例**：启动时尝试创建 `Local\YuantusCadHelper-{installId}` 命名 Mutex
+- **单例**：启动时尝试创建 `Local\YuantusCadHelper-{installId}` 命名 Mutex（`Local\` 命名空间是 **session-scoped**；详见 §5.1.1 隔离模型）
 - 不开机自启。CAD 端在调用 helper API 前如发现进程不在 → 自动 spawn → 轮询 `/healthz` 直到 200（最多 5 秒）
 - 空闲超时：默认 30 分钟无请求自动退出，由 `config.json` 中 `idle_timeout_minutes` 覆盖
 - 子命令：`yuantus-cad-helper.exe`（默认服务模式）/ `yuantus-cad-helper.exe --reset-local-token`（见 §5.3）
+- 当前会话的发现文件命名：`helper-session-{sessionId}.json`（`sessionId = Process.GetCurrentProcess().SessionId`），详见 §5.2
 
-**单例 + 残留恢复流程**：
+**单例 + 残留恢复流程（R3.2 修订）**：
 
 ```
 进程 B 启动：
-  1. 尝试拿命名 Mutex
-  2a. Mutex 拿到 → 正常启动，写 helper.json，开始服务
+  1. 尝试拿命名 Mutex `Local\YuantusCadHelper-{installId}`
+  2a. Mutex 拿到 → 正常启动，写 helper-session-{sessionId}.json，开始服务
   2b. Mutex 已被占 → 进入"已运行验证"流程：
-      3. 读 helper.json
+      3. 读当前 session 的 helper-session-{sessionId}.json
          3a. 文件不存在 → wait 500ms 重试步骤 2，最多 3 次；都失败 → 退出码 HELPER_SINGLETON_LOST
-         3b. 文件存在 → 读 port + pid
-      4. 用 DPAPI 中本地 token 打 http://127.0.0.1:<port>/healthz （500ms 超时；/healthz 实际豁免鉴权，但探活也带 token 用于侧信道一致性）
+         3b. 文件存在 → 读 port + pid + image_path
+      4. **裸 GET** http://127.0.0.1:<port>/healthz（**不带** X-Yuantus-Local-Token；500ms 超时；/healthz 本就鉴权与来源双豁免，探活刻意与 token 解耦，避免把"helper 是否活着"和"DPAPI 是否可读"混在一起）
          4a. 200 → 静默退出码 0（说明真在跑，调用方继续用既有端口）
-         4b. 失败/超时 → 视为残留：
-             5. 强制删除 helper.json
-             6. 回到步骤 2 重试拿 Mutex（前一持有者已死，Mutex 应可获）
-             7. 重试 3 次仍拿不到 → 退出码 HELPER_SINGLETON_LOST，告诉用户人工排查
+         4b. 非 200 / 超时 / 连接拒绝 → 进入"持有者死活判定"：
+             5. 用 helper-session 文件里的 pid 查进程：
+                - 进程不存在 → 视为残留（步骤 6）
+                - 进程存在但映像路径与 image_path 不匹配 → 视为残留（步骤 6；可能 PID 已被复用）
+                - 进程存在且映像路径匹配 yuantus-cad-helper.exe → **helper 进程活着但 HTTP 不健康**（死锁 / GC 卡 / Kestrel 异常）→
+                    退出码 **HELPER_UNHEALTHY**（**不删** helper-session 文件，避免误删一个仍活着但不健康的 helper 的发现条目）；
+                    提示用户："helper 进程 (pid=<N>) 仍在运行但 /healthz 失败，请人工 taskkill 后重试或运行诊断"
+             6. 强制删除 helper-session-{sessionId}.json
+             7. 回到步骤 1 重试拿 Mutex（前一持有者已死，Mutex 应可获）
+             8. 重试 3 次仍拿不到 → 退出码 HELPER_SINGLETON_LOST
 ```
 
-进程 A 正常退出 / SIGTERM：**必须**删除 `helper.json`。崩溃残留由下次启动的步骤 4b/5 兜底。
+进程 A 正常退出 / SIGTERM：**必须**删除当前 session 的 `helper-session-{sessionId}.json`。崩溃残留由下次启动的步骤 5/6 兜底。
+
+#### 5.1.1 installId 来源 + 原子生成 + per-user-per-session 隔离模型（R3.2 新增）
+
+**installId 文件**：`%APPDATA%\YuantusPLM\install-id.json`
+
+```json
+{ "schema_version": "1.0", "install_id": "550e8400-e29b-41d4-a716-446655440000", "created_at": "2026-05-19T11:30:00+08:00" }
+```
+
+**生成必须原子，防止多 CAD 同时首次启动竞态**：
+
+```
+helper / Shared 首次需要 installId 时：
+  1. 调 FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None)
+     1a. 成功 → 在 stream 上写 { install_id: Guid.NewGuid(), ... } 完整 JSON，flush，关闭
+     1b. 失败 IOException (ERROR_FILE_EXISTS) → 说明另一进程已经赢了：
+         直接进入步骤 2
+  2. 用 FileShare.Read 重新打开既有文件，反序列化拿到 install_id
+  3. 返回该 install_id
+```
+
+错误（非 IOException）→ `HELPER_DPAPI_UNAVAILABLE` 兄弟错误码 `HELPER_INSTALL_ID_UNAVAILABLE`。
+
+**反例（R3.1 之前的不安全流程，已废弃）**：
+> "文件不存在 → `Guid.NewGuid()` → File.WriteAllText" —— 两个进程同时通过 "文件不存在" 检查时各自生成不同 GUID，后写的覆盖先写的；两个进程内存中的 installId 不一致 → Mutex 名不同 → 单例失效。
+
+**隔离模型（R3 范围明确化）**：
+
+| 资源 | 作用域 | 实现 |
+|---|---|---|
+| `install-id.json` | per-user-per-machine（跨 session 共享） | `%APPDATA%\YuantusPLM\install-id.json` |
+| Mutex `Local\YuantusCadHelper-{installId}` | **per-user-per-session**（Windows `Local\` 命名空间天然 session-scoped） | 同一用户在 console session 与 RDP session 内会各自启动一个 helper 实例 —— 这是 R3 显式接受的语义 |
+| `helper-session-{sessionId}.json` | per-session（文件名内嵌 sessionId） | `%APPDATA%\YuantusPLM\helper-session-{sessionId}.json` |
+| 端口 | per-session（每个 session 独立扫 7959-7999） | session 之间端口可重叠也可不同 —— 由发现文件区分 |
+| `config.json` / `audit.db` / `logs` | per-user（跨 session 共享） | 路径不变 |
+
+**R3 不支持跨 RDP session 共享同一 helper 进程**。如有此需求需要切换到 `Global\` Mutex 命名空间（要求 `SeCreateGlobalPrivilege` 或服务化部署），超出本稿范围 —— 见 §8 未决问题。
+
+**Shared 端发现逻辑**：用 `Process.GetCurrentProcess().SessionId` 取当前 session，组装 `helper-session-{sessionId}.json` 路径。LISP 桥 / `CADDedupPlugin` / Tauri Companion 都通过 Shared 走，不需要各自重复实现。
 
 ### 5.2 端口分配与发现
 
 **端口**：从 `7959` 起线性尝试到 `7999`，绑定 `127.0.0.1` 失败则下一个。**绝不**绑定 `0.0.0.0`。
 
-**发现文件**：`%APPDATA%\YuantusPLM\helper.json`
+**发现文件**：`%APPDATA%\YuantusPLM\helper-session-{sessionId}.json`（R3.2：原 `helper.json` 改名，文件名内嵌 sessionId 以实现 per-session 隔离）
 
 ```json
 {
   "schema_version": "1.0",
+  "session_id": 2,
   "port": 7959,
   "pid": 12345,
+  "image_path": "C:\\Users\\frank\\AppData\\Roaming\\YuantusPLM\\helper\\yuantus-cad-helper.exe",
   "started_at": "2026-05-19T11:30:00+08:00",
   "protocol_version": "1.0",
   "helper_version": "0.1.0",
@@ -325,7 +373,9 @@ for each detected product:
 }
 ```
 
-退出时（含 SIGTERM / 命令面板 quit）**必须**删除该文件。崩溃残留由 §5.1 的 4b/5 步兜底。
+R3.2 在 schema 中新增 `session_id` 与 `image_path`：前者用于异常情况下校验发现文件归属（防多 session 间误读），后者用于 §5.1 步骤 5 的 PID + 映像路径双匹配。
+
+退出时（含 SIGTERM / 命令面板 quit）**必须**删除当前 session 对应的发现文件。崩溃残留由 §5.1 的 5/6 步兜底。
 
 ### 5.3 鉴权模型 + Local Token Bootstrap / Reset
 
@@ -353,7 +403,7 @@ helper 进程启动：
      - 若无 token → 生成 32 字节加密随机数（`RandomNumberGenerator.GetBytes(32)`），
                     hex 编码为字符串，写入 DPAPI；写失败 → 启动失败，
                     退出码 HELPER_LOCAL_TOKEN_BOOTSTRAP_FAILED
-  c. 启动 Kestrel，写 helper.json
+  c. 启动 Kestrel，写当前 session 的 helper-session-{sessionId}.json
   d. /healthz 开始返回 200
    │
    ▼
@@ -596,7 +646,7 @@ yuantus-cad-helper.exe --reset-local-token
 | `HELPER_INPUT_*` | helper 层入参校验失败（例如 `/diff/preview` 缺 item_id） |
 
 **保留错误码（R3 最小集）**：
-- `HELPER_PORT_BUSY` / `HELPER_DPAPI_UNAVAILABLE` / `HELPER_SINGLETON_LOST` / **`HELPER_LOCAL_TOKEN_BOOTSTRAP_FAILED`（R3 新增）**
+- `HELPER_PORT_BUSY` / `HELPER_DPAPI_UNAVAILABLE` / `HELPER_SINGLETON_LOST` / **`HELPER_UNHEALTHY`（R3.2 新增；helper 进程存活但 /healthz 不通）** / **`HELPER_LOCAL_TOKEN_BOOTSTRAP_FAILED`（R3 新增）** / **`HELPER_INSTALL_ID_UNAVAILABLE`（R3.2 新增；install-id.json 既无法 CreateNew 也无法读回）**
 - `AUTH_LOCAL_TOKEN_MISSING` / `AUTH_LOCAL_TOKEN_INVALID` / `AUTH_PLM_NOT_LOGGED_IN` / `AUTH_TENANT_MISSING`
 - `ORIGIN_PROCESS_NOT_ALLOWED`
 - `CAD_DRAWING_NOT_TITLED` / `CAD_DRAWING_MODIFIED` / `CAD_FIELD_WRITE_FAILED`
@@ -662,7 +712,7 @@ CREATE INDEX idx_audit_pull ON audit_events(pull_id);
 ```
 
 其内部职责（**只做 transport，不做业务**）：
-1. 通过 `Yuantus.Cad.Shared` 读 `%APPDATA%\YuantusPLM\helper.json` 取端口
+1. 通过 `Yuantus.Cad.Shared` 读 `%APPDATA%\YuantusPLM\helper-session-{sessionId}.json` 取端口（sessionId 取自当前进程）
 2. 若 helper 进程未起：spawn `yuantus-cad-helper.exe`，轮询 `/healthz`（5s 超时）
 3. 从 DPAPI 读 `local-helper-token`，注入 `X-Yuantus-Local-Token`
 4. 同步调用 helper 指定 endpoint，将响应 JSON 字符串返回给 LISP
@@ -729,10 +779,15 @@ CREATE INDEX idx_audit_pull ON audit_events(pull_id);
 
 | # | 测试 |
 |---|---|
-| 1 | 端口 `7959` 被占用 → 自动走 `7960`，`helper.json` 写正确端口 |
+| 1 | 端口 `7959` 被占用 → 自动走 `7960`，`helper-session-{sessionId}.json` 写正确端口 |
 | 2 | DPAPI 不可用 → 启动失败，错误码 `HELPER_DPAPI_UNAVAILABLE` |
 | 3 | **DPAPI 写失败（mock）→ 启动失败，错误码 `HELPER_LOCAL_TOKEN_BOOTSTRAP_FAILED`** |
-| 4 | 单例 Mutex 已存在 → §5.1 完整恢复流程：helper.json 有效则退出 0；helper.json 残留则删除并重试 |
+| 4 | 单例 Mutex 已存在 + helper-session 文件存在 + **裸 GET /healthz**（无 token） 200 → 退出 0 |
+| 4b | **R3.2**：单例 Mutex 被占 + /healthz 失败 + 文件中 PID 进程仍存活且映像匹配 → `HELPER_UNHEALTHY`（**不**删除 helper-session 文件，**不**重试拿 Mutex） |
+| 4c | **R3.2**：单例 Mutex 被占 + /healthz 失败 + 文件中 PID 进程不存在 / 映像不匹配 → 删除 helper-session 文件 + 重试 Mutex 成功 |
+| 4d | **R3.2**：探活路径**不依赖**本地 token（grep 单例恢复代码：probe 调用不应注入 X-Yuantus-Local-Token） |
+| 4e | **R3.2**：`install-id.json` 原子生成 —— mock 两个进程同时尝试 `FileMode.CreateNew`，只有一个成功；另一个 IOException 后重读拿到同一 install_id |
+| 4f | **R3.2**：两个 session 的 helper 同时启动 —— 各自写自己的 `helper-session-{sessionId}.json`，互不覆盖；两个 helper 同时跑（Local\ Mutex 是 session-scoped）|
 | 5 | 错误信封：业务异常返回 `200 OK` + `ok=false`，HTTP 层错误用 4xx |
 | 6 | `/healthz` `/version` 豁免鉴权 + 豁免来源 → 裸 curl 应 200 |
 | 7 | `/session/status` 缺 token → `401 AUTH_LOCAL_TOKEN_MISSING` |
@@ -761,8 +816,8 @@ CREATE INDEX idx_audit_pull ON audit_events(pull_id);
 | 3 | Procmon 录像证明 detector 零注册表写（.pml 存档） |
 | 4 | LAN 另一台机访问 `http://<host-lan-ip>:7959/healthz` → 拒绝（loopback only） |
 | 5 | 模拟非白名单进程（用 `curl.exe` 直接发请求） → `403 ORIGIN_PROCESS_NOT_ALLOWED` |
-| 6 | helper 进程 `taskkill` → `helper.json` 残留 → 下次启动按 §5.1 第 4b/5 步删除并正常工作 |
-| 7 | 空闲 30 分钟自动退出，`helper.json` 清理 |
+| 6 | helper 进程 `taskkill` → `helper-session-{sessionId}.json` 残留 → 下次启动按 §5.1 R3.2 流程第 5/6 步删除并正常工作 |
+| 7 | 空闲 30 分钟自动退出，当前 session 的 `helper-session-{sessionId}.json` 清理 |
 | 8 | helper 与现有 `CADDedupPlugin` 共存运行 30 分钟无端口/Mutex 冲突，无内存泄漏 |
 | 9 | ZWCAD 真机：装 LISP 瘦壳 + `YuantusCadHelperBridge.dll`（.NET Framework v4.6），运行 `YUANTUS_DIFF_PREVIEW` → 命令行显示 `write_cad_fields` JSON，不自动写 DWG；`/audit/apply-result` 落 `not-applied-display-only` |
 | 10 | **`--reset-local-token` 在 PowerShell 真机执行 → 提示确认 → 用户输入 y → DPAPI 中 token 被替换 → 既有 AutoCAD 会话下次 `PLMMATPULL` 自动重新拿新 token 成功** |
@@ -781,7 +836,8 @@ User                CADDedupPlugin (in acad.exe)   helper.exe              PLM A
  │  PLMMATPULL           │                            │                      │
  ├──────────────────────▶│                            │                      │
  │                       │ Yuantus.Cad.Shared (net46) │                      │
- │                       │   读 helper.json           │                      │
+ │                       │   读 helper-session-       │                      │
+ │                       │     {sessionId}.json       │                      │
  │                       │   helper 不在 → spawn      │                      │
  │                       ├───────────────────────────▶│                      │
  │                       │   helper 启动 →            │                      │
@@ -971,6 +1027,7 @@ Yuantus.Cad.Shared (multi-target: net46;net6.0)
 | 5 | 本地审计 SQLite 是否上行到 PLM | R3 仅本地落盘；上行设计另起独立 doc |
 | 6 | `/compose` / `/validate` / `/tasks/{id}` 是否在 R3 范围 | 不在；R3+ 评估 |
 | 7 | helper 是否暴露服务端 `/diff/preview` 的 values/target_properties 等其他路径 | **不暴露**；R3 仅 item_id 路径 |
+| 8 | **跨 RDP session 是否共享同一 helper 进程**（R3.2 新增） | **R3 不支持**。隔离模型为 per-user-per-session（见 §5.1.1）；跨 session 共享需要切换到 `Global\` Mutex（要求 `SeCreateGlobalPrivilege` 或服务化部署），超出本稿范围。如有真实需求，独立稿评估 |
 
 ---
 
@@ -999,7 +1056,7 @@ Yuantus.Cad.Shared (multi-target: net46;net6.0)
 |---|---|---|
 | S1 | `Yuantus.Cad.Shared`：多目标 `net46;net6.0` 工程结构；helper discovery + DPAPI 封装（bootstrap + reset） + HTTP transport + 错误信封 + 注册表抽象 | **2 天**（R2 1.5 天 + 多目标 / bootstrap 复杂度） |
 | S2 | detector：注册表 + 文件系统扫描 + JSON schema + Procmon 零写验证模板 | 1.5 天 |
-| S3 | helper：Kestrel loopback + 端口分配 + helper.json + 单例恢复完整算法 + bootstrap token 生成 | 1 天 |
+| S3 | helper：Kestrel loopback + 端口分配 + `helper-session-{sessionId}.json` 生命周期 + install-id.json 原子生成 + 单例恢复完整算法（R3.2 PID + 路径双匹配、HELPER_UNHEALTHY 分支、裸 /healthz 探活）+ bootstrap token 生成 | **1.5 天**（R3.2 增加原子生成 + 死活判定复杂度） |
 | S4 | helper：DPAPI token 第 1/2 层鉴权 + 来源 PID + 路径白名单 | 1 天 |
 | S5 | helper：`/healthz` `/version` `/session/*`（含 tenant_id / org_id / default_profile_id） + `/cad/current-drawing` | 1 天 |
 | S6 | helper：`/diff/preview` + `/sync/inbound` + `/sync/outbound` + `pull_id` 缓存 + `/audit/apply-result` + SQLite | **2 天**（R2 1.5 天 + 增加两个透传端点） |
@@ -1009,7 +1066,7 @@ Yuantus.Cad.Shared (multi-target: net46;net6.0)
 | S10 | ZWCAD/GstarCAD LISP 瘦壳：`YUANTUS_DIFF_PREVIEW` 等命令 + 命令行展示（不写 DWG） | 1 天 |
 | S11 | 集成 + 验收测试 + 文档 | 2 天 |
 
-总计：约 **15 个工作日**，单人节奏；可两人并行到 8.5 个工作日。每个 Slice 走独立 PR + 单独 opt-in（按 memory 中"每个 phase 独立 opt-in"规则）。
+总计：约 **15.5 个工作日**，单人节奏；可两人并行到 9 个工作日。每个 Slice 走独立 PR + 单独 opt-in（按 memory 中"每个 phase 独立 opt-in"规则）。
 
 **Slice 顺序依赖**：S1 是基础，必须先做；S2/S3 可并行；S4 依赖 S1；S5/S6 依赖 S3/S4；S7 依赖 S4；S8 依赖 S1+S6；S9 依赖 S1；S10 依赖 S9；S11 收尾。
 
@@ -1023,3 +1080,4 @@ Yuantus.Cad.Shared (multi-target: net46;net6.0)
 | R2 | 2026-05-19 | Codex 第一轮审阅修订。3 High（DWG 责任 / tenant / item_id）+ 4 Medium（DPAPI 措辞 / healthz 验证矛盾 / 单例残留 / CI vs 手测）；新增三层引用架构（Shared + CADDedupPlugin + Bridge）。**R3 替代 R2，R2 已作废**（已作废） |
 | R3 | 2026-05-19 | Codex 第二轮审阅修订。**High**：.NET 目标框架与 AutoCAD 2018 v4.6 基线对齐 —— Shared 改多目标 `net46;net6.0` 替代 netstandard2.0；Bridge.dll 改 `.NET Framework v4.6`；helper/detector 保持 net6.0 self-contained。**High**：恢复 `/sync/inbound` 与 `/sync/outbound` 端点（透传服务端同名路径），保证 `PLMMATPUSH` 命令不退化。新增 §6.3 PLMMATPUSH 时序图。**Medium**：`item_id` 强制约束改为 helper 层范围限定，服务端 `CadDiffPreviewRequest.item_id` 实为可选；helper 不暴露 values/target_properties 等其他路径。**Medium**：新增 §5.3.1 Local Token Bootstrap 流程（helper 启动时生成 + 写 DPAPI + Shared 读 DPAPI 注入）；新增 §5.3.2 `--reset-local-token` 命令（强制交互式终端检测、拒绝远程触发、helper 服务模式不暴露任何 HTTP reset 端点）。新增错误码 `HELPER_LOCAL_TOKEN_BOOTSTRAP_FAILED` / `HELPER_INPUT_VALIDATION_FAILED`。验收新增 CI 用例 19/20/21、手测用例 10/11/12 与门槛 6/7/8/9。工作分解从 13 天升到 14.5 天。 |
 | R3.1 | 2026-05-19 | Codex 第三轮审阅修订（commit 前最后一轮收敛）。**Medium**：补 `DedupApiClient.cs` 的迁移说明 —— §7 集成点表新增该客户端的内部 HTTP 调用走 `Yuantus.Cad.Shared` → helper `/dedup/check`，且 `/api/dedup/check` 是 **multipart/form-data** 文件上传（非 JSON），Shared 需支持 multipart 转发；§5.4 端点表对应行补上 multipart 标注与对应 .NET 客户端方法；§10 S8 合并 MaterialSyncApiClient + DedupApiClient 两客户端迁移并加 multipart 实现，估时 1.5 → 2 天；总工作量 14.5 → 15 天。此修订保证"helper 是唯一与 PLM 服务端通信的本机出口"在范围与代码两侧都成立。 |
+| R3.2 | 2026-05-19 | Codex 第四轮审阅修订（PR #614 reviewer comment 响应）。**High**：`install-id.json` 改为原子生成 —— 用 `FileStream(FileMode.CreateNew)` 独占创建；IOException 回退立即重读既有文件；废弃 "exists 检查 + WriteAllText" 的竞态写法。新增 §5.1.1 子节专门描述。**Medium**：明确 per-user-per-session 隔离模型 —— `Local\YuantusCadHelper-{installId}` Mutex 天然 session-scoped；`helper.json` 改名 `helper-session-{sessionId}.json`，文件名内嵌 sessionId；schema 新增 `session_id` + `image_path` 字段；跨 RDP session 共享同一 helper 进程**不支持**，列入未决问题 #8。**Medium**：单例恢复探活改为**裸 GET /healthz**（不带本地 token），把"helper 是否活着"与"DPAPI 是否可读"解耦；持有 Mutex 但 /healthz 失败时按 PID + 映像路径双校验区分 `HELPER_UNHEALTHY`（存活但不健康，不删发现文件）与 `HELPER_SINGLETON_LOST`（持有者已死，删文件重试）。新增错误码 `HELPER_UNHEALTHY` / `HELPER_INSTALL_ID_UNAVAILABLE`。验收新增 CI 用例 4b/4c/4d/4e/4f。§10 S3 估时 1 → 1.5 天，总工时 15 → 15.5 天。 |
