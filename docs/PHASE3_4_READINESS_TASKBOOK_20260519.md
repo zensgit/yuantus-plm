@@ -1,6 +1,6 @@
 # Phase 3.4 Readiness Taskbook — 2026-05-19
 
-**Status**: Doc-only / read-only inventory. **Not a plan, not a PR, not authorization.**
+**Status**: Doc-only / read-only inventory. **Not implementation authorization and not a Phase 5 start.**
 **Trigger**: 用户口令 `Go P3.4 readiness taskbook`（精确匹配，per `memory/feedback_p3_4_readiness_taskbook_trigger.md`）
 **Branch**: `design/p3-4-readiness-taskbook-20260519`（off `origin/main` = `dd88ea2`）
 **Authoritative anchor**: `main=dd88ea2`（与 #509 refresh 后的 `main=89ba973` 在 P3.4 状态上一致；后续提交均为 Tier-B / Phase 4 / Phase 6 工作，未触及 P3.4 readiness）
