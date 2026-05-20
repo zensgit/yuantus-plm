@@ -65,20 +65,24 @@ NOT delivered.
 - **§3.6 event emission** — taskbook PR #609 (`61ce226`) +
   impl PR #610 (`b848d66`). `BreakageDesignLoopbackEcoEvent`
   reuses the existing transactional outbox (`enqueue_event` /
-  `event_bus`); §3.A (b) emission **internal to
-  `create_breakage_design_loopback_eco`**, called only from
-  `prometheus_metrics` path — `summary()` and
-  `/parallel-ops/summary[/export]` JSON are **byte-identical**.
-  §3.B/§3.C exactly two enqueue branches (CAS-winner +
-  dedupe-reuse), NOT the CAS-loser / unrecoverable /
-  `allow_duplicate` branches → exactly one event per
-  incident-link, zero double-emit (reuses the existing
-  rollback-drop). §3.E S2 settings flag
+  `event_bus`). §3.A/§3.B emission is **inside
+  `create_breakage_design_loopback_eco`** (reached by all three
+  trigger sources: the §3.1 route directly, and §3.3
+  `update_status` / §3.4 `apply_helpdesk_ticket_update` via
+  the shared `_auto_trigger_design_loopback` helper).
+  §3.B/§3.C exactly **two enqueue branches** — CAS-winner
+  (after the post-CAS flush) + dedupe-early-return — and
+  **NOT** the CAS-loser / unrecoverable / `allow_duplicate`
+  branches → exactly one event per incident-link, zero
+  double-emit (reuses the existing transactional-outbox
+  rollback-drop, identical to how `EcoCreatedEvent` already
+  dedups on the CAS-loser). §3.E S2 settings flag
   `BREAKAGE_DESIGN_LOOPBACK_EVENTS_ENABLED` (default
   **False**). §3.F additive kwargs: `trigger_source` (route /
   update_status / helpdesk_sync), `sync_status`,
   `provider_ticket_status` — defaulted; helpdesk source
-  threads the helpdesk context. DEV MD:
+  threads its `derived_sync_status` /
+  `normalized_provider_status` through the helper. DEV MD:
   `DEV_AND_VERIFICATION_ODOO18_BREAKAGE_DESIGN_LOOPBACK_EVENT_EMISSION_R1_20260519.md`.
 - **§3.7 metrics** — taskbook PR #611 (`c2e404f`) + impl PR
   #612 (`c302089`). Three current-state gauges added to the
@@ -213,10 +217,12 @@ machine-pins the catalog's contract surface:
    — so the §3.3/§3.4 route ordering keeps catching it before
    the 404 / verbatim / 400 clauses.
 5. **`BreakageDesignLoopbackEcoEvent`** has required fields
-   `{event_type, incident_id, eco_id, created, trigger_source,
+   `{incident_id, eco_id, created, trigger_source,
    incident_status}` and optional `{sync_status,
-   provider_ticket_status}` with `event_type =
-   "breakage.design_loopback_eco"`.
+   provider_ticket_status}`; `event_type` is a **defaulted
+   discriminator** with default `"breakage.design_loopback_eco"`
+   (not a required Pydantic field — its default is what the
+   guard pins).
 6. **`Settings.BREAKAGE_DESIGN_LOOPBACK_EVENTS_ENABLED`** field
    default is `False` (S2 ratified; checked via
    `Settings.model_fields[...]`, NOT `get_settings()` runtime
