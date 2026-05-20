@@ -238,7 +238,7 @@ Ready for cutover:             FALSE   ← 不可破契约
 
 权威契约文件：`src/yuantus/tests/test_tenant_import_rehearsal_stop_gate_contracts.py`
 
-设计文档（`DEV_AND_VERIFICATION_PHASE3_TENANT_IMPORT_STOP_GATE_CONTRACTS_20260430.md` §3）声明 **5 个 surface**；契约文件中拆为 8 个测试函数（细化）。下面按 5-surface 框架列出。
+设计文档（`DEV_AND_VERIFICATION_PHASE3_TENANT_IMPORT_STOP_GATE_CONTRACTS_20260430.md` §3）声明 **5 个 surface**；契约文件中拆为 10 个测试函数（细化）。下面按 5-surface 框架列出。
 
 ### 5.2 五个 stop-gate surface
 
@@ -298,7 +298,7 @@ Ready for cutover:             FALSE   ← 不可破契约
 
 ### 5.4 Stop-gate 整体结论
 
-5 surface（+ 3 补强 surface）**全部契约绿**。任何后续 PR 想绕开 P3.4 真证据 gate，必须先击穿这 8 个测试函数之一 —— 这是 P3 范围内**最强**的反退化保护。
+5 surface（+ 3 补强 surface）**全部契约绿**。任何后续 PR 想绕开 P3.4 真证据 gate，必须先击穿这 10 个测试函数之一 —— 这是 P3 范围内**最强**的反退化保护。
 
 ---
 
