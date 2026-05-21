@@ -92,6 +92,10 @@ The `net46` target also carries explicit `System.Net.Http` and
 explicit framework-reference style and reduces SDK-style net46 build ambiguity
 for `HttpClient` and DPAPI.
 
+The `net6.0-windows` target uses `Microsoft.Win32.Registry` `5.0.0` because
+GitHub Actions restore proved there is no stable `6.0.0` package on nuget.org;
+the first failed Windows run reported nearest `6.0.0-preview.5.21301.5`.
+
 ## 4. Contract Tests
 
 `SharedContractTests.cs` implements the 25 mandatory S1 test names from the
