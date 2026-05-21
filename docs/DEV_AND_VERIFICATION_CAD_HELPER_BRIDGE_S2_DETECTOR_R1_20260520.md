@@ -163,6 +163,14 @@ GitHub Actions:
 
 - `.github/workflows/cad-helper-shared-dotnet.yml` now restores, builds, and
   tests both `Shared.Tests` and `Detector.Tests` on a Windows runner.
+- PR #618 Windows `.NET` gate:
+  `cad-helper-shared-dotnet` run `26209193581` passed in 2m25s.
+- PR #618 repository contract gate:
+  `CI` run `26209193521` passed `contracts` in 4m16s.
+- The Windows `.NET` run emits a non-blocking `net6.0-windows` out-of-support
+  annotation. S2 intentionally keeps the R3.4 `net6.0-windows` target; any
+  upgrade to `net8.0-windows` should be a separate design decision because S1
+  and S2 currently share the R3 target-framework contract.
 
 ## 7. Remaining Manual Gate
 
