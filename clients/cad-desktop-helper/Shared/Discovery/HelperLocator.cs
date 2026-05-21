@@ -6,7 +6,7 @@ using Yuantus.Cad.Shared.Transport;
 
 namespace Yuantus.Cad.Shared.Discovery
 {
-    public sealed class HelperLocator
+    public sealed class HelperLocator : IDisposable
     {
         public static readonly TimeSpan DefaultMaxWait = TimeSpan.FromSeconds(5);
         public static readonly TimeSpan DefaultPollInterval = TimeSpan.FromMilliseconds(100);
@@ -16,9 +16,10 @@ namespace Yuantus.Cad.Shared.Discovery
         private readonly Func<Process> _spawn;
         private readonly TimeSpan _maxWait;
         private readonly TimeSpan _pollInterval;
+        private readonly bool _disposeProbe;
 
         public HelperLocator()
-            : this(new HelperProbe(), HelperSessionFile.Read, HelperSpawner.Spawn, DefaultMaxWait, DefaultPollInterval)
+            : this(new HelperProbe(), HelperSessionFile.Read, HelperSpawner.Spawn, DefaultMaxWait, DefaultPollInterval, true)
         {
         }
 
@@ -28,12 +29,24 @@ namespace Yuantus.Cad.Shared.Discovery
             Func<Process> spawn,
             TimeSpan maxWait,
             TimeSpan pollInterval)
+            : this(probe, readSessionFile, spawn, maxWait, pollInterval, false)
+        {
+        }
+
+        private HelperLocator(
+            HelperProbe probe,
+            Func<HelperSessionFile> readSessionFile,
+            Func<Process> spawn,
+            TimeSpan maxWait,
+            TimeSpan pollInterval,
+            bool disposeProbe)
         {
             _probe = probe;
             _readSessionFile = readSessionFile;
             _spawn = spawn;
             _maxWait = maxWait;
             _pollInterval = pollInterval;
+            _disposeProbe = disposeProbe;
         }
 
         public async Task<Uri> EnsureHelperRunningAsync(CancellationToken cancellationToken)
@@ -49,8 +62,8 @@ namespace Yuantus.Cad.Shared.Discovery
             }
 
             _spawn();
-            var started = DateTimeOffset.UtcNow;
-            while (DateTimeOffset.UtcNow - started < _maxWait)
+            var stopwatch = Stopwatch.StartNew();
+            while (stopwatch.Elapsed < _maxWait)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var current = _readSessionFile();
@@ -69,6 +82,14 @@ namespace Yuantus.Cad.Shared.Discovery
                 ErrorCodes.HelperPortBusy,
                 "Timed out waiting for yuantus-cad-helper.exe /healthz.",
                 true);
+        }
+
+        public void Dispose()
+        {
+            if (_disposeProbe)
+            {
+                _probe.Dispose();
+            }
         }
     }
 }

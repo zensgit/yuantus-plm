@@ -42,12 +42,36 @@ namespace Yuantus.Cad.Shared.Discovery
         public static HelperSessionFile Read()
         {
             var path = Path;
-            if (!File.Exists(path))
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
+                using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (var reader = new StreamReader(stream))
+                {
+                    var json = reader.ReadToEnd();
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        return null;
+                    }
+                    return JsonConvert.DeserializeObject<HelperSessionFile>(json);
+                }
+            }
+            catch (IOException)
             {
                 return null;
             }
-            var json = File.ReadAllText(path);
-            return JsonConvert.DeserializeObject<HelperSessionFile>(json);
+            catch (UnauthorizedAccessException)
+            {
+                return null;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
 
         public Uri ToBaseUri()

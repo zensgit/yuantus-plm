@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -123,10 +124,6 @@ namespace Yuantus.Cad.Shared.Transport
 
         private static async Task<T> ReadEnvelopeAsync<T>(HttpResponseMessage response)
         {
-            var body = response.Content == null
-                ? string.Empty
-                : await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-
             if (response.StatusCode == HttpStatusCode.UpgradeRequired)
             {
                 throw new HelperException(
@@ -137,6 +134,7 @@ namespace Yuantus.Cad.Shared.Transport
 
             if (!response.IsSuccessStatusCode)
             {
+                var body = await ReadContentAsStringAsync(response.Content).ConfigureAwait(false);
                 var error = TryDeserializeError(body);
                 if (error != null)
                 {
@@ -149,7 +147,7 @@ namespace Yuantus.Cad.Shared.Transport
                     (int)response.StatusCode >= 500);
             }
 
-            var envelope = JsonConvert.DeserializeObject<ResponseEnvelope<T>>(body);
+            var envelope = await ReadJsonEnvelopeAsync<T>(response.Content).ConfigureAwait(false);
             if (envelope == null)
             {
                 throw new HelperException("HELPER_EMPTY_RESPONSE", "Helper returned an empty response.", true);
@@ -163,10 +161,30 @@ namespace Yuantus.Cad.Shared.Transport
 
         private static async Task<HelperError> ReadErrorAsync(HttpResponseMessage response)
         {
-            var body = response.Content == null
-                ? string.Empty
-                : await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            var body = await ReadContentAsStringAsync(response.Content).ConfigureAwait(false);
             return TryDeserializeError(body);
+        }
+
+        private static async Task<string> ReadContentAsStringAsync(HttpContent content)
+        {
+            return content == null
+                ? string.Empty
+                : await content.ReadAsStringAsync().ConfigureAwait(false);
+        }
+
+        private static async Task<ResponseEnvelope<T>> ReadJsonEnvelopeAsync<T>(HttpContent content)
+        {
+            if (content == null)
+            {
+                return null;
+            }
+
+            using (var stream = await content.ReadAsStreamAsync().ConfigureAwait(false))
+            using (var reader = new StreamReader(stream, Encoding.UTF8))
+            using (var jsonReader = new JsonTextReader(reader))
+            {
+                return JsonSerializer.CreateDefault().Deserialize<ResponseEnvelope<T>>(jsonReader);
+            }
         }
 
         private static HelperError TryDeserializeError(string body)

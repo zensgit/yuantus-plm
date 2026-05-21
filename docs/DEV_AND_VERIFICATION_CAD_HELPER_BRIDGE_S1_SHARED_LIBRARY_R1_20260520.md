@@ -16,6 +16,7 @@ behavior.
 
 Added:
 
+- `.github/workflows/cad-helper-shared-dotnet.yml`
 - `clients/cad-desktop-helper/Shared/Yuantus.Cad.Shared.csproj`
 - `clients/cad-desktop-helper/Shared/Identity/Paths.cs`
 - `clients/cad-desktop-helper/Shared/Identity/SessionContext.cs`
@@ -78,10 +79,10 @@ resolves them as follows:
 - Test framework: xUnit, with test parallelization disabled because S1 exposes
   test hooks for process-wide primitives such as `%APPDATA%`, DPAPI, and the
   registry backend.
-- CI workflow: no standalone GitHub Actions workflow in this PR. The taskbook's
-  §4 scoped the implementation PR to the Shared subtree, tests, DEV MD, index,
-  and the R3.2 micro-amend; Windows dotnet CI wiring remains an infrastructure
-  follow-up unless the reviewer requires it in this PR.
+- CI workflow: this PR now includes a focused Windows GitHub Actions workflow
+  for `Yuantus.Cad.Shared` because macOS local verification cannot execute
+  `net46;net6.0-windows` build/test and PR review explicitly needs a real
+  Windows .NET gate.
 - Logging: no logger dependency inside `Yuantus.Cad.Shared`. Primitive failures
   surface through `HelperException` with structured `Code`, `Retryable`, and
   `Details`; S3 helper hosting is the first slice that should wire logging.
@@ -94,8 +95,7 @@ for `HttpClient` and DPAPI.
 ## 4. Contract Tests
 
 `SharedContractTests.cs` implements the 25 mandatory S1 test names from the
-taskbook, plus one implementation-hardening regression for the transient
-`CreateNew` loser read window:
+taskbook, plus three hardening regressions for reviewer / implementation risk:
 
 - install-id atomic create, high concurrency, existing-file, parent-dir, and
   corruption cases; the extra hardening regression verifies the loser retries
@@ -103,12 +103,14 @@ taskbook, plus one implementation-hardening regression for the transient
   first writer still holds the exclusive handle or the file is momentarily
   zero-length.
 - DPAPI local-token round trip and DPAPI failure mapping.
-- bare health probe without local token header.
+- bare health probe without local token header, plus rejection of unrelated
+  plain-200 responses that do not carry the expected helper health JSON body.
 - helper transport header injection, envelope unwrap, 426 handling, and 401
   local-token reread retry.
 - helper spawner deterministic path / no-args / no reset-flag source guard.
 - helper locator success and timeout behavior.
-- helper session file parse and session-id path behavior.
+- helper session file parse, partial-write tolerance, and session-id path
+  behavior.
 - response envelope deserialization.
 - read-only registry API surface and Registry64 / Registry32 view behavior.
 
@@ -137,7 +139,7 @@ dotnet test clients/cad-desktop-helper/Shared.Tests/Yuantus.Cad.Shared.Tests.csp
 Static and repository verification used on this workstation:
 
 ```bash
-rg -n "Kestrel|WebApplication|MapGet|MapPost|SQLite|Sqlite|CommandMethod|CADDedupPlugin|MaterialSyncApiClient|DedupApiClient|--reset-local-token|SupportedOSPlatform" clients/cad-desktop-helper
+rg -n "Kestrel|WebApplication|MapGet|MapPost|SQLite|Sqlite|CommandMethod|CADDedupPlugin|MaterialSyncApiClient|DedupApiClient|--reset-local-token|SupportedOSPlatform" clients/cad-desktop-helper/Shared
 ```
 
 ```bash
@@ -169,11 +171,17 @@ git diff --check
   -> no matches.
 - Contract test inventory:
   `rg -n "public (async )?(Task|void) test_" clients/cad-desktop-helper/Shared.Tests/SharedContractTests.cs`
-  -> 26 test methods present: 25 taskbook-mandatory names plus
-  `test_install_id_create_race_retries_until_existing_file_is_readable`.
+  -> 28 test methods present: 25 taskbook-mandatory names plus
+  `test_install_id_create_race_retries_until_existing_file_is_readable`,
+  `test_helper_probe_rejects_plain_200_without_expected_health_body`, and
+  `test_helper_session_file_partial_write_returns_null`.
 - XML validation:
   `xmllint --noout clients/cad-desktop-helper/Shared/Yuantus.Cad.Shared.csproj clients/cad-desktop-helper/Shared.Tests/Yuantus.Cad.Shared.Tests.csproj`
   -> passed.
+- Windows GitHub Actions verification:
+  `.github/workflows/cad-helper-shared-dotnet.yml` runs `dotnet restore`,
+  `dotnet build`, and `dotnet test` on `windows-latest` for the Shared test
+  project.
 - Doc index contract bundle:
   `4 passed in 0.03s`.
 - `git diff --check`: clean.

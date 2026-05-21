@@ -233,6 +233,23 @@ namespace Yuantus.Cad.Shared.Tests
         }
 
         [Fact]
+        public async Task test_helper_probe_rejects_plain_200_without_expected_health_body()
+        {
+            var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("<html>not yuantus helper</html>", Encoding.UTF8, "text/html")
+            });
+            using (var probe = new HelperProbe(handler))
+            {
+                var result = await probe.HealthAsync("127.0.0.1", 7959, TimeSpan.FromMilliseconds(500), CancellationToken.None);
+
+                Assert.False(result.IsHealthy);
+                Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+                Assert.False(result.BodyAccepted);
+            }
+        }
+
+        [Fact]
         public async Task test_helper_transport_injects_local_token_and_protocol_header()
         {
             var handler = new RecordingHandler(_ => OkEnvelope(new SamplePayload { Value = "ok" }));
@@ -404,6 +421,18 @@ namespace Yuantus.Cad.Shared.Tests
                 Assert.Equal("0.1.0", parsed.HelperVersion);
                 Assert.Equal("http://127.0.0.1:7959", parsed.EndpointsBase);
                 Assert.NotEqual(default(DateTimeOffset), parsed.StartedAt);
+            }
+        }
+
+        [Fact]
+        public void test_helper_session_file_partial_write_returns_null()
+        {
+            using (UseTempAppDataRoot(out var root))
+            {
+                Directory.CreateDirectory(Paths.RootDirectory);
+                File.WriteAllText(Paths.HelperSessionFilePath, "{\"schema_version\":\"1.0\",");
+
+                Assert.Null(HelperSessionFile.Read());
             }
         }
 

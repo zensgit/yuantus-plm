@@ -3,6 +3,8 @@ using System.Net;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Yuantus.Cad.Shared.Discovery
 {
@@ -49,7 +51,15 @@ namespace Yuantus.Cad.Shared.Discovery
                     using (var request = new HttpRequestMessage(HttpMethod.Get, uri))
                     using (var response = await _httpClient.SendAsync(request, timeoutSource.Token).ConfigureAwait(false))
                     {
-                        return HelperProbeResult.FromStatus(response.StatusCode);
+                        if (response.StatusCode != HttpStatusCode.OK)
+                        {
+                            return HelperProbeResult.FromStatus(response.StatusCode, false);
+                        }
+
+                        var body = response.Content == null
+                            ? string.Empty
+                            : await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                        return HelperProbeResult.FromStatus(response.StatusCode, IsExpectedHealthBody(body));
                     }
                 }
                 catch (OperationCanceledException)
@@ -72,6 +82,33 @@ namespace Yuantus.Cad.Shared.Discovery
             return HealthAsync("127.0.0.1", port, DefaultTimeout, cancellationToken);
         }
 
+        private static bool IsExpectedHealthBody(string body)
+        {
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                return false;
+            }
+
+            try
+            {
+                var document = JObject.Parse(body);
+                var ok = document["ok"];
+                if (ok != null && ok.Type == JTokenType.Boolean && ok.Value<bool>())
+                {
+                    return true;
+                }
+
+                var status = document["status"];
+                return status != null &&
+                       status.Type == JTokenType.String &&
+                       string.Equals(status.Value<string>(), "ok", StringComparison.OrdinalIgnoreCase);
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
         public void Dispose()
         {
             if (_disposeClient)
@@ -83,34 +120,36 @@ namespace Yuantus.Cad.Shared.Discovery
 
     public sealed class HelperProbeResult
     {
-        private HelperProbeResult(HttpStatusCode? statusCode, bool timedOut, Exception error)
+        private HelperProbeResult(HttpStatusCode? statusCode, bool bodyAccepted, bool timedOut, Exception error)
         {
             StatusCode = statusCode;
+            BodyAccepted = bodyAccepted;
             TimedOut = timedOut;
             Error = error;
         }
 
         public HttpStatusCode? StatusCode { get; private set; }
+        public bool BodyAccepted { get; private set; }
         public bool TimedOut { get; private set; }
         public Exception Error { get; private set; }
         public bool IsHealthy
         {
-            get { return StatusCode == HttpStatusCode.OK && !TimedOut && Error == null; }
+            get { return StatusCode == HttpStatusCode.OK && BodyAccepted && !TimedOut && Error == null; }
         }
 
-        public static HelperProbeResult FromStatus(HttpStatusCode statusCode)
+        public static HelperProbeResult FromStatus(HttpStatusCode statusCode, bool bodyAccepted)
         {
-            return new HelperProbeResult(statusCode, false, null);
+            return new HelperProbeResult(statusCode, bodyAccepted, false, null);
         }
 
         public static HelperProbeResult Timeout()
         {
-            return new HelperProbeResult(null, true, null);
+            return new HelperProbeResult(null, false, true, null);
         }
 
         public static HelperProbeResult Failed(Exception error)
         {
-            return new HelperProbeResult(null, false, error);
+            return new HelperProbeResult(null, false, false, error);
         }
     }
 }
