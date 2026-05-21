@@ -598,7 +598,17 @@ avoids mid-implementation churn.
 - No solution-file edit, no CADDedupPlugin edit, no helper exe,
   no detector exe. The S1 PR contains **only** the
   `clients/cad-desktop-helper/Shared/` subtree + tests + the
-  S1 DEV/verification MD + the index line.
+  S1 DEV/verification MD + the index line **+ the single-line
+  R3.2 §10 micro-amend in
+  `docs/CAD_DESKTOP_HELPER_BRIDGE_DESIGN_R3_20260519.md`** (per
+  §3.L: shift the `install-id.json` atomic-generator
+  work-breakdown row from S3 to S1, and update the consumer
+  language in S3's row to "consumes
+  `Shared.InstallId.GetOrCreate()` to assemble the
+  `Local\YuantusCadHelper-{installId}` Mutex name"). The amend
+  is doc-only, single-file, single-PR — it keeps R3.2 in sync
+  with the S1 boundary shift recorded in §3.L. Without this
+  amend, R3.2 §10 would drift from the canonical S1 taskbook.
 - No service registration, no DI container wiring, no
   configuration files added to deploy targets, no HKCU/HKLM
   writes (S1's Registry abstraction is read-only).
@@ -856,9 +866,11 @@ S11 integration. **Never parallelize Tier-B-class slices**
   is **not required** under current Windows-runner CI but is
   documented as the SDK escape hatch for future cross-Linux
   builds.
-- **§5 MANDATORY tests** — confirm the 17 named tests cover
-  the §3 contract floor; flag any §3 primitive that lacks a
-  test pin.
+- **§5 MANDATORY tests** — confirm the 25 named tests cover
+  the §3 contract floor (17 original + 6 install-id corruption/
+  parent-dir/high-concurrency tests + 2 RegistryView tests
+  added by the 2026-05-20 convergence commit); flag any §3
+  primitive that lacks a test pin.
 - **§8 non-goals** — confirm S2–S11 are correctly listed; any
   S1 leakage into another slice's scope must be flagged.
 - Did anything pre-decide a S2+ slice or touch CADDedupPlugin /
