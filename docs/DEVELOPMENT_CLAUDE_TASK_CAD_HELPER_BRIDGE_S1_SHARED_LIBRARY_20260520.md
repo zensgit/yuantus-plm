@@ -209,6 +209,14 @@ the taskbook pins **identity**):
   net46's BCL has DPAPI natively)
 - `System.Net.Http` (already in net46 BCL; net6.0 BCL has
   HttpClient — no extra package needed for basic use)
+- **`Microsoft.Win32.Registry`** — **net6.0 only.** Although
+  `Microsoft.Win32.Registry` types live in the net46 BCL, the
+  `net6.0-windows` runtime does NOT include them in its base
+  shared framework; they must be brought in via the
+  `Microsoft.Win32.Registry` NuGet package. Without this
+  reference, the Shared library's `HkcuRegistry` wrapper (§3.G)
+  will fail to compile under the net6.0 target. Pinned by
+  reviewer Medium 2026-05-20 (PR #616 comment 3274725562).
 
 ### 3.C `InstallId` atomic generator — PRE-RATIFIED
 
@@ -217,18 +225,47 @@ Mirrors #614 §5.1.1 exactly:
 ```
 public static class InstallId {
     public static Guid GetOrCreate() {
+        // 0. Ensure parent dir exists.
+        //    Directory.CreateDirectory(Path.GetDirectoryName(Paths.InstallIdFile))
+        //    — idempotent; no-op when %APPDATA%\YuantusPLM already exists.
+        //    Reviewer-Medium fix (PR #616 comment 3274725565, 2026-05-20):
+        //    skipping this step caused the first-launch race to throw
+        //    HELPER_INSTALL_ID_UNAVAILABLE on clean machines where
+        //    %APPDATA%\YuantusPLM\ had never been created.
         // 1. Try FileMode.CreateNew exclusive create
         // 1a. Success → write { schema_version: "1.0",
         //                       install_id: Guid.NewGuid(),
         //                       created_at: <iso8601> }, flush, close
         // 1b. IOException(ERROR_FILE_EXISTS) → fall through to step 2
         // 2. Open with FileShare.Read, deserialize, return install_id
+        // 2a. File is empty (length == 0) or content cannot be parsed as
+        //     JSON, or schema_version/install_id field missing, or
+        //     install_id not a valid Guid →
+        //     this is the "crash between FileMode.CreateNew and content
+        //     flush in another process" hole flagged by reviewer Medium
+        //     (PR #616 comment 3274725565, 2026-05-20).
+        //     Throw HelperException(HELPER_INSTALL_ID_UNAVAILABLE) with
+        //     details { reason: "empty" | "malformed_json" |
+        //              "missing_field" | "invalid_guid" }.
+        //     Do NOT auto-overwrite the file (preserves first-writer-wins
+        //     invariant; recovery is operator-driven via S7
+        //     --reset-local-token, which is out of S1 scope).
         // Any other Exception → throw HelperException(HELPER_INSTALL_ID_UNAVAILABLE)
     }
 }
 ```
 
 `Paths.InstallIdFile` constant: `%APPDATA%\YuantusPLM\install-id.json`.
+
+**Step-0 boundary clarification (PR #616 reviewer-Medium follow-up,
+2026-05-20):** the `Directory.CreateDirectory` call is the S1
+primitive's responsibility (not S3's), because every consumer of
+`InstallId.GetOrCreate()` — including `HelperLocator` invoked
+from CADDedupPlugin (S8) or the LISP bridge (S9) on a freshly
+provisioned machine — must succeed on the first call without
+relying on the helper.exe having been launched once before. The
+parent directory creation is idempotent and incurs ~zero cost on
+warm machines.
 
 ### 3.D `DpapiEnvelope` + `LocalTokenStore` — PRE-RATIFIED
 
@@ -334,14 +371,58 @@ public sealed class HelperTransport {
 The 401-reread-once is the §5.3.1 "Token 失效自修复" path —
 implemented inside S1's transport, not at every call site.
 
-### 3.G Registry abstraction — PRE-RATIFIED
+### 3.G Registry abstraction — PRE-RATIFIED (RegistryView pinned 2026-05-20)
 
 `HkcuRegistry`: read-only wrapper around `Microsoft.Win32.Registry`
 hives (`HKCU`, `HKLM`). Used by S2 detector to scan
 `HKLM\SOFTWARE\Autodesk\AutoCAD\*` / `HKLM\SOFTWARE\ZWSOFT\*`
 / `HKLM\SOFTWARE\Gstarsoft\GstarCAD\*`. Read-only is enforced
-at API surface (no `SetValue` / `Create` methods). Both targets
-have `Microsoft.Win32.Registry` in BCL.
+at API surface (no `SetValue` / `Create` methods).
+
+**Availability:** `Microsoft.Win32.Registry` is in the net46 BCL;
+on `net6.0-windows` it must be brought in via the
+`Microsoft.Win32.Registry` NuGet package (see §3.B). Earlier
+draft wording "Both targets have `Microsoft.Win32.Registry` in
+BCL" was inaccurate and is rejected (PR #616 reviewer-Medium
+2026-05-20, comment 3274725562).
+
+**RegistryView pin (PR #616 reviewer-Medium 2026-05-20, comment
+3274725572):** API surface must accept an explicit
+`RegistryView` argument and default to **`RegistryView.Registry64`**
+when opening `HKLM` keys. Rationale:
+
+- AutoCAD 2018+ / ZWCAD 2024 / GstarCAD 2024 are 64-bit installers
+  that register into the native (64-bit) hive
+  `HKLM\SOFTWARE\<Vendor>\...`.
+- A process compiled `AnyCPU` running on a 64-bit OS still uses
+  the native hive, but a process compiled for x86 (or
+  hypothetically invoked under WOW64) would be silently redirected
+  to `HKLM\SOFTWARE\WOW6432Node\<Vendor>\...` and **miss** the
+  actual installation. Detector results would be empty even though
+  the CAD is installed.
+- Forcing `RegistryView.Registry64` makes the wrapper
+  process-bitness-invariant.
+- The S2 detector may additionally enumerate
+  `RegistryView.Registry32` for legacy 32-bit CAD installations
+  (out-of-scope for AutoCAD 2018+ but documented as a future
+  detector flag). S1 only ships the parametrized primitive.
+
+Shape:
+
+```
+public static class HkcuRegistry {
+    public static IRegistryKey? OpenHkcu(string subKey,
+        RegistryView view = RegistryView.Registry64);
+    public static IRegistryKey? OpenHklm(string subKey,
+        RegistryView view = RegistryView.Registry64);
+}
+public interface IRegistryKey : IDisposable {
+    string? GetStringValue(string name);
+    IEnumerable<string> GetSubKeyNames();
+    IRegistryKey? OpenSubKey(string name);
+    // NO Set/Create/Delete — enforced by API surface guard test (§5).
+}
+```
 
 ### 3.H JSON library — RATIFIED: Newtonsoft.Json
 
@@ -419,6 +500,92 @@ Polling: 100 ms interval × max 50 attempts = **5 s ceiling**
 `HelperException(HELPER_PORT_BUSY)` (or `HELPER_SINGLETON_LOST`
 if the spawn itself raced).
 
+### 3.L R3.2 §10 micro-amend (S1 boundary shift recorded)
+
+R3.2 §10 (in `docs/CAD_DESKTOP_HELPER_BRIDGE_DESIGN_R3_20260519.md`)
+currently lists `install-id.json` atomic generation under the S3
+work-breakdown row. This taskbook proposes a 1-line amend, to
+be applied **by the S1 impl PR** alongside the Shared library
+source code:
+
+> **S1** | `Yuantus.Cad.Shared`: multi-target `net46;net6.0-windows`
+> + Discovery + DPAPI envelope + **`InstallId` atomic generator
+> primitive (`GetOrCreate()` — `FileMode.CreateNew` + IOException
+> re-read + parent-dir auto-create + corrupt-file rejection;
+> R3.2 §10 micro-amend: primitive ownership moved from S3 to S1)**
+> + HTTP transport + error envelope + read-only Registry
+> abstraction with `RegistryView.Registry64` default + mocks +
+> tests | **2.5 days** (R3.2 baseline 2 days + 0.5 day for
+> `InstallId` primitive ownership shift and reviewer-Medium fixes).
+>
+> **S3** | helper.exe: Kestrel loopback + port allocation +
+> helper-session file lifecycle + **consumes
+> `Shared.InstallId.GetOrCreate()` to assemble the
+> `Local\YuantusCadHelper-{installId}` Mutex name** + singleton
+> recovery (PID + image-path forensics, `HELPER_UNHEALTHY` vs
+> `HELPER_SINGLETON_LOST` decision, bare /healthz probe) +
+> DPAPI bootstrap policy (calling `LocalTokenStore.WriteLocalToken`
+> at startup if absent) | **1.5 days** (unchanged; install-id
+> *implementation* moves to S1, but the singleton-recovery
+> forensics that consume install-id stay in S3).
+
+Net effect on the 15-day total: **+0.5 day** (S1 2 → 2.5; S3
+unchanged at 1.5).
+
+**Rationale for the move** (recorded so reviewers don't ask
+"why was a S3 item pulled into S1?"):
+
+- `InstallId.GetOrCreate()` is a pure file-IO primitive with no
+  Kestrel / Mutex / port / session-lifecycle dependency.
+- Other consumers (CADDedupPlugin via S8, LISP bridge via S9,
+  Tauri companion if/when added) all need install-id on a
+  freshly provisioned machine **without** helper.exe necessarily
+  having been launched first. Keeping the primitive in S3 would
+  block those consumers behind helper.exe's startup.
+- The atomic-file-creation algorithm (`FileMode.CreateNew` +
+  IOException re-read) is structurally identical to the DPAPI
+  `Ensure/Read/Reset` primitive shape, which is already
+  unambiguously in S1.
+- The consumer-side (Mutex name assembly, singleton recovery)
+  stays in S3 — that's where the lifecycle complexity lives.
+
+### 3.M Open questions (for the impl-opt-in decision)
+
+These are deliberately NOT pre-decided in this taskbook; surfaced
+so the impl PR's opt-in turn can resolve them in one step rather
+than re-discovering them mid-implementation:
+
+1. **Nullable reference types** on `Yuantus.Cad.Shared.csproj` —
+   default proposal: **enable on `net6.0-windows`, leave off on
+   `net46`** (via per-target `<Nullable>` MSBuild conditional).
+   Rationale: modern target gets the contract-tightening benefit;
+   net46 target avoids nullability-annotation churn against older
+   BCL signatures. Reviewer may push back if uniform on/off is
+   preferred.
+2. **Test framework** — `xUnit` vs `NUnit` vs `MSTest`. Default
+   proposal: **xUnit** (simpler dependency surface, most common
+   in modern .NET multi-target libraries). Not strongly held —
+   any of the three is acceptable provided the chosen one runs
+   on both targets in CI.
+3. **CI matrix workflow** — does the S1 impl PR also ship a
+   GitHub Actions workflow that runs `dotnet build` + `dotnet
+   test` on both `net46` and `net6.0-windows` against a Windows
+   runner? Default proposal: **yes, ship CI in the same PR**.
+   Alternative: split CI into a follow-up infrastructure PR so
+   the S1 review focuses on library content. Reviewer's call.
+4. **Logging inside Shared primitives** — current proposal:
+   **no logger dependency in `Yuantus.Cad.Shared`** (primitives
+   stay pure; exceptions carry structured `details` that
+   callers can log via their own Serilog/whatever). S3's helper
+   exe is the first place a logger is wired in. Reviewer can
+   override if Shared needs a `Microsoft.Extensions.Logging.ILogger`
+   surface for debuggability.
+
+Items 1–4 are doc-only decisions; they do not change the
+contract surface specified in §3.A–§3.L, only the
+implementation-PR-time defaults. Resolving them at impl-opt-in
+avoids mid-implementation churn.
+
 ## 4. R1 Target Output (for the impl PR)
 
 - New `clients/cad-desktop-helper/Shared/Yuantus.Cad.Shared.csproj`
@@ -448,6 +615,11 @@ the test **names** are mandatory). Both targets compile + run.
   `%APPDATA%\YuantusPLM\install-id.json`: exactly one writes,
   both return identical Guid; one `FileMode.CreateNew`
   succeeds, the other receives `IOException` and reads.
+- **`test_install_id_high_concurrency_race_converges`** —
+  scale-up of the prior test to 8 concurrent `Task.Run`
+  callers; assert all 8 returned Guids are identical and
+  exactly one file write occurred (atomicity proof at
+  realistic concurrency).
 - **`test_install_id_existing_file_is_read_not_overwritten`**
   — pre-create the file with a known Guid; call
   `GetOrCreate()`; assert the Guid is returned unchanged and
@@ -455,6 +627,39 @@ the test **names** are mandatory). Both targets compile + run.
 - **`test_install_id_non_io_exception_throws_helper_install_id_unavailable`**
   — mock `FileStream` ctor to throw `UnauthorizedAccessException`
   → `HelperException` with code `HELPER_INSTALL_ID_UNAVAILABLE`.
+- **`test_install_id_parent_dir_auto_created`** — point
+  `Paths.InstallIdFile` at a deeply nested temp path whose
+  parent does NOT exist; assert `GetOrCreate()` succeeds
+  (parent directory created idempotently), the file exists,
+  and a subsequent call returns the same Guid.
+  (Pinned by PR #616 reviewer-Medium 2026-05-20, comment
+  3274725565.)
+- **`test_install_id_empty_file_throws_helper_install_id_unavailable`**
+  — pre-create the file with **zero bytes** (simulating a crash
+  between `FileMode.CreateNew` succeeding and content flushing
+  in another process); call `GetOrCreate()`; assert
+  `HelperException(HELPER_INSTALL_ID_UNAVAILABLE)` with
+  `details.reason == "empty"`. Assert the file is NOT
+  overwritten (first-writer-wins invariant preserved; recovery
+  is S7 territory, not S1's).
+- **`test_install_id_malformed_json_throws_helper_install_id_unavailable`**
+  — pre-create the file with non-JSON content
+  (`"not json at all"`); assert
+  `HelperException(HELPER_INSTALL_ID_UNAVAILABLE)` with
+  `details.reason == "malformed_json"`; assert file not
+  overwritten.
+- **`test_install_id_missing_field_throws_helper_install_id_unavailable`**
+  — pre-create the file with valid JSON missing the
+  `install_id` field (e.g., `{"schema_version":"1.0"}`); assert
+  `HelperException(HELPER_INSTALL_ID_UNAVAILABLE)` with
+  `details.reason == "missing_field"`; assert file not
+  overwritten.
+- **`test_install_id_invalid_guid_throws_helper_install_id_unavailable`**
+  — pre-create the file with a non-Guid `install_id` value
+  (e.g., `{"install_id":"not-a-guid","schema_version":"1.0"}`);
+  assert `HelperException(HELPER_INSTALL_ID_UNAVAILABLE)` with
+  `details.reason == "invalid_guid"`; assert file not
+  overwritten.
 - **`test_dpapi_local_token_round_trip`** — `WriteLocalToken`
   then `ReadLocalToken` → byte-for-byte equality.
 - **`test_dpapi_unavailable_throws_helper_dpapi_unavailable`**
@@ -502,6 +707,20 @@ the test **names** are mandatory). Both targets compile + run.
   — Reflection / API-surface guard: `HkcuRegistry` class
   exposes only `Get*` methods; no `SetValue` / `Create*` /
   `Delete*` in the public surface.
+- **`test_registry_abstraction_defaults_to_registry64_view`**
+  — open an HKLM key without specifying a `RegistryView`
+  argument; assert the underlying `RegistryKey` was opened
+  with `RegistryView.Registry64` (verify via spy on
+  `RegistryKey.OpenBaseKey(hive, view)`, or via reflection on
+  the wrapper's stored view). Guards against silent WOW64
+  redirection on x86 / AnyCPU-on-x86 callers.
+  (Pinned by PR #616 reviewer-Medium 2026-05-20, comment
+  3274725572.)
+- **`test_registry_abstraction_accepts_explicit_view_argument`**
+  — pass `RegistryView.Registry32` explicitly; assert the
+  underlying open used that view. Confirms the API surface is
+  parametrized (S2 detector's future 32-bit-CAD enumeration
+  flag is not blocked by S1).
 
 **Multi-target acceptance:** the test project itself is
 multi-target `net46;net6.0-windows`; `dotnet test` runs both.
