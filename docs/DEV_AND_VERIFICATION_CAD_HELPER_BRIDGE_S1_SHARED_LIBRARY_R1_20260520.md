@@ -96,9 +96,11 @@ The `net6.0-windows` target uses `Microsoft.Win32.Registry` `5.0.0` because
 GitHub Actions restore proved there is no stable `6.0.0` package on nuget.org;
 the first failed Windows run reported nearest `6.0.0-preview.5.21301.5`.
 
-The test project pins `xunit` `2.4.2` and `xunit.runner.visualstudio` `2.4.5`
-because the initial runner `2.5.6` requires `net462` and cannot restore for the
-S1 baseline `net46` target.
+The test project pins `xunit` `2.4.2` and `xunit.runner.visualstudio` `2.4.1`.
+Windows CI proved runner `2.5.6` and `2.4.5` both require at least `net462`,
+which is incompatible with the S1 baseline `net46` target used by AutoCAD 2018.
+The older `2.4.1` VS runner package is retained because its NuGet metadata still
+supports .NET Framework 2.0+ runner scenarios.
 
 ## 4. Contract Tests
 
