@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Yuantus.Cad.Shared.Discovery;
@@ -919,7 +920,16 @@ namespace Yuantus.Cad.Helper
 
                 try
                 {
-                    await app.RunAsync(cancellationToken).ConfigureAwait(false);
+                    await app.StartAsync(cancellationToken).ConfigureAwait(false);
+                    await app.WaitForShutdownAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    if (!cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
+                    await app.StopAsync(CancellationToken.None).ConfigureAwait(false);
                 }
                 finally
                 {
