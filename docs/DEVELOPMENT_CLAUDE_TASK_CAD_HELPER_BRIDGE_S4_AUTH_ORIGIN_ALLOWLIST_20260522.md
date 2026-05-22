@@ -155,6 +155,15 @@ GET /healthz
 GET /version
 ```
 
+Exempt matching is ordinal case-insensitive and exact on the normalized request
+path:
+
+- query strings do not affect matching;
+- `/healthz/` and `/version/` are not exempt;
+- `/Healthz` and `/Version` are exempt because path comparison is
+  case-insensitive;
+- method must match exactly (`GET` only).
+
 `/healthz` is implemented by S3 and remains:
 
 - no local token;
@@ -176,6 +185,10 @@ routes are protected even before the routes exist.
 
 S4 validates `X-Yuantus-Local-Token` before protocol and origin checks.
 
+Rationale: token-first prevents unauthenticated protocol probing. A stale or
+missing-token client sees `401` first, refreshes through S1 `HelperTransport`,
+and only then sees a `426` protocol error if it is genuinely incompatible.
+
 Rules:
 
 - Missing header, empty header, or whitespace-only header returns HTTP `401`
@@ -195,6 +208,11 @@ Rules:
 This preserves S1 `HelperTransport`'s "retry after 401 by re-reading DPAPI"
 behavior: the client side refreshes, while the helper side validates against
 its current in-memory token.
+
+S7 `--reset-local-token` must account for this in-memory token decision. A
+running helper will not observe a DPAPI token rotation until it restarts or S7
+explicitly adds a separate restart/reload contract. S4 does not solve reset
+semantics.
 
 ### 3.D Protocol version policy
 
@@ -278,13 +296,15 @@ Rules:
 This "extend, not replace" policy avoids an accidental config typo removing the
 CAD executable defaults and turning S4 into a self-inflicted outage.
 
-### 3.G PLM bearer token is explicitly deferred
+### 3.G RATIFIED: PLM bearer token is deferred to S5
 
 #614's S4 row says "DPAPI token layer 1/2 auth". The layer-2 `plm-user-token`
 requires session/login state, tenant/org identity, and PLM server configuration.
 Those are S5 surfaces, not S4 surfaces.
 
-Therefore S4 R1 ratifies this narrower boundary:
+Reviewer ratification for #621: S4 R1 intentionally implements only layer-1
+local-helper-token auth plus origin allowlisting. Layer-2 PLM bearer storage and
+forwarding are deferred to S5.
 
 - S4 implements local-helper-token auth and origin allowlisting.
 - S4 must not add PLM bearer-token storage.
@@ -293,11 +313,6 @@ Therefore S4 R1 ratifies this narrower boundary:
   tenant/org/default-profile state.
 - `AUTH_PLM_NOT_LOGGED_IN` remains declared in S1 `ErrorCodes`, but S4 does not
   emit it.
-
-Reviewer focus: confirm this is the intended slice refinement. If the reviewer
-requires layer-2 enforcement in S4, the taskbook must be revised before any
-implementation PR starts; do not smuggle layer-2 behavior into the S4
-implementation.
 
 ### 3.H Error envelope policy
 
@@ -382,6 +397,11 @@ HelperCommand
   -> MapGet("/healthz", ...)
 ```
 
+This intentionally mutates the S3-shipped `IHelperHostRunner.RunAsync(...)`
+shape. The S4 implementation PR may update S3 test fakes such as
+`RecordingHostRunner` to match the new signature, provided S3 behavior remains
+covered and unchanged.
+
 The exact class names are implementation details, but the public test names and
 behavioral contracts in §5 are mandatory.
 
@@ -427,8 +447,9 @@ Required source/drift guards:
   Python service paths;
 - workflow scan: `cad-helper-shared-dotnet.yml` still includes Helper and
   Helper.Tests restore/build/test coverage;
-- route-table guard: S4 implementation must not change S3's 677-server-route
-  count because CAD helper is not part of the FastAPI app.
+- route-table guard: S4 must not touch the Python service; the Python
+  `len(app.routes) == 677` pin remains the structural sentinel that this helper
+  slice did not leak into FastAPI.
 
 ## 6. Verification Commands
 
@@ -477,7 +498,7 @@ docs/DEV_AND_VERIFICATION_CAD_HELPER_BRIDGE_S4_AUTH_ORIGIN_ALLOWLIST_R1_20260522
 That document must include:
 
 - exact scope delivered;
-- decisions from §3, especially the S4 layer-2 deferral in §3.G;
+- decisions from §3, especially the ratified S4 layer-2 deferral in §3.G;
 - list of protected vs exempt paths;
 - the 22 mandatory tests and any additional hardening tests;
 - source-guard results;
@@ -553,7 +574,7 @@ Each remains its own explicit opt-in.
 - Confirm origin identity is OS TCP-peer PID/image-path based, not HTTP
   `Origin`/`Referer`/`X-Forwarded-For` based.
 - Confirm `origin_whitelist` extends defaults instead of replacing them.
-- Confirm §3.G layer-2 PLM bearer behavior is deferred to S5 rather than
-  implemented in S4.
+- Verify the implementation follows the §3.G ratified layer-2 deferral instead
+  of adding PLM bearer storage or forwarding.
 - Confirm the 22 mandatory tests are sufficient and include the CORS/no-route/no
   scope-creep guards.
