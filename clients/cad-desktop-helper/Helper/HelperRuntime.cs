@@ -1722,6 +1722,11 @@ namespace Yuantus.Cad.Helper
 
         private static bool Matches(string pattern, Uri serverUri)
         {
+            if (pattern.IndexOf("://*.", StringComparison.Ordinal) > 0)
+            {
+                return MatchesWildcard(pattern, serverUri);
+            }
+
             Uri patternUri;
             if (!Uri.TryCreate(pattern, UriKind.Absolute, out patternUri))
             {
@@ -1736,6 +1741,48 @@ namespace Yuantus.Cad.Helper
                 return false;
             }
             return HostMatches(patternUri.Host, serverUri.Host);
+        }
+
+        private static bool MatchesWildcard(string pattern, Uri serverUri)
+        {
+            var schemeSeparator = pattern.IndexOf("://", StringComparison.Ordinal);
+            if (schemeSeparator <= 0)
+            {
+                return false;
+            }
+
+            var scheme = pattern.Substring(0, schemeSeparator);
+            if (!string.Equals(scheme, serverUri.Scheme, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var hostAndPort = pattern.Substring(schemeSeparator + 3);
+            var slashIndex = hostAndPort.IndexOf('/');
+            if (slashIndex >= 0)
+            {
+                hostAndPort = hostAndPort.Substring(0, slashIndex);
+            }
+
+            var host = hostAndPort;
+            int? port = null;
+            var colonIndex = hostAndPort.LastIndexOf(':');
+            if (colonIndex > 0)
+            {
+                int parsedPort;
+                if (!int.TryParse(hostAndPort.Substring(colonIndex + 1), out parsedPort))
+                {
+                    return false;
+                }
+                host = hostAndPort.Substring(0, colonIndex);
+                port = parsedPort;
+            }
+
+            if (!HostMatches(host, serverUri.Host))
+            {
+                return false;
+            }
+            return (port ?? DefaultPort(serverUri.Scheme)) == NormalizePort(serverUri);
         }
 
         private static bool HostMatches(string patternHost, string serverHost)
@@ -1755,7 +1802,12 @@ namespace Yuantus.Cad.Helper
             {
                 return uri.Port;
             }
-            if (string.Equals(uri.Scheme, "https", StringComparison.OrdinalIgnoreCase))
+            return DefaultPort(uri.Scheme);
+        }
+
+        private static int DefaultPort(string scheme)
+        {
+            if (string.Equals(scheme, "https", StringComparison.OrdinalIgnoreCase))
             {
                 return 443;
             }
