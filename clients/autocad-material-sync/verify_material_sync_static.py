@@ -200,6 +200,52 @@ def check_api_contract() -> None:
         require(header in text, f"MaterialSyncApiClient missing {header}")
 
 
+def check_s8_helper_bridge_contract() -> None:
+    project = read(PLUGIN / "CADDedupPlugin.csproj")
+    material = read(PLUGIN / "MaterialSyncApiClient.cs")
+    dedup = read(PLUGIN / "DedupApiClient.cs")
+    plugin = read(PLUGIN / "DedupPlugin.cs")
+    helper = read(ROOT.parent / "cad-desktop-helper" / "Helper" / "HelperRuntime.cs")
+    workflow = read(ROOT.parent.parent / ".github" / "workflows" / "cad-helper-shared-dotnet.yml")
+
+    require(
+        r"..\..\cad-desktop-helper\Shared\Yuantus.Cad.Shared.csproj" in project,
+        "CADDedupPlugin should reference Yuantus.Cad.Shared",
+    )
+    require("Yuantus.Cad.Shared.dll" in project, "post-build should copy Yuantus.Cad.Shared.dll")
+    require("IMaterialSyncHelperTransport" in material, "MaterialSyncApiClient should expose a helper transport seam")
+    require("PostJsonAsync<MaterialSyncResponse>" in material and '"/sync/inbound"' in material, "SyncInboundAsync should call helper /sync/inbound")
+    require("PostJsonAsync<MaterialSyncResponse>" in material and '"/sync/outbound"' in material, "SyncOutboundAsync should call helper /sync/outbound")
+    require("PostJsonAsync<HelperDiffPreviewResponse>" in material and '"/diff/preview"' in material, "DiffPreviewAsync should call helper /diff/preview")
+    require("/audit/apply-result" in material, "MaterialSyncApiClient should report apply-result through helper")
+    require("PullId" in material and "server_response" in material, "diff preview should carry helper pull_id")
+
+    for legacy in (
+        "{BasePath}/profiles",
+        "{BasePath}/profiles/{safeProfileId}",
+        "{BasePath}/compose",
+        "{BasePath}/validate",
+    ):
+        require(legacy in material, f"legacy MaterialSync direct call should remain documented in source: {legacy}")
+
+    require("/api/dedup/check" in dedup, "DedupApiClient.CheckDuplicateAsync should remain legacy direct in S8-R1")
+    require("HelperTransport" not in dedup, "DedupApiClient should not migrate to helper in S8-R1")
+    require('MapPost("/dedup/check"' not in helper, "S8-R1 must not add helper /dedup/check")
+    require(helper.count("MapGet(") + helper.count("MapPost(") == 10, "helper route count should remain 10 after S8-R1")
+
+    require("ReportApplyResultSafely" in plugin, "PLMMATPULL should report apply-result after write attempt")
+    require('"ok"' in plugin and '"failed"' in plugin, "PLMMATPULL should report both ok and failed apply-result outcomes")
+    require("CreateFailedFields(writeFields, applyEx)" in plugin, "PLMMATPULL write failure should include attempted fields")
+    require("throw;" in plugin, "PLMMATPULL should not swallow CAD write exceptions")
+
+    require("clients/autocad-material-sync/**" in workflow, "cad helper workflow should include AutoCAD material-sync paths")
+    require(
+        "CADDedupPlugin.Client.Tests/CADDedupPlugin.Client.Tests.csproj" in workflow,
+        "cad helper workflow should run SDK-free AutoCAD client tests",
+    )
+    require("verify_material_sync_static.py" in workflow, "cad helper workflow should run material sync static verifier")
+
+
 def check_config_contract() -> None:
     config = read(PLUGIN / "DedupConfig.cs")
     form = read(PLUGIN / "ConfigForm.cs")
@@ -352,6 +398,7 @@ def main() -> int:
         check_project_sources,
         check_commands_registered,
         check_api_contract,
+        check_s8_helper_bridge_contract,
         check_config_contract,
         check_field_service_contract,
         check_diff_preview_ui_contract,

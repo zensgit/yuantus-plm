@@ -10,6 +10,7 @@ on:
       - "clients/cad-desktop-helper/Detector.Tests/**"
       - "clients/cad-desktop-helper/Helper/**"
       - "clients/cad-desktop-helper/Helper.Tests/**"
+      - "clients/autocad-material-sync/**"
   push:
     branches:
       - main
@@ -21,6 +22,7 @@ on:
       - "clients/cad-desktop-helper/Detector.Tests/**"
       - "clients/cad-desktop-helper/Helper/**"
       - "clients/cad-desktop-helper/Helper.Tests/**"
+      - "clients/autocad-material-sync/**"
   workflow_dispatch: {}
 
 permissions:
@@ -56,6 +58,9 @@ jobs:
       - name: Restore Helper tests
         run: dotnet restore clients/cad-desktop-helper/Helper.Tests/Yuantus.Cad.Helper.Tests.csproj
 
+      - name: Restore AutoCAD material sync client tests
+        run: dotnet restore clients/autocad-material-sync/CADDedupPlugin.Client.Tests/CADDedupPlugin.Client.Tests.csproj
+
       - name: Build Shared
         run: dotnet build clients/cad-desktop-helper/Shared/Yuantus.Cad.Shared.csproj --configuration Release --no-restore
 
@@ -73,3 +78,9 @@ jobs:
 
       - name: Test Helper
         run: dotnet test clients/cad-desktop-helper/Helper.Tests/Yuantus.Cad.Helper.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=cad-helper-helper.trx"
+
+      - name: Test AutoCAD material sync client contracts
+        run: dotnet test clients/autocad-material-sync/CADDedupPlugin.Client.Tests/CADDedupPlugin.Client.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=cad-helper-material-sync-client.trx"
+
+      - name: Verify AutoCAD material sync static contracts
+        run: python clients/autocad-material-sync/verify_material_sync_static.py
