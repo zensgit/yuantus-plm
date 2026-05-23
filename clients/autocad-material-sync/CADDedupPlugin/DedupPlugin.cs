@@ -12,6 +12,7 @@ using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.EditorInput;
 using Autodesk.Windows;
+using Yuantus.Cad.Shared.Transport;
 
 [assembly: ExtensionApplication(typeof(CADDedupPlugin.DedupPlugin))]
 [assembly: CommandClass(typeof(CADDedupPlugin.DedupPlugin))]
@@ -632,8 +633,32 @@ namespace CADDedupPlugin
                 var writeFields = window.ConfirmedWriteFields ?? preview.WriteCadFields;
                 if (writeFields.Count > 0)
                 {
-                    var updated = _materialFieldService.ApplyFields(doc, writeFields);
-                    ed.WriteMessage($"\n✓ PLM 字段回填 CAD 完成，更新 {updated} 处");
+                    var started = DateTime.UtcNow;
+                    try
+                    {
+                        var updated = _materialFieldService.ApplyFields(doc, writeFields);
+                        await ReportApplyResultSafely(
+                            ed,
+                            preview,
+                            "ok",
+                            writeFields,
+                            null,
+                            doc,
+                            started);
+                        ed.WriteMessage($"\n✓ PLM 字段回填 CAD 完成，更新 {updated} 处");
+                    }
+                    catch (System.Exception applyEx)
+                    {
+                        await ReportApplyResultSafely(
+                            ed,
+                            preview,
+                            "failed",
+                            null,
+                            CreateFailedFields(writeFields, applyEx),
+                            doc,
+                            started);
+                        throw;
+                    }
                 }
             }
             catch (System.Exception ex)
@@ -665,6 +690,71 @@ namespace CADDedupPlugin
                 return defaultProfile;
             }
             return result.StringResult.Trim();
+        }
+
+        private async Task ReportApplyResultSafely(
+            Editor ed,
+            MaterialDiffPreviewResponse preview,
+            string outcome,
+            Dictionary<string, object> appliedFields,
+            Dictionary<string, object> failedFields,
+            Document doc,
+            DateTime startedUtc)
+        {
+            if (preview == null || string.IsNullOrWhiteSpace(preview.PullId))
+            {
+                ed?.WriteMessage("\n⚠️ 无法上报 PLM 写回结果：缺少 pull_id");
+                return;
+            }
+
+            try
+            {
+                await _materialSyncClient.ReportApplyResultAsync(
+                    preview.PullId,
+                    outcome,
+                    appliedFields,
+                    failedFields,
+                    GetDrawingFilename(doc),
+                    GetDrawingFilepath(doc),
+                    ElapsedMilliseconds(startedUtc));
+            }
+            catch (System.Exception auditEx)
+            {
+                ed?.WriteMessage($"\n⚠️ PLM 写回结果审计上报失败 [{AuditErrorCode(auditEx)}]: {auditEx.Message}");
+            }
+        }
+
+        private static string AuditErrorCode(System.Exception ex)
+        {
+            var helperEx = ex as HelperException;
+            return helperEx == null ? ex.GetType().Name : helperEx.Code;
+        }
+
+        private static Dictionary<string, object> CreateFailedFields(
+            Dictionary<string, object> attemptedFields,
+            System.Exception ex)
+        {
+            var failed = attemptedFields == null
+                ? new Dictionary<string, object>()
+                : new Dictionary<string, object>(attemptedFields);
+            failed["_error"] = ex == null ? "unknown" : ex.Message;
+            return failed;
+        }
+
+        private static string GetDrawingFilename(Document doc)
+        {
+            var path = GetDrawingFilepath(doc);
+            return string.IsNullOrWhiteSpace(path) ? null : Path.GetFileName(path);
+        }
+
+        private static string GetDrawingFilepath(Document doc)
+        {
+            return doc == null ? null : doc.Name;
+        }
+
+        private static int ElapsedMilliseconds(DateTime startedUtc)
+        {
+            return Math.Max(0, (int)(DateTime.UtcNow - startedUtc).TotalMilliseconds);
         }
 
         private Dictionary<string, object> PromptValuesFromProfile(Editor ed, MaterialProfile profile)

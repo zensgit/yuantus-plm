@@ -81,6 +81,12 @@
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
+  <!-- CAD Helper Shared library -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\cad-desktop-helper\Shared\Yuantus.Cad.Shared.csproj">
+      <Name>Yuantus.Cad.Shared</Name>
+    </ProjectReference>
+  </ItemGroup>
   <!-- 源文件 -->
   <ItemGroup>
     <Compile Include="CadMaterialFieldMapper.cs" />
@@ -141,6 +147,7 @@
     <MakeDir Directories="$(PluginDir)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginDir)" />
     <Copy SourceFiles="$(TargetDir)Newtonsoft.Json.dll" DestinationFolder="$(PluginDir)" Condition="Exists('$(TargetDir)Newtonsoft.Json.dll')" />
+    <Copy SourceFiles="$(TargetDir)Yuantus.Cad.Shared.dll" DestinationFolder="$(PluginDir)" Condition="Exists('$(TargetDir)Yuantus.Cad.Shared.dll')" />
     <Copy SourceFiles="$(PackageContentsSource)" DestinationFiles="$(PluginBundleDir)\PackageContents.xml" Condition="Exists('$(PackageContentsSource)')" />
     <Message Text="插件已复制到: $(PluginDir) (AutoCAD $(AutoCADVersion), $(TargetFrameworkVersion))" Importance="high" />
   </Target>
