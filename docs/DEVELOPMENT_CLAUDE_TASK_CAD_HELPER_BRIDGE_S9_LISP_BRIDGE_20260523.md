@@ -177,6 +177,13 @@ The primitive accepts exactly two string arguments:
 No third argument, implicit profile selector, drawing-path auto-fill, or CAD
 business option belongs to S9. Those are S10+ command concerns.
 
+Arity mismatch is deterministic: 0, 1, or 3+ arguments returns `nil` and writes
+one sanitized CAD command-line error:
+
+```text
+[YUANTUS_HELPER_CALL_FAILED] code=HELPER_INPUT_VALIDATION_FAILED reason=arity
+```
+
 If the CAD host requires an uppercase registration symbol, the lower-case Lisp
 spelling must still work and the implementation PR must document the host API
 behavior.
@@ -198,6 +205,8 @@ Therefore S9-R1 must validate `endpoint` before any transport call:
 - rejects absolute URI schemes such as `http://`, `https://`, `file://`;
 - rejects Windows UNC paths such as `\\host\share`;
 - rejects backslashes;
+- rejects `%` entirely, including percent-encoded slash, backslash, null, CR,
+  LF, tab, and scheme-confusion attempts;
 - rejects CR, LF, tab, and other control characters;
 - rejects whitespace-only or leading/trailing whitespace variants;
 - treats the value as a helper-relative path only.
@@ -233,6 +242,10 @@ S9-R1 uses existing `HelperTransport` semantics:
   code and short reason;
 - token values, bearer values, full request bodies, and full response bodies
   must not be printed.
+
+When helper success has no `data` member or has `"data": null`, S9 returns the
+literal JSON string `null`. This keeps `nil` reserved for bridge/helper failure
+and makes a successful JSON-null payload distinguishable from transport failure.
 
 This is a deliberate S9-R1 contract: the Lisp bridge returns the data payload,
 not the full helper envelope. S10 command Lisp must consume that data shape.
@@ -272,6 +285,11 @@ Rules:
 
 The adapter may use the CAD host's editor/command-line API. SDK-free tests
 should validate formatting through a narrow message-writer seam.
+
+The production CAD command-line writer itself is a host seam. If the PR cannot
+exercise the real CAD writer in CI, that real-writer evidence is deferred to the
+same native-CAD NETLOAD operational signoff in §3.K; the SDK-free writer tests
+are not allowed to claim real-host coverage.
 
 ### 3.H No helper server route changes
 
@@ -345,6 +363,8 @@ Deferred evidence must include:
 - `(yuantus-helper-call "/diff/preview" "{...}")` starts or finds helper;
 - success returns a JSON string with helper data;
 - error path returns nil and prints sanitized error code;
+- the production CAD command-line writer path, not only the SDK-free writer
+  seam, prints that sanitized error;
 - no token appears in CAD command-line output;
 - if paired with S10 later, `YUANTUS_DIFF_PREVIEW` display-only flow records
   `/audit/apply-result` as `not-applied-display-only`.
@@ -405,6 +425,15 @@ S9 implementation must add these exactly named tests:
 17. `test_s9_static_verifier_rejects_absolute_uri_forwarding_and_direct_httpclient_token_reads`
 18. `test_s9_dev_verification_records_deferred_native_cad_netload_signoff`
 19. `test_s9_s10_dependency_is_documented_and_no_lisp_shell_command_files_are_added`
+20. `test_s9_static_wiring_reaches_production_helper_locator_and_transport`
+
+Test 6 is a fake-based S9 wiring assertion: it must verify strict call shape
+(endpoint and JSON object forwarded unchanged after validation), method
+selection, sequencing, and failure short-circuit behavior. It must not be
+described as production OS/FS/network seam coverage. Production seam coverage
+for `HelperLocator` and `HelperTransport` is inherited from S1 Shared tests; S9
+adds test 20 and the static verifier so the bridge cannot silently replace those
+production Shared seams with local fakes or duplicate implementations.
 
 Recommended static/source guards:
 
@@ -418,6 +447,8 @@ Recommended static/source guards:
   `HelperSpawner`;
 - no `CadMaterialFieldService`, `write_cad_fields`, `AppliedFields`, or DWG
   mutation logic;
+- Bridge core wiring reaches Shared `HelperLocator` and `HelperTransport` (or a
+  narrowly injectable factory whose production implementation does so);
 - no `CADDedupPlugin` edits;
 - no `DedupApiClient` edits;
 - workflow includes Bridge path filters and Bridge tests/static verifier;
@@ -517,16 +548,20 @@ Please review these points before merge:
 1. Confirm S9-R1 is limited to `YuantusCadHelperBridge.dll` transport bridge and
    does not include S10 Lisp commands.
 2. Confirm endpoint validation in §3.C is mandatory and sufficient to stop
-   absolute-URI / network-path token exfiltration.
+   absolute-URI / network-path / percent-encoding token exfiltration.
 3. Confirm response shape in §3.E: return helper `data` JSON string, not the
    full helper envelope.
-4. Confirm S9 may use SDK-free core tests plus static adapter verification if
-   native CAD assemblies are unavailable in CI.
+4. Confirm S9 may use SDK-free core tests plus static adapter verification for
+   bridge logic if native CAD assemblies are unavailable in CI, while real CAD
+   writer and NETLOAD evidence remain deferred operational signoff.
 5. Confirm `/shell/notify` remains out of S9 even though it appears in the R3.2
    endpoint table.
 6. Confirm helper route count remains ten.
 7. Confirm native-CAD NETLOAD evidence may be deferred only if explicitly
    recorded as operational signoff, not claimed as tested.
+8. Confirm §5 test 6 is only strict fake-based S9 wiring coverage and test 20 /
+   static verifier pin that production wiring still reaches Shared
+   `HelperLocator` and `HelperTransport`.
 
 ## 11. Status
 
@@ -536,4 +571,3 @@ This taskbook is ready for review once:
 - `docs/DELIVERY_DOC_INDEX.md` references it;
 - doc-index / R2 / Tier-B drift checks pass;
 - `git diff --check` is clean.
-
