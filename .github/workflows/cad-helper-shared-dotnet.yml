@@ -10,6 +10,9 @@ on:
       - "clients/cad-desktop-helper/Detector.Tests/**"
       - "clients/cad-desktop-helper/Helper/**"
       - "clients/cad-desktop-helper/Helper.Tests/**"
+      - "clients/cad-desktop-helper/Bridge/**"
+      - "clients/cad-desktop-helper/Bridge.Tests/**"
+      - "clients/cad-desktop-helper/verify_bridge_static.py"
       - "clients/autocad-material-sync/**"
   push:
     branches:
@@ -22,6 +25,9 @@ on:
       - "clients/cad-desktop-helper/Detector.Tests/**"
       - "clients/cad-desktop-helper/Helper/**"
       - "clients/cad-desktop-helper/Helper.Tests/**"
+      - "clients/cad-desktop-helper/Bridge/**"
+      - "clients/cad-desktop-helper/Bridge.Tests/**"
+      - "clients/cad-desktop-helper/verify_bridge_static.py"
       - "clients/autocad-material-sync/**"
   workflow_dispatch: {}
 
@@ -58,6 +64,9 @@ jobs:
       - name: Restore Helper tests
         run: dotnet restore clients/cad-desktop-helper/Helper.Tests/Yuantus.Cad.Helper.Tests.csproj
 
+      - name: Restore Bridge tests
+        run: dotnet restore clients/cad-desktop-helper/Bridge.Tests/Yuantus.Cad.Bridge.Tests.csproj
+
       - name: Restore AutoCAD material sync client tests
         run: dotnet restore clients/autocad-material-sync/CADDedupPlugin.Client.Tests/CADDedupPlugin.Client.Tests.csproj
 
@@ -78,6 +87,15 @@ jobs:
 
       - name: Test Helper
         run: dotnet test clients/cad-desktop-helper/Helper.Tests/Yuantus.Cad.Helper.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=cad-helper-helper.trx"
+
+      - name: Build Bridge (SDK-free, host adapter excluded via AUTOCAD_HOST symbol)
+        run: dotnet build clients/cad-desktop-helper/Bridge/YuantusCadHelperBridge.csproj --configuration Release --no-restore
+
+      - name: Test Bridge contracts
+        run: dotnet test clients/cad-desktop-helper/Bridge.Tests/Yuantus.Cad.Bridge.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=cad-helper-bridge.trx"
+
+      - name: Verify CAD helper bridge static contracts
+        run: python clients/cad-desktop-helper/verify_bridge_static.py
 
       - name: Test AutoCAD material sync client contracts
         run: dotnet test clients/autocad-material-sync/CADDedupPlugin.Client.Tests/CADDedupPlugin.Client.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=cad-helper-material-sync-client.trx"
