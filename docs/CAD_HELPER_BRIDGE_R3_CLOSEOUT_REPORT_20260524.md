@@ -112,10 +112,12 @@ enforces these constraints on every CI run.
 
 ## 6. ErrorCodes (frozen at post-S10 state)
 
-The post-S10 `Shared/Transport/ErrorCodes.cs` set is the closeout
-state. The full list lives in
-`docs/DEV_AND_VERIFICATION_CAD_HELPER_BRIDGE_S7_RESET_LOCAL_TOKEN_R1_20260522.md`
-(the most recent slice that added codes). S11 adds nothing.
+Canonical list:
+`clients/cad-desktop-helper/Shared/Transport/ErrorCodes.cs` — single
+source of truth. S7 added the three reset codes
+(`HELPER_RESET_REQUIRES_INTERACTIVE`, `HELPER_RESET_CANCELLED`,
+`HELPER_RESET_HELPER_RUNNING`) most recently. S6 added the audit
+correlation set. S11 adds nothing.
 
 ## 7. Acceptance-evidence packets (consolidated deferred signoffs)
 

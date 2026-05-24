@@ -138,9 +138,15 @@ configuration is required.
      publishes the session file;
    - Kestrel starts on a loopback 7959-7999 port; `/healthz` returns
      200 (acceptance test #4 also confirms LAN address is rejected);
-   - the CAD-side caller picks up the session file, sends the
-     bootstrap token + DPAPI envelope per S4, and receives back the
-     session cookie that S5 routes consume.
+   - the CAD-side caller reads the loopback port from the session
+     file, attaches the `X-Yuantus-Local-Token` header (DPAPI-protected
+     local-helper-token bootstrapped by S3) and the
+     `X-Yuantus-Protocol: 1.0` header to every request per S4 (see
+     `clients/cad-desktop-helper/Shared/Transport/HelperTransport.cs`
+     for the canonical header set), then calls `/session/login` to
+     establish the helper-side session — there is no Bearer token and
+     no HTTP cookie; the two custom headers are sent on every
+     subsequent S5 / S6 route call.
 4. Subsequent helper calls reuse the running helper process
    (single-instance via S3 mutex; acceptance test #8 covers the
    30-minute coexistence with `CADDedupPlugin`).

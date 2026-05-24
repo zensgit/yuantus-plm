@@ -50,7 +50,7 @@ runbook execution itself can be signed off as complete.
 
 ## Row 1 — AutoCAD 2018: full `PLMMATPULL` path through helper
 
-**Design citation:** `:811`. **Slice attribution:** S1 + S3 + S6 + S8.
+**Design citation:** `:814`. **Slice attribution:** S1 + S3 + S6 + S8.
 
 **Required environment:**
 - Windows 11 x64 with current security baseline.
@@ -98,7 +98,7 @@ writes DWG → `/audit/apply-result` lands in `audit.db`.
 
 ## Row 2 — AutoCAD 2018: `PLMMATPUSH` path through helper
 
-**Design citation:** `:812`. **Slice attribution:** S6 + S8.
+**Design citation:** `:815`. **Slice attribution:** S6 + S8.
 
 **Required environment:** Same as Row 1.
 
@@ -127,7 +127,7 @@ written.
 
 ## Row 3 — Detector zero registry writes
 
-**Design citation:** `:813`. **Slice attribution:** S2.
+**Design citation:** `:816`. **Slice attribution:** S2.
 
 **Required environment:**
 - Windows 10 or 11.
@@ -161,7 +161,7 @@ archived).
 
 ## Row 4 — LAN access to `/healthz` is rejected
 
-**Design citation:** `:814`. **Slice attribution:** S3.
+**Design citation:** `:817`. **Slice attribution:** S3.
 
 **Required environment:**
 - Two machines on the same LAN. Host A = workstation running the
@@ -185,7 +185,9 @@ archived).
 2. Observe: connection refused, connection reset, or TCP RST. The
    helper is loopback-only and the LAN bind is intentionally absent.
 3. From Host A: run `curl http://127.0.0.1:<PORT>/healthz`. Confirm
-   200 + `{"status":"ok"}` (positive control).
+   `200 OK` + body `{"ok":true}` (positive control; matches the
+   helper's `/healthz` response in
+   `clients/cad-desktop-helper/Helper/HelperRuntime.cs:2955`).
 
 **Expected observable outcome (verbatim from §2.3 row 4):**
 LAN: another machine accesses `http://<host-lan-ip>:7959/healthz` →
@@ -203,29 +205,53 @@ rejected (loopback-only binding).
 
 ## Row 5 — Non-allowlisted process is rejected (`curl.exe`)
 
-**Design citation:** `:815`. **Slice attribution:** S4.
+**Design citation:** `:818`. **Slice attribution:** S4.
 
 **Required environment:**
 - Windows 10 or 11.
 - `curl.exe` available at a path NOT on the S4 origin allowlist.
 
 **Setup steps:**
-1. Start the helper from a CAD-side caller (so the helper is
-   running with the correct session).
-2. From the helper log, note the loopback `<PORT>` and obtain a
-   valid bootstrap token + DPAPI envelope as the AutoCAD plugin
-   would.
+1. Start the helper from a CAD-side caller and complete the normal
+   `/session/login` so a legitimate AutoCAD session is active.
+2. From `%APPDATA%\YuantusPLM\helper\helper-session-<sessionId>.json`
+   note the loopback `<PORT>`.
+3. Obtain the current `X-Yuantus-Local-Token` header value. The
+   helper's transport (`clients/cad-desktop-helper/Shared/Transport/HelperTransport.cs:116`)
+   adds two headers on every request: `X-Yuantus-Local-Token`
+   (DPAPI-protected) and `X-Yuantus-Protocol: 1.0` (the constant in
+   `clients/cad-desktop-helper/Shared/Identity/Paths.cs`). Capture
+   the token from a packet trace of a legitimate `PLMMATPULL` call,
+   or from a helper-side debug log if your build emits one. The
+   point of this row is NOT to bypass the token gate — both headers
+   are intentionally valid so the request reaches the origin gate.
 
 **Execution steps:**
-1. From an interactive `curl.exe` invocation on the same machine:
+1. From an interactive `curl.exe` invocation on the same machine
+   (Windows `cmd.exe` quoting shown; PowerShell users should adapt):
 
    ```text
-   curl -v -X POST -H "Authorization: Bearer <token>" \
-        http://127.0.0.1:<PORT>/session/status
+   curl -v -X GET ^
+     -H "X-Yuantus-Local-Token: <local-token-from-step-3>" ^
+     -H "X-Yuantus-Protocol: 1.0" ^
+     http://127.0.0.1:<PORT>/session/status
    ```
 
 2. Observe: helper returns `403` with `error.code =
    ORIGIN_PROCESS_NOT_ALLOWED`.
+
+**Validation order note:**
+S4 validates in this fixed order: **local-token → protocol → origin
+process**. If either header is missing or invalid, the helper
+short-circuits with `AUTH_LOCAL_TOKEN_MISSING` /
+`AUTH_LOCAL_TOKEN_INVALID` / `PROTO_VERSION_UNSUPPORTED` *before*
+origin validation. To exercise the origin gate the way this row
+intends, both prior gates must pass — hence the legitimate header
+values above. `/healthz` and `/version` are exempt from the origin
+gate and would return `200` even from `curl.exe`, so they are NOT
+suitable evidence endpoints here; `/session/status` (a non-exempt
+authenticated route, GET method, no body required) is the
+canonical choice.
 
 **Expected observable outcome (verbatim from §2.3 row 5):**
 Simulate non-allowlisted process (use `curl.exe` to send the request
@@ -241,7 +267,7 @@ directly) → `403 ORIGIN_PROCESS_NOT_ALLOWED`.
 
 ## Row 6 — Stale session file cleanup after `taskkill`
 
-**Design citation:** `:816`. **Slice attribution:** S3.
+**Design citation:** `:819`. **Slice attribution:** S3.
 
 **Required environment:**
 - Windows 10 or 11; helper installed; AutoCAD or another CAD-side
@@ -280,7 +306,7 @@ operates normally.
 
 ## Row 7 — 30-minute idle auto-exit clears session file
 
-**Design citation:** `:817`. **Slice attribution:** S3.
+**Design citation:** `:820`. **Slice attribution:** S3.
 
 **Required environment:**
 - Windows 10 or 11; helper installed.
@@ -311,7 +337,7 @@ operates normally.
 
 ## Row 8 — 30-minute coexistence with `CADDedupPlugin`, no leaks
 
-**Design citation:** `:818`. **Slice attribution:** S6 + integration.
+**Design citation:** `:821`. **Slice attribution:** S6 + integration.
 
 **Required environment:**
 - AutoCAD 2018 baseline; helper installed; `CADDedupPlugin`
@@ -345,7 +371,7 @@ port / mutex conflict, no memory leak.
 
 ## Row 9 — ZWCAD: `YUANTUS_DIFF_PREVIEW` display-only
 
-**Design citation:** `:819`. **Slice attribution:** S9 + S10.
+**Design citation:** `:822`. **Slice attribution:** S9 + S10.
 
 **Required environment:**
 - Windows 10 or 11.
@@ -393,7 +419,7 @@ Repeat with `09g_gstarcad_*` for GstarCAD if GstarCAD is in scope.
 
 ## Row 10 — `--reset-local-token` from interactive PowerShell
 
-**Design citation:** `:820`. **Slice attribution:** S7.
+**Design citation:** `:823`. **Slice attribution:** S7.
 
 **Required environment:**
 - Windows 10 or 11; helper installed; AutoCAD 2018 baseline (or
@@ -435,18 +461,26 @@ automatically.
 
 ---
 
-## Row 11 — `--reset-local-token` from SSH / WinRM is rejected
+## Row 11 — `--reset-local-token` from SSH / WinRM / RDP is rejected
 
-**Design citation:** `:821`. **Slice attribution:** S7.
+**Design citation:** `:824` (design row enumerates SSH / WinRM; the S7
+§4.1 deferred packet also covers RDP-launched shells, so this row
+exercises all three remote-shell transports). **Slice attribution:**
+S7.
 
 **Required environment:**
 - Windows 10 or 11 with OpenSSH server enabled (for SSH leg).
-- Optional: WinRM enabled (for WinRM leg). Both legs should be
-  exercised if both transports are in operator scope.
+- WinRM enabled (for WinRM leg).
+- Remote Desktop enabled on the workstation (for RDP leg).
+- All three transports must be exercised. The R3.2 design row
+  enumerates only SSH and WinRM (design `:824`), but the S7 §4.1
+  deferred-signoff packet explicitly covers RDP as well (the S7
+  parent-process ancestry walk detects RDP-launched shells via the
+  `mstsc` / `RDPClip` ancestry + `RDP-Tcp#<n>` session-name prefix).
 
 **Setup steps:**
-1. Confirm SSH and/or WinRM is configured to reach the workstation
-   from a second machine.
+1. Confirm SSH, WinRM, and RDP are each configured to reach the
+   workstation from a second machine.
 
 **Execution steps:**
 1. From the second machine, via SSH:
@@ -455,20 +489,39 @@ automatically.
    ssh user@workstation "%APPDATA%\\YuantusPLM\\helper\\yuantus-cad-helper.exe --reset-local-token"
    ```
 
-2. Observe: exit code is 1; the helper prints the structured error
+   Observe: exit code is 1; the helper prints the structured error
    indicating non-interactive remote-shell rejection per S7
    parent-ancestry walk (`HELPER_RESET_REQUIRES_INTERACTIVE`).
-3. Repeat with WinRM (`Invoke-Command -ComputerName workstation
-   -ScriptBlock { ...exe --reset-local-token }`).
+2. From the second machine, via WinRM:
 
-**Expected observable outcome (verbatim from §2.3 row 11):**
-`--reset-local-token` triggered remotely from SSH / WinRM → rejected
-with exit code 1.
+   ```text
+   Invoke-Command -ComputerName workstation -ScriptBlock {
+       & "$env:APPDATA\YuantusPLM\helper\yuantus-cad-helper.exe" --reset-local-token
+   }
+   ```
+
+   Observe: same exit code 1 + same structured error.
+3. From the second machine, via RDP: start Remote Desktop Connection
+   (`mstsc`), connect to the workstation, sign in, then from the
+   RDP-launched PowerShell or cmd window run:
+
+   ```text
+   %APPDATA%\YuantusPLM\helper\yuantus-cad-helper.exe --reset-local-token
+   ```
+
+   Observe: same exit code 1 + same structured error. S7 detects RDP
+   by walking the parent-process chain (`mstsc` / `RDPClip` ancestor)
+   and by the `RDP-Tcp#<n>` `SESSIONNAME` prefix.
+
+**Expected observable outcome (verbatim from §2.3 row 11, extended to
+include RDP per S7 §4.1):**
+`--reset-local-token` triggered remotely from SSH / WinRM / RDP →
+rejected with exit code 1.
 
 **Evidence artifact:**
 - `11a_ssh_reset_rejected_transcript.txt`.
-- `11b_winrm_reset_rejected_transcript.txt` (if WinRM leg
-  exercised).
+- `11b_winrm_reset_rejected_transcript.txt`.
+- `11c_rdp_reset_rejected_transcript.txt`.
 
 **Signoff:** operator: _____  date: _____  archive path: _____
 
@@ -476,7 +529,7 @@ with exit code 1.
 
 ## Row 12 — Shared net46 and net6.0 coexist in process
 
-**Design citation:** `:822`. **Slice attribution:** S1.
+**Design citation:** `:825`. **Slice attribution:** S1.
 
 **Required environment:**
 - Windows 11 + AutoCAD 2018 + helper.

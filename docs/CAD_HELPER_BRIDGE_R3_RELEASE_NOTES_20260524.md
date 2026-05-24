@@ -101,20 +101,29 @@ exactly one Lisp command:
 The S11 implementation PR does NOT add, remove, or modify any Lisp
 command. The count remains 1.
 
-## 5. ErrorCodes added across the cycle
+## 5. ErrorCodes
 
-Per slice-specific DEV/Verification MDs (full list in those MDs):
+Canonical list:
+`clients/cad-desktop-helper/Shared/Transport/ErrorCodes.cs` — that
+file is the single source of truth for every code the helper /
+transport returns.
 
-- S5 — session error codes (`HELPER_SESSION_*`).
-- S6 — audit / business error codes including
-  `AUDIT_PULL_ID_UNKNOWN`, `AUDIT_ALREADY_REPORTED`,
-  `AUDIT_PULL_ID_EXPIRED`.
-- S7 — reset error codes:
-  `HELPER_RESET_REQUIRES_INTERACTIVE`, `HELPER_RESET_CANCELLED`,
-  `HELPER_RESET_HELPER_RUNNING`.
+S7 added three codes:
+`HELPER_RESET_REQUIRES_INTERACTIVE`, `HELPER_RESET_CANCELLED`,
+`HELPER_RESET_HELPER_RUNNING`.
+
+S6 added the audit-correlation codes
+`AUDIT_PULL_ID_UNKNOWN`, `AUDIT_ALREADY_REPORTED`,
+`AUDIT_PULL_ID_EXPIRED` (plus the PLM passthrough +
+`HELPER_INPUT_VALIDATION_FAILED` set).
+
+Earlier slices (S3 / S4) introduced the host / DPAPI / auth /
+origin codes (e.g., `HELPER_PORT_BUSY`,
+`HELPER_DPAPI_UNAVAILABLE`, `AUTH_LOCAL_TOKEN_MISSING`,
+`ORIGIN_PROCESS_NOT_ALLOWED`).
 
 S11 does NOT add any new `ErrorCodes` constants. The set is frozen at
-the post-S10 value.
+the post-S10 value — read `ErrorCodes.cs` for the exact field list.
 
 ## 6. CI / workflow surface
 
