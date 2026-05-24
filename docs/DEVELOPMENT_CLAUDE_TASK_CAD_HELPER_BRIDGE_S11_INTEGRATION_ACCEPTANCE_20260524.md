@@ -26,7 +26,12 @@ R3.2 program. Per the R3.2 design `:1067` and `:1071`, S11 owns:
 - the final R3.2 closeout report (cycle-complete status, anti-drift
   guards, follow-up owner list).
 
-S11-R1 is explicitly a **documentation + evidence-collection** slice.
+S11-R1 is explicitly a **documentation + evidence-runbook** slice. The
+12 acceptance evidence items are NOT collected inside the
+implementation PR; the PR ships the runbook that the operator
+executes offline (see §3.C and §8). This wording matches the §3.C
+runbook-shape contract and the §8 explicit non-goal that prohibits
+in-PR evidence collection.
 It does **not**:
 
 - add Lisp commands beyond the merged S10 `C:YUANTUS_DIFF_PREVIEW`;
@@ -452,7 +457,8 @@ Do not start the S11 implementation from this taskbook PR.
 
 Please review these points before merge:
 
-1. Confirm S11-R1 is purely a documentation-and-evidence slice — no
+1. Confirm S11-R1 is purely a documentation-and-evidence-runbook slice
+   (ships the runbook only; operator executes it offline) — no
    runtime, no routes, no ErrorCodes, no static verifiers, no test
    projects.
 2. Confirm the four ship artifacts in §2.4 are exactly the R3.2
