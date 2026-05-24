@@ -246,12 +246,17 @@ Ratified sequence:
    return value is `nil`, write a sanitized one-line cancel notice via
    `(princ "\n[YUANTUS_DIFF_PREVIEW] diff preview failed (bridge already
    logged error)")` and exit without calling `/audit/apply-result`.
-6. On non-`nil` return, parse the response JSON string to extract
-   `pull_id` (required) and `server_response.write_cad_fields` (required;
-   may be an empty object).
+6. On non-`nil` return, parse the response JSON string only to extract
+   `pull_id` (required). Aligned with §2.7: S10-R1 does **not** introduce
+   a brace-balanced JSON extractor in Lisp; the response payload is
+   displayed raw rather than navigating `server_response.write_cad_fields`
+   in Lisp.
 7. Display the diff in the CAD command line via `(princ ...)` calls:
    - one header line `[YUANTUS_DIFF_PREVIEW] item=<item> pull_id=<pull_id>`;
-   - the `write_cad_fields` JSON string verbatim (raw, no parsing);
+   - the **full helper `data` JSON string** verbatim (raw, no parsing;
+     this is the string `(yuantus-helper-call ...)` returned, which
+     already contains `pull_id` and `server_response` as nested fields
+     including `write_cad_fields`);
    - one footer line `[YUANTUS_DIFF_PREVIEW] display only; no DWG write.`
 8. Build the `/audit/apply-result` request body with `pull_id` from step
    6, `outcome = "not-applied-display-only"`, the same `drawing` object
@@ -401,13 +406,13 @@ applicable:
   (verifiable by `(getvar "DBMOD")` returning 0 if zero before the
   command, or by Procmon evidence of no `.dwg` writes during the run);
 - the `pull_id` from the `/diff/preview` audit row matches the `pull_id`
-  in the `/audit/apply-result` audit row (correlation via SQLite
-  `idx_audit_pull` index — **note**: §3.C step 7 of the merged S6 impl has
-  a known production observability gap where the `/diff/preview` audit
-  row's `pull_id` column is null; that gap predates S10 and is tracked
-  separately. S10 operational evidence collection should still record
-  this for traceability, even if the correlation fails until the S6
-  audit-hardening slice lands).
+  in the `/audit/apply-result` audit row (correlation via the SQLite
+  `idx_audit_pull` index — `HelperBusinessAuditService.DiffPreviewAsync`
+  hoists the `PullCacheEntry` to outer scope and passes it into
+  `WriteAuditAfterBusiness` at `HelperRuntime.cs:2588`, with the existing
+  S6 contract test pinning
+  `response.pull_id == audit.Events.Last().PullId` at
+  `HelperBusinessAuditContractTests.cs:123`).
 
 If this evidence is not collected in S10-R1, it remains a carried-forward
 S11 or operational signoff obligation, recorded honestly as such in the
@@ -555,9 +560,9 @@ That MD must record:
 - §3.J deferred native-CAD operational signoff list, explicitly marked
   as deferred, not claimed as collected (mirroring the S7/S8/S9
   pattern);
-- the carried-forward S6 `/diff/preview` audit-row null `pull_id` gap
-  noted as a known limitation that affects S10 operational evidence
-  collection until that S6 hardening slice lands.
+- the `pull_id` cross-row correlation between `/diff/preview` and
+  `/audit/apply-result` audit rows (which is wired in main per
+  `HelperRuntime.cs:2588` and pinned by S6's existing contract test).
 
 ## 8. Explicit Non-Goals
 
