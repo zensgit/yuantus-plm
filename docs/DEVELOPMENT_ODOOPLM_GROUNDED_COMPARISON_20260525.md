@@ -121,6 +121,10 @@ License note（**已逐源抽样核验**）: odooplm 许可证**非单一 LGPL-3
 | **G6** | **生产装机量 / 规模化验证** | 高 | 低（无快速修复） | odooplm 多年生产+App Store；Yuantus v0.1.x。**与代码完整度正交**〔高〕|
 | minor | finishing/treatment 工艺属性、`plm_project` 完整集成 | 低 | 高/中 | `finishing`→0、`treatment`→1、`project`→3 文件〔中〕|
 
+> **状态更新（2026-05-27，仅标注，不改原始分析）**
+> - **G1**：CAD helper "最后一英里" **软件侧已闭环**（helper checkout/undo/status/checkin/bom-import 路由 + 六条 LISP 命令 + `yuantus-helper-upload` 多部传输缝；路由计数 15）。详见 `DEV_AND_VERIFICATION_CAD_HELPER_BRIDGE_LAST_MILE_CLOSEOUT_20260527.md`(#662)。残留仅 native-CAD 真机 operational signoff（硬件/操作员）与产品化/跨-CAD 覆盖。
+> - **G2**：**PLM→ERP publication contract 为下一主线**，程序计划见 `DEVELOPMENT_PLM_TO_ERP_PUBLICATION_CONTRACT_PLAN_20260527.md`（outbound 投放契约，不自建 ERP、不绑 Odoo）。
+
 ---
 
 ## 6. 借鉴与建议（可落地，License 边界内）
