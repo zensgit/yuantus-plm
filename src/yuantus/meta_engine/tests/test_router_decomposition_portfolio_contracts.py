@@ -172,6 +172,7 @@ CI_PORTFOLIO_ENTRIES = {
     "src/yuantus/meta_engine/tests/test_report_saved_search_router_contracts.py",
     "src/yuantus/meta_engine/tests/test_report_summary_search_router_contracts.py",
     "src/yuantus/meta_engine/tests/test_router_decomposition_portfolio_contracts.py",
+    "src/yuantus/meta_engine/tests/test_spare_router_contracts.py",
     "src/yuantus/meta_engine/tests/test_subcontracting_analytics_router_contracts.py",
     "src/yuantus/meta_engine/tests/test_subcontracting_approval_mapping_router_contracts.py",
     "src/yuantus/meta_engine/tests/test_subcontracting_orders_router_contracts.py",
