@@ -232,13 +232,13 @@ def test_summary_method_does_not_reference_breakage_design_loopback():
 # --------------------------------------------------------------------------
 
 
-def test_phase4_route_count_pin_still_lives_at_684():
-    # Cross-reference to the authoritative phase-4 pin. Bumped 683 -> 684 when
-    # the PLM->ERP G2 R4 read-only /publication/export route was added; the
-    # breakage design-loopback route itself remains part of that count.
+def test_phase4_route_count_pin_still_lives_at_688():
+    # Cross-reference to the authoritative phase-4 pin. Bumped 684 -> 688 when
+    # the 4 OdooPLM G5 spare-parts routes (list / add / remove + explode) were
+    # added; the breakage design-loopback route itself remains part of that count.
     text = _PHASE4_TEST.read_text()
-    assert "len(app.routes) == 684" in text, (
-        "phase-4 route-count pin (684) must still exist as the "
+    assert "len(app.routes) == 688" in text, (
+        "phase-4 route-count pin (688) must still exist as the "
         "authoritative assertion."
     )
 

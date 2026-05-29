@@ -471,6 +471,8 @@ jobs:
             src/yuantus/meta_engine/tests/test_scheduler_local_activation_suite_report_contracts.py \
             src/yuantus/meta_engine/tests/test_search_reports_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_shared_dev_142_readonly_guard_workflow_contracts.py \
+            src/yuantus/meta_engine/tests/test_spare_router.py \
+            src/yuantus/meta_engine/tests/test_spare_router_contracts.py \
             src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_behavior_contracts.py \
             src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_audit_regression_script_contracts.py \
             src/yuantus/meta_engine/tests/test_strict_gate_recent_perf_regression_workflow_contracts.py \
