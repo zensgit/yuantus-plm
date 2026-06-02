@@ -120,7 +120,7 @@ flowchart LR
 - **"激活的另一半"完全净新增**：`install_from_store → register_app` 落到**惰性**的 `app_framework` 注册表（`Extension.handler`(`app_framework/models.py:88`) 从不被解析；`workbench.html` 不消费 `/api/v1/apps/extensions`）。"授权 → 点亮一个真正在跑、界面可见的能力"是从零建，**与嵌入/handler 派发是同一个洞**。
 - **MetaSheet `webhook.received` 触发器是死桩**（在枚举里但 `init()` 只订阅 `record.*`，`automation-service.ts:300-316`）→ PLM→MetaSheet 走"写记录"活路。
 - **`send_webhook` body 不做模板渲染**(`automation-executor.ts:863`) → 塑成 AML `{type,action,id}` 需小补丁。
-- **PLM `AUTH_MODE` 默认 `optional`**(`api/dependencies/auth.py:73-77`) → 未认证调审批/AML 也成功且 `decided_by_id=None`。
+- **PLM 审批/AML 鉴权模式**：settings 字段 `AUTH_MODE` 默认 **`required`**(`config/settings.py:321`)；env 经 `env_prefix="YUANTUS_"` 用 `YUANTUS_AUTH_MODE` 覆盖。⚠️ 兼容风险（**非默认**）：若显式设 `YUANTUS_AUTH_MODE=optional`（历史/测试/dev），`_auth_mode()` 的 `or "optional"` 兜底(`api/dependencies/auth.py:74`)会放行未认证调用、`decided_by_id=None`。→ 接外部调用时确认部署为 `required`、勿设 `optional`。
 - **legacy `/api/approvals/:id/approve|reject` 绕过回写**(`approvals.ts:1339/1475`，直接改 DB) → 只能用 `/actions`。
 - **`apiTokenAuth` 中间件已定义但哪都没挂**(`middleware/api-token-auth.ts`)；API token 全局作用域、非 base 作用域(`api-tokens.ts:20`)；嵌入路由 `requiresAuth:true`。→ 跨域 + base 作用域嵌入鉴权 = 净新增。
 
@@ -185,7 +185,7 @@ license_installations
 - ⬜ PLM 对象 → 多维表对象映射表；权威字段 vs 协作字段边界；审批桥接边界；自动化模板清单
 - ⬜ SaaS / 本地在线 / 本地离线 三开通路径设计（对齐 §6.3 + D1）；**默认锁定 D1 = 离线优先**（v1 先离线 license 导入验签，在线支付/即时升级后置），三模式共用一套签名授权
 - ⬜ **CI 门禁：基础版 flag-OFF 全测试绿**（断言无 MetaSheet 副作用 / 无新路由 / 无新事件订阅）
-- ⬜ 部署：新增 `docker-compose.profile-metasheet.yml`；profile env 默认含 `AUTH_MODE=required`
+- ⬜ 部署：新增 `docker-compose.profile-metasheet.yml`；profile env 显式设 `YUANTUS_AUTH_MODE=required`（与 `docker-compose.yml:91` 一致；`AUTH_MODE` 是 settings 字段名，env 前缀 `YUANTUS_`）
 - 验收：每个场景能说清真源在哪、每个写回动作能说清权限/版本/审计
 
 **🔒 Phase 1 — Feature Entitlement Core（依赖 P0）**
@@ -287,4 +287,4 @@ plm_collaboration_objects(tenant_id, source_system, source_object_type, source_o
 不做 PLM 核心 RBAC/auth 改造（除非独立命名变更）；本计划不含真实支付集成（属 Phase 1 后段，独立 opt-in）；不做 K3 写入相关能力；不引入 GPL/AGPL 复用；不做任意单元格写回 PLM；本文档不授权任何 Phase 实现。
 
 ## 15. Status
-Doc-only 设计计划 + gated TODO。由两份并行草稿合并而成、取代之；**未提交**（Yuantus 当前在 OdooPLM 特性分支，建议落独立分支再提交）。`DEVELOPMENT_*`/`docs/development/*` 无强制索引门，登记到 `DELIVERY_DOC_INDEX.md` 为可选。实现需逐 Phase 独立 opt-in；首个建议 opt-in = **Phase 0**；决策门 **D1** 须先定再进 Phase 3/在线支付。
+**Doc-only canonical plan**：实现未启动，每个 Phase 需独立显式 opt-in；**Yuantus PR #691 是本计划的 canonical 评审入口**（MetaSheet2 侧为引用 stub）。由两份并行草稿合并而成、取代之。`DEVELOPMENT_*`/`docs/development/*` 无强制索引门，登记到 `DELIVERY_DOC_INDEX.md` 为可选。首个建议 opt-in = **Phase 0**；决策门 **D1** v1 默认 = 离线优先（见 §11），在线支付/即时升级后置。
