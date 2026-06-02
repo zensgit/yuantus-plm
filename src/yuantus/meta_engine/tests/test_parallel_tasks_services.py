@@ -4692,3 +4692,210 @@ def test_parallel_ops_breakage_helpdesk_export_jobs_overview_returns_aggregates(
 
     with pytest.raises(ValueError, match="export_format must be json, csv, md or zip"):
         ops.breakage_helpdesk_failures_export_jobs_overview(window_days=7, export_format="xlsx")
+
+
+# --------------------------------------------------------------------------
+# G3 BOM auto-layout R1 (taskbook #684) — build_auto_layout against real SQLite
+# (self-contained: the shared `session` fixture does not build meta_items).
+# --------------------------------------------------------------------------
+
+
+def _auto_layout_session(tmp_path):
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'autolayout.db'}",
+        connect_args={"check_same_thread": False},
+        future=True,
+    )
+    Base.metadata.create_all(
+        engine, tables=[Item.__table__, ThreeDOverlay.__table__]
+    )
+    return sessionmaker(bind=engine, expire_on_commit=False)()
+
+
+def _al_part(session, item_id):
+    session.add(
+        Item(
+            id=item_id,
+            item_type_id="Part",
+            config_id=f"c-{item_id}",
+            generation=1,
+            is_current=True,
+            state="Active",
+            properties={"item_number": item_id},
+        )
+    )
+
+
+def _al_bom(session, rel_id, parent, child):
+    session.add(
+        Item(
+            id=rel_id,
+            item_type_id="Part BOM",
+            config_id=f"c-{rel_id}",
+            generation=1,
+            is_current=True,
+            state="Active",
+            source_id=parent,
+            related_id=child,
+            properties={},
+        )
+    )
+
+
+def test_auto_layout_binds_via_relationship_id_and_item_id(tmp_path):
+    session = _auto_layout_session(tmp_path)
+    for p in ("asm", "p-a", "p-b", "p-shared"):
+        _al_part(session, p)
+    # asm -> p-a, p-b, p-shared ; p-a -> p-shared (diamond on p-shared)
+    _al_bom(session, "bom-asm-a", "asm", "p-a")
+    _al_bom(session, "bom-asm-b", "asm", "p-b")
+    _al_bom(session, "bom-asm-s", "asm", "p-shared")
+    _al_bom(session, "bom-a-s", "p-a", "p-shared")
+    session.commit()
+
+    service = ThreeDOverlayService(session)
+    service.reset_cache_for_tests()
+    service.upsert_overlay(
+        document_item_id="doc-al",
+        part_refs=[
+            {"component_ref": "N-A", "relationship_id": "bom-asm-a"},
+            {"component_ref": "N-B", "item_id": "p-b"},
+            {"component_ref": "N-S", "item_id": "p-shared"},  # dup -> skip+ambiguous
+            {"component_ref": "N-X", "item_id": "p-missing"},  # unmapped
+        ],
+    )
+    session.commit()
+    service.reset_cache_for_tests()
+
+    result = service.build_auto_layout(
+        document_item_id="doc-al",
+        root_item_id="asm",
+        levels=10,
+        factor=1.0,
+        depth_spacing=1.0,
+        sibling_spacing=0.25,
+        axis="x",
+    )
+
+    binding = result["binding"]
+    assert binding["matched"] == 2
+    assert binding["skipped"] == 2
+    by_ref = {w["component_ref"]: w["code"] for w in binding["warnings"]}
+    assert by_ref["N-S"] == "ambiguous_item_id_fallback"  # never guessed
+    assert by_ref["N-X"] == "unmapped_component_ref"
+
+    offsets = {o["component_ref"]: o["offset"] for o in result["explode"]["offsets"]}
+    assert set(offsets) == {"N-A", "N-B"}
+    for off in offsets.values():
+        assert len(off) == 3
+        # both bound nodes are depth-1 -> primary-axis (x) = depth*spacing*factor = 1.0
+        assert off[0] == 1.0
+    assert result["explode"]["mode"] == "bom-depth"
+
+
+def test_auto_layout_requires_overlay_no_silent_success(tmp_path):
+    session = _auto_layout_session(tmp_path)
+    _al_part(session, "asm")
+    session.commit()
+    service = ThreeDOverlayService(session)
+    service.reset_cache_for_tests()
+    with pytest.raises(ValueError, match="Overlay not found"):
+        service.build_auto_layout(
+            document_item_id="doc-none",
+            root_item_id="asm",
+            levels=10,
+            factor=1.0,
+            depth_spacing=1.0,
+            sibling_spacing=0.25,
+            axis="x",
+        )
+
+
+def test_auto_layout_requires_part_refs_no_silent_success(tmp_path):
+    session = _auto_layout_session(tmp_path)
+    _al_part(session, "asm")
+    session.commit()
+    service = ThreeDOverlayService(session)
+    service.reset_cache_for_tests()
+    service.upsert_overlay(document_item_id="doc-empty", part_refs=[])
+    session.commit()
+    service.reset_cache_for_tests()
+    with pytest.raises(ValueError, match="part_refs required"):
+        service.build_auto_layout(
+            document_item_id="doc-empty",
+            root_item_id="asm",
+            levels=10,
+            factor=1.0,
+            depth_spacing=1.0,
+            sibling_spacing=0.25,
+            axis="x",
+        )
+
+
+def test_auto_layout_inherits_overlay_role_gate(tmp_path):
+    session = _auto_layout_session(tmp_path)
+    _al_part(session, "asm")
+    session.commit()
+    service = ThreeDOverlayService(session)
+    service.reset_cache_for_tests()
+    service.upsert_overlay(
+        document_item_id="doc-g", visibility_role="engineer", part_refs=[]
+    )
+    session.commit()
+    service.reset_cache_for_tests()
+    with pytest.raises(PermissionError):
+        service.build_auto_layout(
+            document_item_id="doc-g",
+            root_item_id="asm",
+            user_roles=["viewer"],
+            levels=10,
+            factor=1.0,
+            depth_spacing=1.0,
+            sibling_spacing=0.25,
+            axis="x",
+        )
+
+
+def test_auto_layout_unresolved_relationship_id_does_not_fall_back_to_item_id(tmp_path):
+    # A row that declares a relationship_id that does NOT resolve is terminal:
+    # skip + unmapped, and its (otherwise valid, unique) item_id is NOT consulted.
+    # Deliberate — falling back would re-introduce the kind of guessing the §4
+    # LOCK exists to prevent.
+    session = _auto_layout_session(tmp_path)
+    _al_part(session, "asm")
+    _al_part(session, "p-b")
+    _al_bom(session, "bom-asm-b", "asm", "p-b")
+    session.commit()
+
+    service = ThreeDOverlayService(session)
+    service.reset_cache_for_tests()
+    service.upsert_overlay(
+        document_item_id="doc-rel",
+        part_refs=[
+            # relationship_id is present but bogus; item_id "p-b" is unique and
+            # WOULD bind — but must be ignored because the rel binding is terminal.
+            {
+                "component_ref": "N-R",
+                "relationship_id": "does-not-exist",
+                "item_id": "p-b",
+            },
+        ],
+    )
+    session.commit()
+    service.reset_cache_for_tests()
+
+    result = service.build_auto_layout(
+        document_item_id="doc-rel",
+        root_item_id="asm",
+        levels=10,
+        factor=1.0,
+        depth_spacing=1.0,
+        sibling_spacing=0.25,
+        axis="x",
+    )
+    assert result["explode"]["offsets"] == []  # item_id NOT consulted as fallback
+    assert result["binding"]["matched"] == 0
+    assert result["binding"]["skipped"] == 1
+    warning = result["binding"]["warnings"][0]
+    assert warning["component_ref"] == "N-R"
+    assert warning["code"] == "unmapped_component_ref"
