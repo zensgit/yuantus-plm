@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -72,6 +72,18 @@ class ExplodeConfigRequest(BaseModel):
     factor: float = Field(..., ge=0, le=1000)
     mode: str = Field("radial", min_length=1, max_length=40)
     offsets: List[ExplodeOffset] = Field(default_factory=list)
+
+
+class ExplodeAutoLayoutRequest(BaseModel):
+    # G3 BOM auto-layout R1 (taskbook #684): compute a DEFAULT explode config
+    # from the BOM tree, bound to overlay part_refs. Geometry-free.
+    root_item_id: str = Field(..., min_length=1)
+    levels: int = Field(10, ge=1, le=50)
+    factor: float = Field(1.0, ge=0, le=1000)
+    depth_spacing: float = Field(1.0, ge=0, le=1000)
+    sibling_spacing: float = Field(0.25, ge=0, le=1000)
+    axis: Literal["x", "y", "z"] = "x"
+    persist: bool = True
 
 
 @parallel_tasks_cad_3d_router.post("/cad-3d/overlays")
@@ -288,3 +300,73 @@ async def get_3d_explode(
             context={"document_item_id": document_item_id},
         )
     return {"document_item_id": document_item_id, "explode": config}
+
+
+@parallel_tasks_cad_3d_router.post("/cad-3d/explode/{document_item_id}/auto-layout")
+async def auto_layout_3d_explode(
+    document_item_id: str,
+    payload: ExplodeAutoLayoutRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """G3 BOM auto-layout R1 (taskbook #684): compute a DEFAULT explode config
+    from the BOM tree, bound to overlay ``part_refs`` via relationship_id/item_id
+    (never ``component_ref == item_id``; duplicate item_id is skipped + warned).
+    Geometry-free. Persists via the existing explode config iff ``persist=true``.
+    """
+    service = ThreeDOverlayService(db)
+    try:
+        result = service.build_auto_layout(
+            document_item_id=document_item_id,
+            root_item_id=payload.root_item_id,
+            levels=payload.levels,
+            factor=payload.factor,
+            depth_spacing=payload.depth_spacing,
+            sibling_spacing=payload.sibling_spacing,
+            axis=payload.axis,
+            user_roles=_as_roles(user),
+        )
+    except PermissionError as exc:
+        _raise_api_error(
+            status_code=403,
+            code="explode_access_denied",
+            message=str(exc),
+            context={"document_item_id": document_item_id},
+        )
+    except ValueError as exc:
+        # overlay absent (no auto-create) or BOM root not found
+        _raise_api_error(
+            status_code=404,
+            code="auto_layout_not_found",
+            message=str(exc),
+            context={
+                "document_item_id": document_item_id,
+                "root_item_id": payload.root_item_id,
+            },
+        )
+
+    persisted = False
+    if payload.persist:
+        try:
+            service.upsert_explode(
+                document_item_id=document_item_id,
+                explode_config=result["explode"],
+            )
+            db.commit()
+            persisted = True
+        except Exception as exc:
+            db.rollback()
+            _raise_api_error(
+                status_code=400,
+                code="explode_upsert_invalid",
+                message=str(exc),
+                context={"document_item_id": document_item_id},
+            )
+
+    return {
+        "document_item_id": document_item_id,
+        "root_item_id": payload.root_item_id,
+        "explode": result["explode"],
+        "binding": result["binding"],
+        "persisted": persisted,
+    }

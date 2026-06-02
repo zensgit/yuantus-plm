@@ -20,6 +20,8 @@ _CAD_3D_ROUTE_KEYS = {
     # G3 3D visual explode (validated explode-config persistence).
     ("PUT", "/cad-3d/explode/{document_item_id}"),
     ("GET", "/cad-3d/explode/{document_item_id}"),
+    # G3 BOM auto-layout R1 (default explode config from the BOM tree).
+    ("POST", "/cad-3d/explode/{document_item_id}/auto-layout"),
 }
 
 
@@ -74,3 +76,62 @@ def test_create_app_registers_cad_3d_routes_once():
     expected = {(method, f"/api/v1{path}") for method, path in _CAD_3D_ROUTE_KEYS}
     assert set(counts) == expected
     assert all(count == 1 for count in counts.values())
+
+
+# --------------------------------------------------------------------------
+# G3 BOM auto-layout R1 — §8 static guards (taskbook #684): source-scan the
+# auto-layout code for the forbidden assumptions, not behavior.
+# --------------------------------------------------------------------------
+
+
+def _auto_layout_code_only() -> str:
+    """Source of the auto-layout functions with docstrings + line comments
+    stripped — so a guard scans the CODE, not prose that legitimately *names*
+    the forbidden concepts (e.g. the docstring documenting the §4 LOCK)."""
+    import inspect
+    import re
+
+    from yuantus.meta_engine.services.parallel_tasks_service import ThreeDOverlayService
+
+    src = "\n".join(
+        inspect.getsource(fn)
+        for fn in (
+            ThreeDOverlayService.build_auto_layout,
+            ThreeDOverlayService._flatten_bom_nodes,
+            ThreeDOverlayService._auto_layout_offset,
+        )
+    )
+    src = re.sub(r'"""[\s\S]*?"""', "", src)
+    src = re.sub(r"'''[\s\S]*?'''", "", src)
+    return "\n".join(line.split("#", 1)[0] for line in src.splitlines())
+
+
+def test_auto_layout_does_no_server_side_geometry():
+    low = _auto_layout_code_only().lower()
+    for forbidden in ("trimesh", "bounding_box", "bbox", "centroid", "vertices", "mesh"):
+        assert forbidden not in low, (
+            f"auto-layout code must stay geometry-free; found {forbidden!r}"
+        )
+
+
+def test_auto_layout_never_equates_component_ref_to_item_id():
+    code = _auto_layout_code_only()
+    stripped = code.replace(" ", "")
+    for forbidden in ("component_ref==item_id", "item_id==component_ref"):
+        assert forbidden not in stripped, (
+            "auto-layout must NOT assume component_ref == item_id (taskbook §4 LOCK)"
+        )
+    # positive: the explicit relationship_id/item_id binding machinery is present.
+    assert "relationship_id" in code and "item_id_counts" in code
+
+
+def test_auto_layout_adds_no_table_or_migration():
+    code = _auto_layout_code_only()
+    for forbidden in ("__tablename__", "op.create_table", "Column("):
+        assert forbidden not in code, f"auto-layout must add no table/model: {forbidden}"
+
+
+def test_auto_layout_has_no_odoo_or_gpl_reference():
+    low = _auto_layout_code_only().lower()
+    for forbidden in ("odoo", "gpl", "agpl"):
+        assert forbidden not in low, f"no GPL/AGPL/OdooPLM reuse: {forbidden}"

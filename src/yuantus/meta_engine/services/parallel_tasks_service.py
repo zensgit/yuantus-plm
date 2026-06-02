@@ -7222,6 +7222,186 @@ class ThreeDOverlayService:
         props = overlay.properties if isinstance(overlay.properties, dict) else {}
         return props.get("explode")
 
+    @staticmethod
+    def _flatten_bom_nodes(tree: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Flatten a ``BOMService.get_bom_structure`` tree into child nodes
+        carrying ``(item_id, relationship_id, depth, order)``. The ROOT is
+        EXCLUDED — R1 emits offsets for child components only (taskbook §4).
+        """
+        nodes: List[Dict[str, Any]] = []
+
+        def _walk(node: Dict[str, Any], depth: int) -> None:
+            for order, entry in enumerate(node.get("children") or []):
+                if not isinstance(entry, dict):
+                    continue
+                rel = entry.get("relationship")
+                child = entry.get("child")
+                child_id = child.get("id") if isinstance(child, dict) else None
+                rel_id = rel.get("id") if isinstance(rel, dict) else None
+                if child_id:
+                    nodes.append(
+                        {
+                            "item_id": child_id,
+                            "relationship_id": rel_id,
+                            "depth": depth + 1,
+                            "order": order,
+                        }
+                    )
+                if isinstance(child, dict):
+                    _walk(child, depth + 1)
+
+        _walk(tree, 0)
+        return nodes
+
+    @staticmethod
+    def _auto_layout_offset(
+        node: Dict[str, Any],
+        *,
+        axis: str,
+        depth_spacing: float,
+        sibling_spacing: float,
+        factor: float,
+    ) -> List[float]:
+        """Deterministic, geometry-free offset: the primary ``axis`` by BOM
+        depth, an orthogonal axis by sibling order. NOT a spatial-correctness
+        guarantee — a client viewer may later replace it with mesh-aware layout.
+        """
+        axis_index = {"x": 0, "y": 1, "z": 2}[axis]
+        ortho_index = (axis_index + 1) % 3
+        vec = [0.0, 0.0, 0.0]
+        vec[axis_index] = float(node["depth"]) * depth_spacing * factor
+        vec[ortho_index] = float(node["order"]) * sibling_spacing * factor
+        if not all(math.isfinite(v) for v in vec):
+            raise ValueError("auto-layout produced a non-finite offset")
+        return vec
+
+    def build_auto_layout(
+        self,
+        *,
+        document_item_id: str,
+        root_item_id: str,
+        levels: int,
+        factor: float,
+        depth_spacing: float,
+        sibling_spacing: float,
+        axis: str,
+        user_roles: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """G3 BOM auto-layout R1 (taskbook #684): compute a default explode config
+        by binding the overlay's ``part_refs`` to BOM nodes and assigning
+        deterministic depth-based offsets. READ-ONLY — does not persist.
+
+        The overlay is REQUIRED (no auto-create) and its role-visibility gate is
+        applied via ``get_overlay``. Binding LOCK (§4 — never assume
+        ``component_ref == item_id``): ``relationship_id``/``bom_relationship_id``
+        -> BOM relationship id; else ``item_id`` -> BOM child item id, but ONLY
+        when unique — a duplicate ``item_id`` is SKIPPED with an
+        ``ambiguous_item_id_fallback`` warning, never guessed; unbound rows are
+        skipped with ``unmapped_component_ref``.
+        """
+        overlay = self.get_overlay(
+            document_item_id=document_item_id, user_roles=user_roles
+        )
+        if not overlay:
+            raise ValueError(f"Overlay not found: {document_item_id}")
+        part_refs = overlay.part_refs if isinstance(overlay.part_refs, list) else []
+        if not part_refs:
+            raise ValueError(
+                f"Overlay part_refs required for auto-layout: {document_item_id}"
+            )
+
+        from yuantus.meta_engine.services.bom_service import BOMService
+
+        tree = BOMService(self.session).get_bom_structure(
+            root_item_id, levels=levels, relationship_types=["Part BOM"]
+        )
+        nodes = self._flatten_bom_nodes(tree)
+
+        by_rel_id: Dict[str, Dict[str, Any]] = {}
+        item_id_counts: Dict[str, int] = {}
+        by_item_id: Dict[str, Dict[str, Any]] = {}
+        for node in nodes:
+            rid = node.get("relationship_id")
+            if rid and rid not in by_rel_id:
+                by_rel_id[rid] = node
+            iid = node.get("item_id")
+            item_id_counts[iid] = item_id_counts.get(iid, 0) + 1
+            if iid not in by_item_id:
+                by_item_id[iid] = node
+
+        offsets: List[Dict[str, Any]] = []
+        warnings: List[Dict[str, Any]] = []
+        matched = 0
+        skipped = 0
+
+        def _warn(ref: str, code: str, message: str) -> None:
+            nonlocal skipped
+            skipped += 1
+            warnings.append({"component_ref": ref, "code": code, "message": message})
+
+        for row in part_refs:
+            if not isinstance(row, dict):
+                continue
+            component_ref = str(row.get("component_ref") or "").strip()
+            if not component_ref:
+                continue  # cannot key an offset or a warning without a ref
+            rel_id = row.get("relationship_id") or row.get("bom_relationship_id")
+            node = None
+            if rel_id:
+                node = by_rel_id.get(rel_id)
+                if node is None:
+                    _warn(
+                        component_ref,
+                        "unmapped_component_ref",
+                        "relationship_id did not match any BOM relationship",
+                    )
+                    continue
+            elif row.get("item_id"):
+                iid = row.get("item_id")
+                count = item_id_counts.get(iid, 0)
+                if count == 1:
+                    node = by_item_id[iid]
+                elif count > 1:
+                    _warn(
+                        component_ref,
+                        "ambiguous_item_id_fallback",
+                        "item_id matched multiple BOM nodes; skipped",
+                    )
+                    continue
+                else:
+                    _warn(
+                        component_ref,
+                        "unmapped_component_ref",
+                        "item_id did not match any BOM node",
+                    )
+                    continue
+            else:
+                _warn(
+                    component_ref,
+                    "unmapped_component_ref",
+                    "no relationship_id or item_id binding key",
+                )
+                continue
+
+            offsets.append(
+                {
+                    "component_ref": component_ref,
+                    "offset": self._auto_layout_offset(
+                        node,
+                        axis=axis,
+                        depth_spacing=depth_spacing,
+                        sibling_spacing=sibling_spacing,
+                        factor=factor,
+                    ),
+                }
+            )
+            matched += 1
+
+        return {
+            "explode": {"factor": factor, "mode": "bom-depth", "offsets": offsets},
+            "binding": {"matched": matched, "skipped": skipped, "warnings": warnings},
+        }
+
     def resolve_component(
         self,
         *,

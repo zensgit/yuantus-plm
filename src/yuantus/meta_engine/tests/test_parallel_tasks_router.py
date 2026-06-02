@@ -3963,3 +3963,89 @@ def test_get_3d_explode_visibility_denied_returns_403():
         resp = client.get("/api/v1/cad-3d/explode/doc-1")
     assert resp.status_code == 403
     assert resp.json()["detail"]["code"] == "explode_access_denied"
+
+
+# --------------------------------------------------------------------------
+# G3 BOM auto-layout R1 — auto-layout endpoint (cad-3d router)
+# --------------------------------------------------------------------------
+
+
+def test_auto_layout_persist_true_writes_and_returns_binding():
+    user = SimpleNamespace(id=1, roles=["engineer"], is_superuser=False)
+    client, _db = _client_with_user(user)
+    result = {
+        "explode": {
+            "factor": 1.0,
+            "mode": "bom-depth",
+            "offsets": [{"component_ref": "N-A", "offset": [1.0, 0.0, 0.0]}],
+        },
+        "binding": {"matched": 1, "skipped": 0, "warnings": []},
+    }
+    with patch(_EXPLODE_SVC) as service_cls:
+        service_cls.return_value.build_auto_layout.return_value = result
+        resp = client.post(
+            "/api/v1/cad-3d/explode/doc-1/auto-layout",
+            json={"root_item_id": "asm", "persist": True},
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["persisted"] is True
+    assert body["binding"]["matched"] == 1
+    assert body["explode"]["mode"] == "bom-depth"
+    service_cls.return_value.upsert_explode.assert_called_once()
+
+
+def test_auto_layout_persist_false_does_not_write():
+    user = SimpleNamespace(id=1, roles=["engineer"], is_superuser=False)
+    client, _db = _client_with_user(user)
+    result = {
+        "explode": {"factor": 1.0, "mode": "bom-depth", "offsets": []},
+        "binding": {"matched": 0, "skipped": 0, "warnings": []},
+    }
+    with patch(_EXPLODE_SVC) as service_cls:
+        service_cls.return_value.build_auto_layout.return_value = result
+        resp = client.post(
+            "/api/v1/cad-3d/explode/doc-1/auto-layout",
+            json={"root_item_id": "asm", "persist": False},
+        )
+    assert resp.status_code == 200
+    assert resp.json()["persisted"] is False
+    service_cls.return_value.upsert_explode.assert_not_called()
+
+
+def test_auto_layout_rejects_invalid_axis():
+    user = SimpleNamespace(id=1, roles=["engineer"], is_superuser=False)
+    client, _db = _client_with_user(user)
+    resp = client.post(
+        "/api/v1/cad-3d/explode/doc-1/auto-layout",
+        json={"root_item_id": "asm", "axis": "w"},
+    )
+    assert resp.status_code == 422
+
+
+def test_auto_layout_missing_overlay_returns_404():
+    user = SimpleNamespace(id=1, roles=["engineer"], is_superuser=False)
+    client, _db = _client_with_user(user)
+    with patch(_EXPLODE_SVC) as service_cls:
+        service_cls.return_value.build_auto_layout.side_effect = ValueError(
+            "Overlay not found: doc-1"
+        )
+        resp = client.post(
+            "/api/v1/cad-3d/explode/doc-1/auto-layout",
+            json={"root_item_id": "asm"},
+        )
+    assert resp.status_code == 404
+    assert resp.json()["detail"]["code"] == "auto_layout_not_found"
+
+
+def test_auto_layout_visibility_denied_returns_403():
+    user = SimpleNamespace(id=1, roles=["viewer"], is_superuser=False)
+    client, _db = _client_with_user(user)
+    with patch(_EXPLODE_SVC) as service_cls:
+        service_cls.return_value.build_auto_layout.side_effect = PermissionError("hidden")
+        resp = client.post(
+            "/api/v1/cad-3d/explode/doc-1/auto-layout",
+            json={"root_item_id": "asm"},
+        )
+    assert resp.status_code == 403
+    assert resp.json()["detail"]["code"] == "explode_access_denied"
