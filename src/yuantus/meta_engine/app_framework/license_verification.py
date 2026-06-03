@@ -11,6 +11,7 @@ The private key NEVER lives in this repo; tests generate an ephemeral keypair.
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 from typing import Any, Dict, Mapping
 
@@ -36,7 +37,7 @@ def canonical_payload_bytes(payload: Mapping[str, Any]) -> bytes:
 
 
 def _load_public_key(b64_key: str) -> Ed25519PublicKey:
-    raw = base64.b64decode(b64_key)
+    raw = base64.b64decode(b64_key, validate=True)
     return Ed25519PublicKey.from_public_bytes(raw)
 
 
@@ -62,9 +63,11 @@ def verify_license(
     if not isinstance(sig_b64, str):
         raise LicenseVerificationError("license signature missing")
     try:
-        signature = base64.b64decode(sig_b64)
+        signature = base64.b64decode(sig_b64, validate=True)
         pubkey = _load_public_key(public_keys[kid])
         pubkey.verify(signature, canonical_payload_bytes(payload))
-    except (InvalidSignature, ValueError, TypeError) as exc:
+    except (InvalidSignature, ValueError, TypeError, binascii.Error) as exc:
+        # binascii.Error (malformed signature / public-key base64) is also funneled
+        # into one LicenseVerificationError so callers never see a raw decode error.
         raise LicenseVerificationError("license signature verification failed") from exc
     return dict(payload)

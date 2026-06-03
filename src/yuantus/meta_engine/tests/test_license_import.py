@@ -159,6 +159,22 @@ def test_bad_signature_fails(session, keypair):
         LicenseImportService(session).import_license(lic_obj, pubkeys)
 
 
+def test_malformed_signature_base64_fails(session, keypair):
+    priv, pubkeys = keypair
+    lic_obj = _sign(priv, _payload())
+    lic_obj["signature"] = "!!!not-valid-base64!!!"
+    with pytest.raises(LicenseVerificationError, match="signature verification failed"):
+        LicenseImportService(session).import_license(lic_obj, pubkeys)
+
+
+def test_malformed_public_key_base64_fails(session, keypair):
+    priv, _ = keypair
+    lic_obj = _sign(priv, _payload())
+    bad_keys = {KID: "!!!not-valid-base64!!!"}
+    with pytest.raises(LicenseVerificationError, match="signature verification failed"):
+        LicenseImportService(session).import_license(lic_obj, bad_keys)
+
+
 def test_canonical_signing_is_field_order_independent(session, keypair):
     priv, pubkeys = keypair
     payload = _payload(tenant_id="tenant-1")
