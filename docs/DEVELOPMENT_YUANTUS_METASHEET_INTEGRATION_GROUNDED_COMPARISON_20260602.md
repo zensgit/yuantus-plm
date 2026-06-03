@@ -212,10 +212,12 @@ Method（双侧均**源码取证**，区分置信度）:
 
 ## 9. 附录：可复现取证命令
 
+> cwd 约定：§A–§D 在两仓库的**共同父目录**（如 `~/Downloads/Github/`，并列含 `Yuantus/` 与 `metasheet2/`）下执行；§E 显式 `cd Yuantus`（用 repo 相对路径）。
+
 ```bash
-# A. 两份 pact 是否字节一致 + interaction 集合差分
-md5 Yuantus/contracts/pacts/metasheet2-yuantus-plm.json \
-    metasheet2/packages/core-backend/tests/contract/pacts/metasheet2-yuantus-plm.json
+# A. 两份 pact 是否字节一致 + interaction 集合差分（Linux: md5sum；macOS: md5 -q <file>）
+md5sum Yuantus/contracts/pacts/metasheet2-yuantus-plm.json \
+       metasheet2/packages/core-backend/tests/contract/pacts/metasheet2-yuantus-plm.json
 python3 -c 'import json;a=json.load(open("Yuantus/contracts/pacts/metasheet2-yuantus-plm.json"));print(len(a["interactions"]),a["consumer"],a["provider"])'
 
 # B. provider 路由穿透 prefix/多行装饰器后逐条核对（示例：aml/bom-compare）
@@ -236,6 +238,7 @@ grep -nE "@pact-foundation/pact" metasheet2/packages/core-backend/package.json  
 grep -nE "toHaveBeenCalledWith\('/api/v1" metasheet2/packages/core-backend/tests/unit/plm-adapter-yuantus.test.ts  # → 请求形状单测（对手写 mock）
 
 # E. provider verifier 本地实证 green（2026-06-02，本人实跑，与 CI 等价）
+cd Yuantus   # §E 起用 repo 相对路径（requirements.lock / src/...）
 python3.11 -m venv /tmp/yuantus_pact_venv
 /tmp/yuantus_pact_venv/bin/python -m pip install -q -r requirements.lock pytest pact-python==3.2.1
 PYTHONPATH=src /tmp/yuantus_pact_venv/bin/python -m pytest -q \
