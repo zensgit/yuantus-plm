@@ -46,12 +46,14 @@ class EntitlementService:
         if feature_key not in FEATURE_APP_NAMES:
             # Fail loud so a typo never silently reads as "not entitled".
             raise ValueError(f"unknown feature_key: {feature_key!r}")
+        # Resolve the tenant for EVERY known key BEFORE the reserved-key shortcut,
+        # so a non-single deployment with no tenant context raises uniformly -- a
+        # reserved (unlit) key must not be a silent False that bypasses the tenant
+        # guard. (tenant_id participates in the filter; org_id is recorded only.)
+        tenant_id, _ = resolve_license_scope()
         app_names = FEATURE_APP_NAMES[feature_key]
         if not app_names:
             return False  # reserved but not yet lit in P1-B
-        # Reuses the P1-A resolver: tenant_id participates in the filter, org_id is
-        # recorded only; a missing tenant in non-single mode raises here.
-        tenant_id, _ = resolve_license_scope()
         now = datetime.utcnow()
         lic = (
             self.session.query(AppLicense)

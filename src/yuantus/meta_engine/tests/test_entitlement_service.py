@@ -162,6 +162,15 @@ def test_non_single_missing_tenant_raises(session, monkeypatch):
         _entitled(session)
 
 
+def test_reserved_key_also_raises_on_non_single_missing_tenant(session, monkeypatch):
+    # a reserved (unlit) key must still pass the tenant guard, not silently return
+    # False -- it goes through resolve_license_scope() before the reserved shortcut.
+    monkeypatch.setenv("YUANTUS_TENANCY_MODE", "db-per-tenant")
+    get_settings.cache_clear()
+    with pytest.raises(ValueError, match="tenant context is required"):
+        EntitlementService(session).is_entitled("bom_multitable")
+
+
 def test_kernel_is_service_only_no_router():
     import yuantus.meta_engine.app_framework.entitlement_service as es
 
