@@ -63,7 +63,8 @@ def _isolate_context_and_settings():
 
 def _paid_listing(session, name="plm.collab"):
     listing = MarketplaceAppListing(
-        id=str(uuid.uuid4()), name=name, price_model="Subscription", price_amount=1000
+        id=str(uuid.uuid4()), name=name, latest_version="1.0.0",
+        price_model="Subscription", price_amount=1000,
     )
     session.add(listing)
     session.commit()
@@ -147,6 +148,19 @@ def test_query_matches_only_resolved_tenant(session, monkeypatch):
         .count()
         == 1
     )
+
+
+# 3b. positive: the resolved tenant's license unlocks install end-to-end
+def test_resolved_tenant_license_unlocks_install(session, monkeypatch):
+    monkeypatch.setenv("YUANTUS_TENANCY_MODE", "single")
+    get_settings.cache_clear()
+    listing = _paid_listing(session, name="plm.collab")
+    tenant_id_var.set("acme")
+    svc = AppStoreService(session)
+    svc.purchase_app(listing.id, plan_type="Pro")
+    session.commit()
+    result = svc.install_from_store(listing.id, user_id=1)
+    assert result["status"] == "Installed"
 
 
 # 4. a legacy NULL-tenant active license never unlocks
