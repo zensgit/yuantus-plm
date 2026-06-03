@@ -375,6 +375,18 @@ class Settings(BaseSettings):
         ),
     )
 
+    # PLM-COLLAB-P1-D: enable the DEFAULT-OFF, superuser-only MOCK feature
+    # activation route (demo/test of the upgrade affordance). Production stays off;
+    # real authorization always goes via the P1-C signed license import.
+    FEATURE_MOCK_ACTIVATION_ENABLED: bool = Field(
+        default=False,
+        description=(
+            "Enable the superuser-only POST /features/{key}/mock-activate route "
+            "(P1-D demo/test only; NEVER a production authorization path). Default "
+            "off. env: YUANTUS_FEATURE_MOCK_ACTIVATION_ENABLED."
+        ),
+    )
+
     AUDIT_ENABLED: bool = Field(default=False, description="Audit log middleware")
     AUDIT_RETENTION_DAYS: int = Field(
         default=0, description="Prune audit logs older than N days (0=disabled)"

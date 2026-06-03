@@ -24,6 +24,7 @@ from yuantus.api.routers.workbench import router as workbench_router
 from yuantus.config import get_settings
 from yuantus.database import init_db
 from yuantus.meta_engine.web.bom_compare_router import bom_compare_router
+from yuantus.meta_engine.web.feature_router import feature_router
 from yuantus.meta_engine.web.bom_tree_router import bom_tree_router
 from yuantus.meta_engine.web.bom_children_router import bom_children_router
 from yuantus.meta_engine.web.bom_obsolete_rollup_router import (
@@ -410,6 +411,11 @@ def create_app() -> FastAPI:
     app.include_router(subcontracting_orders_router, prefix="/api/v1")
     app.include_router(subcontracting_analytics_router, prefix="/api/v1")
     app.include_router(subcontracting_approval_mapping_router, prefix="/api/v1")
+
+    # PLM-COLLAB-P1-D: feature-entitlement affordance (status + mock-activate).
+    # Unconditional -- base PLM also surfaces the upgrade affordance; entitlement
+    # itself is decided only by EntitlementService.is_entitled.
+    app.include_router(feature_router, prefix="/api/v1")
 
     # PLM-COLLAB-P0-A: MetaSheet collaboration bridge seam.
     # Absent by default so the base PLM SKU keeps its exact route surface
