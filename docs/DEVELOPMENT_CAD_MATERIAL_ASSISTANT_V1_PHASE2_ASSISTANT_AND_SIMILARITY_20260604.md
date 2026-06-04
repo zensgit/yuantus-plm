@@ -61,7 +61,12 @@
 
 ### 5.1 `POST .../assistant/resolve`（只读，约束 1）
 - 输入：`profile_id`、`cad_fields`、可选 `values`。
-- 流程：`load_profiles`→解析 profile → `compose_profile` → `validate_profile_values` → `_find_matching_items`（精确）→ 相似 service（模糊）。
+- 流程（**CAD 字段必须先映射**，同现有 `/sync/inbound`：先映射再叠加 values）：
+  1. `load_profiles` → 解析 profile；
+  2. `incoming = cad_fields_to_properties(profile, req.cad_fields or {})`（`main.py:1405`；不写这步 CAD 字段就不参与 compose/match）；
+  3. `incoming.update(req.values or {})`（values 覆盖 CAD 映射结果）；
+  4. `compose_profile(profile, incoming)` —— **内部已调 `validate_profile_values`**（`cad_material_sync_service.py:381`），**不要**再单独 `validate_profile_values`，避免重复校验/重复错误聚合；
+  5. `_find_matching_items`（精确）→ 相似 service（模糊）。
 - 输出：`composed_properties`、`exact_matches`、`similar_candidates`(含 `score`/`field_contributions`)、`draft_suggested`(bool)、`warnings`。
 - **`draft_suggested` 定义**（统一口径，避免前端/测试各自解读）：**无 exact match 且无 `score >= 0.90` 高相似候选**时为 `true`；若存在高相似候选，则返回候选并要求用户确认（`draft_suggested=false`）。
 - **硬约束**：不传 `create_if_missing`、不调用 `_apply_item_create`/`_apply_item_update`、不写 equivalence、不写任何业务表。
