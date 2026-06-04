@@ -51,8 +51,8 @@
 >
 > Yuantus 里"文档/图纸/模型"的表征是**混合的**,务必先认清,否则会按错误分支开发:
 > - **存在 `Document` ItemType**(`src/yuantus/seeder/meta/schemas.py:24`,`id="Document"`,`is_versionable=True`)——所以"文档即 Item"在模型层是被支持的。
-> - **但当前 CAD 管线并不这样存**:`CadImportService.import_file`(`services/cad_import_service.py:498`)走 `_auto_create_or_update_part`(`:621` 创建/更新一个 **Part** Item)+ `_attach_to_item`(`:597`)把文件作为 **`VersionFile`** 挂到该 Part 版本上(`VersionFileService`,`file_role` ∈ NATIVE_CAD/DRAWING/GEOMETRY/...)。`CheckinManager.checkin`(`services/checkin_service.py:119`)同理:检入即给 Part 建新版本快照 + `FileContainer`。
-> - **没有** OdooPLM `linkeddocuments` 式的 Part↔Document 多对多;Baseline 里的 `document_id` 实际指向 `meta_files`(`models/baseline.py:109`),即"文档=文件行"。
+> - **但当前 CAD 管线并不这样存**:`CadImportService.import_file`(`src/yuantus/meta_engine/services/cad_import_service.py:498`)走 `_auto_create_or_update_part`(`:621` 创建/更新一个 **Part** Item)+ `_attach_to_item`(`:597`)把文件作为 **`VersionFile`** 挂到该 Part 版本上(`VersionFileService`,`file_role` ∈ NATIVE_CAD/DRAWING/GEOMETRY/...)。`CheckinManager.checkin`(`src/yuantus/meta_engine/services/checkin_service.py:119`)同理:检入即给 Part 建新版本快照 + `FileContainer`。
+> - **没有** OdooPLM `linkeddocuments` 式的 Part↔Document 多对多;Baseline 里的 `document_id` 实际指向 `meta_files`(`src/yuantus/meta_engine/models/baseline.py:109`),即"文档=文件行"。
 >
 > **由此,2D↔3D 与装配/引用关系存在三种可选表征(fork)**:
 > 1. **文件即角色(within/cross Part version)**:2D 图纸与 3D 模型是同一/不同 Part 版本上的 `VersionFile`(role=DRAWING vs NATIVE_CAD)。→ 2D↔3D 时效是**文件角色间**的时间比较,**不需要**文档关系图。
@@ -63,7 +63,7 @@
 
 ### WP1.0 · 表征决策 ✅ 已裁定(见独立 taskbook)
 
-**状态**:**LOCKED**。决策已落于 `DEVELOPMENT_WP1_0_CAD_PDM_REPRESENTATION_DECISION_TASKBOOK_20260604.md`(doc-only),并据其证据(读 `cad_import_service.py:498-751` + `checkin_service.py:119-240` + `models/file.py:25-42,226` + `version/models.py:29-37,155-207`)裁定:
+**状态**:**LOCKED**。决策已落于 `DEVELOPMENT_WP1_0_CAD_PDM_REPRESENTATION_DECISION_TASKBOOK_20260604.md`(doc-only),并据其证据(读 `cad_import_service.py:498-751` + `checkin_service.py:119-240` + `src/yuantus/meta_engine/models/file.py:25-42,226` + `src/yuantus/meta_engine/version/models.py:29-37,155-207`)裁定:
 - **2D↔3D staleness → 文件角色比较**(同一 Part 上 `file_role=drawing` vs `native_cad`;`FileContainer.document_type` 2d/3d;时间戳 + `import_batch_id`)。
 - **装配/引用 → Part↔Part relationship**(`RelationshipService`,关系类型 `ASSEMBLY`/`REFERENCE`)。
 - **Document↔Document graph → 暂缓**(`Document` ItemType 存在但 CAD 管线不产出它;贸然引入会双真相)。
@@ -78,18 +78,20 @@
 - `ASSEMBLY`(= HiTree,装配父子)——**Part↔Part**(`source/related = Part`)
 - `REFERENCE`(= RfTree,引用依赖)——**Part↔Part**
 - ~~`DRAWING_OF` / `DOC_2D3D`(= LyTree,图纸↔模型)~~ —— **WP1.0 已锁定:不建此关系类型**;2D↔3D 走文件角色比较(WP1.3)。仅在未来触发分支 C 时重议
-- `PACKAGE`(= PkgTree,打包)——按需,Part↔Part 或 Document↔Document
+- ~~`PACKAGE`(= PkgTree,打包)~~ —— **本 WP 不建**(pack-and-go 走文件聚合,见 WP3.1);如确需文档打包再随分支 C 重议
 
-**设计**:复用"关系即 Item"——每个类型一行 `ItemType`,`is_relationship=True`,`source_item_type_id`/`related_item_type_id` 指向 **`Part`**(装配/引用)或 `Document`(若分支 3),`is_polymorphic=True`。**无需新表**(`relationship/service.py:43-139` `create_relationship` 已支持;BOM 关系类型 `Part BOM` 已是同款范式,见 `seeder/meta/schemas.py:41-50`)。装配/引用本就是 Part↔Part,`RelationshipService` 现成可用,**本 WP 主要是种子化类型 + 约定 `properties`(position/config 等,对齐 Odoo `configuration`)**。
+> 本 WP 只种 **2 个**:`ASSEMBLY`、`REFERENCE`,端点均为 **Part**。
+
+**设计**:复用"关系即 Item"——每个类型一行 `ItemType`,`is_relationship=True`,**`source_item_type_id=related_item_type_id="Part"`**,`is_polymorphic=True`。**无需新表**(`src/yuantus/meta_engine/relationship/service.py:43-139` `create_relationship` 已支持;BOM 关系类型 `Part BOM` 已是同款范式,见 `seeder/meta/schemas.py:41-50`)。装配/引用本就是 Part↔Part,`RelationshipService` 现成可用,**本 WP 主要是种子化 2 个类型 + 约定 `properties`(position/config 等,对齐 Odoo `configuration`)**。
 
 **逐文件改动**
-- `src/yuantus/seeder/meta/`(确认路径:**无** `meta_engine/seeder/`)下新增/扩展种子(参照该目录现有 `lifecycles.py`/`schemas.py`/`eco_stages.py` 风格):写入上述 4 个关系 `ItemType`(`id`/`label`/`is_relationship=True`/`source_item_type_id=related_item_type_id=<Document type id>`/`is_polymorphic=True`)。
-- `ItemType` 字段参考:`models/meta_schema.py:14-79`(`is_relationship:29`、`source_item_type_id:65`、`related_item_type_id:68`)。
+- `src/yuantus/seeder/meta/`(确认路径:**无** `meta_engine/seeder/`)下新增/扩展种子(参照该目录现有 `lifecycles.py`/`schemas.py`/`eco_stages.py` 风格):写入 **2 个关系 `ItemType`——`ASSEMBLY`、`REFERENCE`**(`id`/`label`/`is_relationship=True`/**`source_item_type_id=related_item_type_id="Part"`**/`is_polymorphic=True`)。**不建 `DOC_*`/`DRAWING_OF`、端点是 Part↔Part**(WP1.0 D2/D4)。
+- `ItemType` 字段参考:`src/yuantus/meta_engine/models/meta_schema.py:14-79`(`is_relationship:29`、`source_item_type_id:65`、`related_item_type_id:68`)。
 - 关系属性约定:为 `ASSEMBLY` 约定 `position`/`config` 等(对齐 Odoo `configuration`,`ir_attachment_relations.py:77`);`REFERENCE` 约定引用类型。**2D↔3D 不建关系类型**(WP1.0 锁定走文件角色,见 WP1.3)。
 
 **数据/迁移**:仅数据种子,无 schema 变更(如关系类型走静态种子表则需迁移登记)。
-**测试**(`meta_engine/tests/test_doc_relationship_types.py`):
-- 种子后 4 个 `ItemType` 存在且 `is_relationship=True`;
+**测试**(`src/yuantus/meta_engine/tests/test_pdm_relationship_types.py`):
+- 种子后 **2 个** `ItemType`(`ASSEMBLY`/`REFERENCE`)存在且 `is_relationship=True`、端点为 `Part`;
 - `RelationshipService.create_relationship(part_a, part_b, "ASSEMBLY")` 成功且 `source_id/related_id` 正确;
 - 类型不匹配(把非 Part 当端点)被 `create_relationship` 拒绝(`service.py:86-98`)。
 **验收**:能为两个 Part Item 建立 `ASSEMBLY`/`REFERENCE` 关系并按类型查询。
@@ -107,14 +109,14 @@
 - *(不做 2D↔3D 双向遍历——2D/3D 不是关系,见 WP1.3。)*
 
 **逐文件改动**
-- 服务:扩展 `relationship/service.py`(新增 `get_relationship_tree` 等)。
-- 路由:新增 `meta_engine/web/pdm_relationship_router.py`(前缀 `/pdm`,参照 `bom_tree_router`/`bom_children_router` 风格;**禁止命名 `document_relationship_router`**),端点(WP1.0 D4):
+- 服务:扩展 `src/yuantus/meta_engine/relationship/service.py`(新增 `get_relationship_tree` 等)。
+- 路由:新增 `src/yuantus/meta_engine/web/pdm_relationship_router.py`(前缀 `/pdm`,参照 `bom_tree_router`/`bom_children_router` 风格;**禁止命名 `document_relationship_router`**),端点(WP1.0 D4):
   - `GET /pdm/items/{item_id}/relationships?kind=ASSEMBLY&direction=outgoing`
   - `GET /pdm/items/{item_id}/relationship-tree?kinds=ASSEMBLY,REFERENCE&max_depth=10`
   - `POST /pdm/items/{item_id}/relationships`(body: related_id/kind/properties)
   - `DELETE /pdm/relationships/{relationship_id}`
 - 权限:沿用 `MetaPermissionService.check_permission(item_type_id, AMLAction.get/update, ...)`(参照 `bom_obsolete_rollup_router.py:191-206`)。
-- 挂载:把 router `include_router` 进 app(确认 `meta_engine/web/__init__.py` 或 app factory 的注册位置)。
+- 挂载:把 router `include_router` 进 app(确认 `src/yuantus/meta_engine/web/__init__.py` 或 app factory 的注册位置)。
 
 **测试**(`test_pdm_relationship_router.py`):一级/递归查询契约、防环、权限 403、异常链。
 **验收**:给定一个装配 Part,能查出其全部子件/引用(一级与整树)。
@@ -127,16 +129,16 @@
 **目标**:实现"图纸相对其模型过期"检测,对齐 `ir_attachment.py:1532-1567 assign_must_update_flag()`,并用"保存批次"避免一次同步保存误标全员过期(对齐 `plm/models/plm_dbthread.py`)。
 
 **设计**(WP1.0 锁定 D1 = **文件角色比较**,与现有 import/checkin 管线吻合;**不涉及任何关系图**)
-1. **过期派生**:对**同一 Part**(当前版本/版本链),比较两个文件:`file_role=drawing`(或 `FileContainer.document_type="2d"`)的图纸 vs `file_role=native_cad`(或 `document_type="3d"`)的模型,经 `ItemFile`/`VersionFile`(`file.py:226` / `version/models.py:155`)关联到 `FileContainer`,取其 `updated_at` / `cad_attributes_updated_at`(`file.py:125,162`,带时区)。若**模型**晚于**图纸**且不在同一保存批次 → 把图纸标过期(`needs_update` 标志写在 `VersionFile` 元数据或版本 `properties`,**不写关系**)。
+1. **过期派生**:对**同一 Part**(当前版本/版本链),比较两个文件:`file_role=drawing`(或 `FileContainer.document_type="2d"`)的图纸 vs `file_role=native_cad`(或 `document_type="3d"`)的模型,经 `ItemFile`/`VersionFile`(`file.py:226` / `src/yuantus/meta_engine/version/models.py:155`)关联到 `FileContainer`,取其 `updated_at` / `cad_attributes_updated_at`(`file.py:125,162`,带时区)。若**模型**晚于**图纸**且不在同一保存批次 → 把图纸标过期(`needs_update` 标志写在 `VersionFile` 元数据或版本 `properties`,**不写关系**)。
 2. **保存批次(对应 dbThread)**:在 CAD 导入/检入引入 `import_batch_id`。一次客户端"保存整套装配"在同一 `import_batch_id` 下提交;同批次内 2D/3D 互不判过期。批次戳在 `FileContainer`/版本元数据。
 3. **暴露**(item 中心,WP1.0 D4):`GET /cad/items/{item_id}/staleness`、`GET /cad/items/{root_id}/stale-drawings` 扫描端点(**禁止 `/documents/{doc_id}/staleness`**)。
 
 **逐文件改动**
 - 导入入口:`web/cad_import_router.py:99 import_cad` → `services/cad_import_service.py CadImportService.import_file`。在 `CadImportRequest` 增 `import_batch_id: Optional[str]`(默认服务端生成),贯穿到 `FileContainer`/版本/`ItemFile` 元数据。
 - 检入入口:`web/cad_checkin_router.py:169 checkin_document` → `services/checkin_service.py CheckinManager.checkin(item_id, content, filename)`。同样接受/生成 `import_batch_id`。
-- 新服务:`services/cad_consistency_service.py`,方法 `compute_staleness(item_id)` / `scan_stale_drawings(root_id)`,**读 `ItemFile`/`VersionFile` + `FileContainer` 时间戳 + 批次**(不读关系)。沿装配的向下扫描经 WP1.2 的 `ASSEMBLY` 树。
+- 新服务:`src/yuantus/meta_engine/services/cad_consistency_service.py`,方法 `compute_staleness(item_id)` / `scan_stale_drawings(root_id)`,**读 `ItemFile`/`VersionFile` + `FileContainer` 时间戳 + 批次**(不读关系)。沿装配的向下扫描经 WP1.2 的 `ASSEMBLY` 树。
 - 设置:若引入"过期判定时间裕度"等开关,在 `config/settings.py` 声明 `YUANTUS_CAD_STALENESS_*` 字段(否则 `extra="ignore"` 静默丢弃)。
-- 路由:新增 `web/cad_consistency_router.py`(`/cad/items/...`)暴露扫描端点;挂进 app。
+- 路由:新增 `src/yuantus/meta_engine/web/cad_consistency_router.py`(`/cad/items/...`)暴露扫描端点;挂进 app。
 
 **测试**(`test_cad_consistency_staleness.py`):
 - 模型版本更新后其 2D 图纸被标过期;
@@ -144,7 +146,7 @@
 - 跨批次真实时间差才触发;
 - root 扫描返回所有过期图纸(含 parent 链路)。
 **验收**:改模型→图纸自动过期;同批保存无误标;扫描可用,并可供 WP2.2 发布门禁调用。
-**风险**:时间比较需统一时区(全用 UTC,与 `version/service.py` `datetime.utcnow()` 一致);"主文件"判定要稳定(用 `VersionFile.is_primary`)。
+**风险**:时间比较需统一时区(全用 UTC,与 `src/yuantus/meta_engine/version/service.py` `datetime.utcnow()` 一致);"主文件"判定要稳定(用 `VersionFile.is_primary`)。
 
 ---
 
@@ -163,15 +165,15 @@
 - 阻止对同一已发布版**并发开两个改版**。
 
 **设计**
-1. **新增生命周期状态 `Superseded`**:`LifecycleState` 已有 `is_end_state`/`is_released`/`is_suspended`/`version_lock` 标志(`lifecycle/models.py:43-55`)。`src/yuantus/seeder/meta/lifecycles.py` 已种子化 "Standard Part Lifecycle":Draft → Review → **Released**(`is_released=True, lock=True, seq=30`,`:22`)→ Suspended → Obsolete,经辅助方法 `_ensure_state(lc_map, key, label, is_released, lock, seq)` 与 `_ensure_transition(...)`。**注意已存在 `Obsolete`/`Suspended`**——`Superseded`(被新版取代)语义不同于 `Obsolete`(手动报废)与 `Suspended`(暂停消费),应**新增独立状态**(`is_released=True`、`version_lock=True`、视需要 `is_end_state`),并加 `Released → Superseded` 的 transition。直接复用上述两个辅助方法即可,有现成范式。
+1. **新增生命周期状态 `Superseded`**:`LifecycleState` 已有 `is_end_state`/`is_released`/`is_suspended`/`version_lock` 标志(`src/yuantus/meta_engine/lifecycle/models.py:43-55`)。`src/yuantus/seeder/meta/lifecycles.py` 已种子化 "Standard Part Lifecycle":Draft → Review → **Released**(`is_released=True, lock=True, seq=30`,`:22`)→ Suspended → Obsolete,经辅助方法 `_ensure_state(lc_map, key, label, is_released, lock, seq)` 与 `_ensure_transition(...)`。**注意已存在 `Obsolete`/`Suspended`**——`Superseded`(被新版取代)语义不同于 `Obsolete`(手动报废)与 `Suspended`(暂停消费),应**新增独立状态**(`is_released=True`、`version_lock=True`、视需要 `is_end_state`),并加 `Released → Superseded` 的 transition。直接复用上述两个辅助方法即可,有现成范式。
 2. **revise 时联动**:`version/service.py:355-410 revise()` 当前仅 `current_ver.is_current=False`。改为:在创建新 Draft 版后,对**旧版对应 Item** 触发生命周期推进到 `Superseded`(经 `LifecycleService.promote`,以保留 hooks/审计),或在版本层显式置 `current_ver.state="Superseded"` 并发 `ItemStateChangedEvent`。两者择一,推荐走 `LifecycleService` 以统一审计。
 3. **在改信号**:不必新增字段——可由"存在更高 generation/revision 且为 Draft"派生;若要可查询,给母版 `properties` 写 `under_modification=True`,改版发布/取消时清除。
 4. **并发守卫**:`revise()` 入口加检查——若该 Item 已存在未发布的更高 revision(查 `ItemVersion` where item_id 且 `is_released=False` 且 revision 更高),抛 `VersionError`(对应 Odoo `is_releaseble` 思路,`plm_mixin.py:295-297`)。
 
 **逐文件改动**
 - `seeder/meta/lifecycles.py`:加 `Superseded` 状态 + transition。
-- `version/service.py`:`revise()` / `new_generation()` 联动 + 并发守卫;`release()`(`:466-506`)在发布新版后确保旧版转 `Superseded`。
-- `lifecycle/service.py`:确认 `promote` 可被版本服务调用(注意不要循环依赖;如有,经事件或 service 注入)。
+- `src/yuantus/meta_engine/version/service.py`:`revise()` / `new_generation()` 联动 + 并发守卫;`release()`(`:466-506`)在发布新版后确保旧版转 `Superseded`。
+- `src/yuantus/meta_engine/lifecycle/service.py`:确认 `promote` 可被版本服务调用(注意不要循环依赖;如有,经事件或 service 注入)。
 - 迁移:`Superseded` 是数据种子,无 schema 变更;若加显式字段则补迁移。
 **测试**(`test_version_supersede.py`):
 - revise 后旧版 state=`Superseded`、`is_current=False`,新版 Draft;
@@ -188,15 +190,15 @@
 **目标**:对齐 OdooPLM 隐含不变量"已发布父件不得引用未发布子件"(`product_product.py:1083-1124 commonWFAction` 的递归后果),把它变成 Yuantus 的**硬门禁规则**(当前只有 baseline 的**警告** `release_validation.py:42`)。
 
 **设计**(完全套用现有 release-validation 机制)
-1. **注册规则族**:`services/release_validation.py` 新增 `kind="item_release"`:
+1. **注册规则族**:`src/yuantus/meta_engine/services/release_validation.py` 新增 `kind="item_release"`:
    - `ITEM_RELEASE_RULES_DEFAULT = ["item.exists", "item.not_already_released", "bom.children_all_released"]`
    - 加进 `_BUILTIN_RULESETS`(`:81`)、`_ALLOWED_RULE_IDS`(`:98`)、`_EXISTENCE_RULES["item_release"]="item.exists"`(`:106`);提供 `readiness` 变体(去掉 `not_already_released`,对齐既有 `_without` 模式 `:57`)。
-2. **实现求值器**:新增 `services/item_release_service.py` 的 `get_release_diagnostics(item_id, *, ruleset_id)`,**严格仿照** `baseline_service.py:494-583` 的 errors/warnings + `ValidationIssue` 结构:
-   - `bom.children_all_released`:用 `BOMService.get_bom_structure(item_id, levels=...)`(`services/bom_service.py:219`)展开当前 BOM;对每个子件查其 current 版本是否 `is_released`(或 Item.state ∈ released/approved,参照 baseline 判定 `:566`)。未发布 → `errors.append(ValidationIssue(code="child_not_released", rule_id="bom.children_all_released", details={child_id, child_number, child_state}))`。
+2. **实现求值器**:新增 `src/yuantus/meta_engine/services/item_release_service.py` 的 `get_release_diagnostics(item_id, *, ruleset_id)`,**严格仿照** `baseline_service.py:494-583` 的 errors/warnings + `ValidationIssue` 结构:
+   - `bom.children_all_released`:用 `BOMService.get_bom_structure(item_id, levels=...)`(`src/yuantus/meta_engine/services/bom_service.py:219`)展开当前 BOM;对每个子件查其 current 版本是否 `is_released`(或 Item.state ∈ released/approved,参照 baseline 判定 `:566`)。未发布 → `errors.append(ValidationIssue(code="child_not_released", rule_id="bom.children_all_released", details={child_id, child_number, child_state}))`。
    - 可选 `bom.documents_released`:发布件其关联文档需到位(对应 `_action_ondocuments`)。
 3. **接入发布**:在 `release_readiness_service.get_item_release_readiness`(`:79-177`)的 `resources` 里追加 `item_release` 诊断;并在实际 promote-to-Released 路径(`LifecycleService.promote` 进入 `is_released` 状态前)调用该诊断,**有 error 即阻止**(目前 readiness 仅汇总展示,需新增"硬阻断"接线)。
 
-**逐文件改动**:`services/release_validation.py`、新建 `services/item_release_service.py`、`services/release_readiness_service.py`(汇总接线)、`lifecycle/service.py`(promote 到 Released 前调用门禁)。
+**逐文件改动**:`src/yuantus/meta_engine/services/release_validation.py`、新建 `src/yuantus/meta_engine/services/item_release_service.py`、`src/yuantus/meta_engine/services/release_readiness_service.py`(汇总接线)、`src/yuantus/meta_engine/lifecycle/service.py`(promote 到 Released 前调用门禁)。
 **设置**:可经 `YUANTUS_RELEASE_VALIDATION_RULESETS_JSON`(`settings.py:408`,已存在)切换 ruleset;新增 env 才需在 Settings 声明。
 **测试**(`test_item_release_children_gate.py`):
 - 子件未发布 → 父件 promote-to-Released 被 error 阻断;
@@ -222,7 +224,7 @@
 - `dry_run`:只跑门禁/校验不落库,供前端"发布预检"。
 - 文档联动:对每个件,经 WP1.2 取其关联文档(发布态校验),需要时一并推进。
 
-**逐文件改动**:`lifecycle/service.py`(新方法)、`web/release_orchestration_router.py`(新增 `POST /release/assembly/{root_id}/promote` 端点,复用既有 orchestration 返回风格)。
+**逐文件改动**:`src/yuantus/meta_engine/lifecycle/service.py`(新方法)、`src/yuantus/meta_engine/web/release_orchestration_router.py`(新增 `POST /release/assembly/{root_id}/promote` 端点,复用既有 orchestration 返回风格)。
 **测试**(`test_promote_assembly.py`):3 层装配 dry_run 预检、自底向上顺序、部分失败报告、防环、权限。
 **验收**:对一棵装配一键 confirm/release,顺序正确、失败可见、可预检。
 
@@ -235,12 +237,12 @@
 **目标**:把一个件连同其 BOM 的全部 2D/3D/PDF 文件打成可下载归档(对齐 `plm_pack_and_go/wizard/`)。
 
 **设计**:Baseline(取成员树)+ File vault/转换(取/转文件)+ WP1.2(取齐每件的相关文档)→ 归档。
-- 新服务 `services/pack_and_go_service.py`:`build_package(root_id, options)`,options 含 `include_2d/3d/pdf`、`include_children`、`baseline_id?`、`as_of_date?`。
+- 新服务 `src/yuantus/meta_engine/services/pack_and_go_service.py`:`build_package(root_id, options)`,options 含 `include_2d/3d/pdf`、`include_children`、`baseline_id?`、`as_of_date?`。
   1. 经 `BaselineService` 或 `BOMService.get_bom_structure` 得成员;
   2. 每成员取该 Part 的 `ItemFile`/`VersionFile`(按 role 过滤 2d/3d/pdf 文件)+ 沿 `ASSEMBLY` 关系递归(经 WP1.2);
-  3. 经 `file_storage`/`file_conversion`(`web/file_storage_router.py`、`file_conversion_router.py`)取/转文件;
+  3. 经 `file_storage`/`file_conversion`(`src/yuantus/meta_engine/web/file_storage_router.py`、`file_conversion_router.py`)取/转文件;
   4. 生成 `manifest.json` + 物理归档(zip;大文件流式)。
-- 路由:`web/pack_and_go_router.py`,`POST /pack-and-go`(异步走 `jobs`,返回 job + 下载 URL)。
+- 路由:`src/yuantus/meta_engine/web/pack_and_go_router.py`,`POST /pack-and-go`(异步走 `jobs`,返回 job + 下载 URL)。
 **测试**(`test_pack_and_go.py`):manifest 完整性、按类型筛选、含/不含子件、空 BOM 边界。
 **验收**:导出包含一棵 BOM 全部选定文档 + manifest。
 **DoD**:大包用 `jobs` 异步,勿阻塞请求;权限校验。
@@ -248,7 +250,7 @@
 ### WP3.2 · 料号不可变(B3)
 
 **目标**:`item_number`/`number` 一经非空赋值即只读(对齐 `plm_mixin.py:497-517`)。
-**设计**:在 `operations/update_op.py:44-47`(已算出 `merged` 与 `alias_value`)后加守卫:
+**设计**:在 `src/yuantus/meta_engine/operations/update_op.py:44-47`(已算出 `merged` 与 `alias_value`)后加守卫:
 ```python
 existing_number = get_item_number(item.properties or {})
 incoming_number = get_item_number(aml.properties or {})
@@ -281,7 +283,7 @@ if existing_number and incoming_number and incoming_number != existing_number:
 
 ### Phase 1 — CAD-PDM 底座
 - [ ] **WP1.0** 读 `cad_import_service.py:498-660` + `checkin_service.py:119-235` 函数体,裁定表征分支(默认:装配/引用=Part↔Part;2D↔3D=文件角色),把裁定写回本文件
-- [ ] **WP1.1** 种子 `ASSEMBLY`/`REFERENCE`(Part↔Part)关系 ItemType(+条件 `DRAWING_OF`),`is_relationship=True`(范式见 `schemas.py:41-50` Part BOM);bootstrap 真正执行;`test_relationship_types_docpdm.py` 入 ci.yml
+- [ ] **WP1.1** 种子 `ASSEMBLY`/`REFERENCE`(Part↔Part,source/related=`Part`)关系 ItemType,`is_relationship=True`(范式见 `schemas.py:41-50` Part BOM);**不建 `DOC_*`/`DRAWING_OF`**;bootstrap 真正执行;`test_pdm_relationship_types.py` 入 ci.yml
 - [ ] **WP1.2** `RelationshipService.get_relationships/get_relationship_tree`(防环);`pdm_relationship_router.py`(`/pdm/items/{id}/relationships*`,4 端点)挂进 app;`test_pdm_relationship_router.py` 入 ci.yml
 - [ ] **WP1.3**(文件角色比较)`import_batch_id` 贯穿 import/checkin;`cad_consistency_service.compute_staleness(item_id)/scan_stale_drawings(root_id)`(比 drawing vs native_cad 文件时间 + 批次);`/cad/items/{id}/staleness` + `stale-drawings` 端点;`YUANTUS_CAD_STALENESS_*`(如有)入 Settings;`test_cad_consistency_staleness.py` 入 ci.yml
 
@@ -308,7 +310,7 @@ if existing_number and incoming_number and incoming_number != existing_number:
 
 | WP | 测试文件 | 核心断言 |
 |---|---|---|
-| 1.1 | test_relationship_types_docpdm.py | ASSEMBLY/REFERENCE(+条件 DRAWING_OF)存在/is_relationship;Part↔Part 建/拒关系 |
+| 1.1 | test_pdm_relationship_types.py | ASSEMBLY/REFERENCE 存在/is_relationship;端点=Part;Part↔Part 建/拒关系 |
 | 1.2 | test_pdm_relationship_router.py | 一级/递归;防环;权限 403;异常链 |
 | 1.3 | test_cad_consistency_staleness.py | 改模型→图纸过期;同批不误标;跨批触发;root 扫描 |
 | 2.1 | test_version_supersede.py | 旧版 Superseded;在改信号;并发改版拒绝;version_lock |

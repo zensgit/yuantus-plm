@@ -27,26 +27,26 @@ Origin: `ODOOPLM_19_CADPDM_GAP_AND_BORROW_ANALYSIS_20260604.md`(差距 A1/A2)+ `
 > 全部为读码核验,非推测。引用 `file:line`。
 
 **F1 · CAD 文件 = `FileContainer`(`meta_files`)**
-- `models/file.py:81` `class FileContainer`;`document_type`(`:115`)取值由 `DocumentType` 枚举决定:`CAD_3D="3d"`、`CAD_2D="2d"`、`PRESENTATION="pr"`、`OTHER="other"`(`file.py:25-31`)。
+- `src/yuantus/meta_engine/models/file.py:81` `class FileContainer`;`document_type`(`:115`)取值由 `DocumentType` 枚举决定:`CAD_3D="3d"`、`CAD_2D="2d"`、`PRESENTATION="pr"`、`OTHER="other"`(`file.py:25-31`)。
 - `is_native_cad`(`:118`)、`cad_format`(`:119`,"STEP"/"SOLIDWORKS"...)、`created_at`/`updated_at`(`:161-162`,**带时区**)、还有 `cad_attributes_updated_at`(`:125`)等细粒度时间戳。
 
 **F2 · Part = `Item`(`meta_items`,item_type="Part"),被版本化**
-- CAD 导入 `CadImportService.import_file`(`services/cad_import_service.py:498`)→ `_auto_create_or_update_part`(`:621`)按 `item_number` 建/更新一个 **Part** Item(`:654-694`,走 `AMLEngine.apply(type="Part")`)。
+- CAD 导入 `CadImportService.import_file`(`src/yuantus/meta_engine/services/cad_import_service.py:498`)→ `_auto_create_or_update_part`(`:621`)按 `item_number` 建/更新一个 **Part** Item(`:654-694`,走 `AMLEngine.apply(type="Part")`)。
 
 **F3 · 文件↔Part 的连接 = 两张"按角色"的连接表(都不是 Document Item)**
 - `_attach_to_item`(`:696-751`)把文件以 **`ItemFile`(`meta_item_files`,`file.py:226`)** 挂到 Part:字段 `item_id`+`file_id`+`file_role`(`:744-748`)。
-- 版本快照层用 **`VersionFile`(`meta_version_files`,`version/models.py:155`)**:`version_id`+`file_id`+`file_role`(`:179`)+`is_primary`(`:188`)+`snapshot_path`(`:185`);唯一约束 `(version_id, file_id, file_role)`(`:207`)。`VersionFileService` 负责把 item 文件同步进版本快照。
-- **`file_role` 枚举(两处一致)**:`native_cad` / `drawing` / `geometry` / `preview` / `attachment` / `reference`(`file.py:34-42` `FileRole`;`version/models.py:29-37` `VersionFileRole`)。**`drawing`=2D 图纸,`native_cad`=3D 模型**——2D/3D 已经能在文件角色层区分。
+- 版本快照层用 **`VersionFile`(`meta_version_files`,`src/yuantus/meta_engine/version/models.py:155`)**:`version_id`+`file_id`+`file_role`(`:179`)+`is_primary`(`:188`)+`snapshot_path`(`:185`);唯一约束 `(version_id, file_id, file_role)`(`:207`)。`VersionFileService` 负责把 item 文件同步进版本快照。
+- **`file_role` 枚举(两处一致)**:`native_cad` / `drawing` / `geometry` / `preview` / `attachment` / `reference`(`file.py:34-42` `FileRole`;`src/yuantus/meta_engine/version/models.py:29-37` `VersionFileRole`)。**`drawing`=2D 图纸,`native_cad`=3D 模型**——2D/3D 已经能在文件角色层区分。
 
 **F4 · 检入产出 = 新版本 + 转换作业(派生件来自作业,不是文档关系)**
-- `CheckinManager.checkin`(`services/checkin_service.py:119`)上传 native 文件→`FileContainer`,`props["native_file"]=id`(`:123`),入队 `cad_preview` + `cad_geometry(glTF)` 作业(`:137-150`),再 `VersionService.checkin(properties=props)`(`:160`)。→ 预览/几何是**转换产物**,挂回同一 Part 版本。
+- `CheckinManager.checkin`(`src/yuantus/meta_engine/services/checkin_service.py:119`)上传 native 文件→`FileContainer`,`props["native_file"]=id`(`:123`),入队 `cad_preview` + `cad_geometry(glTF)` 作业(`:137-150`),再 `VersionService.checkin(properties=props)`(`:160`)。→ 预览/几何是**转换产物**,挂回同一 Part 版本。
 
 **F5 · `Document` ItemType 存在但 CAD 管线不产出它**
-- `seeder/meta/schemas.py:24` 确有 `id="Document"` 的 ItemType(`is_versionable=True`)。但 §F2–F4 全程**只建 Part + 挂文件**,**从不**建 Document Item;Baseline 的 `document_id` 实际指向 `meta_files`(`models/baseline.py:109`),即"文档=文件行"。
+- `seeder/meta/schemas.py:24` 确有 `id="Document"` 的 ItemType(`is_versionable=True`)。但 §F2–F4 全程**只建 Part + 挂文件**,**从不**建 Document Item;Baseline 的 `document_id` 实际指向 `meta_files`(`src/yuantus/meta_engine/models/baseline.py:109`),即"文档=文件行"。
 - 故"Document↔Document graph"是一个**模型层支持、但当前管线不产生**的第三方案。
 
 **F6 · Part↔Part 关系已完全可用**
-- `RelationshipService.create_relationship(source_id, related_id, relationship_type_name, ...)`(`relationship/service.py:43`)对任意 Item 端点工作;BOM 关系类型 `Part BOM` 即同款范式(`seeder/meta/schemas.py:41-50`,`is_relationship=True`)。装配/引用本就是 Part↔Part,**零额外建模**。
+- `RelationshipService.create_relationship(source_id, related_id, relationship_type_name, ...)`(`src/yuantus/meta_engine/relationship/service.py:43`)对任意 Item 端点工作;BOM 关系类型 `Part BOM` 即同款范式(`seeder/meta/schemas.py:41-50`,`is_relationship=True`)。装配/引用本就是 Part↔Part,**零额外建模**。
 
 ---
 
