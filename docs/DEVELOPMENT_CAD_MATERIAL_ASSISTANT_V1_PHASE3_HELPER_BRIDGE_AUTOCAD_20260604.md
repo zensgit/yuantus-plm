@@ -92,4 +92,4 @@ CI-可测（SDK-free）：
 
 ## 9. 出口
 
-Phase 3 SDK-free 部分合并后，物料助手在 PLM↔Helper↔AutoCAD 三层贯通；`PLMMATASSIST` 随 Windows 签核交付。后续可选：dedup_vision 图纸相似（需上传链路）、其它 CAD 客户端入口复用同一 helper 路由。
+Phase 3 SDK-free 部分合并后，物料助手在 **SDK-free client API ↔ Helper ↔ PLM 三层贯通**；**AutoCAD 命令入口（`PLMMATASSIST`）随 Windows 签核交付**（此前用户在图纸里的端到端体验尚未达成，须待该签核）。后续可选：dedup_vision 图纸相似（需上传链路）、其它 CAD 客户端入口复用同一 helper 路由。
