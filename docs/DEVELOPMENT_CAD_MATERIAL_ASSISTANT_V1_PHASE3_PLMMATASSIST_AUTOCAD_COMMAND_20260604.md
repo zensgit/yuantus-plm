@@ -46,6 +46,7 @@ Out of scope:
 - no LLM/NL intent parser;
 - no SolidWorks/ZWCAD/GstarCAD command entry;
 - no implicit DWG write-back after create unless a later task adds an explicit server response contract for CAD fields.
+- no "bind to existing material" action in v1: when an exact match is found, the command only **displays** it. Binding/write-back (linking the DWG to an existing `Part` and writing its fields back) requires `assistant/resolve`/`create` to return a CAD field package and a bind semantic, which a later contract unlocks — this phase writes neither DWG fields nor relationships. (Differs from #701 §3.2's end-state "user can select an existing material and bind/write back"; that is deferred, not dropped.)
 
 ## 3. Grounding
 
@@ -102,9 +103,9 @@ Prefer a small WPF dialog modeled after `MaterialSyncDiffPreviewWindow`:
 - The project file must include both (`Compile` + `Page`) like the existing diff preview window.
 - The window should be inspection-first:
   - top context: profile, exact/similar counts, draft suggested;
-  - candidate grid: item number/name/specification/score/high-similar;
+  - candidate grid: item number/name/specification/score/high-similar — **display-only**; exact matches and similar candidates have **no bind/select action** in v1 (no "use this existing material" button), because binding would require write-back which this phase excludes;
   - draft section: composed properties and specification;
-  - action buttons: `创建 Draft` and `取消`.
+  - action buttons: only `创建 Draft` and `取消` (no bind/apply button).
 - The create button must be an explicit user action. No default Enter-key path should create a PLM item accidentally.
 - The window must not show secrets, bearer tokens, local helper tokens, or raw Authorization headers.
 
@@ -128,7 +129,7 @@ Extend `clients/autocad-material-sync/verify_material_sync_static.py`:
   - command calls `ExtractFields(doc)` before `ResolveAsync`;
   - command calls `ResolveAsync`;
   - command calls `CreateAsync` only in a confirmation branch/window result path;
-  - command does not call `ApplyFields(doc, ...)` in the assistant flow;
+  - command does not call `ApplyFields(doc, ...)` **within the `PLMMATASSIST` method body** — the guard MUST be scoped to the slice from `[CommandMethod("PLMMATASSIST")]` to the next `[CommandMethod(`, NOT a whole-file grep. `DedupPlugin.cs` legitimately calls `ApplyFields` in `PLMMATCOMPOSE` (:523), `PLMMATPUSH` (:572), and `PLMMATPULL` (:639), so a whole-file `ApplyFields` assertion would fail by construction.
   - new assistant window files are included in `CADDedupPlugin.csproj` if a WPF window is added.
 - Keep the workflow guard that `verify_material_sync_static.py` runs in `cad-helper-shared-dotnet.yml`.
 - Do not add a CI build of `CADDedupPlugin.csproj`.
