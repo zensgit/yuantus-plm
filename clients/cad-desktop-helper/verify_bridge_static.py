@@ -323,7 +323,7 @@ def main() -> int:
         ("EndpointValidator rejects absolute schemes / network paths / backslash / percent / control chars", lambda: check_no_absolute_scheme_forwarding(bridge_sources)),
         ("production wiring reaches Shared HelperLocator / HelperTransport (M1 convergence)", check_wiring_reaches_shared_helper_locator_and_transport),
         ("no business / UI / DWG-mutation logic in bridge", lambda: check_no_business_logic(bridge_sources)),
-        ("helper route count is 15 after G1-C", check_helper_route_count_after_g1b),
+        ("helper route count is 17 after Phase 3", check_helper_route_count_after_g1b),
         ("G1-B document checkin uses multipart bytes, not local file reads", check_g1b_document_checkin_does_not_read_local_filesystem),
         ("G1-C bom-import is Path A (async /cad/import reuse), no walker, no local read", check_g1c_document_bom_import_path_a_no_walker_no_local_read),
         ("no S10 Lisp shell command files", check_no_s10_lisp_command_files),
