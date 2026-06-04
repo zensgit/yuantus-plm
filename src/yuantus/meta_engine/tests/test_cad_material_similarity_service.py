@@ -25,6 +25,11 @@ TUBE_PROFILE = {
         "template": "Φ{outer_diameter}*{wall_thickness}*{length}",
     },
 }
+FORGING_PROFILE = {
+    "profile_id": "forging",
+    "item_type": "Part",
+    "compose": {"target": "specification", "template": "{blank_size}"},
+}
 
 
 # --------------------------------------------------------------------------- #
@@ -60,6 +65,19 @@ def test_dimension_is_numeric_not_spec_token_overlap():
                  "specification": "Φ50*100"}
     score = sim.score_candidate(BAR_PROFILE, target, candidate)["score"]
     assert score < sim.HIGH_SIMILAR_THRESHOLD
+
+
+def test_forging_blank_size_multi_number_string_drops_out_of_high_band():
+    # blank_size 是含多个数字的字符串量纲；只取首位会误判 20*100 vs 20*200 为高相似。
+    target = {"material_category": "forging", "material": "Q235", "blank_size": "20*100"}
+    candidate = {"material_category": "forging", "material": "Q235", "blank_size": "20*200"}
+    score = sim.score_candidate(FORGING_PROFILE, target, candidate)["score"]
+    assert score < sim.HIGH_SIMILAR_THRESHOLD
+
+
+def test_forging_blank_size_identical_is_high():
+    props = {"material_category": "forging", "material": "Q235", "blank_size": "20*100"}
+    assert sim.score_candidate(FORGING_PROFILE, props, dict(props))["score"] >= sim.HIGH_SIMILAR_THRESHOLD
 
 
 def test_input_normalization_category_alias_not_silently_dropped():

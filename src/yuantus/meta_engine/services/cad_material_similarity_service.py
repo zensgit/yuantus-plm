@@ -107,21 +107,18 @@ def _material_score(a: Any, b: Any) -> float:
     return _token_jaccard(a, b)
 
 
-def _to_number(value: Any) -> Optional[float]:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    if value is None:
-        return None
-    match = _NUMBER_RE.search(str(value))
-    return float(match.group()) if match else None
-
-
 def _all_numbers(value: Any) -> List[float]:
     if value is None:
         return []
     return [float(m) for m in _NUMBER_RE.findall(str(value))]
+
+
+def _number_seq_close(nums_a: List[float], nums_b: List[float]) -> float:
+    """比较两组数字序列：任一空或个数不同记 0（量纲结构不同，如 blank_size
+    "20*100" vs "20*100*5"），否则逐位取最差维(min)。数值字段自然退化为单元素序列。"""
+    if not nums_a or not nums_b or len(nums_a) != len(nums_b):
+        return 0.0
+    return min(_num_close(x, y) for x, y in zip(nums_a, nums_b))
 
 
 def _num_close(a: float, b: float) -> float:
@@ -149,15 +146,16 @@ def _dimension_score(
     target: Dict[str, Any], candidate: Dict[str, Any], dim_fields: List[str]
 ) -> Tuple[float, bool]:
     """数值感知优先；仅当拆分量纲两侧都取不到数值时，回退 specification（先正则抽数值，再 token）。
-    量纲分量取**最差维(min)**：所有维都得对上才算高相似，单维大偏差即拉低（满足 §6.3，
-    与 #701 §3.3.3 的"均值"不同——均值会被未变维拉高、跌不出 0.90）。
-    返回 (score, present)；present=False 表示该分量不参与重归一。"""
+    每个量纲字段抽**完整数字序列**比较（blank_size="20*100" 这类字符串量纲含多个数字，不能只取首位），
+    再跨字段取**最差维(min)**：所有维都得对上才算高相似（满足 §6.3，与 #701 §3.3.3 的"均值"不同——
+    均值会被未变维拉高、跌不出 0.90）。返回 (score, present)；present=False 表示该分量不参与重归一。"""
     per_dim: List[float] = []
     for field in dim_fields:
-        a, b = _to_number(target.get(field)), _to_number(candidate.get(field))
-        if a is None or b is None:
+        nums_a = _all_numbers(target.get(field))
+        nums_b = _all_numbers(candidate.get(field))
+        if not nums_a or not nums_b:
             continue
-        per_dim.append(_num_close(a, b))
+        per_dim.append(_number_seq_close(nums_a, nums_b))
     if per_dim:
         return min(per_dim), True
 
@@ -166,7 +164,7 @@ def _dimension_score(
         return 0.0, False
     nums_a, nums_b = _all_numbers(spec_a), _all_numbers(spec_b)
     if nums_a and nums_b and len(nums_a) == len(nums_b):
-        return min(_num_close(x, y) for x, y in zip(nums_a, nums_b)), True
+        return _number_seq_close(nums_a, nums_b), True
     return _text_score(spec_a, spec_b), True
 
 
