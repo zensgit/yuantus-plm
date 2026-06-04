@@ -117,6 +117,17 @@ def test_mock_activate_default_off_is_404(db_session):
     assert r.status_code == 404
 
 
+def test_mock_activate_flag_off_404s_before_superuser_check(db_session):
+    # default-off must 404 BEFORE require_superuser runs, so the path looks absent
+    # even to a caller that would fail the superuser check -- so DON'T override
+    # require_superuser here (the flag gate must short-circuit first).
+    app = FastAPI()
+    app.include_router(feature_router, prefix="/api/v1")
+    app.dependency_overrides[get_db] = lambda: db_session
+    r = TestClient(app).post(f"/api/v1/features/{FEATURE}/mock-activate")
+    assert r.status_code == 404
+
+
 def test_mock_activate_requires_superuser(db_session, monkeypatch):
     monkeypatch.setenv("YUANTUS_FEATURE_MOCK_ACTIVATION_ENABLED", "true")
     get_settings.cache_clear()

@@ -52,23 +52,39 @@ def feature_status(feature_key: str, db: Session = Depends(get_db)) -> Dict[str,
     }
 
 
+def _require_mock_activation_enabled() -> None:
+    """Default-off gate: 404 (looks absent) unless explicitly enabled.
+
+    A FastAPI dependency so it runs BEFORE require_superuser -- when the mock path
+    is disabled the endpoint returns 404 for everyone (including an unauthenticated
+    caller), instead of leaking its existence via a 401/403 auth error first.
+    """
+    settings = get_settings()
+    if not (settings.FEATURE_MOCK_ACTIVATION_ENABLED or settings.TEST_FAILPOINTS_ENABLED):
+        raise HTTPException(status_code=404, detail="mock activation is not enabled")
+
+
+def _require_mock_admin(
+    _enabled: None = Depends(_require_mock_activation_enabled),
+    identity: object = Depends(require_superuser),
+) -> object:
+    """Enforce the default-off gate FIRST, then superuser (dependency order matters)."""
+    return identity
+
+
 @feature_router.post("/{feature_key}/mock-activate")
 def mock_activate(
     feature_key: str,
     db: Session = Depends(get_db),
-    _identity: object = Depends(require_superuser),
+    _identity: object = Depends(_require_mock_admin),
 ) -> Dict[str, Any]:
     """MOCK activation (demo/test only) -- NOT a production authorization path.
 
-    Default-off: unavailable unless YUANTUS_FEATURE_MOCK_ACTIVATION_ENABLED (or
-    TEST_FAILPOINTS_ENABLED) is true; superuser-only; only plm_collaboration_pro.
-    Writes a tenant-scoped AppLicense marked ``license_data={"mock": true}`` (a
-    marker, NOT an authorization source). Real authorization stays on P1-C.
+    Default-off (``_require_mock_admin`` 404s before the superuser check);
+    superuser-only; only plm_collaboration_pro. Writes a tenant-scoped AppLicense
+    marked ``license_data={"mock": true}`` (a marker, NOT an authorization source).
+    Real authorization stays on P1-C.
     """
-    settings = get_settings()
-    if not (settings.FEATURE_MOCK_ACTIVATION_ENABLED or settings.TEST_FAILPOINTS_ENABLED):
-        # default-off: production behaves as if the path does not exist
-        raise HTTPException(status_code=404, detail="mock activation is not enabled")
     if feature_key != _MOCK_FEATURE:
         raise HTTPException(
             status_code=400, detail=f"mock activation only supports {_MOCK_FEATURE!r}"
