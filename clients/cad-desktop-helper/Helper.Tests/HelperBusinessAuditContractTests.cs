@@ -37,10 +37,26 @@ namespace Yuantus.Cad.Helper.Tests
             Assert.Contains("MapPost(\"/document/status\"", sources);
             Assert.Contains("MapPost(\"/document/checkin\"", sources);
             Assert.Contains("MapPost(\"/document/bom-import\"", sources);
-            Assert.Equal(15, CountOccurrences(sources, "MapGet(") + CountOccurrences(sources, "MapPost("));
+            Assert.Contains("MapPost(\"/material/assistant/resolve\"", sources);
+            Assert.Contains("MapPost(\"/material/assistant/create\"", sources);
+            Assert.Equal(17, CountOccurrences(sources, "MapGet(") + CountOccurrences(sources, "MapPost("));
             Assert.DoesNotContain("MapPut(", sources);
             Assert.DoesNotContain("MapDelete(", sources);
             Assert.DoesNotContain("MapPatch(", sources);
+        }
+
+        [Fact]
+        public void test_material_assistant_routes_forward_to_plm_assistant_endpoints()
+        {
+            var sources = ReadHelperSources();
+
+            Assert.Contains("MapPost(\"/material/assistant/resolve\"", sources);
+            Assert.Contains("MapPost(\"/material/assistant/create\"", sources);
+            // forwarded to the Phase 2 PLM assistant endpoints
+            Assert.Contains("/plugins/cad-material-sync/assistant/resolve", sources);
+            Assert.Contains("/plugins/cad-material-sync/assistant/create", sources);
+            Assert.Contains("MaterialAssistantResolveAsync", sources);
+            Assert.Contains("MaterialAssistantCreateAsync", sources);
         }
 
         [Fact]
@@ -104,6 +120,51 @@ namespace Yuantus.Cad.Helper.Tests
             Assert.Equal("item-1", call.Payload.Value<string>("item_id"));
             Assert.DoesNotContain("X-Yuantus-Local-Token", JsonConvert.SerializeObject(call.Payload));
             Assert.DoesNotContain("Authorization", JsonConvert.SerializeObject(call.Payload));
+        }
+
+        [Fact]
+        public async Task test_material_assistant_resolve_and_create_forward_to_plm_with_bearer()
+        {
+            var plm = new RecordingBusinessClient();
+            var service = CreateService(plm);
+
+            await service.MaterialAssistantResolveAsync(
+                new JObject { ["profile_id"] = "bar", ["cad_fields"] = new JObject { ["MAT"] = "Q235" } },
+                CancellationToken.None);
+            await service.MaterialAssistantCreateAsync(
+                new JObject { ["profile_id"] = "bar", ["properties"] = new JObject { ["material"] = "Q235" } },
+                CancellationToken.None);
+
+            Assert.Equal(2, plm.Calls.Count);
+
+            var resolve = plm.Calls[0];
+            Assert.Equal("https://plm.example.com/api/v1", resolve.ServerUri.ToString());
+            Assert.Equal("/plugins/cad-material-sync/assistant/resolve", resolve.EndpointPath);
+            Assert.Equal("bearer-secret", resolve.BearerToken);
+            Assert.Equal(Paths.ProtocolVersion, resolve.ProtocolVersion);
+            Assert.Equal("Q235", resolve.Payload["cad_fields"].Value<string>("MAT"));
+            Assert.DoesNotContain("X-Yuantus-Local-Token", JsonConvert.SerializeObject(resolve.Payload));
+
+            var create = plm.Calls[1];
+            Assert.Equal("/plugins/cad-material-sync/assistant/create", create.EndpointPath);
+            Assert.Equal("bearer-secret", create.BearerToken);
+            Assert.Equal("Q235", create.Payload["properties"].Value<string>("material"));
+        }
+
+        [Fact]
+        public async Task test_material_assistant_requires_logged_in_session_before_plm_forwarding()
+        {
+            var plm = new RecordingBusinessClient();
+            var service = CreateService(new InMemoryConfigStore(), new InMemoryBearerStore(), null, null, null, null, plm);
+
+            Assert.Equal(ErrorCodes.AuthTenantMissing, (await service.MaterialAssistantResolveAsync(new JObject(), CancellationToken.None)).Code);
+            Assert.Equal(ErrorCodes.AuthTenantMissing, (await service.MaterialAssistantCreateAsync(new JObject(), CancellationToken.None)).Code);
+            Assert.Empty(plm.Calls);
+
+            service = CreateService(new InMemoryConfigStore { ServerUrl = "https://plm.example.com/api/v1", TenantId = "tenant-a" }, new InMemoryBearerStore(), null, null, null, null, plm);
+            Assert.Equal(ErrorCodes.AuthPlmNotLoggedIn, (await service.MaterialAssistantResolveAsync(new JObject(), CancellationToken.None)).Code);
+            Assert.Equal(ErrorCodes.AuthPlmNotLoggedIn, (await service.MaterialAssistantCreateAsync(new JObject(), CancellationToken.None)).Code);
+            Assert.Empty(plm.Calls);
         }
 
         [Fact]
