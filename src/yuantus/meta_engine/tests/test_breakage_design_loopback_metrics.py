@@ -337,12 +337,12 @@ def test_prometheus_surface_exposes_three_gauges_no_new_route():
         session.close()
 
     # This slice still adds no route. Keep this secondary pin aligned with the
-    # current app-level route-count contract (691 after the OdooPLM G3 BOM
-    # auto-layout route; was 690 after the 2 G3 3D-explode routes).
+    # current app-level route-count contract (693 after the 2 PLM-COLLAB-P1-D
+    # feature-affordance routes; 691 after the OdooPLM G3 BOM auto-layout route).
     from yuantus.api.app import create_app
 
     app = create_app()
-    assert len(app.routes) == 691
+    assert len(app.routes) == 693
 
 
 # ==========================================================================
