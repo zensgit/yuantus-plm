@@ -16,6 +16,8 @@ from yuantus.context import get_request_context
 from yuantus.integrations.cad_connectors.base import normalize_cad_key
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.plugin_config_service import PluginConfigService
+from yuantus.meta_engine.services.item_number_keys import get_item_number
+from yuantus.meta_engine.services import cad_material_similarity_service
 
 # Phase 1: profile compose/validate/match/create primitives were extracted to a
 # shared service; re-exported here so plugin routes and the importlib-based
@@ -470,6 +472,44 @@ class SyncInboundResponse(BaseModel):
     errors: List[Dict[str, Any]] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
     dry_run: bool = False
+
+
+class AssistantResolveRequest(BaseModel):
+    profile_id: Optional[str] = None
+    cad_fields: Dict[str, Any] = Field(default_factory=dict)
+    values: Dict[str, Any] = Field(default_factory=dict)
+    cad_system: Optional[str] = None
+
+
+class AssistantResolveResponse(BaseModel):
+    ok: bool
+    profile_id: str
+    composed_properties: Dict[str, Any] = Field(default_factory=dict)
+    cad_fields: Dict[str, Any] = Field(default_factory=dict)
+    exact_matches: List[Dict[str, Any]] = Field(default_factory=list)
+    similar_candidates: List[Dict[str, Any]] = Field(default_factory=list)
+    draft_suggested: bool = False
+    errors: List[Dict[str, Any]] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+
+class AssistantCreateRequest(BaseModel):
+    profile_id: Optional[str] = None
+    properties: Dict[str, Any] = Field(default_factory=dict)
+    cad_fields: Dict[str, Any] = Field(default_factory=dict)
+    values: Dict[str, Any] = Field(default_factory=dict)
+
+
+class AssistantCreateResponse(BaseModel):
+    ok: bool
+    profile_id: str
+    item_id: Optional[str] = None
+    item_number: Optional[str] = None
+    state: Optional[str] = None
+    current_state: Optional[str] = None
+    draft_check: Dict[str, Any] = Field(default_factory=dict)
+    errors: List[Dict[str, Any]] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
 
 
 def _get_db():
@@ -2089,4 +2129,130 @@ def sync_inbound(
         cad_fields=cad_fields,
         warnings=warnings,
         dry_run=req.dry_run,
+    )
+
+
+def _assistant_draft_check(db, item: Any) -> Dict[str, Any]:
+    """按 lifecycle 起始态校验 Draft（约束 6 / §5.3）。不把 state="New" 当 Draft。"""
+    from yuantus.meta_engine.lifecycle.models import LifecycleState
+    from yuantus.meta_engine.models.meta_schema import ItemType
+
+    item_type = db.get(ItemType, getattr(item, "item_type_id", None))
+    map_id = getattr(item_type, "lifecycle_map_id", None) if item_type else None
+    start_state = None
+    if map_id:
+        start_state = (
+            db.query(LifecycleState)
+            .filter(
+                LifecycleState.lifecycle_map_id == map_id,
+                LifecycleState.is_start_state.is_(True),
+            )
+            .first()
+        )
+    if not start_state:
+        return {
+            "is_start_state": False,
+            "is_draft": False,
+            "warning": "no_lifecycle_start_state",
+        }
+    aligned = (
+        getattr(item, "state", None) == start_state.name
+        and getattr(item, "current_state", None) == start_state.id
+    )
+    return {
+        "is_start_state": aligned,
+        "is_draft": aligned,
+        "start_state_name": start_state.name,
+        "start_state_id": start_state.id,
+    }
+
+
+@router.post("/assistant/resolve", response_model=AssistantResolveResponse)
+def assistant_resolve(
+    req: AssistantResolveRequest,
+    db=Depends(_get_db),
+    _user: Any = Depends(_current_user),
+) -> AssistantResolveResponse:
+    """只读编排：CAD 字段映射 → compose → 精确匹配 → 字段相似。不写任何业务表（约束 1）。"""
+    profiles = load_profiles(db)
+    profile = _get_profile(profiles, req.profile_id or infer_profile_id(dict(req.values or {})))
+    incoming: Dict[str, Any] = {}
+    incoming.update(cad_fields_to_properties(profile, req.cad_fields or {}))
+    incoming.update(req.values or {})
+    if not req.profile_id:
+        profile = _get_profile(profiles, infer_profile_id(incoming))
+
+    properties, _composed, errors, warnings = compose_profile(profile, incoming)
+    cad_fields = cad_field_package(profile, properties, cad_system=req.cad_system)
+
+    exact_matches = [
+        _item_payload(item) for item in _find_matching_items(db, profile, properties)
+    ]
+    exact_ids = [match["id"] for match in exact_matches if match.get("id")]
+    similar = cad_material_similarity_service.find_similar(
+        db, profile, properties, exclude_ids=exact_ids
+    )
+    if similar.get("truncated"):
+        warnings.append(
+            f"similar_candidates_truncated_at:{cad_material_similarity_service.CANDIDATE_CAP}"
+        )
+    has_high = any(candidate.get("high_similar") for candidate in similar["candidates"])
+    draft_suggested = not exact_matches and not has_high
+    return AssistantResolveResponse(
+        ok=not errors,
+        profile_id=str(profile["profile_id"]),
+        composed_properties=properties,
+        cad_fields=cad_fields,
+        exact_matches=exact_matches,
+        similar_candidates=similar["candidates"],
+        draft_suggested=draft_suggested,
+        errors=errors,
+        warnings=warnings,
+    )
+
+
+@router.post("/assistant/create", response_model=AssistantCreateResponse)
+def assistant_create(
+    req: AssistantCreateRequest,
+    db=Depends(_get_db),
+    current_user: Any = Depends(_current_user),
+) -> AssistantCreateResponse:
+    """确认后创建：复用 _apply_item_create，按 id 回读再组装（约束 2 / §5.2）。"""
+    profiles = load_profiles(db)
+    seed = {**(req.values or {}), **(req.properties or {})}
+    profile = _get_profile(profiles, req.profile_id or infer_profile_id(seed))
+    incoming: Dict[str, Any] = {}
+    incoming.update(cad_fields_to_properties(profile, req.cad_fields or {}))
+    incoming.update(req.values or {})
+    incoming.update(req.properties or {})
+    if not req.profile_id:
+        profile = _get_profile(profiles, infer_profile_id(incoming))
+
+    properties, _composed, errors, warnings = compose_profile(profile, incoming)
+    if errors:
+        return AssistantCreateResponse(
+            ok=False,
+            profile_id=str(profile["profile_id"]),
+            errors=errors,
+            warnings=warnings,
+        )
+
+    created_item_id = _apply_item_create(db, profile, properties, current_user)
+    item = db.get(Item, created_item_id) if created_item_id else None
+    if item is None:
+        return AssistantCreateResponse(
+            ok=False,
+            profile_id=str(profile["profile_id"]),
+            errors=[{"code": "create_failed", "message": "item not created"}],
+            warnings=warnings,
+        )
+    return AssistantCreateResponse(
+        ok=True,
+        profile_id=str(profile["profile_id"]),
+        item_id=getattr(item, "id", None),
+        item_number=get_item_number(getattr(item, "properties", None)),
+        state=getattr(item, "state", None),
+        current_state=getattr(item, "current_state", None),
+        draft_check=_assistant_draft_check(db, item),
+        warnings=warnings,
     )
