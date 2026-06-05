@@ -108,11 +108,16 @@ async def attach_file_to_item(
     if not file_container:
         raise HTTPException(status_code=404, detail="File not found")
 
+    # WP1.3: link identity is (item_id, file_id, file_role). Re-attaching the same
+    # triple updates link attributes (description); a DIFFERENT role for the same
+    # file creates a NEW row. We never mutate an existing row's role, which would
+    # collapse M/D selection for staleness.
     existing = (
         db.query(ItemFile)
         .filter(
             ItemFile.item_id == request.item_id,
             ItemFile.file_id == request.file_id,
+            ItemFile.file_role == request.file_role,
         )
         .first()
     )
@@ -124,17 +129,9 @@ async def attach_file_to_item(
             file_role=existing.file_role,
             user_id=user_id,
         )
-        if request.file_role != existing.file_role:
-            _ensure_current_version_attachment_editable(
-                db,
-                item,
-                file_id=existing.file_id,
-                file_role=request.file_role,
-                user_id=user_id,
-            )
-        if existing.file_role != request.file_role:
-            existing.file_role = request.file_role
+        if request.description is not None and existing.description != request.description:
             existing.description = request.description
+            db.add(existing)
             db.commit()
         return {"status": "updated", "id": existing.id}
 

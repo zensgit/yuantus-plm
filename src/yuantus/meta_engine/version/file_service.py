@@ -494,6 +494,12 @@ class VersionFileService:
                 "file_role": role,
                 "sequence": item_file.sequence or 0,
                 "source": "item",
+                # WP1.3: freeze the current ItemFile staleness/provenance into the snapshot.
+                "import_batch_id": item_file.import_batch_id,
+                "source_batch_id": item_file.source_batch_id,
+                "needs_update": bool(item_file.needs_update),
+                "staleness_reason": item_file.staleness_reason,
+                "staleness_checked_at": item_file.staleness_checked_at,
             }
 
         if extra_files:
@@ -564,6 +570,11 @@ class VersionFileService:
                 existing_vf.sequence = entry.get("sequence", existing_vf.sequence)
                 existing_vf.snapshot_path = file.system_path
                 existing_vf.is_primary = is_primary
+                existing_vf.import_batch_id = entry.get("import_batch_id")
+                existing_vf.source_batch_id = entry.get("source_batch_id")
+                existing_vf.needs_update = bool(entry.get("needs_update", False))
+                existing_vf.staleness_reason = entry.get("staleness_reason")
+                existing_vf.staleness_checked_at = entry.get("staleness_checked_at")
                 self.session.add(existing_vf)
                 updated += 1
             else:
@@ -575,6 +586,11 @@ class VersionFileService:
                     sequence=entry.get("sequence", 0),
                     snapshot_path=file.system_path,
                     is_primary=is_primary,
+                    import_batch_id=entry.get("import_batch_id"),
+                    source_batch_id=entry.get("source_batch_id"),
+                    needs_update=bool(entry.get("needs_update", False)),
+                    staleness_reason=entry.get("staleness_reason"),
+                    staleness_checked_at=entry.get("staleness_checked_at"),
                     created_at=datetime.utcnow(),
                 )
                 self.session.add(vf)
@@ -666,6 +682,14 @@ class VersionFileService:
                 "file_id": vf.file_id,
                 "file_role": vf.file_role,
                 "sequence": vf.sequence or 0,
+                # WP1.3: carry PROVENANCE back so a version switch / ECO apply does
+                # not lose import_batch_id/source_batch_id. The DERIVED verdict
+                # (needs_update/reason/checked_at) is intentionally NOT written back
+                # here -- it is recomputed on the current state by
+                # CadConsistencyService, so a non-current snapshot can never push a
+                # stale verdict onto the current ItemFile (M3).
+                "import_batch_id": vf.import_batch_id,
+                "source_batch_id": vf.source_batch_id,
             }
 
         existing = (
@@ -687,6 +711,8 @@ class VersionFileService:
             existing_item = existing_map.get(key)
             if existing_item:
                 existing_item.sequence = entry.get("sequence", existing_item.sequence or 0)
+                existing_item.import_batch_id = entry.get("import_batch_id")
+                existing_item.source_batch_id = entry.get("source_batch_id")
                 self.session.add(existing_item)
                 updated += 1
             else:
@@ -696,6 +722,8 @@ class VersionFileService:
                     file_id=file_id,
                     file_role=entry["file_role"],
                     sequence=entry.get("sequence", 0),
+                    import_batch_id=entry.get("import_batch_id"),
+                    source_batch_id=entry.get("source_batch_id"),
                 )
                 self.session.add(item_file)
                 created += 1
@@ -768,6 +796,12 @@ class VersionFileService:
                 sequence=sf.sequence,
                 snapshot_path=sf.snapshot_path,
                 is_primary=sf.is_primary,
+                # WP1.3: carry staleness/provenance into the new revision/branch snapshot.
+                import_batch_id=sf.import_batch_id,
+                source_batch_id=sf.source_batch_id,
+                needs_update=bool(sf.needs_update),
+                staleness_reason=sf.staleness_reason,
+                staleness_checked_at=sf.staleness_checked_at,
                 created_at=datetime.utcnow(),
             )
             self.session.add(vf)

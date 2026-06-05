@@ -8,14 +8,20 @@ import uuid
 import logging
 from pathlib import Path
 import io
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.version.service import VersionService, IterationService
 from yuantus.exceptions.handlers import PermissionError, ValidationError
 from yuantus.meta_engine.events.domain_events import FileCheckedInEvent
 from yuantus.meta_engine.events.transactional import enqueue_event
-from yuantus.meta_engine.models.file import FileContainer, ConversionStatus, DocumentType
+from yuantus.meta_engine.models.file import (
+    ConversionStatus,
+    DocumentType,
+    FileContainer,
+    FileRole,
+    ItemFile,
+)
 from yuantus.meta_engine.services.file_service import FileService
 
 logger = logging.getLogger(__name__)
@@ -66,6 +72,14 @@ class _CheckinFileService:
             file_obj=io.BytesIO(content), file_path=storage_key
         )
 
+        # WP1.3: derive document_type the same way the import path does (was a
+        # hard-coded OTHER), so a checked-in 3D native gets document_type="3d" and
+        # is selectable as model M for 2D/3D staleness. Lazy import to avoid a
+        # cad_import_service -> engine -> checkin_service import cycle.
+        from yuantus.meta_engine.services.cad_import_service import _resolve_cad_metadata
+
+        resolved = _resolve_cad_metadata(ext, None, None, content=content, filename=filename)
+
         fc = FileContainer(
             id=file_id,
             filename=filename,
@@ -74,9 +88,10 @@ class _CheckinFileService:
             file_size=len(content),
             checksum=None,
             system_path=stored_key,
-            document_type=DocumentType.OTHER.value,
+            document_type=resolved["document_type"] or DocumentType.OTHER.value,
             is_native_cad=True,
-            cad_format=ext.upper() if ext else None,
+            cad_format=resolved["cad_format"] or (ext.upper() if ext else None),
+            cad_connector_id=resolved.get("connector_id"),
             conversion_status=ConversionStatus.PENDING.value,
         )
         self.session.add(fc)
@@ -116,14 +131,52 @@ class CheckinManager:
             item_id, self.user_id, properties=None, comment="CAD Undo Checkout"
         )
 
-    def checkin(self, item_id: str, content: bytes, filename: str):
+    def _upsert_native_role_row(
+        self, item_id: str, file_id: str, import_batch_id: str
+    ) -> None:
+        """WP1.3: materialize the native model as a ``native_cad`` ItemFile (the
+        current-state authority), so CadConsistencyService can select it as model M.
+        Upsert by (item_id, file_id, native_cad) to respect the unique index."""
+        role = FileRole.NATIVE_CAD.value
+        existing = (
+            self.session.query(ItemFile)
+            .filter_by(item_id=item_id, file_id=file_id, file_role=role)
+            .first()
+        )
+        if existing:
+            existing.import_batch_id = import_batch_id
+            self.session.add(existing)
+        else:
+            self.session.add(
+                ItemFile(
+                    item_id=item_id,
+                    file_id=file_id,
+                    file_role=role,
+                    import_batch_id=import_batch_id,
+                )
+            )
+        self.session.flush()
+
+    def checkin(
+        self,
+        item_id: str,
+        content: bytes,
+        filename: str,
+        import_batch_id: Optional[str] = None,
+    ):
         from yuantus.meta_engine.services.job_service import JobService
 
+        batch_id = import_batch_id or str(uuid.uuid4())
         native = self.file_service.upload_file(content, filename)
         props: Dict[str, Any] = {"native_file": native.id}
 
         item = self.session.get(Item, item_id)
         version_id = item.current_version_id if item else None
+
+        # WP1.3: register the native as a native_cad ItemFile (carries import_batch_id).
+        # VersionService.checkin's file sync mirrors it into the current VersionFile.
+        if item is not None:
+            self._upsert_native_role_row(item_id, native.id, batch_id)
 
         job_service = JobService(self.session)
         ext = Path(filename).suffix.lower().lstrip(".")
@@ -157,9 +210,23 @@ class CheckinManager:
             geometry_job.id,
         )
 
-        return self.version_service.checkin(
+        result = self.version_service.checkin(
             item_id, self.user_id, properties=props, comment="CAD Checkin"
         )
+
+        # WP1.3: refresh 2D/3D staleness for this part (non-fatal -- advisory).
+        try:
+            from yuantus.meta_engine.services.cad_consistency_service import (
+                CadConsistencyService,
+            )
+
+            CadConsistencyService(self.session).recompute(item_id)
+        except Exception:  # noqa: BLE001 - advisory recompute, never blocks checkin
+            logger.warning(
+                "WP1.3 staleness recompute failed for item %s", item_id, exc_info=True
+            )
+
+        return result
 
     def undo_check_out(self, item_id: str, user_id: int) -> Item:
         """Unlock an item without saving changes."""

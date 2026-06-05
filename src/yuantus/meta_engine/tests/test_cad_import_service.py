@@ -278,7 +278,12 @@ def test_auto_part_creates_new_part_when_no_existing_part():
     assert "superuser" in engine_cls.call_args.kwargs["roles"]
 
 
-def test_existing_item_file_link_role_update_checks_old_and_new_roles():
+def test_existing_same_triple_link_updates_batch_without_role_overwrite():
+    # WP1.3: link identity is (item_id, file_id, file_role). Re-attaching the SAME
+    # triple updates link attributes (import_batch_id) and NEVER mutates the role
+    # (the old "different role -> overwrite existing row" path was removed; a
+    # different role now creates a new row -- covered by test_cad_2d3d_staleness
+    # T18). The editability guard runs once for the matched role.
     duplicate = _file_container()
     item = SimpleNamespace(id="item-1", current_version_id="ver-1")
     existing_link = SimpleNamespace(
@@ -286,6 +291,7 @@ def test_existing_item_file_link_role_update_checks_old_and_new_roles():
         item_id="item-1",
         file_id="file-1",
         file_role="native_cad",
+        import_batch_id=None,
     )
     db = _db(duplicate_file=duplicate, item=item, existing_link=existing_link)
 
@@ -294,16 +300,15 @@ def test_existing_item_file_link_role_update_checks_old_and_new_roles():
     ) as guard:
         file_service_cls.return_value.file_exists.return_value = True
         result = CadImportService(db, MagicMock()).import_file(
-            _request(item_id="item-1", file_role="geometry"),
+            _request(item_id="item-1", file_role="native_cad", import_batch_id="B"),
             _user(),
         )
 
     assert result.attachment_id == "att-1"
-    assert existing_link.file_role == "geometry"
-    assert [call.kwargs["file_role"] for call in guard.call_args_list] == [
-        "native_cad",
-        "geometry",
-    ]
+    assert existing_link.file_role == "native_cad"  # role never overwritten
+    assert existing_link.import_batch_id == "B"  # batch updated on the same triple
+    assert result.import_batch_id == "B"
+    assert [call.kwargs["file_role"] for call in guard.call_args_list] == ["native_cad"]
 
 
 def test_new_item_file_link_checks_editability_before_insert():

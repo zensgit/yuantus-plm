@@ -107,3 +107,15 @@ class CadAttributesSyncedEvent(DomainEvent):
     item_id: str
     file_id: str
     synced_attributes: Dict[str, Any]
+
+
+class CadDrawingStalenessChangedEvent(DomainEvent):
+    """WP1.3: emitted only when a drawing's materialized staleness verdict FLIPS
+    (needs_update changes) during CadConsistencyService.recompute."""
+
+    event_type: str = "cad.drawing_staleness_changed"
+    item_id: str
+    drawing_file_id: str
+    needs_update: bool
+    previous_needs_update: bool
+    staleness_reason: Optional[str] = None

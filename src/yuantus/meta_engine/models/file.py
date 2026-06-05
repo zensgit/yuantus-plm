@@ -13,6 +13,7 @@ from sqlalchemy import (
     DateTime,
     Text,
     JSON,
+    Index,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
@@ -239,8 +240,30 @@ class ItemFile(Base):
     # Optional description
     description = Column(String)
 
+    # WP1.3 CAD 2D/3D staleness (provenance + materialized verdict).
+    # import_batch_id: the CAD "save batch" this file row belongs to (client save-all
+    #   groups files; server defaults one per import/checkin call).
+    # source_batch_id: on a drawing row, the *model* batch it was last co-saved with
+    #   (provenance pin); set only when drawing+model share import_batch_id.
+    # needs_update / staleness_reason / staleness_checked_at: materialized verdict,
+    #   written by CadConsistencyService.recompute (current-state authority).
+    import_batch_id = Column(String, nullable=True, index=True)
+    source_batch_id = Column(String, nullable=True)
+    needs_update = Column(Boolean, nullable=False, default=False, index=True)
+    staleness_reason = Column(String, nullable=True)
+    staleness_checked_at = Column(DateTime(timezone=True), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # One row per (item, file, role) — mirrors VersionFile's
+    # (version_id, file_id, file_role) unique index. Prevents role-collapse and
+    # keeps M/D selection deterministic for WP1.3 staleness.
+    __table_args__ = (
+        Index(
+            "uq_item_file_role", "item_id", "file_id", "file_role", unique=True
+        ),
+    )
 
     # Relationships
     item = relationship("Item", backref="item_files")
