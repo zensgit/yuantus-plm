@@ -101,6 +101,9 @@ class TestLifecycleVersionIntegration:
                 q.filter.return_value.first.return_value = transition
             elif cls.__name__ == "Item":
                 q.filter_by.return_value.one.return_value = item
+                # B2 assembly-release gate queries direct ASSEMBLY children edges
+                # (query(Item).filter(...).all()); none here -> gate passes.
+                q.filter.return_value.all.return_value = []
             elif cls.__name__ == "ItemVersion":
                 q.filter_by.return_value.one.return_value = ver
             return q

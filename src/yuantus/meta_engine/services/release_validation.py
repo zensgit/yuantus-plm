@@ -53,6 +53,16 @@ ECO_APPLY_RULES_DEFAULT: List[str] = [
     "eco.rebase_conflicts_absent",
 ]
 
+# B2: assembly release hard gate. A released parent must not reference unreleased
+# direct ASSEMBLY children (the CAD product structure, WP1.2). The "readiness"
+# variant drops not_already_released so it can be evaluated DURING the promote
+# transition (when the item itself is mid-flight to Released).
+ITEM_RELEASE_RULES_DEFAULT: List[str] = [
+    "item.exists",
+    "item.not_already_released",
+    "bom.children_all_released",
+]
+
 
 def _without(rule_ids: List[str], removed: str) -> List[str]:
     return [r for r in (rule_ids or []) if r != removed]
@@ -77,6 +87,11 @@ BASELINE_RELEASE_RULES_READINESS: List[str] = _without(
     "baseline.not_already_released",
 )
 
+ITEM_RELEASE_RULES_READINESS: List[str] = _without(
+    list(ITEM_RELEASE_RULES_DEFAULT),
+    "item.not_already_released",
+)
+
 
 _BUILTIN_RULESETS: Mapping[str, Mapping[str, List[str]]] = {
     "routing_release": {
@@ -93,6 +108,10 @@ _BUILTIN_RULESETS: Mapping[str, Mapping[str, List[str]]] = {
         "readiness": list(BASELINE_RELEASE_RULES_READINESS),
     },
     "eco_apply": {"default": list(ECO_APPLY_RULES_DEFAULT)},
+    "item_release": {
+        "default": list(ITEM_RELEASE_RULES_DEFAULT),
+        "readiness": list(ITEM_RELEASE_RULES_READINESS),
+    },
 }
 
 _ALLOWED_RULE_IDS: Mapping[str, set[str]] = {
@@ -101,6 +120,7 @@ _ALLOWED_RULE_IDS: Mapping[str, set[str]] = {
     "mbom_release": set(MBOM_RELEASE_RULES_DEFAULT),
     "baseline_release": set(BASELINE_RELEASE_RULES_DEFAULT),
     "eco_apply": set(ECO_APPLY_RULES_DEFAULT),
+    "item_release": set(ITEM_RELEASE_RULES_DEFAULT),
 }
 
 _EXISTENCE_RULES: Mapping[str, str] = {
@@ -108,6 +128,7 @@ _EXISTENCE_RULES: Mapping[str, str] = {
     "mbom_release": "mbom.exists",
     "baseline_release": "baseline.exists",
     "eco_apply": "eco.exists",
+    "item_release": "item.exists",
 }
 
 
