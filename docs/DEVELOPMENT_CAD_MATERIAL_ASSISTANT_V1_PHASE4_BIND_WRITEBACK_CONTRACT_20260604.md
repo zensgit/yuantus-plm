@@ -83,6 +83,11 @@ There is no new server-side relationship table in this phase. The user-visible b
 
 If product wants a durable DWG-to-PLM relationship beyond field values, that needs a separate data model and contract.
 
+Product checkpoint before implementation: confirm that this narrower definition of
+"bind" is acceptable for v1. If product expects PLM-side queryability of which DWG
+is bound to which Part, stop and open a data-model phase before changing the
+AutoCAD command.
+
 ### 5.4 Candidate identity must be robust
 
 The AutoCAD command must reject candidate selection when the candidate has no usable `id`. It must not try to infer an item id from material number, description, or rendered text.
@@ -140,10 +145,16 @@ Update only the `PLMMATASSIST` method body and nearby helper methods:
 Extend `clients/autocad-material-sync/verify_material_sync_static.py`:
 
 - method-body slice stays scoped to `PLMMATASSIST`;
+- delete/replace the existing Phase 3 assertion
+  `require("ApplyFields(" not in body, ...)`; Phase 4 bind/write-back will add a
+  legitimate `ApplyFields` call to `PLMMATASSIST`, so leaving the old assertion
+  would make the verifier self-contradictory;
 - require order: `ExtractFields` -> `ResolveAsync` -> candidate selection -> `DiffPreviewAsync` -> `MaterialSyncDiffPreviewWindow` -> `ApplyFields`;
 - require `ReportApplyResultSafely` in the write branch;
 - require `ApplyFields` appears only after the preview confirmation branch;
 - keep `CreateAsync` confirm-gated and separate from bind/write-back;
+- scope the "no DWG write-back" guarantee to the create branch only; the bind
+  branch is allowed to write confirmed `write_cad_fields`;
 - reject any new direct assistant PLM call bypassing Helper.
 
 ### Step E - Evidence gate update
@@ -157,6 +168,14 @@ Update the Windows evidence guide/template/validator to require:
 - confirm preview -> only `write_cad_fields` changed;
 - `/audit/apply-result` observed with `outcome=ok`;
 - create branch evidence remains separate and still records no create DWG write-back unless a later create-writeback contract exists.
+
+Implementation trap: update the whole evidence gate as one set. The validator
+`REQUIRED_FIELDS`, semantic checks, blank-template assertions, and the
+`_minimal_real_2018_evidence` fixture in
+`src/yuantus/meta_engine/tests/test_cad_material_sync_external_validation_contracts.py`
+must all receive the new bind/write-back fields together. Updating only the
+validator will make the contract tests fail or, worse, leave the template and
+fixture out of sync.
 
 ## 7. Acceptance
 
