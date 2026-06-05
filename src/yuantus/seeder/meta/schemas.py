@@ -53,6 +53,21 @@ class MetaSchemaSeeder(BaseSeeder):
             if not bom_item_type.related_item_type_id:
                 bom_item_type.related_item_type_id = "Part"
 
+        # 5. CAD-PDM relationship ItemTypes (WP1.1)
+        # OdooPLM HiTree/RfTree semantics map to Part<->Part relationships in
+        # Yuantus. 2D/3D staleness stays file-role based; do not seed DOC_* or
+        # DRAWING_OF relationship types here.
+        self._ensure_part_relationship_item_type(
+            id="ASSEMBLY",
+            label="Assembly",
+            icon="git-branch",
+        )
+        self._ensure_part_relationship_item_type(
+            id="REFERENCE",
+            label="Reference",
+            icon="link",
+        )
+
     def _ensure_item_type(self, id: str, label: str, is_versionable: bool = True, icon: str = None):
         it = self.session.query(ItemType).filter_by(id=id).first()
         if not it:
@@ -66,6 +81,25 @@ class MetaSchemaSeeder(BaseSeeder):
             )
             self.session.add(it)
             self.log(f"Created ItemType: {label}")
+        return it
+
+    def _ensure_part_relationship_item_type(
+        self,
+        id: str,
+        label: str,
+        icon: str = None,
+    ):
+        it = self._ensure_item_type(
+            id=id,
+            label=label,
+            is_versionable=False,
+            icon=icon,
+        )
+        it.label = label
+        it.is_versionable = False
+        it.is_relationship = True
+        it.source_item_type_id = "Part"
+        it.related_item_type_id = "Part"
         return it
 
     def _ensure_rel_type(self, id, name, label, source_type, related_type):
