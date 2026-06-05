@@ -56,7 +56,7 @@ PLM already exposes BOM as a graph; metasheet2 already consumes the BOM read sur
 | PLM (Yuantus) | grounding | Multi-table |
 |---|---|---|
 | `Item` (`meta_items`) | `src/yuantus/meta_engine/models/item.py:20` (id, item_type_id, config_id, generation, is_current, state, current_version_id, **properties JSON**) | a **record** (a Part / a BOM-line target) |
-| `Relationship` (`meta_relationships`) | `src/yuantus/meta_engine/relationship/legacy_models.py:76` (source_id, related_id, relationship_type, **`properties` JSON** at :112) | a **BOM line** (parent→child; line attributes live in `properties`) |
+| BOM **"Part BOM" relationship-Item** (an `Item`, NOT the legacy `Relationship` class) | `BOMService.add_child` (`services/bom_service.py:777`) creates `Item(item_type_id="Part BOM", source_id, related_id, properties)`; `_build_tree` (:293) reads it via `Item.source_id` | a **BOM line** (parent→child; line attributes in the relationship-Item's `properties`) |
 | `ItemType` (+ `property`) | AML metadata: `GET /api/v1/aml/metadata/{itemType}` (name/label/type/required/length/default) | a **table + its columns** |
 
 This `ItemType≈table / property≈field / Item≈record` isomorphism is the canonical plan's anchor
@@ -64,8 +64,15 @@ This `ItemType≈table / property≈field / Item≈record` isomorphism is the ca
 `contracts/pacts/metasheet2-yuantus-plm.json`):
 `/api/v1/bom/{id}/tree`, `/where-used`, `/substitutes`, `/bom/compare`, `/bom/compare/schema`.
 
-**Minimal-cut object set (F-A):** the **BOM tree of one Part** (`/bom/{id}/tree`) projected into a
-review table — parent Part as context, each child Relationship as a row. `where-used`,
+**Minimal-cut object set (F-A):** the **full BOM tree of one Part** (`/bom/{id}/tree`, `depth=-1` — the
+WHOLE tree, never silently truncated; any future cap is a pagination/limit slice, not a v1 drop), RESTRICTED
+to `"Part BOM"` relationships (non-BOM links off the same parent are neither projected nor allowed to escape
+the `"Part BOM"`-scoped read-permission check), FLATTENED (pre-order) into a review table — the Part as the
+context row, and **every** descendant BOM line as a row carrying two read-only technical keys: `bom_line_id`
+(the relationship-Item id — the STABLE per-ROW key, since Yuantus allows the same parent→child as multiple
+lines e.g. different UOM, so part_id+path collide) and `part_id` (the child Part id). Plus `level`, `path`
+(ancestor **part-id** breadcrumb) and `path_labels` (parallel item_number chain, display only); the exact
+tree is recoverable from `level` + pre-order. `where-used`,
 `substitutes`, `compare` are review aids, deferred past the minimal cut unless trivially additive.
 
 ---
@@ -80,16 +87,19 @@ provenance, and MetaSheet is NEVER the authority for them.
 **Read-only authoritative snapshot (projected, never editable in MetaSheet):**
 - Part identity/state: `item_number`, `name`, `state`/`current_state`, `revision`/`generation`,
   `current_version`, `is_current`.
-- BOM-line authoritative: the per-line attributes live in `Relationship.properties`
-  (`legacy_models.py:112`) — `quantity`/`uom`/`find_num`/`refdes`, managed by
-  `BOMService.LINE_FIELD_KEYS`/`add_child` (`services/bom_service.py:25`) — plus the child
-  `item_number` and the relationship type. (NOTE: `max_quantity` is a TYPE-level constraint on
-  `RelationshipType` (`legacy_models.py:55`), NOT the per-line quantity — do not read it for the
-  line value.)
+- BOM-line authoritative: a BOM line is a **"Part BOM" relationship-Item** (an `Item` with
+  `item_type_id="Part BOM"`, `source_id`/`related_id`), NOT the legacy `Relationship` class. The
+  per-line attributes live in that relationship-Item's `properties` — `quantity`/`uom`/`find_num`/
+  `refdes`, written by `BOMService.add_child` (`services/bom_service.py:777`; keys at
+  `LINE_FIELD_KEYS` :25) — plus the child `item_number`. (NOTE: the legacy `Relationship` class
+  (`relationship/legacy_models.py`) is NOT the current BOM write/read source; `max_quantity` there
+  is a type-level constraint on `RelationshipType`, not the per-line quantity.)
 - Curated `properties` (the AML-declared read-only Part attributes relevant to review).
-- **Provenance markers on every snapshot row** (铁律 5): `source_version` / `source_updated_at` /
-  `sync_status` so MetaSheet can detect staleness (mirrors P2-C's `source_updated_at` +
-  `sync_status:"snapshot"`).
+- **Provenance markers on the envelope AND every snapshot row** (铁律 5): `source_version` /
+  `source_updated_at` / `sync_status`, so MetaSheet can detect staleness per row (mirrors P2-C's
+  `source_updated_at` + `sync_status:"snapshot"`). `source_updated_at` falls back `modified_on || created_on`
+  (Item.updated_at has no default, else a fresh row reads null); per line it is the LATER of the child-Item's
+  and the relationship-Item's last touch, so a quantity edit OR a child state/generation change both surface.
 
 **MetaSheet-local collaboration fields (editable, MetaSheet-authoritative, NOT projected back):**
 - `owner` / assignee, review `status`, `tags`, `note`/comments, `due_date`, review opinion.
@@ -146,8 +156,9 @@ inside the PLM BOM screen").
 ## 6. Minimal sellable scope (F-A = the "BOM review table" skeleton)
 
 **In (the sellable skeleton):**
-- Yuantus: a governed READ-ONLY BOM-context projection endpoint (P3-A) — one Part's BOM tree as a
-  review snapshot with provenance markers, entitlement-gated by `is_entitled("bom_multitable")`.
+- Yuantus: a governed READ-ONLY BOM-context projection endpoint (P3-A) — one Part's full BOM tree,
+  flattened (level/path) into a review snapshot with envelope + per-row provenance markers, entitlement-gated
+  by `is_entitled("bom_multitable")` and Part-type-guarded (non-Part → 400).
 - Yuantus: light `bom_multitable` + advertise it in the capability manifest (P3-B).
 - metasheet2: consume the BOM capability + render a read-only BOM review table with MetaSheet-local
   collaboration fields (P3-C), degrading by `supported`/`entitled` (reuse C1/C2/C3).
@@ -182,7 +193,7 @@ risk out of the first sellable cut.
 
 | Slice | Scope | Entry | Exit |
 |---|---|---|---|
-| **P3-A** Yuantus BOM governed projection | read-only BOM-context snapshot endpoint (like P2-C, object = BOM/Part); provenance markers; entitlement-gated; NO write-back, NO embed | this package ratified | endpoint + endpoint/service tests on main; the EXISTING provider pact stays green (the new projection has NO consumer pact interaction yet — P3-C adds it, after which provider verification pins the projection contract) |
+| **P3-A** Yuantus BOM governed projection | `GET /api/v1/bom/multitable/{part_id}/context` (like P2-C, object = BOM/Part): full BOM tree (`depth=-1`, no truncation), restricted to `"Part BOM"` relationships, flattened with `bom_line_id` (stable row key) + `part_id` (child part key) + `level` + `path` (ancestor part-ids) + `path_labels` (item_numbers), curated read-only fields + envelope/per-row provenance; order auth → `is_entitled` → part → Part-type (400) → read perm; unentitled → `context:null` (no existence leak); NO write-back, NO embed | this package ratified | endpoint + endpoint/service tests on main; the EXISTING provider pact stays green (the new projection has NO consumer pact interaction yet — P3-C adds it, after which provider verification pins the projection contract) |
 | **P3-B** `bom_multitable` SKU + capabilities | light the reserved key to an independent SKU; manifest descriptor (supported/api_version/scenarios) | P3-A endpoint exists | lit + advertised; entitlement tests; route/pin updated |
 | **P3-C** metasheet2 consume BOM capability | backend adapter method + relay route + frontend read-only review table with collaboration fields; degrade by supported/entitled (reuse C1/C2/C3) | P3-A/B on main | review table renders; vitest specs; CI green |
 | **P3-D** embed / collaboration surface | identity spine (short-token / DingTalk IdP), `apiTokenAuth` base-scope, iframe slot; BOM table inside the PLM BOM screen; PLM fields still read-only, write-back only via governed endpoint | P3-C shipped + spine decision | embedded review surface; auth-gated iframe |
@@ -195,7 +206,7 @@ authoritative fields is a deliberate non-goal of P3-A…P3-D's minimal sellable 
 ## 9. References (grounding)
 
 - Canonical plan: `docs/development/plm-collaboration-automation-development-plan-20260602.md` (铁律 5/6 §65/66; spine §98; assets §104/113/116; gaps §120/125; sequence §227).
-- BOM/Part models: `src/yuantus/meta_engine/models/item.py:20` (Item), `src/yuantus/meta_engine/relationship/legacy_models.py:76` (Relationship).
+- BOM/Part models: `src/yuantus/meta_engine/models/item.py:20` (Item; a BOM line = a "Part BOM" relationship-Item created at `services/bom_service.py:777`, read via `Item.source_id` in `_build_tree` :293). The legacy `Relationship` class (`relationship/legacy_models.py`) is NOT the current BOM source.
 - Pact BOM endpoints: `contracts/pacts/metasheet2-yuantus-plm.json` (`/bom/{id}/tree`, `/where-used`, `/substitutes`, `/bom/compare`).
 - Entitlement: `src/yuantus/meta_engine/app_framework/entitlement_service.py:36` (`bom_multitable` reserved).
 - Proven patterns to extend: P2-C ECO projection (`approval_automation_eco_service.py`), P2.5 manifest (`integration_capabilities_service.py`), metasheet2 C1/C2/C3 (`PLMAdapter.getIntegrationCapabilities`, `plm-workbench` capabilities route, `IntegrationWorkbenchView`).
