@@ -381,3 +381,103 @@ def test_t11_import_batch_id_syncs_from_item_file_to_version_file(session):
     vf = session.query(VersionFile).filter_by(version_id=v_curr, file_id="P11-model").one()
     assert vf.import_batch_id == "B"
     assert vf.source_batch_id == "B"
+
+
+def test_t18a_cad_import_attach_different_roles_creates_two_rows(session):
+    """CAD-import writer path (_attach_to_item): the same FileContainer attached to
+    one Part as native_cad then drawing -> two rows; re-attaching the same triple
+    updates the batch and never mutates the role."""
+    from unittest.mock import MagicMock
+
+    from yuantus.meta_engine.services.cad_import_service import CadImportService
+
+    _item(session, "P18A")
+    fc = _file(session, "P18A-shared", _3D)
+    session.commit()
+
+    svc = CadImportService(session, MagicMock())
+    id1 = svc._attach_to_item(
+        item_id="P18A", file_container=fc, file_role=_NATIVE, user_id=1, import_batch_id="B"
+    )
+    id2 = svc._attach_to_item(
+        item_id="P18A", file_container=fc, file_role=_DRAWING, user_id=1, import_batch_id="B"
+    )
+    assert id1 != id2
+    rows = session.query(ItemFile).filter_by(item_id="P18A", file_id="P18A-shared").all()
+    assert {r.file_role for r in rows} == {_NATIVE, _DRAWING}
+
+    # Re-attach the same (item, file, native_cad) triple -> update, not a new row.
+    id1b = svc._attach_to_item(
+        item_id="P18A", file_container=fc, file_role=_NATIVE, user_id=1, import_batch_id="C"
+    )
+    assert id1b == id1
+    native = (
+        session.query(ItemFile)
+        .filter_by(item_id="P18A", file_id="P18A-shared", file_role=_NATIVE)
+        .one()
+    )
+    assert native.import_batch_id == "C"  # batch updated; role unchanged
+
+
+def test_t18b_file_attach_router_different_roles_creates_two_rows(session):
+    """file-attachment writer path: attach the same file as native_cad then drawing
+    -> two rows; re-attaching a role updates the same row, never its role."""
+    import asyncio
+
+    from yuantus.meta_engine.models.meta_schema import ItemType
+    from yuantus.meta_engine.web.file_attachment_router import (
+        AttachFileRequest,
+        attach_file_to_item,
+    )
+
+    session.add(ItemType(id="Part", label="Part", is_versionable=True))
+    _item(session, "P18B")
+    _file(session, "P18B-shared", _3D)
+    session.commit()
+
+    def _attach(role):
+        return asyncio.run(
+            attach_file_to_item(
+                AttachFileRequest(item_id="P18B", file_id="P18B-shared", file_role=role),
+                user_id=1,
+                db=session,
+            )
+        )
+
+    r1 = _attach(_NATIVE)
+    r2 = _attach(_DRAWING)
+    assert r1["status"] == "created" and r2["status"] == "created"
+    rows = session.query(ItemFile).filter_by(item_id="P18B", file_id="P18B-shared").all()
+    assert {x.file_role for x in rows} == {_NATIVE, _DRAWING}
+
+    # Re-attach native_cad -> updates the same row, no third row, role unchanged.
+    r1b = _attach(_NATIVE)
+    assert r1b["status"] == "updated"
+    rows2 = session.query(ItemFile).filter_by(item_id="P18B", file_id="P18B-shared").all()
+    assert len(rows2) == 2
+    assert {x.file_role for x in rows2} == {_NATIVE, _DRAWING}
+
+
+def test_sync_version_files_to_item_refuses_non_current_version(session):
+    """WP1.3 service guard: syncing a NON-current version back to the item must
+    raise -- a historical snapshot can never overwrite current provenance."""
+    from yuantus.meta_engine.version.file_service import (
+        VersionFileError,
+        VersionFileService,
+    )
+
+    v_hist = "PNC-V1"
+    v_curr = "PNC-V2"
+    session.add(
+        ItemVersion(id=v_hist, item_id="PNC", generation=1, revision="A", state="Released")
+    )
+    session.add(
+        ItemVersion(id=v_curr, item_id="PNC", generation=1, revision="B", state="Draft")
+    )
+    _item(session, "PNC", current_version_id=v_curr)
+    session.commit()
+
+    with pytest.raises(VersionFileError, match="not the item's current version"):
+        VersionFileService(session).sync_version_files_to_item(
+            version_id=v_hist, item_id="PNC"
+        )

@@ -669,6 +669,18 @@ class VersionFileService:
                 f"Version {version_id} does not belong to item {item_id}"
             )
 
+        # WP1.3: write-back must come from the item's CURRENT version only. A
+        # historical snapshot must never overwrite current ItemFile provenance
+        # (import_batch_id/source_batch_id). Both production callers (eco_service
+        # after switching the pointer; job_worker guarding version.is_current)
+        # already pass the current version; this is the service-level defense.
+        if item.current_version_id != version_id:
+            raise VersionFileError(
+                f"Refusing to sync version {version_id} back to item {item_id}: "
+                f"it is not the item's current version "
+                f"(current={item.current_version_id})"
+            )
+
         version_files = (
             self.session.query(VersionFile)
             .filter_by(version_id=version_id)

@@ -33,7 +33,9 @@ the S1–S6 order below. No assembly-tree scan (deferred to after WP1.2, D6).
   for PG). Migration `migrations/versions/wp13_cad_stale_001_*.py` (additive,
   idempotent, **deterministic dedup before the unique index**, PG/SQLite
   portable). Sync carries the fields: `sync_item_files_to_version` (all 5),
-  `sync_version_files_to_item` (**provenance only** — never historical verdict),
+  `sync_version_files_to_item` (**provenance only** — never historical verdict, and
+  **guarded to the item's current version** — raises `VersionFileError` otherwise,
+  so a historical snapshot can never overwrite current provenance),
   `copy_files_to_version` (all 5) in `version/file_service.py`.
 - **S2 import_batch_id** — `CadImportRequest.import_batch_id`,
   `cad_import_router` form param + echo (`CadImportResponse.import_batch_id`),
@@ -52,7 +54,7 @@ the S1–S6 order below. No assembly-tree scan (deferred to after WP1.2, D6).
   `POST /cad/items/{id}/staleness/recompute` (item-centered, zero traversal, no
   `/documents/...`); registered in `src/yuantus/api/app.py`. RBAC via
   `MetaPermissionService` (get / update).
-- **S6 tests + wiring** — `tests/test_cad_2d3d_staleness.py` (13 tests); added to
+- **S6 tests + wiring** — `tests/test_cad_2d3d_staleness.py` (17 tests); added to
   `ci.yml` contracts list (sorted) + `conftest.py` no-DB allowlist; route-count
   pin bumped 699 → 701; DEV/V indexed in `DELIVERY_DOC_INDEX.md`. **v0 adds no
   `YUANTUS_*` setting.**
@@ -69,8 +71,10 @@ the S1–S6 order below. No assembly-tree scan (deferred to after WP1.2, D6).
 
 ## Verification (Python 3.11 venv from `/opt/homebrew/bin/python3.11`, requirements.lock)
 
-- `pytest src/yuantus/meta_engine/tests/test_cad_2d3d_staleness.py` → **13 passed**
-  (T1, T2, T2b, T3, T5, T11, T12, T13, T14, T15, T16, T17, T18).
+- `pytest src/yuantus/meta_engine/tests/test_cad_2d3d_staleness.py` → **17 passed**
+  (T1, T2, T2b, T3, T5, T11, T12, T13, T14, T15, T16 unit + real-checkin
+  integration, T17, T18, **T18a CAD-import writer path, T18b file-attachment
+  writer path, non-current-version sync guard**).
 - Affected-area regression (cad_import_service, checkin_manager, cad_import_lock_guards,
   cad_checkin_transaction, file_attachment_router_contracts,
   file_router_attachment_lock_guards, version_file_checkout_service,
@@ -88,12 +92,14 @@ the S1–S6 order below. No assembly-tree scan (deferred to after WP1.2, D6).
 
 - **Recompute is triggered on import/checkin and via the explicit POST endpoint —
   NOT automatically on a version switch / ECO-apply.** `sync_version_files_to_item`
-  carries provenance (`import_batch_id`/`source_batch_id`) back so it is not lost,
-  but the derived verdict (`needs_update`) on the current `ItemFile` is only
-  refreshed on the next import/checkin or an explicit `POST .../recompute`. So
-  immediately after an ECO-apply/version-switch, `GET /staleness` may show the
-  pre-switch verdict until one of those runs. Wiring an auto-recompute into the
-  version-switch path is a follow-up (cheap; deferred to keep v0's blast radius
+  carries provenance (`import_batch_id`/`source_batch_id`) back from the **current**
+  version (a non-current version now hard-raises, so current provenance can't be
+  polluted by a historical snapshot), but the derived verdict (`needs_update`) on
+  the current `ItemFile` is only refreshed on the next import/checkin or an explicit
+  `POST .../recompute`. So immediately after an ECO-apply/version-switch,
+  `GET /staleness` may show the pre-switch verdict until one of those runs. Wiring
+  an auto-recompute into the version-switch path is a follow-up (cheap; deferred to
+  keep v0's blast radius
   to the import/checkin seam).
 
 ## Non-goals (unchanged)
