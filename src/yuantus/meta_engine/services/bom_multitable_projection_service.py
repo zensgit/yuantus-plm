@@ -10,16 +10,22 @@ permission internals (`config_id` / `current_version_id` / `source_id` / `relate
 
 Shape (owner-ratified): the FULL BOM tree (depth = -1, NOT truncated — P3-A semantics are
 "the whole tree"; if a pathological depth ever needs capping that is a later pagination/limit
-slice, never a silent v1 drop), FLATTENED pre-order into a review table — `part` is the root
-context row, `lines` is every descendant BOM line. Each row carries:
+slice, never a silent v1 drop), RESTRICTED to ``BOM_LINE_TYPE`` relationships (so non-BOM
+relationships off the same parent are neither projected nor escape the "Part BOM" read-permission
+scope), FLATTENED pre-order into a review table — `part` is the root context row, `lines` is
+every descendant BOM line. Each row carries two READ-ONLY TECHNICAL KEYS (owner-released past
+the display allowlist; NOT editable PLM fields):
 
-- `part_id` — the row's Part Item id, a READ-ONLY TECHNICAL KEY (owner-released past the
-  display allowlist): P3-C needs a STABLE locator to attach its collaboration fields / row
-  state, which item_number can't be (duplicate / re-numbered / renamed parts). NOT an
-  editable PLM field.
-- `level` (1 = direct child) + `path` — the ancestor **Part-id** chain (root first), the
-  stable hierarchy key (`path[-1]` == the parent row's `part_id`). Plus `path_labels`, the
-  parallel ancestor **item_number** chain for display only.
+- `bom_line_id` — the relationship-Item id, the STABLE per-ROW key. Yuantus allows the same
+  parent->child as multiple lines (e.g. different UOM), so part_id + path collide; the rel id
+  is what uniquely identifies a row for P3-C to attach collaboration state to.
+- `part_id` — the row's child Part Item id (keys the PART, not the row), a stable locator
+  item_number can't be (duplicate / renumbered / renamed parts).
+
+Plus `level` (1 = direct child) + `path` (ancestor **Part-id** chain, root first) +
+`path_labels` (parallel **item_number** chain, display only). path is a breadcrumb, not a
+row key — the exact tree is recoverable from `level` + the pre-order sequence (a row's parent
+is the nearest preceding row at `level - 1`), which stays unambiguous under duplicate lines.
 
 Unbounded depth is safe here the same way `report_service`'s existing `levels=-1` BOM reads
 are: `BOMService.add_child` rejects cycles at write time (`detect_cycle_with_path` ->
@@ -46,6 +52,12 @@ from yuantus.meta_engine.services.bom_service import BOMService
 
 FEATURE_KEY = "bom_multitable"
 TEMPLATE_KEY = "bom_review"
+
+# The BOM-line relationship-Item type. The projection is RESTRICTED to this type (passed to
+# get_tree) so non-BOM relationships off the same parent (e.g. documents, substitutes) are
+# NOT swept in -- which would both pollute the review and bypass the "Part BOM"-scoped read
+# permission the router checks. The router's permission check uses the SAME constant.
+BOM_LINE_TYPE = "Part BOM"
 
 # Read the WHOLE BOM tree (no cap, no silent truncation). Safe because add_child rejects
 # cycles at write time (DAG), matching report_service's existing `levels=-1` reads.
@@ -96,7 +108,9 @@ class BOMMultitableProjectionService:
         read permission. Reuses BOMService.get_tree (depth=-1, whole tree) and projects ONLY
         the review fields + ID technical keys, with per-row 铁律-5 provenance.
         """
-        tree = BOMService(self.session).get_tree(part_id, depth=READ_DEPTH)
+        tree = BOMService(self.session).get_tree(
+            part_id, depth=READ_DEPTH, relationship_types=[BOM_LINE_TYPE]
+        )
         part = {"part_id": tree.get("id"), **_curate_item(tree, _PART_FIELDS)}
         lines: List[Dict[str, Any]] = []
         self._flatten(
@@ -137,7 +151,15 @@ class BOMMultitableProjectionService:
             rel_props = rel.get("properties") or {}
             child = child_node.get("child") or {}
 
-            line = {"part_id": child.get("id"), **_curate_item(child, _LINE_ITEM_FIELDS)}
+            # bom_line_id (the relationship-Item id) is the STABLE per-ROW key: Yuantus
+            # allows the same parent->child as multiple lines (e.g. different UOM), so
+            # part_id + path collide -- the rel id is what uniquely/stably identifies a row
+            # for P3-C to attach collaboration state to. part_id keys the child PART.
+            line = {
+                "bom_line_id": rel.get("id"),
+                "part_id": child.get("id"),
+                **_curate_item(child, _LINE_ITEM_FIELDS),
+            }
             line.update({key: rel_props.get(key) for key in _LINE_REL_FIELDS})
             line["level"] = level
             line["path"] = list(path)  # ancestor part-ids (stable hierarchy key)

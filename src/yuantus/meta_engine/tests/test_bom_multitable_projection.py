@@ -57,7 +57,8 @@ _USER = type("_User", (), {"id": 7, "roles": ["engineer"], "is_superuser": False
 # Curated row keys (the FULL allowed surface per row).
 _PART_KEYS = {"part_id", "item_number", "name", "state", "generation"}
 _LINE_KEYS = {
-    "part_id",  # read-only technical key (stable locator for P3-C)
+    "bom_line_id",  # read-only STABLE row key (the rel-Item id)
+    "part_id",  # read-only technical key (the child PART id)
     "item_number", "name", "state", "generation",
     "quantity", "uom", "find_num", "refdes",
     "level", "path", "path_labels",
@@ -143,10 +144,12 @@ def _part(item_id, *, item_number, name, state, generation, item_type="Part"):
     )
 
 
-def _bom_line(rel_id, *, parent, child, quantity, uom, find_num, refdes):
+def _bom_line(rel_id, *, parent, child, quantity=1, uom="EA", find_num="", refdes="", item_type="Part BOM"):
+    # item_type defaults to "Part BOM"; override to forge a NON-BOM relationship off the same
+    # parent (used to pin that the projection filters it out).
     return Item(
         id=rel_id,
-        item_type_id="Part BOM",
+        item_type_id=item_type,
         config_id=rel_id,
         is_current=True,
         source_id=parent,
@@ -242,14 +245,16 @@ def test_get_entitled_returns_curated_flattened_tree_snapshot(db_session, monkey
         assert isinstance(line["source_updated_at"], str) and line["source_updated_at"]
 
     c1, d1 = lines
-    # path is the ancestor PART-ID chain (stable key: path[-1] == parent row's part_id);
-    # path_labels is the parallel item_number chain (display only).
-    assert c1["part_id"] == "C1" and c1["item_number"] == "C-001" and c1["level"] == 1
+    # bom_line_id is the relationship-Item id (the stable ROW key); part_id keys the child PART.
+    # path is the ancestor PART-ID chain; path_labels the parallel item_number chain (display).
+    assert c1["bom_line_id"] == "R1" and c1["part_id"] == "C1"
+    assert c1["item_number"] == "C-001" and c1["level"] == 1
     assert c1["path"] == ["P1"] and c1["path_labels"] == ["P-001"]
     assert c1["quantity"] == 2 and c1["uom"] == "EA" and c1["find_num"] == "10" and c1["refdes"] == "R1,R2"
     assert c1["source_version"] == 1  # C1.generation (the displayed one)
 
-    assert d1["part_id"] == "D1" and d1["item_number"] == "D-001" and d1["level"] == 2
+    assert d1["bom_line_id"] == "R2" and d1["part_id"] == "D1"
+    assert d1["item_number"] == "D-001" and d1["level"] == 2
     assert d1["path"] == ["P1", "C1"] and d1["path_labels"] == ["P-001", "C-001"]
     assert d1["quantity"] == 4 and d1["source_version"] == 2  # D1.generation
     # the stable-key invariant the owner asked for: a line's path[-1] is its parent's part_id
@@ -270,6 +275,45 @@ def test_second_level_bom_line_is_not_dropped(db_session, monkeypatch):
     assert d1["part_id"] == "D1" and d1["level"] == 2
     assert d1["path"] == ["P1", "C1"]  # ancestor part-ids
     assert d1["path_labels"] == ["P-001", "C-001"]  # ancestor item_numbers
+
+
+def test_non_part_bom_relationship_is_not_projected(db_session, monkeypatch):
+    # The tree read is restricted to "Part BOM" relationships, so a non-BOM relationship off
+    # the same parent (here a "Part Document" link) is neither projected into the review nor
+    # escapes the "Part BOM"-scoped read-permission check the router enforces.
+    _light_entitlement(monkeypatch, db_session)
+    _allow_permission(monkeypatch)
+    db_session.add(_part("P1", item_number="P-001", name="Assembly", state="Released", generation=1))
+    db_session.add(_part("C1", item_number="C-001", name="Bracket", state="Draft", generation=1))
+    db_session.add(_part("DOC1", item_number="DOC-1", name="Spec", state="Released", generation=1, item_type="Document"))
+    db_session.add(_bom_line("R1", parent="P1", child="C1", quantity=2))
+    db_session.add(_bom_line("X1", parent="P1", child="DOC1", item_type="Part Document"))
+    db_session.commit()
+
+    lines = _client(db_session).get(ROUTE_PATH.format(part_id="P1")).json()["context"]["lines"]
+    assert {ln["item_number"] for ln in lines} == {"C-001"}  # the doc link is NOT projected
+    assert {ln["part_id"] for ln in lines} == {"C1"}
+
+
+def test_duplicate_parent_child_lines_have_distinct_bom_line_id(db_session, monkeypatch):
+    # Yuantus allows the same parent->child as multiple BOM lines (e.g. different UOM). Both
+    # rows share part_id + path, so the rel-Item id (bom_line_id) is what keeps them distinct
+    # / stably addressable for P3-C -- not the mutable uom/find_num/refdes.
+    _light_entitlement(monkeypatch, db_session)
+    _allow_permission(monkeypatch)
+    db_session.add(_part("P1", item_number="P-001", name="Assembly", state="Released", generation=1))
+    db_session.add(_part("C1", item_number="C-001", name="Bracket", state="Draft", generation=1))
+    db_session.add(_bom_line("R1a", parent="P1", child="C1", quantity=2, uom="EA"))
+    db_session.add(_bom_line("R1b", parent="P1", child="C1", quantity=5, uom="PCS"))
+    db_session.commit()
+
+    lines = _client(db_session).get(ROUTE_PATH.format(part_id="P1")).json()["context"]["lines"]
+    assert len(lines) == 2
+    # same child PART + same path, but distinct STABLE row keys
+    assert {ln["part_id"] for ln in lines} == {"C1"}
+    assert all(ln["path"] == ["P1"] for ln in lines)
+    assert {ln["bom_line_id"] for ln in lines} == {"R1a", "R1b"}
+    assert {ln["uom"] for ln in lines} == {"EA", "PCS"}
 
 
 def test_get_entitled_missing_part_is_404(db_session, monkeypatch):

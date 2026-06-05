@@ -24,6 +24,7 @@ from yuantus.meta_engine.app_framework.entitlement_service import EntitlementSer
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.schemas.aml import AMLAction
 from yuantus.meta_engine.services.bom_multitable_projection_service import (
+    BOM_LINE_TYPE,
     FEATURE_KEY,
     BOMMultitableProjectionService,
 )
@@ -71,7 +72,7 @@ def bom_multitable_context(
     if not perm.check_permission(
         root.item_type_id, AMLAction.get, user_id=user_id, user_roles=user.roles
     ) or not perm.check_permission(
-        "Part BOM", AMLAction.get, user_id=user_id, user_roles=user.roles
+        BOM_LINE_TYPE, AMLAction.get, user_id=user_id, user_roles=user.roles
     ):
         raise HTTPException(status_code=403, detail="Permission denied")
 
