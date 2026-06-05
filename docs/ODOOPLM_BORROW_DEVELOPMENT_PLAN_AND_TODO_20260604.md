@@ -82,10 +82,10 @@
 
 > 本 WP 只种 **2 个**:`ASSEMBLY`、`REFERENCE`,端点均为 **Part**。
 
-**设计**:复用"关系即 Item"——每个类型一行 `ItemType`,`is_relationship=True`,**`source_item_type_id=related_item_type_id="Part"`**,`is_polymorphic=True`。**无需新表**(`src/yuantus/meta_engine/relationship/service.py:43-139` `create_relationship` 已支持;BOM 关系类型 `Part BOM` 已是同款范式,见 `seeder/meta/schemas.py:41-50`)。装配/引用本就是 Part↔Part,`RelationshipService` 现成可用,**本 WP 主要是种子化 2 个类型 + 约定 `properties`(position/config 等,对齐 Odoo `configuration`)**。
+**设计**:复用"关系即 Item"——每个类型一行 `ItemType`,`is_relationship=True`,**`source_item_type_id=related_item_type_id="Part"`**。`ItemType` **没有** `is_polymorphic` 列;ItemType-backed 关系由 `RelationshipService` 严格校验 source/related 类型,正好符合 WP1.0 的 Part↔Part 锁定。**无需新表**(`src/yuantus/meta_engine/relationship/service.py:43-139` `create_relationship` 已支持;BOM 关系类型 `Part BOM` 已是同款范式,见 `seeder/meta/schemas.py:41-50`)。装配/引用本就是 Part↔Part,`RelationshipService` 现成可用,**本 WP 主要是种子化 2 个类型 + 约定 `properties`(position/config 等,对齐 Odoo `configuration`)**。
 
 **逐文件改动**
-- `src/yuantus/seeder/meta/`(确认路径:**无** `meta_engine/seeder/`)下新增/扩展种子(参照该目录现有 `lifecycles.py`/`schemas.py`/`eco_stages.py` 风格):写入 **2 个关系 `ItemType`——`ASSEMBLY`、`REFERENCE`**(`id`/`label`/`is_relationship=True`/**`source_item_type_id=related_item_type_id="Part"`**/`is_polymorphic=True`)。**不建 `DOC_*`/`DRAWING_OF`、端点是 Part↔Part**(WP1.0 D2/D4)。
+- `src/yuantus/seeder/meta/`(确认路径:**无** `meta_engine/seeder/`)下新增/扩展种子(参照该目录现有 `lifecycles.py`/`schemas.py`/`eco_stages.py` 风格):写入 **2 个关系 `ItemType`——`ASSEMBLY`、`REFERENCE`**(`id`/`label`/`is_relationship=True`/**`source_item_type_id=related_item_type_id="Part"`**)。**不建 `DOC_*`/`DRAWING_OF`、端点是 Part↔Part**(WP1.0 D2/D4)。
 - `ItemType` 字段参考:`src/yuantus/meta_engine/models/meta_schema.py:14-79`(`is_relationship:29`、`source_item_type_id:65`、`related_item_type_id:68`)。
 - 关系属性约定:为 `ASSEMBLY` 约定 `position`/`config` 等(对齐 Odoo `configuration`,`ir_attachment_relations.py:77`);`REFERENCE` 约定引用类型。**2D↔3D 不建关系类型**(WP1.0 锁定走文件角色,见 WP1.3)。
 
@@ -327,7 +327,7 @@ if existing_number and incoming_number and incoming_number != existing_number:
 **关系框架**
 - `relationship/service.py:43` `create_relationship(source_id, related_id, relationship_type_name, properties?, user_id?)`
 - `relationship/service.py:141` `get_relationships(item_id, direction, relationship_type_name?)`;`:177` `get_bom_tree(part_id, max_depth)`(递归模板)
-- `models/meta_schema.py:14` `ItemType`(`is_relationship:29`、`source_item_type_id:65`、`related_item_type_id:68`、`is_polymorphic`)
+- `models/meta_schema.py:14` `ItemType`(`is_relationship:29`、`source_item_type_id:65`、`related_item_type_id:68`;**无** `is_polymorphic` 列)
 
 **版本 / 生命周期**
 - `version/service.py:355` `revise()`、`:412` `new_generation()`、`:466` `release()`、`:80-227` checkout/checkin
