@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import logging
 import mimetypes
 import re
 import uuid
@@ -30,6 +31,8 @@ from yuantus.meta_engine.services.job_service import JobService
 from yuantus.meta_engine.version.file_service import VersionFileError, VersionFileService
 from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.security.auth.quota_service import QuotaService
+
+logger = logging.getLogger(__name__)
 
 
 _FILENAME_REV_RE = re.compile(r"(?i)(?:rev|revision)[\\s_-]*([A-Za-z0-9]+)$")
@@ -82,6 +85,10 @@ class CadImportRequest:
     dedup_index: bool
     create_ml_job: bool
     authorization: Optional[str]
+    # WP1.3 CAD "save batch" id. The CAD client groups a multi-file "save all"
+    # under one import_batch_id so its 2D/3D do not flag each other stale. If None,
+    # the service generates one per call (single-file import = its own batch).
+    import_batch_id: Optional[str] = None
 
 
 @dataclass
@@ -97,6 +104,7 @@ class CadImportResult:
     is_duplicate: bool
     item_id: Optional[str]
     attachment_id: Optional[str]
+    import_batch_id: Optional[str] = None
     jobs: List[CadImportJobResult] = field(default_factory=list)
     quota_warnings: List[str] = field(default_factory=list)
 
@@ -594,12 +602,31 @@ class CadImportService:
                 "create_bom_job requires item_id or auto_create_part",
             )
 
+        # WP1.3: resolve the save batch (client-provided or one per call).
+        import_batch_id = request.import_batch_id or str(uuid.uuid4())
+
         attachment_id = self._attach_to_item(
             item_id=item_id,
             file_container=file_container,
             file_role=request.file_role,
             user_id=user.id,
+            import_batch_id=import_batch_id,
         )
+
+        # WP1.3: refresh 2D/3D staleness for this part. Non-fatal -- a staleness
+        # hiccup must not fail the CAD import.
+        if item_id:
+            try:
+                from yuantus.meta_engine.services.cad_consistency_service import (
+                    CadConsistencyService,
+                )
+
+                CadConsistencyService(self.db).recompute(item_id)
+            except Exception:  # noqa: BLE001 - advisory recompute, never blocks import
+                logger.warning(
+                    "WP1.3 staleness recompute failed for item %s", item_id,
+                    exc_info=True,
+                )
 
         jobs = self._plan_and_enqueue_jobs(
             request=request,
@@ -614,6 +641,7 @@ class CadImportService:
             is_duplicate=is_duplicate,
             item_id=item_id,
             attachment_id=attachment_id,
+            import_batch_id=import_batch_id,
             jobs=jobs,
             quota_warnings=quota_warnings,
         )
@@ -700,6 +728,7 @@ class CadImportService:
         file_container: FileContainer,
         file_role: str,
         user_id: int,
+        import_batch_id: Optional[str] = None,
     ) -> Optional[str]:
         if not item_id:
             return None
@@ -708,9 +737,18 @@ class CadImportService:
         if not item:
             raise CadImportValidationError(404, "Item not found")
 
+        # WP1.3: link identity is (item_id, file_id, file_role). Re-attaching the
+        # SAME triple updates link attributes (e.g. import_batch_id); a DIFFERENT
+        # role for the same file creates a NEW row. We never mutate an existing
+        # row's role, which would collapse M/D selection (e.g. flip a drawing into
+        # a model when a byte-identical file is reused under another role).
         existing_link = (
             self.db.query(ItemFile)
-            .filter(ItemFile.item_id == item_id, ItemFile.file_id == file_container.id)
+            .filter(
+                ItemFile.item_id == item_id,
+                ItemFile.file_id == file_container.id,
+                ItemFile.file_role == file_role,
+            )
             .first()
         )
         if existing_link:
@@ -721,15 +759,8 @@ class CadImportService:
                 file_role=existing_link.file_role,
                 user_id=user_id,
             )
-            if existing_link.file_role != file_role:
-                _ensure_current_version_attachment_editable(
-                    self.db,
-                    item,
-                    file_id=existing_link.file_id,
-                    file_role=file_role,
-                    user_id=user_id,
-                )
-            existing_link.file_role = file_role
+            if import_batch_id is not None:
+                existing_link.import_batch_id = import_batch_id
             self.db.add(existing_link)
             self.db.commit()
             return existing_link.id
@@ -745,6 +776,7 @@ class CadImportService:
             item_id=item_id,
             file_id=file_container.id,
             file_role=file_role,
+            import_batch_id=import_batch_id,
         )
         self.db.add(link)
         self.db.commit()

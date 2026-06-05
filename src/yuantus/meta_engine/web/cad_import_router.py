@@ -48,6 +48,7 @@ class CadImportResponse(BaseModel):
     is_duplicate: bool
     item_id: Optional[str] = None
     attachment_id: Optional[str] = None
+    import_batch_id: Optional[str] = None
     jobs: List[CadImportJob] = Field(default_factory=list)
     download_url: str
     preview_url: Optional[str] = None
@@ -137,6 +138,11 @@ async def import_cad(
         description="Index drawing into Dedup Vision after search (recommended for first-time ingest)",
     ),
     create_ml_job: bool = Form(default=False, description="Call cad-ml-platform vision analyze"),
+    import_batch_id: Optional[str] = Form(
+        default=None,
+        description="WP1.3 CAD save-batch id: group a multi-file 'save all' so its 2D/3D "
+        "do not flag each other stale. If omitted, the server generates one per call.",
+    ),
     user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_db),
     identity_db: Session = Depends(get_identity_db),
@@ -169,6 +175,7 @@ async def import_cad(
         dedup_index=dedup_index,
         create_ml_job=create_ml_job,
         authorization=request.headers.get("authorization"),
+        import_batch_id=import_batch_id,
     )
 
     try:
@@ -219,6 +226,7 @@ async def import_cad(
         is_duplicate=result.is_duplicate,
         item_id=result.item_id,
         attachment_id=result.attachment_id,
+        import_batch_id=result.import_batch_id,
         jobs=[
             CadImportJob(id=job.id, task_type=job.task_type, status=job.status)
             for job in result.jobs

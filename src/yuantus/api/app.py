@@ -79,6 +79,7 @@ from yuantus.meta_engine.web.cutted_parts_variance_router import (
 from yuantus.meta_engine.web.cad_backend_profile_router import cad_backend_profile_router
 from yuantus.meta_engine.web.cad_checkin_router import cad_checkin_router
 from yuantus.meta_engine.web.cad_connectors_router import cad_connectors_router
+from yuantus.meta_engine.web.cad_consistency_router import cad_consistency_router
 from yuantus.meta_engine.web.cad_diff_router import cad_diff_router
 from yuantus.meta_engine.web.cad_file_data_router import cad_file_data_router
 from yuantus.meta_engine.web.cad_history_router import cad_history_router
@@ -345,6 +346,7 @@ def create_app() -> FastAPI:
     app.include_router(cad_backend_profile_router, prefix="/api/v1")
     app.include_router(cad_checkin_router, prefix="/api/v1")
     app.include_router(cad_connectors_router, prefix="/api/v1")
+    app.include_router(cad_consistency_router, prefix="/api/v1")
     app.include_router(cad_diff_router, prefix="/api/v1")
     app.include_router(cad_file_data_router, prefix="/api/v1")
     app.include_router(cad_history_router, prefix="/api/v1")

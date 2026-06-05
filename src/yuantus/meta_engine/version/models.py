@@ -187,6 +187,15 @@ class VersionFile(Base):
     # Is this the primary/main file?
     is_primary = Column(Boolean, default=False)
 
+    # WP1.3 CAD 2D/3D staleness mirror (frozen snapshot of the ItemFile fields at
+    # the time this version snapshot was created/synced). ItemFile is the
+    # current-state authority; recompute only writes the *current* version's rows.
+    import_batch_id = Column(String, nullable=True, index=True)
+    source_batch_id = Column(String, nullable=True)
+    needs_update = Column(Boolean, nullable=False, default=False)
+    staleness_reason = Column(String, nullable=True)
+    staleness_checked_at = Column(DateTime(timezone=True), nullable=True)
+
     # File-level checkout / locking
     checked_out_by_id = Column(Integer, ForeignKey("rbac_users.id"), nullable=True)
     checked_out_at = Column(DateTime, nullable=True)
