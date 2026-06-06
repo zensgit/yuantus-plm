@@ -136,7 +136,7 @@ def bom_multitable_embed_token(
     settings = get_settings()
     # fail-closed: a deployment without a signing key cannot mint
     if not settings.EMBED_TOKEN_SIGNING_KEY:
-        raise HTTPException(status_code=503, detail="embed token minting is not configured")
+        raise HTTPException(status_code=503, detail="embed token minting unavailable")
 
     origin = (body.origin or "").strip()
     if not is_origin_allowed(origin, settings.EMBED_ALLOWED_ORIGINS):
@@ -150,12 +150,15 @@ def bom_multitable_embed_token(
             org_id=org_id,
             part_id=part_id,
             origin=origin,
+            audience=settings.EMBED_TOKEN_AUDIENCE,
             signing_key_b64=settings.EMBED_TOKEN_SIGNING_KEY,
             key_id=settings.EMBED_TOKEN_KEY_ID,
             ttl_seconds=settings.EMBED_TOKEN_TTL_SECONDS,
         )
-    except EmbedTokenNotConfigured as exc:  # defence in depth (already checked above)
-        raise HTTPException(status_code=503, detail="embed token minting is not configured") from exc
+    except EmbedTokenNotConfigured as exc:
+        # unset OR invalid signing key (malformed base64 / wrong-length seed) -> fail closed,
+        # never a 500 that leaks the deployment's key state.
+        raise HTTPException(status_code=503, detail="embed token minting unavailable") from exc
 
     # jti-trackable audit of the issuance; NEVER record the token itself.
     db.add(
@@ -177,5 +180,6 @@ def bom_multitable_embed_token(
         "token_type": "embed",
         "expires_in": minted["expires_in"],
         "jti": minted["jti"],
-        "aud": origin,
+        "aud": minted["aud"],
+        "embed_origin": origin,
     }

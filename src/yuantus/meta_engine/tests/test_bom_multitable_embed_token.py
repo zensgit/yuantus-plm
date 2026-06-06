@@ -49,6 +49,7 @@ APP = "plm.collab"
 TENANT = "default"
 ORIGIN = "https://plm.example.com"
 KEY_ID = "embed-1"
+AUDIENCE = "metasheet2.embed"
 URL = "/api/v1/bom/multitable/{part_id}/embed-token"
 
 _USER = type("_User", (), {"id": 7, "roles": ["engineer"], "is_superuser": False})()
@@ -99,12 +100,22 @@ def _gen_keypair():
     return base64.b64encode(raw_priv).decode(), base64.b64encode(raw_pub).decode()
 
 
-def _configure_embed(monkeypatch, *, with_key=True, origins=ORIGIN):
-    """Configure the deployment's embed signing env; returns the base64 PUBLIC key for verify."""
+def _configure_embed(monkeypatch, *, with_key=True, origins=ORIGIN, ttl="120"):
+    """Configure the deployment's embed signing env; returns the base64 PUBLIC key for verify.
+
+    with_key: True -> a valid keypair; "invalid" -> a malformed signing key; False -> unset.
+    """
     priv_b64, pub_b64 = _gen_keypair()
-    monkeypatch.setenv("YUANTUS_EMBED_TOKEN_SIGNING_KEY", priv_b64 if with_key else "")
+    if with_key is True:
+        key = priv_b64
+    elif with_key == "invalid":
+        key = "not-valid-base64!!!"  # malformed -> must map to 503, never a 500
+    else:
+        key = ""
+    monkeypatch.setenv("YUANTUS_EMBED_TOKEN_SIGNING_KEY", key)
     monkeypatch.setenv("YUANTUS_EMBED_TOKEN_KEY_ID", KEY_ID)
-    monkeypatch.setenv("YUANTUS_EMBED_TOKEN_TTL_SECONDS", "120")
+    monkeypatch.setenv("YUANTUS_EMBED_TOKEN_AUDIENCE", AUDIENCE)
+    monkeypatch.setenv("YUANTUS_EMBED_TOKEN_TTL_SECONDS", str(ttl))
     monkeypatch.setenv("YUANTUS_EMBED_ALLOWED_ORIGINS", origins)
     get_settings.cache_clear()
     return pub_b64
@@ -184,6 +195,29 @@ def test_post_not_configured_is_503_fail_closed(db_session, monkeypatch):
     assert _post(_client(db_session)).status_code == 503
 
 
+def test_post_invalid_signing_key_is_503_no_token_no_audit(db_session, monkeypatch):
+    # a NON-empty but malformed signing key must FAIL CLOSED (503), not crash with a 500.
+    _light_entitlement(monkeypatch, db_session)
+    _allow_permission(monkeypatch)
+    _configure_embed(monkeypatch, with_key="invalid")
+    _add_part(db_session)
+    r = _post(_client(db_session))
+    assert r.status_code == 503
+    assert db_session.query(AuditLog).count() == 0  # no token issued -> no audit row
+
+
+def test_post_ttl_is_capped_to_max(db_session, monkeypatch):
+    # a misconfigured day-long TTL is capped at MAX_EMBED_TTL_SECONDS (600), never minted long.
+    _light_entitlement(monkeypatch, db_session)
+    _allow_permission(monkeypatch)
+    pub_b64 = _configure_embed(monkeypatch, ttl="86400")
+    _add_part(db_session)
+    body = _post(_client(db_session)).json()
+    assert body["expires_in"] == 600
+    claims = decode_eddsa(body["embed_token"], public_keys={KEY_ID: pub_b64})
+    assert claims["exp"] - claims["iat"] == 600
+
+
 def test_post_cross_origin_is_403(db_session, monkeypatch):
     _light_entitlement(monkeypatch, db_session)
     _allow_permission(monkeypatch)
@@ -205,7 +239,9 @@ def test_post_mints_verifiable_token_with_full_claims_and_audit(db_session, monk
     assert body["entitled"] is True
     assert body["token_type"] == "embed"
     assert body["expires_in"] == 120
-    assert body["aud"] == ORIGIN
+    # aud is the recipient SERVICE (standard audience); the iframe origin is embed_origin
+    assert body["aud"] == AUDIENCE
+    assert body["embed_origin"] == ORIGIN
     assert body["jti"]
     token = body["embed_token"]
     assert token
@@ -216,7 +252,8 @@ def test_post_mints_verifiable_token_with_full_claims_and_audit(db_session, monk
     assert claims["tenant_id"] == TENANT
     assert claims["part_id"] == "P1"
     assert claims["feature_key"] == FEATURE
-    assert claims["aud"] == ORIGIN
+    assert claims["aud"] == AUDIENCE  # the SERVICE audience (P3-D2 can standard-validate it)
+    assert claims["embed_origin"] == ORIGIN  # the iframe origin (validated separately)
     assert claims["typ"] == "embed"
     assert claims["jti"] == body["jti"]
     assert claims["exp"] > claims["iat"]

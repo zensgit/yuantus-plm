@@ -6,10 +6,14 @@ the matching PUBLIC key (kid-addressed, same shape as the P1-C license allowlist
 can never mint. This module ONLY mints — verification + the iframe host are P3-D2 (the public
 key is distributed to the consumer by deployment config, not exposed by an endpoint here).
 
-The token is a standard EdDSA JWT whose claims (`tenant_id`/`org_id`/`sub`=user_id/`part_id`/
-`feature_key`/`aud`=origin/`exp`/`jti`/`typ:"embed"`) let the P3-D2 data side re-run is_entitled
-+ permission and match part/origin. Short TTL + a unique `jti`; this is jti-TRACKABLE (recorded
-on mint), NOT yet a revocation denylist (a later slice). Fail-closed: no signing key -> no mint.
+The token is a standard EdDSA JWT. `aud` is the intended-recipient SERVICE (so the P3-D2
+consumer can do STANDARD RFC-7519 audience validation), and the iframe origin is a SEPARATE
+`embed_origin` claim (validated against the allowlist independently). The rest of the claims
+(`tenant_id`/`org_id`/`sub`=user_id/`part_id`/`feature_key`/`exp`/`jti`/`typ:"embed"`) let the
+P3-D2 data side re-run is_entitled + permission and match part/origin. Short TTL (capped at
+`MAX_EMBED_TTL_SECONDS` so a misconfig can't mint a long-lived token) + a unique `jti`; this is
+jti-TRACKABLE (recorded on mint), NOT yet a revocation denylist (a later slice). Fail-closed:
+a missing OR invalid signing key -> no mint (the router maps this to 503, never a 500).
 """
 from __future__ import annotations
 
@@ -24,6 +28,10 @@ from yuantus.security.auth.jwt import (
 )
 
 TOKEN_TYP = "embed"
+# Hard cap on the minted TTL: even a misconfigured EMBED_TOKEN_TTL_SECONDS (e.g. a day) can
+# never produce a token valid longer than this. Capping (not raising) keeps a TTL misconfig
+# from taking down the whole app via get_settings(), while still failing CLOSED to short-lived.
+MAX_EMBED_TTL_SECONDS = 600
 
 
 class EmbedTokenNotConfigured(RuntimeError):
@@ -51,26 +59,35 @@ def mint_embed_token(
     org_id: Any,
     part_id: str,
     origin: str,
+    audience: str,
     signing_key_b64: str,
     key_id: str,
     ttl_seconds: int,
 ) -> Dict[str, Any]:
     """Mint the signed EdDSA embed token. Assumes the caller already gated
-    entitlement/permission/origin. Fail-closed: empty signing key -> EmbedTokenNotConfigured.
+    entitlement/permission/origin. Fail-closed: a missing OR invalid (malformed base64 /
+    wrong-length seed) signing key -> EmbedTokenNotConfigured (the router maps it to 503).
     """
     if not signing_key_b64:
         raise EmbedTokenNotConfigured("embed token signing key is not configured")
-    private_key = load_ed25519_private_key_b64(signing_key_b64)
+    try:
+        private_key = load_ed25519_private_key_b64(signing_key_b64)
+    except Exception as exc:  # malformed base64 / non-32-byte seed -> fail closed, NOT a 500
+        raise EmbedTokenNotConfigured("embed token signing key is invalid") from exc
+
+    # cap the TTL: a misconfigured EMBED_TOKEN_TTL_SECONDS can never mint a long-lived token.
+    ttl = max(1, min(int(ttl_seconds), MAX_EMBED_TTL_SECONDS))
     jti = str(uuid.uuid4())
     payload = build_access_token_payload(
         user_id=user_id,
         tenant_id=tenant_id,
         org_id=org_id,
-        ttl_seconds=int(ttl_seconds),
+        ttl_seconds=ttl,
         extra={
             "part_id": part_id,
             "feature_key": FEATURE_KEY,
-            "aud": origin,
+            "aud": audience,  # the recipient SERVICE (standard RFC-7519 audience)
+            "embed_origin": origin,  # the iframe origin (validated separately against the allowlist)
             "jti": jti,
             "typ": TOKEN_TYP,
         },
@@ -79,8 +96,9 @@ def mint_embed_token(
     return {
         "token": token,
         "jti": jti,
-        "expires_in": int(ttl_seconds),
+        "expires_in": ttl,
         "exp": payload["exp"],
-        "aud": origin,
+        "aud": audience,
+        "embed_origin": origin,
         "claims": payload,
     }

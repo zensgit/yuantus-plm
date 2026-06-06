@@ -351,8 +351,14 @@ class Settings(BaseSettings):
         default="embed-1",
         description="kid for the embed-token signing key (rotation / consumer-side key lookup).",
     )
+    EMBED_TOKEN_AUDIENCE: str = Field(
+        default="metasheet2.embed",
+        description="JWT `aud` (the intended recipient SERVICE) so a consumer can do standard "
+        "RFC-7519 audience validation; the iframe origin is carried separately as `embed_origin`.",
+    )
     EMBED_TOKEN_TTL_SECONDS: int = Field(
-        default=120, description="Embed token TTL seconds (short-lived)."
+        default=120,
+        description="Embed token TTL seconds (short-lived; the service caps it at 600).",
     )
     EMBED_ALLOWED_ORIGINS: str = Field(
         default="",
