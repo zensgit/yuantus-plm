@@ -69,10 +69,16 @@ P3-D's embed token is the spine's core. The contract (each clause is a P3-D acce
 - **Cryptographically verifiable, NOT `license_data`.** Minted and signed by PLM (signing
   mechanism is a P3-D decision — reuse the P1-C Ed25519 discipline or a scoped server secret;
   never guessable, never derived from `license_data`, which is not an authorization source).
-- **Origin-pinned (cross-origin allowlist).** The token's audience is pinned to the allowed
-  embed origin(s); the iframe host enforces the `allowedOrigins` allowlist + postMessage origin
-  checks (the existing `MultitableEmbedHost.vue` mechanism). A token presented from a
-  non-allowlisted origin is rejected.
+- **Origin-pinned (cross-origin allowlist), and the allowlist must be a real allowlist.** The
+  token's audience is pinned to the allowed embed origin(s); the iframe host enforces the
+  `allowedOrigins` allowlist + postMessage origin checks (the existing `MultitableEmbedHost.vue`
+  mechanism). A token presented from a non-allowlisted origin is rejected. **Two concrete traps
+  in the current host that P3-D MUST close:** (i) `MultitableEmbedHost.isOriginAllowed`
+  short-circuits to `true` when `allowedOrigins` contains `'*'` — the **production embed config
+  MUST forbid `'*'`** (an explicit PLM origin only); (ii) `postToParent` today does
+  `window.parent.postMessage(payload, '*')` — every outbound message MUST instead use the
+  **negotiated PLM origin** as `targetOrigin`, never `'*'`, so a payload is never delivered to a
+  foreign parent frame.
 - **Re-checked at every embedded data call.** The embedded surface still calls the P3-A
   projection, which re-runs `is_entitled` + permission server-side. The token bootstraps the
   embed; it does not replace the per-call gate (defense in depth).
@@ -87,13 +93,25 @@ P3-D's embed token is the spine's core. The contract (each clause is a P3-D acce
 | Repo | Owns | Does NOT |
 |---|---|---|
 | **YuantusPLM (provider)** | a NEW governed endpoint to **mint** the embed token (entitlement + permission gated, short-lived, signed, tenant/user-bound) and to **verify** its own token at the embedded data calls; the embedded data stays the P3-A read-only projection. | does not host the iframe; does not trust a MetaSheet-minted token. |
-| **metasheet2 (consumer)** | **hosts** the iframe (`apps/web/src/multitable/views/MultitableEmbedHost.vue`, `embedded` flag + `allowedOrigins`), **mounts** the currently-unmounted base-scope embed auth (`packages/core-backend/src/middleware/api-token-auth.ts`), and **consumes** the embed config (origin allowlist + the PLM token) to render the embedded read-only review. | does not mint embed tokens; does not write back. |
+| **metasheet2 (consumer)** | **hosts** the iframe (`apps/web/src/multitable/views/MultitableEmbedHost.vue`, `embedded` flag + a real-allowlist `allowedOrigins`), **verifies the embed identity** via one of the two forks below, and **consumes** the embed config to render the embedded read-only review. | does not mint embed tokens; does not write back. |
+
+**Token-verification fork (P3-D MUST pick one — do NOT assume the existing middleware verifies a
+PLM token).** `packages/core-backend/src/middleware/api-token-auth.ts` is defined-but-unmounted
+**and it only validates MetaSheet's own `mst_`-prefixed Bearer tokens — a non-`mst_` token (e.g.
+a raw PLM-issued token) is passed straight through to normal auth, NOT verified.** So mounting it
+as-is does not authenticate a PLM token. P3-D chooses:
+- **(A) Token exchange.** Yuantus mints the short embed token; metasheet2 exchanges it (server
+  side, after verifying it against Yuantus) for its OWN short-lived, scoped `mst_` token, which
+  `api-token-auth` then verifies on the embedded calls. Reuses the existing middleware unchanged.
+- **(B) PLM embed-token verifier.** metasheet2 adds/adapts a verifier for the PLM token directly
+  — offline via a Yuantus **public key** (the P1-C Ed25519 discipline) or online via a **callback
+  to Yuantus**. New verification path; no reliance on `mst_`.
 
 **Flow (framed, not fixed):** PLM UI → request an embed token from Yuantus (gated) → hand it to
-the MetaSheet iframe via the embed config / postMessage (origin-checked) → MetaSheet renders the
-embedded P3-A review, every data call re-verified by Yuantus. **Identity/SSO** is the open P3-D
-decision (the scope doc §4 frames the options: DingTalk as a common IdP vs the PLM-issued token
-as the bridge) — pick one when P3-D opens.
+the MetaSheet iframe via the embed config / postMessage (origin-checked, fixed `targetOrigin`) →
+MetaSheet verifies it (fork A or B) → renders the embedded P3-A review, every data call re-verified
+by Yuantus. **Identity/SSO** is the open P3-D decision (the scope doc §4 frames the options:
+DingTalk as a common IdP vs the PLM-issued token as the bridge) — pick one when P3-D opens.
 
 ---
 
@@ -107,6 +125,14 @@ as the bridge) — pick one when P3-D opens.
       user) is rejected.
 - [ ] **Cross-origin → unusable.** A token / iframe from a non-allowlisted origin is rejected
       (allowlist + postMessage origin check).
+- [ ] **No `'*'` in the production allowlist.** The production embed config's `allowedOrigins`
+      contains explicit PLM origin(s) only, never `'*'` (which makes `isOriginAllowed`
+      short-circuit to true).
+- [ ] **Outbound postMessage is origin-pinned.** Every message the embed host sends to the parent
+      uses the negotiated PLM origin as `targetOrigin`, never `'*'`.
+- [ ] **The PLM token is actually verified, not passed through.** metasheet2 verifies the embed
+      identity via fork A (exchange → `mst_`) or fork B (PLM-token verifier) — NOT by relying on
+      the existing `api-token-auth`, which ignores non-`mst_` tokens.
 - [ ] **Single-use / revoked reuse → unusable.** A consumed or revoked token cannot be replayed.
 - [ ] **Graceful degradation.** An old PLM (no mint endpoint) or old MetaSheet (no embed host)
       degrades cleanly: the standalone P3-C review still works; no hard failure, no leak.
@@ -121,4 +147,4 @@ as the bridge) — pick one when P3-D opens.
 - P3-A/B/C: PR #724 (`8cc6389e`), #727 (`46a1b3a7`) on YuantusPLM `main`; PR #2324 (`e4e67d140`) on metasheet2 `main`.
 - Entitlement kernel (mint gate): `src/yuantus/meta_engine/app_framework/entitlement_service.py` (`is_entitled`; `bom_multitable → {"plm.bom_multitable"}`).
 - Signed-token discipline to reuse: P1-C Ed25519 offline license import (`license_import_service`; private key never in repo; `license_data` is NOT an auth source).
-- Embed spine assets (metasheet2): `apps/web/src/multitable/views/MultitableEmbedHost.vue` (allowlist + postMessage), `packages/core-backend/src/middleware/api-token-auth.ts` (defined, unmounted), `packages/core-backend/src/auth/dingtalk-oauth.ts` (common-IdP candidate).
+- Embed spine assets (metasheet2): `apps/web/src/multitable/views/MultitableEmbedHost.vue` (allowlist + postMessage — NOTE `isOriginAllowed` honors `'*'`, and `postToParent` posts with `targetOrigin '*'`; both must be tightened for prod — §3/§5), `packages/core-backend/src/middleware/api-token-auth.ts` (defined, unmounted, **and validates only `mst_`-prefixed tokens — passes non-`mst_` through; it does NOT verify a PLM token** — §4 fork), `packages/core-backend/src/auth/dingtalk-oauth.ts` (common-IdP candidate).
