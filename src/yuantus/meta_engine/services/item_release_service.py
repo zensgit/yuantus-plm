@@ -69,6 +69,23 @@ class ItemReleaseService:
         )
         return [(self.session.get(Item, edge.related_id), edge) for edge in edges]
 
+    def has_assembly_edges(self, item_id: str) -> bool:
+        """True iff the item has >=1 current direct ASSEMBLY edge (child present OR
+        dangling). A lightweight presence query (no child resolution). Lets the
+        release-readiness surface include an item_release resource for any assembly
+        -- even one whose children are all released (0 errors) -- while skipping
+        leaf parts that have nothing to show."""
+        return (
+            self.session.query(Item.id)
+            .filter(
+                Item.source_id == item_id,
+                Item.item_type_id == _ASSEMBLY,
+                Item.is_current.is_(True),
+            )
+            .first()
+            is not None
+        )
+
     def assert_children_released(self, item_id: str) -> List[str]:
         """The promote hard gate: error messages for direct ASSEMBLY children that
         block release -- either a **dangling edge** (missing child) or an
