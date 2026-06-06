@@ -164,6 +164,24 @@ class LifecycleService:
         # because it drags in legacy dependencies (IrRule) not present in the Meta-Engine kernel.
         # AMLEngine already performs a robust 'promote' action permission check before calling this.
 
+        # 3.5 B2 assembly release hard gate (precondition): a parent entering
+        # "Released" must not reference unreleased direct ASSEMBLY children (the
+        # WP1.2 CAD product structure). Runs BEFORE any state mutation / hooks /
+        # workflow start below, so a blocked release fires no "entered Released"
+        # side effects and needs no rollback. Keyed on the same name=="Released"
+        # convention as the version-release block, the release hook, and the
+        # workflow service (the seeded released state is named "Released").
+        if target_state_obj.name == "Released":
+            from yuantus.meta_engine.services.item_release_service import (
+                ItemReleaseService,
+            )
+
+            child_errors = ItemReleaseService(self.session).assert_children_released(
+                item.id
+            )
+            if child_errors:
+                return PromoteResult(success=False, error="; ".join(child_errors))
+
         # 4. 执行 before_transition hooks
         context = self.hook_registry.execute(
             item.item_type_id,  # item_type_id is the string name like "Part"
