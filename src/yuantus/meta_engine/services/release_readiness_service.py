@@ -12,7 +12,10 @@ from yuantus.meta_engine.manufacturing.mbom_service import MBOMService
 from yuantus.meta_engine.manufacturing.models import ManufacturingBOM, Routing
 from yuantus.meta_engine.manufacturing.routing_service import RoutingService
 from yuantus.meta_engine.models.baseline import Baseline
+from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.services.baseline_service import BaselineService
+from yuantus.meta_engine.services.item_number_keys import get_item_number
+from yuantus.meta_engine.services.item_release_service import ItemReleaseService
 
 
 class ReleaseReadinessService:
@@ -137,6 +140,31 @@ class ReleaseReadinessService:
                     "resource_id": baseline.id,
                     "name": getattr(baseline, "name", None),
                     "state": getattr(baseline, "state", None),
+                    "ruleset_id": str(diag.get("ruleset_id") or ruleset_id),
+                    "errors": diag.get("errors") or [],
+                    "warnings": diag.get("warnings") or [],
+                }
+            )
+
+        # B2 readiness visibility: surface the assembly-release hard gate
+        # (bom.children_all_released) advisorily, so a blocking child never
+        # surprises the user only at promote time. D1: include this resource ONLY
+        # when the item actually has >=1 direct ASSEMBLY edge (child present OR
+        # dangling) -- a leaf part has nothing to show. ruleset_id is passed
+        # through (default "readiness" drops item.not_already_released).
+        item_release_service = ItemReleaseService(self.session)
+        if item_release_service.has_assembly_edges(item_id):
+            diag = item_release_service.get_release_diagnostics(
+                item_id, ruleset_id=ruleset_id
+            )
+            item = self.session.get(Item, item_id)
+            resources.append(
+                {
+                    "kind": "item_release",
+                    "resource_type": "item",
+                    "resource_id": item_id,
+                    "name": get_item_number(item.properties or {}) if item else None,
+                    "state": getattr(item, "state", None) if item else None,
                     "ruleset_id": str(diag.get("ruleset_id") or ruleset_id),
                     "errors": diag.get("errors") or [],
                     "warnings": diag.get("warnings") or [],
