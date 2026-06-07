@@ -303,9 +303,11 @@ def test_version_row_fields_are_subset_of_real_columns():
     real_cols = {c.name for c in ItemVersion.__table__.columns}
     assert set(ItemVersionRow.model_fields) <= real_cols
     assert {"id", "item_id", "is_current"} <= set(ItemVersionRow.model_fields)
-    # is_current is nullable in the real schema — pin the assumption
-    # the §3 nullable policy is built on.
-    assert ItemVersion.__table__.columns["is_current"].nullable is True
+    # B1 (#735) tightened is_current to NOT NULL (+ server_default). The resolver's
+    # §3 None-handling (ItemVersionRow.is_current Optional[bool] -> bool(...)) is now
+    # defensively moot but harmless (no NULL can arrive from the DB); pin the
+    # post-B1 reality. (This contract test is not yet in a CI list — see A4-R1 PR.)
+    assert ItemVersion.__table__.columns["is_current"].nullable is False
 
 
 def test_resolver_reuses_the_merged_descriptor_type():

@@ -76,6 +76,11 @@ _MANIFEST_CSV_COLUMNS = (
     "path_in_package",
     "source_item_id",
     "source_item_number",
+    # A4-R1: WP1.3 drawing staleness (blank for non-drawing rows).
+    "needs_update",
+    "staleness_reason",
+    "source_batch_id",
+    "model_import_batch_id",
 )
 _MANIFEST_CSV_ALLOWED_COLUMNS = {
     *list(_MANIFEST_CSV_COLUMNS),
@@ -215,6 +220,15 @@ class PackAndGoRequest(BaseModel):
         default=None,
         description="File scope (item|version)",
     )
+    dry_run: bool = Field(
+        default=False,
+        description=(
+            "Manifest-first preview: compute the plan + manifest (incl. drawing "
+            "staleness + version-lock summary) and return them synchronously, "
+            "WITHOUT building the zip / writing cache / producing a download "
+            "(takes precedence over async_flag)."
+        ),
+    )
     file_roles: Optional[List[str]] = None
     document_types: Optional[List[str]] = None
     include_item_types: Optional[List[str]] = None
@@ -296,6 +310,12 @@ class PackAndGoFile:
     internal_ref: Optional[str]
     source_version_id: Optional[str]
     source_path: str
+    # A4-R1: WP1.3 drawing staleness, read off the (file-scope-correct) link.
+    # Populated on drawing-role entries only; None elsewhere.
+    needs_update: Optional[bool] = None
+    staleness_reason: Optional[str] = None
+    source_batch_id: Optional[str] = None
+    model_import_batch_id: Optional[str] = None
 
 
 @dataclass
@@ -1175,6 +1195,7 @@ def build_pack_and_go_package(
     path_strategy: str = "item_role",
     collision_strategy: str = "append_id",
     file_scope: str = "item",
+    dry_run: bool = False,
     include_item_types: Optional[Sequence[str]] = None,
     exclude_item_types: Optional[Sequence[str]] = None,
     include_item_ids: Optional[Sequence[str]] = None,
@@ -1386,6 +1407,11 @@ def build_pack_and_go_package(
                         "file_role": vf.file_role,
                         "item_id": item_by_version.get(vf.version_id),
                         "source_version_id": vf.version_id,
+                        # A4-R1: WP1.3 staleness from the version-snapshot link.
+                        "needs_update": vf.needs_update,
+                        "source_batch_id": vf.source_batch_id,
+                        "staleness_reason": vf.staleness_reason,
+                        "import_batch_id": vf.import_batch_id,
                     }
                 )
         fallback_item_ids = [
@@ -1407,6 +1433,11 @@ def build_pack_and_go_package(
                         "file_role": item_file.file_role,
                         "item_id": item_file.item_id,
                         "source_version_id": None,
+                        # A4-R1: version-scope fallback reads the current ItemFile link.
+                        "needs_update": item_file.needs_update,
+                        "source_batch_id": item_file.source_batch_id,
+                        "staleness_reason": item_file.staleness_reason,
+                        "import_batch_id": item_file.import_batch_id,
                     }
                 )
     else:
@@ -1427,7 +1458,31 @@ def build_pack_and_go_package(
                         "current_version_id",
                         None,
                     ),
+                    # A4-R1: WP1.3 staleness from the current ItemFile link.
+                    "needs_update": item_file.needs_update,
+                    "source_batch_id": item_file.source_batch_id,
+                    "staleness_reason": item_file.staleness_reason,
+                    "import_batch_id": item_file.import_batch_id,
                 }
+            )
+
+    # A4-R1: per-item model (document_type "3d") import_batch_id, sourced from the
+    # SAME loaded fileset (file-scope-consistent with the drawing's needs_update);
+    # None when the item's model isn't in the bundle. Explanatory context only --
+    # needs_update on the drawing link is the authoritative staleness verdict.
+    model_batch_by_item: Dict[str, Optional[str]] = {}
+    for _link in file_links:
+        _f = _link.get("file")
+        _role = (_link.get("file_role") or "").lower()
+        # Match WP1.3's model M: a 3D *native_cad* file -- NOT any 3D file (a 3D
+        # geometry/attachment must not fix the model batch).
+        if (
+            _f is not None
+            and _role == "native_cad"
+            and (getattr(_f, "document_type", "") or "").lower() == "3d"
+        ):
+            model_batch_by_item.setdefault(
+                _link.get("item_id"), _link.get("import_batch_id")
             )
 
     max_files = _env_int("YUANTUS_PACKGO_MAX_FILES", 2000)
@@ -1569,6 +1624,28 @@ def build_pack_and_go_package(
                     internal_ref=internal_ref,
                     source_version_id=effective_source_version_id,
                     source_path=source_path,
+                    # A4-R1: drawing-role only; warn-not-exclude (entry stays in the
+                    # bundle). model_import_batch_id is file-scope-consistent context.
+                    needs_update=(
+                        bool(link.get("needs_update"))
+                        if file_role == "drawing"
+                        else None
+                    ),
+                    staleness_reason=(
+                        link.get("staleness_reason")
+                        if file_role == "drawing"
+                        else None
+                    ),
+                    source_batch_id=(
+                        link.get("source_batch_id")
+                        if file_role == "drawing"
+                        else None
+                    ),
+                    model_import_batch_id=(
+                        model_batch_by_item.get(source_item_id)
+                        if file_role == "drawing"
+                        else None
+                    ),
                 )
             )
             seen_files.add(file.id)
@@ -1701,6 +1778,11 @@ def build_pack_and_go_package(
                 "item_revision": entry.item_revision,
                 "internal_ref": entry.internal_ref,
                 "source_version_id": entry.source_version_id,
+                # A4-R1: WP1.3 drawing staleness (None for non-drawing entries).
+                "needs_update": entry.needs_update,
+                "staleness_reason": entry.staleness_reason,
+                "source_batch_id": entry.source_batch_id,
+                "model_import_batch_id": entry.model_import_batch_id,
             }
             for entry in pack_files
         ],
@@ -1714,6 +1796,17 @@ def build_pack_and_go_package(
         "stale": list(version_lock_report.stale),
         "ok": version_lock_report.ok,
         "requires_lock": bool(require_locked_versions),
+    }
+    # A4-R1: WP1.3 drawing-staleness summary -- DISTINCT from version_lock_summary
+    # (which is version-lock/checkout state, NOT CAD drawing staleness). R1 is
+    # warn-not-exclude: stale drawings stay in the bundle; this surfaces the risk.
+    _drawing_entries = [e for e in pack_files if e.file_role == "drawing"]
+    _stale_drawings = [e for e in _drawing_entries if e.needs_update]
+    manifest["drawing_staleness_summary"] = {
+        "total_drawings": len(_drawing_entries),
+        "needs_update": len(_stale_drawings),
+        "stale_file_ids": [e.file_id for e in _stale_drawings],
+        "excluded": False,
     }
     if context:
         manifest["context"] = context
@@ -1760,6 +1853,24 @@ def build_pack_and_go_package(
         extra_files.append({"kind": "bom_flat", "path": bom_flat_name})
     if extra_files:
         manifest["extra_files"] = extra_files
+
+    # A4-R1: dry-run / manifest-first. The manifest is now fully built (files +
+    # drawing staleness + version-lock summary + extra-file plan); return it WITHOUT
+    # writing the zip / cache / artifact. Clean up the gather temp dir HERE -- the
+    # normal path cleans it post-zip, which dry-run skips, so without this each
+    # dry-run would leak a temp dir (+ any extracted blobs). Mirrors the post-zip
+    # cleanup. Only POST's dry_run branch passes this.
+    if dry_run:
+        for temp_path in temp_paths:
+            try:
+                temp_path.unlink()
+            except OSError:
+                continue
+        try:
+            temp_dir.rmdir()
+        except OSError:
+            pass
+        return manifest
 
     if progress_callback:
         progress_callback(
@@ -1954,6 +2065,94 @@ def pack_and_go(
         "org_id": ctx.org_id,
         "user_id": str(getattr(current_user, "id", "")) or None,
     }
+
+    # A4-R1: dry-run / manifest-first. Takes precedence over async_flag; bypasses the
+    # cache entirely (always a fresh manifest) and the zip/artifact/download path.
+    # Returns the plan + manifest (incl. drawing staleness) synchronously.
+    if req.dry_run:
+        try:
+            dry_manifest = build_pack_and_go_package(
+                db,
+                item_id=req.item_id,
+                depth=req.depth,
+                file_roles=resolved_file_roles,
+                document_types=resolved_document_types,
+                include_previews=req.include_previews,
+                include_printouts=include_printouts,
+                include_geometry=include_geometry,
+                export_type=export_type,
+                filename_mode=filename_mode,
+                filename_template=req.filename_template,
+                path_strategy=path_strategy,
+                collision_strategy=collision_strategy,
+                file_scope=file_scope,
+                dry_run=True,
+                include_item_types=req.include_item_types,
+                exclude_item_types=req.exclude_item_types,
+                include_item_ids=req.include_item_ids,
+                exclude_item_ids=req.exclude_item_ids,
+                allowed_states=req.allowed_states,
+                blocked_states=req.blocked_states,
+                allowed_extensions=req.allowed_extensions,
+                blocked_extensions=req.blocked_extensions,
+                include_bom_tree=req.include_bom_tree,
+                bom_tree_filename=req.bom_tree_filename,
+                include_manifest_csv=req.include_manifest_csv,
+                manifest_csv_filename=req.manifest_csv_filename,
+                manifest_csv_columns=manifest_columns,
+                include_bom_flat=req.include_bom_flat,
+                bom_flat_format=bom_flat_format,
+                bom_flat_filename=req.bom_flat_filename,
+                bom_flat_columns=bom_flat_columns,
+                relationship_types=req.relationship_types,
+                cache_key=None,
+                cache_enabled=False,
+                cache_ttl_minutes=cache_ttl_minutes,
+                context=context,
+                output_dir=Path(
+                    _env_str("YUANTUS_PACKGO_OUTPUT_DIR", "./tmp/pack_and_go")
+                ),
+                require_locked_versions=req.require_locked_versions,
+            )
+        except BundleVersionLockError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "error": "bundle_version_lock_violation",
+                    "message": str(exc),
+                    "unlocked": exc.unlocked,
+                    "mismatched": exc.mismatched,
+                },
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+        stale_summary = dry_manifest.get("drawing_staleness_summary", {}) or {}
+        plan = {
+            "item_count": len(
+                {f.get("source_item_id") for f in dry_manifest.get("files", [])}
+            ),
+            "file_count": dry_manifest.get("file_count", 0),
+            "total_drawings": stale_summary.get("total_drawings", 0),
+            "stale_drawings": stale_summary.get("needs_update", 0),
+            "would_zip": False,
+        }
+        warnings: List[str] = []
+        if stale_summary.get("needs_update"):
+            warnings.append(
+                f"{stale_summary['needs_update']} drawing(s) are stale (needs_update); "
+                "included with a warning, not excluded (set exclude_stale_drawings in a "
+                "future release to drop them)."
+            )
+        return JSONResponse(
+            {
+                "ok": True,
+                "dry_run": True,
+                "manifest": dry_manifest,
+                "plan": plan,
+                "warnings": warnings,
+            }
+        )
 
     if req.async_flag:
         from yuantus.meta_engine.services.job_service import JobService
