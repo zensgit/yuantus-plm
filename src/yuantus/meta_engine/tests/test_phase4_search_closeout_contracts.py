@@ -185,7 +185,9 @@ def test_phase4_route_count_is_pinned_after_search_reports_closeout() -> None:
     # - 705: + 1 WP1.2 stale-drawings route (GET /cad/items/{root}/stale-drawings).
     # - 706: + 1 PLM-COLLAB-P3-D1 embed-token mint (POST /bom/multitable/{part_id}/embed-token),
     #   unconditional route (the gate lives INSIDE the handler, not as a separate route).
-    assert len(app.routes) == 706
+    # - 707: + 1 CAD-PDM Superseded read-surface (GET /versions/items/{item_id}/versions),
+    #   unconditional ItemVersion LIST contract.
+    assert len(app.routes) == 707
 
 
 def test_search_indexer_status_schema_is_phase4_final_contract() -> None:

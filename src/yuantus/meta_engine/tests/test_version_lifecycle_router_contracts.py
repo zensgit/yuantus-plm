@@ -19,6 +19,7 @@ MOVED_ROUTES: Set[Tuple[str, str]] = {
     ("GET", "/api/v1/versions/compare"),
     ("POST", "/api/v1/versions/items/{item_id}/revise"),
     ("GET", "/api/v1/versions/items/{item_id}/history"),
+    ("GET", "/api/v1/versions/items/{item_id}/versions"),
     ("POST", "/api/v1/versions/items/{item_id}/branch"),
 }
 

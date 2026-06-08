@@ -518,6 +518,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_version_file_router_contracts.py \
             src/yuantus/meta_engine/tests/test_version_iteration_router_contracts.py \
             src/yuantus/meta_engine/tests/test_version_lifecycle_router_contracts.py \
+            src/yuantus/meta_engine/tests/test_version_list_read_surface.py \
             src/yuantus/meta_engine/tests/test_version_revision_router_contracts.py \
             src/yuantus/meta_engine/tests/test_version_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_version_router_exception_chaining_closeout.py \

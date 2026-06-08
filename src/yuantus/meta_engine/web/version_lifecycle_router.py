@@ -235,6 +235,23 @@ def get_history(item_id: str, db: Session = Depends(get_db)):
     return service.get_history(item_id)
 
 
+@version_lifecycle_router.get("/items/{item_id}/versions")
+def list_item_versions(
+    item_id: str,
+    user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    """Superseded read-surface: list the item's versions with a derived
+    lifecycle_status + is_under_modification (B1 made visible). Auth inherits the
+    router's optional dep -- a read surface, not narrower than the mutations. Missing
+    item -> 404 (via the service's not-found VersionError)."""
+    service = VersionService(db)
+    try:
+        return service.list_versions(item_id)
+    except VersionError as exc:
+        _raise_version_http_error(exc)
+
+
 @version_lifecycle_router.post("/items/{item_id}/branch")
 def create_branch(
     item_id: str,

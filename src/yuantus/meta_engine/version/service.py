@@ -580,6 +580,75 @@ class VersionService:
             is not None
         )
 
+    @staticmethod
+    def _lifecycle_status(version: ItemVersion, is_under_modification: bool) -> str:
+        """Superseded read-surface: single-value derived status. FIRST-MATCH order
+        (so state=="Superseded"/is_current can't skew it); is_superseded stays a
+        separate flag, not a peer status."""
+        if version.is_released and version.is_superseded:
+            return "historical_released"
+        if version.is_released and not version.is_superseded:
+            return "active_released"
+        if (
+            not version.is_released
+            and version.is_current
+            and is_under_modification
+        ):
+            return "in_work"
+        return "draft"
+
+    def _version_row(
+        self, version: ItemVersion, is_under_modification: bool
+    ) -> Dict[str, Any]:
+        return {
+            "version_id": version.id,
+            "version_label": version.version_label,
+            "generation": version.generation,
+            "revision": version.revision,
+            "branch_name": version.branch_name,
+            "state": version.state,
+            "is_current": bool(version.is_current),
+            "is_released": bool(version.is_released),
+            "is_superseded": bool(version.is_superseded),
+            "lifecycle_status": self._lifecycle_status(
+                version, is_under_modification
+            ),
+            "predecessor_id": version.predecessor_id,
+            "created_at": version.created_at.isoformat()
+            if version.created_at
+            else None,
+            "released_at": version.released_at.isoformat()
+            if version.released_at
+            else None,
+        }
+
+    def list_versions(self, item_id: str) -> Dict[str, Any]:
+        """Superseded read-surface: list an item's versions with a derived
+        lifecycle_status (active_released / historical_released / in_work / draft).
+        Read-only; reuses the B1 flags + is_under_modification. Raises a "not found"
+        VersionError if the item is missing (router -> 404) -- never an empty list
+        faking existence. Stable sort: generation ASC, created_at ASC, id ASC
+        (revision is a string + branch/merge makes it unstable)."""
+        item = self.session.get(Item, item_id)
+        if item is None:
+            raise VersionError(f"Item not found: {item_id}")
+        under_mod = self.is_under_modification(item_id)
+        versions = (
+            self.session.query(ItemVersion)
+            .filter(ItemVersion.item_id == item_id)
+            .order_by(
+                ItemVersion.generation.asc(),
+                ItemVersion.created_at.asc(),
+                ItemVersion.id.asc(),
+            )
+            .all()
+        )
+        return {
+            "item_id": item_id,
+            "is_under_modification": under_mod,
+            "versions": [self._version_row(v, under_mod) for v in versions],
+        }
+
     def get_history(self, item_id: str) -> List[VersionHistory]:
         """
         Get flat history of all versions of an item.
