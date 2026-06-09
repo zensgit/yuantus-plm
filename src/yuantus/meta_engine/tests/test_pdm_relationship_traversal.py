@@ -232,14 +232,51 @@ def test_tree_node_budget_aborts_on_shared_part_explosion(session):
         )
 
 
-def test_flat_also_bounded_by_budget(session):
-    # flat builds the tree first, so it must hit the same bound (it is NOT a safe
-    # escape from the shared-part explosion).
+def test_flat_no_longer_uses_duplicate_tree_budget(session):
+    # flat is now computed directly: a tiny tree materialization budget that would
+    # explode the duplicate-preserving tree must not block flat projection.
     _stacked_diamond(session)
-    with pytest.raises(TraversalBudgetError):
-        RelationshipService(session).get_relationship_tree(
-            "A", projection="flat", max_nodes=5
-        )
+    flat = RelationshipService(session).get_relationship_tree(
+        "A", projection="flat", max_nodes=5
+    )["items"]
+    by_id = {row["item_id"]: row for row in flat}
+    assert set(by_id) == {"A", "B1", "B2", "C", "D1", "D2", "E"}
+    assert by_id["A"]["occurrence_count"] == 1
+    assert by_id["C"]["occurrence_count"] == 2
+    assert by_id["D1"]["occurrence_count"] == 2
+    assert by_id["D2"]["occurrence_count"] == 2
+    assert by_id["E"]["occurrence_count"] == 4
+    assert by_id["E"]["first_path"] == ["A", "B1", "C", "D1", "E"]
+
+
+def test_flat_counts_parallel_relationship_edges_as_distinct_occurrences(session):
+    _parts(session, "A", "B")
+    first = _rel(session, "A", "B")
+    second = _rel(session, "A", "B")
+
+    flat = RelationshipService(session).get_relationship_tree(
+        "A", projection="flat"
+    )["items"]
+    by_id = {row["item_id"]: row for row in flat}
+    assert by_id["B"]["occurrence_count"] == 2
+    assert by_id["B"]["first_relationship_path"] == [first.id]
+    assert first.id != second.id
+
+
+def test_flat_cycle_edge_contributes_zero_and_terminates(session):
+    _parts(session, "A", "B", "C")
+    _rel(session, "A", "B")
+    _rel(session, "B", "A")  # cyclic edge contributes 0
+    _rel(session, "A", "C")
+
+    flat = RelationshipService(session).get_relationship_tree(
+        "A", projection="flat"
+    )["items"]
+    by_id = {row["item_id"]: row for row in flat}
+    assert set(by_id) == {"A", "B", "C"}
+    assert by_id["A"]["occurrence_count"] == 1
+    assert by_id["B"]["occurrence_count"] == 1
+    assert by_id["C"]["occurrence_count"] == 1
 
 
 def test_router_tree_budget_exceeded_is_422(session, monkeypatch):
@@ -254,6 +291,21 @@ def test_router_tree_budget_exceeded_is_422(session, monkeypatch):
             )
         )
     assert ei.value.status_code == 422
+
+
+def test_router_flat_projection_does_not_use_tree_budget(session, monkeypatch):
+    _allow_permission(monkeypatch)
+    monkeypatch.setattr(rel_service_mod, "MAX_TRAVERSAL_NODES", 5)
+    _stacked_diamond(session)
+
+    out = _run(
+        get_item_relationship_tree(
+            "A", kinds="ASSEMBLY", max_depth=10, projection="flat",
+            user=_USER, db=session,
+        )
+    )
+    by_id = {row["item_id"]: row for row in out["items"]}
+    assert by_id["E"]["occurrence_count"] == 4
 
 
 # ---------- router: validation + errors --------------------------------------
