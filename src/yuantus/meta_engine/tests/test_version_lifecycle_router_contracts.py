@@ -19,6 +19,7 @@ MOVED_ROUTES: Set[Tuple[str, str]] = {
     ("GET", "/api/v1/versions/compare"),
     ("POST", "/api/v1/versions/items/{item_id}/revise"),
     ("GET", "/api/v1/versions/items/{item_id}/history"),
+    ("GET", "/api/v1/versions/items/{item_id}/versions"),
     ("POST", "/api/v1/versions/items/{item_id}/branch"),
 }
 
@@ -65,6 +66,7 @@ def test_moved_routes_are_absent_from_legacy_version_router() -> None:
         "/compare",
         "/items/{item_id}/revise",
         "/items/{item_id}/history",
+        "/items/{item_id}/versions",
         "/items/{item_id}/branch",
     }
     leaked = [
