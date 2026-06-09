@@ -30,10 +30,12 @@ from yuantus.api.app import create_app
 # 706 = 705 + 1 PLM-COLLAB-P3-D1 embed-token mint route
 #   (POST /api/v1/bom/multitable/{part_id}/embed-token) -- unconditional route
 #   (the entitlement/permission gate is INSIDE the handler, not a separate route).
+# 707 = 706 + 1 CAD-PDM Superseded read-surface route
+#   (GET /api/v1/versions/items/{item_id}/versions) -- unconditional.
 # NOTE: this pin had drifted STALE at 676 (never bumped through the 677/678
 # route additions) and is not in the CI contracts list / no-DB allowlist, so the
 # drift went unobserved until the R2 routes slice reconciled it.
-EXPECTED_TOTAL_ROUTES = 706
+EXPECTED_TOTAL_ROUTES = 707
 
 
 def test_metrics_router_keeps_post_p4_route_count_at_expected_count() -> None:

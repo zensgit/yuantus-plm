@@ -235,6 +235,19 @@ def get_history(item_id: str, db: Session = Depends(get_db)):
     return service.get_history(item_id)
 
 
+@version_lifecycle_router.get("/items/{item_id}/versions")
+def list_versions(
+    item_id: str,
+    _user_id: int = Depends(get_current_user_id),
+    db: Session = Depends(get_db),
+):
+    service = VersionService(db)
+    try:
+        return service.list_versions(item_id)
+    except VersionError as e:
+        _raise_version_http_error(e)
+
+
 @version_lifecycle_router.post("/items/{item_id}/branch")
 def create_branch(
     item_id: str,

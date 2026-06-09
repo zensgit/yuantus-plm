@@ -39,6 +39,7 @@ EXPECTED_OWNERS = {
     ("GET", "/api/v1/versions/compare"): "yuantus.meta_engine.web.version_lifecycle_router",
     ("POST", "/api/v1/versions/items/{item_id}/revise"): "yuantus.meta_engine.web.version_lifecycle_router",
     ("GET", "/api/v1/versions/items/{item_id}/history"): "yuantus.meta_engine.web.version_lifecycle_router",
+    ("GET", "/api/v1/versions/items/{item_id}/versions"): "yuantus.meta_engine.web.version_lifecycle_router",
     ("POST", "/api/v1/versions/items/{item_id}/branch"): "yuantus.meta_engine.web.version_lifecycle_router",
     ("POST", "/api/v1/versions/{version_id}/effectivity"): "yuantus.meta_engine.web.version_effectivity_router",
     ("GET", "/api/v1/versions/items/{item_id}/effective"): "yuantus.meta_engine.web.version_effectivity_router",
