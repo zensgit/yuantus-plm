@@ -4,6 +4,7 @@ Relationship Service
 Phase 3.2
 """
 
+from collections import deque
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 
@@ -15,8 +16,9 @@ from yuantus.meta_engine.services.item_number_keys import get_item_number
 # shared-part (diamond) path explosion -- a part reachable via K ancestor paths is
 # expanded K times, which stacks multiplicatively and can blow up memory/latency
 # on heavily-shared BOMs. max_depth caps depth only, not breadth, so we also cap
-# the total expanded node count and fail loud (-> 422) rather than OOM. A bounded
-# O(V+E) flat projection (memoized, no tree materialization) is a tracked follow-up.
+# the total expanded node count and fail loud (-> 422) rather than OOM. Flat
+# projection is computed directly below so it no longer materializes this
+# duplicate-preserving tree first.
 MAX_TRAVERSAL_NODES = 50_000
 
 
@@ -325,29 +327,101 @@ class RelationshipService:
     ) -> Dict[str, Any]:
         """Recursive containment tree (default ASSEMBLY). Path-based cycle guard;
         root is included. projection='flat' dedupes by item (occurrence_count).
-        Raises TraversalBudgetError if expansion exceeds ``max_nodes`` (shared-part
-        explosion bound; default MAX_TRAVERSAL_NODES, resolved at call time)."""
+        Raises TraversalBudgetError if tree expansion exceeds ``max_nodes``
+        (shared-part explosion bound; default MAX_TRAVERSAL_NODES, resolved at
+        call time). Flat projection does not build the duplicate tree and does not
+        consume this tree-node budget."""
         kinds = tuple(kinds) if kinds else (self.ASSEMBLY,)
+        if projection == "flat":
+            return self._build_flat_projection(root_id, kinds, max_depth)
         budget = max_nodes if max_nodes is not None else MAX_TRAVERSAL_NODES
         state = {"count": 0, "max": budget}
         root_node = self._build_node(
             root_id, kinds, max_depth, state=state, depth=0, path=[], rel_path=[], via=None
         )
-        if projection == "flat":
-            agg: Dict[str, Dict[str, Any]] = {}
-            order: List[str] = []
-            self._flatten_node(root_node, agg, order)
-            return {
-                "root_id": root_id,
-                "max_depth": max_depth,
-                "projection": "flat",
-                "items": [agg[i] for i in order],
-            }
         return {
             "root_id": root_id,
             "max_depth": max_depth,
             "projection": "tree",
             "tree": root_node,
+        }
+
+    def _build_flat_projection(
+        self,
+        root_id: str,
+        kinds,
+        max_depth: int,
+    ) -> Dict[str, Any]:
+        """Direct flat projection without duplicate-tree materialization.
+
+        occurrence_count is the count of non-cycle ASSEMBLY relationship-edge
+        paths. We keep path ancestry in the queue so a cyclic edge contributes
+        zero while independent shared-part paths remain countable.
+        """
+        agg: Dict[str, Dict[str, Any]] = {}
+        order: List[str] = []
+        edge_cache: Dict[str, List[Item]] = {}
+
+        def _edges(item_id: str) -> List[Item]:
+            cached = edge_cache.get(item_id)
+            if cached is not None:
+                return cached
+            edges: List[Item] = []
+            for kind in kinds:
+                edges.extend(
+                    self.get_relationships(
+                        item_id,
+                        direction="outgoing",
+                        relationship_type_name=kind,
+                    )
+                )
+            edge_cache[item_id] = edges
+            return edges
+
+        queue = deque([(root_id, 0, (root_id,), ())])
+        while queue:
+            item_id, depth, path, rel_path = queue.popleft()
+            entry = agg.get(item_id)
+            if entry is None:
+                summary = self._item_summary(item_id)
+                agg[item_id] = {
+                    "item_id": summary["item_id"],
+                    "item_type_id": summary["item_type_id"],
+                    "item_number": summary["item_number"],
+                    "name": summary["name"],
+                    "occurrence_count": 1,
+                    "min_depth": depth,
+                    "first_path": list(path),
+                    "first_relationship_path": list(rel_path),
+                }
+                order.append(item_id)
+            else:
+                entry["occurrence_count"] += 1
+                if depth < entry["min_depth"]:
+                    entry["min_depth"] = depth
+                    entry["first_path"] = list(path)
+                    entry["first_relationship_path"] = list(rel_path)
+
+            if depth >= max_depth:
+                continue
+            for edge in _edges(item_id):
+                child_id = edge.related_id
+                if child_id in path:
+                    continue
+                queue.append(
+                    (
+                        child_id,
+                        depth + 1,
+                        path + (child_id,),
+                        rel_path + (edge.id,),
+                    )
+                )
+
+        return {
+            "root_id": root_id,
+            "max_depth": max_depth,
+            "projection": "flat",
+            "items": [agg[i] for i in order],
         }
 
     def _build_node(
