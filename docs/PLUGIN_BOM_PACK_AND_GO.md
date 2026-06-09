@@ -169,6 +169,8 @@ Request:
   "bom_flat_format": "csv",
   "bom_flat_filename": "bom_flat.csv",
   "bom_flat_columns": ["level", "parent_id", "child_id", "quantity"],
+  "dry_run": false,
+  "exclude_stale_drawings": false,
   "async": false
 }
 ```
@@ -190,6 +192,7 @@ Notes:
 - `include_bom_flat` can add a flat BOM CSV/JSONL export; `bom_flat_columns` controls CSV ordering.
 - `manifest_csv_columns` allows CSV column selection and ordering (extra fields like `file_extension` and `item_revision` are available).
 - Manifest file entries include `output_filename` (final name after naming mode/collision).
+- `dry_run=true` returns a manifest-first preview without building/downloading a ZIP. `exclude_stale_drawings=true` drops drawing-role files whose link has `needs_update=true`; default `false` preserves warn-not-exclude behavior.
 
 ### Async Pack (optional)
 

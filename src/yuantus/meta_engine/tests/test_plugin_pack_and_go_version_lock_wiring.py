@@ -137,6 +137,53 @@ def test_cache_payload_includes_require_locked_versions_flag():
     assert key_off != key_on
 
 
+def test_cache_payload_includes_exclude_stale_drawings_flag():
+    module = _load_plugin_module()
+    base_kwargs = dict(
+        item_id="root",
+        depth=-1,
+        export_type=None,
+        file_roles=[],
+        document_types=[],
+        include_previews=False,
+        include_printouts=True,
+        include_geometry=True,
+        filename_mode="original",
+        filename_template=None,
+        path_strategy="item_role",
+        collision_strategy="append_id",
+        file_scope="version",
+        include_bom_tree=False,
+        bom_tree_filename=None,
+        include_manifest_csv=False,
+        manifest_csv_filename=None,
+        manifest_csv_columns=None,
+        include_bom_flat=False,
+        bom_flat_format=None,
+        bom_flat_filename=None,
+        bom_flat_columns=None,
+        relationship_types=None,
+        include_item_types=None,
+        exclude_item_types=None,
+        include_item_ids=None,
+        exclude_item_ids=None,
+        allowed_states=None,
+        blocked_states=None,
+        allowed_extensions=None,
+        blocked_extensions=None,
+        require_locked_versions=False,
+    )
+    payload_off = module._build_cache_payload(
+        **base_kwargs, exclude_stale_drawings=False
+    )
+    payload_on = module._build_cache_payload(
+        **base_kwargs, exclude_stale_drawings=True
+    )
+    assert payload_off["exclude_stale_drawings"] is False
+    assert payload_on["exclude_stale_drawings"] is True
+    assert module._build_cache_key(payload_off) != module._build_cache_key(payload_on)
+
+
 def test_request_model_dump_includes_require_locked_versions():
     """Async payload safety: `_build_job_payload` does
     ``req.model_dump(by_alias=True)``; this test pins that the new
@@ -152,6 +199,17 @@ def test_request_model_dump_includes_require_locked_versions():
     req_off = module.PackAndGoRequest(item_id="root")
     dumped_off = req_off.model_dump(by_alias=True)
     assert dumped_off["require_locked_versions"] is False
+
+
+def test_request_model_dump_includes_exclude_stale_drawings():
+    module = _load_plugin_module()
+    req = module.PackAndGoRequest(item_id="root", exclude_stale_drawings=True)
+    dumped = req.model_dump(by_alias=True)
+    assert dumped["exclude_stale_drawings"] is True
+
+    req_off = module.PackAndGoRequest(item_id="root")
+    dumped_off = req_off.model_dump(by_alias=True)
+    assert dumped_off["exclude_stale_drawings"] is False
 
 
 def test_bundle_version_lock_error_carries_ids_and_is_not_valueerror():

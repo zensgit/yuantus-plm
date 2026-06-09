@@ -12,10 +12,12 @@ injected fake file_service + seeded items/files:
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 import tempfile
 import uuid
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -133,7 +135,16 @@ def _fc(session, file_id: str, document_type: str) -> None:
     )
 
 
-def _build(session, fake_fs, item_id: str, *, file_scope: str = "item") -> dict:
+def _build(
+    session,
+    fake_fs,
+    item_id: str,
+    *,
+    file_scope: str = "item",
+    exclude_stale_drawings: bool = False,
+    dry_run: bool = True,
+    output_dir: Path | None = None,
+) -> dict:
     return MODULE.build_pack_and_go_package(
         session,
         item_id=item_id,
@@ -144,10 +155,11 @@ def _build(session, fake_fs, item_id: str, *, file_scope: str = "item") -> dict:
         include_printouts=False,
         include_geometry=False,
         file_scope=file_scope,
-        dry_run=True,
+        dry_run=dry_run,
+        exclude_stale_drawings=exclude_stale_drawings,
         include_manifest_csv=True,
         file_service=fake_fs,
-        output_dir=Path("./tmp/pack_and_go"),
+        output_dir=output_dir or Path("./tmp/pack_and_go"),
     )
 
 
@@ -196,6 +208,118 @@ def test_summary_distinct_from_version_lock_and_not_excluded(session, fake_fs):
     # distinct key + the stale drawing is STILL in the bundle
     assert "version_lock_summary" in manifest and summary is not manifest["version_lock_summary"]
     assert any(f["file_id"] == "P-dwg" for f in manifest["files"])
+
+
+def test_exclude_stale_drawings_removes_stale_drawing_from_manifest(session, fake_fs):
+    _item(session, "P")
+    _fc(session, "P-model", "3d")
+    _fc(session, "P-dwg", "2d")
+    session.add(ItemFile(item_id="P", file_id="P-model", file_role="native_cad",
+                         import_batch_id="C"))
+    session.add(ItemFile(item_id="P", file_id="P-dwg", file_role="drawing",
+                         import_batch_id="B", source_batch_id="B",
+                         needs_update=True, staleness_reason="model_moved_on"))
+    session.commit()
+
+    manifest = _build(session, fake_fs, "P", exclude_stale_drawings=True)
+
+    assert [f["file_id"] for f in manifest["files"]] == ["P-model"]
+    summary = manifest["drawing_staleness_summary"]
+    assert summary["total_drawings"] == 1
+    assert summary["included_drawings"] == 0
+    assert summary["needs_update"] == 1
+    assert summary["stale_file_ids"] == ["P-dwg"]
+    assert summary["excluded"] is True
+    assert summary["excluded_file_ids"] == ["P-dwg"]
+    assert manifest["excluded_files"][0]["file_id"] == "P-dwg"
+    assert manifest["excluded_files"][0]["excluded_reason"] == "stale_drawing"
+
+
+def test_exclude_stale_drawings_does_not_hide_same_file_native_role(session, fake_fs):
+    """A4-R2 exclusion is role-scoped.
+
+    WP1.3 explicitly permits the same FileContainer to be attached to one Part
+    as both native_cad and drawing. Excluding the stale drawing role must not
+    make the native_cad role disappear through file-id dedupe.
+    """
+    _item(session, "P")
+    _fc(session, "P-shared", "3d")
+    session.add(ItemFile(item_id="P", file_id="P-shared", file_role="drawing",
+                         import_batch_id="B", source_batch_id="B",
+                         needs_update=True, staleness_reason="model_moved_on"))
+    session.add(ItemFile(item_id="P", file_id="P-shared", file_role="native_cad",
+                         import_batch_id="C"))
+    session.commit()
+
+    manifest = _build(session, fake_fs, "P", exclude_stale_drawings=True)
+
+    assert [(f["file_id"], f["file_role"]) for f in manifest["files"]] == [
+        ("P-shared", "native_cad")
+    ]
+    assert manifest["drawing_staleness_summary"]["excluded_file_ids"] == ["P-shared"]
+    assert manifest["excluded_files"][0]["file_role"] == "drawing"
+
+
+def test_default_file_id_dedupe_still_avoids_dual_role_duplicate_blob(session, fake_fs):
+    """Default warn-not-exclude preserves A4-R1 file-id dedupe.
+
+    The same FileContainer may be attached under multiple roles, but without the
+    explicit exclusion flag pack-and-go must not silently ship the same blob
+    twice. A stale drawing role can be excluded without occupying the file-id
+    dedupe slot; included files still dedupe by file id.
+    """
+    _item(session, "P")
+    _fc(session, "P-shared", "3d")
+    session.add(ItemFile(item_id="P", file_id="P-shared", file_role="drawing",
+                         import_batch_id="B", source_batch_id="B",
+                         needs_update=True, staleness_reason="model_moved_on"))
+    session.add(ItemFile(item_id="P", file_id="P-shared", file_role="native_cad",
+                         import_batch_id="C"))
+    session.commit()
+
+    manifest = _build(session, fake_fs, "P", exclude_stale_drawings=False)
+
+    assert [(f["file_id"], f["file_role"]) for f in manifest["files"]] == [
+        ("P-shared", "drawing")
+    ]
+    assert manifest["drawing_staleness_summary"]["excluded_file_ids"] == []
+    assert manifest["drawing_staleness_summary"]["excluded"] is False
+
+
+def test_exclude_stale_drawings_zip_and_csv_omit_stale_drawing(session, fake_fs, tmp_path):
+    _item(session, "P")
+    _fc(session, "P-model", "3d")
+    _fc(session, "P-dwg", "2d")
+    session.add(ItemFile(item_id="P", file_id="P-model", file_role="native_cad",
+                         import_batch_id="C"))
+    session.add(ItemFile(item_id="P", file_id="P-dwg", file_role="drawing",
+                         import_batch_id="B", source_batch_id="B",
+                         needs_update=True, staleness_reason="model_moved_on"))
+    session.commit()
+
+    result = _build(
+        session,
+        fake_fs,
+        "P",
+        dry_run=False,
+        exclude_stale_drawings=True,
+        output_dir=tmp_path / "packgo",
+    )
+
+    assert result.file_count == 1
+    assert [f["file_id"] for f in result.manifest["files"]] == ["P-model"]
+    assert result.manifest["drawing_staleness_summary"]["excluded_file_ids"] == ["P-dwg"]
+    with zipfile.ZipFile(result.zip_path, "r") as zipf:
+        names = set(zipf.namelist())
+        manifest_json = json.loads(zipf.read("manifest.json").decode("utf-8"))
+        csv_text = zipf.read(result.manifest["manifest_csv_file"]).decode("utf-8")
+
+    assert any(name.endswith("P-model.bin") for name in names)
+    assert not any(name.endswith("P-dwg.bin") for name in names)
+    assert [f["file_id"] for f in manifest_json["files"]] == ["P-model"]
+    assert manifest_json["drawing_staleness_summary"]["excluded_file_ids"] == ["P-dwg"]
+    assert manifest_json["excluded_files"][0]["file_id"] == "P-dwg"
+    assert "P-dwg" not in csv_text
 
 
 def test_manifest_csv_carries_staleness_columns(session, fake_fs):

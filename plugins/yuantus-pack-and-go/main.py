@@ -282,6 +282,13 @@ class PackAndGoRequest(BaseModel):
             "per export). Default-OFF never raises."
         ),
     )
+    exclude_stale_drawings: bool = Field(
+        default=False,
+        description=(
+            "When True, drawing-role files with needs_update=True are excluded "
+            "from the package; default False preserves A4-R1 warn-not-exclude."
+        ),
+    )
 
 
 class PackAndGoJobResponse(BaseModel):
@@ -996,6 +1003,7 @@ def _build_cache_payload(
     allowed_extensions: Optional[Sequence[str]],
     blocked_extensions: Optional[Sequence[str]],
     require_locked_versions: bool = False,
+    exclude_stale_drawings: bool = False,
 ) -> Dict[str, Any]:
     return {
         "item_id": item_id,
@@ -1030,6 +1038,7 @@ def _build_cache_payload(
         "allowed_extensions": _sorted_values(allowed_extensions),
         "blocked_extensions": _sorted_values(blocked_extensions),
         "require_locked_versions": bool(require_locked_versions),
+        "exclude_stale_drawings": bool(exclude_stale_drawings),
     }
 
 
@@ -1230,6 +1239,7 @@ def build_pack_and_go_package(
     output_dir: Path,
     file_service: Optional[FileService] = None,
     require_locked_versions: bool = False,
+    exclude_stale_drawings: bool = False,
 ) -> "PackAndGoResult | Dict[str, Any]":
     # dry_run returns the manifest dict (no zip); the normal path returns PackAndGoResult.
     from sqlalchemy.orm import joinedload
@@ -1509,6 +1519,7 @@ def build_pack_and_go_package(
     temp_paths: List[Path] = []
     pack_files: List[PackAndGoFile] = []
     missing_files: List[Dict[str, Any]] = []
+    excluded_stale_files: List[PackAndGoFile] = []
     seen_files: set[str] = set()
     used_paths: set[str] = set()
     processed_links = 0
@@ -1519,8 +1530,6 @@ def build_pack_and_go_package(
         try:
             file = link.get("file")
             if not file or not getattr(file, "id", None):
-                continue
-            if file.id in seen_files:
                 continue
 
             source_item_id = link.get("item_id") or ""
@@ -1563,9 +1572,6 @@ def build_pack_and_go_package(
                 link.get("source_version_id")
                 or getattr(source_item, "current_version_id", None)
             )
-            version_lock_file_links.append(
-                _version_lock_link_for_included_file(link, source_item)
-            )
 
             source_item_number = _resolve_item_number(source_item)
             internal_ref = _resolve_internal_ref(source_item)
@@ -1600,6 +1606,42 @@ def build_pack_and_go_package(
                 strategy=collision_strategy,
             )
             output_filename = Path(package_path).name
+            is_stale_drawing = file_role == "drawing" and bool(link.get("needs_update"))
+            if exclude_stale_drawings and is_stale_drawing:
+                excluded_stale_files.append(
+                    PackAndGoFile(
+                        file_id=file.id,
+                        filename=file.filename,
+                        output_filename=output_filename,
+                        file_role=file_role,
+                        document_type=document_type or None,
+                        cad_format=file.cad_format,
+                        file_extension=file_extension or None,
+                        document_version=file.document_version,
+                        size=int(file.file_size or 0),
+                        path_in_package=package_path,
+                        source_item_id=source_item.id,
+                        source_item_number=source_item_number,
+                        source_item_type=source_item.item_type_id,
+                        source_item_state=source_item.state,
+                        item_revision=revision,
+                        internal_ref=internal_ref,
+                        source_version_id=effective_source_version_id,
+                        source_path="",
+                        needs_update=True,
+                        staleness_reason=link.get("staleness_reason"),
+                        source_batch_id=link.get("source_batch_id"),
+                        model_import_batch_id=model_batch_by_item.get(source_item_id),
+                    )
+                )
+                continue
+
+            if file.id in seen_files:
+                continue
+
+            version_lock_file_links.append(
+                _version_lock_link_for_included_file(link, source_item)
+            )
             # dry_run is manifest-first: do NOT download remote blobs (no temp_path added). A local-cache
             # hit may still be stat'd for size; a miss leaves source_path None and falls back to file_size.
             source_path, temp_path = _resolve_source_path(
@@ -1766,6 +1808,7 @@ def build_pack_and_go_package(
             "include_bom_tree": include_bom_tree,
             "include_manifest_csv": include_manifest_csv,
             "include_bom_flat": include_bom_flat,
+            "exclude_stale_drawings": bool(exclude_stale_drawings),
         },
         "file_count": len(pack_files),
         "total_bytes": total_bytes,
@@ -1815,12 +1858,43 @@ def build_pack_and_go_package(
     # warn-not-exclude: stale drawings stay in the bundle; this surfaces the risk.
     _drawing_entries = [e for e in pack_files if e.file_role == "drawing"]
     _stale_drawings = [e for e in _drawing_entries if e.needs_update]
+    _all_stale_drawings = [*_stale_drawings, *excluded_stale_files]
     manifest["drawing_staleness_summary"] = {
-        "total_drawings": len(_drawing_entries),
-        "needs_update": len(_stale_drawings),
-        "stale_file_ids": [e.file_id for e in _stale_drawings],
-        "excluded": False,
+        "total_drawings": len(_drawing_entries) + len(excluded_stale_files),
+        "included_drawings": len(_drawing_entries),
+        "needs_update": len(_all_stale_drawings),
+        "stale_file_ids": [e.file_id for e in _all_stale_drawings],
+        "excluded": bool(exclude_stale_drawings),
+        "excluded_file_ids": [e.file_id for e in excluded_stale_files],
     }
+    if excluded_stale_files:
+        manifest["excluded_files"] = [
+            {
+                "file_id": entry.file_id,
+                "filename": entry.filename,
+                "output_filename": entry.output_filename,
+                "file_role": entry.file_role,
+                "document_type": entry.document_type,
+                "cad_format": entry.cad_format,
+                "file_extension": entry.file_extension,
+                "document_version": entry.document_version,
+                "size": entry.size,
+                "path_in_package": entry.path_in_package,
+                "source_item_id": entry.source_item_id,
+                "source_item_number": entry.source_item_number,
+                "source_item_type": entry.source_item_type,
+                "source_item_state": entry.source_item_state,
+                "item_revision": entry.item_revision,
+                "internal_ref": entry.internal_ref,
+                "source_version_id": entry.source_version_id,
+                "needs_update": entry.needs_update,
+                "staleness_reason": entry.staleness_reason,
+                "source_batch_id": entry.source_batch_id,
+                "model_import_batch_id": entry.model_import_batch_id,
+                "excluded_reason": "stale_drawing",
+            }
+            for entry in excluded_stale_files
+        ]
     if context:
         manifest["context"] = context
     if skipped_item_ids:
@@ -2069,6 +2143,7 @@ def pack_and_go(
                 allowed_extensions=req.allowed_extensions,
                 blocked_extensions=req.blocked_extensions,
                 require_locked_versions=req.require_locked_versions,
+                exclude_stale_drawings=req.exclude_stale_drawings,
             )
         )
 
@@ -2126,6 +2201,7 @@ def pack_and_go(
                     _env_str("YUANTUS_PACKGO_OUTPUT_DIR", "./tmp/pack_and_go")
                 ),
                 require_locked_versions=req.require_locked_versions,
+                exclude_stale_drawings=req.exclude_stale_drawings,
             )
         except BundleVersionLockError as exc:
             raise HTTPException(
@@ -2152,11 +2228,17 @@ def pack_and_go(
         }
         warnings: List[str] = []
         if stale_summary.get("needs_update"):
-            warnings.append(
-                f"{stale_summary['needs_update']} drawing(s) are stale (needs_update); "
-                "included with a warning, not excluded (set exclude_stale_drawings in a "
-                "future release to drop them)."
-            )
+            excluded_count = len(stale_summary.get("excluded_file_ids") or [])
+            if excluded_count:
+                warnings.append(
+                    f"{excluded_count} stale drawing(s) are excluded from this package "
+                    "(exclude_stale_drawings=true)."
+                )
+            else:
+                warnings.append(
+                    f"{stale_summary['needs_update']} drawing(s) are stale (needs_update); "
+                    "included with a warning, not excluded."
+                )
         return JSONResponse(
             {
                 "ok": True,
@@ -2243,6 +2325,7 @@ def pack_and_go(
             context=context,
             output_dir=output_dir,
             require_locked_versions=req.require_locked_versions,
+            exclude_stale_drawings=req.exclude_stale_drawings,
         )
     except BundleVersionLockError as exc:
         # Must catch BEFORE the generic ``ValueError`` below: this is a
@@ -2454,6 +2537,9 @@ def handle_pack_and_go_job(
                 require_locked_versions=bool(
                     payload.get("require_locked_versions", False)
                 ),
+                exclude_stale_drawings=bool(
+                    payload.get("exclude_stale_drawings", False)
+                ),
             )
         )
 
@@ -2529,6 +2615,7 @@ def handle_pack_and_go_job(
         progress_callback=progress_callback,
         output_dir=output_dir,
         require_locked_versions=bool(payload.get("require_locked_versions", False)),
+        exclude_stale_drawings=bool(payload.get("exclude_stale_drawings", False)),
     )
 
     return {
