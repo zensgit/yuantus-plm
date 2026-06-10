@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,9 @@ from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.job import ConversionJob
 from yuantus.meta_engine.services.cad_converter_service import CADConverterService
 from yuantus.meta_engine.services.checkin_service import CheckinManager
+from yuantus.meta_engine.version.checkout_context import row_checkout_context
 from yuantus.meta_engine.version.models import ItemVersion
+from yuantus.meta_engine.version.service import VersionError
 from yuantus.security.auth.database import get_identity_db
 from yuantus.security.auth.quota_service import QuotaService
 
@@ -68,6 +70,7 @@ class CadCheckinStatusResponse(BaseModel):
     version_id: str
     file_id: str
     filename: Optional[str] = None
+    lock_context: Dict[str, Any] = Field(default_factory=dict)
     conversion_job_ids: List[str] = Field(default_factory=list)
     conversion_jobs: List[CadCheckinJobStatus] = Field(default_factory=list)
     conversion_jobs_summary: CadCheckinJobsSummary
@@ -128,13 +131,21 @@ def _get_checkin_jobs(
 
 @cad_checkin_router.post("/{item_id}/checkout")
 def checkout_document(
-    item_id: str, mgr: CheckinManager = Depends(get_checkin_manager)
+    item_id: str,
+    payload: Optional[Dict[str, Any]] = Body(None),
+    mgr: CheckinManager = Depends(get_checkin_manager),
 ) -> Any:
     """
     Lock a document for editing.
     """
     try:
-        item = mgr.checkout(item_id)
+        payload = payload if isinstance(payload, dict) else {}
+        version = mgr.checkout(
+            item_id,
+            client_host=payload.get("client_host"),
+            client_workspace_path=payload.get("client_workspace_path"),
+            client_info=payload.get("client_info"),
+        )
         # Commit handled by service or need manual commit?
         # Service flushes, but typically Router/Dependencies commit.
         # But CheckinManager commits/flushes?
@@ -144,8 +155,16 @@ def checkout_document(
         return {
             "status": "success",
             "message": "Item locked.",
-            "locked_by_id": item.locked_by_id,
+            "locked_by_id": version.checked_out_by_id,
+            "checked_out_by_id": version.checked_out_by_id,
+            "version_id": version.id,
+            "lock_context": row_checkout_context(version),
         }
+    except VersionError as e:
+        mgr.session.rollback()
+        detail = str(e)
+        status_code = 409 if "checked out" in detail.lower() else 400
+        raise HTTPException(status_code=status_code, detail=detail) from e
     except ValueError as e:
         mgr.session.rollback()
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -279,6 +298,7 @@ def get_cad_checkin_status(
         version_id=version.id,
         file_id=native_file.id,
         filename=native_file.filename,
+        lock_context=row_checkout_context(version),
         conversion_job_ids=anchored_job_ids or [job.id for job in jobs],
         conversion_jobs=[
             CadCheckinJobStatus(

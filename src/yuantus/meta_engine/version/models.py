@@ -91,6 +91,9 @@ class ItemVersion(Base):
     # Checkout / Locking
     checked_out_by_id = Column(Integer, ForeignKey("rbac_users.id"), nullable=True)
     checked_out_at = Column(DateTime, nullable=True)
+    checkout_client_host = Column(String, nullable=True)
+    checkout_workspace_path = Column(String, nullable=True)
+    checkout_client_info = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
 
     # Version Chain
     predecessor_id = Column(String, ForeignKey("meta_item_versions.id"), nullable=True)
@@ -231,6 +234,9 @@ class VersionFile(Base):
     # File-level checkout / locking
     checked_out_by_id = Column(Integer, ForeignKey("rbac_users.id"), nullable=True)
     checked_out_at = Column(DateTime, nullable=True)
+    checkout_client_host = Column(String, nullable=True)
+    checkout_workspace_path = Column(String, nullable=True)
+    checkout_client_info = Column(JSON().with_variant(JSONB, "postgresql"), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

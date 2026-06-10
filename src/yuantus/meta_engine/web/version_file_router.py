@@ -3,12 +3,13 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import get_current_user_id_optional as get_current_user_id
 from yuantus.database import get_db
+from yuantus.meta_engine.version.checkout_context import row_checkout_context
 from yuantus.meta_engine.version.file_service import (
     VersionFileError,
     VersionFileService,
@@ -33,6 +34,12 @@ class SetPrimaryRequest(BaseModel):
 
 class SetThumbnailRequest(BaseModel):
     thumbnail_data: str  # Base64 encoded
+
+
+class CheckoutContextRequest(BaseModel):
+    client_host: Optional[str] = None
+    client_workspace_path: Optional[str] = None
+    client_info: Optional[Dict[str, Any]] = None
 
 
 def _ensure_version_file_editable(
@@ -178,16 +185,21 @@ def checkout_version_file(
     version_id: str,
     file_id: str,
     file_role: Optional[str] = None,
+    request: Optional[CheckoutContextRequest] = Body(None),
     user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ):
     file_service = VersionFileService(db)
+    context = request.model_dump() if request else {}
     try:
         vf = file_service.checkout_file(
             version_id,
             file_id,
             user_id,
             file_role=file_role,
+            client_host=context.get("client_host"),
+            client_workspace_path=context.get("client_workspace_path"),
+            client_info=context.get("client_info"),
         )
         db.commit()
         return {
@@ -199,6 +211,7 @@ def checkout_version_file(
             "checked_out_at": (
                 vf.checked_out_at.isoformat() if vf.checked_out_at else None
             ),
+            "lock_context": row_checkout_context(vf),
         }
     except VersionFileError as e:
         db.rollback()
@@ -231,6 +244,7 @@ def undo_checkout_version_file(
             "checked_out_at": (
                 vf.checked_out_at.isoformat() if vf.checked_out_at else None
             ),
+            "lock_context": row_checkout_context(vf),
         }
     except VersionFileError as e:
         db.rollback()

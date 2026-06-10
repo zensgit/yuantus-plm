@@ -49,13 +49,20 @@ namespace Yuantus.Cad.Helper.Tests
             var plm = new RecordingDocumentClient();
             var service = CreateService(plm, bearerToken: Bearer);
 
-            var result = await service.DocumentCheckoutAsync(new JObject { ["item_id"] = "item-1" }, CancellationToken.None);
+            var result = await service.DocumentCheckoutAsync(
+                new JObject { ["item_id"] = "item-1", ["workspace_path"] = @"C:\cad\assy" },
+                CancellationToken.None);
 
             Assert.True(result.Ok);
             var call = Assert.Single(plm.Calls);
             Assert.Equal("POST", call.Verb);
             Assert.Equal("/cad/item-1/checkout", call.EndpointPath);
             Assert.Equal(Bearer, call.BearerToken);
+            Assert.Equal("item-1", call.Payload.Value<string>("item_id"));
+            Assert.Equal(@"C:\cad\assy", call.Payload.Value<string>("client_workspace_path"));
+            Assert.False(string.IsNullOrWhiteSpace(call.Payload.Value<string>("client_host")));
+            Assert.Equal("cad-desktop-helper", call.Payload["client_info"].Value<string>("source"));
+            Assert.Equal("checkout", call.Payload["client_info"].Value<string>("document_lock_action"));
         }
 
         [Fact]

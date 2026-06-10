@@ -4,11 +4,13 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Response
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import get_current_user_id_optional as get_current_user_id
 from yuantus.database import get_db
 from yuantus.meta_engine.services.parallel_tasks_service import DocumentMultiSiteService
+from yuantus.meta_engine.version.checkout_context import row_checkout_context
 from yuantus.meta_engine.version.models import ItemVersion
 from yuantus.meta_engine.version.service import VersionError, VersionService
 
@@ -71,6 +73,9 @@ def checkout(
     doc_sync_max_processing: int = Body(0),
     doc_sync_max_failed: int = Body(0),
     doc_sync_max_dead_letter: int = Body(0),
+    client_host: Optional[str] = Body(None),
+    client_workspace_path: Optional[str] = Body(None),
+    client_info: Optional[Dict[str, Any]] = Body(None),
     db: Session = Depends(get_db),
 ):
     if doc_sync_site_id:
@@ -157,9 +162,19 @@ def checkout(
 
     service = VersionService(db)
     try:
-        ver = service.checkout(item_id, user_id, comment, version_id)
+        ver = service.checkout(
+            item_id,
+            user_id,
+            comment,
+            version_id,
+            client_host=client_host,
+            client_workspace_path=client_workspace_path,
+            client_info=client_info,
+        )
         db.commit()
-        return ver
+        payload = jsonable_encoder(ver)
+        payload["lock_context"] = row_checkout_context(ver)
+        return payload
     except VersionError as e:
         db.rollback()
         _raise_version_http_error(e)

@@ -64,6 +64,11 @@ def test_version_file_checkout_returns_200_and_commits():
         resp = client.post(
             "/api/v1/versions/ver-1/files/file-1/checkout",
             params={"file_role": "preview"},
+            json={
+                "client_host": "ws-1",
+                "client_workspace_path": "C:/cad/item1",
+                "client_info": {"source": "test"},
+            },
         )
 
     assert resp.status_code == 200
@@ -74,12 +79,20 @@ def test_version_file_checkout_returns_200_and_commits():
         "file_role": "preview",
         "checked_out_by_id": 7,
         "checked_out_at": "2026-04-15T12:00:00",
+        "lock_context": {
+            "client_host": None,
+            "workspace_path": None,
+            "client_info": None,
+        },
     }
     service_cls.return_value.checkout_file.assert_called_once_with(
         "ver-1",
         "file-1",
         7,
         file_role="preview",
+        client_host="ws-1",
+        client_workspace_path="C:/cad/item1",
+        client_info={"source": "test"},
     )
     assert db.commit.called
 
@@ -127,6 +140,11 @@ def test_version_file_lock_endpoint_returns_lock_payload():
             "file_role": "preview",
             "checked_out_by_id": 7,
             "checked_out_at": "2026-04-15T12:00:00",
+            "lock_context": {
+                "client_host": "ws-1",
+                "workspace_path": "C:/cad/item1",
+                "client_info": {"source": "test"},
+            },
         }
         resp = client.get(
             "/api/v1/versions/ver-1/files/file-1/lock",
@@ -135,6 +153,7 @@ def test_version_file_lock_endpoint_returns_lock_payload():
 
     assert resp.status_code == 200
     assert resp.json()["checked_out_by_id"] == 7
+    assert resp.json()["lock_context"]["client_host"] == "ws-1"
     service_cls.return_value.get_file_lock.assert_called_once_with(
         "ver-1",
         "file-1",
@@ -161,6 +180,11 @@ def test_version_file_undo_checkout_returns_200_and_commits():
 
     assert resp.status_code == 200
     assert resp.json()["checked_out_by_id"] is None
+    assert resp.json()["lock_context"] == {
+        "client_host": None,
+        "workspace_path": None,
+        "client_info": None,
+    }
     service_cls.return_value.undo_checkout_file.assert_called_once_with(
         "ver-1",
         "file-1",

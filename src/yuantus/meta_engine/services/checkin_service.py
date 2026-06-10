@@ -122,8 +122,22 @@ class CheckinManager:
         self.version_service = VersionService(session)
         self.file_service = _CheckinFileService(session)
 
-    def checkout(self, item_id: str):
-        return self.version_service.checkout(item_id, self.user_id, comment="CAD Checkout")
+    def checkout(
+        self,
+        item_id: str,
+        *,
+        client_host: Optional[str] = None,
+        client_workspace_path: Optional[str] = None,
+        client_info: Optional[Dict[str, Any]] = None,
+    ):
+        return self.version_service.checkout(
+            item_id,
+            self.user_id,
+            comment="CAD Checkout",
+            client_host=client_host,
+            client_workspace_path=client_workspace_path,
+            client_info=client_info,
+        )
 
     def undo_checkout(self, item_id: str):
         # No explicit undo in VersionService; use checkin to release the checkout lock.

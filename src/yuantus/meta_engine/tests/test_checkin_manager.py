@@ -17,7 +17,32 @@ class TestCheckinRefactor:
         mgr.checkout("item1")
 
         mgr.version_service.checkout.assert_called_once_with(
-            "item1", 1, comment="CAD Checkout"
+            "item1",
+            1,
+            comment="CAD Checkout",
+            client_host=None,
+            client_workspace_path=None,
+            client_info=None,
+        )
+
+    def test_cad_checkout_forwards_workstation_context(self, session):
+        mgr = CheckinManager(session, user_id=1)
+        mgr.version_service = MagicMock(spec=VersionService)
+
+        mgr.checkout(
+            "item1",
+            client_host="ws-1",
+            client_workspace_path="C:/cad/item1",
+            client_info={"source": "test"},
+        )
+
+        mgr.version_service.checkout.assert_called_once_with(
+            "item1",
+            1,
+            comment="CAD Checkout",
+            client_host="ws-1",
+            client_workspace_path="C:/cad/item1",
+            client_info={"source": "test"},
         )
 
     def test_cad_checkin_delegates_to_version_service(self, session):

@@ -263,6 +263,21 @@ def check_slice_a_commands_call_document_json_routes(endpoints: list[str]) -> No
         )
 
 
+def check_slice_a_checkout_request_carries_workspace_context(source: str) -> None:
+    require(
+        "client_workspace_path" in source,
+        "Slice A checkout request must carry client_workspace_path for A3 context",
+    )
+    require(
+        '(getvar "DWGPREFIX")' in source,
+        "Slice A checkout workspace context must come from DWGPREFIX",
+    )
+    require(
+        "source" in source and "yuantus_lisp_shell" in source,
+        "Slice A checkout request must identify the Lisp shell in client_info",
+    )
+
+
 def check_each_command_nil_guards_the_bridge_response(source_no_comments: str) -> None:
     # Each command must (null response)-guard the bridge return before
     # acting. Checked PER COMMAND (not a global count) so a command missing
@@ -779,6 +794,7 @@ def main() -> int:
         ("(yuantus-helper-call \"/diff/preview\" ...) at least once", lambda: check_command_calls_yuantus_helper_call_for_diff_preview(endpoints)),
         ("(yuantus-helper-call \"/audit/apply-result\" ...) at least once", lambda: check_command_calls_yuantus_helper_call_for_audit_apply_result(endpoints)),
         ("Slice A commands call /document/checkout|undo-checkout|status", lambda: check_slice_a_commands_call_document_json_routes(endpoints)),
+        ("Slice A checkout request carries DWGPREFIX workspace context", lambda: check_slice_a_checkout_request_carries_workspace_context(source)),
         ("each command nil-guards the bridge response", lambda: check_each_command_nil_guards_the_bridge_response(source_no_comments)),
         ("Slice A DEV/Verification MD records deferred operational signoff", check_slice_a_dev_verification_records_deferred_signoff),
         ("Slice C upload calls are arity 3", lambda: check_upload_call_arity_is_three(source_no_comments)),
