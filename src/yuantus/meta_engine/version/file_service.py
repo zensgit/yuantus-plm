@@ -15,6 +15,13 @@ from yuantus.meta_engine.version.models import (
     ItemVersion,
     VersionFile,
 )
+from yuantus.meta_engine.version.checkout_context import (
+    apply_checkout_context,
+    checkout_context_conflicts,
+    clear_checkout_context,
+    normalize_checkout_context,
+    row_checkout_context,
+)
 from yuantus.meta_engine.models.file import FileContainer
 
 
@@ -125,6 +132,9 @@ class VersionFileService:
         user_id: int,
         *,
         file_role: Optional[str] = None,
+        client_host: Optional[str] = None,
+        client_workspace_path: Optional[str] = None,
+        client_info: Optional[Dict[str, Any]] = None,
     ) -> VersionFile:
         version = self._get_version(version_id)
         if version.is_released:
@@ -139,11 +149,22 @@ class VersionFileService:
             raise VersionFileError(
                 f"File {file_id} is already checked out by user {assoc.checked_out_by_id}"
             )
+        context = normalize_checkout_context(
+            client_host=client_host,
+            workspace_path=client_workspace_path,
+            client_info=client_info,
+        )
         if assoc.checked_out_by_id == user_id:
+            if checkout_context_conflicts(assoc, context):
+                raise VersionFileError(
+                    f"File {file_id} is already checked out by this user "
+                    "from a different workstation"
+                )
             return assoc
 
         assoc.checked_out_by_id = user_id
         assoc.checked_out_at = datetime.utcnow()
+        apply_checkout_context(assoc, context)
         self.session.add(assoc)
         self.session.flush()
         return assoc
@@ -166,6 +187,7 @@ class VersionFileService:
 
         assoc.checked_out_by_id = None
         assoc.checked_out_at = None
+        clear_checkout_context(assoc)
         self.session.add(assoc)
         self.session.flush()
         return assoc
@@ -187,6 +209,7 @@ class VersionFileService:
             "checked_out_at": (
                 assoc.checked_out_at.isoformat() if assoc.checked_out_at else None
             ),
+            "lock_context": row_checkout_context(assoc),
         }
 
     def release_all_file_locks(self, version_id: str) -> int:
@@ -201,6 +224,7 @@ class VersionFileService:
         for assoc in locked:
             assoc.checked_out_by_id = None
             assoc.checked_out_at = None
+            clear_checkout_context(assoc)
             self.session.add(assoc)
         self.session.flush()
         return len(locked)

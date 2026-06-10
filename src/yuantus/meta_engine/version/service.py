@@ -17,6 +17,12 @@ from yuantus.meta_engine.version.models import (
     ItemIteration,
     RevisionScheme,
 )
+from yuantus.meta_engine.version.checkout_context import (
+    apply_checkout_context,
+    checkout_context_conflicts,
+    clear_checkout_context,
+    normalize_checkout_context,
+)
 from yuantus.meta_engine.models.item import Item
 from yuantus.meta_engine.models.effectivity import Effectivity
 from yuantus.meta_engine.version.file_service import VersionFileService, VersionFileError
@@ -78,7 +84,15 @@ class VersionService:
         return version
 
     def checkout(
-        self, item_id: str, user_id: int, comment: str = None, version_id: str = None
+        self,
+        item_id: str,
+        user_id: int,
+        comment: str = None,
+        version_id: str = None,
+        *,
+        client_host: Optional[str] = None,
+        client_workspace_path: Optional[str] = None,
+        client_info: Optional[Dict[str, Any]] = None,
     ) -> ItemVersion:
         """
         Locks the current version (or specific version) for editing by the user.
@@ -104,8 +118,19 @@ class VersionService:
                 "Cannot checkout a Released version. Create a new revision instead."
             )
 
+        context = normalize_checkout_context(
+            client_host=client_host,
+            workspace_path=client_workspace_path,
+            client_info=client_info,
+        )
+
         if version.checked_out_by_id:
             if version.checked_out_by_id == user_id:
+                if checkout_context_conflicts(version, context):
+                    raise VersionError(
+                        "Version is already checked out by this user "
+                        "from a different workstation"
+                    )
                 return version  # Already checked out by this user
             raise VersionError(
                 f"Version is already checked out by user {version.checked_out_by_id}"
@@ -130,9 +155,16 @@ class VersionService:
 
         version.checked_out_by_id = user_id
         version.checked_out_at = datetime.utcnow()
+        apply_checkout_context(version, context)
         self.session.add(version)
 
-        self._log_history(version, "checkout", user_id, comment)
+        self._log_history(
+            version,
+            "checkout",
+            user_id,
+            comment,
+            changes={"lock_context": context},
+        )
         return version
 
     def checkin(
@@ -222,6 +254,7 @@ class VersionService:
         self.file_version_service.release_all_file_locks(version.id)
         version.checked_out_by_id = None
         version.checked_out_at = None
+        clear_checkout_context(version)
 
         self._log_history(version, "checkin", user_id, comment, changes=properties)
         return version
@@ -523,6 +556,7 @@ class VersionService:
         current_ver.state = "Released"
         current_ver.checked_out_by_id = None
         current_ver.checked_out_at = None
+        clear_checkout_context(current_ver)
 
         # B1 (D2): supersede the immediate prior released version on this line. When
         # vN+1 is released, vN (predecessor) goes Released -> Superseded. It keeps

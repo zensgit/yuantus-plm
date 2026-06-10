@@ -7,6 +7,7 @@ import pytest
 
 
 _ALLOWLIST_NO_DB = {
+    "src/yuantus/meta_engine/tests/test_a3_workstation_checkout_context.py",
     "src/yuantus/meta_engine/tests/test_config_variants.py",
     "src/yuantus/meta_engine/tests/test_cad_preview_min_size.py",
     "src/yuantus/meta_engine/tests/test_cad_2d3d_staleness.py",

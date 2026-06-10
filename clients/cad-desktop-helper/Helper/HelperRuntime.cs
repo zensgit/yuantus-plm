@@ -2842,9 +2842,30 @@ CREATE INDEX IF NOT EXISTS idx_audit_pull ON audit_events(pull_id);
                 return sessionError;
             }
 
-            // POST (empty body) → backend POST /cad/{item_id}/{checkout|undo-checkout}.
+            // POST lock context → backend POST /cad/{item_id}/{checkout|undo-checkout}.
             var endpointPath = "/cad/" + Uri.EscapeDataString(itemId) + "/" + action;
-            var response = await _plm.PostAsync(serverUri, endpointPath, bearer, NewTraceId(), new JObject(), cancellationToken).ConfigureAwait(false);
+            var payload = request == null ? new JObject() : (JObject)request.DeepClone();
+            var clientHost = payload.Value<string>("client_host");
+            if (string.IsNullOrWhiteSpace(clientHost))
+            {
+                payload["client_host"] = Environment.MachineName;
+            }
+
+            var workspacePath =
+                payload.Value<string>("client_workspace_path")
+                ?? payload.Value<string>("workspace_path")
+                ?? payload.Value<string>("dwg_prefix");
+            if (!string.IsNullOrWhiteSpace(workspacePath))
+            {
+                payload["client_workspace_path"] = workspacePath;
+            }
+
+            var clientInfo = payload["client_info"] as JObject ?? new JObject();
+            clientInfo["source"] = "cad-desktop-helper";
+            clientInfo["document_lock_action"] = action;
+            payload["client_info"] = clientInfo;
+
+            var response = await _plm.PostAsync(serverUri, endpointPath, bearer, NewTraceId(), payload, cancellationToken).ConfigureAwait(false);
             return ToRouteResult(response);
         }
 

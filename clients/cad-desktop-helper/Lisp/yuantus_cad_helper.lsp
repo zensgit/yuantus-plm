@@ -268,7 +268,8 @@
 ;;; primitive used by diff-preview. Each command:
 ;;;   - prompts for a required PLM item_id (empty / cancel -> one notice,
 ;;;     no helper call);
-;;;   - sends {"item_id":"..."} to the helper route via the bridge;
+;;;   - sends {"item_id":"...","client_workspace_path":"..."} to the
+;;;     helper route via the bridge when DWGPREFIX is available;
 ;;;   - on nil (bridge already wrote its sanitized error) -> one notice,
 ;;;     stop (no retry, no /audit/apply-result);
 ;;;   - on a response -> (princ) the bridge-returned helper data JSON
@@ -292,12 +293,32 @@
 ;;; "/diff/preview" -> (null response) -> "/audit/apply-result" sequence,
 ;;; which must remain the diff-preview block.
 
-;;; yuantus--build-item-request: the {"item_id":"<escaped>"} request body
-;;; shared by the three Slice A commands. Reuses yuantus--json-escape so
-;;; Windows paths / quotes inside item_id are escaped the same way as
+;;; yuantus--current-workspace-path: the best CAD-host local workspace
+;;; context available to Lisp. DWGPREFIX is stable across ZWCAD/GstarCAD
+;;; and points at the active drawing directory.
+(defun yuantus--current-workspace-path (/ workspace)
+  (setq workspace (getvar "DWGPREFIX"))
+  (if (and workspace (> (strlen workspace) 0))
+    workspace
+    nil
+  )
+)
+
+
+;;; yuantus--build-item-request: the Slice A request body shared by the
+;;; three JSON workflow commands. Reuses yuantus--json-escape so Windows
+;;; paths / quotes inside item_id or DWGPREFIX are escaped the same way as
 ;;; diff-preview; no direct vl-string-subst.
-(defun yuantus--build-item-request (item-id)
-  (strcat "{\"item_id\":\"" (yuantus--json-escape item-id) "\"}")
+(defun yuantus--build-item-request (item-id / workspace)
+  (setq workspace (yuantus--current-workspace-path))
+  (if workspace
+    (strcat
+      "{\"item_id\":\"" (yuantus--json-escape item-id)
+      "\",\"client_workspace_path\":\"" (yuantus--json-escape workspace)
+      "\",\"client_info\":{\"source\":\"yuantus_lisp_shell\"}}"
+    )
+    (strcat "{\"item_id\":\"" (yuantus--json-escape item-id) "\"}")
+  )
 )
 
 

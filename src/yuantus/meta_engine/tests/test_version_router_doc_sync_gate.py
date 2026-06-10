@@ -184,6 +184,9 @@ def test_version_checkout_passes_when_doc_sync_gate_clear():
         7,
         "cad edit",
         "v-main",
+        client_host=None,
+        client_workspace_path=None,
+        client_info=None,
     )
 
 
@@ -372,6 +375,9 @@ def test_version_checkout_warn_mode_returns_200_with_warning_headers():
         7,
         None,
         None,
+        client_host=None,
+        client_workspace_path=None,
+        client_info=None,
     )
 
 
