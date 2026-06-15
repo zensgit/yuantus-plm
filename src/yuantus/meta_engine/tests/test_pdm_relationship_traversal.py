@@ -279,6 +279,43 @@ def test_flat_cycle_edge_contributes_zero_and_terminates(session):
     assert by_id["C"]["occurrence_count"] == 1
 
 
+def test_flat_deep_stacked_diamond_is_bounded_not_enumerated(session):
+    # N chained diamonds: L{i} -> {m{i}a, m{i}b} -> L{i+1}. The number of distinct
+    # simple paths L0 -> L{N} is 2**N. The previous per-path enumeration would
+    # materialize all 2**N path tuples (OOM at this N); the memoized topological DP
+    # computes the exact occurrence_count in O(V * max_depth) and returns instantly.
+    # This is the boundedness regression guard the original bounded-flat PR lacked:
+    # reverting to enumeration makes this test hang / OOM.
+    n = 25
+    parts: List[str] = [f"L{i}" for i in range(n + 1)]
+    edges: List[tuple] = []
+    for i in range(n):
+        a, b = f"m{i}a", f"m{i}b"
+        parts += [a, b]
+        edges += [
+            (f"L{i}", a),
+            (f"L{i}", b),
+            (a, f"L{i + 1}"),
+            (b, f"L{i + 1}"),
+        ]
+    _parts(session, *parts)
+    for parent, child in edges:
+        _rel(session, parent, child)
+
+    flat = RelationshipService(session).get_relationship_tree(
+        "L0", projection="flat", max_depth=4 * n
+    )["items"]
+    by_id = {row["item_id"]: row for row in flat}
+    assert by_id["L0"]["occurrence_count"] == 1
+    assert by_id[f"L{n}"]["occurrence_count"] == 2 ** n  # 2**25 == 33_554_432
+    # diamond i's mid nodes are each reached by exactly 2**i upstream paths
+    assert by_id["m0a"]["occurrence_count"] == 1
+    assert by_id[f"m{n - 1}a"]["occurrence_count"] == 2 ** (n - 1)
+    # each diamond is two edges deep, so the sink's shortest path length is 2*N
+    assert by_id[f"L{n}"]["min_depth"] == 2 * n
+    assert by_id[f"L{n}"]["first_path"][0] == "L0"
+
+
 def test_router_tree_budget_exceeded_is_422(session, monkeypatch):
     _allow_permission(monkeypatch)
     monkeypatch.setattr(rel_service_mod, "MAX_TRAVERSAL_NODES", 4)

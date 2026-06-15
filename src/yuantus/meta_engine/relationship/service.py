@@ -352,14 +352,28 @@ class RelationshipService:
         kinds,
         max_depth: int,
     ) -> Dict[str, Any]:
-        """Direct flat projection without duplicate-tree materialization.
+        """Direct, **bounded** flat projection -- no duplicate-tree materialization
+        and (unlike the prior version) no per-path enumeration.
 
-        occurrence_count is the count of non-cycle ASSEMBLY relationship-edge
-        paths. We keep path ancestry in the queue so a cyclic edge contributes
-        zero while independent shared-part paths remain countable.
+        ``occurrence_count`` is the number of distinct non-cycle relationship-edge
+        paths from the root to an item with length ``<= max_depth``. It is computed by
+        a memoized topological dynamic program (``count(v) += count(u)`` per edge
+        ``u -> v``, depth-stratified), NOT by materializing each path. A heavily-shared
+        diamond whose *path count* is exponential (e.g. a 20-deep stacked diamond has
+        2**20 paths) is therefore still ``O(V * max_depth + E)`` in time and memory.
+        This is why flat -- unlike the duplicate-preserving tree -- neither needs nor
+        consumes the ``max_nodes`` tree-node budget: it returns the deduped item set
+        even where the tree projection would raise ``TraversalBudgetError``.
+
+        Three linear passes:
+        1. shortest-first BFS -> reachable set, ``min_depth`` / ``first_path`` /
+           ``first_relationship_path`` (first discovery wins), and recorded adjacency;
+        2. a DFS that drops back-edges (an edge to an ancestor still on the current
+           DFS path -- the path-based cycle rule) to yield a DAG + finish order;
+        3. depth-stratified DP over that DAG in topological order, capping path length
+           at ``max_depth``. Parallel edges between the same pair are counted as
+           distinct occurrences (the DP iterates edges, not unique parents).
         """
-        agg: Dict[str, Dict[str, Any]] = {}
-        order: List[str] = []
         edge_cache: Dict[str, List[Item]] = {}
 
         def _edges(item_id: str) -> List[Item]:
@@ -378,50 +392,110 @@ class RelationshipService:
             edge_cache[item_id] = edges
             return edges
 
-        queue = deque([(root_id, 0, (root_id,), ())])
+        # --- Pass 1: shortest-first BFS -> metadata + reachable set + adjacency. ---
+        meta: Dict[str, Dict[str, Any]] = {
+            root_id: {
+                "min_depth": 0,
+                "first_path": [root_id],
+                "first_relationship_path": [],
+            }
+        }
+        order: List[str] = [root_id]
+        adjacency: Dict[str, List[tuple]] = {}
+        expanded: set = set()
+        queue = deque([(root_id, 0)])
         while queue:
-            item_id, depth, path, rel_path = queue.popleft()
-            entry = agg.get(item_id)
-            if entry is None:
-                summary = self._item_summary(item_id)
-                agg[item_id] = {
+            item_id, depth = queue.popleft()
+            if item_id in expanded:
+                continue
+            expanded.add(item_id)
+            if depth >= max_depth:
+                adjacency[item_id] = []
+                continue
+            parent_meta = meta[item_id]
+            out_edges: List[tuple] = []
+            for edge in _edges(item_id):
+                child_id = edge.related_id
+                out_edges.append((child_id, edge.id))
+                if child_id not in meta:
+                    meta[child_id] = {
+                        "min_depth": depth + 1,
+                        "first_path": parent_meta["first_path"] + [child_id],
+                        "first_relationship_path": (
+                            parent_meta["first_relationship_path"] + [edge.id]
+                        ),
+                    }
+                    order.append(child_id)
+                if child_id not in expanded:
+                    queue.append((child_id, depth + 1))
+            adjacency[item_id] = out_edges
+
+        # --- Pass 2: DFS dropping back-edges (to a GRAY ancestor) -> DAG + finish order. ---
+        WHITE, GRAY, BLACK = 0, 1, 2
+        color: Dict[str, int] = {node: WHITE for node in meta}
+        dag: Dict[str, List[tuple]] = {node: [] for node in meta}
+        finish: List[str] = []
+        color[root_id] = GRAY
+        dfs_stack = [(root_id, iter(adjacency.get(root_id, [])))]
+        while dfs_stack:
+            node, edge_iter = dfs_stack[-1]
+            descended = False
+            for child_id, edge_id in edge_iter:
+                if color[child_id] == GRAY:
+                    continue  # back-edge to an ancestor -> path-based cycle, drop it
+                dag[node].append((child_id, edge_id))
+                if color[child_id] == WHITE:
+                    color[child_id] = GRAY
+                    dfs_stack.append((child_id, iter(adjacency.get(child_id, []))))
+                    descended = True
+                    break
+                # BLACK: a finished node reached by a cross/forward edge -> keep, no descent.
+            if not descended:
+                color[node] = BLACK
+                finish.append(node)
+                dfs_stack.pop()
+
+        # --- Pass 3: depth-stratified DP over the DAG (reverse finish == topological). ---
+        # counts[v][d] = number of length-d non-cycle paths root -> v (capped <= max_depth).
+        counts: Dict[str, Dict[int, int]] = {node: {} for node in meta}
+        counts[root_id] = {0: 1}
+        for node in reversed(finish):
+            node_counts = counts[node]
+            if not node_counts:
+                continue
+            for child_id, _edge_id in dag[node]:
+                child_counts = counts[child_id]
+                for length, paths in node_counts.items():
+                    nxt = length + 1
+                    if nxt > max_depth:
+                        continue
+                    child_counts[nxt] = child_counts.get(nxt, 0) + paths
+
+        items: List[Dict[str, Any]] = []
+        for item_id in order:
+            occurrence = sum(counts[item_id].values())
+            if occurrence == 0:
+                continue  # only reachable via paths longer than max_depth
+            info = meta[item_id]
+            summary = self._item_summary(item_id)
+            items.append(
+                {
                     "item_id": summary["item_id"],
                     "item_type_id": summary["item_type_id"],
                     "item_number": summary["item_number"],
                     "name": summary["name"],
-                    "occurrence_count": 1,
-                    "min_depth": depth,
-                    "first_path": list(path),
-                    "first_relationship_path": list(rel_path),
+                    "occurrence_count": occurrence,
+                    "min_depth": info["min_depth"],
+                    "first_path": info["first_path"],
+                    "first_relationship_path": info["first_relationship_path"],
                 }
-                order.append(item_id)
-            else:
-                entry["occurrence_count"] += 1
-                if depth < entry["min_depth"]:
-                    entry["min_depth"] = depth
-                    entry["first_path"] = list(path)
-                    entry["first_relationship_path"] = list(rel_path)
-
-            if depth >= max_depth:
-                continue
-            for edge in _edges(item_id):
-                child_id = edge.related_id
-                if child_id in path:
-                    continue
-                queue.append(
-                    (
-                        child_id,
-                        depth + 1,
-                        path + (child_id,),
-                        rel_path + (edge.id,),
-                    )
-                )
+            )
 
         return {
             "root_id": root_id,
             "max_depth": max_depth,
             "projection": "flat",
-            "items": [agg[i] for i in order],
+            "items": items,
         }
 
     def _build_node(
