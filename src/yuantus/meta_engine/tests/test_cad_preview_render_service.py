@@ -2,7 +2,6 @@
 service preferred for DXF; CAD-ML fallback on failure; render service NOT used
 for DWG) by patching the seams — no DB / live service / renderer needed."""
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -11,10 +10,16 @@ from yuantus.meta_engine.tasks import cad_pipeline_tasks as cpt
 
 
 def _settings(*, render_url="http://render:8077", cad_ml_url="http://cadml:8001"):
-    return SimpleNamespace(
+    # Real Settings (defaults) + overrides, so cad_preview's full settings read-set
+    # is present — incl. the base-0.1.3 connector fields a hand-built SimpleNamespace
+    # would miss. Connector pinned off so the render / CAD-ML branch is exercised.
+    from yuantus.config.settings import Settings
+
+    return Settings(
         RENDER_SERVICE_BASE_URL=render_url,
         CAD_ML_BASE_URL=cad_ml_url,
         CAD_ML_SERVICE_TOKEN="",
+        CAD_CONNECTOR_BASE_URL="",
     )
 
 
@@ -54,12 +59,13 @@ def _run(monkeypatch, tmp_path, ext, *, render_ok=True, render_raises=False,
     cadml_client = MagicMock()
     cadml_client.render_cad_preview_sync.return_value = png
 
+    # backport(0.1.3): the main-era connector guards (_require_connector_for_remote_3d,
+    # _cad_connector_enabled_for_file) do not exist at this base and are not on
+    # cad_preview's path here, so they are not patched (backport delta vs main).
     with patch.object(cpt, "FileService", MagicMock()), \
          patch.object(cpt, "_ensure_source_exists", MagicMock()), \
          patch.object(cpt, "_is_s3_storage", return_value=False), \
          patch.object(cpt, "_vault_base_path", return_value=str(tmp_path)), \
-         patch.object(cpt, "_require_connector_for_remote_3d", MagicMock()), \
-         patch.object(cpt, "_cad_connector_enabled_for_file", return_value=False), \
          patch.object(cpt, "CADConverterService", return_value=conv), \
          patch.object(cpt, "RenderServiceClient", return_value=render_client), \
          patch.object(cpt, "CadMLClient", return_value=cadml_client), \
