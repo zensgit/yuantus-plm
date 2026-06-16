@@ -9,8 +9,7 @@ Drives the next phase: **P1D-retarget** (build `AthenaTransferReceiverAdapter`).
 ## 0. Why this exists
 
 The P1D skeleton (#768) was built against an **assumed** Athena CMIS browser-binding
-`createDocument`. A read of the actual Athena codebase (`/Users/chouhua/Downloads/Github/Athena`,
-`ecm-core`, our own sibling repo — no license boundary) shows that assumption is wrong on
+`createDocument`. A read of the actual Athena `ecm-core` sibling repo shows that assumption is wrong on
 every structural axis, and that Athena has a **purpose-built system-to-system ingest
 protocol** (the *Transfer Receiver*) that fits the PLM release outbox far better. This
 taskbook records the surface decision and locks the load-bearing design choices before the
@@ -80,9 +79,10 @@ this decision.
   (`ItemVersion.released_at`), ISO-8601, **stable across retries — never `now()`**. Because
   controlled CAD files are immutable per version: replay → Rule 1 `UNCHANGED` (clean
   at-least-once); a content change only ever appears as a **new `version_id`** → new
-  `sourceNodeId` → `CREATED` (distinct node). If `released_at` is null, fall back to a
-  deterministic stamp derived from the content fingerprint — but never a wall-clock at send
-  time (that breaks Rule 1 and, under default RENAME, spawns `(Replica N)` duplicates).
+  `sourceNodeId` → `CREATED` (distinct node). If `released_at` is null, fail closed unless
+  an operator explicitly enables a fixed sentinel fallback such as `1970-01-01T00:00:00`;
+  do not derive a timestamp from a content fingerprint and never use wall-clock send time
+  (that breaks Rule 1 and, under default RENAME, spawns `(Replica N)` duplicates).
 
 - **D4 — conflictPolicy.** Send an explicit policy, **never the default `RENAME`**. Since a
   stable `sourceNodeId` means Rules 1/2 (mapping-based) normally govern, `conflictPolicy`
@@ -121,11 +121,11 @@ this decision.
 
 - **D10 — Success/error semantics.** `disposition ∈ {CREATED, RENAMED, OVERWRITTEN,
   UNCHANGED, SKIPPED}` → all **SENT** (UNCHANGED/SKIPPED are idempotent no-ops, **not**
-  failures). Map onto the worker's existing classification: 5xx/timeout/429/408/401/403 →
-  `remote_error` (retryable); a credential/scope `SecurityException` (403-equivalent for a
-  wrong folder/cred) and **quota rejection** → terminal (`validation_error`-class), not
-  retry-forever. Distinguish on `disposition`, **not** the HTTP 2xx subtype (UNCHANGED is
-  also 201).
+  failures). Map onto the worker's existing classification without status-code shortcuts:
+  5xx/timeout/429/408 → `remote_error` (retryable); receiver credential/scope failures
+  (Athena surfaces them as 403 `SecurityException`), quota rejection, request-shape errors,
+  and validation/client errors → terminal (`validation_error`-class), not retry-forever.
+  Distinguish on `disposition`, **not** the HTTP 2xx subtype (UNCHANGED is also 201).
 
 - **D11 — #768 disposition.** Keep `cmis_adapter.py` as a **compliance reference** (clearly
   marked, default-off, never resolved) OR remove it; repoint `resolve_adapter` to the new
