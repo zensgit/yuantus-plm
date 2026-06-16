@@ -90,6 +90,9 @@ def build_snapshot(version: Any, vf: Any, file: Any, *, target_system: str) -> d
         "file_id": vf.file_id,
         "file_role": vf.file_role,
         "filename": getattr(file, "filename", None),
+        # Dispatch-time content read key. Enqueue remains byte-free: this is just
+        # the storage path/key already present on FileContainer.
+        "system_path": getattr(file, "system_path", None),
         "mime_type": getattr(file, "mime_type", None),
         "file_size": getattr(file, "file_size", None),
         "cad_format": getattr(file, "cad_format", None),
@@ -316,6 +319,7 @@ class EcmPublicationOutboxService:
             row.properties = {
                 **(row.properties or {}),
                 "remote_id": getattr(send_result, "remote_id", None),
+                **(getattr(send_result, "properties", None) or {}),
             }
         else:
             row.state = EcmPublicationState.FAILED.value

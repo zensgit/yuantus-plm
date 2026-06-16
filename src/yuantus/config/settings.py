@@ -464,9 +464,10 @@ class Settings(BaseSettings):
     ECM_PUBLISH_ENABLED: bool = Field(
         default=False,
         description=(
-            "Global kill-switch for PLM->ECM publication enqueue on release (ECM-P1B). "
-            "Default OFF: even entitled tenants do not enqueue until ops enables it. The "
-            "per-tenant license gate (is_entitled('ecm_publish')) applies ON TOP of this."
+            "Global kill-switch for PLM->ECM publication enqueue on release and live "
+            "worker dispatch to the configured ECM target (ECM-P1B/P1D). Default OFF: "
+            "even entitled tenants do not enqueue until ops enables it. The per-tenant "
+            "license gate (is_entitled('ecm_publish')) applies ON TOP of this."
         ),
     )
     SUSPENDED_GUARD_DISABLED: bool = Field(
@@ -560,38 +561,91 @@ class Settings(BaseSettings):
     PUBLICATION_ERP_TIMEOUT_SECONDS: float = Field(
         default=30.0, description="PLM->ERP publication HTTP timeout (seconds)"
     )
-    # ECM-P1D (skeleton): the real Athena CMIS publication connector. The CONNECTION
-    # reuses the existing ATHENA_BASE_URL / ATHENA_SERVICE_TOKEN. Routing is OFF by
-    # default: resolve_adapter returns the Null adapter unless PUBLICATION_ECM_TARGET_SYSTEM
-    # is set AND matches the row's target_system. The CMIS wire mapping below is
-    # PROVISIONAL pending Phase 0 live validation (U1-U5).
+    # ECM-P1D retarget: the production path is Athena's Transfer Receiver
+    # (/api/v1/transfer/receiver/*), not CMIS. Routing is OFF by default:
+    # resolve_adapter returns the Null adapter unless PUBLICATION_ECM_TARGET_SYSTEM is
+    # set, a base URL exists, and the row's target_system matches. CMIS settings remain
+    # below as compliance-reference/provisional fields; the resolver does not use them.
     PUBLICATION_ECM_TARGET_SYSTEM: str = Field(
         default="",
-        description="target_system routed to the Athena CMIS connector (empty = Null adapter only)",
+        description=(
+            "target_system routed to the Athena Transfer Receiver connector "
+            "(empty = Null adapter only)"
+        ),
     )
     PUBLICATION_ECM_BASE_URL: str = Field(
         default="",
-        description="Optional override base URL for ECM publishing (empty = reuse ATHENA_BASE_URL)",
+        description=(
+            "Optional override base URL for ECM publishing "
+            "(empty = reuse ATHENA_BASE_URL)"
+        ),
+    )
+    PUBLICATION_ECM_TRANSFER_USER: str = Field(
+        default="",
+        description="Athena Transfer Receiver X-Athena-Transfer-User header value (never logged)",
+    )
+    PUBLICATION_ECM_TRANSFER_SECRET: str = Field(
+        default="",
+        description=(
+            "Athena Transfer Receiver X-Athena-Transfer-Secret header value "
+            "(never logged)"
+        ),
+    )
+    PUBLICATION_ECM_ROOT_FOLDER_ID: str = Field(
+        default="",
+        description="Athena Transfer Receiver root folder UUID for PLM-controlled records",
+    )
+    PUBLICATION_ECM_SOURCE_REPOSITORY_ID: str = Field(
+        default="yuantus-plm",
+        description="Stable sourceRepositoryId used by Athena Transfer Receiver mapping",
+    )
+    PUBLICATION_ECM_CONFLICT_POLICY: str = Field(
+        default="SKIP",
+        description=(
+            "Athena Transfer Receiver conflictPolicy (SKIP|RENAME|OVERWRITE); "
+            "never rely on Athena's RENAME default"
+        ),
+    )
+    PUBLICATION_ECM_TRANSFER_MAX_BYTES: int = Field(
+        default=104857600,
+        description=(
+            "Max controlled-file bytes buffered for Transfer Receiver dispatch "
+            "(0 disables cap)"
+        ),
+    )
+    PUBLICATION_ECM_ALLOW_RELEASED_AT_SENTINEL: bool = Field(
+        default=False,
+        description=(
+            "Allow fixed 1970-01-01T00:00:00 sourceLastModifiedAt when "
+            "released_at is null; default fail-closed"
+        ),
     )
     PUBLICATION_ECM_SERVICE_TOKEN: str = Field(
         default="",
-        description="Optional override bearer token for ECM publishing (empty = reuse ATHENA_SERVICE_TOKEN; never logged)",
+        description=(
+            "CMIS compliance-reference bearer token override; not used by "
+            "Transfer Receiver (never logged)"
+        ),
     )
     PUBLICATION_ECM_PATH: str = Field(
         default="/cmis/browser",
-        description="Athena CMIS endpoint path (provisional; finalized in Phase 0)",
+        description="CMIS compliance-reference endpoint path; not used by Transfer Receiver",
     )
     PUBLICATION_ECM_REPOSITORY_ID: str = Field(
-        default="", description="Athena CMIS repository id (provisional)"
+        default="",
+        description=(
+            "CMIS compliance-reference repository id; not used by Transfer Receiver"
+        ),
     )
     PUBLICATION_ECM_ROOT_FOLDER_PATH: str = Field(
-        default="/PLM", description="Athena CMIS root folder for published records (provisional)"
+        default="/PLM",
+        description="CMIS compliance-reference root path; not used by Transfer Receiver",
     )
     PUBLICATION_ECM_OBJECT_TYPE_ID: str = Field(
-        default="cmis:document", description="Athena CMIS object type id (provisional)"
+        default="cmis:document", description="CMIS compliance-reference object type id"
     )
     PUBLICATION_ECM_TIMEOUT_SECONDS: float = Field(
-        default=30.0, description="PLM->ECM (Athena CMIS) publication HTTP timeout (seconds)"
+        default=30.0, description="PLM->ECM publication HTTP timeout (seconds)"
     )
     METRICS_ENABLED: bool = Field(
         default=True,

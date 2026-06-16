@@ -3,8 +3,9 @@
 Routing is OFF by default: the resolver returns the no-I/O Null adapter unless
 ``PUBLICATION_ECM_TARGET_SYSTEM`` is configured AND matches the row's
 ``target_system`` -- so dev/CI never accidentally performs a real external write to
-Athena. The configured branch lazy-imports the real Athena CMIS adapter (ECM-P1D
-skeleton); its CMIS wire mapping is validated against a live Athena in Phase 0.
+Athena. The configured branch lazy-imports the real Athena Transfer Receiver
+adapter (ECM-P1D retarget). The older CMIS adapter remains in-tree as a
+compliance reference and is intentionally not resolved here.
 """
 from __future__ import annotations
 
@@ -31,10 +32,10 @@ def resolve_adapter(
         or ""
     ).strip()
     if configured and base and (target_system or "").strip() == configured:
-        # Lazy import so the common Null path never imports httpx / the CMIS client.
-        from yuantus.meta_engine.ecm_publication.cmis_adapter import (
-            AthenaCmisPublicationAdapter,
+        # Lazy import so the common Null path never imports httpx / the real client.
+        from yuantus.meta_engine.ecm_publication.transfer_receiver_adapter import (
+            AthenaTransferReceiverAdapter,
         )
 
-        return AthenaCmisPublicationAdapter(settings=s)
+        return AthenaTransferReceiverAdapter(settings=s)
     return NullEcmPublicationAdapter()

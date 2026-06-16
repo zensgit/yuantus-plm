@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine
@@ -30,6 +31,7 @@ from yuantus.meta_engine.ecm_publication.service import (
     EcmPublicationOutboxService,
     EcmPublicationReplayError,
 )
+import yuantus.meta_engine.ecm_publication.worker as worker_module
 from yuantus.meta_engine.ecm_publication.worker import EcmPublicationOutboxWorker
 from yuantus.meta_engine.models.file import FileContainer
 from yuantus.meta_engine.models.item import Item
@@ -114,11 +116,11 @@ def _enqueue_one(session, **kw):
 
 def _bare_row(session, *, state="pending", reason=None, next_attempt_at=_PAST,
               worker_id=None, claimed_at=None, version_id="ghost", attempt_count=0,
-              max_attempts=3):
+              max_attempts=3, target_system="athena"):
     r = EcmPublicationOutbox(
         id=uuid.uuid4().hex, item_id="P", version_id=version_id,
         file_id=f"f-{uuid.uuid4().hex[:8]}",  # unique -> respects the per-file key
-        file_role="native_cad", target_system="athena", state=state, reason=reason,
+        file_role="native_cad", target_system=target_system, state=state, reason=reason,
         payload_fingerprint="fp", attempt_count=attempt_count, max_attempts=max_attempts,
         next_attempt_at=next_attempt_at, worker_id=worker_id, claimed_at=claimed_at,
     )
@@ -187,6 +189,36 @@ def test_batch_size_caps_claim(session):
     session.commit()
     claimed = _worker(batch_size=2)._claim_batch(session)
     assert len(claimed) == 2
+
+
+def test_dispatch_kill_switch_excludes_configured_live_target_from_claim(session, monkeypatch):
+    # P1D safety: once the adapter is real, flipping ECM_PUBLISH_ENABLED off must
+    # stop a running worker from draining the configured live ECM target. The row
+    # is not even claimed, so no revalidation / file read / remote send can occur.
+    live = _bare_row(session, target_system="athena")
+    other = _bare_row(session, target_system="other")
+    session.commit()
+    monkeypatch.setattr(
+        worker_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            PUBLICATION_ECM_TARGET_SYSTEM="athena",
+            ECM_PUBLISH_ENABLED=False,
+        ),
+    )
+    worker = EcmPublicationOutboxWorker(
+        "w1",
+        batch_size=20,
+        backoff_seconds=0,
+        stale_timeout_seconds=900,
+        poll_interval_seconds=0,
+    )
+    claimed = worker._claim_batch(session)
+    assert [row.id for row in claimed] == [other.id]
+    session.refresh(live)
+    session.refresh(other)
+    assert live.worker_id is None and live.claimed_at is None
+    assert other.worker_id == "w1" and other.claimed_at is not None
 
 
 def test_recently_claimed_row_not_reclaimed_by_other_worker(session):
