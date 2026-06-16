@@ -37,10 +37,13 @@ from yuantus.api.app import create_app
 # 709 = 708 + 1 L1 visual-diff route
 #   (GET /api/v1/cad/files/{file_id}/visual-diff) -- unconditional (gated by
 #   RENDER_SERVICE_BASE_URL inside the handler, not as a separate route).
+# 712 = 709 + 3 ECM publication-outbox ops routes (ECM-P1C) -- unconditional
+#   (GET /api/v1/plm-ecm/publication-outbox[?state]; GET .../{outbox_id};
+#   POST .../{outbox_id}/replay) -- admin + ecm_publish gated INSIDE the handler.
 # NOTE: this pin had drifted STALE at 676 (never bumped through the 677/678
 # route additions) and is not in the CI contracts list / no-DB allowlist, so the
 # drift went unobserved until the R2 routes slice reconciled it.
-EXPECTED_TOTAL_ROUTES = 709
+EXPECTED_TOTAL_ROUTES = 712
 
 
 def test_metrics_router_keeps_post_p4_route_count_at_expected_count() -> None:
