@@ -170,6 +170,7 @@ def search_items(
     item_type: Optional[str] = None,
     state: Optional[str] = None,
     limit: int = 20,
+    released_only: bool = False,
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     service = SearchService(db)
@@ -178,7 +179,9 @@ def search_items(
         filters["item_type_id"] = item_type
     if state:
         filters["state"] = state
-    return service.search(q, filters=filters, limit=limit)
+    # WP3.4 C2: opt-in latest-released selection surface; default off preserves
+    # browsing drafts/WIP. Never applied to the general GetOperation.
+    return service.search(q, filters=filters, limit=limit, released_only=released_only)
 
 
 @search_router.get("/ecos")
