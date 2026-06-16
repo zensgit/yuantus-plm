@@ -1,4 +1,4 @@
-"""Athena CMIS publication connector (ECM-P1D — SKELETON).
+"""Athena CMIS publication connector (ECM-P1D — compliance reference).
 
 A concrete ``EcmPublicationAdapter`` that POSTs the published controlled-record to
 Athena's CMIS endpoint, modeled on ``erp_publication.http_adapter`` (sync httpx +
@@ -6,16 +6,10 @@ injectable transport, CircuitBreaker, ``build_outbound_headers``, status->reason
 mapping). The CONNECTION reuses the existing ``ATHENA_BASE_URL`` / ``ATHENA_SERVICE_TOKEN``
 settings and the Athena failure classifier.
 
-STATUS: this is the P1D **skeleton**. It is structurally complete and fully unit-tested
-with the network mocked, but:
-- it is NOT wired on by default (``resolve_adapter`` returns Null unless
-  ``PUBLICATION_ECM_TARGET_SYSTEM`` is configured), so dev/CI never performs a real write;
-- the CMIS WIRE MAPPING in ``build_payload`` (repository / folder / object-type /
-  property names, and the browser-binding vs AtomPub choice) is PROVISIONAL and must be
-  validated/adjusted against a live Athena during Phase 0 (U1-U5);
-- OAuth client-credentials (the async ``AthenaClient`` token flow) is not yet wired here;
-  the skeleton authenticates with the static ``ATHENA_SERVICE_TOKEN`` bearer. Full OAuth +
-  shared-breaker integration is a live-bring-up step.
+STATUS: P1D retarget chose Athena's Transfer Receiver as the production path. This CMIS
+adapter remains in-tree only as a tested compliance/interoperability reference and is no
+longer returned by ``resolve_adapter``. Its wire mapping is intentionally not the live
+publication path.
 
 Boundaries (mirrors the erp connector): ``build_payload`` / ``validate_contract`` are
 LOCAL (no network) so dry-run stays side-effect-free; ``send()`` is the ONLY network call.

@@ -35,6 +35,10 @@ class SendResult:
     # When ok is False: which reason the outbox should record. Defaults to
     # remote_error; an exception escaping send() is classified adapter_error.
     error_kind: Optional[str] = None
+    # Optional target-specific metadata to merge into the outbox properties on
+    # success (e.g. Athena documentId / disposition). It is intentionally ignored
+    # by the Null adapter and backward-compatible for older tests.
+    properties: dict = field(default_factory=dict)
 
 
 class EcmPublicationAdapter(ABC):

@@ -3,7 +3,8 @@
 All HTTP is mocked via ``httpx.MockTransport`` -- these tests NEVER touch a real
 Athena. Covers the status->reason mapping, local-only build/validate, the on-wire
 idempotency + bearer headers, circuit-open handling, the breaker predicate, and the
-target_system->adapter resolver (default Null, configured -> CMIS).
+retarget invariant that CMIS remains a direct compliance-reference adapter but is no
+longer returned by the target_system resolver.
 """
 from __future__ import annotations
 
@@ -24,6 +25,9 @@ from yuantus.meta_engine.ecm_publication.cmis_adapter import (
     AthenaCmisPublicationAdapter,
     build_idempotency_key,
     build_publication_ecm_breaker,
+)
+from yuantus.meta_engine.ecm_publication.transfer_receiver_adapter import (
+    AthenaTransferReceiverAdapter,
 )
 
 _SNAP = {
@@ -219,10 +223,10 @@ def test_resolver_no_base_url_fails_closed_to_null():
     assert isinstance(resolve_adapter("athena", settings=s), NullEcmPublicationAdapter)
 
 
-def test_resolver_configured_match_is_cmis():
-    assert isinstance(
-        resolve_adapter("athena", settings=_settings()), AthenaCmisPublicationAdapter
-    )
+def test_resolver_configured_match_is_transfer_receiver_not_cmis():
+    adapter = resolve_adapter("athena", settings=_settings())
+    assert isinstance(adapter, AthenaTransferReceiverAdapter)
+    assert not isinstance(adapter, AthenaCmisPublicationAdapter)
 
 
 def test_resolver_configured_other_target_is_null():

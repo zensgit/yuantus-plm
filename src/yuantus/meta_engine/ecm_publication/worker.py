@@ -152,6 +152,19 @@ class EcmPublicationOutboxWorker:
                 asc(EcmPublicationOutbox.created_at),
             )
         )
+        settings = get_settings()
+        configured_target = (
+            getattr(settings, "PUBLICATION_ECM_TARGET_SYSTEM", "") or ""
+        ).strip()
+        if configured_target and not bool(
+            getattr(settings, "ECM_PUBLISH_ENABLED", False)
+        ):
+            # P1D safety: enqueue already honors ECM_PUBLISH_ENABLED; once the
+            # adapter is real, a long-running worker must also stop draining the
+            # configured live target when ops flips the kill-switch off. Rows for
+            # other target systems (or the default Null path with no configured
+            # target) keep existing behavior.
+            query = query.filter(EcmPublicationOutbox.target_system != configured_target)
         if dialect == "postgresql":
             query = query.with_for_update(skip_locked=True)
         rows = query.limit(self.batch_size).all()
