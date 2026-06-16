@@ -12,20 +12,53 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
-from typing import Any, List, Optional
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, List, Optional
 
+from .adapter import EcmPublicationAdapter
 from .models import (
     DEFAULT_ECM_TARGET_SYSTEM,
     EcmPublicationOutbox,
+    EcmPublicationReason,
     EcmPublicationState,
 )
+
+
+class EcmPublicationReplayError(Exception):
+    """Replay requested on a non-replayable row (wrong state or non-retryable
+    reason). Mirrors erp_publication.PublicationReplayError."""
+
+
+@dataclass
+class EcmRevalidation:
+    """The ECM analog of erp's readiness verdict, consumed by
+    ``_revalidate_allows_send`` before a ``sent`` transition. ``eligible`` =
+    the version is still released and the controlled file is still present;
+    ``fingerprint`` = the freshly recomputed content fingerprint (drift vs the
+    enqueued ``payload_fingerprint`` means the snapshot is stale and must not be
+    sent)."""
+
+    eligible: bool
+    version_id: Optional[str] = None
+    fingerprint: Optional[str] = None
 
 # Controlled-record file roles published to ECM (engineering deliverables; not
 # previews/loose attachments). Tuple, lower-case compared.
 CONTROLLED_FILE_ROLES = ("native_cad", "drawing", "geometry")
 
-# Snapshot keys excluded from the content fingerprint (volatile / non-content).
-_VOLATILE_SNAPSHOT_KEYS = frozenset({"snapshotted_at"})
+# Snapshot keys excluded from the content fingerprint. The fingerprint must be
+# STABLE across the enqueue session (release()) and the worker's SEPARATE revalidate
+# session, which reloads the version from the DB. It must therefore not depend on a
+# datetime's SERIALIZED REPRESENTATION: a value that round-trips with a different
+# isoformat (e.g. naive "...T00:00:00" vs tz-aware "...T00:00:00+00:00") would look
+# like content drift and wrongly SKIP the row. ItemVersion.released_at is currently a
+# naive DateTime (TIMESTAMP WITHOUT TIME ZONE), so it round-trips naive today and the
+# drift does NOT occur -- but released_at is immutable provenance, not file content
+# (the real drift signal is content_fingerprint_basis), so excluding it makes the
+# fingerprint robust regardless (e.g. a future timestamptz migration, or any reloaded
+# datetime added to build_snapshot). ("snapshotted_at" is reserved / not emitted.)
+_VOLATILE_SNAPSHOT_KEYS = frozenset({"snapshotted_at", "released_at"})
 
 
 def _content_fingerprint_basis(file: Any, vf: Any, version: Any) -> str:
@@ -167,3 +200,205 @@ class EcmPublicationOutboxService:
         existing.properties = {**(existing.properties or {}), "re_snapshotted": True}
         self.session.flush()
         return existing
+
+    # -- revalidation helpers (mirror erp_publication.service) -----------
+    @staticmethod
+    def _fresh_version_id(fresh: Any) -> Optional[str]:
+        version_id = getattr(fresh, "version_id", None)
+        return str(version_id) if version_id else None
+
+    def _mark_revalidated_not_eligible(
+        self,
+        row: EcmPublicationOutbox,
+        *,
+        version_mismatch: bool = False,
+        fingerprint_drift: bool = False,
+        fresh_version_id: Optional[str] = None,
+    ) -> EcmPublicationOutbox:
+        row.state = EcmPublicationState.SKIPPED.value
+        row.reason = EcmPublicationReason.NOT_ELIGIBLE.value
+        props = {**(row.properties or {}), "revalidated_ineligible": True}
+        if version_mismatch:
+            # The published version itself changed (reserved; ECM rows are
+            # per-(version,file) so the worker fetches by row.version_id).
+            props["revalidated_version_mismatch"] = True
+            props["revalidated_version_id"] = fresh_version_id
+        if fingerprint_drift:
+            # Same version, but the controlled file's content changed since
+            # enqueue -> the snapshot is stale and must not be published.
+            props["revalidated_fingerprint_drift"] = True
+            props["revalidated_version_id"] = fresh_version_id
+        row.properties = props
+        self.session.flush()
+        return row
+
+    def _revalidate_allows_send(
+        self, row: EcmPublicationOutbox, fresh: Any
+    ) -> bool:
+        """True iff the row may transition to ``sent``. False (and the row is
+        marked SKIPPED/NOT_ELIGIBLE) when the version is no longer eligible OR the
+        recomputed content fingerprint drifted from the enqueued snapshot (a stale
+        snapshot must never be published)."""
+        if not bool(getattr(fresh, "eligible", False)):
+            self._mark_revalidated_not_eligible(row)
+            return False
+        fresh_fp = getattr(fresh, "fingerprint", None)
+        if fresh_fp is not None and fresh_fp != row.payload_fingerprint:
+            # content drift on the SAME version -> distinct audit flag (not
+            # version_mismatch, whose revalidated_version_id would == row.version_id).
+            self._mark_revalidated_not_eligible(
+                row,
+                fingerprint_drift=True,
+                fresh_version_id=self._fresh_version_id(fresh),
+            )
+            return False
+        return True
+
+    def _fail_adapter_error(
+        self, row: EcmPublicationOutbox, exc: Exception
+    ) -> EcmPublicationOutbox:
+        row.state = EcmPublicationState.FAILED.value
+        row.reason = EcmPublicationReason.ADAPTER_ERROR.value
+        row.error_message = str(exc)
+        self.session.flush()
+        return row
+
+    # -- process (send) -------------------------------------------------
+    def process(
+        self,
+        row: EcmPublicationOutbox,
+        adapter: EcmPublicationAdapter,
+        *,
+        revalidate: Optional[Callable[[], Any]] = None,
+    ) -> EcmPublicationOutbox:
+        """Mirror of erp_publication.process: revalidate -> build_payload ->
+        validate_contract -> send, with the single pre-send attempt increment
+        (guard #1) and adapter-error classification."""
+        if row.state not in (
+            EcmPublicationState.PENDING.value,
+            EcmPublicationState.DRY_RUN_READY.value,
+        ):
+            raise EcmPublicationReplayError(
+                f"state {row.state!r} cannot be processed directly "
+                "(only pending / dry_run_ready)"
+            )
+
+        if revalidate is not None:
+            fresh = revalidate()
+            if not self._revalidate_allows_send(row, fresh):
+                return row
+
+        try:
+            payload = adapter.build_payload(row.snapshot)
+            result = adapter.validate_contract(payload)
+        except Exception as exc:  # pre-send adapter error (count NOT yet bumped)
+            return self._fail_adapter_error(row, exc)
+        if not result.ok:
+            row.state = EcmPublicationState.FAILED.value
+            row.reason = EcmPublicationReason.VALIDATION_ERROR.value
+            row.error_message = "; ".join(result.errors) or "validation failed"
+            self.session.flush()
+            return row
+
+        row.attempt_count = (row.attempt_count or 0) + 1  # the ONLY pre-send bump
+        try:
+            send_result = adapter.send(payload)
+        except Exception as exc:  # the adapter itself broke (count WAS bumped)
+            return self._fail_adapter_error(row, exc)
+
+        if getattr(send_result, "ok", False):
+            row.state = EcmPublicationState.SENT.value
+            row.reason = None
+            row.error_message = None
+            row.dispatched_at = datetime.now(timezone.utc)
+            # merge (do not overwrite): the real CMIS adapter (P1D) may add
+            # athena_folder_id/athena_object_id alongside remote_id.
+            row.properties = {
+                **(row.properties or {}),
+                "remote_id": getattr(send_result, "remote_id", None),
+            }
+        else:
+            row.state = EcmPublicationState.FAILED.value
+            row.reason = (
+                getattr(send_result, "error_kind", None)
+                or EcmPublicationReason.REMOTE_ERROR.value
+            )
+            row.error_message = getattr(send_result, "error", None)
+        self.session.flush()
+        return row
+
+    # -- worker-side deferred retry -------------------------------------
+    def reschedule_retry(
+        self,
+        row: EcmPublicationOutbox,
+        *,
+        attempt_count_before: int,
+        backoff_seconds: int,
+        now: Optional[datetime] = None,
+    ) -> EcmPublicationOutbox:
+        """Deferred retry of a just-processed failed row (worker path). Retries
+        ONLY remote_error/adapter_error; leaves the terminal reasons
+        (not_eligible/config_missing/conflict/validation_error) failed. Guard #1:
+        a pre-send adapter_error never hit the increment, so count it once here
+        (detected via attempt_count_before) or it would retry forever at 0. At
+        max_attempts the row stays failed (dead-letter); else PENDING with the
+        claim cleared and linear backoff ``backoff_seconds * attempt_count``."""
+        if row.state != EcmPublicationState.FAILED.value:
+            return row
+        if row.reason not in (
+            EcmPublicationReason.REMOTE_ERROR.value,
+            EcmPublicationReason.ADAPTER_ERROR.value,
+        ):
+            return row  # terminal reason -> stays failed
+
+        if (row.attempt_count or 0) == (attempt_count_before or 0):
+            row.attempt_count = (row.attempt_count or 0) + 1
+
+        if (row.attempt_count or 0) >= (row.max_attempts or 0):
+            row.worker_id = None
+            row.claimed_at = None
+            self.session.flush()
+            return row
+
+        now = now or datetime.now(timezone.utc)
+        backoff = max(int(backoff_seconds), 0) * max(row.attempt_count or 1, 1)
+        row.state = EcmPublicationState.PENDING.value
+        row.reason = None
+        row.error_message = None
+        row.worker_id = None
+        row.claimed_at = None
+        row.next_attempt_at = now + timedelta(seconds=backoff)
+        self.session.flush()
+        return row
+
+    # -- replay (operator action: pure failed->pending reset) -----------
+    def replay(self, row: EcmPublicationOutbox) -> EcmPublicationOutbox:
+        """Operator replay from the ops router: reset a retryable FAILED row to
+        PENDING for the worker to pick up again. PURE state reset -- NO adapter
+        resend (the real Athena adapter is P1D-deferred). Only remote_error /
+        adapter_error are replayable; the terminal reasons raise
+        EcmPublicationReplayError (router -> 409). attempt_count is RESET to 0 so a
+        dead-lettered row gets fresh retries (a deliberate P1C choice; documented
+        in the DEV/V doc)."""
+        if row.state != EcmPublicationState.FAILED.value:
+            raise EcmPublicationReplayError(
+                f"state {row.state!r} is not replayable (only failed)"
+            )
+        if row.reason not in (
+            EcmPublicationReason.REMOTE_ERROR.value,
+            EcmPublicationReason.ADAPTER_ERROR.value,
+        ):
+            raise EcmPublicationReplayError(
+                f"reason {row.reason!r} is not retryable "
+                "(only remote_error / adapter_error)"
+            )
+        row.state = EcmPublicationState.PENDING.value
+        row.reason = None
+        row.error_message = None
+        row.attempt_count = 0
+        row.worker_id = None
+        row.claimed_at = None
+        row.next_attempt_at = datetime.now(timezone.utc)
+        row.properties = {**(row.properties or {}), "replayed": True}
+        self.session.flush()
+        return row
