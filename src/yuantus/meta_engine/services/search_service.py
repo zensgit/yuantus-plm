@@ -320,7 +320,23 @@ class SearchService:
             "created_at": item.created_at,
             "updated_at": item.updated_at,
             "properties": props,
+            "is_current": bool(getattr(item, "is_current", False)),
+            # WP3.4 C2: the "latest released face" signal -- a current item whose current
+            # version is released (matches LatestReleasedGuardService semantics).
+            "is_released": self._item_is_latest_released(item),
         }
+
+    def _item_is_latest_released(self, item: Item) -> bool:
+        """True iff the item is current AND its current ``ItemVersion`` is released.
+        (``is_released`` lives on the version, not the ``Item``.)"""
+        if not getattr(item, "is_current", False) or not item.current_version_id:
+            return False
+        if not self.session:
+            return False
+        from yuantus.meta_engine.version.models import ItemVersion
+
+        version = self.session.get(ItemVersion, item.current_version_id)
+        return bool(version and version.is_released)
 
     def index_item(self, item: Item):
         """Index or update an item document."""
@@ -369,7 +385,11 @@ class SearchService:
             logger.error("Failed to delete ECO %s from index: %s", eco_id, exc)
 
     def search(
-        self, query_string: str, filters: Dict[str, Any] = None, limit: int = 20
+        self,
+        query_string: str,
+        filters: Dict[str, Any] = None,
+        limit: int = 20,
+        released_only: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute a search query.
@@ -379,7 +399,10 @@ class SearchService:
         """
         if not self.client:
             return self._search_fallback_db(
-                query_string=query_string, filters=filters or {}, limit=limit
+                query_string=query_string,
+                filters=filters or {},
+                limit=limit,
+                released_only=released_only,
             )
 
         # Build Query DSL
@@ -410,6 +433,12 @@ class SearchService:
             for key, value in filters.items():
                 must_clauses.append({"term": {key: value}})
 
+        if released_only:
+            # WP3.4 C2 (opt-in): restrict to the latest-released face. Requires the
+            # is_released field on indexed docs (added to _build_doc); pre-existing
+            # indices must be reindexed for ES-mode filtering to take effect.
+            must_clauses.append({"term": {"is_released": True}})
+
         body = {"query": {"bool": {"must": must_clauses}}, "size": limit}
 
         try:
@@ -428,7 +457,12 @@ class SearchService:
             raise
 
     def _search_fallback_db(
-        self, *, query_string: str, filters: Dict[str, Any], limit: int
+        self,
+        *,
+        query_string: str,
+        filters: Dict[str, Any],
+        limit: int,
+        released_only: bool = False,
     ) -> Dict[str, Any]:
         """
         DB fallback for local/dev environments without Elasticsearch.
@@ -466,6 +500,19 @@ class SearchService:
                     Item.state.ilike(like),
                     cast(Item.properties, String).ilike(like),
                 )
+            )
+
+        if released_only:
+            # WP3.4 C2 (opt-in): the latest-released face = current item whose current
+            # ItemVersion is released (is_released lives on the version, not the Item).
+            from yuantus.meta_engine.version.models import ItemVersion
+
+            released_version_ids = select(ItemVersion.id).where(
+                ItemVersion.is_released.is_(True)
+            )
+            stmt = stmt.where(
+                Item.is_current.is_(True),
+                Item.current_version_id.in_(released_version_ids),
             )
 
         count_stmt = select(func.count()).select_from(stmt.subquery())
