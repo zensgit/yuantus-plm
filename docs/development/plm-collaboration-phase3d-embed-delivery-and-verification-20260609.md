@@ -1,8 +1,12 @@
 # PLM Collaboration P3-D — Embed Delivery & Verification (doc-only)
 
-**Date:** 2026-06-09 · **Status:** COMPLETE end-to-end (read-only embedded BOM-review viewer); all
-slices merged to `main` on both repos (`zensgit/yuantus-plm` provider + `zensgit/metasheet2`
-consumer).
+**Date:** 2026-06-09 · **Status:** the two backend halves — **provider mint** (Yuantus) + the
+**MetaSheet token-bound, offline-verified, read-only viewer** (incl. per-call tenant + single-use
+re-gating) — are COMPLETE and merged to `main` on both repos (`zensgit/yuantus-plm` +
+`zensgit/metasheet2`). The **PLM parent-page embedding contract** (the PLM UI that mints, hosts the
+iframe, and posts the token) is **deferred / not built** (§7), so there is **no live in-PLM
+click-through yet** — what ships is the mint endpoint and a standalone token-bound viewer, not an
+integrated PLM screen.
 
 This doc bookends the embed line. It supersedes the P3-D closeout
 (`plm-collaboration-phase3d-embed-spine-closeout-20260606.md`, #737) on exactly one point: the **two
@@ -18,16 +22,22 @@ token-bound `part_id` claim.
 
 ---
 
-## 1. What shipped — the feature, end to end
+## 1. What shipped — the two backend halves
 
-A part's BOM can be reviewed as a **governed, read-only** table **embedded inside the PLM UI** via a
-MetaSheet iframe, authenticated by a **PLM-minted, short-lived, single-use Ed25519 token** that
-MetaSheet verifies **offline**. Every data call is re-gated server-side; the surface degrades safely
-and never leaks existence/identity.
+A part's BOM can be served as a **governed, read-only** table to a **MetaSheet iframe**,
+authenticated by a **PLM-minted, short-lived, single-use Ed25519 token** that MetaSheet verifies
+**offline**. Every data call is re-gated server-side; the surface degrades safely and never leaks
+existence/identity. **What is built** is (a) the provider mint endpoint and (b) the MetaSheet
+token-bound viewer; **what is not** is the PLM UI that would host the iframe and deliver the token —
+that parent-page handshake is deferred (§7), so the design below describes the intended full flow
+with its **PLM-page host still to be built**.
 
-Pipeline: `PLM page → mint embed token (gated) → iframe at MetaSheet /plm-embed/bom-review → token
-via postMessage (origin-pinned) → MetaSheet offline-verifies → renders the read-only BOM table; the
-embedded data call re-checks entitlement + permission + tenant + single-use on the provider/relay.`
+Pipeline (`[deferred]` marks the unbuilt PLM-side host): `PLM page [deferred host] → mint embed token
+(gated) → iframe at MetaSheet /plm-embed/bom-review → token via postMessage (origin-pinned)
+[deferred: the poster] → MetaSheet offline-verifies → renders the read-only BOM table; the embedded
+data call re-checks entitlement + permission + tenant + single-use on the provider/relay.` The mint
+endpoint and everything from the iframe rightward are built and merged; the `[deferred]` PLM-page
+host that ties them together is not.
 
 ---
 
@@ -98,8 +108,9 @@ fallback; a hand-set `x-tenant-id` diverging from the precedence const); explici
 
 ## 6. Operational / deployment notes
 
-- **Origin allowlists (no `'*'`, empty = fail-closed):** Yuantus `EMBED_ALLOWED_ORIGINS`; metasheet2 `PLM_EMBED_ALLOWED_ORIGINS`. All three checks (postMessage allowlist, `embed_origin` claim, CSP frame-ancestors) key off the same PLM parent origin(s).
-- **Keys/audience must pair:** Yuantus `EMBED_TOKEN_SIGNING_KEY`(private)/`EMBED_TOKEN_KEY_ID`/`EMBED_TOKEN_AUDIENCE` ↔ metasheet2 `YUANTUS_EMBED_PUBLIC_KEY`/`YUANTUS_EMBED_KEY_ID`/`PLM_EMBED_AUDIENCE`.
+- **Yuantus env names carry the `YUANTUS_` prefix.** Pydantic `Settings` uses `env_prefix="YUANTUS_"` with `extra="ignore"` (`src/yuantus/config/settings.py`), so an **unprefixed** `EMBED_*` var is **silently dropped** → the signing key reads empty → minting stays fail-closed (503) with no error. Always set the prefixed names: `YUANTUS_EMBED_TOKEN_SIGNING_KEY` (private), `YUANTUS_EMBED_TOKEN_KEY_ID`, `YUANTUS_EMBED_TOKEN_AUDIENCE`, `YUANTUS_EMBED_TOKEN_TTL_SECONDS`, `YUANTUS_EMBED_ALLOWED_ORIGINS` (the names the embed-token tests configure).
+- **Origin allowlists (no `'*'`, empty = fail-closed):** Yuantus `YUANTUS_EMBED_ALLOWED_ORIGINS`; metasheet2 `PLM_EMBED_ALLOWED_ORIGINS`. All three checks (postMessage allowlist, `embed_origin` claim, CSP frame-ancestors) key off the same PLM parent origin(s).
+- **Keys/audience must pair:** Yuantus `YUANTUS_EMBED_TOKEN_SIGNING_KEY`(private)/`YUANTUS_EMBED_TOKEN_KEY_ID`/`YUANTUS_EMBED_TOKEN_AUDIENCE` ↔ metasheet2 `YUANTUS_EMBED_PUBLIC_KEY`/`YUANTUS_EMBED_KEY_ID`/`PLM_EMBED_AUDIENCE`.
 - **Embed data source:** `PLM_EMBED_DATA_SOURCE_ID`; its served tenant must be per-source unambiguous (a per-source tenant currently needs direct/internal `DataSourceConfig` — the data-sources REST schema persists neither `options.tenantId` nor a nested `connection.headers`).
 - **Redis (single-use):** `REDIS_URL` required; `getRedisClient()` memoizes a *startup* failure as permanent null → embed path stays fail-closed (503) until restart if Redis is down at the first call; recovers from transient drops after a successful first connect.
 - **CSP:** edge layer must apply `frame-ancestors` (value from `/config`); unconfigured → `'none'`.
@@ -109,8 +120,10 @@ fallback; a hand-set `x-tenant-id` diverging from the precedence const); explici
 
 ## 7. What remains (all explicitly DEFERRED — each needs its own owner opt-in)
 
-The embed line is complete as a read-only embedded viewer (its scope). Remaining items are deferred
-future work, not gaps in the shipped feature:
+The two backend halves are complete (provider mint + the token-bound read-only viewer). The
+**PLM parent-page handshake is itself the first item below** — i.e. the integrated in-PLM
+click-through is deferred, not shipped. Remaining items are deferred future work, each needing its
+own owner opt-in:
 
 - **Token-exchange / SSO (identity-session spine)** — escalates read-only viewing to a session; **higher risk tier**; requires a Fork A (exchange→`mst_`) vs shared-IdP decision + identity mapping. Entry conditions in #737 §5 (now minus the two partials). *Deferred; needs explicit opt-in.*
 - **B2 — jti admin-revocation denylist** — beyond B1's TTL-window single-use; only worth it if "revoke an un-expired token" is a real product need (re-introduces an online/stateful dependency). *Deferred.*
