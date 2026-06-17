@@ -12,7 +12,7 @@ import contextlib
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -20,6 +20,7 @@ from sqlalchemy.pool import StaticPool
 
 from yuantus.api.app import create_app
 from yuantus.api.dependencies import mes_ingest_auth
+from yuantus.api.middleware.context import TenantOrgContextMiddleware
 from yuantus.context import org_id_var, tenant_id_var
 from yuantus.meta_engine.models.item import Item  # noqa: F401  (mapper registration)
 from yuantus.meta_engine.models.parallel_tasks import (
@@ -250,3 +251,41 @@ def test_header_tenant_is_overridden_by_config(monkeypatch, Session):
             next(gen)
     finally:
         tenant_id_var.reset(token)
+
+
+# --- audit-attribution follow-up: machine path ignores the tenant header ----
+@pytest.fixture()
+def _ctx_app():
+    app = FastAPI()
+    app.add_middleware(TenantOrgContextMiddleware)
+    seen = {}
+
+    @app.post("/api/v1/consumption/plans/{plan_id}/mes-actuals")
+    def _mes(plan_id: str):
+        seen["tenant"] = tenant_id_var.get()
+        return {"ok": True}
+
+    @app.get("/api/v1/other")
+    def _other():
+        seen["tenant"] = tenant_id_var.get()
+        return {"ok": True}
+
+    return TestClient(app), seen
+
+
+def test_mes_path_ignores_x_tenant_header(_ctx_app):
+    # The machine MES path must NOT derive tenant from the (untrusted) header, so
+    # the audit log (which reads tenant_id_var) never records a caller-supplied
+    # tenant for it.
+    client, seen = _ctx_app
+    client.post(
+        "/api/v1/consumption/plans/p1/mes-actuals",
+        headers={"x-tenant-id": "tenant-EVIL"},
+    )
+    assert seen["tenant"] is None
+
+
+def test_non_mes_path_still_uses_x_tenant_header(_ctx_app):
+    client, seen = _ctx_app
+    client.get("/api/v1/other", headers={"x-tenant-id": "tenant-T"})
+    assert seen["tenant"] == "tenant-T"  # unchanged for normal routes
