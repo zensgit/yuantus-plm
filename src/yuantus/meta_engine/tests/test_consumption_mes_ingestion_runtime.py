@@ -162,6 +162,26 @@ def test_replay_same_event_is_duplicate_single_row(db):
     assert db.query(ConsumptionRecord).count() == 1
 
 
+def test_r2_3_scrap_source_ingests_and_persists(db):
+    # R2.3 positive-consumption source ingests end-to-end and persists source_type.
+    plan = _seed_plan(db)
+    record, disposition = _ingest(
+        db, _event(plan.id, mes_event_id="evt-scrap-1", source_type="scrap", actual_quantity=2.0)
+    )
+    assert disposition == "CREATED"
+    assert record.source_type == "scrap"
+
+
+def test_r2_3_same_event_different_source_type_is_distinct_row(db):
+    # source_type is part of the idempotency key, so a scrap event and a workorder
+    # event sharing a mes_event_id are DIFFERENT events -> two rows (no collision).
+    plan = _seed_plan(db)
+    _ingest(db, _event(plan.id, mes_event_id="evt-1", source_type="workorder", actual_quantity=4.0))
+    _ingest(db, _event(plan.id, mes_event_id="evt-1", source_type="scrap", actual_quantity=1.0))
+    assert db.query(ConsumptionRecord).count() == 2
+    assert ConsumptionPlanService(db).variance(plan.id)["actual_quantity"] == 5.0
+
+
 def test_replay_does_not_double_count_variance(db):
     plan = _seed_plan(db, planned=10.0)
     event = _event(plan.id, actual_quantity=4.0)
