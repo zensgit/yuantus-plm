@@ -76,6 +76,11 @@ all folder/document calls keep `parentFolderId` scoped to the authorized receive
 while `sourceParentNodeId` carries the intended PLM nesting. The rerun above proves that
 this is the correct live contract.
 
+The smoke kit also keeps receiver and sender identities separate: U1 verifies the
+receiver repository id (`PUBLICATION_ECM_EXPECTED_REPOSITORY_ID`, default `athena`),
+while Transfer create/upload calls send `PUBLICATION_ECM_SOURCE_REPOSITORY_ID` as the
+PLM-side source identity used by Athena idempotency mapping.
+
 ## 4. Current production-readiness state
 
 Code now supports the real Transfer Receiver path:
