@@ -1,8 +1,8 @@
 # ECM Publish — P1E Live Closeout + Worker E2E Plan (Dev & Verification)
 
 Date: 2026-06-17
-Status: Phase-0 Transfer Receiver live gate **passed**; worker end-to-end live
-validation remains an operator-run follow-up.
+Status: Phase-0 Transfer Receiver live gate **passed**; worker end-to-end live validation
+**passed** (§7); ECM publish **live-ready** for controlled rollout (§8).
 
 Follows:
 
@@ -186,10 +186,43 @@ Expected:
 - The live `127.0.0.1:8080` URL from the Athena container is container-local. From a
   host or a separate Yuantus deployment, use a network route that is actually reachable
   from that process.
+- **Worker→Athena reachability is a go-live precondition.** `YUANTUS_PUBLICATION_ECM_BASE_URL`
+  must be reachable from the **worker's** network namespace, not just from the host. In the
+  live run below, the worker's configured address (`http://172.20.0.14:8080`) was not routable
+  from the Yuantus Docker network, so the first attempt **entered retry** (correctly — a
+  `remote_error`, not a false `sent`); it was resolved by attaching `athena-ecm-core-1` to the
+  Yuantus network and setting `YUANTUS_PUBLICATION_ECM_BASE_URL=http://athena-ecm-core-1:8080`.
+  This validates the design: an unreachable receiver surfaces as a retry/inconclusive, never
+  as a green live-ready.
 
-## 7. Status
+## 7. Worker E2E — LIVE PASSED (evidence)
 
-The Transfer Receiver adapter contract and Athena live receiver contract are now proven.
-The remaining production-readiness evidence item is the worker E2E checklist in §5.
-Once that checklist passes, ECM publish can be marked live-ready for controlled rollout
-with the restart-only kill-switch caveat.
+The full worker path was proven live on 2026-06-17 via
+`scripts/ecm_publish_phase0/worker_e2e_smoke.py --yes-live` against the live Athena Transfer
+Receiver (after the reachability fix in §6):
+
+```text
+release() -> ECM outbox row -> ecm-publication-worker --once -> Athena Transfer Receiver -> SENT
+```
+
+| Field | Value |
+|---|---|
+| `status` | **passed** |
+| `outbox_id` | `cbee4abd1490443189133915f8c37085` |
+| `state` | `sent` |
+| `athena_document_id` | `8dd4c6be-6fea-455b-91b5-0e3c3d13d058` (real Athena node) |
+| `athena_disposition` | `CREATED` |
+| `remote_id` | `8dd4c6be-6fea-455b-91b5-0e3c3d13d058` |
+| `ticks` | `1` |
+| `worker_id` | `ecm-worker-e2e` |
+
+Operator prep: a disposable controlled STEP file was released through the normal release path,
+producing outbox row `cbee4abd…`; the smoke drained that one row and asserted SENT + the
+Athena document properties. The Transfer Receiver secret is deliberately not recorded.
+
+## 8. Status — COMPLETE / live-ready
+
+The Transfer Receiver adapter contract, the Athena live receiver contract, **and the full PLM
+worker E2E path** are now proven live. ECM publish is **live-ready for controlled rollout**,
+subject to the **restart-only** kill-switch caveat (§6) and the per-tenant `ecm_publish`
+entitlement + `ECM_PUBLISH_ENABLED` global gate.
