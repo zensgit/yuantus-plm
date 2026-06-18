@@ -92,10 +92,10 @@ product still needs explicit compatibility gates for the newer collaboration sur
 - `POST /api/v1/bom/multitable/{part_id}/embed-token`
 - the MetaSheet relay/embed routes and the `bom_multitable` payload shape
 
-MetaSheet2 PR #2875 is the right direction for this line: it hardens the BOM inner-shape guard so
-silent field drift is rejected instead of degrading into blank UI cells. As of this document, that
-PR is still an upstream owner-gated/open item, not yet a Yuantus mainline fact. Once merged, it
-should be treated as a prerequisite proof point for the "no silent field drift" claim.
+MetaSheet2 PR #2875 has now landed (`8d306657`): it hardens the BOM inner-shape guard so silent
+field drift is rejected instead of degrading into blank UI cells. Treat that merged guard as a
+prerequisite proof point for the "no silent field drift" claim, while still adding cross-repo gates
+for the remaining modern PLM x MetaSheet surfaces.
 
 ---
 
@@ -103,7 +103,8 @@ should be treated as a prerequisite proof point for the "no silent field drift" 
 
 ### A. Maintainability Hardening First
 
-1. Land the MetaSheet2 all-field BOM shape guard (#2875 or successor).
+1. Treat the merged MetaSheet2 all-field BOM shape guard (#2875, `8d306657`) as the first
+   compatibility anchor.
 2. Extend the contract/pact/golden-schema coverage to the modern surfaces listed in §3.
 3. Add a sync/check gate so Yuantus and MetaSheet cannot drift silently on those surfaces.
 4. Support multiple embed-token key IDs on the consumer side before rotation is needed.
