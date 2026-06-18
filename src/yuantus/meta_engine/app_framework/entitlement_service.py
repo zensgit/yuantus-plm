@@ -38,6 +38,10 @@ FEATURE_APP_NAMES: Mapping[str, FrozenSet[str]] = {
     # ECM-P1B: PLM->ECM publish is its OWN independent SKU (same discipline as
     # approval_automation / bom_multitable -- NOT bundled into plm.collab).
     "ecm_publish": frozenset({"plm.ecm_publish"}),
+    # CAD-PDM C3: date-BOM auto-obsolete worker is its OWN independent SKU (same
+    # discipline -- a real, license-unlockable app_name so a provisioned tenant can
+    # actually opt in; NOT a reserved empty set, which would read False forever).
+    "cadpdm_date_obsolete": frozenset({"plm.cadpdm_date_obsolete"}),
     # reserved (canonical 6.1 vocabulary) -- accepted but not license-unlockable yet:
     "plm": frozenset(),
     "automation_enterprise": frozenset(),
