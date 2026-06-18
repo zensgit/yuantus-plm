@@ -33,12 +33,19 @@ CONTRACT_VERSION = "mes-consumption.v1"
 # ingestion envelope can never be silently spoofed.
 RESERVED_PROPERTIES_KEY = "_ingestion"
 
-# Small allowlist for source_type. This is the MES ingestion boundary, so
-# only MES-legitimate sources are allowed: "mes" (direct) and "workorder"
-# (MES attributing consumption to a work order). "manual" is deliberately
-# excluded — human entry is not a MES event. Widening is a follow-up, not
-# an R1 concern.
-ALLOWED_SOURCE_TYPES = frozenset({"mes", "workorder"})
+# Allowlist for source_type. This is the MES ingestion boundary, so only
+# MES-legitimate, POSITIVE-CONSUMPTION sources are allowed (each is an
+# actual_quantity >= 0 consumption event that variance sums):
+#   - "mes"       direct MES consumption
+#   - "workorder" MES attributing consumption to a work order
+#   - "scrap"     material consumed and scrapped during production (R2.3)
+#   - "rework"    material consumed in a rework operation (R2.3)
+# "manual" is deliberately excluded (human entry is not a MES event). Any
+# REVERSAL / negative semantics ("return" / 冲销) is intentionally NOT here:
+# the contract enforces actual_quantity >= 0 and variance only sums, so a
+# reversal source needs its own taskbook (negative qty or an explicit offset),
+# not a plain enum value.
+ALLOWED_SOURCE_TYPES = frozenset({"mes", "workorder", "scrap", "rework"})
 
 DEFAULT_SOURCE_TYPE = "mes"
 

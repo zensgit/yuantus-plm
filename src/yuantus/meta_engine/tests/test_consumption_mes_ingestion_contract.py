@@ -288,10 +288,26 @@ def test_drift_inputs_fields_exactly_match_add_actual_params():
 
 
 def test_allowlist_is_the_mes_boundary():
-    assert ALLOWED_SOURCE_TYPES == {"mes", "workorder"}
+    # R2.3 widened the boundary to additional positive-consumption sources.
+    assert ALLOWED_SOURCE_TYPES == {"mes", "workorder", "scrap", "rework"}
     # "manual" is human entry, not a MES event — must be rejected.
     with pytest.raises(ValueError, match="source_type must be one of"):
         _event(source_type="manual")
+
+
+@pytest.mark.parametrize("source_type", ["scrap", "rework", "SCRAP", "ReWork"])
+def test_r2_3_positive_consumption_sources_accepted(source_type):
+    # scrap/rework are accepted (case-insensitively normalized to lower).
+    event = _event(source_type=source_type)
+    assert event.source_type == source_type.lower()
+
+
+@pytest.mark.parametrize("source_type", ["return", "reversal", "offset", "credit"])
+def test_reversal_sources_still_rejected(source_type):
+    # Reversal/negative semantics are NOT folded into the enum (need their own
+    # taskbook); they must still be rejected at the boundary.
+    with pytest.raises(ValueError, match="source_type must be one of"):
+        _event(source_type=source_type)
 
 
 def test_default_attributes_are_isolated_per_instance():
