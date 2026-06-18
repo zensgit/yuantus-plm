@@ -98,6 +98,14 @@ services:
       YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS: ${YUANTUS_AUDIT_RETENTION_PRUNE_INTERVAL_SECONDS:-600}
       # Quotas
       YUANTUS_QUOTA_MODE: ${YUANTUS_QUOTA_MODE:-disabled}
+      # ECM publish enqueue gate — read by release() at
+      # src/yuantus/meta_engine/version/service.py:617. Producer-side only;
+      # the Transfer Receiver secret and base URL live on the
+      # ecm-publication-worker drainer service in docker-compose.ecm-publish.yml
+      # (opt-in override, per G3.5 symmetric split), never in this base.
+      # Setting this flag true without applying the override is harmless:
+      # release() enqueues outbox rows but no drainer consumes them.
+      YUANTUS_ECM_PUBLISH_ENABLED: ${YUANTUS_ECM_PUBLISH_ENABLED:-false}
       # Athena (optional)
       YUANTUS_ATHENA_BASE_URL: ${YUANTUS_ATHENA_BASE_URL:-}
       YUANTUS_ATHENA_SERVICE_TOKEN: ${YUANTUS_ATHENA_SERVICE_TOKEN:-}
