@@ -68,10 +68,10 @@ def register_tenant_model_metadata() -> None:
     # imports — so without this line the generator omitted it and a fully-booted
     # app's metadata drifted from the baseline (caught by the drift-guard test).
     from yuantus.meta_engine.models import approval_automation as _approval_automation  # noqa: F401
-    # `meta_date_obsolete_impacts` (CAD-PDM C3) is a per-tenant table whose model
-    # is only imported by its own service/tests today (the worker/router land in a
-    # later slice), so register it here too to keep the baseline complete + the
-    # in-process drift-guard stable.
+    # `meta_date_obsolete_impacts` (CAD-PDM C3) is a per-tenant table; its model is
+    # imported by the date-obsolete ops router at app-boot, so register it here too
+    # to keep the baseline complete + the in-process drift-guard stable regardless of
+    # whether create_app() ran first in the process.
     from yuantus.meta_engine.models import date_obsolete as _date_obsolete  # noqa: F401
 
     # Global/control-plane tables are registered so the filter can exclude

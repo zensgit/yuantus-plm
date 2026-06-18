@@ -659,6 +659,30 @@ class Settings(BaseSettings):
             "keeps the synchronous ingest. Restart-only (get_settings is cached)."
         ),
     )
+    # CAD-PDM C3 — date-BOM auto-obsolete worker (default OFF; restart-only).
+    DATE_EFFECTIVITY_OBSOLETE_ENABLED: bool = Field(
+        default=False,
+        description=(
+            "CAD-PDM C3: when true the polling worker scans expired date effectivities "
+            "and auto-obsoletes fully-expired Items + flags depth-1 where-used parents. "
+            "Default false = the worker is a no-op (also gated per-tenant by entitlement)."
+        ),
+    )
+    DATE_EFFECTIVITY_OBSOLETE_POLL_INTERVAL_SECONDS: int = Field(
+        default=300, description="C3 worker poll interval (seconds) for run_forever"
+    )
+    DATE_EFFECTIVITY_OBSOLETE_BATCH_SIZE: int = Field(
+        default=100, description="C3 worker: max expired effectivities processed per tick"
+    )
+    DATE_EFFECTIVITY_OBSOLETE_SYSTEM_USER_ID: int = Field(
+        default=0,
+        description=(
+            "C3 worker: the user id recorded for the auto-obsolete lifecycle promote. "
+            "Must be a real (ideally service) user for the promote to succeed; if unset "
+            "(0) the promote is recorded as child_obsolete_failed and only the parent "
+            "flag is written."
+        ),
+    )
     PUBLICATION_ECM_PATH: str = Field(
         default="/cmis/browser",
         description="CMIS compliance-reference endpoint path; not used by Transfer Receiver",
