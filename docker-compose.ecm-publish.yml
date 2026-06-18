@@ -1,0 +1,105 @@
+# ECM Publish — Drainer + Cross-Stack Reachability Override (Yuantus side)
+#
+# Symmetric with Athena/docker-compose.ecm-publish.yml in the partner repo.
+# Scopes the Yuantus side of the ECM publish path so the base compose stays
+# unaware. Apply by appending -f docker-compose.ecm-publish.yml AND
+# --profile ecm-publish to the canonical `yuantusplm` invocation.
+#
+# Example:
+#   docker compose -p yuantusplm \
+#     -f docker-compose.yml -f docker-compose.ecm-publish.yml \
+#     --profile ecm-publish up -d
+#
+# The base docker-compose.yml deliberately does NOT reference the
+# ecm-publication-worker service or the ecm-publish-net network: not every
+# Yuantus deployment runs ECM publish, so the cross-stack coupling (and the
+# dependency on a real external network) stays opt-in via this override.
+# A vanilla `docker compose -p yuantusplm up -d` brings up postgres /
+# minio / api / worker / scheduler / dedup-vision / cad-extractor with no
+# dependency on ecm-publish-net existing.
+#
+# The api service's YUANTUS_ECM_PUBLISH_ENABLED env gate IS intentionally
+# kept in base: it is a single env var with default false, no compose
+# coupling, and release() reads it directly in the api process. Setting
+# it to true on api WITHOUT this override applied is harmless (release()
+# enqueues outbox rows but no drainer consumes them).
+#
+# The drainer service stays `profiles: ["ecm-publish"]` even inside the
+# override file — a second explicit gate so a routine `up -d` against
+# base+override (without --profile ecm-publish) still keeps the drainer off.
+#
+# Network is created externally via the idempotent guard:
+#   docker network inspect ecm-publish-net >/dev/null 2>&1 \
+#     || docker network create ecm-publish-net
+#
+# Authoritative spec lives in
+#   docs/DEVELOPMENT_ECM_PUBLISH_DURABLE_REACHABILITY_TASKBOOK_20260617.md §5.3
+
+services:
+  ecm-publication-worker:
+    profiles: ["ecm-publish"]
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-}
+    environment:
+      # --- DB / tenancy / storage baseline (mirrors `worker` env in base) ---
+      YUANTUS_DATABASE_URL: postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus
+      YUANTUS_SCHEMA_MODE: migrations
+      YUANTUS_TENANCY_MODE: ${YUANTUS_TENANCY_MODE:-single}
+      YUANTUS_DATABASE_URL_TEMPLATE: ${YUANTUS_DATABASE_URL_TEMPLATE:-}
+      YUANTUS_IDENTITY_DATABASE_URL: ${YUANTUS_IDENTITY_DATABASE_URL:-postgresql+psycopg://yuantus:yuantus@postgres:5432/yuantus_identity}
+      YUANTUS_PLATFORM_ADMIN_ENABLED: ${YUANTUS_PLATFORM_ADMIN_ENABLED:-false}
+      YUANTUS_PLATFORM_TENANT_ID: ${YUANTUS_PLATFORM_TENANT_ID:-platform}
+      YUANTUS_STORAGE_TYPE: s3
+      YUANTUS_S3_ENDPOINT_URL: http://yuantus-minio:9000
+      YUANTUS_S3_PUBLIC_ENDPOINT_URL: http://localhost:59000
+      YUANTUS_S3_BUCKET_NAME: yuantus
+      YUANTUS_S3_ACCESS_KEY_ID: minioadmin
+      YUANTUS_S3_SECRET_ACCESS_KEY: minioadmin
+      YUANTUS_QUOTA_MODE: ${YUANTUS_QUOTA_MODE:-disabled}
+      # --- ECM publish — REQUIRED for live rollout ---
+      # Legacy YUANTUS_ATHENA_* deliberately NOT carried here. The resolver
+      # (src/yuantus/meta_engine/ecm_publication/adapter_registry.py:29-33)
+      # would fall back from PUBLICATION_ECM_BASE_URL to ATHENA_BASE_URL,
+      # which could silently route ECM publish to an unintended host. This
+      # drainer is explicit: PUBLICATION_ECM_BASE_URL or nothing (the
+      # resolver fails CLOSED to the Null adapter when unset).
+      YUANTUS_ECM_PUBLISH_ENABLED: ${YUANTUS_ECM_PUBLISH_ENABLED:-false}
+      YUANTUS_PUBLICATION_ECM_TARGET_SYSTEM: ${YUANTUS_PUBLICATION_ECM_TARGET_SYSTEM:-}
+      YUANTUS_PUBLICATION_ECM_BASE_URL: ${YUANTUS_PUBLICATION_ECM_BASE_URL:-}
+      YUANTUS_PUBLICATION_ECM_TRANSFER_USER: ${YUANTUS_PUBLICATION_ECM_TRANSFER_USER:-}
+      YUANTUS_PUBLICATION_ECM_TRANSFER_SECRET: ${YUANTUS_PUBLICATION_ECM_TRANSFER_SECRET:-}
+      YUANTUS_PUBLICATION_ECM_ROOT_FOLDER_ID: ${YUANTUS_PUBLICATION_ECM_ROOT_FOLDER_ID:-}
+      YUANTUS_PUBLICATION_ECM_SOURCE_REPOSITORY_ID: ${YUANTUS_PUBLICATION_ECM_SOURCE_REPOSITORY_ID:-yuantus-plm}
+    command:
+      [
+        "yuantus",
+        "ecm-publication-worker",
+        "--poll-interval",
+        "5",
+        "--worker-id",
+        "${YUANTUS_ECM_PUBLICATION_WORKER_ID:-ecm-publication-worker-1}",
+        "--tenant",
+        "${YUANTUS_ECM_PUBLICATION_WORKER_TENANT_ID:-tenant-1}",
+        "--org",
+        "${YUANTUS_ECM_PUBLICATION_WORKER_ORG_ID:-org-1}",
+      ]
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - default
+      - ecm-publish-net
+    restart: unless-stopped
+
+networks:
+  # default explicitly declared so the drainer's `- default` reference is
+  # an explicit join to the project's default network (compose merges
+  # top-level networks dict across -f overrides).
+  default: {}
+  ecm-publish-net:
+    external: true
+    name: ecm-publish-net
