@@ -9,6 +9,12 @@ Type: **Doc-only grounding + scope-lock taskbook.** It starts the
 before feature work: object mapping, deployment/profile decision, entitlement
 contract, and flag-OFF CI gate.
 
+> **Current-status note (2026-06-18):** This is a historical Phase 0 grounding
+> taskbook. P0-A/P0-B runtime flag and compose/profile seam work has since
+> partially landed. Use
+> `docs/development/plm-collaboration-current-state-commercialization-and-roadmap-20260618.md`
+> for live phase status.
+
 Baseline: `main = fdb25c87` after the OdooPLM closeout (#692). MetaSheet2 was
 read-only grounded from `/Users/chouhua/Downloads/Github/metasheet2`; that
 worktree is dirty, so this taskbook does not require or modify MetaSheet2.

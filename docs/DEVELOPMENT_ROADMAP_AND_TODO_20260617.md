@@ -1,7 +1,17 @@
 # YuantusPLM — Development Roadmap & TODO (current snapshot)
 
-Date: 2026-06-17 · Original snapshot baseline `main` @ `91da3591`; **updated through `main` @ `1eebc293`** (MES line + CAD-PDM C3 merged).
+Date: 2026-06-17 · Original snapshot baseline `main` @ `91da3591`; execution-roadmap body
+**updated through `main` @ `1eebc293`** (MES line + CAD-PDM C3 merged), with a 2026-06-18
+PLM x MetaSheet status pointer added after `main` @ `18389f81` (#780).
 Status: **living snapshot** — the current **working roadmap** (execution entry point) as of this date.
+
+> **PLM x MetaSheet status pointer (2026-06-18):** For the collaboration-line
+> commercial/maintenance answer and the reconciliation of stale Phase 0-6
+> planning docs, use
+> `docs/development/plm-collaboration-current-state-commercialization-and-roadmap-20260618.md`.
+> In this roadmap, the `jti revocation denylist` item means the later
+> cross-repo/SSO-gated admin revocation model only; the short-TTL + single-use
+> jti replay guard is already closed in the P3-D delivery line.
 
 ## 0. Why this exists (read first)
 
@@ -147,6 +157,8 @@ cross-repo, not on more solo build:
 
 ## 6. Maintenance
 
-Point-in-time snapshot (`2026-06-17`, original `main@91da3591`, **updated through `main@1eebc293`**
-after the MES line merged). Update it as slices land; **re-verify any item against current code/git
-before starting** — the formal plan docs went stale precisely because that step was skipped.
+Point-in-time snapshot (`2026-06-17`, original `main@91da3591`, execution-roadmap body **updated
+through `main@1eebc293`** after the MES line merged; PLM x MetaSheet pointer added on
+`2026-06-18` after `main@18389f81`). Update it as slices land; **re-verify any item against current
+code/git before starting** — the formal plan docs went stale precisely because that step was
+skipped.

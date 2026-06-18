@@ -9,6 +9,13 @@ Type: **Doc-only design plan + gated TODO.** 把现有 Yuantus PLM 升级为带"
 文档归属：**Yuantus 是 PLM 产品真源与本计划主文档归属**；MetaSheet2 是多维协作、
 审批自动化、授权能力的**实现依赖**（其侧仅保留短引用，见 `metasheet2:docs/PLM_COLLABORATION_AUTOMATION_DEVELOPMENT_PLAN.md`）。
 
+> **Current-status note (2026-06-18):** This remains the canonical design plan,
+> red-line source, and Phase 0-6 decision-gate document. Its checkbox/TODO
+> status, including §15's "implementation not started" language, is historical
+> and stale. Use
+> `docs/development/plm-collaboration-current-state-commercialization-and-roadmap-20260618.md`
+> for the live shipped/deferred status and monetization/maintainability plan.
+
 关联代码库（仓库相对引用，勿写本机绝对路径）：
 - `yuantus-plm`（本仓库）：Python/FastAPI，多租户，Aras-AML 引擎 —— PLM 真源
 - `metasheet2`：Node/TS（Express+PG+Redis，Vue）—— 多维表 / 自动化 / 钉钉 / 审批桥

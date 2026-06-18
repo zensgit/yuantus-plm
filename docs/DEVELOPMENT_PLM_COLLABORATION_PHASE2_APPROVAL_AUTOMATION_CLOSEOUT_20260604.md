@@ -4,6 +4,13 @@
 **Status:** CLOSED — minimal sellable approval-automation skeleton on `main`; execution engine deliberately NOT pulled in.
 **Scope:** YuantusPLM (`zensgit/yuantus-plm`), Phase 2 of the PLM Collaboration & Automation Edition.
 
+> **Current-status note (2026-06-18):** This remains authoritative for the
+> Phase 2 skeleton: independent SKU, draft templates, ECO governed projection,
+> NOTIFY stub, and capability entry are closed; the real execution engine is
+> still deferred. Use
+> `docs/development/plm-collaboration-current-state-commercialization-and-roadmap-20260618.md`
+> for the live cross-phase status and commercialization plan.
+
 This closeout fixes the product/technical invariants the four Phase 2 slices established,
 so a later execution-engine slice or Phase 3 (BOM multi-table) does not re-litigate them.
 
