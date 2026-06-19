@@ -5,6 +5,12 @@ does not have to: it records what shipped (P3-A/B/C), frames P3-D (the identity/
 spine) and its security contract + two-repo boundary, and pins the acceptance checklist. It
 does **not** implement P3-D. Every P3-D implementation slice needs its own explicit opt-in.
 
+> **Current-status note (2026-06-18):** This is historical P3-D0 scope. The
+> provider mint and MetaSheet token-bound offline viewer have since landed and
+> are recorded in
+> `docs/development/plm-collaboration-phase3d-embed-delivery-and-verification-20260609.md`.
+> The PLM parent-page host remains deferred.
+
 It does not re-decide the canonical invariants (铁律 read-only / advisory-not-auth /
 is_entitled single gate) — it grounds the next slice against them. The mechanics of the spine
 were framed earlier in §4 of `plm-collaboration-phase3-bom-multitable-scope-20260605.md`

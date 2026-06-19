@@ -5,6 +5,14 @@
 from an idea into per-slice product/technical boundaries so P3-A…P3-D can each be cut narrow.
 **Repos:** YuantusPLM (`zensgit/yuantus-plm`, provider) + metasheet2 (`zensgit/metasheet2`, consumer).
 
+> **Implementation-status note (2026-06-18):** This remains the Phase 3
+> scope/design package and read-only/write-back red-line source. P3-A/P3-B/P3-D1
+> on Yuantus and P3-C/P3-D2 plus tenant/single-use consumer hardening on
+> MetaSheet2 have since landed; the PLM parent-page host and any write-back
+> remain deferred. Use
+> `docs/development/plm-collaboration-current-state-commercialization-and-roadmap-20260618.md`
+> for live status.
+
 This consolidates and sharpens the BOM-multi-table design already framed in the canonical
 plan (`docs/development/plm-collaboration-automation-development-plan-20260602.md`, 铁律 5/6 +
 the identity/embed spine) against the current code, and fixes the owner-ratified scope

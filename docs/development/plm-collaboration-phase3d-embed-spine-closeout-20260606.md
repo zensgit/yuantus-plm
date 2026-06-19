@@ -7,6 +7,13 @@ edge-layer CSP requirement), checks the P3-D0 acceptance list against reality (h
 two items that are partial), and writes the entry conditions for the **next** slice
 (token-exchange / SSO). It implements nothing. The SSO slice needs its own explicit opt-in.
 
+> **Supersession note (2026-06-18):** #780 /
+> `docs/development/plm-collaboration-phase3d-embed-delivery-and-verification-20260609.md`
+> supersedes this closeout on the two #737 §4 partials: tenant cross-check and
+> jti single-use are now closed by MetaSheet2 hardening slices. This document
+> remains historical evidence for the P3-D0 closeout and the parent-page/SSO
+> boundaries.
+
 The canonical invariants are unchanged and not re-decided here: read-only (铁律), advisory ≠
 authorization, `is_entitled` as the single gate, `license_data` is not an auth source, the
 signing PRIVATE key is never committed.
