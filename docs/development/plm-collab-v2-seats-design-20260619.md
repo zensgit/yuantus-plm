@@ -1,7 +1,8 @@
 # PLM-Collab V2 — Seats (per-license user limit): design for review
 
 **Status:** design-only. No code in this PR. This is the `draft → review → build`
-gate: review this, decide the one open fork (§4: Option A vs B), then S1 is built.
+gate: review this, decide the one open fork (§4: **A vs B2**; B1 is the trap to
+avoid), then S1 is built.
 
 **Scope.** How a "seats" cap (a limit on how many users a paid feature covers) is
 *modeled, counted, and enforced* for the collab SKU(s). Deliberately small and
@@ -25,17 +26,22 @@ seats principles ask for. Grounding:
     `resource` in the delta it compares `usage.<resource>` against
     `quota.max_<resource>`. Adding a new quota dimension = add `max_<x>` to
     `TenantQuota` + `<x>` to `QuotaUsage` + a count query. No new service.
-  - `raise_if_exceeded(tenant_id, deltas)` (L172–178) raises `QuotaExceededError`
-    **only in `enforce` mode**.
+  - `raise_if_exceeded(...)` (L172–178) exists as a helper, **but it is not the seam
+    provisioning uses** (see next bullet) — don't wire seats to it by reflex.
   - **`QUOTA_MODE`** (L55, L197–201): `disabled | soft | enforce`, default
     `disabled` → the whole framework **ships off** until a deployment opts in.
-- **It is already enforced at provisioning**, not at a feature gate:
-  `POST /admin/users` (`src/yuantus/api/routers/admin.py`, `create_user`) calls
-  `QuotaService` with `{"users": 1}` **before** `AuthService.create_user(...)`.
+- **It is already enforced at provisioning**, not at a feature gate. The real seam is
+  in `src/yuantus/api/routers/admin.py`: `create_user` calls
+  **`_apply_quota_limits(quota_service, identity.tenant_id, {"users": 1}, response)`**
+  *before* `AuthService.create_user(...)`. That helper (`_apply_quota_limits`,
+  L406–423) runs `quota_service.evaluate(tenant_id, deltas=...)` and then, by
+  `QUOTA_MODE`: under `soft` appends a warning header
+  (`append_quota_warning(...)`); under `enforce` raises
+  `HTTPException(429, {"code": "QUOTA_EXCEEDED", ...})`.
 
 This spine already embodies all four principles in the brief (enforce at
 provisioning; `is_entitled()` untouched; cross-DB aware; extensible). **Seats =
-one more resource dimension on this spine.** We are not inventing a mechanism.
+one more resource dimension on this spine** — *if* the granularity is coherent (§2/§4).
 
 ---
 
@@ -55,43 +61,51 @@ But the license (`AppLicense`, table `meta_app_licenses`) lives in the **meta DB
   limit (meta DB) from the count (identity DB) across the engine boundary — exactly
   the cross-DB counting hazard the brief warns about.
 
-The remaining choice is *which* identity-side shape — reuse `max_users` vs add a
-per-feature dimension. That is the one open fork: **§4**.
+Which identity-side shape (tenant-wide vs per-SKU) is the open fork: **§4**.
 
-### Q2 — Count source: identity active users / provisioned MetaSheet users / feature-assigned users?
+### Q2 — Count source: the principle that decides everything
 
-**Established source = identity active users** (`get_usage().users`). It is already
-the basis of `max_users`, already same-DB as the limit, already battle-tested.
+**Established source = identity active users** (`get_usage().users`). Same-DB as the
+limit, already the basis of `max_users`, battle-tested.
 
-Two honesty notes that decide the design:
+**Principle: limit granularity MUST match count granularity — otherwise the limit is
+a masquerade.** A per-SKU *limit* enforced against a *tenant-wide* count is **not**
+per-SKU seats. Worked example:
 
-- **A per-feature *limit* over a tenant-wide *count* is not per-feature *seats*.**
-  With the count = "active users in the tenant," a "collab seat limit" means *a
-  per-license limit **number** applied to the tenant-wide user count* — it does
-  **not** distinguish *which* users use collab. **True per-feature seats** (Alice
-  has collab, Bob does not, each SKU its own roster) require a **user↔feature
-  assignment table** as the count source — a new subsystem. Correctly **deferred**
-  (§5). Limit granularity only means something if it matches count granularity;
-  this design keeps both at tenant scope and is explicit that it does.
-- **"Provisioned MetaSheet users" is consumer-side** (the metasheet2 service), a
-  different process across the integration boundary. The provider cannot
-  authoritatively count or enforce on the consumer's headcount; at best the
-  consumer *reports* usage advisorily. Defer to the V1.2-embed era.
+> A tenant has **100** regular PLM users and buys only **5** BOM-Review seats. If
+> that 5-seat cap is enforced against the tenant-wide active-user count, creating
+> the **6th** user is blocked by the BOM cap — *even though that user never touches
+> BOM*. With several purchased SKUs, the binding constraint is `min(purchased SKU
+> caps)` applied to the **whole tenant headcount**: the *smallest* SKU cap throttles
+> everyone.
+
+So per-SKU dimensions over a tenant-wide count do **not** sell independently — they
+only cohere as a **site-license** reading (each purchased SKU covers *all* active
+users). The three resulting count sources:
+
+- **identity active users** → coheres only with a **tenant-wide** limit (§4 A), or
+  as a site-license per-SKU reading (§4 B1, the trap).
+- **feature-assigned users** → the count source for **true** per-SKU seats ("5 BOM
+  seats = 5 specific people"); requires a **user↔feature assignment table** — a new
+  subsystem (§4 B2 / §5).
+- **provisioned MetaSheet users** → consumer-side (the metasheet2 service), across
+  the integration boundary; the provider cannot authoritatively count/enforce on the
+  consumer's headcount. Defer to the V1.2-embed era (advisory at best).
 
 ### Q3 — Enforcement point (derived from Q2, not a free choice)
 
 Because the count source is **account existence** (an active `AuthUser`), a seat is
 **consumed when the account is provisioned** — an account that never logs in still
-holds a seat. Therefore the consumption event, and so the enforcement seam, is
-**provisioning**, *by construction*:
+holds a seat. Therefore the enforcement seam is **provisioning**, *by construction*:
 
-- Enforce at the **provisioning seam** (user creation / activation), reusing
-  `QuotaService.raise_if_exceeded(deltas={"<seat_resource>": 1})` — exactly how
-  `max_users` is enforced today in `create_user`.
-- **Login is the wrong seam** for a headcount model: a seat is already spent before
-  first login, and login enforcement would only fit a *session/concurrency* seat
-  model the brief did not ask for. At most a **soft advisory** at login (warn /
-  audit), never a hard block.
+- Enforce at the **provisioning seam**, reusing the same
+  `_apply_quota_limits(quota_service, tenant_id, {"<seat_resource>": 1}, response)`
+  helper that gates `max_users` today in `create_user` (→ `evaluate()` → soft warning
+  header / enforce 429). (For B2, the seam is **assignment**, not generic user
+  creation — see §4.)
+- **Login is the wrong seam** for a headcount model: the seat is already spent before
+  first login; login enforcement would only fit a *session/concurrency* model the
+  brief did not ask for. At most a **soft advisory** at login, never a hard block.
 - **Never** per-request feature-gate counting.
 
 ### Q4 — `is_entitled()` stays a pure feature check
@@ -99,8 +113,8 @@ holds a seat. Therefore the consumption event, and so the enforcement seam, is
 No change. `is_entitled()` (`entitlement_service.py` L67–107) answers "does this
 tenant hold an active, in-window license for the feature?" — one indexed query on
 `meta_app_licenses` scoped by `resolve_license_scope()` (`license_scope.py` L16–37).
-Seats are a **separate** `QuotaService` call at the provisioning seam. The two code
-paths never touch; the seats work adds **zero** to the entitlement hot path.
+Seats are a **separate** call at the provisioning/assignment seam. The two code paths
+never touch; seats add **zero** to the entitlement hot path.
 
 ---
 
@@ -122,69 +136,83 @@ lives in the **meta DB** (`DATABASE_URL`). Default: same URL → same DB. Split:
 
 ---
 
-## 4. The one decision that gates the build: Option A vs B
+## 4. The decision that gates the build: A vs B2 (and the B1 trap)
 
-|  | **A — reuse tenant-wide `max_users`** | **B — per-feature seat dimension** *(recommended)* |
-|--|--|--|
-| Schema change | none | +1 dimension: `max_collab_users` on `TenantQuota` (or a `feature_seat_limits(tenant_id, feature_key, max_seats)` row), identity DB |
-| Meaning | total tenant users **is** the cap | a per-SKU limit **number** over the tenant user count |
-| Multi-SKU | conflates all SKUs into one cap | each SKU keeps its own seat number |
-| Admin clobber | projecting a license seat count into `max_users` would **overwrite an admin's manually-set tenant cap** | separate dimension — no clobber |
-| Best when | collab is effectively the only seat-metered product | you sell multiple feature SKUs with distinct seat tiers |
+Per §2's granularity principle, only two models are coherent — plus one trap:
 
-**Recommendation: B.** There are 5 feature SKUs (`plm.collab`,
-`plm.approval_automation`, `plm.bom_multitable`, `plm.ecm_publish`,
-`plm.cadpdm_date_obsolete`); a per-feature seat number keeps each SKU's commercial
-terms independent and avoids clobbering an admin-set `max_users`. **A** is a
-legitimate cheaper cut **if** collab is the only thing you ever meter by seats.
+|  | **A — tenant-wide cap** | **B1 — per-SKU limit over tenant count** *(TRAP)* | **B2 — true per-SKU seats** |
+|--|--|--|--|
+| Limit | one paid cap on the tenant (reuse `max_users`) | `max_<sku>_users` per SKU | `max_<sku>_users` per SKU |
+| Count | tenant active users | tenant active users (**mismatch**) | **assigned** users per SKU |
+| Granularity | matched ✓ | **mismatched** ✗ | matched ✓ |
+| Real behavior | total tenant headcount cap | `min(purchased caps)` throttles the **whole tenant** | each SKU's roster capped independently |
+| Sells "BOM 5 / Collab 20" independently? | no (one cap) | **no — it only looks like it does** | yes |
+| Build cost | ~none: mechanism already exists, just source the cap | small, but **commercially wrong / misleading** | new **assignment subsystem** (model + lifecycle + count source + enforce-at-assign) |
 
-> B as scoped here is a per-feature **limit** over a tenant-wide **count** (see Q2).
-> Distinct users *per* SKU is the deferred assignment subsystem, not this fork.
+**Recommendation — honest, not over-engineered:**
+
+- **If a single tenant-wide paid cap is acceptable now → A.** It is fully consistent
+  with the existing `max_users` enforcement — the mechanism is *already built*; the
+  only new work is sourcing the cap from the paid entitlement (folds into S2). It does
+  **not** masquerade as per-SKU seats.
+- **If the product must sell independent SKU seat packs ("BOM 5 / Collab 20") → B2**,
+  and then the **assignment subsystem is promoted to a first-class design object** —
+  it *is* the seats design, not a deferred footnote.
+- **Do not ship B1.** A per-SKU dimension over a tenant-wide count is the failure mode
+  S1 can accidentally become: it reads as per-SKU but enforces a global minimum cap.
+  If you build per-SKU *limits*, you must also build per-SKU *counting* (B2) — there
+  is no tenant-wide-count shortcut to independent SKU seats.
+
+> My lean matches the reviewer's: take **A** as the first paid-seat cut unless
+> independent SKU seat packs are a hard product requirement — in which case go
+> straight to **B2** (assignment-first) and don't approximate it with B1.
 
 ---
 
-## 5. Deferred — named, with reasons (not silently dropped)
+## 5. Deferred / conditional — named, with reasons (not silently dropped)
 
-- **User↔feature assignment subsystem** (true per-SKU distinct-user seats): a new
-  model + lifecycle + admin UI. Only needed for *sub-tenant* seat allocation. Until
-  then, seats are tenant-scoped (§2) and honest about it.
+- **User↔feature assignment subsystem** (= §4 B2): a new model + lifecycle + count
+  source + admin surface. **Deferred under A**; **promoted to the first-class seats
+  design under B2.** It is the *only* way to sell SKU seat packs independently — there
+  is no tenant-wide-count shortcut (that is the B1 trap).
 - **License `seats` payload + import-time projection** (S2): the seat number belongs
   in the **vendor-signed** license payload (tamper-evident, Ed25519, already imported
-  via `LicenseImportService`). But minting a seat-bearing license touches the
-  **vendor-private issuance tool**, which is out of clean in-repo scope. The design
-  *names* the license as eventual source of truth; the **build does not lead with
-  it** (see §6).
-- **MetaSheet-consumer seat reconciliation**: cross-service, V1.2-embed-era,
-  advisory at best.
+  via `LicenseImportService`). Minting a seat-bearing license touches the
+  **vendor-private issuance tool**, out of clean in-repo scope. The design *names* the
+  license as eventual source of truth; the **build does not lead with it** (§6).
+- **MetaSheet-consumer seat reconciliation**: cross-service, V1.2-embed-era, advisory.
 - **Admin seat UX**: no Yuantus frontend exists; surface limits via API/CLI only.
 - **multi-kid**: V1.2-embed-gated, unchanged from the prior ladder note.
 
 ---
 
-## 6. Build plan (after this review; ordered for clean in-repo cuts)
+## 6. Build plan (after this review; branches on the §4 decision)
 
-- **S0 — this doc.** Design + the A/B decision. ← **review gate.**
-- **S1 — first buildable slice, fully in-repo, ships default-off.** Add the
-  identity-side seat dimension (per the decided option) + its count query (reuse
-  `get_usage()` for tenant-wide), and **enforce at the provisioning seam** via a
-  `QuotaService` delta, gated by `QUOTA_MODE` (disabled by default). Tests: usage
-  count, `evaluate`/`raise_if_exceeded`, default-off, soft vs enforce, null =
-  unlimited. **No license payload yet.**
+- **S0 — this doc.** Design + the **A vs B2** decision. ← **review gate.**
+- **S1 — branches on §4; both ship default-off via `QUOTA_MODE`:**
+  - **Under A:** almost nothing new — `max_users` is *already* enforced at the
+    `_apply_quota_limits(..., {"users": 1}, response)` seam. The "paid seat cut" is
+    just making that cap's *source* the paid entitlement (folds into S2). Tests:
+    default-off, soft-vs-enforce, null = unlimited (mostly already covered).
+  - **Under B2:** S1 *is* the assignment subsystem — a `user↔feature` table, its
+    write/lifecycle, the per-SKU **assigned-user** count source, and enforcement at
+    **assignment** time (not generic user creation). This is the real work; scope it
+    as such, not as a `TenantQuota` column.
 - **S2 — source-of-truth handshake.** Project the license seat number → identity-side
-  limit at import. Sequenced **with** the vendor-private issuance tool (seat-bearing
-  license), not as the first cut.
-- **S3 — deferred.** Assignment subsystem / consumer reconciliation, only if/when
-  sub-tenant or embed seats are actually required.
+  limit at import. Sequenced **with** the vendor-private issuance tool, not first.
+- **S3 — deferred refinements.** Consumer reconciliation; (under A) the assignment
+  subsystem if sub-tenant seats later become required.
 
 ---
 
 ## 7. Invariants to carry forward
 
 1. `is_entitled()` stays a pure feature check — seats never enter the entitlement hot path.
-2. Enforce **only** at provisioning; default-off via `QUOTA_MODE`; null limit = unlimited.
+2. Enforce **only** at provisioning (A) / assignment (B2); default-off via `QUOTA_MODE`; null limit = unlimited.
 3. License = commercial source of truth; the identity-side limit is the enforcement
    cache, in the **same DB as the count**.
 4. No cross-DB join on any hot path; the **only** cross-boundary hop is the
    import-time projection write (S2).
-5. Tenant-scoped seats are explicitly a per-feature *limit over a tenant-wide count*
-   until the assignment subsystem (S3) lands — never overstated as distinct-user seats.
+5. **Limit granularity must match count granularity.** Per-SKU limits require per-SKU
+   (assignment-based) counting, or they collapse to a global minimum cap — the B1
+   trap. Never label a tenant-wide-count cap as per-SKU seats.
