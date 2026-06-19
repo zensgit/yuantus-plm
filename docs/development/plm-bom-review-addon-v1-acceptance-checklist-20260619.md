@@ -17,7 +17,7 @@ deploy), and deferred (later version).
 - [x] Dogfood signer produces a valid perpetual `plm.bom_multitable` license, self-verify PASS, and
       (proven) entitles its tenant only — `scripts/dev/sign_dogfood_license.py`.
 
-> Combined surface run 2026-06-19: **66 passed** + signer + entitled-seed proof. (V1 feature code is on `main`.)
+> Combined surface run 2026-06-19: **66 non-license surface tests + 13 license-import = 79 total** + signer + entitled-seed proof. (V1 feature code is on `main`.)
 
 ## B. Operator proof (run against the live combined deployment — written-not-run-in-CI)
 
@@ -42,7 +42,7 @@ deploy), and deferred (later version).
 
 ## D. Deferred — NOT part of V1 (do not promise)
 
-- In-PLM iframe host + embed-token click-through → **V1.1 pact then V1.2**.
+- In-PLM iframe host + embed-token click-through + **embed-token pact** → **V1.2**.
 - Hiding the `approval_automation` "升级审批自动化" entry → **V1.1** (MetaSheet owner-gated; harmless for internal dogfood).
 - Modern-surface pact (manifest + BOM context) → **V1.1**.
 - Vendor-private issuance / seats / grace / admin UX / multi-`kid` rotation → **V2**.
