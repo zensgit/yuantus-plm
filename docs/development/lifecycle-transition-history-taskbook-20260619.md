@@ -96,17 +96,21 @@ def _record_transition_history(self, item, from_state, to_state, transition,
                                actor_user_id, comment, old_permission_id):
     if not getattr(get_settings(), "LIFECYCLE_TRANSITION_HISTORY_ENABLED", True):
         return
+    # Flush the already-applied BUSINESS state OUTSIDE the audit guard: a genuine business
+    # flush error must propagate, not be mislabeled (and swallowed as) a history-write failure.
+    self.session.flush()
     try:
-        self.session.add(LifecycleTransitionHistory(
-            item_id=item.id,
-            from_state_id=from_state.id, from_state_name=from_state.name,
-            to_state_id=to_state.id, to_state_name=to_state.name,
-            from_permission_id=old_permission_id, to_permission_id=item.permission_id,
-            transition_id=transition.id, lifecycle_map_id=transition.lifecycle_map_id,
-            actor_user_id=actor_user_id, comment=comment, outcome="success",
-        ))
-        self.session.flush()
-    except Exception as exc:          # best-effort: never break the transition
+        with self.session.begin_nested():   # SAVEPOINT: scope best-effort to the audit row only
+            self.session.add(LifecycleTransitionHistory(
+                item_id=item.id,
+                from_state_id=from_state.id, from_state_name=from_state.name,
+                to_state_id=to_state.id, to_state_name=to_state.name,
+                from_permission_id=old_permission_id, to_permission_id=item.permission_id,
+                transition_id=transition.id, lifecycle_map_id=transition.lifecycle_map_id,
+                actor_user_id=actor_user_id, comment=comment, outcome="success",
+            ))
+            self.session.flush()            # surface any DB error inside the savepoint
+    except Exception as exc:          # best-effort: an audit write must never break the promote
         logger.warning("transition-history write failed for item %s: %s", item.id, exc)
 ```
 
@@ -114,8 +118,8 @@ There is exactly **one write site**. Placement guarantees only **successful** tr
 recorded (it is after the three rollback returns). `flush()` (not `commit()`) keeps the row
 pending for the caller's atomic commit; a failed *history* flush is swallowed + logged.
 
-**Subtlety (must implement):** flush the already-applied *business* state **outside** this
-best-effort guard first. `flush()` / `begin_nested()` flush the *whole* pending set, so a
+**Why the business flush is outside the guard (as shown above):** the already-applied *business*
+state is flushed **outside** this best-effort guard first. `flush()` / `begin_nested()` flush the *whole* pending set, so a
 business flush error done inside the `try` would be mislabeled "history write failed" and
 swallowed — returning success on a rollback-pending session. Flush business state first (let
 its error propagate), then `begin_nested()` scopes best-effort to the history row only.

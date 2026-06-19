@@ -80,7 +80,7 @@ DB-free sqlite driving the real `promote()`, harness `.venv-wp13`.
   `test_lifecycle_permission_rollback`, `test_lifecycle_role_hierarchy` stay green **with the
   default-on write** (they now exercise it). Route count **719** unchanged; single Alembic head
   `txn_history_001`; tenant-baseline drift-guard + deterministic-regen pass; full contracts
-  green (1761 passed).
+  green (exact suite count omitted to avoid churn).
 - An adversarial-verify pass caught + fixed an `outcome` `server_default` drift (the migration
   had it but the model/baseline didn't — a tenant provisioned from the baseline would have
   lacked the DB default for the NOT-NULL column); the model now declares `server_default` and
