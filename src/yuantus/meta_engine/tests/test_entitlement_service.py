@@ -135,6 +135,34 @@ def test_grace_window_cuts_a_license_past_the_grace(session, monkeypatch):
     assert _entitled(session) is False  # 5d past expiry, beyond the 3d grace -> cut
 
 
+def test_grace_warning_is_emitted_once_per_license(session, monkeypatch, caplog):
+    # PLM-COLLAB-V2 (grace): a license inside its grace window logs a renewal
+    # warning ONCE per (tenant, license) -- never on every is_entitled() call.
+    # Pin that dedup directly on the captured records so a future change to
+    # _grace_warned cannot silently regress to per-call log spam, nor drop the
+    # warning entirely. The boolean grace tests above cannot catch either.
+    import logging
+    from yuantus.meta_engine.app_framework import entitlement_service as es_mod
+
+    monkeypatch.setenv("YUANTUS_LICENSE_EXPIRY_GRACE_DAYS", "10")
+    get_settings.cache_clear()
+    es_mod._grace_warned.clear()  # isolate the process-level dedup set for this test
+    expired = datetime.utcnow() - timedelta(days=5)  # 5d past expiry, inside 10d grace
+    _lic(session, tenant_id="grace-acme", expires_at=expired)
+    _lic(session, tenant_id="grace-beta", expires_at=expired)
+    svc = EntitlementService(session)
+
+    with caplog.at_level(logging.WARNING, logger=es_mod.logger.name):
+        tenant_id_var.set("grace-acme")
+        assert svc.is_entitled(FEATURE) is True
+        assert svc.is_entitled(FEATURE) is True   # repeat call -> deduped, no 2nd warning
+        tenant_id_var.set("grace-beta")
+        assert svc.is_entitled(FEATURE) is True    # distinct license -> exactly one more
+
+    grace_warnings = [r for r in caplog.records if "expiry grace window" in r.getMessage()]
+    assert len(grace_warnings) == 2  # once per (tenant, license_key), never per-call
+
+
 def test_future_expiry_unlocks(session):
     _lic(session, tenant_id="acme", expires_at=datetime.utcnow() + timedelta(days=30))
     tenant_id_var.set("acme")
