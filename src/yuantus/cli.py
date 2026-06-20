@@ -75,7 +75,7 @@ def license_import(
     except Exception as exc:  # noqa: BLE001 -- best-effort; never fail an activated license
         typer.echo(
             f"warning: seat-cap projection failed ({exc}); license is active, seat cap "
-            f"left unset (unlimited). Re-run `yuantus license import` to retry.",
+            f"not applied (TenantQuota.max_users left unchanged). Re-run `yuantus license import` to retry.",
             err=True,
         )
 
