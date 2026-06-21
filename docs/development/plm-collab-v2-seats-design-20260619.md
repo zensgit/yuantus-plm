@@ -1,6 +1,12 @@
 # PLM-Collab V2 — Seats (per-license user limit): design for review
 
-**Status:** design-only. No code in this PR.
+**Status:** ✅ **Implemented — Option A.** Design ratified (S0 · #813); the import-time
+seat-cap projection landed (#817: `seat_projection.py`, best-effort `yuantus license import`
+projection, dogfood signer `--seats`, `test_seat_projection.py`). `TenantQuota.max_users` is the
+identity-side enforcement cache; `is_entitled()` stays seats-free. **Still future:** B2 assignment
+subsystem, MetaSheet-consumer reconciliation, explicit cap clearing/lowering (all §5), and the
+**vendor-private license issuance tool** (the dogfood signer is a dev stand-in, not production
+minting). The original design text below is preserved as the record.
 
 **DECISION (2026-06-19, owner-ratified): Option A.** The paid seat cap is sourced from
 the license and projected at **import time** into the identity-side
@@ -179,11 +185,11 @@ Per §2's granularity principle, only two models are coherent — plus one trap:
   source + admin surface. **Deferred under A**; **promoted to the first-class seats
   design under B2.** It is the *only* way to sell SKU seat packs independently — there
   is no tenant-wide-count shortcut (that is the B1 trap).
-- **License `seats` payload + import-time projection** (S2): the seat number belongs
-  in the **vendor-signed** license payload (tamper-evident, Ed25519, already imported
-  via `LicenseImportService`). Minting a seat-bearing license touches the
-  **vendor-private issuance tool**, out of clean in-repo scope. The design *names* the
-  license as eventual source of truth; the **build does not lead with it** (§6).
+- **License `seats` payload + import-time projection** — ✅ **projection landed (#817):**
+  `project_license_seats` lands the signed payload's `seats` onto `TenantQuota.max_users` at
+  `yuantus license import` (best-effort, `QUOTA_MODE`-gated). **Still future:** minting a
+  seat-bearing license via the **vendor-private issuance tool** (out of clean in-repo scope; the
+  dogfood signer `sign_dogfood_license.py --seats` is the dev stand-in, not production minting).
 - **MetaSheet-consumer seat reconciliation**: cross-service, V1.2-embed-era, advisory.
 - **Admin seat UX**: no Yuantus frontend exists; surface limits via API/CLI only.
 - **multi-kid**: V1.2-embed-gated, unchanged from the prior ladder note.
@@ -201,8 +207,8 @@ Per §2's granularity principle, only two models are coherent — plus one trap:
 
 ## 6. Build plan (after this review; branches on the §4 decision)
 
-- **S0 — this doc.** Design + the **A vs B2** decision. ← **review gate.**
-- **S1 — branches on §4; both ship default-off via `QUOTA_MODE`:**
+- **S0 — this doc.** ✅ **done (#813).** Design + the **A vs B2** decision (Option A ratified).
+- **S1 — ✅ Option A shipped (#817)** (the B2 reading below was *not* taken — it stays deferred, §5); both ship default-off via `QUOTA_MODE`:
   - **Under A:** almost nothing new — `max_users` is *already* enforced at the
     `_apply_quota_limits(..., {"users": 1}, response)` seam. The "paid seat cut" is
     just making that cap's *source* the paid entitlement (folds into S2). Tests:
@@ -211,8 +217,9 @@ Per §2's granularity principle, only two models are coherent — plus one trap:
     write/lifecycle, the per-SKU **assigned-user** count source, and enforcement at
     **assignment** time (not generic user creation). This is the real work; scope it
     as such, not as a `TenantQuota` column.
-- **S2 — source-of-truth handshake.** Project the license seat number → identity-side
-  limit at import. Sequenced **with** the vendor-private issuance tool, not first.
+- **S2 — source-of-truth handshake: ✅ projection landed (#817).** Project the license seat
+  number → identity-side limit at import. The **vendor-private issuance tool** it sequences with
+  is **still future** (the dogfood signer is the dev stand-in).
 - **S3 — deferred refinements.** Consumer reconciliation; (under A) the assignment
   subsystem if sub-tenant seats later become required.
 

@@ -1,8 +1,8 @@
 # Taskbook — Lifecycle transition-history persistence
 
 Date: 2026-06-19 · Branch `claude/transition-history-taskbook` · base `origin/main`.
-Status: **design / semantics locked, ready to implement.** This taskbook settles the audit-
-table semantics; implementation follows in the slices below.
+Status: **✅ Implemented through Slice 2.** Semantics locked (this taskbook) and shipped: Slice 1
+durable write (#814) + Slice 2 read route (#816). Two follow-ups remain deferred (§5).
 
 ## 0. The gap
 
@@ -126,11 +126,11 @@ its error propagate), then `begin_nested()` scopes best-effort to the history ro
 
 ## 5. Slices
 
-- **Slice 1 (route-count-neutral):** model (in `lifecycle/models.py` — auto-registered via
+- **Slice 1 (route-count-neutral) — ✅ Landed (#814):** model (in `lifecycle/models.py` — auto-registered via
   `import_all_models()`, no supplement) + Alembic migration (single head) + baseline regen + the
   `LIFECYCLE_TRANSITION_HISTORY_ENABLED` setting + the `_record_transition_history` write in
   `promote()` + tests. **Route count unchanged; only the Alembic head moves**, no route change.
-- **Slice 2 (route +1):** `get_transition_history(item_id)` service + a read route
+- **Slice 2 (route +1) — ✅ Landed (#816):** `get_transition_history(item_id)` service + a read route
   (`GET /items/{item_id}/transition-history` or under the lifecycle router) + tests + bump the
   four route-count pin sites.
 
