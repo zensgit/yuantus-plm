@@ -615,6 +615,11 @@ class VersionService:
             from yuantus.config import get_settings
 
             if not get_settings().ECM_PUBLISH_ENABLED:
+                logger.debug(
+                    "ECM publish enqueue skipped: kill-switch ECM_PUBLISH_ENABLED off "
+                    "(version=%s)",
+                    getattr(version, "id", "?"),
+                )
                 return
         except Exception:  # pragma: no cover - settings should always resolve
             return
@@ -625,6 +630,11 @@ class VersionService:
             )
 
             if not EntitlementService(self.session).is_entitled("ecm_publish"):
+                logger.debug(
+                    "ECM publish enqueue skipped: not entitled for ecm_publish "
+                    "(version=%s)",
+                    getattr(version, "id", "?"),
+                )
                 return
         except Exception:
             # unknown key during rollout / missing tenant context / any error -> not
