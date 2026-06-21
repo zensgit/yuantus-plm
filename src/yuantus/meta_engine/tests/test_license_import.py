@@ -248,3 +248,16 @@ def test_record_seat_cap_audit_writes_meta_row(session):
     rows = session.query(AuditLog).filter_by(method="LICENSE", tenant_id="tenant-1").all()
     assert len(rows) == 1
     assert "seat-cap" in rows[0].path and "max_users=20" in rows[0].path
+
+
+def test_import_result_tenant_id_is_normalized(session, keypair):
+    priv, pubkeys = keypair
+    # A padded tenant in the signed payload activates/projects under the stripped id; the
+    # result carries that normalized id so the CLI seat-cap audit records the same tenant
+    # (not the raw " tenant-1 "), keeping audit lookups consistent with activation/projection.
+    result = LicenseImportService(session).import_license(
+        _sign(priv, _payload(tenant_id="  tenant-1  ")), pubkeys
+    )
+    assert result.tenant_id == "tenant-1"
+    assert result.payload["tenant_id"] == "  tenant-1  "  # raw payload preserved
+    assert result.activated[0].tenant_id == "tenant-1"    # activation used the stripped id

@@ -41,6 +41,9 @@ class LicenseImportResult:
 
     activated: List[AppLicense]
     payload: Mapping[str, Any]
+    # the NORMALIZED (stripped) tenant id the activation + projection use, so downstream
+    # callers (e.g. the CLI seat-cap audit) record the SAME tenant, never a raw padded value.
+    tenant_id: str
 
 
 def _parse_dt(value: Any) -> Optional[datetime]:
@@ -117,7 +120,7 @@ class LicenseImportService:
                 duration_ms=0,
             )
         )
-        return LicenseImportResult(activated=activated, payload=payload)
+        return LicenseImportResult(activated=activated, payload=payload, tenant_id=tenant_id)
 
 
 def record_seat_cap_audit(

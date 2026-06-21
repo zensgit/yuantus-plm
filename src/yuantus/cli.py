@@ -90,7 +90,7 @@ def license_import(
             with get_db_session() as audit_session:
                 record_seat_cap_audit(
                     audit_session,
-                    tenant_id=str(result.payload.get("tenant_id") or ""),
+                    tenant_id=result.tenant_id,
                     max_users=projected,
                 )
                 audit_session.commit()
