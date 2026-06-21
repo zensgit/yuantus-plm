@@ -31,7 +31,10 @@ from yuantus.meta_engine.app_framework.license_verification import (
     LicenseVerificationError,
     canonical_payload_bytes,
 )
-from yuantus.meta_engine.app_framework.license_import_service import LicenseImportService
+from yuantus.meta_engine.app_framework.license_import_service import (
+    LicenseImportService,
+    record_seat_cap_audit,
+)
 from yuantus.meta_engine.app_framework.models import AppRegistry
 from yuantus.meta_engine.app_framework.store_models import AppLicense
 from yuantus.security.rbac.models import RBACUser
@@ -106,8 +109,9 @@ def test_valid_license_activates_tenant_scoped_app_license(session, keypair):
     priv, pubkeys = keypair
     payload = _payload(tenant_id="tenant-1")
     lic_obj = _sign(priv, payload)
-    activated = LicenseImportService(session).import_license(lic_obj, pubkeys)
+    result = LicenseImportService(session).import_license(lic_obj, pubkeys)
     session.commit()
+    activated = result.activated
     assert len(activated) == 1
     lic = activated[0]
     assert lic.tenant_id == "tenant-1"  # from the SIGNED payload, not request context
@@ -182,8 +186,8 @@ def test_canonical_signing_is_field_order_independent(session, keypair):
     # rebuild the payload dict with the keys in a different insertion order
     reordered = {k: payload[k] for k in reversed(list(payload.keys()))}
     lic_obj["payload"] = reordered
-    activated = LicenseImportService(session).import_license(lic_obj, pubkeys)  # must still verify
-    assert activated[0].tenant_id == "tenant-1"
+    result = LicenseImportService(session).import_license(lic_obj, pubkeys)  # must still verify
+    assert result.activated[0].tenant_id == "tenant-1"
 
 
 def test_reimport_is_idempotent_upsert(session, keypair):
@@ -225,3 +229,22 @@ def test_audit_row_written(session, keypair):
     rows = session.query(AuditLog).filter_by(method="LICENSE", tenant_id="tenant-1").all()
     assert len(rows) == 1
     assert rows[0].path == "cli:license/import"
+
+
+def test_import_license_returns_verified_payload(session, keypair):
+    priv, pubkeys = keypair
+    payload = _payload(tenant_id="tenant-1", seats=20)
+    result = LicenseImportService(session).import_license(_sign(priv, payload), pubkeys)
+    # the VERIFIED payload is threaded back so the CLI never re-reads the raw input file
+    assert result.payload["tenant_id"] == "tenant-1"
+    assert result.payload["seats"] == 20
+    assert result.activated[0].app_name == "plm.collab"
+
+
+def test_record_seat_cap_audit_writes_meta_row(session):
+    # The cap-projection audit is a meta-side row (method=LICENSE), value encoded in path.
+    record_seat_cap_audit(session, tenant_id="tenant-1", max_users=20)
+    session.commit()
+    rows = session.query(AuditLog).filter_by(method="LICENSE", tenant_id="tenant-1").all()
+    assert len(rows) == 1
+    assert "seat-cap" in rows[0].path and "max_users=20" in rows[0].path
