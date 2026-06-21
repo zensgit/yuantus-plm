@@ -140,7 +140,7 @@ def record_seat_cap_audit(
     roll back the seat-cap projection itself. The caller commits; this is best-effort
     observability, decoupled from the cap write.
 
-    ``project_license_seats`` returns the cap on every valid import (idempotent
+    ``project_license_seats`` reports a set-or-clear outcome on every valid import (idempotent
     re-imports included), so this records "projected", not "changed" -- consistent with
     the import audit, which likewise fires each run. The value rides in ``path`` because
     ``AuditLog`` has no structured-detail column.

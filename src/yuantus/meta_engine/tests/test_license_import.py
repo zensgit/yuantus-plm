@@ -370,3 +370,62 @@ def test_cli_license_import_without_seats_writes_no_seat_cap_audit(tmp_path, mon
         assert seat_cap == []                                               # only the import audit
     finally:
         s.close()
+
+
+def test_cli_license_import_clear_seats_clears_cap_and_audits(tmp_path, monkeypatch, keypair):
+    import json
+
+    from yuantus.cli import license_import
+    from yuantus.security.auth.models import TenantQuota
+
+    priv, pubkeys = keypair
+    SessionLocal = _wire_single_db_cli(tmp_path, monkeypatch, pubkeys)
+
+    # End-to-end through the REAL json-on-disk -> CLI -> projection -> audit path (not a unit
+    # dict-copy): a seats=7 license SETS the cap, then a seats:null license CLEARS it.
+    set_file = tmp_path / "set.json"
+    set_file.write_text(json.dumps(_sign(priv, _payload(tenant_id="acme", seats=7))), encoding="utf-8")
+    license_import(str(set_file))
+
+    clear_file = tmp_path / "clear.json"
+    clear_file.write_text(json.dumps(_sign(priv, _payload(tenant_id="acme", seats=None))), encoding="utf-8")
+    license_import(str(clear_file))
+
+    s = SessionLocal()
+    try:
+        quota = s.get(TenantQuota, "acme")
+        assert quota is not None and quota.max_users is None                 # the 7-cap was CLEARED
+        paths = [a.path for a in s.query(AuditLog).filter_by(method="LICENSE", tenant_id="acme").all()]
+        assert any("seat-cap" in p and "max_users=7" in p for p in paths)        # the set audit
+        assert any("seat-cap" in p and "max_users=cleared" in p for p in paths)  # the clear audit (truthful)
+    finally:
+        s.close()
+
+
+def test_cli_seat_cap_audit_skipped_when_projection_fails(tmp_path, monkeypatch, keypair):
+    import json
+
+    from yuantus.cli import license_import
+
+    priv, pubkeys = keypair
+    SessionLocal = _wire_single_db_cli(tmp_path, monkeypatch, pubkeys)
+
+    # Load-bearing invariant: a projection that RAISES (transient identity-DB failure) leaves the
+    # license active (best-effort) and writes NO seat-cap audit -- no phantom audit for a cap that
+    # did not land. (cli.py assigns `projected` only after the identity txn; a raise keeps it None.)
+    def _boom(*_a, **_k):
+        raise RuntimeError("simulated identity-DB failure")
+
+    monkeypatch.setattr("yuantus.security.auth.seat_projection.project_license_seats", _boom)
+
+    lic_file = tmp_path / "lic.json"
+    lic_file.write_text(json.dumps(_sign(priv, _payload(tenant_id="acme", seats=7))), encoding="utf-8")
+    license_import(str(lic_file))  # must NOT raise: projection is best-effort
+
+    s = SessionLocal()
+    try:
+        assert s.query(AppLicense).filter_by(tenant_id="acme").count() == 1   # license still active
+        seat_cap = [a for a in s.query(AuditLog).filter_by(method="LICENSE").all() if "seat-cap" in a.path]
+        assert seat_cap == []                                                 # no phantom seat-cap audit
+    finally:
+        s.close()
