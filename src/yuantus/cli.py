@@ -68,7 +68,11 @@ def license_import(
         # Use the VERIFIED payload returned by import_license (its signature was checked),
         # not a second, unauthenticated read of the raw license_obj from disk.
         with get_identity_db_session() as identity_session:
-            projected = project_license_seats(identity_session, result.payload)
+            applied = project_license_seats(identity_session, result.payload)
+        # Assign `projected` only AFTER the identity transaction commits (on with-exit). If
+        # that commit fails, the exception skips this line -> `projected` stays None, so the
+        # audit below never records a cap that did not actually land.
+        projected = applied
         if projected is not None:
             typer.echo(f"seat cap projected: TenantQuota.max_users={projected}")
     except Exception as exc:  # noqa: BLE001 -- best-effort; never fail an activated license
