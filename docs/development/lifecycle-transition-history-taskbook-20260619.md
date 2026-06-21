@@ -64,7 +64,7 @@ different write pattern and a much larger surface, a separate slice if ever want
 | column | type | notes |
 |---|---|---|
 | `id` | String(64) PK | uuid |
-| `item_id` | String, FK→`meta_items.id`, index, NOT NULL | the item that transitioned |
+| `item_id` | String, index, NOT NULL, **no FK** | FK-free recorded item id; retained after item deletion (no cascade) |
 | `from_state_id` | String, nullable | |
 | `from_state_name` | String | denormalized for readability |
 | `to_state_id` | String | |
