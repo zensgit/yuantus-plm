@@ -53,6 +53,11 @@ def collect_license_status(session: Session, tenant_id: str) -> LicenseStatus:
     gate); the ``AppLicense`` query here is a display summary, never an auth decision.
     """
     tenant_id = str(tenant_id or "").strip()
+    if not tenant_id:
+        # A blank tenant would let is_entitled() fall back to the "default" tenant (single
+        # mode, resolve_license_scope) while the license summary queries tenant_id == "" -- a
+        # misleading, inconsistent report. Refuse it rather than report a fallback tenant.
+        raise ValueError("tenant_id is required (got blank/whitespace)")
 
     # is_entitled() scopes via tenant_id_var (resolve_license_scope); set it for the read.
     token = tenant_id_var.set(tenant_id)

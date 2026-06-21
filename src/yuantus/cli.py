@@ -93,7 +93,11 @@ def license_status(
     from yuantus.database import get_db_session
     from yuantus.meta_engine.app_framework.license_status import collect_license_status
 
-    token = tenant_id_var.set(str(tenant_id or "").strip())
+    cleaned = str(tenant_id or "").strip()
+    if not cleaned:
+        typer.echo("license status failed: --tenant-id must be a non-empty tenant id", err=True)
+        raise typer.Exit(code=1)
+    token = tenant_id_var.set(cleaned)
     try:
         with get_db_session() as session:
             status = collect_license_status(session, tenant_id)

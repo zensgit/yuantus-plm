@@ -90,3 +90,11 @@ def test_status_normalizes_tenant(session):
     _add_license(session, tenant_id="acme", app_name="plm.bom_multitable")
     st = collect_license_status(session, "  acme  ")  # padded -> stripped
     assert st.tenant_id == "acme" and st.features["bom_multitable"] is True
+
+
+def test_status_rejects_blank_tenant(session):
+    # a blank/whitespace tenant must be refused, not reported as the single-mode "default"
+    # tenant against an empty (tenant_id == "") license summary.
+    for blank in ("", "   ", None):
+        with pytest.raises(ValueError):
+            collect_license_status(session, blank)
