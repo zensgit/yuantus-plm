@@ -55,12 +55,14 @@ S1 detail is in the S1 companion doc and is not repeated here.
 - `regression` PASS (4m9s); `playwright-esign`, `plugin-tests`, `detect_changes` PASS.
 - Local: 18 passed no-DB (`test_license_import.py`).
 
-**#823 (slice C + B)** — head `9b7f8a59`:
+**#823 (slice C + B)** — head `49b7e08e`:
 - Local: `test_license_status.py` **4 passed** no-DB (entitled / tenant-scoped / whitelist /
   tenant-normalization). End-to-end CLI smoke: `license status` lists `bom_multitable: ENTITLED` plus
   the active license, with no `license_data` / key leak.
-- CI: _pending at time of writing; the test file is registered in the conftest no-DB allowlist + the
-  ci.yml contracts path-filter + the explicit pytest list._
+- `contracts` PASS (8m11s): **1800 passed, 1 skipped** — `test_license_status.py` is in the contracts
+  explicit list and **executed in CI** (confirmed in the job log); `regression` PASS. *(A first run
+  flagged the ci.yml list-order maintenance contract — the new test itself ran + passed; the list entry
+  was repositioned to its path-sorted slot in `49b7e08e`.)*
 
 ## 4. Invariants held
 
