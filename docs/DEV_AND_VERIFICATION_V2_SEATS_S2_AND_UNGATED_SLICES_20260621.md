@@ -18,9 +18,14 @@ are listed with their gates in §5 — that deferral *is* how this push honours 
 | S0 | design + A-vs-B2 decision (Option A) | #813 MERGED |
 | S1 | license `seats` → identity `TenantQuota.max_users` at import; `is_entitled()` seats-free; default-off via `QUOTA_MODE` | #817 MERGED (`80859d6b`) |
 | S1+ | signer enforces `--seats >= 1` at mint; "omit = no projection / cap unchanged" operator wording | merged with S1 |
-| **S2** | source-of-truth handshake + cap-projection audit (this doc) | **#820 OPEN, green** |
+| **S2** | source-of-truth handshake + cap-projection audit (this doc) | **#820 — green; merges before this doc** |
 
 S1 detail is in the S1 companion doc and is not repeated here.
+
+> **Merge & finalization.** This doc (#824) is the final main-branch verification record and should
+> **merge last**: **#820 → #823 → #824**. The PR / branch heads recorded below are *authoring-time*
+> references; at merge, replace them with the **squash-merge SHAs** and mark #820 / #823 **MERGED**, so
+> this record does not go stale the moment it lands.
 
 ## 2. S2 + this push — what shipped
 
@@ -55,14 +60,16 @@ S1 detail is in the S1 companion doc and is not repeated here.
 - `regression` PASS (4m9s); `playwright-esign`, `plugin-tests`, `detect_changes` PASS.
 - Local: 18 passed no-DB (`test_license_import.py`).
 
-**#823 (slice C + B)** — head `49b7e08e`:
-- Local: `test_license_status.py` **4 passed** no-DB (entitled / tenant-scoped / whitelist /
-  tenant-normalization). End-to-end CLI smoke: `license status` lists `bom_multitable: ENTITLED` plus
-  the active license, with no `license_data` / key leak.
-- `contracts` PASS (8m11s): **1800 passed, 1 skipped** — `test_license_status.py` is in the contracts
-  explicit list and **executed in CI** (confirmed in the job log); `regression` PASS. *(A first run
-  flagged the ci.yml list-order maintenance contract — the new test itself ran + passed; the list entry
-  was repositioned to its path-sorted slot in `49b7e08e`.)*
+**#823 (slice C + B)** — head `34a2d490`:
+- Local: `test_license_status.py` **5 passed** no-DB (entitled / tenant-scoped / whitelist /
+  tenant-normalization / **blank-tenant rejection**). End-to-end CLI smoke: `license status` lists
+  `bom_multitable: ENTITLED` plus the active license, with no `license_data` / key leak.
+- `contracts` PASS (**1800 passed, 1 skipped** at `49b7e08e`): `test_license_status.py` is in the
+  contracts explicit list and **executed in CI** (confirmed in the job log); `regression` PASS. The
+  blank-tenant hardening (`34a2d490`, `--tenant-id " "` would otherwise report the single-mode
+  "default" tenant against an empty summary) adds one test on the same green path. *(A first run flagged
+  the ci.yml list-order maintenance contract — the test itself ran + passed; the entry was repositioned
+  to its path-sorted slot.)*
 
 ## 4. Invariants held
 
