@@ -261,3 +261,94 @@ def test_import_result_tenant_id_is_normalized(session, keypair):
     assert result.tenant_id == "tenant-1"
     assert result.payload["tenant_id"] == "  tenant-1  "  # raw payload preserved
     assert result.activated[0].tenant_id == "tenant-1"    # activation used the stripped id
+
+
+# --- CLI two-DB integration: exercise the cli.py orchestration glue end-to-end ---------------
+# Closes the coverage boundary named in #820: import -> activate (meta) -> project cap
+# (identity) -> seat-cap audit (meta). Both DBs point at one shared file-sqlite (single mode).
+
+def _wire_single_db_cli(tmp_path, monkeypatch, pubkeys):
+    import json
+
+    import yuantus.database as ydb
+    import yuantus.security.auth.database as authdb
+    from yuantus.security.auth.models import AuthUser, Organization, Tenant, TenantQuota
+
+    url = f"sqlite:///{tmp_path / 'cli.db'}"
+    # settings reads the YUANTUS_-prefixed env; identity re-resolves its URL via settings, so
+    # the prefix matters (the meta side is redirected directly via SessionLocal below).
+    monkeypatch.setenv("YUANTUS_DATABASE_URL", url)
+    monkeypatch.setenv("YUANTUS_IDENTITY_DATABASE_URL", url)
+    monkeypatch.setenv("YUANTUS_LICENSE_PUBLIC_KEYS", json.dumps(pubkeys))
+    get_settings.cache_clear()
+
+    eng = ydb.create_db_engine(url)  # FK + WAL pragmas, like production
+    Base.metadata.create_all(
+        bind=eng,
+        tables=[
+            # meta side (AppLicense FKs meta_app_registry, so AppRegistry must exist)
+            RBACUser.__table__, AppRegistry.__table__, AppLicense.__table__, AuditLog.__table__,
+            # identity side
+            Tenant.__table__, TenantQuota.__table__, AuthUser.__table__, Organization.__table__,
+        ],
+    )
+    SessionLocal = sessionmaker(bind=eng, expire_on_commit=False)
+    # meta globals are import-time bound; identity caches its engine -> redirect both to `eng`.
+    monkeypatch.setattr(ydb, "engine", eng)
+    monkeypatch.setattr(ydb, "SessionLocal", SessionLocal)
+    monkeypatch.setattr(authdb, "_engine", eng)
+    monkeypatch.setattr(authdb, "_sessionmaker", SessionLocal)
+    monkeypatch.setattr(authdb, "_engine_url", url)
+    return SessionLocal
+
+
+def test_cli_license_import_projects_seat_cap_and_audits(tmp_path, monkeypatch, keypair):
+    import json
+
+    from yuantus.cli import license_import
+    from yuantus.security.auth.models import TenantQuota
+
+    priv, pubkeys = keypair
+    SessionLocal = _wire_single_db_cli(tmp_path, monkeypatch, pubkeys)
+
+    # PADDED tenant -> exercises audit-tenant normalization end-to-end
+    lic_file = tmp_path / "lic.json"
+    lic_file.write_text(json.dumps(_sign(priv, _payload(tenant_id="  acme  ", seats=7))), encoding="utf-8")
+    license_import(str(lic_file))  # the CLI command fn; raises typer.Exit on failure
+
+    s = SessionLocal()
+    try:
+        activated = s.query(AppLicense).filter_by(tenant_id="acme").all()
+        assert len(activated) == 1 and activated[0].status == "Active"      # meta: activated
+        quota = s.get(TenantQuota, "acme")
+        assert quota is not None and quota.max_users == 7                    # identity: projected
+        paths = [a.path for a in s.query(AuditLog).filter_by(method="LICENSE", tenant_id="acme").all()]
+        assert "cli:license/import" in paths                                 # import audit
+        assert any("seat-cap" in p and "max_users=7" in p for p in paths)    # seat-cap audit
+        # the padded payload tenant never leaks into any DB key
+        assert s.query(AuditLog).filter(AuditLog.tenant_id == "  acme  ").count() == 0
+    finally:
+        s.close()
+
+
+def test_cli_license_import_without_seats_writes_no_seat_cap_audit(tmp_path, monkeypatch, keypair):
+    import json
+
+    from yuantus.cli import license_import
+    from yuantus.security.auth.models import TenantQuota
+
+    priv, pubkeys = keypair
+    SessionLocal = _wire_single_db_cli(tmp_path, monkeypatch, pubkeys)
+
+    lic_file = tmp_path / "lic.json"
+    lic_file.write_text(json.dumps(_sign(priv, _payload(tenant_id="acme"))), encoding="utf-8")  # no seats
+    license_import(str(lic_file))
+
+    s = SessionLocal()
+    try:
+        assert s.query(AppLicense).filter_by(tenant_id="acme").count() == 1
+        assert s.get(TenantQuota, "acme") is None                           # nothing projected
+        seat_cap = [a for a in s.query(AuditLog).filter_by(method="LICENSE").all() if "seat-cap" in a.path]
+        assert seat_cap == []                                               # only the import audit
+    finally:
+        s.close()
