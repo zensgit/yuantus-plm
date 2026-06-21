@@ -250,6 +250,24 @@ def test_record_seat_cap_audit_writes_meta_row(session):
     assert "seat-cap" in rows[0].path and "max_users=20" in rows[0].path
 
 
+def test_record_seat_cap_audit_clear_records_cleared_not_a_number(session):
+    # A CLEAR (max_users=None, from explicit seats:null) must audit "cleared" -- never a false
+    # ``max_users=N`` -- so the audit trail can't claim a numeric cap that was not set.
+    record_seat_cap_audit(session, tenant_id="tenant-1", max_users=None)
+    session.commit()
+    row = session.query(AuditLog).filter_by(method="LICENSE", tenant_id="tenant-1").one()
+    assert "seat-cap" in row.path and "max_users=cleared" in row.path
+
+
+def test_import_preserves_explicit_seats_null(session, keypair):
+    priv, pubkeys = keypair
+    # The load-bearing round-trip on the IMPORT side: an explicit ``seats: null`` in the signed
+    # payload survives verification, so ``result.payload`` still carries ``seats=None`` (distinct
+    # from absent) for the projection to read as "clear", not "no-op".
+    result = LicenseImportService(session).import_license(_sign(priv, _payload(seats=None)), pubkeys)
+    assert "seats" in result.payload and result.payload["seats"] is None
+
+
 def test_import_result_tenant_id_is_normalized(session, keypair):
     priv, pubkeys = keypair
     # A padded tenant in the signed payload activates/projects under the stripped id; the
