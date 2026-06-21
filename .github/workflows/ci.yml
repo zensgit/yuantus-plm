@@ -466,6 +466,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_latest_released_guard_router.py \
             src/yuantus/meta_engine/tests/test_latest_released_write_paths.py \
             src/yuantus/meta_engine/tests/test_license_import.py \
+            src/yuantus/meta_engine/tests/test_license_status.py \
             src/yuantus/meta_engine/tests/test_lifecycle_permission_rollback.py \
             src/yuantus/meta_engine/tests/test_lifecycle_role_hierarchy.py \
             src/yuantus/meta_engine/tests/test_lifecycle_transition_history.py \
@@ -533,7 +534,6 @@ jobs:
             src/yuantus/meta_engine/tests/test_search_released_only_filter.py \
             src/yuantus/meta_engine/tests/test_search_reports_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_seat_projection.py \
-            src/yuantus/meta_engine/tests/test_license_status.py \
             src/yuantus/meta_engine/tests/test_shared_dev_142_readonly_guard_workflow_contracts.py \
             src/yuantus/meta_engine/tests/test_spare_router.py \
             src/yuantus/meta_engine/tests/test_spare_router_contracts.py \
