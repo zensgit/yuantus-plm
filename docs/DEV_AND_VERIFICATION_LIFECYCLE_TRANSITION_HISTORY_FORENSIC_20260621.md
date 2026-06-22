@@ -41,11 +41,10 @@ existence gate. Read-only; no write-path or all-attempts change.
   item at all.
 - **Auth — the deliberately-surfaced decision.** Gated by `require_superuser` (the `is_superuser`
   flag, granted only via CLI bootstrap and the platform-admin router — a strong, sparingly-issued
-  privilege). This is the **conservative, most-restrictive default** for a sensitive surface that
-  exposes deleted-item history. **Open for ratification:** whether this should stay superuser-only,
-  relax to an org/tenant-admin **role**, or fold into a unified **per-item ACL** is precisely the
-  auth-model axis reserved on the *per-item-ACL hardening* item — so this route defaults to the
-  tightest gate pending that decision, rather than guessing a looser one.
+  privilege). This was the **conservative, most-restrictive default** for a sensitive surface that
+  exposes deleted-item history, pending the per-item-ACL decision. **Resolved (2a, #831):** the
+  forensic route **stays superuser**, while the item-scoped read uses a **per-item ACL**
+  (``check_permission(item_type_id, AMLAction.get)``) — a coherent two-tier model.
 
 ## 4. Verification
 
@@ -63,5 +62,5 @@ existence gate. Read-only; no write-path or all-attempts change.
 
 - **Richer forensic query** — cross-item / time-range / actor search (named as "likely" in the
   #819 note) — not built; the v1 forensic surface is by-`item_id`.
-- **The auth-model unification** (superuser vs role vs per-item ACL) — the reserved decision above.
+- **The auth-model unification** — resolved in #831 (2a): item-scoped read → per-item ACL, forensic stays superuser (see §3); no longer open.
 - All-attempts logging (`outcome` still reserved); the write path (unchanged).

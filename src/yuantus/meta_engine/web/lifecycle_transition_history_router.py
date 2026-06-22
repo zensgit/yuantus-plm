@@ -7,8 +7,8 @@ Read APIs over the audit rows written by ``LifecycleService.promote()`` (Slice 1
   ``bom_where_used``/``impact``), **404** if the item does not exist.
 - ``GET /api/v1/transition-history/forensic/{item_id}`` (forensic admin route) — retrieval by
   recorded ``item_id`` with **no item-existence gate**, so a *deleted* item's retained (FK-free)
-  history stays reachable (the #819-archived forensic item). **Superuser-gated**; see the route
-  docstring for the auth-model note.
+  history stays reachable (the #819-archived forensic item). **Superuser-gated** — the item-scoped
+  read above uses a **per-item ACL** (the settled two-tier model).
 
 Read-only: does not write history and does not touch all-attempts.
 """
@@ -92,10 +92,11 @@ def get_forensic_transition_history(
     (it underpins the #819-archived deleted-item forensic retrieval). A never-existed id with no
     history returns an empty list (200), not 404.
 
-    Auth: ``require_superuser`` — the conservative high-privilege gate for a sensitive surface
-    that exposes deleted-item history. NOTE: the precise "who may call this" (superuser vs an
-    org/tenant-admin role vs a unified per-item ACL) is the auth-model decision reserved on the
-    per-item-ACL-hardening item; this route defaults to the most restrictive option pending it.
+    Auth: ``require_superuser`` — the high-privilege gate for a sensitive surface that exposes
+    deleted-item history. The auth model is settled (the per-item-ACL decision chose 2a, #831):
+    the forensic route **stays superuser**, while the item-scoped read
+    (``/items/{item_id}/transition-history``) uses a **per-item ACL**
+    (``check_permission(item_type_id, AMLAction.get)``).
     """
     rows = LifecycleService(db).get_transition_history(item_id, limit=limit)
     return {"items": [_serialize(r) for r in rows], "count": len(rows)}
