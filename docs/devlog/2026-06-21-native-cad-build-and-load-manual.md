@@ -45,12 +45,16 @@
 
 ```
 msbuild clients/cad-desktop-helper/Bridge/YuantusCadHelperBridge.csproj ^
-  /p:Configuration=Release /p:ForceImportBeforeCsprojDotNet=host.props
+  /p:Configuration=Release ^
+  /p:CustomBeforeMicrosoftCommonProps=C:\绝对路径\host.props
 ```
+
+> ⚠️ 必须用 MSBuild **真正支持**的导入钩子。**不要用 `ForceImportBeforeCsprojDotNet`** —— 本 csproj 是 SDK 风格(`Microsoft.NET.Sdk`),该属性**不会被导入**,结果是只定义了 `GSTARCAD_HOST`/`ZWCAD_HOST` 却没带进宿主引用,最终卡在缺 `Gssoft.Gscad.*` / `ZwSoft.ZwCAD.*`。经 `dotnet msbuild /pp` 验证:`CustomBeforeMicrosoftCommonProps` 会被导入(**需绝对路径**),`ForceImportBeforeCsprojDotNet` 被忽略。
+> 等价做法:把 `host.props` 放成 `clients/cad-desktop-helper/Bridge/Directory.Build.props`(SDK 项目自动导入),或在 csproj 里显式 `<Import Project="host.props" />`。
 
 中望把符号换成 `ZWCAD_HOST`、引用 `ZwManaged.dll` + `ZwDatabaseMgd.dll`;AutoCAD 换成 `AUTOCAD_HOST`、引用 `acmgd/acdbmgd/accoremgd`。
 
-**做法 B(命令行直接定义符号 + 手工加引用):** `-p:DefineConstants=GSTARCAD_HOST` 并在 csproj 临时加上对应 `<Reference>`。注意:**不要把宿主引用提交进签入的 csproj**(会破坏 CI 的 SDK-free 构建)。
+**做法 B(最简,临时改 csproj 后还原):** 直接在 `YuantusCadHelperBridge.csproj` 临时加 `<DefineConstants>$(DefineConstants);GSTARCAD_HOST</DefineConstants>` 和对应 `<Reference>`,构建完**还原、别提交**(把宿主引用提交进签入的 csproj 会破坏 CI 的 SDK-free 构建)。
 
 > ⚠️ 各家程序集的**确切文件名/版本/路径以本机安装的 SDK 为准**(尤其浩辰 `Gc*` 与中望 `Zw*` 不同版本可能略有差异)。首次构建若报缺程序集,按 IDE 提示在 SDK 目录里定位同名 DLL。
 
@@ -61,7 +65,7 @@ msbuild clients/cad-desktop-helper/Bridge/YuantusCadHelperBridge.csproj ^
 - `clients/cad-desktop-helper/Lisp/yuantus_cad_helper.lsp`
 - `yuantus-cad-helper.exe`(helper;`%APPDATA%\YuantusPLM\helper-session-*.json` 提供端口,DPAPI 提供 `local-helper-token`)
 
-安装器 `clients/cad-desktop-helper/Installer/YuantusCadHelper.iss` 会写一份启动 `acad.lsp`(`%APPDATA%\YuantusPLM\cad-bridge\acad.lsp`)做 NETLOAD;三家都认这种 per-user 搜索路径启动文件。
+安装器 `clients/cad-desktop-helper/Installer/YuantusCadHelper.iss` 只写一份**启动 stub** `acad.lsp`(`%APPDATA%\YuantusPLM\cad-bridge\acad.lsp`),**它本身不会自动 NETLOAD**。每个宿主仍需按安装/签收手册,把该 CAD 的 support / 搜索 / 信任路径指到这个文件/目录,加载才会生效。
 
 ## 3. 加载(签收 runbook §3 预检,每台机记一次)
 
