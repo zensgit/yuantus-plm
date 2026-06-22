@@ -52,6 +52,30 @@ def audit_retention_prune(payload: Dict[str, Any], session: Session) -> Dict[str
     }
 
 
+def ecm_publication_outbox_prune(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
+    settings = get_settings()
+    retention_days = int(settings.PUBLICATION_ECM_OUTBOX_RETENTION_DAYS or 0)
+    if retention_days <= 0:
+        return {
+            "ok": True,
+            "task": "ecm_publication_outbox_prune",
+            "skipped": True,
+            "reason": "retention_disabled",
+            "deleted": 0,
+        }
+    from yuantus.meta_engine.ecm_publication.service import EcmPublicationOutboxService
+
+    deleted = EcmPublicationOutboxService(session).prune_terminal(
+        retention_days=retention_days
+    )
+    return {
+        "ok": True,
+        "task": "ecm_publication_outbox_prune",
+        "deleted": deleted,
+        "retention_days": retention_days,
+    }
+
+
 def bom_to_mbom_sync(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
     source_item_ids = _source_item_ids(payload)
     if not source_item_ids:
