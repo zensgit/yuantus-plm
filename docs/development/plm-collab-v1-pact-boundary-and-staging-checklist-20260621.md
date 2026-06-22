@@ -26,8 +26,9 @@ are **byte-identical (in sync)**:
 
 - **Consumer (MetaSheet2):** `packages/core-backend/tests/contract/pacts/metasheet2-yuantus-plm.json`
   (32 interactions incl. the 2 above) + the contract test `plm-adapter-yuantus.pact.test.ts`, run by the
-  `yuantus-pact-consumer.yml` workflow. It asserts the pact interactions match the endpoints `PLMAdapter`
-  actually calls (drop/rename a consumed field → consumer CI fails).
+  `yuantus-pact-consumer.yml` workflow. This is a **static** check: it pins **route usage + pact-artifact
+  sanity** — the pact JSON is well-formed, its 32 interactions are in documented order with provider
+  states, and `PLMAdapter.ts` still references these endpoints. It does **not** assert provider field shape.
 - **Provider (Yuantus):** the synced copy `contracts/pacts/metasheet2-yuantus-plm.json` is replayed by
   `src/yuantus/api/tests/test_pact_provider_yuantus_plm.py` (in the `contracts` gate; the V1.1 seed #805
   mints a perpetual `plm.bom_multitable` license so the entitled interactions verify). A provider response
@@ -38,9 +39,14 @@ mains now carry them, in sync — **no drift** between the repos' pact files at 
 
 ## 3. Protection boundary + the residual gap (honest)
 
-**What the pact catches today:**
-- Consumer side — an adapter change that stops reading / renames a pinned field (consumer CI).
-- Provider side — a provider response that drops / renames a pinned field (provider CI).
+**What protects the surface — three layers, each catching a different thing:**
+- **Consumer CI** (`plm-adapter-yuantus.pact.test.ts` via `yuantus-pact-consumer.yml`) — pins **route usage
+  + pact-artifact sanity** (the endpoints are still called in documented order; the pact JSON stays
+  well-formed). It does **not** catch provider field drift.
+- **Provider verifier** (`test_pact_provider_yuantus_plm.py`, in `contracts`) — pins the **provider
+  response shape**: a provider response that drops / renames a pinned field fails here.
+- **Adapter runtime guard / unit tests** (the #2875 all-field BOM shape guard) — catches **silent field
+  drift at runtime** on the consumer side (a visible degradation, not a CI-contract failure).
 
 **What it does NOT catch automatically — the residual gap:**
 - The two repos' pact files are kept in sync **manually**, via `scripts/sync_metasheet2_pact.sh --check`
@@ -57,6 +63,10 @@ patch to either side, run
 it reports `pact_sync=ok` + the provider verifier passes.
 
 ## 4. Pinned version pair (verified-compatible)
+
+The real invariant is the **pact artifact hash** `5ecbe1ee…` (32 interactions): both repos' copies hash to
+it, so the *commit* can move while the contract stays pinned (verified identical at Yuantus `d6f17742` and
+MetaSheet2 `de2052bdf` / current main `085ce92be`).
 
 | Repo | main commit | pact state |
 |---|---|---|
