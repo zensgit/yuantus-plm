@@ -32,18 +32,26 @@ no-SaaS policy requires it. *Owner ratifies.*
 The broker needs a base URL + an auth token in **both** repos' CI — and these **never** live in the repo.
 
 - GitHub Actions secrets per repo: `PACT_BROKER_BASE_URL`, `PACT_BROKER_TOKEN`.
-- **Least privilege:** MetaSheet2 gets a **read-write** token (publish); Yuantus gets a **read-only**
-  token (verify / pull). Separate tokens so a leak on one side can't write the other's data.
+- **Least privilege — both tokens *write*, scoped differently.** *(Correction: provider verification
+  results must be **published back** to the broker, or `can-i-deploy` has no matrix to read — a read-only
+  provider token 403s on publish and hollows the advisory gate.)* MetaSheet2's token may **publish the
+  consumer pact**; Yuantus's token may **publish provider verification results + its own provider version
+  (branch/tag)** — and **not** delete, **not** write MetaSheet2's consumer contract. The `can-i-deploy`
+  *query* is read-only; the verify-and-publish-results step is not. Minimally-scoped, separate tokens so a
+  leak on one side can't mutate the other's data.
 - Token custody (provision + rotate) is an owner/ops task. **No token value appears in any PR.**
 
 ## 3. Version + tag naming  *(decision)*
 
-- **Consumer version** (MetaSheet2) = git commit SHA; **tag** = branch name (`main` for the trunk pact).
-  The pilot pact publishes as consumer `metasheet2@<sha>` tagged `main`.
-- **Provider version** (Yuantus) = git commit SHA; verification results publish against `yuantus@<sha>`
-  tagged `main`.
-- `can-i-deploy --pacticipant yuantus --version <sha>` then answers "does this provider satisfy the
-  consumer pact tagged `main`." Standard pact-broker convention; no custom scheme.
+- **Version** = git commit SHA; **branch** = the GitHub ref name, recorded via the broker's first-class
+  `--branch` (e.g. `pact-broker publish --consumer-app-version <sha> --branch main`). Use the **branch**
+  concept to carry branch semantics — **not** legacy `--tag`; add a `--tag` only if a legacy integration
+  still needs it.
+- The pilot publishes consumer `metasheet2@<sha>` on branch `main`; Yuantus publishes provider
+  verification results for `yuantus@<sha>` on branch `main`.
+- `can-i-deploy` in Phase A (advisory) targets the **`main` branch / latest compatible pair**. The
+  **environment / deployment** model (`--to-environment …`) is defined later, at the Phase B blocking
+  flip. Standard pact-broker `branch`/`version` convention; no custom scheme.
 
 ## 4. advisory → blocking migration  *(decision)*
 
@@ -65,9 +73,11 @@ until Phase B; after Phase B the broker is authoritative and the copy is a conve
 
 1. **(this) design ratified** — hosting, secrets, naming, migration, fallback agreed.
 2. **MetaSheet2 PR** — consumer CI publishes the pact to the broker (`pact-broker publish`, consumer
-   version = SHA, tag = branch) instead of only committing the JSON. Owner-gated merge (metasheet2).
-3. **Yuantus PR** — provider CI pulls the consumer pact from the broker + verifies it (augmenting the
-   local copy), and runs `can-i-deploy` **advisory**. `sync_metasheet2_pact.sh` retained as fallback.
+   version = SHA, `--branch` = ref) instead of only committing the JSON. Owner-gated merge (metasheet2).
+3. **Yuantus PR** — provider CI pulls the consumer pact from the broker, verifies it (augmenting the
+   local copy), **publishes the verification results back to the broker** (the write the §2 provider
+   token is scoped for), then runs `can-i-deploy` **advisory**. `sync_metasheet2_pact.sh` retained as
+   fallback.
 
 Sequencing matters: the provider-pull (3) needs the consumer to have published at least once (2).
 
