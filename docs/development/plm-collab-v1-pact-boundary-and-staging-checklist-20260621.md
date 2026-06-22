@@ -66,8 +66,9 @@ it reports `pact_sync=ok` + the provider verifier passes.
 
 The real invariant is the **pact artifact hash** `5ecbe1ee…` (32 interactions): both repos' copies hash to
 it, so the *commit* can move while the contract stays pinned. The commits in the table are the **baseline**
-at which the pact was verified identical — **not** the current main tips. As of this review the live mains
-have advanced to Yuantus `b49bbf44` / MetaSheet2 `085ce92be`, both still hashing to `5ecbe1ee…`.
+at which the pact was verified identical — **not** the current main tips, which keep advancing on both
+repos. Do not trust a quoted main SHA here (it drifts the moment either repo merges); the **hash** is the
+pin — re-verify with `sync_metasheet2_pact.sh --check --verify-provider` rather than a remembered tip.
 
 | Repo | verified pact-baseline commit | pact state |
 |---|---|---|
