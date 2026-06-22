@@ -88,11 +88,19 @@ Sequencing matters: the provider-pull (3) needs the consumer to have published a
 - **Not** in scope: SSO, write-back, approval-automation execution, workbench rebuild, or making
   `can-i-deploy` blocking before the stability window.
 
-## 8. Open decisions for the owner (ratify before build)
+## 8. Ratified decisions (owner-approved 2026-06-22)
 
-1. **Hosting:** PactFlow (recommended) vs self-hosted.
-2. **Secret custody:** who provisions / rotates the broker tokens; GitHub-secrets setup in both repos.
-3. **advisory→blocking window** + who signs off the flip.
+1. **Hosting:** **PactFlow** (hosted) — ratified.
+2. **Secrets:** **GitHub Actions repo secrets** in both repos, **least-privilege scoped *write* tokens**
+   (MetaSheet2 → publish the consumer pact; Yuantus → publish its own provider verification results) —
+   ratified. Provisioning + rotation is an ops task; **no token value appears in any PR**.
+3. **advisory→blocking:** **advisory first** for a stability window, then **owner sign-off** flips
+   `can-i-deploy` to blocking — ratified.
+
+Build is unblocked (MetaSheet2 consumer-publish → Yuantus provider-pull, both advisory in Phase A). The
+one remaining **ops prerequisite** is provisioning the PactFlow account + the two GitHub secrets
+(`PACT_BROKER_BASE_URL`, `PACT_BROKER_TOKEN`) in each repo; the CI wiring is written against those secret
+names and runs **advisory (non-blocking)** until they exist, so it can land before the secrets are set.
 
 ---
 
