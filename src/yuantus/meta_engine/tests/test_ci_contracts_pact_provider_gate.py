@@ -39,6 +39,7 @@ def test_ci_contracts_job_wires_pact_provider_verifier() -> None:
     assert ci_yml.is_file()
 
     text = _read(ci_yml)
+    assert "workflow_dispatch: {}" in text
     assert "pact-python==3.2.1" in text
     assert "pip install -r requirements.lock pytest pact-python==3.2.1" in text
     assert "Pact provider verifier (Metasheet2 -> Yuantus)" in text
