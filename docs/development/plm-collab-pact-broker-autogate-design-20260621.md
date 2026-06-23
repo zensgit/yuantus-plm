@@ -1,7 +1,7 @@
 # PLM-Collab pact-broker auto-gate — design (decision doc)
 
 **Date:** 2026-06-21
-**Status:** decision doc for **owner ratification**. No code. Closes the residual gap named in
+**Status:** owner-ratified and merged as #843 (`1d1031c4`). No code. Closes the residual gap named in
 `plm-collab-v1-pact-boundary-and-staging-checklist-20260621.md` §3 — the Yuantus↔MetaSheet2 pact is kept
 in sync **manually** (`sync_metasheet2_pact.sh`); there is no automatic cross-repo drift gate. This
 designs the pact-broker that adds one. Build is 3 PRs (this design → MetaSheet2 publish → Yuantus pull),
@@ -36,7 +36,7 @@ The broker needs a base URL + an auth token in **both** repos' CI — and these 
   results must be **published back** to the broker, or `can-i-deploy` has no matrix to read — a read-only
   provider token 403s on publish and hollows the advisory gate.)* MetaSheet2's token may **publish the
   consumer pact**; Yuantus's token may **publish provider verification results + its own provider version
-  (branch/tag)** — and **not** delete, **not** write MetaSheet2's consumer contract. The `can-i-deploy`
+  and branch metadata** — and **not** delete, **not** write MetaSheet2's consumer contract. The `can-i-deploy`
   *query* is read-only; the verify-and-publish-results step is not. Minimally-scoped, separate tokens so a
   leak on one side can't mutate the other's data.
 - Token custody (provision + rotate) is an owner/ops task. **No token value appears in any PR.**
