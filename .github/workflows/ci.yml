@@ -619,6 +619,10 @@ jobs:
             echo "[pact-broker] PACT_BROKER_BASE_URL not set — skipping advisory broker step."
             exit 0
           fi
+          if [ -z "${PACT_BROKER_TOKEN:-}" ]; then
+            echo "::error title=Pact broker token missing::PACT_BROKER_BASE_URL is set but PACT_BROKER_TOKEN is empty; broker step is configured but invalid."
+            exit 1
+          fi
           curl -fsSL https://raw.githubusercontent.com/pact-foundation/pact-ruby-standalone/master/install.sh | bash
           export PATH="$PWD/pact/bin:$PATH"
           python scripts/ci/pact_broker_provider_verify.py; rc1=$?

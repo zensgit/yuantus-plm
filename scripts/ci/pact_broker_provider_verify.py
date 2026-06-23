@@ -32,6 +32,13 @@ def main() -> int:
         return 0
 
     token = os.environ.get("PACT_BROKER_TOKEN", "").strip()
+    if not token:
+        print(
+            "::error title=Pact broker token missing::PACT_BROKER_BASE_URL is set but "
+            "PACT_BROKER_TOKEN is empty; broker verification is configured but invalid."
+        )
+        return 1
+
     version = os.environ.get("GITHUB_SHA", "").strip() or "dev"
     branch = os.environ.get("GITHUB_REF_NAME", "").strip() or "main"
 

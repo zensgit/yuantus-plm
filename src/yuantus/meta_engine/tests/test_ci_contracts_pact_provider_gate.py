@@ -29,6 +29,7 @@ def test_ci_contracts_job_wires_pact_provider_verifier() -> None:
     assert "Pact provider verifier (Metasheet2 -> Yuantus)" in text
     assert "src/yuantus/api/tests/test_pact_provider_yuantus_plm.py" in text
     assert "scripts/ci/pact_broker_provider_verify.py" in text
+    assert "Pact broker token missing" in text
     assert "pact-broker can-i-deploy --pacticipant YuantusPLM" in text
 
 
@@ -72,5 +73,6 @@ def test_pact_broker_provider_name_matches_committed_pact() -> None:
     script_text = _read(script)
     pact_text = _read(pact)
     assert 'PROVIDER = "YuantusPLM"' in script_text
+    assert "PACT_BROKER_TOKEN is empty" in script_text
     assert '"provider":' in pact_text
     assert '"name": "YuantusPLM"' in pact_text
