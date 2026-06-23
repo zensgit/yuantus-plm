@@ -76,6 +76,7 @@ def test_ci_and_ops_shell_scripts_are_syntax_valid() -> None:
         scripts_dir / "verify_cad_dedup_relationship_s3.sh",
         scripts_dir / "verify_cad_ml_quick.sh",
         scripts_dir / "verify_cad_preview_online.sh",
+        scripts_dir / "render_service_backport_smoke.sh",
         scripts_dir / "verify_playwright_product_ui_summaries.sh",
         scripts_dir / "list_native_workspace_bundle.sh",
         scripts_dir / "verify_playwright_plm_workspace_all.sh",
@@ -116,6 +117,20 @@ def test_release_orchestration_script_has_help() -> None:
     assert "Usage:" in (cp.stdout or "")
     assert "release_orchestration.sh plan" in (cp.stdout or "")
     assert "release_orchestration.sh execute" in (cp.stdout or "")
+
+
+def test_render_service_backport_smoke_script_is_safe_by_default() -> None:
+    repo_root = _find_repo_root(Path(__file__))
+    script = repo_root / "scripts" / "render_service_backport_smoke.sh"
+    assert script.is_file(), f"Missing script: {script}"
+
+    text = script.read_text(encoding="utf-8", errors="replace")
+    assert 'DEPLOY=0' in text
+    assert '--deploy' in text
+    assert 'YUANTUS_RENDER_SERVICE_BASE_URL is not set' in text
+    assert 'docker compose -p "$PROJECT" build api worker' in text
+    assert 'docker compose -p "$PROJECT" up -d api worker' in text
+    assert 'grep \'POST /render\'' in text
 
 
 def test_strict_gate_report_script_has_help() -> None:
