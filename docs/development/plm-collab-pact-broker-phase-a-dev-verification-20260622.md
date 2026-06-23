@@ -14,8 +14,8 @@ ops provisions it. Read §2 first: a green CI here does **not** mean the integra
 | Piece | PR | State |
 |---|---|---|
 | Design decision doc (§8 ratified: PactFlow; GitHub repo secrets, least-privilege scoped-write; advisory→blocking) | #843 | **MERGED** (`1d1031c4`) |
-| Yuantus **provider** — advisory broker verify+publish+can-i-deploy CI step + `scripts/ci/pact_broker_provider_verify.py` | #854 | **DRAFT**, CI-green at `38b4b007`; held for PactFlow/secrets + one real broker run |
-| MetaSheet2 **consumer** — advisory `pact-broker publish` step after `test:contract` | zensgit/metasheet2#3065 | **DRAFT**, CI-green at `5dfd9bcc`; held for PactFlow/secrets + one real broker run |
+| Yuantus **provider** — advisory broker verify+publish+can-i-deploy CI step + `scripts/ci/pact_broker_provider_verify.py` | #854 | **DRAFT**, CI-green at `56866eee`; held for PactFlow/secrets + one real broker run |
+| MetaSheet2 **consumer** — advisory `pact-broker publish` step after `test:contract` | zensgit/metasheet2#3065 | **DRAFT**, CI-green at `6d5de54`; held for PactFlow/secrets + one real broker run |
 
 Both build PRs are **strictly additive**: the committed-pact verifier (`test_pact_provider_yuantus_plm`)
 and the consumer `test:contract` remain the **live** gates, unchanged. `scripts/sync_metasheet2_pact.sh`
@@ -42,7 +42,8 @@ be verified pre-merge only after that consumer main-branch publish exists (§5).
 ## 3. What IS verified before broker provisioning
 
 - `.github/workflows/ci.yml` and `yuantus-pact-consumer.yml` are valid YAML.
-- Yuantus #854 current head `38b4b007` is CI-green. Its `contracts` job executes
+- Yuantus #854 current head `56866eee` is CI-green after the latest hardening commit. Its
+  `contracts` job executes
   `test_ci_contracts_pact_provider_gate` (**6 passed** locally), pinning:
   - `workflow_dispatch` remains present for manual provider activation/reruns once secrets exist;
   - shell-guard skip when `PACT_BROKER_BASE_URL` is absent;
@@ -50,13 +51,16 @@ be verified pre-merge only after that consumer main-branch publish exists (§5).
   - token redaction;
   - provider `YuantusPLM`;
   - broker consumer selector `{"mainBranch": true}`;
+  - `PACT_BROKER_ERROR_ON_UNKNOWN_OPTION=true`, so misspelled broker CLI flags fail at
+    activation instead of becoming a vacuous advisory green;
   - `pact-ruby-standalone` install plus `pact/bin` PATH wiring for the
     `pact-provider-verifier` / `pact-broker` CLIs.
-- MetaSheet2#3065 current head `5dfd9bcc` is CI-green. Its `yuantus-pact-consumer` workflow
+- MetaSheet2#3065 current head `6d5de54` is CI-green after the latest hardening commit. Its
+  `yuantus-pact-consumer` workflow
   now executes `scripts/ops/yuantus-pact-consumer-broker-workflow-contract.test.mjs`, pinning
   local `test:contract` before publish, env+shell guards instead of `steps.if`, SHA + broker
-  `--branch` semantics, no legacy `--tag`, and the documented `workflow_dispatch` default-branch
-  activation caveat.
+  `--branch` semantics, no legacy `--tag`, `PACT_BROKER_ERROR_ON_UNKNOWN_OPTION=true`, and
+  the documented `workflow_dispatch` default-branch activation caveat.
 - the local committed-pact verifier remains the live provider gate in Yuantus CI; the additive
   broker step has not replaced it.
 - the wiring matches the ratified design: provider uses a scoped-**write** token to *publish verification
