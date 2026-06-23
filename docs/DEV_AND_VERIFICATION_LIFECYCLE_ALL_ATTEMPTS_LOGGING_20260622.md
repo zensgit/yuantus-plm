@@ -71,12 +71,13 @@ single shared connection), so they **cannot** prove TRUE cross-connection rollba
 the read filter, and the no-`str(e)` guarantee. CI: contracts + regression (can't run locally —
 system python 3.9 vs codebase 3.10+).
 
-**Coverage honesty:** 6 of the 11 write-points are exercised individually (covering `denied` /
-`aborted` / `failed` + `rolled_back` + the sanitization). The other 5 (`actor_missing`,
-`permission_denied`, `assembly_release_blocked` [the only `blocked` site], `condition_failed`,
-`workflow_start_failed`) use the **identical** helper call (only the `outcome`/`reason_code` strings
-differ) and are covered by construction; the complex-setup ones (RBAC / BOM / workflow) are
-recommended for an integration pass.
+**Coverage honesty:** 8 of the 11 write-points are exercised individually — both pre-transition
+`denied` paths, both **role-gate** `denied` paths (`actor_missing`, `permission_denied`), the three
+hook aborts, and `version_release_failed` — covering `denied` / `aborted` / `failed` + `rolled_back`
++ the sanitization. The other 3 (`assembly_release_blocked` [the only `blocked` site, needs BOM
+children], `condition_failed`, `workflow_start_failed`) use the **identical** helper call (only the
+`outcome`/`reason_code` strings differ) and are covered by construction; the BOM/workflow-setup ones
+are recommended for an integration pass.
 
 ## 5. Out of scope / notes
 
@@ -85,3 +86,10 @@ recommended for an integration pass.
 - The forensic read surface itself is unchanged in shape (it already returned all rows; it now
   simply also carries non-success rows). `is_entitled()` and the write business behavior are
   untouched.
+- **CI / main-health note (at PR time):** this PR's `contracts` inherited **two pre-existing
+  ECM-line main breakages** (a separate development line, merged red — the repo has no required
+  checks): an unindexed `DEV_AND_VERIFICATION_ECM_PUBLISH_A1_DISPOSITION` doc, and a datetime-format
+  assertion in `test_ecm_transfer_receiver_adapter`. The A1 doc-index entry is folded in here (a
+  one-line main-health fix that clears the completeness gate for every doc-touching PR); the datetime
+  assertion is **ECM-line logic, flagged for that line — not fixed here** (fixing it would mix lines).
+  This PR's own changes are green.

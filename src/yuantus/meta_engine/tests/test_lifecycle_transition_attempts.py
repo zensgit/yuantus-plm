@@ -262,3 +262,35 @@ def test_version_release_failure_records_failed_without_raw_exception(env, monke
     import json
 
     assert "SECRET-INTERNAL" not in json.dumps(r.properties)  # raw exception never leaks
+
+
+# -- the role-gate denial branch (role_allowed_id) ----------------------------------------------
+def test_actor_missing_records_denied(env):
+    s, SessionLocal = env
+    from yuantus.security.rbac.models import RBACRole
+
+    s.add(RBACRole(id=1, name="approver"))
+    s.get(LifecycleTransition, "t").role_allowed_id = 1  # role-gate Draft->Released
+    s.commit()
+    item = _draft_item(s)
+    res = LifecycleService(s).promote(item, "Released", user_id=999)  # no RBACUser 999
+    assert res.success is False
+    rows = _attempts(SessionLocal, item.id)
+    assert len(rows) == 1
+    assert rows[0].outcome == "denied" and rows[0].properties["reason_code"] == "actor_missing"
+
+
+def test_permission_denied_records_denied(env):
+    s, SessionLocal = env
+    from yuantus.security.rbac.models import RBACRole, RBACUser
+
+    s.add(RBACRole(id=1, name="approver"))
+    s.add(RBACUser(id=5, user_id=5, username="nobody", is_superuser=False))  # exists, but no roles
+    s.get(LifecycleTransition, "t").role_allowed_id = 1
+    s.commit()
+    item = _draft_item(s)
+    res = LifecycleService(s).promote(item, "Released", user_id=5)
+    assert res.success is False
+    rows = _attempts(SessionLocal, item.id)
+    assert len(rows) == 1
+    assert rows[0].outcome == "denied" and rows[0].properties["reason_code"] == "permission_denied"
