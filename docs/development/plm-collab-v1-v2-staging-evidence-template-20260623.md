@@ -33,6 +33,10 @@ Expected for the post-broker trial baseline:
 - `can-i-deploy` returns a real matrix answer, not an auth/empty-broker error.
 - A deliberate drift breaks the advisory broker gate, proving the gate has teeth.
 
+Note: the Phase A `can-i-deploy` command is a broker-population smoke, not a
+deployment approval gate; the environment/deployment model is intentionally deferred to
+the Phase B blocking flip.
+
 If this section is `NOT RUN`, the evidence can support only a pre-broker staging run, not
 the full PactFlow-real-run trial baseline.
 
