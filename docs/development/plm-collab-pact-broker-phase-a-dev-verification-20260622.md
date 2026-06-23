@@ -26,9 +26,11 @@ is retained as the local/manual fallback.
 **These PRs are NOT verified, and a green run does NOT mean the broker integration works.** With no
 PactFlow account or secrets yet:
 
-- every broker step is `if: ${{ secrets.PACT_BROKER_BASE_URL != '' }}` → it **skips**. A green CI =
-  "the guarded step skipped," not "the broker works." This is the same vacuous-green trap the team has
-  caught before — stated plainly here so it can't be mistaken for "done."
+- every broker step maps the secret to step-level `env` and a **shell guard** at the top of `run` skips
+  (exit 0) when it's empty — a clean no-op until ops provisions the secret, then auto-activates. It
+  deliberately does **not** use a step `if:`: the `secrets` context is unavailable to `steps.if`, which
+  would skip even after the secret is set. A green CI today = "the guarded step skipped," not "the broker
+  works" — the same vacuous-green trap, stated plainly so it can't read as "done."
 - the only real verification today is the **local** gates (committed pact + `test:contract`), which are
   untouched and live.
 
