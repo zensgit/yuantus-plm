@@ -625,6 +625,7 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
             converter = CADConverterService(session, vault_base_path=vault_base_path)
             source_path = converter._get_file_path(file_container)
 
+        normalized_ext = ext.lower()
         preview_bytes: Optional[bytes] = None
         settings = get_settings()
         authorization = _build_authorization_header(
@@ -634,7 +635,7 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
         # rejects .dwg; a DWG keeps the CAD-ML / local path below). Render is
         # done HERE in the task body and the bytes flow through the shared store
         # logic; preview_data is never pre-set elsewhere (that would early-skip).
-        if ext == "dxf" and settings.RENDER_SERVICE_BASE_URL:
+        if normalized_ext == "dxf" and settings.RENDER_SERVICE_BASE_URL:
             try:
                 preview_bytes = RenderServiceClient().render_preview_sync(
                     file_path=source_path,
@@ -657,7 +658,7 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
 
         # Fallback: CAD-ML render (handles DWG too) — only if the render service
         # didn't already produce a preview.
-        if preview_bytes is None and ext in {"dwg", "dxf"} and settings.CAD_ML_BASE_URL:
+        if preview_bytes is None and normalized_ext in {"dwg", "dxf"} and settings.CAD_ML_BASE_URL:
             try:
                 client = CadMLClient()
                 preview_bytes = client.render_cad_preview_sync(
@@ -665,7 +666,7 @@ def cad_preview(payload: Dict[str, Any], session: Session) -> Dict[str, Any]:
                     filename=file_container.filename,
                     authorization=authorization,
                 )
-                if ext == "dxf":
+                if normalized_ext == "dxf":
                     preview_bytes = _ensure_preview_min_size(
                         preview_bytes, min_size=512, label="CAD ML DXF"
                     )

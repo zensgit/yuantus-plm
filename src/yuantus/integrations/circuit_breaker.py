@@ -304,7 +304,7 @@ class CircuitBreaker:
             self._state.half_open_inflight = 0
 
     def _current_recovery_seconds_locked(self) -> float:
-        cycles = max(0, self._state.consecutive_open_cycles - 1)
+        cycles = min(max(0, self._state.consecutive_open_cycles - 1), 30)
         backoff = self._config.recovery_seconds * (2 ** cycles)
         return min(backoff, self._config.backoff_max_seconds)
 

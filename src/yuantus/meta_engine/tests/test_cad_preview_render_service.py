@@ -36,8 +36,16 @@ def _fc(ext="dxf"):
     return fc
 
 
-def _run(monkeypatch, tmp_path, ext, *, render_ok=True, render_raises=False,
-         render_url="http://render:8077"):
+def _run(
+    monkeypatch,
+    tmp_path,
+    ext,
+    *,
+    render_ok=True,
+    render_raises=False,
+    render_url="http://render:8077",
+    use_s3=False,
+):
     fc = _fc(ext)
     session = MagicMock()
     session.get.return_value = fc
@@ -50,6 +58,8 @@ def _run(monkeypatch, tmp_path, ext, *, render_ok=True, render_raises=False,
     conv._get_file_path.return_value = str(src)
     conv._get_generated_dir.return_value = str(tmp_path)
     conv._generate_preview.return_value = str(tmp_path / "fallback_local.png")
+    file_service = MagicMock()
+    temp_source = str(src)
 
     render_client = MagicMock()
     if render_raises:
@@ -62,20 +72,23 @@ def _run(monkeypatch, tmp_path, ext, *, render_ok=True, render_raises=False,
     # backport(0.1.3): the main-era connector guards (_require_connector_for_remote_3d,
     # _cad_connector_enabled_for_file) do not exist at this base and are not on
     # cad_preview's path here, so they are not patched (backport delta vs main).
-    with patch.object(cpt, "FileService", MagicMock()), \
+    with patch.object(cpt, "FileService", return_value=file_service), \
          patch.object(cpt, "_ensure_source_exists", MagicMock()), \
-         patch.object(cpt, "_is_s3_storage", return_value=False), \
+         patch.object(cpt, "_is_s3_storage", return_value=use_s3), \
          patch.object(cpt, "_vault_base_path", return_value=str(tmp_path)), \
+         patch.object(cpt, "_download_to_temp", return_value=temp_source), \
          patch.object(cpt, "CADConverterService", return_value=conv), \
          patch.object(cpt, "RenderServiceClient", return_value=render_client), \
          patch.object(cpt, "CadMLClient", return_value=cadml_client), \
          patch.object(cpt, "get_settings", return_value=_settings(render_url=render_url)):
         result = cpt.cad_preview({"file_id": "fc-1"}, session)
-    return result, fc, render_client, cadml_client, conv
+    return result, fc, render_client, cadml_client, conv, file_service
 
 
 def test_dxf_prefers_render_service(monkeypatch, tmp_path):
-    result, fc, render_client, cadml_client, conv = _run(monkeypatch, tmp_path, "dxf")
+    result, fc, render_client, cadml_client, conv, file_service = _run(
+        monkeypatch, tmp_path, "dxf"
+    )
     assert result["ok"] is True
     render_client.render_preview_sync.assert_called_once()
     # render service produced the preview → CAD-ML NOT consulted, local not used
@@ -85,8 +98,9 @@ def test_dxf_prefers_render_service(monkeypatch, tmp_path):
 
 
 def test_dxf_falls_back_to_cadml_when_render_service_fails(monkeypatch, tmp_path):
-    result, fc, render_client, cadml_client, conv = _run(
-        monkeypatch, tmp_path, "dxf", render_raises=True)
+    result, fc, render_client, cadml_client, conv, file_service = _run(
+        monkeypatch, tmp_path, "dxf", render_raises=True
+    )
     assert result["ok"] is True
     render_client.render_preview_sync.assert_called_once()   # tried
     cadml_client.render_cad_preview_sync.assert_called_once()  # fell back
@@ -96,8 +110,9 @@ def test_dxf_falls_back_to_cadml_when_render_service_fails(monkeypatch, tmp_path
 def test_dxf_blank_render_falls_back_to_cadml(monkeypatch, tmp_path):
     # Render service returns empty/garbage (not a usable PNG) → must fall back,
     # not store junk (F1: gate on parseable min-size PNG).
-    result, fc, render_client, cadml_client, conv = _run(
-        monkeypatch, tmp_path, "dxf", render_ok=False)
+    result, fc, render_client, cadml_client, conv, file_service = _run(
+        monkeypatch, tmp_path, "dxf", render_ok=False
+    )
     assert result["ok"] is True
     render_client.render_preview_sync.assert_called_once()
     cadml_client.render_cad_preview_sync.assert_called_once()  # fell back
@@ -105,7 +120,9 @@ def test_dxf_blank_render_falls_back_to_cadml(monkeypatch, tmp_path):
 
 def test_dwg_does_not_use_render_service(monkeypatch, tmp_path):
     # render service v0 rejects .dwg → DWG must skip it and use CAD-ML.
-    result, fc, render_client, cadml_client, conv = _run(monkeypatch, tmp_path, "dwg")
+    result, fc, render_client, cadml_client, conv, file_service = _run(
+        monkeypatch, tmp_path, "dwg"
+    )
     assert result["ok"] is True
     render_client.render_preview_sync.assert_not_called()
     cadml_client.render_cad_preview_sync.assert_called_once()
@@ -113,8 +130,29 @@ def test_dwg_does_not_use_render_service(monkeypatch, tmp_path):
 
 def test_render_service_disabled_keeps_cadml_path(monkeypatch, tmp_path):
     # Empty RENDER_SERVICE_BASE_URL = status quo: render client never invoked.
-    result, fc, render_client, cadml_client, conv = _run(
-        monkeypatch, tmp_path, "dxf", render_url="")
+    result, fc, render_client, cadml_client, conv, file_service = _run(
+        monkeypatch, tmp_path, "dxf", render_url=""
+    )
     assert result["ok"] is True
     render_client.render_preview_sync.assert_not_called()
     cadml_client.render_cad_preview_sync.assert_called_once()
+
+
+def test_s3_uppercase_dxf_prefers_render_service(monkeypatch, tmp_path):
+    result, fc, render_client, cadml_client, conv, file_service = _run(
+        monkeypatch, tmp_path, "DXF", use_s3=True
+    )
+    assert result["ok"] is True
+    render_client.render_preview_sync.assert_called_once()
+    cadml_client.render_cad_preview_sync.assert_not_called()
+    file_service.upload_file.assert_called_once()
+
+
+def test_s3_uppercase_dxf_falls_back_to_cadml(monkeypatch, tmp_path):
+    result, fc, render_client, cadml_client, conv, file_service = _run(
+        monkeypatch, tmp_path, "DXF", render_raises=True, use_s3=True
+    )
+    assert result["ok"] is True
+    render_client.render_preview_sync.assert_called_once()
+    cadml_client.render_cad_preview_sync.assert_called_once()
+    file_service.upload_file.assert_called_once()
