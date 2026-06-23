@@ -55,9 +55,12 @@ each version a distinct Athena doc → superseded predecessors went stale).
 
 **Live staging probes:** durable-reachability S3/S4 (host `23.254.236.11`); A1 B1.0 multiplicity =
 **0 rows** (≤1 controlled file/role today → `(item, file_role)` key safe); A1 B3 precision =
-`released_at = timestamp(6)`, non-zero microseconds → microsecond watermark viable. **S3/S4 reused
-an existing disposable STEP object (MinIO was `XMinioStorageFull` at the time), so they prove the
-worker-to-Athena durable-reachability path, NOT the fresh upload→publish path** (see §5, #828).
+`released_at = timestamp(6)`, non-zero microseconds → microsecond watermark viable. **#828 fresh
+upload -> publish is now proven**: after host disk headroom recovered from the prior
+`XMinioStorageFull` condition, a new 5,562-byte controlled STEP object was written to MinIO through
+Yuantus `FileService`, released through `VersionService.release()`, drained to outbox `sent`, and
+materialized in Athena as document `b38a80d4-253e-4022-bcd5-3d620b5268ea` (`CREATED`, file size
+5,562 bytes). Evidence: `RUNSHEET_ECM_PUBLISH_828_MINIO_CAPACITY_20260622.md`.
 
 **Honest defect note (regression-net gap):** A1 #848's `build_transfer_source_node_id` change broke
 the existing `test_ecm_transfer_receiver_adapter.py::test_build_payload_folds_identity_into_stable_source_node_id`
@@ -81,9 +84,10 @@ changing a pure function, grep for + run its dedicated test, not only the call-s
   lock / claim ordering. Not needed at current scale.
 - **D — status read-back / mail→PLM (direction-gated).** Would re-open the locked one-directional
   design; out of this line unless directionality is re-opened.
-- **MinIO capacity / fresh-upload path (ops follow-up #828).** The fresh upload→publish path is
-  unproven — durable-reachability S3/S4 reused existing disposable STEP bytes because MinIO was
-  `XMinioStorageFull`. Owner/ops item, OUTSIDE the ECM-publish worker-to-Athena proof.
+- **MinIO capacity / fresh-upload path (#828) — CLOSED on staging.** Root cause was host root disk
+  full, not MinIO bucket/quota. After reclaim, a genuinely fresh controlled STEP upload was stored in
+  MinIO and published to Athena end to end. Future disk maintenance remains ops hygiene, not an
+  unfinished ECM-publish feature.
 
 ## 6. Conclusion
 
