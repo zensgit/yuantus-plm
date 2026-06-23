@@ -48,7 +48,13 @@ NOT auto-republish until there is a real operational need. This is the owner's p
 ## 5. Build scope (only if Opt-1 ratified)
 - `_enqueue_existing`: on the SENT-conflict branch, re-snapshot → `PENDING` with a bumped watermark
   (4-a) + a `republished_of`/`republish_seq` marker + a dedup guard (don't loop on identical content).
-- Worker/adapter: unchanged (A1's stable id + `#849` latest-wins already handle the dispatch).
+- **Worker/adapter: NOT presumed unchanged — the taskbook MUST define the effective-watermark
+  contract.** Today both the adapter's `sourceLastModifiedAt` AND `#849`'s latest-wins read
+  `snapshot["released_at"]`. A bumped / `republish_seq` watermark must therefore specify: (i) which
+  field it lands in, (ii) what the adapter sends as the *effective* `sourceLastModifiedAt` (so
+  Athena does NOT judge `UNCHANGED` and actually revisions), and (iii) which ordering key
+  `#849._superseded_by_newer_sent` compares (so latest-wins is not broken). A naive re-enqueue that
+  leaves these unchanged either no-ops at Athena or corrupts `#849` ordering.
 - Tests: same-version content change → re-published + Athena revisions (watermark newer); repeated
   identical conflict → no loop; interaction with a genuinely newer version (latest-wins still holds).
 
