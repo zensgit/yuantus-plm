@@ -2,7 +2,7 @@
 
 - **Date:** 2026-06-21
 - **Branch:** `fix/seed-data-cli-model-registration`
-- **Commits:** `ac93e54e` (seeder fix), `eee2f3b0` (README doc fix)
+- **PR:** [#847](https://github.com/adharamans/yuantus-plm/pull/847) · branch `fix/seed-data-cli-model-registration`
 - **Scope:** dev-only mock-data tooling + docs. No production runtime code paths changed.
 
 This is the per-change development & verification record. Each change below lists the
@@ -67,7 +67,8 @@ factually wrong and self-contradictory.
 ---
 
 ## Status
-Both changes committed to `fix/seed-data-cli-model-registration` (not pushed). Working
-tree clean. Full DB test suite was run and root-caused separately; all 509 failures are
+Both changes are on `fix/seed-data-cli-model-registration`, opened as PR #847 (rebased
+onto current `main`). A SQLite seed smoke test (`test_seed_data_smoke.py`) now guards the
+seed-data fix. Full DB test suite was run and root-caused separately; all 509 failures are
 environment/config/dependency-version artifacts (bash/CI tooling on Windows, AUTH_MODE
 default, FastAPI/Starlette version drift, Postgres-only tenancy), not product defects.
