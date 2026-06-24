@@ -366,6 +366,7 @@ This index aggregates all delivery‑related documents for private deployments.
 - Week Plan & Verification (Enhancements 2026-02-03): `docs/DEV_AND_VERIFICATION_WEEK_PLAN_20260203_ENHANCEMENTS.md`
 - Where-Used API-only E2E Verification: `docs/DEV_AND_VERIFICATION_WHERE_USED_E2E_20260214.md`
 - WorkCenter API-only E2E Verification: `docs/DEV_AND_VERIFICATION_WORKCENTER_E2E_20260214.md`
+- Yuantus 223 Full-Stack Verification: `docs/DEV_AND_VERIFICATION_YUANTUS_223_FULL_STACK_20260624.md`
 - Odoo18 PLM Unified Stack Merge Prep: `docs/MERGE_PREP_ODOO18_PLM_STACK_20260319.md`
 - P5 Reports/Search Performance Report (2026-02-08): `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_20260208-192938.md`
 - P5 Reports/Search Performance Trend: `docs/PERFORMANCE_REPORTS/P5_REPORTS_PERF_TREND.md`
