@@ -11,6 +11,11 @@ It is an evidence record, not a test plan: paste command output snippets, CI/run
 explicitly mark anything not run. Do not paste private keys, signed license payloads, bearer
 tokens, database URLs, or raw `license_data`.
 
+Optional helper: `scripts/dev/collect_staging_evidence.sh` runs the existing staging smokes,
+captures redacted command output, pre-fills the PactFlow evidence from the activated broker line,
+and marks missing inputs as `NOT RUN` rather than manufacturing a pass. For the final release
+gate, run it with `STAGING_EVIDENCE_STRICT=1` so any missing/failing section exits non-zero.
+
 ## 1. Version Pair And Contract Pin
 
 | Field | Value |
