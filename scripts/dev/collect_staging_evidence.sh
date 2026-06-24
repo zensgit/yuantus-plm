@@ -52,12 +52,35 @@ have_vars() {
 
 redact_stream() {
   perl -pe '
-    s/(Authorization:[[:space:]]*Bearer[[:space:]]+)[^[:space:]]+/${1}<redacted>/ig;
-    s/(Bearer[[:space:]]+)[A-Za-z0-9._~+\/=-]{16,}/${1}<redacted>/g;
+    s/(Authorization:[[:space:]]*)Bearer[[:space:]]+[^[:space:]]+/${1}<redacted>/ig;
+    s/\bBearer[[:space:]]+[A-Za-z0-9._~+\/=-]{16,}/<redacted>/g;
     s/(PACT_BROKER_TOKEN=)[^[:space:]]+/${1}<redacted>/g;
-    s/("license_data"[[:space:]]*:[[:space:]]*)"[^"]*"/${1}"<redacted>"/ig;
+    s#\b(postgres(?:ql)?|mysql|mariadb|mssql|sqlserver|oracle|mongodb(?:\+srv)?|redis)://[^[:space:]"'\''`<>]+#<redacted-db-url>#ig;
+    s/([A-Z0-9_]*(?:DATABASE|DB|SQL|POSTGRES)[A-Z0-9_]*_?URL[[:space:]]*=[[:space:]]*)[^[:space:]]+/${1}<redacted-db-url>/ig;
+    s/"license_data"[[:space:]]*:[[:space:]]*("[^"]*"|\{[^}]*\}|\[[^\]]*\])/"redacted_license_payload":"<redacted>"/ig;
     s/(private[_ -]?key[[:space:]]*[:=][[:space:]]*)[^,[:space:]]+/${1}<redacted>/ig;
   '
+}
+
+redaction_guard() {
+  local file
+  shopt -s nullglob
+  for file in "${TMPDIR}"/*.txt; do
+    if perl -ne '
+      BEGIN { $bad = 0 }
+      $bad = 1 if /\bBearer\s+[A-Za-z0-9._~+\/=-]{16,}/i;
+      $bad = 1 if /\b(postgres(?:ql)?|mysql|mariadb|mssql|sqlserver|oracle|mongodb(?:\+srv)?|redis):\/\/[^\s"'\''`<>]+/i;
+      $bad = 1 if /[A-Z0-9_]*(?:DATABASE|DB|SQL|POSTGRES)[A-Z0-9_]*_?URL\s*=\s*(?!<redacted-db-url>)[^\s]+/i;
+      $bad = 1 if /"license_data"\s*:/i;
+      $bad = 1 if /private[_ -]?key\s*[:=]\s*(?!<redacted>)[^,\s]+/i;
+      $bad = 1 if /PACT_BROKER_TOKEN=\s*(?!<redacted>)[^\s]+/i;
+      END { exit($bad ? 1 : 0) }
+    ' "${file}"; then
+      continue
+    fi
+    printf 'redaction guard failed: forbidden sensitive pattern survived in captured output %s\n' "$(basename "${file}")" >&2
+    return 1
+  done
 }
 
 capture() {
@@ -122,12 +145,7 @@ LICENSE_TYPE_VALUE="${LICENSE_TYPE:-real vendor-signed}"
 if have_vars SIGNED_LICENSE_PATH TENANT; then
   if capture license_import "${YUANTUS_CMD}" license import "${SIGNED_LICENSE_PATH}" \
     && capture license_status "${YUANTUS_CMD}" license status --tenant-id "${TENANT}"; then
-    if grep -qiE 'license_data|private key|bearer ' "${TMPDIR}/license_status.txt"; then
-      status_license="FAIL"
-      reason_license="license status output contains forbidden sensitive words after redaction"
-    else
-      status_license="PASS"
-    fi
+    status_license="PASS"
   else
     status_license="FAIL"
     reason_license="license import or license status command failed"
@@ -185,7 +203,7 @@ fi
 
 if have_vars SEATS_CLEAR_LICENSE_PATH; then
   if capture seats_clear_import "${YUANTUS_CMD}" license import "${SEATS_CLEAR_LICENSE_PATH}"; then
-    if ! grep -q "seat cap cleared" "${TMPDIR}/seats_clear_import.txt"; then
+    if ! grep -q "seat cap cleared: TenantQuota.max_users -> unlimited (NULL)" "${TMPDIR}/seats_clear_import.txt"; then
       status_seats_clear="FAIL"
       reason_seats_clear="license import did not report seat cap cleared"
     elif [ -n "${SEATS_CLEAR_CHECK_CMD:-}" ]; then
@@ -211,6 +229,8 @@ if [ "${status_license}" = "PASS" ] && [ "${status_context}" = "PASS" ] \
   && [ "${status_seats_set}" = "PASS" ] && [ "${status_seats_clear}" = "PASS" ]; then
   all_pass="true"
 fi
+
+redaction_guard
 
 mkdir -p "$(dirname "${OUT}")"
 {
@@ -245,34 +265,17 @@ Do not paste private keys, signed license payloads, bearer tokens, database URLs
 Evidence already available from the activated broker line:
 
 \`\`\`text
-Consumer publish:
-- MetaSheet2 PR zensgit/metasheet2#3065 merged to main at bfedff511f78d3b2026a89022473a7d42bf4fc09.
-- Yuantus Pact Consumer workflow run 28075321423 created Metasheet2 version
-  bfedff511f78d3b2026a89022473a7d42bf4fc09 on branch main and published the pact for provider YuantusPLM.
+Source of truth:
+- Yuantus #861 squash merged at a352baa9:
+  docs/development/plm-collab-pact-broker-phase-a-dev-verification-20260622.md
 
-Provider verify/publish:
-- Yuantus PR #854 final verification run 28080778247 / contracts job 83134996857.
-- pact_verifier_cli exit=0.
-- Computer says yes.
-- provider-verify rc=0 can-i-deploy rc=0.
-
-Drift catch:
-- Temporary provider drift changed features.bom_multitable.supported and
-  features.bom_multitable.entitled from booleans to strings.
-- Yuantus run 28080419796 / contracts job 83133857389 failed as expected:
-  Boolean-vs-String mismatches, pact_verifier_cli exit=1,
-  provider-verify rc=1 can-i-deploy rc=1.
-
-Main-branch confirmation:
-- Yuantus #854 squash merged at f0855650.
-- Post-merge main CI run 28081796150 / contracts job 83138269775 passed.
-- Broker published YuantusPLM@f0855650 on branch main with verification result 207 (success).
-- pact_verifier_cli exit=0, Computer says yes, provider-verify rc=0 can-i-deploy rc=0.
-
-Evidence doc:
-- Yuantus #861 squash merged at a352baa9.
-- Post-merge main CI run 28082459739 passed; contracts completed in 8m48s and included
-  Pact provider verifier plus Pact broker verify/publish/can-i-deploy.
+That activation record pins the real broker sequence:
+- MetaSheet2 #3065 published the main-branch consumer pact.
+- Yuantus #854 verified the broker-sourced pact, published provider verification results,
+  and got a real can-i-deploy matrix answer.
+- A deliberate Boolean-vs-String provider drift failed the advisory broker gate.
+- Post-merge Yuantus main CI re-ran the provider verifier plus PactFlow
+  verify/publish/can-i-deploy successfully.
 \`\`\`
 
 Pass/fail:
