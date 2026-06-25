@@ -41,8 +41,12 @@ a real env, with everything code-settleable verified up front.
   `YUANTUS_EMBED_TOKEN_KEY_ID`; MetaSheet2 holds the matching **public** key only.
 - Yuantus: `YUANTUS_METASHEET_EMBED_URL=https://metasheet-staging.example/plm-embed/bom-review`,
   `YUANTUS_EMBED_ALLOWED_ORIGINS=https://metasheet-staging.example`,
-  `YUANTUS_EMBED_TOKEN_AUDIENCE=<service aud>`, `YUANTUS_ENABLE_METASHEET=true`, and the
-  `bom_multitable` entitlement active for the pilot tenant.
+  `YUANTUS_EMBED_TOKEN_AUDIENCE=<service aud>`, and the `bom_multitable` entitlement active for the
+  pilot tenant. **`YUANTUS_ENABLE_METASHEET` is NOT required for the V1.2 affordance** — the parent-host
+  route (`plm_workspace`), the capability manifest, and the `bom_multitable`/embed-token routes are
+  registered **unconditionally** (`app.py:315/326`); the flag only gates the separate `metasheet_bridge`
+  seam (`app.py:469`). The affordance's real gate is **entitlement + embed-config completeness**, not this
+  flag — set it only if separately testing the bridge seam.
 - MetaSheet2: its `/api/plm-embed/config` parent-origin allowlist includes `https://plm-staging.example`.
 - An **entitled pilot tenant** + a **Part with a BOM**.
 
