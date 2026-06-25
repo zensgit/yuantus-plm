@@ -153,7 +153,9 @@ def test_plm_workspace_page_renders_html():
     assert '/bom/multitable/${encodeURIComponent(partId)}/embed-token' in response.text
     assert 'body: { origin }' in response.text
     assert 'postMessage({ type: "plm-embed:token", token }, origin)' in response.text
-    assert response.text.index('frame.addEventListener("load", postToken, { once: true })') < response.text.index(
+    assert 'window.setInterval(postToken, 250)' in response.text
+    assert "window.setTimeout(stopTokenPostLoop, 5000)" in response.text
+    assert response.text.index('frame.addEventListener("load", startTokenPostLoop, { once: true })') < response.text.index(
         "frame.src = embedUrl"
     )
     assert "payload.embed_token" in response.text
