@@ -1,7 +1,12 @@
 import subprocess
+import shutil
 import sys
 import zipfile
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
+# CI invokes this API test directly before installing the local package.
+sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -28,7 +33,17 @@ def _route_paths(app: FastAPI) -> set[str]:
 
 
 def test_web_html_assets_are_packaged_in_wheel(tmp_path):
-    repo_root = Path(__file__).resolve().parents[4]
+    project_root = tmp_path / "project"
+    wheel_dir = tmp_path / "dist"
+    project_root.mkdir()
+    wheel_dir.mkdir()
+    shutil.copy2(REPO_ROOT / "pyproject.toml", project_root / "pyproject.toml")
+    shutil.copy2(REPO_ROOT / "README.md", project_root / "README.md")
+    shutil.copytree(
+        REPO_ROOT / "src",
+        project_root / "src",
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
 
     subprocess.run(
         [
@@ -39,16 +54,17 @@ def test_web_html_assets_are_packaged_in_wheel(tmp_path):
             "--no-build-isolation",
             "--no-deps",
             "--wheel-dir",
-            str(tmp_path),
-            str(repo_root),
+            str(wheel_dir),
+            str(project_root),
         ],
         check=True,
+        cwd=tmp_path,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
 
-    wheel = next(tmp_path.glob("yuantus_plm-*.whl"))
+    wheel = next(wheel_dir.glob("yuantus_plm-*.whl"))
     with zipfile.ZipFile(wheel) as archive:
         names = set(archive.namelist())
 
