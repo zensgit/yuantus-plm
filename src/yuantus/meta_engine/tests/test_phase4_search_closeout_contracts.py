@@ -192,7 +192,8 @@ def test_phase4_route_count_is_pinned_after_search_reports_closeout() -> None:
     # - 713: + 1 MES consumption ingestion route (Consumption R2: POST mes-actuals).
     # - 721 -> 722: + 1 L4-1 admin license-status read route (GET /api/v1/admin/license-status).
     # - 722 -> 723: + 1 L3-1 effectivity-date PATCH route (PATCH /api/v1/effectivities/{id}).
-    assert len(app.routes) == 723
+    # - 723 -> 724: + 1 L4 Fork B cap-change audit read (GET /api/v1/admin/license-cap-history).
+    assert len(app.routes) == 724
 
 
 def test_search_indexer_status_schema_is_phase4_final_contract() -> None:
