@@ -9,7 +9,11 @@ from yuantus.api.dependencies.auth import CurrentUser, get_current_user
 from yuantus.database import get_db
 from yuantus.meta_engine.services.latest_released_guard import NotLatestReleasedError
 from yuantus.meta_engine.services.suspended_guard import SuspendedStateError
-from yuantus.meta_engine.services.effectivity_service import EffectivityService
+from yuantus.meta_engine.services.effectivity_service import (
+    EffectivityElapsedError,
+    EffectivityNotDateError,
+    EffectivityService,
+)
 
 
 effectivity_router = APIRouter(prefix="/effectivities", tags=["Effectivity"])
@@ -27,6 +31,16 @@ class EffectivityCreateRequest(BaseModel):
     end_date: Optional[datetime] = Field(None, description="End date (Date type)")
     payload: Optional[Dict[str, Any]] = Field(
         None, description="Extension payload for Lot/Serial/Unit"
+    )
+
+
+class EffectivityDateUpdateRequest(BaseModel):
+    start_date: Optional[datetime] = Field(
+        None, description="New window start (Date type); omit to leave unchanged, null to clear."
+    )
+    end_date: Optional[datetime] = Field(
+        None,
+        description="New window end (Date type); omit to leave unchanged, null to clear (open-ended).",
     )
 
 
@@ -147,6 +161,47 @@ def get_version_effectivities(version_id: str, db: Session = Depends(get_db)):
         _serialize_effectivity(eff)
         for eff in service.get_version_effectivities(version_id)
     ]
+
+
+@effectivity_router.patch("/{effectivity_id}", response_model=EffectivityResponse)
+def update_effectivity_dates(
+    effectivity_id: str,
+    request: EffectivityDateUpdateRequest,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Edit a **Date** effectivity's window (start_date/end_date). v1: Date only.
+
+    409 if the window already elapsed (``end_date < now``) — it may have been swept by
+    the date-obsolete worker — or if the target is not latest-released / is suspended;
+    400 for a non-Date target, ``start_date >= end_date``, or no fields; 404 if not found.
+    """
+    provided = request.model_fields_set & {"start_date", "end_date"}
+    if not provided:
+        raise HTTPException(status_code=400, detail="start_date or end_date is required")
+    kwargs = {field: getattr(request, field) for field in provided}
+    service = EffectivityService(db)
+    try:
+        eff = service.update_effectivity(effectivity_id, **kwargs)
+    except EffectivityNotDateError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=exc.to_detail()) from exc
+    except EffectivityElapsedError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.to_detail()) from exc
+    except NotLatestReleasedError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.to_detail()) from exc
+    except SuspendedStateError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=exc.to_detail()) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if eff is None:
+        raise HTTPException(status_code=404, detail="Effectivity not found")
+    db.commit()
+    return _serialize_effectivity(eff)
 
 
 @effectivity_router.delete("/{effectivity_id}", response_model=Dict[str, Any])

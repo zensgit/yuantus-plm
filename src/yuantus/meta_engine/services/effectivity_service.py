@@ -14,6 +14,56 @@ from ..models.effectivity import Effectivity
 from .latest_released_guard import assert_latest_released
 from .suspended_guard import assert_not_suspended
 
+# Sentinel: "field not provided" in a partial update (distinct from an explicit None).
+_UNSET = object()
+
+
+class EffectivityNotDateError(ValueError):
+    """PATCH date-edit attempted on a non-Date effectivity (v1 supports Date only)."""
+
+    def __init__(self, effectivity_id: str, effectivity_type: str):
+        self.effectivity_id = effectivity_id
+        self.effectivity_type = effectivity_type
+        super().__init__(
+            f"effectivity {effectivity_id} is type {effectivity_type!r}; "
+            "date PATCH supports only Date effectivity"
+        )
+
+    def to_detail(self) -> dict:
+        return {
+            "error": "effectivity_not_date",
+            "effectivity_id": self.effectivity_id,
+            "effectivity_type": self.effectivity_type,
+            "message": "This endpoint edits Date effectivity windows only.",
+        }
+
+
+class EffectivityElapsedError(ValueError):
+    """Refuse to edit a Date effectivity whose end_date is already in the past.
+
+    Matches DateObsoleteWorker's expiry (Date, end_date < now): an already-elapsed
+    window may have been swept (DateObsoleteImpact written / Item promoted Obsolete),
+    so editing it could silently un-expire without reconciling. Create a new one instead.
+    """
+
+    def __init__(self, effectivity_id: str, end_date):
+        self.effectivity_id = effectivity_id
+        self.end_date = end_date
+        super().__init__(
+            f"effectivity {effectivity_id} already elapsed (end_date={end_date})"
+        )
+
+    def to_detail(self) -> dict:
+        return {
+            "error": "effectivity_window_elapsed",
+            "effectivity_id": self.effectivity_id,
+            "end_date": self.end_date.isoformat() if self.end_date else None,
+            "message": (
+                "Cannot edit an effectivity whose end_date is already in the past; "
+                "it may have been swept by the date-obsolete worker. Create a new one."
+            ),
+        }
+
 
 @dataclass
 class EffectivityContext:
@@ -88,6 +138,54 @@ class EffectivityService:
         self.session.add(effectivity)
         self.session.flush()
         return effectivity
+
+    def update_effectivity(
+        self,
+        effectivity_id: str,
+        *,
+        start_date=_UNSET,
+        end_date=_UNSET,
+        now: Optional[datetime] = None,
+    ) -> Optional[Effectivity]:
+        """Partial-update a **Date** effectivity's window (start_date/end_date).
+
+        v1 scope (narrow): Date only — a non-Date target raises EffectivityNotDateError.
+        Guard: an already-elapsed window (end_date < now) raises EffectivityElapsedError
+        (matches the date-obsolete worker's expiry, so a swept window isn't un-expired).
+        Create-time protection is preserved: the item/version must be latest-released and
+        not suspended. Returns None if the effectivity does not exist. Only the provided
+        fields change (``_UNSET`` = leave as-is; explicit ``None`` = clear/open-ended).
+        """
+        eff = self.get_effectivity(effectivity_id)
+        if eff is None:
+            return None
+        if eff.effectivity_type != "Date":
+            raise EffectivityNotDateError(effectivity_id, eff.effectivity_type)
+        ref = self._normalize_utc_naive(now) if now else datetime.utcnow()
+        if eff.end_date is not None and self._normalize_utc_naive(eff.end_date) < ref:
+            raise EffectivityElapsedError(effectivity_id, eff.end_date)
+        # Compute the new window (apply only provided fields); validate before mutating.
+        new_start = (
+            eff.start_date
+            if start_date is _UNSET
+            else (self._normalize_utc_naive(start_date) if start_date else None)
+        )
+        new_end = (
+            eff.end_date
+            if end_date is _UNSET
+            else (self._normalize_utc_naive(end_date) if end_date else None)
+        )
+        if new_start is not None and new_end is not None and new_start >= new_end:
+            raise ValueError("start_date must be before end_date")
+        # Preserve create-time protection: target must be latest-released + not suspended.
+        for target_id in (eff.item_id, eff.version_id):
+            if target_id:
+                assert_latest_released(self.session, target_id, context="effectivity")
+                assert_not_suspended(self.session, target_id, context="effectivity")
+        eff.start_date = new_start
+        eff.end_date = new_end
+        self.session.flush()
+        return eff
 
     def get_effectivity(self, effectivity_id: str) -> Optional[Effectivity]:
         """Get effectivity by ID."""
