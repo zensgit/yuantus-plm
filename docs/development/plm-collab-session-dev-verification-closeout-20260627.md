@@ -11,13 +11,14 @@ already authoritative). Additive to it, not overlapping.
 | Item | PR | State | Verification |
 |---|---|---|---|
 | **Phase 6 — SSO / identity-session spine (design-first)** | #880 | MERGED (`d173a6ce`), baseline | Corrected twice against live consumer (offline verify / single-use B1 / served-tenant all already shipped); reframed to the continuous-session layer; indexed |
-| **Phase 7 — governed write-back seam (design-first)** | #884 | OPEN, `contracts` **pass**, MERGEABLE/CLEAN | Grounded in a live read-across of the governed seams (ECO apply / workflow actions / helpdesk precedent); invariant write≠read-token; pact-first; indexed |
+| **Phase 7 — governed write-back seam (design-first)** | #884 | OPEN, `contracts` pass; **review changes applied — not yet a verified baseline** | Design-first; grounded in a live read-across; invariant write≠read-token; pact-first. The provider-side single-use/replay guard is clarified as **new build, not shipped** (the shipped `consumeEmbedJti` is consumer-side/read-only); direct-BOM "no lifecycle guard" and the helpdesk idempotency precedent hedged per review. |
 | **Backlog roadmap index registration** | #883 | MERGED (`92ff758e`) | Registered #882's taskbook in `DELIVERY_DOC_INDEX.md` (was path-only) |
 
 Both designs are **design-only**: they resolve their fork surfaces for the owner's
 review gate and authorize no build. A key cross-result: Phase 7's per-action
-governed write rides the **shipped** single-use model, so **write-back is removed
-as a Phase 6 trigger** (not "Phase 6 unnecessary") — leaving only bridge-activation
+governed write (reusing the single-use *pattern* — the provider-side replay guard is
+**new build, not shipped**) removes **write-back as a Phase 6 trigger** (not "Phase 6
+unnecessary") — leaving only bridge-activation
 and continuous-in-iframe UX.
 
 (Companion VemCAD line: P2 workbench split S1–S4 landed + closed out separately in
