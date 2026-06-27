@@ -53,7 +53,9 @@ from yuantus.api.app import create_app
 #   (GET /api/v1/transition-history/forensic/{item_id}) -- superuser-gated, no item-existence gate.
 # 722 = 721 + 1 L4-1 admin license-status read route
 #   (GET /api/v1/admin/license-status) -- superuser-gated CLI->HTTP status surface.
-EXPECTED_TOTAL_ROUTES = 722
+# 723 = 722 + 1 L3-1 effectivity-date PATCH route
+#   (PATCH /api/v1/effectivities/{id}) -- Date-window edit with elapsed-window guard.
+EXPECTED_TOTAL_ROUTES = 723
 
 
 def test_metrics_router_keeps_post_p4_route_count_at_expected_count() -> None:
