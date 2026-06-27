@@ -34,7 +34,10 @@
 
 **Forks / gaps:** (A) BOM-line effectivity CRUD — CREATE (`bom add_child(effectivity_from/to)`) + READ (`/effectivities/items/{id}`) exist; **UPDATE & DELETE missing** (today you must recreate the line). (B) date-obsolete impacts fuller view — no summary/aggregate, no batch-acknowledge, no revert, no export.
 
-**Recommended first task — L3-0 (no-brainer CI fix):** add `test_effectivity.py` to `ci.yml`'s pytest list (+ `conftest._ALLOWLIST_NO_DB` if no-DB) — closes the false-green per `feedback_yuantus_silent_failure_traps`; locally verifiable (`pytest …/test_effectivity.py`). Then **L3-1 (Fork A):** `PATCH /effectivities/{id}` to edit `start_date`/`end_date` in place (guard: item must be a current "Part BOM" Item for BOM-line edits).
+**Recommended first task — L3-0 (no-brainer CI fix):** add `test_effectivity.py` to `ci.yml`'s pytest list (+ `conftest._ALLOWLIST_NO_DB` — required: the no-DB collector ignores non-allowlisted files even when CI passes them explicitly) — closes the false-green per `feedback_yuantus_silent_failure_traps`; locally verifiable (`pytest …/test_effectivity.py`). **DONE + verified, branch `claude/ci-register-test-effectivity` (`9cdd0903`), unpushed.**
+
+Then **L3-1 (Fork A):** `PATCH /effectivities/{id}` to edit `start_date`/`end_date` in place (guard: item must be a current "Part BOM" Item for BOM-line edits).
+> ⚠️ **OWNER DECISION — L3-1 collides with `DateObsoleteWorker`.** Editing an `end_date` can *un-expire* an effectivity the worker already swept: it may have written `DateObsoleteImpact` rows and/or promoted the Item to **Obsolete**. So PATCH cannot be a naive field write. Two scopes to choose from: (a) **reconcile** — on extend, re-open/retract the related `DateObsoleteImpact` (and consider un-obsoleting the Item) within the same transaction; or (b) **scope out** — forbid editing an `end_date` that is already in the past (return 409), leaving expired-then-swept lines immutable. Pick before L3-1 impl; (b) is the smaller, safer first cut.
 
 ---
 
