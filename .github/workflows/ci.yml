@@ -164,6 +164,10 @@ jobs:
                 run_contracts="true"
                 reason_contracts="${reason_contracts:-matched effectivity surface: ${f}}"
                 ;;
+              src/yuantus/meta_engine/web/date_obsolete_ops_router.py|src/yuantus/meta_engine/models/date_obsolete.py|src/yuantus/meta_engine/tests/test_date_obsolete_wiring.py)
+                run_contracts="true"
+                reason_contracts="${reason_contracts:-matched date-obsolete impacts surface: ${f}}"
+                ;;
               src/*)
                 # Ignore test-only changes for the heavier CI jobs.
                 if [[ "${f}" == *"/tests/"* ]]; then

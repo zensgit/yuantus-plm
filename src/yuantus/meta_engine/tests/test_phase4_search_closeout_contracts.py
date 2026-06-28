@@ -194,7 +194,7 @@ def test_phase4_route_count_is_pinned_after_search_reports_closeout() -> None:
     # - 722 -> 723: + 1 L3-1 effectivity-date PATCH route (PATCH /api/v1/effectivities/{id}).
     # - 723 -> 724: + 1 L4 Fork B cap-change audit read (GET /api/v1/admin/license-cap-history).
     # - 724 -> 725: + 1 L4 Fork C license revoke (POST /api/v1/admin/licenses/{key}/revoke).
-    assert len(app.routes) == 725
+    assert len(app.routes) == 727
 
 
 def test_search_indexer_status_schema_is_phase4_final_contract() -> None:
