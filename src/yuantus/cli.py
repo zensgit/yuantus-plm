@@ -248,16 +248,23 @@ def license_revoke(
             err=True,
         )
         raise typer.Exit(code=2)
-    if clean_tenant is not None:
-        tenant_id_var.set(clean_tenant)
-    if clean_org is not None:
-        org_id_var.set(clean_org)
-    with get_db_session() as session:
-        rows = LicenseRevocationService(session).revoke_license(
-            cleaned, reason=reason, revoked_by=revoked_by
-        )
-        # Materialize display fields inside the session (objects detach on commit/close).
-        revoked = None if not rows else [(r.app_name, r.status, r.tenant_id) for r in rows]
+    # Set tenant/org context for session resolution, then reset (token + finally, matching
+    # status/cap-history) so a CliRunner / embedded / same-process caller does not leak this
+    # revoke's context into the next command.
+    tenant_token = tenant_id_var.set(clean_tenant) if clean_tenant is not None else None
+    org_token = org_id_var.set(clean_org) if clean_org is not None else None
+    try:
+        with get_db_session() as session:
+            rows = LicenseRevocationService(session).revoke_license(
+                cleaned, reason=reason, revoked_by=revoked_by
+            )
+            # Materialize display fields inside the session (objects detach on commit/close).
+            revoked = None if not rows else [(r.app_name, r.status, r.tenant_id) for r in rows]
+    finally:
+        if org_token is not None:
+            org_id_var.reset(org_token)
+        if tenant_token is not None:
+            tenant_id_var.reset(tenant_token)
     if revoked is None:
         typer.echo(f"license revoke failed: no license found for key {cleaned}", err=True)
         raise typer.Exit(code=1)

@@ -48,7 +48,7 @@ Two new subcommands under the existing `license` Typer group:
 
 ## Verification
 - Local: `PYTHONPATH=<wt>/src YUANTUS_PYTEST_DB=1 pytest` →
-  **32 passed** = 16 new CLI (`test_license_admin_cli.py` — incl. the multi-tenant revoke
+  **31 passed** = 15 new CLI (`test_license_admin_cli.py` — incl. the multi-tenant revoke
   guard: non-single-without-tenant → exit 2, db-per-tenant-org-without-org → exit 2,
   with-tenant-proceeds → revoked; and `--limit 0` → exit 2) + 9 #889 router + 7 #892 router
   (the refactor's only regression surface — both green).
