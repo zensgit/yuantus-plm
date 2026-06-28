@@ -204,3 +204,112 @@ def test_ops_acknowledge(client, db):
 
 def test_ops_acknowledge_404(client, db):
     assert client.post("/api/v1/cadpdm/date-obsolete-impacts/ghost/acknowledge").status_code == 404
+
+
+# -- Fork-B: batch-acknowledge + summary -------------------------------------
+_NONADMIN = SimpleNamespace(id=2, roles=[], is_superuser=False)
+
+
+@pytest.fixture()
+def client_nonadmin(Session):
+    app = create_app()
+
+    def _override_db():
+        s = Session()
+        try:
+            yield s
+        finally:
+            s.close()
+
+    app.dependency_overrides[get_db] = _override_db
+    app.dependency_overrides[get_current_user] = lambda: _NONADMIN
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+def _impact_co(db, iid, *, state="open", child_obsoleted=False):
+    db.add(DateObsoleteImpact(id=iid, effectivity_id=f"e-{iid}", child_item_id="C", parent_item_id="P",
+                              child_obsoleted=child_obsoleted, reason="child_effectivity_expired",
+                              state=state, detected_at=_NOW))
+    db.commit()
+
+
+def test_batch_acknowledge_transitions_open_only(client, db):
+    _impact(db, "b1", "open"); _impact(db, "b2", "open"); _impact(db, "b3", "acknowledged")
+    r = client.post("/api/v1/cadpdm/date-obsolete-impacts/acknowledge-batch",
+                    json={"impact_ids": ["b1", "b2", "b3"]})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["acknowledged_count"] == 2  # b3 already acknowledged -> not re-counted
+    assert {row["id"] for row in body["rows"]} == {"b1", "b2"}
+    # real DB effect: b1+b2 now acknowledged with actor/timestamp
+    for iid in ("b1", "b2"):
+        row = db.get(DateObsoleteImpact, iid)
+        assert row.state == "acknowledged" and row.acknowledged_by_id == 1
+        assert row.acknowledged_at is not None
+
+
+def test_batch_acknowledge_unknown_ids_skipped_no_leak(client, db):
+    _impact(db, "b1", "open")
+    r = client.post("/api/v1/cadpdm/date-obsolete-impacts/acknowledge-batch",
+                    json={"impact_ids": ["ghost", "b1", "alsoghost"]})
+    assert r.status_code == 200  # unknown ids silently skipped (no existence leak, no 404)
+    assert r.json()["acknowledged_count"] == 1
+
+
+def test_batch_acknowledge_dedups_and_is_idempotent(client, db):
+    _impact(db, "b1", "open")
+    # duplicate ids in one request -> counted once
+    r1 = client.post("/api/v1/cadpdm/date-obsolete-impacts/acknowledge-batch",
+                     json={"impact_ids": ["b1", "b1"]})
+    assert r1.json()["acknowledged_count"] == 1 and r1.json()["requested"] == 1
+    # re-running -> already acknowledged -> no-op
+    r2 = client.post("/api/v1/cadpdm/date-obsolete-impacts/acknowledge-batch",
+                     json={"impact_ids": ["b1"]})
+    assert r2.json()["acknowledged_count"] == 0
+
+
+def test_batch_acknowledge_empty_list(client, db):
+    r = client.post("/api/v1/cadpdm/date-obsolete-impacts/acknowledge-batch",
+                    json={"impact_ids": []})
+    assert r.status_code == 200 and r.json()["acknowledged_count"] == 0
+
+
+def test_batch_acknowledge_requires_admin(client_nonadmin, db):
+    _impact(db, "b1", "open")
+    r = client_nonadmin.post("/api/v1/cadpdm/date-obsolete-impacts/acknowledge-batch",
+                             json={"impact_ids": ["b1"]})
+    assert r.status_code == 403
+    assert db.get(DateObsoleteImpact, "b1").state == "open"  # gate tripped before any write
+
+
+def test_summary_counts_by_state(client, db):
+    _impact(db, "s1", "open"); _impact(db, "s2", "open"); _impact(db, "s3", "acknowledged")
+    body = client.get("/api/v1/cadpdm/date-obsolete-impacts/summary").json()
+    assert body == {"by_state": {"acknowledged": 1, "open": 2}, "total": 3}
+
+
+def test_summary_stable_shape_when_empty(client, db):
+    body = client.get("/api/v1/cadpdm/date-obsolete-impacts/summary").json()
+    assert body == {"by_state": {"acknowledged": 0, "open": 0}, "total": 0}
+
+
+def test_summary_route_not_captured_as_impact_id(client, db):
+    # /summary must resolve to the aggregate, NOT the /{impact_id} route (404 "not found")
+    r = client.get("/api/v1/cadpdm/date-obsolete-impacts/summary")
+    assert r.status_code == 200 and "by_state" in r.json()
+
+
+def test_summary_child_obsoleted_filter(client, db):
+    _impact_co(db, "c1", state="open", child_obsoleted=True)
+    _impact_co(db, "c2", state="open", child_obsoleted=False)
+    _impact_co(db, "c3", state="acknowledged", child_obsoleted=True)
+    all_body = client.get("/api/v1/cadpdm/date-obsolete-impacts/summary").json()
+    assert all_body["total"] == 3
+    only_co = client.get("/api/v1/cadpdm/date-obsolete-impacts/summary?child_obsoleted=true").json()
+    assert only_co == {"by_state": {"acknowledged": 1, "open": 1}, "total": 2}
+
+
+def test_summary_requires_admin(client_nonadmin, db):
+    assert client_nonadmin.get("/api/v1/cadpdm/date-obsolete-impacts/summary").status_code == 403

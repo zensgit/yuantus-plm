@@ -6,9 +6,11 @@ flags raised when a date effectivity expires. Read + ack only — never re-trigg
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from yuantus.api.dependencies.auth import (
@@ -59,6 +61,70 @@ async def list_date_obsolete_impacts(
         q = q.filter(DateObsoleteImpact.state == state)
     rows = q.order_by(DateObsoleteImpact.detected_at.desc()).limit(limit).all()
     return {"count": len(rows), "rows": [_impact(r) for r in rows]}
+
+
+@date_obsolete_ops_router.get("/cadpdm/date-obsolete-impacts/summary")
+async def date_obsolete_impacts_summary(
+    child_obsoleted: Optional[bool] = Query(
+        None,
+        description="Optional filter: count only impacts where the child was (true) / was "
+        "not (false) obsoleted. Omit to count all.",
+    ),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Count-by-state summary of date-obsolete impacts (admin ops dashboard).
+
+    Stable shape — every known state present (0 when none) + the total — so a dashboard
+    renders without guessing which states exist. Declared BEFORE the /{impact_id} route so
+    the literal "summary" is not captured as an impact id.
+    """
+    require_admin_permission(user)
+    q = db.query(DateObsoleteImpact.state, func.count(DateObsoleteImpact.id))
+    if child_obsoleted is not None:
+        q = q.filter(DateObsoleteImpact.child_obsoleted == child_obsoleted)
+    counts = dict(q.group_by(DateObsoleteImpact.state).all())
+    by_state = {s: int(counts.get(s, 0)) for s in sorted(_IMPACT_STATES)}
+    return {"by_state": by_state, "total": sum(by_state.values())}
+
+
+class _BatchAcknowledgeRequest(BaseModel):
+    impact_ids: List[str]
+
+
+@date_obsolete_ops_router.post("/cadpdm/date-obsolete-impacts/acknowledge-batch")
+async def acknowledge_date_obsolete_impacts_batch(
+    payload: _BatchAcknowledgeRequest = Body(...),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Acknowledge many impacts in one atomic transaction (admin ops bulk action).
+
+    Idempotent + no existence leak: unknown ids and already-acknowledged rows are simply
+    skipped (not an error), so re-running a batch is safe. Returns only the rows actually
+    transitioned open -> acknowledged this call. Acknowledge never re-triggers obsolete.
+    """
+    require_admin_permission(user)
+    # de-dup, preserving order; one IN query for all requested ids
+    ids = list(dict.fromkeys(payload.impact_ids))
+    acknowledged = []
+    if ids:
+        rows = db.query(DateObsoleteImpact).filter(DateObsoleteImpact.id.in_(ids)).all()
+        now = datetime.utcnow()
+        uid = int(user.id)
+        for row in rows:
+            if row.state != "acknowledged":
+                row.state = "acknowledged"
+                row.acknowledged_at = now
+                row.acknowledged_by_id = uid
+                acknowledged.append(row)
+        if acknowledged:
+            db.commit()
+    return {
+        "requested": len(ids),
+        "acknowledged_count": len(acknowledged),
+        "rows": [_impact(r) for r in acknowledged],
+    }
 
 
 @date_obsolete_ops_router.get("/cadpdm/date-obsolete-impacts/{impact_id}")
