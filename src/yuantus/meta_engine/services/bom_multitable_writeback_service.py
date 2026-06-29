@@ -49,8 +49,9 @@ def canonical_patch(raw: Any) -> Dict[str, Any]:
     - raises ``WritebackError(400)`` if the body is not a JSON object or canonicalizes to
       empty (the empty-whitelist fail-closed boundary).
 
-    The canonical form (not raw JSON) is what gets fingerprinted, so int/float, unknown
-    fields, and key order can never cause a false (or missed) same-key conflict.
+    The canonical form (not raw JSON) is what gets fingerprinted, so unknown fields and key
+    order never cause a false (or missed) same-key conflict. Numeric-type differences (9 vs
+    9.0) are treated as DISTINCT payloads -- a conservative 409 on reuse, not silently merged.
     """
     if not isinstance(raw, dict):
         raise WritebackError(400, "body must be a JSON object")
@@ -148,13 +149,21 @@ class BomMultitableWritebackService:
             )
             if existing is None:
                 raise
-            # Same key + DIFFERENT canonical payload -> conflict; never re-apply a stale write.
-            if existing.request_hash != request_hash:
+            # An Idempotency-Key is single-use for ONE (tenant, part, line, payload). A reuse
+            # for a DIFFERENT target OR a DIFFERENT canonical payload is a conflict, NEVER a
+            # cached replay -- else we would 200-confirm a write that never happened on THIS
+            # target (e.g. same key+payload sent to P2/R2 after P1/R1).
+            if (
+                existing.part_id != part_id
+                or existing.bom_line_id != bom_line_id
+                or (existing.tenant_id or None) != (tenant_id or None)
+                or existing.request_hash != request_hash
+            ):
                 raise WritebackError(
-                    409, "Idempotency-Key already used with a different payload"
+                    409, "Idempotency-Key already used for a different target or payload"
                 )
-            # True replay: return the cached result WITHOUT re-applying the mutation (G3).
-            return {"ok": True, "bom_line_id": bom_line_id, "replayed": True}
+            # True replay (same target + same payload): return cached, do NOT re-apply (G3).
+            return {"ok": True, "bom_line_id": existing.bom_line_id, "replayed": True}
 
         # Fresh key -> apply via copy-on-write WHOLE-DICT reassign (P1-properties: never
         # line.properties.update(...) in place -- SQLAlchemy JSON dirty-detection is unreliable).

@@ -345,9 +345,17 @@ def test_get_entitled_permission_denied_is_403(db_session, monkeypatch):
 
 # --- route surface + live-app ownership ---------------------------------------
 
-def test_router_exposes_the_context_and_embed_token_routes():
-    # P3-A added the GET context route; P3-D1 added the POST embed-token route.
-    assert len(bom_multitable_router.routes) == 2
+def test_router_exposes_the_context_embed_token_and_writeback_routes():
+    # P3-A: GET context; P3-D1: POST embed-token; P7 (#910): PATCH writeback.
+    assert len(bom_multitable_router.routes) == 3
+    patch_routes = [
+        r
+        for r in bom_multitable_router.routes
+        if getattr(r, "path", None) == "/bom/multitable/{part_id}/lines/{bom_line_id}"
+        and "PATCH" in getattr(r, "methods", set())
+    ]
+    assert len(patch_routes) == 1
+    assert patch_routes[0].endpoint.__name__ == "bom_multitable_writeback"
 
 
 def test_live_app_owns_the_route_with_this_router():

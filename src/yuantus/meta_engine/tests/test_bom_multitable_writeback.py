@@ -242,6 +242,29 @@ def test_same_key_different_payload_is_409(db_session, monkeypatch):
     assert c.patch(_url(), json={"quantity": 10}, headers=_HDR).status_code == 409
 
 
+def test_same_key_different_target_is_409_not_false_replay(db_session, monkeypatch):
+    # An Idempotency-Key reused for a DIFFERENT (part, line) -- even with the SAME payload --
+    # must 409, never falsely 200-confirm a write that never happened on the new target.
+    _entitle(monkeypatch, db_session)
+    _allow_permission(monkeypatch)
+    _seed(db_session)
+    db_session.add(Item(id="P2", item_type_id="Part", config_id="P2", generation=1, is_current=True, state="Draft"))
+    db_session.add(Item(id="C2", item_type_id="Part", config_id="C2", generation=1, is_current=True, state="Draft"))
+    db_session.add(
+        Item(
+            id="R2", item_type_id="Part BOM", config_id="R2", is_current=True,
+            source_id="P2", related_id="C2", properties={"quantity": 4},
+        )
+    )
+    db_session.commit()
+    c = _client(db_session)
+    assert c.patch(_url(part="P1", line="R1"), json={"quantity": 9}, headers=_HDR).status_code == 200
+    # same key + same payload, DIFFERENT target -> 409 (not a false replay).
+    assert c.patch(_url(part="P2", line="R2"), json={"quantity": 9}, headers=_HDR).status_code == 409
+    db_session.expire_all()
+    assert db_session.get(Item, "R2").properties["quantity"] == 4  # untouched
+
+
 def test_audit_row_captures_before_and_after(db_session, monkeypatch):
     _entitle(monkeypatch, db_session)
     _allow_permission(monkeypatch)
