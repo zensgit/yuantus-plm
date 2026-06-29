@@ -285,6 +285,7 @@ jobs:
             src/yuantus/meta_engine/tests/test_bom_compare_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_multitable_embed_token.py \
             src/yuantus/meta_engine/tests/test_bom_multitable_projection.py \
+            src/yuantus/meta_engine/tests/test_bom_multitable_writeback.py \
             src/yuantus/meta_engine/tests/test_bom_obsolete_rollup_router_contracts.py \
             src/yuantus/meta_engine/tests/test_bom_router_exception_chaining_closeout.py \
             src/yuantus/meta_engine/tests/test_bom_substitutes_router_contracts.py \

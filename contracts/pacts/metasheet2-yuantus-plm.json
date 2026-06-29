@@ -3931,6 +3931,70 @@
           }
         }
       }
+    },
+    {
+      "description": "apply a governed write-back update to a single BOM multitable line",
+      "providerStates": [
+        {
+          "name": "tenant-1 holds an active plm.bom_multitable_writeback license and BOM line 01H000000000000000000000R8 is editable (parent assembly In Work); part 01H000000000000000000000P4 is the review-context root"
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "path": "/api/v1/bom/multitable/01H000000000000000000000P4/lines/01H000000000000000000000R8",
+        "headers": {
+          "Authorization": "Bearer eyJhbGciOiJIUzI1NiJ9.example",
+          "x-tenant-id": "tenant-1",
+          "Content-Type": "application/json",
+          "Idempotency-Key": "wb-pact-0001"
+        },
+        "body": {
+          "quantity": 6,
+          "uom": "ea",
+          "find_num": "20",
+          "refdes": "B2"
+        },
+        "matchingRules": {
+          "header": {
+            "$.Authorization": {
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^Bearer .+"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "ok": true,
+          "bom_line_id": "01H000000000000000000000R8"
+        },
+        "matchingRules": {
+          "body": {
+            "$.ok": {
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.bom_line_id": {
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          }
+        }
+      }
     }
   ]
 }

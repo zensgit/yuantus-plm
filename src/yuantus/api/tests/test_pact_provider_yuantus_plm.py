@@ -260,6 +260,10 @@ PACT_DOCUMENT_RELATIONSHIP_TYPE = "Document Part"
 PACT_BOM_LINE_ID_PRIMARY = "01H000000000000000000000R1"
 PACT_BOM_LINE_ID_POST = "01H000000000000000000000R3"
 PACT_BOM_LINE_ID_DELETE = "01H000000000000000000000R4"
+# PLM-COLLAB P7 write-back (ratified #901): R8 is a DIRECT child of P4 (the path part, per the
+# source_id==part_id line-in-part check). is_item_locked is inert here (the Part type has no
+# lifecycle_map_id) so the 200 stays green; the 409 lock is proven by a real-LifecycleState unit test.
+PACT_BOM_LINE_ID_WRITEBACK = "01H000000000000000000000R8"
 PACT_DOCUMENT_ID_PRIMARY = "01H000000000000000000000D1"
 PACT_DOCUMENT_REL_ID_PRIMARY = "01H000000000000000000000R2"
 PACT_SUBSTITUTE_REL_ID_LIST = "01H000000000000000000000R5"
@@ -584,6 +588,29 @@ def _seed_meta_engine_data() -> None:
                     state="Released",
                     is_versionable=False,
                     source_id=PACT_ITEM_ID_PRIMARY,
+                    related_id=PACT_ITEM_ID_SECONDARY,
+                    properties={
+                        "quantity": 4,
+                        "uom": "ea",
+                        "find_num": "10",
+                        "refdes": "B1",
+                    },
+                )
+            )
+        # PLM-COLLAB P7 write-back fixture (ratified #901): R8 is a DIRECT child of P4 (the path
+        # part). is_item_locked is inert here (no lifecycle_map_id) so the 200 interaction stays
+        # green; the 409 lock is proven by a real-LifecycleState unit test, not the pact.
+        if session.get(Item, PACT_BOM_LINE_ID_WRITEBACK) is None:
+            session.add(
+                Item(
+                    id=PACT_BOM_LINE_ID_WRITEBACK,
+                    item_type_id=PACT_BOM_RELATIONSHIP_TYPE,
+                    config_id=str(uuid.uuid4()),
+                    generation=1,
+                    is_current=True,
+                    state="In Work",
+                    is_versionable=False,
+                    source_id=PACT_ITEM_ID_POST_CHILD,
                     related_id=PACT_ITEM_ID_SECONDARY,
                     properties={
                         "quantity": 4,
@@ -1073,8 +1100,8 @@ def _seed_meta_engine_data() -> None:
     ).decode()
     _lic_payload = {
         "tenant_id": PACT_TENANT_ID,
-        "app_names": ["plm.bom_multitable"],
-        "features": ["bom_multitable"],
+        "app_names": ["plm.bom_multitable", "plm.bom_multitable_writeback"],
+        "features": ["bom_multitable", "bom_multitable_writeback"],
         "plan_type": "Pilot",
         "license_key": _uuid.uuid4().hex,
         "subject": "Pact",

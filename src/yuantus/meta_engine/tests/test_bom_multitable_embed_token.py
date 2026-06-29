@@ -324,8 +324,17 @@ def test_allowlist_drops_wildcard_structurally():
 
 # --- route surface ------------------------------------------------------------
 
-def test_router_exposes_exactly_two_routes():
-    assert len(bom_multitable_router.routes) == 2
+def test_router_exposes_the_three_expected_routes():
+    # GET context + POST embed-token + PLM-COLLAB-P7 PATCH write-back -- asserted by
+    # (method, path) so a future route swap cannot pass on count alone.
+    by_method = {
+        next(iter(r.methods & {"GET", "POST", "PATCH", "PUT", "DELETE"})): r.path
+        for r in bom_multitable_router.routes
+    }
+    assert set(by_method) == {"GET", "POST", "PATCH"}
+    assert by_method["GET"].endswith("/multitable/{part_id}/context")
+    assert by_method["POST"].endswith("/multitable/{part_id}/embed-token")
+    assert by_method["PATCH"].endswith("/multitable/{part_id}/lines/{bom_line_id}")
 
 
 def test_live_app_owns_the_embed_token_post_route():

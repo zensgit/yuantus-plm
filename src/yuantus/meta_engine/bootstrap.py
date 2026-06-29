@@ -21,6 +21,7 @@ def import_all_models() -> None:
     from yuantus.meta_engine.models import baseline as _baseline  # noqa: F401
     from yuantus.meta_engine.models import configuration as _configuration  # noqa: F401
     from yuantus.meta_engine.models import cad_audit as _cad_audit  # noqa: F401
+    from yuantus.meta_engine.models import bom_writeback_audit as _bom_writeback_audit  # noqa: F401
     from yuantus.meta_engine.models import numbering as _numbering  # noqa: F401
     from yuantus.meta_engine.models import plugin_config as _plugin_config  # noqa: F401
     from yuantus.meta_engine.models import parallel_tasks as _parallel_tasks  # noqa: F401

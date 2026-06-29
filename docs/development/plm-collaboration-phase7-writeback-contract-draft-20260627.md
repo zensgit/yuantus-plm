@@ -1,5 +1,15 @@
 # PLM Collaboration Phase 7 — Write-Back Contract DRAFT (Slice 0)
 
+> **SUPERSEDED (2026-06-29) by #901 — the ratified Day-2 provider design.** This Slice-0 draft's
+> create-pending-ECO **intent** model is NOT the direction built. The ratified slice is a
+> **synchronous, lifecycle-guarded, in-place apply** (the Draft/editable fast path): `PATCH
+> .../lines/{bom_line_id}` + an `Idempotency-Key` header → `200 {ok, bom_line_id}`, mutating the
+> cell directly (last-write-wins), guarded by `is_item_locked`→409, audited + replay-guarded via
+> the `meta_bom_writeback_audit` table (one row = audit + single-use cache). The ECO change-control
+> route (this draft's model) is a **deferred** capability for revising Released/locked BOMs, not the
+> write-back built here. Retained as Slice-0 history; see
+> `plm-collaboration-phase7-writeback-day2-design-resolution-20260629.md` (#901).
+
 Date: 2026-06-27
 Type: **Slice 0 — contract draft / spec addendum (no code).** This is **not** the
 "slice-1" that #884 named — see the phasing revision below. It records the BOM
