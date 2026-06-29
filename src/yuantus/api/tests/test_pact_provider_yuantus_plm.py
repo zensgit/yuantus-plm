@@ -1073,8 +1073,11 @@ def _seed_meta_engine_data() -> None:
     ).decode()
     _lic_payload = {
         "tenant_id": PACT_TENANT_ID,
-        "app_names": ["plm.bom_multitable"],
-        "features": ["bom_multitable"],
+        # Phase-7 Day-2: seed BOTH the read SKU and the DISTINCT write-back SKU so the governed
+        # PATCH interaction verifies entitled:true (the write key is checked first, separate
+        # from the read key -- a read-only license would otherwise 403 the write).
+        "app_names": ["plm.bom_multitable", "plm.bom_multitable_writeback"],
+        "features": ["bom_multitable", "bom_multitable_writeback"],
         "plan_type": "Pilot",
         "license_key": _uuid.uuid4().hex,
         "subject": "Pact",
