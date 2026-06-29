@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -41,6 +41,12 @@ from yuantus.meta_engine.services.bom_multitable_projection_service import (
     BOMMultitableProjectionService,
 )
 from yuantus.meta_engine.services.meta_permission_service import MetaPermissionService
+from yuantus.meta_engine.services.bom_multitable_writeback_service import (
+    WRITE_FEATURE_KEY,
+    BomMultitableWritebackService,
+    WritebackError,
+    canonical_patch,
+)
 from yuantus.models.audit import AuditLog
 
 bom_multitable_router = APIRouter(prefix="/bom", tags=["BOM"])
@@ -183,3 +189,65 @@ def bom_multitable_embed_token(
         "aud": minted["aud"],
         "embed_origin": origin,
     }
+
+
+@bom_multitable_router.patch("/multitable/{part_id}/lines/{bom_line_id}")
+async def bom_multitable_writeback(
+    part_id: str,
+    bom_line_id: str,
+    request: Request,
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """PLM-COLLAB-P7: governed BOM-line write-back (design-lock #901 + G1-G5).
+
+    PINNED order (G1): write-entitlement 403 -> permission 403 -> 400 (missing/blank/>64
+    Idempotency-Key | malformed / empty-whitelist body) -> 404 (line in part) -> 409 (parent
+    lifecycle-locked) -> apply -> 200 {ok, bom_line_id}. The Idempotency-Key header and the
+    body are read MANUALLY *after* the 403 gates (P1-G1: a Header(...)/strict-body model would
+    let FastAPI 422 ahead of the gate and leak existence on a write surface).
+    """
+    # 403: write entitlement FIRST -- no part lookup, so an unentitled caller learns nothing.
+    if not EntitlementService(db).is_entitled(WRITE_FEATURE_KEY):
+        raise HTTPException(status_code=403, detail="Not entitled to BOM write-back")
+    # 403: permission to update a Part BOM line.
+    if not MetaPermissionService(db).check_permission(
+        BOM_LINE_TYPE, AMLAction.update, user_id=str(user.id), user_roles=user.roles
+    ):
+        raise HTTPException(status_code=403, detail="Permission denied")
+    # 400: Idempotency-Key read manually -> a missing/blank/over-long header is OUR 400.
+    idempotency_key = (request.headers.get("Idempotency-Key") or "").strip()
+    if not idempotency_key or len(idempotency_key) > 64:
+        raise HTTPException(
+            status_code=400, detail="missing or invalid Idempotency-Key header"
+        )
+    # 400: body parsed manually -> malformed JSON / non-object / empty whitelist are OUR 400.
+    try:
+        raw_body = await request.json()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="malformed JSON body") from exc
+    try:
+        patch = canonical_patch(raw_body)
+    except WritebackError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+
+    tenant_id, org_id = resolve_license_scope()
+    service = BomMultitableWritebackService(db)
+    try:
+        result = service.apply(
+            part_id=part_id,
+            bom_line_id=bom_line_id,
+            idempotency_key=idempotency_key,
+            patch=patch,
+            actor_user_id=str(user.id),
+            tenant_id=tenant_id,
+            org_id=org_id,
+        )
+        db.commit()
+        return result
+    except WritebackError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
+    except Exception:
+        db.rollback()
+        raise

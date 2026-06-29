@@ -1073,8 +1073,8 @@ def _seed_meta_engine_data() -> None:
     ).decode()
     _lic_payload = {
         "tenant_id": PACT_TENANT_ID,
-        "app_names": ["plm.bom_multitable"],
-        "features": ["bom_multitable"],
+        "app_names": ["plm.bom_multitable", "plm.bom_multitable_writeback"],
+        "features": ["bom_multitable", "bom_multitable_writeback"],
         "plan_type": "Pilot",
         "license_key": _uuid.uuid4().hex,
         "subject": "Pact",

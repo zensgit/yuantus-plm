@@ -1,0 +1,77 @@
+"""add meta_bom_writeback_audit table (PLM-COLLAB Phase-7 BOM write-back, governed write)
+
+The combined audit + single-use idempotency/replay row for the governed BOM multi-table
+write-back endpoint (design-lock #901 sections 2/3). UNIQUE idempotency_key makes a replay
+one row; request_hash distinguishes same-key/different-payload (409) from a true replay. The
+route is gated default-off behind the write entitlement, so the table alone changes no
+runtime behavior.
+
+Revision ID: bom_wb_audit_001
+Revises: txn_history_001
+Create Date: 2026-06-29 00:00:00.000000
+"""
+
+from __future__ import annotations
+
+from typing import Sequence, Union
+
+import sqlalchemy as sa
+from alembic import op
+from sqlalchemy.dialects import postgresql
+
+revision: str = "bom_wb_audit_001"
+down_revision: Union[str, None] = "txn_history_001"
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+_TABLE = "meta_bom_writeback_audit"
+
+
+def _j() -> sa.JSON:
+    return sa.JSON().with_variant(postgresql.JSONB, "postgresql")
+
+
+def upgrade() -> None:
+    bind = op.get_bind()
+    if _TABLE in set(sa.inspect(bind).get_table_names()):
+        return
+    op.create_table(
+        _TABLE,
+        sa.Column("id", sa.String(), nullable=False),
+        sa.Column("idempotency_key", sa.String(length=64), nullable=False),
+        sa.Column("request_hash", sa.String(length=64), nullable=False),
+        sa.Column("actor_user_id", sa.String(), nullable=True),
+        sa.Column("tenant_id", sa.String(), nullable=True),
+        sa.Column("org_id", sa.String(), nullable=True),
+        sa.Column("part_id", sa.String(), nullable=False),
+        sa.Column("bom_line_id", sa.String(), nullable=False),
+        sa.Column("before", _j(), nullable=True),
+        sa.Column("after", _j(), nullable=True),
+        sa.Column(
+            "status", sa.String(length=20), nullable=False, server_default=sa.text("'applied'")
+        ),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+        ),
+        sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("idempotency_key", name="uq_bom_writeback_audit_idempotency_key"),
+    )
+    op.create_index(
+        op.f("ix_meta_bom_writeback_audit_tenant_id"), _TABLE, ["tenant_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_meta_bom_writeback_audit_part_id"), _TABLE, ["part_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_meta_bom_writeback_audit_bom_line_id"), _TABLE, ["bom_line_id"], unique=False
+    )
+
+
+def downgrade() -> None:
+    bind = op.get_bind()
+    if _TABLE not in set(sa.inspect(bind).get_table_names()):
+        return
+    op.drop_index(op.f("ix_meta_bom_writeback_audit_bom_line_id"), table_name=_TABLE)
+    op.drop_index(op.f("ix_meta_bom_writeback_audit_part_id"), table_name=_TABLE)
+    op.drop_index(op.f("ix_meta_bom_writeback_audit_tenant_id"), table_name=_TABLE)
+    op.drop_table(_TABLE)
