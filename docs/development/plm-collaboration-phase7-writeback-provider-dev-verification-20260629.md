@@ -43,9 +43,9 @@ The provider landed first (so the broker gate is never consumer-ahead-of-provide
 - **Broker re-add** of the amended PATCH interaction (reverting #3337's depublish), so the Phase-B broker gate verifies the live interaction against the now-honoring provider.
 - **Fast-follows** (design §1/§2): `Idempotency-Key` end-to-end on the consumer; `If-Match`/412 optimistic concurrency; ECO-checkout-lock 409 depth.
 
-## 7. Follow-up (2026-06-29, proposed / in review) — per-tenant idempotency scope
+## 7. Follow-up (2026-06-29, landed) — per-tenant idempotency scope
 
-> Status: in code review on `claude/plm-phase7-idempotency-tenant-scope`; NOT yet merged. Flip "proposed / in review" → "landed" in the merge closeout.
+> Status: landed on `main` via #909 (squash `ad8df710`), 2026-06-29. Formal CI green (regression 3m54s; 5 SUCCESS / 4 SKIPPED).
 
 Review of the §2 single-use guard surfaced a cross-tenant correctness defect: `meta_bom_writeback_audit.idempotency_key` was a **single global** `UNIQUE`, and the service's replay re-query filtered by key only. So the SAME `Idempotency-Key` reused by a DIFFERENT tenant collided on tenant A's row and was wrongly resolved as a replay (cached 200, no apply) or a 409 — a cross-tenant leak of write outcomes. (Practically rare, since keys are write-token jtis, but a real isolation defect.)
 
