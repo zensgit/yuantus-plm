@@ -38,13 +38,27 @@ Each item below is merged on `main` with CI evidence.
 | Retry-key false-green test hardening | MetaSheet2 `#3392` / `e3c2e21d5` | Edit-UI key-reuse test now mocks `randomUUID` with distinct returns and asserts `randomUUID` called exactly once across a failed-submit retry — proving the key is reused, not re-minted. |
 | Multi-`kid` embed public-key verification | MetaSheet2 `#3395` / `b71d8f097` | Consumer accepts a `kid → base64 Ed25519 public key` JSON map (fail-closed), removing the key-rotation flag-day; legacy single-key vars remain a fallback. No private key in MetaSheet2. |
 
+### 2.1 Implemented and green, awaiting a merge decision
+
+One item on this surface is implemented and CI-green but **not yet merged** — so it is buildable
+work that *already exists*, not work left to build:
+
+| Item | PR | State | What it adds |
+|---|---|---|---|
+| BOM write-back audit readout | Yuantus `#928` (`codex/phase7-writeback-admin-readout`) | OPEN / **DRAFT**, CLEAN/MERGEABLE, contracts + regression green | A superuser-gated (`require_superuser`), read-only, tenant-scoped `GET /multitable/writeback-audit` that serializes the existing `meta_bom_writeback_audit` rows — operator visibility over the governed write-back. Adds one route (hence its route-count pin updates) and carries its own `DEV_AND_VERIFICATION_PHASE7_BOM_WRITEBACK_AUDIT_READOUT_20260630.md`. |
+
+The only thing outstanding on `#928` is the **merge decision** (it is a DRAFT on the Phase 7
+surface); its implementation and verification are complete. This record neither merges nor closes it.
+
 ## 3. Bounded Confirm Pass
 
 A tight, high-bar adversarial pass ran over the three surfaces active across this cycle —
 governed write-back (service + router), the read projection + embed-token spine, and the
 MetaSheet2 consumer adapter + review UI. The bar for a *finding* was deliberately strict: real
 (file:line evidence), buildable now **without** any owner / ops / product / governance decision,
-and verifiable by a test. Refute-by-default; "clean" was a pre-accepted outcome.
+and verifiable by a test. Refute-by-default; "clean" was a pre-accepted outcome. The pass ran
+against `main` (`34165a8c`), which does not yet include `#928` (§2.1); `#928`'s own surface is
+verified by its own CI and verification doc, not by this pass.
 
 **Result: all three surfaces CLEAN — zero buildable-now, ungated findings.**
 
@@ -57,7 +71,9 @@ and verifiable by a test. Refute-by-default; "clean" was a pre-accepted outcome.
   pydantic 422-before-403 (no object lookup → no leak), PATCH not re-checking part type
   (unreachable in a well-formed DB).
 - **Projection + embed** — entitlement-first read with no existence leak; output is a curated
-  allowlist (raw `Item` ids never emitted; the per-line `write_etag` is a sha256, not raw ids);
+  allowlist — no raw `Item.to_dict()` / permission / version-control internal fields; only the
+  owner-ratified read-only technical IDs (`bom_line_id`, `part_id`, `path`) are emitted, and the
+  per-line `write_etag` is itself a sha256;
   the embed mint uses `aud` = service audience + a separate exact-match `embed_origin` allowlist,
   TTL capped, fail-closed 503 on missing/malformed key, no EdDSA/HS256 alg-confusion; the §0
   read-only invariant holds — the embed token carries only the READ `feature_key` and authorizes
@@ -107,14 +123,15 @@ Reachable, but each needs a product / governance decision; none is a defect:
 
 ## 5. Outcome
 
-The bounded confirm pass agrees with the prior closeout: **there is no known unowned,
+The bounded confirm pass agrees with the prior closeout, with one correction: **apart from the
+merge-gated `#928` (implemented + green, §2.1), there is no *unimplemented*, unowned,
 buildable-now development item left on this line.** The hardening landed this cycle
 (`#925`/`#926`/`#927`/`#929` on Yuantus, `#3392`/`#3395` on MetaSheet2) closed the last
 commercial/security gaps buildable without owner input, and an adversarial re-check of the core
 write-back / projection / embed / consumer surfaces found zero buildable-now ungated defects.
 
-The remaining motion is **not coding** — it is the owner / ops / product / governance decisions
-that unblock the gated tracks in §4. Once a gate clears, its track becomes buildable and can
+The remaining motion is **not new coding** — it is (a) the **merge decision on `#928`** (§2.1),
+and (b) the owner / ops / product / governance decisions that unblock the gated tracks in §4. Once a gate clears, its track becomes buildable and can
 proceed in parallel with the others per the grouping above. Each such track must take its **own
 explicit opt-in** before code (per the per-phase discipline); this record does not authorize any
 of them.
