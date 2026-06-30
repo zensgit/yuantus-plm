@@ -128,6 +128,7 @@ def license_status(
         tenant_id_var.reset(token)
 
     typer.echo(f"license status for tenant: {status.tenant_id}")
+    typer.echo(f"edition: {status.edition}")
     typer.echo("features (sellable SKUs):")
     for key, entitled in status.features.items():
         typer.echo(f"  {key:<24} {'ENTITLED' if entitled else 'not entitled'}")

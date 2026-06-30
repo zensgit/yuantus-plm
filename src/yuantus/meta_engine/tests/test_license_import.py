@@ -429,3 +429,14 @@ def test_cli_seat_cap_audit_skipped_when_projection_fails(tmp_path, monkeypatch,
         assert seat_cap == []                                                 # no phantom seat-cap audit
     finally:
         s.close()
+
+
+def test_empty_public_keys_fails_import_and_creates_no_row(session, keypair):
+    # The default deployment posture is LICENSE_PUBLIC_KEYS = {} -> NO license can verify ->
+    # NO AppLicense row -> the system stays fail-closed (every SKU off, edition "Community"),
+    # never a silent grant. This locks the invariant the edition readout reports.
+    priv, _pubkeys = keypair
+    lic_obj = _sign(priv, _payload(tenant_id="tenant-1"))
+    with pytest.raises(LicenseVerificationError, match="unknown license kid"):
+        LicenseImportService(session).import_license(lic_obj, {})  # empty public keys
+    assert session.query(AppLicense).count() == 0
