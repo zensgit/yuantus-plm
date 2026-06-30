@@ -98,3 +98,29 @@ def test_status_rejects_blank_tenant(session):
     for blank in ("", "   ", None):
         with pytest.raises(ValueError):
             collect_license_status(session, blank)
+
+
+def test_edition_is_licensed_when_a_sku_is_entitled(session):
+    _add_license(session, tenant_id="acme", app_name="plm.bom_multitable", key="K-BOM")
+    st = collect_license_status(session, "acme")
+    assert any(st.features.values()) is True
+    # any lit SKU entitled -> "Licensed Add-ons"; derived from is_entitled, never plan_type.
+    assert st.edition == "Licensed Add-ons"
+
+
+def test_edition_is_community_when_unlicensed_fail_closed(session):
+    # The fail-closed default (an unlicensed tenant / the default empty-public-keys posture):
+    # every SKU False, no license rows, edition "Community" -- NEVER a silent Enterprise grant.
+    st = collect_license_status(session, "acme")
+    assert all(v is False for v in st.features.values())
+    assert st.licenses == []
+    assert st.edition == "Community"
+
+
+def test_edition_ignores_plan_type_enterprise_label(session):
+    # A row whose plan_type is the free-text "Enterprise" must NOT lift the edition: plan_type is
+    # display/storage only, never an authorization input. A non-lit app -> still Community.
+    _add_license(session, tenant_id="acme", app_name="plm.not_a_lit_sku", plan_type="Enterprise")
+    st = collect_license_status(session, "acme")
+    assert all(v is False for v in st.features.values())
+    assert st.edition == "Community"  # plan_type "Enterprise" does not grant or relabel

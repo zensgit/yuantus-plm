@@ -287,3 +287,19 @@ def test_cap_history_limit_below_one_is_rejected(cli_db):
     # parity with the HTTP route's Query(..., ge=1): --limit < 1 must not reach the DB
     result = runner.invoke(app, ["license", "cap-history", "--tenant-id", TENANT, "--limit", "0"])
     assert result.exit_code == 2  # click IntRange(min=1) usage error
+
+
+# --- `license status` edition readout (behavioral, real query path) ----------
+def test_status_cli_reports_community_when_unlicensed(cli_db):
+    # No license for the tenant -> the fail-closed default edition prints "Community".
+    result = runner.invoke(app, ["license", "status", "--tenant-id", TENANT])
+    assert result.exit_code == 0, result.output
+    assert "edition: Community" in result.output
+
+
+def test_status_cli_reports_licensed_add_ons_for_a_lit_sku(cli_db):
+    # A real Active lit SKU -> is_entitled True -> the readout prints the licensed label.
+    _license(cli_db, key="K-BOM", app_name="plm.bom_multitable")
+    result = runner.invoke(app, ["license", "status", "--tenant-id", TENANT])
+    assert result.exit_code == 0, result.output
+    assert "edition: Licensed Add-ons" in result.output
