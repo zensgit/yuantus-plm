@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import csv
+from yuantus.meta_engine.web.csv_export_safety import safe_writer
 import io
 import json
 from typing import Any, Dict, List, Optional
@@ -66,7 +67,7 @@ class ReleaseReadinessResponse(BaseModel):
 
 def _csv_bytes(*, rows: List[Dict[str, Any]], columns: List[str]) -> bytes:
     buffer = io.StringIO()
-    writer = csv.writer(buffer)
+    writer = safe_writer(buffer)
     writer.writerow(list(columns))
     for row in rows:
         out_row: List[str] = []

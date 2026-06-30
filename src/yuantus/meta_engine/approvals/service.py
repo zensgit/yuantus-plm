@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+from yuantus.meta_engine.web.csv_export_safety import safe_dict_writer
 import uuid
 from datetime import datetime, timezone
 from io import StringIO
@@ -246,7 +247,7 @@ class ApprovalService:
     @staticmethod
     def _render_csv(rows: List[Dict[str, Any]], fieldnames: List[str]) -> str:
         buffer = StringIO()
-        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+        writer = safe_dict_writer(buffer, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
             writer.writerow({name: row.get(name) for name in fieldnames})

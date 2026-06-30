@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional, List
 import io
+from yuantus.meta_engine.web.csv_export_safety import neutralize_csv_formula
 import json
 import threading
 import uuid
@@ -247,10 +248,8 @@ def _rows_to_csv(rows: List[Dict[str, Any]]) -> str:
             if val is None:
                 return ""
             if isinstance(val, list):
-                return ";".join(str(x) for x in val)
-            if isinstance(val, float):
-                return str(val)
-            return str(val)
+                return neutralize_csv_formula(";".join(str(x) for x in val))
+            return neutralize_csv_formula(str(val))
 
         lines.append(",".join([
             _v(r.get("line_key")), _v(r.get("parent_id")), _v(r.get("child_id")),
@@ -381,14 +380,14 @@ _DIFF_CSV_HEADERS = "change_type,row_key,line_key,parent_id,child_id,status,chan
 def _diff_to_csv(diff_result: Dict[str, Any]) -> str:
     lines = [_DIFF_CSV_HEADERS]
     for d in diff_result.get("differences", []):
-        cf = ";".join(d.get("changed_fields", []))
+        cf = neutralize_csv_formula(";".join(d.get("changed_fields", [])))
         lines.append(",".join([
-            str(d.get("change_type", "")),
-            str(d.get("row_key", "")),
-            str(d.get("line_key", "")),
-            str(d.get("parent_id", "")),
-            str(d.get("child_id", "")),
-            str(d.get("status", "")),
+            neutralize_csv_formula(str(d.get("change_type", ""))),
+            neutralize_csv_formula(str(d.get("row_key", ""))),
+            neutralize_csv_formula(str(d.get("line_key", ""))),
+            neutralize_csv_formula(str(d.get("parent_id", ""))),
+            neutralize_csv_formula(str(d.get("child_id", ""))),
+            neutralize_csv_formula(str(d.get("status", ""))),
             cf,
         ]))
     return "\n".join(lines)

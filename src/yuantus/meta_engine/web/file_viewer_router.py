@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import io
+from yuantus.meta_engine.web.csv_export_safety import safe_dict_writer
 import json
 import os
 from pathlib import Path
@@ -438,7 +439,7 @@ async def export_viewer_readiness(
         import csv as _csv
 
         buf = io.StringIO()
-        writer = _csv.DictWriter(buf, fieldnames=[
+        writer = safe_dict_writer(buf, fieldnames=[
             "file_id", "filename", "found", "viewer_mode", "is_viewer_ready",
             "geometry_format", "asset_count", "blocking_reasons", "review_state",
             "reviewed_by", "reviewed_at", "history_count", "history_latest_action",

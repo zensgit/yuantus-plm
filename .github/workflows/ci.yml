@@ -168,6 +168,10 @@ jobs:
                 run_contracts="true"
                 reason_contracts="${reason_contracts:-matched date-obsolete impacts surface: ${f}}"
                 ;;
+              src/yuantus/meta_engine/web/csv_export_safety.py|src/yuantus/meta_engine/tests/test_csv_export_safety.py|src/yuantus/meta_engine/tests/test_csv_export_injection_regression.py)
+                run_contracts="true"
+                reason_contracts="${reason_contracts:-matched csv export-safety surface: ${f}}"
+                ;;
               src/*)
                 # Ignore test-only changes for the heavier CI jobs.
                 if [[ "${f}" == *"/tests/"* ]]; then
@@ -404,6 +408,8 @@ jobs:
             src/yuantus/meta_engine/tests/test_consumption_mes_ingestion_contract.py \
             src/yuantus/meta_engine/tests/test_consumption_mes_ingestion_runtime.py \
             src/yuantus/meta_engine/tests/test_consumption_mes_uom_conversion.py \
+            src/yuantus/meta_engine/tests/test_csv_export_injection_regression.py \
+            src/yuantus/meta_engine/tests/test_csv_export_safety.py \
             src/yuantus/meta_engine/tests/test_cutted_parts_router_decomposition_closeout_contracts.py \
             src/yuantus/meta_engine/tests/test_cutted_parts_router_decomposition_r1_contracts.py \
             src/yuantus/meta_engine/tests/test_cutted_parts_router_exception_chaining.py \

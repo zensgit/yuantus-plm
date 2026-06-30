@@ -1,4 +1,5 @@
 import csv
+from yuantus.meta_engine.web.csv_export_safety import safe_writer
 from io import StringIO
 from typing import Any, Dict, Literal, Optional
 
@@ -342,7 +343,7 @@ def search_reindex(
 
 def _format_search_reports_summary_csv(summary: SearchReportsSummaryResponse) -> str:
     buffer = StringIO()
-    writer = csv.writer(buffer, lineterminator="\n")
+    writer = safe_writer(buffer, lineterminator="\n")
     writer.writerow(["section", "key", "count"])
     writer.writerow(["items.total", "total", summary.items.total])
     for bucket in summary.items.by_item_type:
@@ -359,7 +360,7 @@ def _format_search_reports_summary_csv(summary: SearchReportsSummaryResponse) ->
 
 def _format_search_eco_stage_aging_csv(report: SearchEcoStageAgingResponse) -> str:
     buffer = StringIO()
-    writer = csv.writer(buffer, lineterminator="\n")
+    writer = safe_writer(buffer, lineterminator="\n")
     writer.writerow(["stage", "count", "avg_age_days", "max_age_days"])
     for bucket in report.buckets:
         writer.writerow(
@@ -370,7 +371,7 @@ def _format_search_eco_stage_aging_csv(report: SearchEcoStageAgingResponse) -> s
 
 def _format_search_eco_state_trend_csv(report: SearchEcoStateTrendResponse) -> str:
     buffer = StringIO()
-    writer = csv.writer(buffer, lineterminator="\n")
+    writer = safe_writer(buffer, lineterminator="\n")
     writer.writerow(["date", "state", "count"])
     for bucket in report.buckets:
         writer.writerow([bucket.date, bucket.state, bucket.count])

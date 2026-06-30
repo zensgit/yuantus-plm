@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 import csv
+from yuantus.meta_engine.web.csv_export_safety import safe_writer
 import hashlib
 import hmac
 import io
@@ -741,7 +742,7 @@ class ElectronicSignatureService:
             "client_ip",
         ]
         buffer = io.StringIO()
-        writer = csv.writer(buffer)
+        writer = safe_writer(buffer)
         writer.writerow(columns)
         for row in rows:
             writer.writerow(

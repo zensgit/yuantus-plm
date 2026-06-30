@@ -1,6 +1,7 @@
 from typing import List, Dict, Any, Optional
 import json
 import csv
+from yuantus.meta_engine.web.csv_export_safety import safe_dict_writer
 import io
 from datetime import datetime
 import re
@@ -1179,7 +1180,7 @@ class BOMService:
         selected_fields = self.normalize_delta_export_fields(fields)
         selected = set(selected_fields)
         output = io.StringIO()
-        writer = csv.DictWriter(
+        writer = safe_dict_writer(
             output,
             fieldnames=selected_fields,
         )
