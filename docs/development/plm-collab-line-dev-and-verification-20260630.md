@@ -4,8 +4,9 @@ Type: development + verification record for the PLM × MetaSheet integration lin
 
 **Supersedes** `plm-collab-remaining-gated-development-order-and-verification-20260630.md`
 (the `#924` ordering doc, written at baseline `36132cee`/`#923`): that record predates
-the commercial/security hardening landed afterward (`#925`, `#926`, `#927`, `#929`), so its
-"nothing buildable left" claim is re-confirmed here against current `main` rather than reused.
+the commercial/security hardening landed afterward (`#925`, `#926`, `#927`, `#928`, `#929`), so
+its "nothing buildable left" claim is re-evaluated here against current `main` — which now includes
+the `#928` audit readout — rather than reused.
 
 This record does three things:
 
@@ -19,7 +20,7 @@ It does not convert any gated governance, infrastructure, or commercial-policy d
 
 ## 1. Baseline
 
-- Yuantus `origin/main` at `34165a8c` (`fix(exports): neutralize ECO xlsx formula cells`, `#929`).
+- Yuantus `origin/main` at `47eec902` (`feat(plm-collab): add BOM writeback audit readout`, `#928`).
 - MetaSheet2 `origin/main` includes `b71d8f097` (`#3395`, multi-`kid` embed) and `e3c2e21d5` (`#3392`, retry-key proof).
 
 The governed BOM write-back feature is live end-to-end: provider projection + write-back +
@@ -34,21 +35,10 @@ Each item below is merged on `main` with CI evidence.
 | Explicit edition readout on license status | Yuantus `#925` / `84538469` | Read-only `edition` derived purely from `is_entitled` (never `plan_type`, never an auth input); CLI + superuser admin readout; fail-closed `Community` default. |
 | CSV formula-injection hardening across exports | Yuantus `#926` / `15096cad` | `safe_writer`/`safe_dict_writer` factories; **16** human-facing exports routed through the guard; the hand-built `bom_compare` builders rewritten to csv-quote + neutralize, closing the **comma-split bypass** (`"safe,=1+2"`) that re-opened formula injection. `cad_sync_template` deliberately excluded (machine round-trip). |
 | BOM write-back read↔write ETag round-trip lock | Yuantus `#927` / `811d0571` | End-to-end test: projection `write_etag` (over HTTP/JSON) accepted as `If-Match` header → 200; stale → 412. Locks the cross-surface invariant the optimistic-concurrency loop depends on. (#917 implementation itself was completed earlier by `#922`/`804b6170`: `SELECT … FOR UPDATE` atomic CAS + projection `write_etag` exposure.) |
+| BOM write-back audit readout | Yuantus `#928` / `47eec902` | Superuser-gated (`require_superuser`), read-only, **tenant-scoped** `GET /multitable/writeback-audit` over the existing `meta_bom_writeback_audit` rows (`Cache-Control: no-store`, static route ordered before the param routes, filter + pagination, invalid-datetime → 400, route-count pins updated) — operator visibility over the governed write-back; carries its own `DEV_AND_VERIFICATION_PHASE7_BOM_WRITEBACK_AUDIT_READOUT_20260630.md`. |
 | ECO XLSX formula guard | Yuantus `#929` / `34165a8c` | `eco_export_service.to_xlsx` neutralizes header + row cells before openpyxl write; integration test loads the workbook back and asserts no cell has `data_type == "f"`. Closes the openpyxl sibling of the CSV vector; `eco_impact_apply_router` delegates to this guarded path. |
 | Retry-key false-green test hardening | MetaSheet2 `#3392` / `e3c2e21d5` | Edit-UI key-reuse test now mocks `randomUUID` with distinct returns and asserts `randomUUID` called exactly once across a failed-submit retry — proving the key is reused, not re-minted. |
 | Multi-`kid` embed public-key verification | MetaSheet2 `#3395` / `b71d8f097` | Consumer accepts a `kid → base64 Ed25519 public key` JSON map (fail-closed), removing the key-rotation flag-day; legacy single-key vars remain a fallback. No private key in MetaSheet2. |
-
-### 2.1 Implemented and green, awaiting a merge decision
-
-One item on this surface is implemented and CI-green but **not yet merged** — so it is buildable
-work that *already exists*, not work left to build:
-
-| Item | PR | State | What it adds |
-|---|---|---|---|
-| BOM write-back audit readout | Yuantus `#928` (`codex/phase7-writeback-admin-readout`) | OPEN / **DRAFT**, CLEAN/MERGEABLE, contracts + regression green | A superuser-gated (`require_superuser`), read-only, tenant-scoped `GET /multitable/writeback-audit` that serializes the existing `meta_bom_writeback_audit` rows — operator visibility over the governed write-back. Adds one route (hence its route-count pin updates) and carries its own `DEV_AND_VERIFICATION_PHASE7_BOM_WRITEBACK_AUDIT_READOUT_20260630.md`. |
-
-The only thing outstanding on `#928` is the **merge decision** (it is a DRAFT on the Phase 7
-surface); its implementation and verification are complete. This record neither merges nor closes it.
 
 ## 3. Bounded Confirm Pass
 
@@ -57,8 +47,8 @@ governed write-back (service + router), the read projection + embed-token spine,
 MetaSheet2 consumer adapter + review UI. The bar for a *finding* was deliberately strict: real
 (file:line evidence), buildable now **without** any owner / ops / product / governance decision,
 and verifiable by a test. Refute-by-default; "clean" was a pre-accepted outcome. The pass ran
-against `main` (`34165a8c`), which does not yet include `#928` (§2.1); `#928`'s own surface is
-verified by its own CI and verification doc, not by this pass.
+against `34165a8c` (before `#928` merged); `#928`'s audit-readout surface is verified separately by
+its own CI, verification doc, and review (§2), not by this pass.
 
 **Result: all three surfaces CLEAN — zero buildable-now, ungated findings.**
 
@@ -123,15 +113,14 @@ Reachable, but each needs a product / governance decision; none is a defect:
 
 ## 5. Outcome
 
-The bounded confirm pass agrees with the prior closeout, with one correction: **apart from the
-merge-gated `#928` (implemented + green, §2.1), there is no *unimplemented*, unowned,
-buildable-now development item left on this line.** The hardening landed this cycle
-(`#925`/`#926`/`#927`/`#929` on Yuantus, `#3392`/`#3395` on MetaSheet2) closed the last
+The bounded confirm pass agrees with the prior closeout: **there is no known *unimplemented*,
+unowned, buildable-now development item left on this line.** The hardening landed this cycle
+(`#925`/`#926`/`#927`/`#928`/`#929` on Yuantus, `#3392`/`#3395` on MetaSheet2) closed the last
 commercial/security gaps buildable without owner input, and an adversarial re-check of the core
 write-back / projection / embed / consumer surfaces found zero buildable-now ungated defects.
 
-The remaining motion is **not new coding** — it is (a) the **merge decision on `#928`** (§2.1),
-and (b) the owner / ops / product / governance decisions that unblock the gated tracks in §4. Once a gate clears, its track becomes buildable and can
+The remaining motion is **not coding** — it is the owner / ops / product / governance decisions
+that unblock the gated tracks in §4. Once a gate clears, its track becomes buildable and can
 proceed in parallel with the others per the grouping above. Each such track must take its **own
 explicit opt-in** before code (per the per-phase discipline); this record does not authorize any
 of them.
