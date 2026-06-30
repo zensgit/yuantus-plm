@@ -49,3 +49,25 @@ def test_subcontracting_render_csv_neutralizes_values():
 def test_approvals_render_csv_neutralizes_values():
     out = ApprovalService._render_csv([{"title": EVIL}], ["title"])
     assert "'=1+2" in out
+
+
+def _csv_cells(text):
+    import csv
+    from io import StringIO
+    return [c for row in csv.reader(StringIO(text)) for c in row]
+
+
+def test_bom_compare_rows_to_csv_comma_value_cannot_restore_formula():
+    # The hand-built builders must csv-QUOTE, not bare ",".join: a value with an embedded comma
+    # must stay ONE cell, never split so its tail ("=1+2") becomes a live formula cell.
+    out = _rows_to_csv([{"line_key": "safe,=1+2", "parent_id": "p"}])
+    cells = _csv_cells(out)
+    assert "safe,=1+2" in cells  # csv quoting kept the comma value as a single cell
+    assert not any(c.startswith(("=", "+", "-", "@")) for c in cells)  # no live-formula cell
+
+
+def test_bom_compare_diff_to_csv_comma_value_cannot_restore_formula():
+    out = _diff_to_csv({"differences": [{"change_type": "x", "row_key": "safe,=1+2"}]})
+    cells = _csv_cells(out)
+    assert "safe,=1+2" in cells
+    assert not any(c.startswith(("=", "+", "-", "@")) for c in cells)
