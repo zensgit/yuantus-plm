@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import csv
+from yuantus.meta_engine.web.csv_export_safety import safe_dict_writer
 import hashlib
 import io
 import json
@@ -1108,7 +1109,7 @@ class DocumentMultiSiteService:
 
         if normalized == "csv":
             csv_io = io.StringIO()
-            writer = csv.DictWriter(
+            writer = safe_dict_writer(
                 csv_io,
                 fieldnames=[
                     "scope",
@@ -1991,7 +1992,7 @@ class ECOActivityValidationService:
 
         if normalized == "csv":
             csv_io = io.StringIO()
-            writer = csv.DictWriter(
+            writer = safe_dict_writer(
                 csv_io,
                 fieldnames=[
                     "eco_id",
@@ -3463,7 +3464,7 @@ class BreakageIncidentService:
             }
         if normalized == "csv":
             csv_io = io.StringIO()
-            writer = csv.DictWriter(
+            writer = safe_dict_writer(
                 csv_io,
                 fieldnames=[
                     "id",
@@ -4187,7 +4188,7 @@ class BreakageIncidentService:
         if normalized == "csv":
             rows = incidents or [{}]
             csv_io = io.StringIO()
-            writer = csv.DictWriter(
+            writer = safe_dict_writer(
                 csv_io,
                 fieldnames=[
                     "id",
@@ -5074,7 +5075,7 @@ class BreakageIncidentService:
         rows = self._metrics_export_rows(metrics)
         if normalized == "csv":
             csv_io = io.StringIO()
-            writer = csv.DictWriter(
+            writer = safe_dict_writer(
                 csv_io,
                 fieldnames=[
                     "date",
@@ -5313,7 +5314,7 @@ class BreakageIncidentService:
         rows = self._metrics_groups_export_rows(metrics_groups)
         if normalized == "csv":
             csv_io = io.StringIO()
-            writer = csv.DictWriter(
+            writer = safe_dict_writer(
                 csv_io,
                 fieldnames=[
                     "group_by",
@@ -7006,7 +7007,7 @@ class WorkorderDocumentPackService:
             manifest["locale"] = locale_context
 
         csv_io = io.StringIO()
-        writer = csv.DictWriter(
+        writer = safe_dict_writer(
             csv_io,
             fieldnames=[
                 "link_id",
@@ -10640,7 +10641,7 @@ class ParallelOpsOverviewService:
             }
         if normalized == "csv":
             csv_io = io.StringIO()
-            writer = csv.DictWriter(
+            writer = safe_dict_writer(
                 csv_io,
                 fieldnames=[
                     "batch_id",
@@ -10914,7 +10915,7 @@ class ParallelOpsOverviewService:
         rows = self._breakage_helpdesk_replay_trend_export_rows(trends)
         if normalized == "csv":
             csv_io = io.StringIO()
-            writer = csv.DictWriter(
+            writer = safe_dict_writer(
                 csv_io,
                 fieldnames=[
                     "bucket_start",
@@ -11129,7 +11130,7 @@ class ParallelOpsOverviewService:
             }
         if normalized == "csv":
             csv_io = io.StringIO()
-            writer = csv.DictWriter(
+            writer = safe_dict_writer(
                 csv_io,
                 fieldnames=[
                     "id",
@@ -12689,7 +12690,7 @@ class ParallelOpsOverviewService:
         rows = self._summary_export_rows(summary)
         if normalized == "csv":
             csv_io = io.StringIO()
-            writer = csv.DictWriter(csv_io, fieldnames=["metric", "value"])
+            writer = safe_dict_writer(csv_io, fieldnames=["metric", "value"])
             writer.writeheader()
             for row in rows:
                 writer.writerow(row)
@@ -12821,7 +12822,7 @@ class ParallelOpsOverviewService:
         rows = self._trend_export_rows(trends)
         if normalized == "csv":
             csv_io = io.StringIO()
-            writer = csv.DictWriter(
+            writer = safe_dict_writer(
                 csv_io,
                 fieldnames=[
                     "bucket_start",

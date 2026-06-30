@@ -2495,10 +2495,13 @@ class ECOApprovalService:
         items = self.get_approval_dashboard_items(**filter_kwargs)
 
         if fmt == "csv":
-            import csv
+            import csv  # noqa: F401  (kept for symmetry with the json branch)
             import io
+
+            from yuantus.meta_engine.web.csv_export_safety import safe_dict_writer
+
             buf = io.StringIO()
-            writer = csv.DictWriter(buf, fieldnames=self._EXPORT_COLUMNS, extrasaction="ignore")
+            writer = safe_dict_writer(buf, fieldnames=self._EXPORT_COLUMNS, extrasaction="ignore")
             writer.writeheader()
             for item in items:
                 writer.writerow(item)

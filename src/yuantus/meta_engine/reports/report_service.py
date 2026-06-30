@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+from yuantus.meta_engine.web.csv_export_safety import safe_writer
 import io
 import json
 import time
@@ -345,7 +346,7 @@ class ReportDefinitionService:
                         columns.append(key)
 
         buffer = io.StringIO()
-        writer = csv.writer(buffer)
+        writer = safe_writer(buffer)
         writer.writerow(columns)
         for item in items:
             row = []

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple
 import csv
+from yuantus.meta_engine.web.csv_export_safety import safe_writer
 import io
 import json
 import uuid
@@ -905,7 +906,7 @@ class BaselineService:
                 if key not in columns:
                     columns.append(key)
         buffer = io.StringIO()
-        writer = csv.writer(buffer)
+        writer = safe_writer(buffer)
         writer.writerow(columns)
         for item in items:
             row = []

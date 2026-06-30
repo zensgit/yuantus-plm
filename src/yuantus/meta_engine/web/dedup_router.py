@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from yuantus.meta_engine.web.csv_export_safety import safe_dict_writer
 import io
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -381,7 +382,7 @@ async def export_report(
         "created_at",
     ]
     buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
+    writer = safe_dict_writer(buf, fieldnames=fieldnames, extrasaction="ignore")
     writer.writeheader()
     for r in rows:
         writer.writerow(r)

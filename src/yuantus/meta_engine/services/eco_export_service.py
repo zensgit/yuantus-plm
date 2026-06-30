@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from yuantus.meta_engine.web.csv_export_safety import safe_writer
 import io
 import json
 from typing import Any, Dict, Iterable, List, Optional
@@ -151,7 +152,7 @@ class EcoImpactExportService:
 
     def to_csv(self) -> str:
         output = io.StringIO(newline="")
-        writer = csv.writer(output)
+        writer = safe_writer(output)
         for section in self.build_sections():
             output.write(f"# {section.name}\n")
             writer.writerow(section.columns)

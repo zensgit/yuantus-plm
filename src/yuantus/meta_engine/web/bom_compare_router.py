@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Dict, Any, Optional, List
 import io
+from yuantus.meta_engine.web.csv_export_safety import safe_writer
 import json
 import threading
 import uuid
@@ -241,25 +242,29 @@ _SUMMARIZED_MD_HEADERS = (
 
 
 def _rows_to_csv(rows: List[Dict[str, Any]]) -> str:
-    lines = [_SUMMARIZED_CSV_HEADERS]
+    # safe_writer csv-QUOTES any cell with a comma/quote (so an embedded comma cannot split a
+    # value into a new cell) AND neutralizes formula-prefixed cells. A bare ",".join would let
+    # "safe,=1+2" restore a live "=1+2" cell -- structural injection re-opening formula injection.
+    buf = io.StringIO()
+    writer = safe_writer(buf, lineterminator="\n")
+    writer.writerow(_SUMMARIZED_CSV_HEADERS.split(","))
     for r in rows:
         def _v(val):
             if val is None:
                 return ""
             if isinstance(val, list):
                 return ";".join(str(x) for x in val)
-            if isinstance(val, float):
-                return str(val)
             return str(val)
 
-        lines.append(",".join([
+        writer.writerow([
             _v(r.get("line_key")), _v(r.get("parent_id")), _v(r.get("child_id")),
             _v(r.get("status")), _v(r.get("quantity_before")), _v(r.get("quantity_after")),
             _v(r.get("quantity_delta")), _v(r.get("uom_before")), _v(r.get("uom_after")),
             _v(r.get("relationship_id_before")), _v(r.get("relationship_id_after")),
             _v(r.get("severity")), _v(r.get("change_fields")),
-        ]))
-    return "\n".join(lines)
+        ])
+    out = buf.getvalue()
+    return out[:-1] if out.endswith("\n") else out
 
 
 def _rows_to_markdown(rows: List[Dict[str, Any]], title: str = "BOM Compare Summarized") -> str:
@@ -379,10 +384,12 @@ _DIFF_CSV_HEADERS = "change_type,row_key,line_key,parent_id,child_id,status,chan
 
 
 def _diff_to_csv(diff_result: Dict[str, Any]) -> str:
-    lines = [_DIFF_CSV_HEADERS]
+    buf = io.StringIO()
+    writer = safe_writer(buf, lineterminator="\n")
+    writer.writerow(_DIFF_CSV_HEADERS.split(","))
     for d in diff_result.get("differences", []):
         cf = ";".join(d.get("changed_fields", []))
-        lines.append(",".join([
+        writer.writerow([
             str(d.get("change_type", "")),
             str(d.get("row_key", "")),
             str(d.get("line_key", "")),
@@ -390,8 +397,9 @@ def _diff_to_csv(diff_result: Dict[str, Any]) -> str:
             str(d.get("child_id", "")),
             str(d.get("status", "")),
             cf,
-        ]))
-    return "\n".join(lines)
+        ])
+    out = buf.getvalue()
+    return out[:-1] if out.endswith("\n") else out
 
 
 def _diff_to_markdown(diff_result: Dict[str, Any], title: str) -> str:
