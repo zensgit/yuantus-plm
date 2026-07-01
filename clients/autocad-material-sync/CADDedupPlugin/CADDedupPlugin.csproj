@@ -110,19 +110,11 @@
     </Compile>
     <Compile Include="MaterialSyncApiClient.cs" />
     <Compile Include="NotificationManager.cs" />
-    <Compile Include="SimilarityDetailWindow.xaml.cs">
-      <DependentUpon>SimilarityDetailWindow.xaml</DependentUpon>
-    </Compile>
     <Compile Include="TrendWarningManager.cs" />
-    <Compile Include="UserIdentification.cs" />
   </ItemGroup>
   <!-- XAML 文件 -->
   <ItemGroup>
     <Page Include="MaterialSyncDiffPreviewWindow.xaml">
-      <SubType>Designer</SubType>
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="SimilarityDetailWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
