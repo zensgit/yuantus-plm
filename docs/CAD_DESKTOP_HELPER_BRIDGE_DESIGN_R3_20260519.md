@@ -1,6 +1,6 @@
 # CAD Desktop Helper Bridge — Design R3 (2026-05-19)
 
-**Status**: Design draft, awaiting implementation opt-in（R3 — Codex 第二轮审阅修订全部纳入；R1 / R2 文档作废，本稿为唯一参考版本）
+**Status**: Historical design, partially implemented（R3 closeout 与后续 ADR 记录实现差异；本文保留设计基线并标注已知修订）
 **Scope**: Step 1（Windows CAD 环境探测器） + Step 2（`yuantus-cad-helper` localhost HTTP 桥）
 **Out of scope this revision**: Tauri Companion UI、HKCU 文件关联落盘、Vault 同步、3D Viewer、BOM 桌面视图、SolidWorks/Inventor/CATIA/NX/Creo 适配、国产 CAD R3 阶段写 DWG、helper 暴露服务端 values/target_properties/target_cad_fields 等非 item_id 路径。
 
@@ -116,7 +116,7 @@ R3 在 R2 基础上修复以下问题（详见 §11 变更记录）：
 - helper 是 **外部进程**，永远不持有 AutoCAD `Document` 上下文，**永远不写 DWG**。所有 DWG 写入只在 CAD 进程内由 `CADDedupPlugin`（或国产 CAD 后续阶段的专用适配）完成。
 - helper 是 **唯一** 与 PLM 服务端通信的本机出口。CAD 端两个客户端 DLL 都不直接打 PLM。
 - LISP 永不直接发 HTTP、永不读 DPAPI、永不持有 token。
-- `CADDedupPlugin` **不**通过 LISP 桥调用 helper —— 它是 C# 进程内直接 `ProjectReference` `Yuantus.Cad.Shared`，直接方法调用。LISP 桥只为国产 CAD 服务。
+- `CADDedupPlugin` **不**通过 LISP 桥调用 helper —— 它是 C# 进程内调用 `Yuantus.Cad.Shared` 命名空间。当前 legacy AutoCAD 工程通过链接 Shared 源码编译进插件程序集，避免非 SDK WPF 工程 `ProjectReference` SDK-style Shared 时触发 BuildTools SDK resolver 问题。LISP 桥只为国产 CAD 服务。
 - **netstandard2.0 不在 R3 范围**：.NET Framework v4.6 不在 netstandard2.0 官方兼容矩阵（需 v4.6.1+），Shared 走多目标 `net46;net6.0-windows` 而非 netstandard。
 
 ---
@@ -700,7 +700,7 @@ CREATE INDEX idx_audit_pull ON audit_events(pull_id);
 
 > 这一节定义"如何从 LISP 调到 helper"，但**不实现具体 LISP 文件** —— 那是后续 Step 3 的范围。R3 在这里冻结接口契约。
 >
-> **关键**：本节描述**国产 CAD 路线**。AutoCAD 路线（`CADDedupPlugin`）是 C# 进程内直接 `ProjectReference` `Yuantus.Cad.Shared (net46 target)`，**不**走 LISP 桥。
+> **关键**：本节描述**国产 CAD 路线**。AutoCAD 路线（`CADDedupPlugin`）是 C# 进程内使用 `Yuantus.Cad.Shared` 代码；当前 legacy 工程链接 Shared 源码编译进插件程序集，**不**走 LISP 桥。
 
 **问题**：AutoCAD/ZWCAD/GstarCAD 的 LISP `startapp` 是 fire-and-forget，无法读响应。
 
@@ -977,7 +977,7 @@ User                CADDedupPlugin (in acad.exe)   helper.exe              PLM A
 | `clients/autocad-material-sync/CADDedupPlugin/CadMaterialFieldService.cs` | 既有 | **零改动**。DWG 读写仍由 acad.exe 进程内调用 |
 | `clients/autocad-material-sync/CADDedupPlugin/MaterialSyncDiffPreviewWindow.xaml(.cs)` | 既有 | **零改动** |
 | `clients/autocad-material-sync/CADDedupPlugin/DedupPlugin.cs`（PLMMATPULL / PLMMATPUSH 命令） | 既有 | **零改动**对外形为；内部走 `MaterialSyncApiClient` → Shared → helper 链路 |
-| `clients/autocad-material-sync/CADDedupPlugin/UserIdentification.cs` | 既有 | **保留**；helper 内部新增同等概念的 `LocalIdentity`（在 Shared 中） |
+| `clients/autocad-material-sync/CADDedupPlugin/UserIdentification.cs` | 既有 | **已移除**（未接线的死代码，随 hygiene 清理删除）；桌面端身份改由 `Yuantus.Cad.Shared` 的 `InstallId` / `SessionContext` 承担 |
 | `plugins/yuantus-cad-material-sync/main.py` | 既有 | **零改动**。helper 只是新增客户端 |
 | `services/cad-extractor/` `services/cad-connector/` | 既有 | **零改动**；helper R3 不代理这两个服务 |
 | `clients/cad-desktop-helper/Shared/` | **新增**：`Yuantus.Cad.Shared.csproj`（**`<TargetFrameworks>net46;net6.0-windows</TargetFrameworks>`**） | helper discovery + DPAPI token + HTTP transport client + 错误信封 + 注册表抽象 + `InstallId.GetOrCreate()` 原子 primitive |
