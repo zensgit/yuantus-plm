@@ -9,10 +9,11 @@
 ## 1. Status at a glance
 
 The core feature — governed BOM multi-table **read projection + write-back + embed** — is **shipped
-and live end-to-end**. The provider (Yuantus) side is adversarially audited complete (#935). There
-is **no unowned, buildable-now, ungated code left**: the one remaining correctness gap is **built and
-green, awaiting merge** (#3469); everything else is a **decision** (owner/product/governance) or an
-**ops/env** task, not engineering.
+and live end-to-end**. The provider (Yuantus) side is **assessed complete by the #935 deep-audit —
+still OPEN, pending owner口径-alignment review comments; treat as pending until #935 merges**. The one
+remaining correctness gap is **built and checks-green, but `BEHIND` current metasheet2 main** (#3469 —
+rebase, re-confirm green, then owner-go merge); everything else is a **decision**
+(owner/product/governance) or an **ops/env** task, not engineering.
 
 ## 2. Surfaces (the claim board)
 
@@ -23,8 +24,8 @@ green, awaiting merge** (#3469); everything else is a **decision** (owner/produc
 | Embed-token mint (P3-D1, Ed25519, TTL≤600, jti-audit) | Yuantus | ✅ SHIPPED | — | — |
 | Consumer review UI + workbench write-back relay | MetaSheet2 | ✅ SHIPPED | — | — |
 | Multi-`kid` embed verify | MetaSheet2 | ✅ SHIPPED (#3395) | — | — |
-| **Consumer `If-Match` (same-cell lost-update fix)** | MetaSheet2 | 🟢 **IN-FLIGHT — built + green** | `codex/plm-writeback-if-match` (**#3469**) | **merge** (needs owner go) |
-| Date-obsolete DP1 light-path revert | Yuantus | 🟡 IN-FLIGHT | **#934** (owner-authorized) | merge when green |
+| **Consumer `If-Match` (same-cell lost-update fix)** | MetaSheet2 | 🟢 **IN-FLIGHT — built, checks green, `BEHIND` main** | `codex/plm-writeback-if-match` (**#3469**) | rebase, re-confirm green, then **merge** (owner go) |
+| Date-obsolete DP1 light-path revert | Yuantus | 🟡 IN-FLIGHT | **#934** (owner-authorized) | fix/accept reason-length P2 (persisted `String(400)`, request model unbounded) + green, then merge |
 | Locked-BOM ECO revision route | Yuantus + ms2 | ⛔ GATED (direction ratified #933: A3/B1/C2) | — | per-phase opt-in: `EcoPermissionAdapter` authz, discriminated-409 contract, ECO SKU (§7) |
 | Date-obsolete DP1-iii (child-lifecycle undo) + broader revert | Yuantus | ⛔ GATED | — | governance semantics |
 | Phase-6 SSO → session → bridge | Yuantus + ms2 | ⛔ DEFERRED | — | owner: is continuous in-iframe UX the next product line? |
@@ -53,5 +54,6 @@ The bottleneck is **coordination + merge mechanics + decision latency**, not bui
 
 ## 5. Immediate action
 
-**Merge #3469** → feature correctness-complete. It is green and one owner instruction from delivered
-(held per the metasheet2 owner-merge rule). Then #934 lands on its own track and ops takes the §2 env row.
+**#3469** → feature correctness-complete. Checks are green **but it is `BEHIND` current main**, so the
+accurate next step is **rebase to current main, re-confirm green, then owner-go merge** (held per the
+metasheet2 owner-merge rule). Then #934 clears its reason-length P2 and lands, and ops takes the §2 env row.
