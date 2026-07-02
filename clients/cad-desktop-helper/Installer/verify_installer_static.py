@@ -172,17 +172,42 @@ def check_signing_present_and_guarded(code: str) -> None:
     # when SignToolCmd is supplied.
     require("first-party" in pack.lower(),
             "guard 4: pack.ps1 must sign the first-party payload binaries (not just the installer)")
-    for binary in ("yuantus-cad-helper.exe", "yuantus-cad-detector.exe",
-                   "YuantusCadHelperBridge.dll", "CADDedupPlugin.dll"):
-        require(binary in pack,
-                f"guard 4: pack.ps1 first-party signing list must include {binary}")
-    require("(Join-Path $bundleContents 'Yuantus.Cad.Shared.dll')" not in pack,
+    first_party_match = re.search(r"\$firstParty\s*=\s*@\((.*?)\n\s*\)", pack, re.DOTALL)
+    require(first_party_match is not None, "guard 4: pack.ps1 must declare a $firstParty signing list")
+    first_party_entries = set(
+        re.findall(r"\(Join-Path \$([A-Za-z]+) '([^']+)'\)", first_party_match.group(1))
+    )
+    for stage, binary in (
+        ("helperStage", "yuantus-cad-helper.exe"),
+        ("helperStage", "yuantus-cad-detector.exe"),
+        ("helperStage", "Yuantus.Cad.Shared.dll"),
+        ("bridgeStage", "YuantusCadHelperBridge.dll"),
+        ("bridgeStage", "Yuantus.Cad.Shared.dll"),
+        ("bundleContents", "CADDedupPlugin.dll"),
+    ):
+        require((stage, binary) in first_party_entries,
+                f"guard 4: pack.ps1 first-party signing list must include {stage}\\{binary}")
+    require(("bundleContents", "Yuantus.Cad.Shared.dll") not in first_party_entries,
             "guard 4: CADDedup bundle must not sign source-linked Yuantus.Cad.Shared.dll")
     # signing must be gated on SignToolCmd (CI, no cert -> unsigned payload + installer)
     require(re.search(r"if\s*\(\s*\$SignToolCmd\s*\)", pack) is not None,
             "guard 4: pack.ps1 payload signing must be gated by `if ($SignToolCmd)`")
-    require("@('CADDedupPlugin.dll', 'Newtonsoft.Json.dll')" in pack,
-            "pack.ps1 must stage only CADDedupPlugin.dll + Newtonsoft.Json.dll into source-linked CADDedup bundle")
+    bundle_loop = re.search(r"foreach\s*\(\s*\$dll\s+in\s+@\((.*?)\)\s*\)", pack, re.DOTALL)
+    require(bundle_loop is not None, "pack.ps1 must explicitly enumerate source-linked CADDedup bundle DLLs")
+    bundle_dlls = set(re.findall(r"'([^']+\.dll)'", bundle_loop.group(1)))
+    require(
+        bundle_dlls == {"CADDedupPlugin.dll", "Newtonsoft.Json.dll"},
+        "pack.ps1 must stage exactly CADDedupPlugin.dll + Newtonsoft.Json.dll into source-linked CADDedup bundle",
+    )
+
+
+def check_install_deletes_stale_bundle_shared(code: str) -> None:
+    require("[InstallDelete]" in code, "installer must remove stale files during upgrade/repair")
+    install_delete = code.split("[InstallDelete]", 1)[1].split("[UninstallDelete]", 1)[0]
+    require(
+        r"{userappdata}\Autodesk\ApplicationPlugins\CADDedup.bundle\Contents\Yuantus.Cad.Shared.dll" in install_delete,
+        "installer must delete stale source-linked CADDedup bundle Yuantus.Cad.Shared.dll on upgrade",
+    )
 
 
 def check_no_service_or_autostart(code: str, code_nc: str) -> None:
@@ -382,6 +407,7 @@ def main() -> int:
         ("guard 2: no HKLM write", lambda: check_no_hklm(code_nc)),
         ("guard 3: per-user {userappdata} paths, no relocatable layout", lambda: check_install_paths_pinned_to_userappdata(code, code_nc)),
         ("guard 4: signing present + #ifdef-guarded (CI unsigned)", lambda: check_signing_present_and_guarded(code)),
+        ("source-link upgrade cleanup removes stale CADDedup Shared DLL", lambda: check_install_deletes_stale_bundle_shared(code)),
         ("guard 5: no Windows Service / auto-start", lambda: check_no_service_or_autostart(code, code_nc)),
         ("guard 6: no runtime-file pre-creation", lambda: check_no_runtime_file_pre_creation(code)),
         ("guard 7: CAD-startup fenced + --skip-cad-config gated", lambda: check_cad_startup_fenced_and_gated(code)),

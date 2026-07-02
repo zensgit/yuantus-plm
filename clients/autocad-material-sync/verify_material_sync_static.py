@@ -202,6 +202,7 @@ def check_api_contract() -> None:
 
 def check_s8_helper_bridge_contract() -> None:
     project = read(PLUGIN / "CADDedupPlugin.csproj")
+    project_xml = ET.parse(PLUGIN / "CADDedupPlugin.csproj").getroot()
     material = read(PLUGIN / "MaterialSyncApiClient.cs")
     dedup = read(PLUGIN / "DedupApiClient.cs")
     plugin = read(PLUGIN / "DedupPlugin.cs")
@@ -212,10 +213,31 @@ def check_s8_helper_bridge_contract() -> None:
         r"..\..\cad-desktop-helper\Shared\Yuantus.Cad.Shared.csproj" not in project,
         "CADDedupPlugin should source-link Shared instead of ProjectReference",
     )
-    require(r"..\..\cad-desktop-helper\Shared\**\*.cs" in project, "CADDedupPlugin should source-link Shared .cs files")
-    require(r"..\..\cad-desktop-helper\Shared\Properties\AssemblyInfo.cs" in project, "source-link should exclude Shared AssemblyInfo")
-    require(r"..\..\cad-desktop-helper\Shared\obj\**\*.cs" in project, "source-link should exclude Shared obj outputs")
-    require("Yuantus.Cad.Shared.dll" not in project, "post-build should not copy source-linked Yuantus.Cad.Shared.dll")
+    compile_items = [elem for elem in project_xml.iter() if elem.tag.split("}")[-1] == "Compile"]
+    shared_links = [
+        elem for elem in compile_items
+        if (elem.attrib.get("Include") or "").replace("/", "\\") == r"..\..\cad-desktop-helper\Shared\**\*.cs"
+    ]
+    require(len(shared_links) == 1, "CADDedupPlugin should source-link Shared .cs files exactly once")
+    exclude = (shared_links[0].attrib.get("Exclude") or "").replace("/", "\\")
+    for excluded in (
+        r"..\..\cad-desktop-helper\Shared\Properties\AssemblyInfo.cs",
+        r"..\..\cad-desktop-helper\Shared\obj\**\*.cs",
+        r"..\..\cad-desktop-helper\Shared\bin\**\*.cs",
+    ):
+        require(excluded in exclude, f"source-link should exclude {excluded}")
+    targets = {elem.attrib.get("Name") for elem in project_xml.iter() if elem.tag.split("}")[-1] == "Target"}
+    require("ValidateSharedSourceLink" in targets, "CADDedupPlugin should fail fast if Shared source files are missing")
+    copy_items = [elem for elem in project_xml.iter() if elem.tag.split("}")[-1] == "Copy"]
+    require(
+        all("Yuantus.Cad.Shared.dll" not in (elem.attrib.get("SourceFiles") or "") for elem in copy_items),
+        "post-build should not copy source-linked Yuantus.Cad.Shared.dll",
+    )
+    delete_items = [elem for elem in project_xml.iter() if elem.tag.split("}")[-1] == "Delete"]
+    require(
+        any("Yuantus.Cad.Shared.dll" in (elem.attrib.get("Files") or "") for elem in delete_items),
+        "post-build should remove stale source-linked Yuantus.Cad.Shared.dll from old bundles",
+    )
     require("IMaterialSyncHelperTransport" in material, "MaterialSyncApiClient should expose a helper transport seam")
     require("PostJsonAsync<MaterialSyncResponse>" in material and '"/sync/inbound"' in material, "SyncInboundAsync should call helper /sync/inbound")
     require("PostJsonAsync<MaterialSyncResponse>" in material and '"/sync/outbound"' in material, "SyncOutboundAsync should call helper /sync/outbound")

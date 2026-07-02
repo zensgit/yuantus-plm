@@ -55,7 +55,7 @@ runbook execution itself can be signed off as complete.
 **Required environment:**
 - Windows 11 x64 with current security baseline.
 - AutoCAD 2018 (baseline) installed.
-- `CADDedupPlugin.bundle` registered via the existing AutoCAD bundle
+- `CADDedup.bundle` registered via the existing AutoCAD bundle
   loader.
 
 **Setup steps:**
@@ -559,7 +559,7 @@ rejected with exit code 1.
   Modules`).
 
 **Setup steps:**
-1. Open AutoCAD 2018; ensure `CADDedupPlugin.bundle` is loaded. The
+1. Open AutoCAD 2018; ensure `CADDedup.bundle` is loaded. The
    legacy plugin source-links the net46-compatible `Yuantus.Cad.Shared`
    sources, so there is no standalone `Yuantus.Cad.Shared.dll` module in
    `acad.exe`.

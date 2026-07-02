@@ -80,7 +80,7 @@ administrator privilege:
 | `yuantus-cad-detector.exe` | `%APPDATA%\YuantusPLM\helper\yuantus-cad-detector.exe` | net6.0 self-contained |
 | `YuantusCadHelperBridge.dll` | `%APPDATA%\YuantusPLM\cad-bridge\YuantusCadHelperBridge.dll` | .NET Framework v4.6 |
 | `yuantus_cad_helper.lsp` | `%APPDATA%\YuantusPLM\cad-bridge\yuantus_cad_helper.lsp` | AutoLISP (plain text) |
-| `CADDedupPlugin.bundle` | `%APPDATA%\Autodesk\ApplicationPlugins\CADDedup.bundle` | .NET Framework v4.6 net46 / v4.8 net48 multi-config |
+| `CADDedup.bundle` | `%APPDATA%\Autodesk\ApplicationPlugins\CADDedup.bundle` | .NET Framework v4.6 net46 / v4.8 net48 multi-config |
 
 The R3.2 design `:19` confirms the AutoCAD bundle is **免管理员安装**
 (no-admin install) to `%APPDATA%\Autodesk\ApplicationPlugins\`. The
@@ -141,7 +141,7 @@ manual step is the primary friction the installer removes (see §3.D).
 Identical to the R3.2 closeout report §2:
 `yuantus-cad-detector.exe`, `yuantus-cad-helper.exe`,
 `YuantusCadHelperBridge.dll`, `yuantus_cad_helper.lsp`, plus the
-existing `CADDedupPlugin.bundle`. The installer packages all five.
+existing `CADDedup.bundle`. The installer packages all five.
 
 ## 3. Installer Decisions And Boundaries
 
@@ -184,9 +184,10 @@ introduce a dual-track install location.
   `CADDedupPlugin.dll`; the legacy AutoCAD project source-links the
   net46-compatible `Yuantus.Cad.Shared` sources, so the bundle no longer
   carries a standalone `Yuantus.Cad.Shared.dll`. A net6.0 self-contained
-  helper/detector still lays first-party managed
-  DLLs (e.g. the `Yuantus.Cad.Shared.dll` net6.0 copy) next to the
-  apphost `.exe`. All of these must be signed. The contract is
+  helper/detector still lays first-party managed DLLs (e.g. the
+  `Yuantus.Cad.Shared.dll` net6.0 copy) next to the apphost `.exe`, and
+  the net46 bridge layout carries `YuantusCadHelperBridge.dll` plus its
+  `Yuantus.Cad.Shared.dll` companion. All of these must be signed. The contract is
   expressed as *"sign every first-party signable binary the installer
   delivers"*, not an enumerated whitelist that drifts as the build
   output changes.
@@ -217,7 +218,7 @@ introduce a dual-track install location.
 
 ### 3.C CADDedup re-packaging — consume pre-built artifacts
 
-The installer **packages** the existing `CADDedupPlugin.bundle`; it
+The installer **packages** the existing `CADDedup.bundle`; it
 does **not** rebuild or modify the plugin source:
 
 - the Inno script consumes pre-built outputs from each project's

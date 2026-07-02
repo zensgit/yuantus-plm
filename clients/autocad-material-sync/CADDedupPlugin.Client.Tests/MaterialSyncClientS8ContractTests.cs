@@ -197,16 +197,25 @@ namespace CADDedupPlugin.Client.Tests
         {
             var projectPath = RepoPath("clients/autocad-material-sync/CADDedupPlugin/CADDedupPlugin.csproj");
             var project = File.ReadAllText(projectPath);
-            XDocument.Load(projectPath);
+            var doc = XDocument.Load(projectPath);
+            XNamespace ns = "http://schemas.microsoft.com/developer/msbuild/2003";
 
             Assert.DoesNotContain(@"..\..\cad-desktop-helper\Shared\Yuantus.Cad.Shared.csproj", project);
-            Assert.Contains(@"..\..\cad-desktop-helper\Shared\**\*.cs", project);
-            Assert.Contains(@"..\..\cad-desktop-helper\Shared\Properties\AssemblyInfo.cs", project);
-            Assert.Contains(@"..\..\cad-desktop-helper\Shared\obj\**\*.cs", project);
+            var sharedCompile = doc.Descendants(ns + "Compile")
+                .Single(e => (string)e.Attribute("Include") == @"..\..\cad-desktop-helper\Shared\**\*.cs");
+            var excludes = ((string)sharedCompile.Attribute("Exclude") ?? string.Empty).Split(';');
+            Assert.Contains(@"..\..\cad-desktop-helper\Shared\Properties\AssemblyInfo.cs", excludes);
+            Assert.Contains(@"..\..\cad-desktop-helper\Shared\obj\**\*.cs", excludes);
+            Assert.Contains(@"..\..\cad-desktop-helper\Shared\bin\**\*.cs", excludes);
+            Assert.Contains(doc.Descendants(ns + "Target"),
+                target => (string)target.Attribute("Name") == "ValidateSharedSourceLink");
             Assert.Contains("<TargetFrameworkVersion Condition=\"'$(TargetFrameworkVersion)' == '' and '$(AutoCADVersion)' == '2018'\">v4.6</TargetFrameworkVersion>", project);
             Assert.Contains("<TargetFrameworkVersion Condition=\"'$(TargetFrameworkVersion)' == ''\">v4.8</TargetFrameworkVersion>", project);
             Assert.Contains("<PlatformTarget>x64</PlatformTarget>", project);
-            Assert.DoesNotContain("Yuantus.Cad.Shared.dll", project);
+            Assert.DoesNotContain(doc.Descendants(ns + "Copy"),
+                copy => ((string)copy.Attribute("SourceFiles") ?? string.Empty).Contains("Yuantus.Cad.Shared.dll"));
+            Assert.Contains(doc.Descendants(ns + "Delete"),
+                delete => ((string)delete.Attribute("Files") ?? string.Empty).Contains("Yuantus.Cad.Shared.dll"));
         }
 
         [Fact]

@@ -87,7 +87,7 @@
        without resolving the SDK-style Yuantus.Cad.Shared.csproj. -->
   <ItemGroup>
     <Compile Include="..\..\cad-desktop-helper\Shared\**\*.cs"
-             Exclude="..\..\cad-desktop-helper\Shared\Properties\AssemblyInfo.cs;..\..\cad-desktop-helper\Shared\obj\**\*.cs">
+             Exclude="..\..\cad-desktop-helper\Shared\Properties\AssemblyInfo.cs;..\..\cad-desktop-helper\Shared\obj\**\*.cs;..\..\cad-desktop-helper\Shared\bin\**\*.cs">
       <Link>Yuantus.Cad.Shared\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Compile>
   </ItemGroup>
@@ -132,6 +132,9 @@
   <Target Name="ValidateAutoCADReferences" BeforeTargets="ResolveReferences">
     <Error Condition="!Exists('$(AutoCADInstallDir)\accoremgd.dll')" Text="AutoCAD managed assemblies not found. Set /p:AutoCADVersion=2018 or /p:AutoCADInstallDir=&quot;C:\Program Files\Autodesk\AutoCAD 2018&quot;. Current AutoCADInstallDir=$(AutoCADInstallDir)" />
   </Target>
+  <Target Name="ValidateSharedSourceLink" BeforeTargets="CoreCompile">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)\..\..\cad-desktop-helper\Shared\Transport\HelperTransport.cs')" Text="Yuantus.Cad.Shared sources not found. Restore clients/cad-desktop-helper/Shared before building CADDedupPlugin." />
+  </Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- 构建后复制到 AutoCAD 插件目录 -->
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
@@ -142,6 +145,7 @@
       <PackageContentsSource Condition="!Exists('$(PackageContentsSource)')">$(ProjectDir)PackageContents.xml</PackageContentsSource>
     </PropertyGroup>
     <MakeDir Directories="$(PluginDir)" />
+    <Delete Files="$(PluginDir)\Yuantus.Cad.Shared.dll" Condition="Exists('$(PluginDir)\Yuantus.Cad.Shared.dll')" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginDir)" />
     <Copy SourceFiles="$(TargetDir)Newtonsoft.Json.dll" DestinationFolder="$(PluginDir)" Condition="Exists('$(TargetDir)Newtonsoft.Json.dll')" />
     <Copy SourceFiles="$(PackageContentsSource)" DestinationFiles="$(PluginBundleDir)\PackageContents.xml" Condition="Exists('$(PackageContentsSource)')" />

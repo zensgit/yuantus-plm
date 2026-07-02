@@ -50,6 +50,11 @@ REQUIRED_PATHS = [
     "clients/autocad-material-sync/CADDedupPlugin/PackageContents.2018.xml",
     "clients/autocad-material-sync/CADDedupPlugin/PackageContents.2024.xml",
     "clients/autocad-material-sync/CADDedupPlugin/TrendWarningManager.cs",
+    "clients/cad-desktop-helper/Shared/Yuantus.Cad.Shared.csproj",
+    "clients/cad-desktop-helper/Shared/Discovery/HelperLocator.cs",
+    "clients/cad-desktop-helper/Shared/Identity/InstallId.cs",
+    "clients/cad-desktop-helper/Shared/Security/LocalTokenStore.cs",
+    "clients/cad-desktop-helper/Shared/Transport/HelperTransport.cs",
     "plugins/yuantus-cad-material-sync/plugin.json",
     "plugins/yuantus-cad-material-sync/main.py",
     "src/yuantus/web/workbench.html",
@@ -70,6 +75,7 @@ REQUIRED_PATHS = [
 
 REQUIRED_GLOBS = {
     "docs/DESIGN_AND_VERIFICATION_CAD_MATERIAL_*.md": 10,
+    "clients/cad-desktop-helper/Shared/**/*.cs": 15,
 }
 
 TEXT_SUFFIXES = {

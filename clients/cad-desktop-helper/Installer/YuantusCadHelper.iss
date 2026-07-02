@@ -107,6 +107,12 @@ Source: "{#StagingDir}\CADDedup.bundle\*"; DestDir: "{userappdata}\Autodesk\Appl
 ; the helper, and NO service registration (guard 5) -- the helper is
 ; spawned on demand by the CAD-side caller and idle-exits after 30 min.
 
+[InstallDelete]
+; Earlier CADDedup bundle layouts shipped a standalone net46
+; Yuantus.Cad.Shared.dll. The source-linked plugin no longer needs or ships
+; it, so upgrades/repairs remove stale copies before [Files] runs.
+Type: files; Name: "{userappdata}\Autodesk\ApplicationPlugins\CADDedup.bundle\Contents\Yuantus.Cad.Shared.dll"
+
 [UninstallDelete]
 ; Allow-list of installer-laid subdirs ONLY (guard 8). We never list the
 ; {userappdata}\YuantusPLM root, so local-helper-token.dat / audit.db /

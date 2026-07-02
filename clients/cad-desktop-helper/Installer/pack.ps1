@@ -125,6 +125,7 @@ if ($SignToolCmd) {
         (Join-Path $helperStage 'yuantus-cad-detector.exe'),
         (Join-Path $helperStage 'Yuantus.Cad.Shared.dll'),
         (Join-Path $bridgeStage 'YuantusCadHelperBridge.dll'),
+        (Join-Path $bridgeStage 'Yuantus.Cad.Shared.dll'),
         (Join-Path $bundleContents 'CADDedupPlugin.dll')
     )
     foreach ($file in $firstParty) {
