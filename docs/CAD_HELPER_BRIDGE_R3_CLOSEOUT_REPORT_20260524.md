@@ -58,13 +58,15 @@ Four R3.2 deliverables plus the existing AutoCAD plugin:
 | `yuantus-cad-helper.exe` | `clients/cad-desktop-helper/Helper/` | net6.0 self-contained Windows binary; `--reset-local-token` subcommand |
 | `YuantusCadHelperBridge.dll` | `clients/cad-desktop-helper/Bridge/` | .NET Framework v4.6 |
 | `yuantus_cad_helper.lsp` | `clients/cad-desktop-helper/Lisp/` | AutoLISP (single source for ZWCAD + GstarCAD; sniffs `(getvar "PROGRAM")` for per-host adaptation) |
-| `CADDedupPlugin.bundle` (existing) | `clients/autocad-material-sync/CADDedupPlugin/` | .NET Framework v4.6 net46 / v4.8 net48 multi-config |
+| `CADDedup.bundle` (existing) | `clients/autocad-material-sync/CADDedupPlugin/` | .NET Framework v4.6 net46 / v4.8 net48 multi-config |
 
-`Yuantus.Cad.Shared` multi-targets `net46;net6.0-windows`. Each
-consumer (`CADDedupPlugin` net46, `YuantusCadHelperBridge` v4.6,
-helper net6.0, detector net6.0) auto-selects the right target from a
-single ProjectReference. Acceptance test #12 proves the two loaded
-copies inside `acad.exe` + `yuantus-cad-helper.exe` do not collide at
+`Yuantus.Cad.Shared` multi-targets `net46;net6.0-windows`.
+`YuantusCadHelperBridge` v4.6, helper net6.0, and detector net6.0
+auto-select the right target from a ProjectReference. The legacy
+`CADDedupPlugin` source-links the net46-compatible Shared sources into
+`CADDedupPlugin.dll` instead of shipping a standalone Shared DLL.
+Acceptance test #12 proves the source-linked code inside `acad.exe` and
+the net6.0 Shared DLL inside `yuantus-cad-helper.exe` do not collide at
 runtime.
 
 ## 3. Production helper Kestrel route table (exactly 10)
