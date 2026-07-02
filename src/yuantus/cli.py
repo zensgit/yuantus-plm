@@ -487,6 +487,50 @@ def ecm_publication_worker(
         typer.echo(f"ECM publication worker '{w.worker_id}' stopped.", err=True)
 
 
+@app.command(name="notification-worker")
+def notification_worker(
+    worker_id: Optional[str] = typer.Option(None, help="Worker id"),
+    poll_interval: Optional[int] = typer.Option(
+        None, help="Poll interval seconds (default from settings)"
+    ),
+    once: bool = typer.Option(False, help="Drain one batch then exit"),
+    tenant: Optional[str] = typer.Option(None, "--tenant", help="Tenant id"),
+    org: Optional[str] = typer.Option(None, "--org", help="Org id"),
+) -> None:
+    """Run the durable notification delivery worker.
+
+    The default adapter is no-I/O `null`; SMTP is selected only by explicit
+    settings and fails closed when required SMTP settings are absent.
+    """
+    if tenant is not None:
+        tenant_id_var.set(tenant)
+    if org is not None:
+        org_id_var.set(org)
+
+    from yuantus.meta_engine.bootstrap import import_all_models
+    from yuantus.meta_engine.notifications.worker import NotificationOutboxWorker
+
+    import_all_models()
+
+    w = NotificationOutboxWorker(
+        worker_id or "notification-worker-1", poll_interval_seconds=poll_interval
+    )
+    if once:
+        processed = w.run_once()
+        typer.echo(f"Processed {processed} notification delivery row(s).")
+        return
+
+    typer.echo(
+        f"Notification worker '{w.worker_id}' started. Press Ctrl+C to stop.",
+        err=True,
+    )
+    try:
+        w.run_forever()
+    except KeyboardInterrupt:
+        w.stop()
+        typer.echo(f"Notification worker '{w.worker_id}' stopped.", err=True)
+
+
 @app.command(name="date-obsolete-worker")
 def date_obsolete_worker(
     worker_id: Optional[str] = typer.Option(None, help="Worker id"),

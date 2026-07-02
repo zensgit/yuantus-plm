@@ -1,0 +1,2 @@
+"""Durable notification outbox subsystem."""
+
