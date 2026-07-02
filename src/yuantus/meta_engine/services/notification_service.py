@@ -1,11 +1,9 @@
-"""
-Notification Service
-Lightweight notification dispatcher for workflow events.
-"""
+"""Durable notification enqueue surface for workflow events."""
 
 from typing import Any, Dict, List, Optional
-from datetime import datetime
 from sqlalchemy.orm import Session
+
+from yuantus.meta_engine.notifications.service import NotificationOutboxService
 
 
 class NotificationService:
@@ -18,14 +16,8 @@ class NotificationService:
         payload: Dict[str, Any],
         recipients: Optional[List[str]] = None,
     ) -> None:
-        entry = {
-            "timestamp": datetime.utcnow().isoformat(),
-            "event": event,
-            "recipients": recipients or [],
-            "payload": payload,
-        }
-
-        import logging
-
-        logger = logging.getLogger("plm_notify")
-        logger.info(f"[NOTIFY] {entry}")
+        NotificationOutboxService(self.session).enqueue(
+            event=event,
+            payload=payload,
+            recipients=recipients or [],
+        )

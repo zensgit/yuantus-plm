@@ -377,6 +377,26 @@ def upgrade() -> None:
     sa.Column('description', sa.String(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('meta_notification_outbox',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('tenant_id', sa.String(length=64), nullable=True),
+    sa.Column('org_id', sa.String(length=64), nullable=True),
+    sa.Column('event_type', sa.String(length=120), nullable=False),
+    sa.Column('object_type', sa.String(length=120), nullable=True),
+    sa.Column('object_id', sa.String(), nullable=True),
+    sa.Column('title', sa.String(length=255), nullable=True),
+    sa.Column('body', sa.Text(), nullable=True),
+    sa.Column('payload', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
+    sa.Column('payload_fingerprint', sa.String(length=128), nullable=False),
+    sa.Column('idempotency_key', sa.String(length=128), nullable=False),
+    sa.Column('state', sa.String(length=30), nullable=False),
+    sa.Column('properties', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
+    sa.Column('created_by_id', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('idempotency_key', name='uq_notification_outbox_idempotency_key')
+    )
     op.create_table('meta_numbering_sequences',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('item_type_id', sa.String(length=120), nullable=False),
@@ -828,6 +848,33 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['category_id'], ['meta_maintenance_categories.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('serial_number')
+    )
+    op.create_table('meta_notification_deliveries',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('notification_id', sa.String(), nullable=False),
+    sa.Column('tenant_id', sa.String(length=64), nullable=True),
+    sa.Column('org_id', sa.String(length=64), nullable=True),
+    sa.Column('recipient_user_id', sa.Integer(), nullable=True),
+    sa.Column('recipient_key', sa.String(length=200), nullable=False),
+    sa.Column('recipient_email', sa.String(length=255), nullable=True),
+    sa.Column('channel', sa.String(length=30), nullable=False),
+    sa.Column('state', sa.String(length=30), nullable=False),
+    sa.Column('reason', sa.String(length=30), nullable=True),
+    sa.Column('attempt_count', sa.Integer(), nullable=False),
+    sa.Column('max_attempts', sa.Integer(), nullable=False),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('remote_id', sa.String(), nullable=True),
+    sa.Column('payload', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
+    sa.Column('properties', sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), 'postgresql'), nullable=True),
+    sa.Column('next_attempt_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('worker_id', sa.String(), nullable=True),
+    sa.Column('claimed_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('sent_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=True),
+    sa.ForeignKeyConstraint(['notification_id'], ['meta_notification_outbox.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('notification_id', 'recipient_key', 'channel', name='uq_notification_delivery_recipient_channel')
     )
     op.create_table('meta_relationship_types',
     sa.Column('id', sa.String(), nullable=False),
@@ -1974,6 +2021,10 @@ def upgrade() -> None:
     op.create_index(op.f('ix_meta_mes_consumption_inbox_next_attempt_at'), 'meta_mes_consumption_inbox', ['next_attempt_at'], unique=False)
     op.create_index(op.f('ix_meta_mes_consumption_inbox_plan_id'), 'meta_mes_consumption_inbox', ['plan_id'], unique=False)
     op.create_index(op.f('ix_meta_mes_consumption_inbox_state'), 'meta_mes_consumption_inbox', ['state'], unique=False)
+    op.create_index(op.f('ix_meta_notification_outbox_event_type'), 'meta_notification_outbox', ['event_type'], unique=False)
+    op.create_index(op.f('ix_meta_notification_outbox_object_id'), 'meta_notification_outbox', ['object_id'], unique=False)
+    op.create_index(op.f('ix_meta_notification_outbox_org_id'), 'meta_notification_outbox', ['org_id'], unique=False)
+    op.create_index(op.f('ix_meta_notification_outbox_tenant_id'), 'meta_notification_outbox', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_meta_numbering_sequences_item_type_id'), 'meta_numbering_sequences', ['item_type_id'], unique=False)
     op.create_index(op.f('ix_meta_numbering_sequences_org_id'), 'meta_numbering_sequences', ['org_id'], unique=False)
     op.create_index(op.f('ix_meta_numbering_sequences_tenant_id'), 'meta_numbering_sequences', ['tenant_id'], unique=False)
@@ -2007,6 +2058,9 @@ def upgrade() -> None:
     op.create_index(op.f('ix_meta_files_checksum'), 'meta_files', ['checksum'], unique=False)
     op.create_index(op.f('ix_meta_files_file_type'), 'meta_files', ['file_type'], unique=False)
     op.create_index(op.f('ix_meta_maintenance_equipment_category_id'), 'meta_maintenance_equipment', ['category_id'], unique=False)
+    op.create_index(op.f('ix_meta_notification_deliveries_notification_id'), 'meta_notification_deliveries', ['notification_id'], unique=False)
+    op.create_index(op.f('ix_meta_notification_deliveries_org_id'), 'meta_notification_deliveries', ['org_id'], unique=False)
+    op.create_index(op.f('ix_meta_notification_deliveries_tenant_id'), 'meta_notification_deliveries', ['tenant_id'], unique=False)
     op.create_index(op.f('ix_meta_report_executions_report_id'), 'meta_report_executions', ['report_id'], unique=False)
     op.create_index(op.f('ix_meta_sync_jobs_site_id'), 'meta_sync_jobs', ['site_id'], unique=False)
     op.create_index(op.f('ix_meta_approval_request_events_request_id'), 'meta_approval_request_events', ['request_id'], unique=False)
@@ -2206,6 +2260,9 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_meta_approval_request_events_request_id'), table_name='meta_approval_request_events')
     op.drop_index(op.f('ix_meta_sync_jobs_site_id'), table_name='meta_sync_jobs')
     op.drop_index(op.f('ix_meta_report_executions_report_id'), table_name='meta_report_executions')
+    op.drop_index(op.f('ix_meta_notification_deliveries_tenant_id'), table_name='meta_notification_deliveries')
+    op.drop_index(op.f('ix_meta_notification_deliveries_org_id'), table_name='meta_notification_deliveries')
+    op.drop_index(op.f('ix_meta_notification_deliveries_notification_id'), table_name='meta_notification_deliveries')
     op.drop_index(op.f('ix_meta_maintenance_equipment_category_id'), table_name='meta_maintenance_equipment')
     op.drop_index(op.f('ix_meta_files_file_type'), table_name='meta_files')
     op.drop_index(op.f('ix_meta_files_checksum'), table_name='meta_files')
@@ -2239,6 +2296,10 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_meta_numbering_sequences_tenant_id'), table_name='meta_numbering_sequences')
     op.drop_index(op.f('ix_meta_numbering_sequences_org_id'), table_name='meta_numbering_sequences')
     op.drop_index(op.f('ix_meta_numbering_sequences_item_type_id'), table_name='meta_numbering_sequences')
+    op.drop_index(op.f('ix_meta_notification_outbox_tenant_id'), table_name='meta_notification_outbox')
+    op.drop_index(op.f('ix_meta_notification_outbox_org_id'), table_name='meta_notification_outbox')
+    op.drop_index(op.f('ix_meta_notification_outbox_object_id'), table_name='meta_notification_outbox')
+    op.drop_index(op.f('ix_meta_notification_outbox_event_type'), table_name='meta_notification_outbox')
     op.drop_index(op.f('ix_meta_mes_consumption_inbox_state'), table_name='meta_mes_consumption_inbox')
     op.drop_index(op.f('ix_meta_mes_consumption_inbox_plan_id'), table_name='meta_mes_consumption_inbox')
     op.drop_index(op.f('ix_meta_mes_consumption_inbox_next_attempt_at'), table_name='meta_mes_consumption_inbox')
@@ -2352,6 +2413,7 @@ def downgrade() -> None:
     op.drop_table('meta_sync_jobs')
     op.drop_table('meta_report_executions')
     op.drop_table('meta_relationship_types')
+    op.drop_table('meta_notification_deliveries')
     op.drop_table('meta_maintenance_equipment')
     op.drop_table('meta_lifecycle_states')
     op.drop_table('meta_item_types')
@@ -2379,6 +2441,7 @@ def downgrade() -> None:
     op.drop_table('meta_plugin_configs')
     op.drop_table('meta_permissions')
     op.drop_table('meta_numbering_sequences')
+    op.drop_table('meta_notification_outbox')
     op.drop_table('meta_methods')
     op.drop_table('meta_mes_consumption_inbox')
     op.drop_table('meta_maintenance_categories')

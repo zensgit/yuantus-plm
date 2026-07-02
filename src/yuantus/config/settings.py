@@ -619,6 +619,35 @@ class Settings(BaseSettings):
         default=900,
         description="Reclaim publication-outbox rows claimed but unprocessed beyond this (seconds)",
     )
+    NOTIFICATION_OUTBOX_POLL_INTERVAL_SECONDS: int = Field(
+        default=10, description="Notification worker poll interval (seconds)"
+    )
+    NOTIFICATION_OUTBOX_BATCH_SIZE: int = Field(
+        default=20, description="Max notification delivery rows claimed per worker tick"
+    )
+    NOTIFICATION_OUTBOX_RETRY_BACKOFF_SECONDS: int = Field(
+        default=30, description="Notification retry backoff seconds"
+    )
+    NOTIFICATION_OUTBOX_STALE_TIMEOUT_SECONDS: int = Field(
+        default=900,
+        description="Reclaim notification delivery rows claimed but unprocessed beyond this (seconds)",
+    )
+    NOTIFICATION_EMAIL_ADAPTER: str = Field(
+        default="null",
+        description="Notification email adapter: null|smtp. Default null performs no remote I/O.",
+    )
+    NOTIFICATION_SMTP_HOST: str = Field(
+        default="", description="SMTP host for notification email adapter"
+    )
+    NOTIFICATION_SMTP_PORT: int = Field(
+        default=25, description="SMTP port for notification email adapter"
+    )
+    NOTIFICATION_SMTP_FROM: str = Field(
+        default="", description="From address for notification email adapter"
+    )
+    NOTIFICATION_SMTP_TIMEOUT_SECONDS: int = Field(
+        default=10, description="SMTP timeout for notification email adapter"
+    )
     PUBLICATION_ECM_OUTBOX_RETENTION_DAYS: int = Field(
         default=0,
         description=(
