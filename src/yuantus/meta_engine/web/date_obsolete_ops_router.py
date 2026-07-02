@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -237,12 +237,12 @@ async def acknowledge_date_obsolete_impacts_batch(
 
 
 class _RevertRequest(BaseModel):
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(default=None, max_length=400)
 
 
 class _BatchRevertRequest(BaseModel):
     impact_ids: List[str]
-    reason: Optional[str] = None
+    reason: Optional[str] = Field(default=None, max_length=400)
 
 
 def _revert_impact(

@@ -320,6 +320,13 @@ def test_revert_single_404(client, db):
     assert client.post("/api/v1/cadpdm/date-obsolete-impacts/ghost/revert").status_code == 404
 
 
+def test_revert_single_rejects_reason_over_persisted_limit(client, db):
+    _impact(db, "r1", "acknowledged")
+    r = client.post("/api/v1/cadpdm/date-obsolete-impacts/r1/revert", json={"reason": "x" * 401})
+    assert r.status_code == 422
+    assert db.query(DateObsoleteImpactCorrection).filter_by(impact_id="r1").count() == 0
+
+
 def test_revert_batch_transitions_acknowledged_only(client, db):
     _impact(db, "rb1", "acknowledged"); _impact(db, "rb2", "acknowledged"); _impact(db, "rb3", "open")
     r = client.post("/api/v1/cadpdm/date-obsolete-impacts/revert-batch",
@@ -351,6 +358,16 @@ def test_revert_batch_dedups_and_idempotent(client, db):
 def test_revert_batch_empty_list(client, db):
     r = client.post("/api/v1/cadpdm/date-obsolete-impacts/revert-batch", json={"impact_ids": []})
     assert r.status_code == 200 and r.json()["reverted_count"] == 0
+
+
+def test_revert_batch_rejects_reason_over_persisted_limit(client, db):
+    _impact(db, "rb1", "acknowledged")
+    r = client.post(
+        "/api/v1/cadpdm/date-obsolete-impacts/revert-batch",
+        json={"impact_ids": ["rb1"], "reason": "x" * 401},
+    )
+    assert r.status_code == 422
+    assert db.query(DateObsoleteImpactCorrection).count() == 0
 
 
 def test_revert_does_not_touch_child_obsoleted_or_item_lifecycle(client, db):
